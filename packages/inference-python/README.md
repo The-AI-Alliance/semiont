@@ -36,23 +36,25 @@ that may be configured for any provider installs every extra. Asked for a
 provider whose library is not installed, `create_inference_client` raises a
 `ModuleNotFoundError` that names the extra to install.
 
-`create_inference_client` makes a client for the providers the protocol
-names: `ollama` and `anthropic`. The other five drivers are each imported
-from their own module, which raises the same failure where the library is
-not installed.
+`create_inference_client` makes a client for every provider the protocol
+names, which is all seven. It is handed the path of a model catalogue file,
+or `None`: `google`, `openai` and `together` are made with what the file
+says of the model, and are refused without one (`CatalogueRequired`). No
+other provider has the file read. A provider that takes a key is refused
+without it (`KeyRequired`).
 
 ## A first call
 
 A client is made for one provider and one model, at the address the provider
 is reached at. Every argument is stated: a provider that takes no key is
-given `None`.
+given `None`, and one that reads no catalogue is given `None` for that too.
 
 ```python
 from semiont_inference.factory import create_inference_client
 
 
 async def ask(base_url: str) -> str:
-    client = create_inference_client(provider="ollama", model="gemma2:27b", base_url=base_url, api_key=None)
+    client = create_inference_client(provider="ollama", model="gemma2:27b", base_url=base_url, api_key=None, catalogue=None)
     answer = await client.generate_text("Name one river of France.", max_tokens=200, temperature=0.0)
     return answer.text
 ```

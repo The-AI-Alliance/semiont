@@ -723,7 +723,7 @@ apiKey = "${ANTHROPIC_API_KEY}"
 // A binding the roster refuses is still a binding: the worker is wanted, and
 // the fault is refused where its document is written.
 func TestPlanRunsTheWorkerOfAMalformedBinding(t *testing.T) {
-	env := envFrom(t, "[defaults]\nenvironment = \"local\"\n\n[environments.local.workers.yield.inference]\ntype = \"openai\"\nmodel = \"m\"\n")
+	env := envFrom(t, "[defaults]\nenvironment = \"local\"\n\n[environments.local.workers.yield.inference]\ntype = \"mistral\"\nmodel = \"m\"\n")
 	if _, err := workerRoles(env); err == nil {
 		t.Fatal("the fixture's binding is not refused: this test would prove nothing")
 	}

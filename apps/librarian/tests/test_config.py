@@ -45,6 +45,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "embedding": OLLAMA,
     "matcher": MODEL,
     "gatherer": MODEL,
+    "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "gather": {"settleTimeoutMs": 15000},
     "search": {"semanticFloor": 0.6},
     "port": 24104,

@@ -1,5 +1,5 @@
 {
-  "$comment": "What a reference search answers, as every implementation of the Librarian must answer it: a request, what each source the search reads answers, and the candidates in order, each with its score and the reason given for it. Semiont's Librarian (apps/librarian: reference_search.py) runs every case, in apps/librarian/tests/test_score_cases.py, and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `request` is the payload of `match:search-requested`. `now` is the moment the search is made: recency is counted from it, so a runner sets its clock to it. `resources` describes each resource the case names; a source that has a resource answers this description of it. `graph.byName` is what the graph's listing by name answers, as ids in the order it answers them, or `fails` with the failure's message. `graph.byEntityType` is what its listing by entity type answers; it is absent when that listing is not asked. `graph.byId` states, for each id the graph is asked to give the description of, whether the description is `held` or `absent`, or that the read `fails`. `views` states, for each id the view store is asked for, whether the view is `held` or `absent`. No other id is asked of either. `vectors` is what the vector index answers: its `hits` in the order it answers them, each a resource's id and a score, or `fails`; it is absent when the index is not asked. `model` is absent when the model is not asked. Otherwise `shown` is the ids of the candidates it is asked to score, in the order they are numbered from 1, and `reply` is the text it answers, or `fails` says it does not answer. `term` is the search term the sources are asked with. `results` is the `response` of `match:search-results`: each candidate is the description of its resource with `score` and `matchReason` added, and a case states its id and those two. `failed` is the `error` of `match:search-failed`, and such a case states only what is needed to reach it. Either reply carries the request's `referenceId`. THE TERM is the focus's selected text and its hint, each left out when it is absent or empty, joined by one space. THE SOURCES. The graph's listing by name is asked for at most 20 resources by the term, whatever the term is. Its listing by entity type is asked for at most 50 resources of the context's entity types (`metadata.entityTypes`), and only when the context has any. The neighbours are the resources the context's graph connects the request's resource to: each is asked of the graph by id, and of the view store when the graph has none or its read fails; a neighbour neither holds is no candidate. The vector index is asked for at most 40 hits that score 0.4 or more against the embedding of the term, of chunks of any resource but the request's own, and only when the term is not blank: empty, or white space alone. An index that fails has answered no hits. Each hit's resource is read as a neighbour's is, and a hit neither store holds is no candidate. A resource is one candidate however many sources found it, and it is found by each source that answered it: by name, by entity type, as a neighbour, by the vector index. The request's own resource is no candidate, whichever source answers it. THE SCORE is the sum of these, rounded to two decimals. Entity types, only when the context and the candidate each have any: 30 times the types they share divided by the distinct types of both together, and for each shared type 5 divided by the base-2 logarithm of one more than the type's frequency (`metadata.entityTypeFrequencies`; a type with no stated frequency, or with one below 1, counts as seen once). Connection: 20 when the graph connects the request's resource to the candidate both ways, 10 when it connects it one way. Name, the candidate's name and the term compared without regard to the case of letters: 25 when they are equal, else 15 when the name begins with the term, else 10 when the name has the term in it; a blank term matches no name. Recency, for a candidate that states `dateCreated`: 5 times one less the candidate's age in days divided by 30, nothing from thirty days on, and nothing for a date after the moment of the search. Vector index: 25 times the hit's score, and of several hits of one resource the highest of their scores. What cites the request's resource adds nothing to any candidate. Several sources: 3 for each source that found the candidate, when more than one did. THE REASON is these, in this order, joined by `; `: `entity types: ` and the shared types in the context's order, joined by `, `; `bidirectional connection` or `connected`; `exact name match`, `prefix name match` or `contains name match`; `semantic similarity` for a vector hit; and the count of sources followed by ` retrieval sources`, when more than one found it. A candidate with none of these has the reason `candidate`. THE MODEL is asked once, unless the request states `useSemanticScoring` as false or there is no candidate. It is shown the twenty candidates of the highest scores, or all of them when there are fewer, numbered from 1 with the highest score first, and those of one score in the order they were found. Each score it gives a candidate it was shown adds 25 times that score, and the sum is rounded to two decimals again; a score above 0.5 adds `semantic match` to the reason, and is the whole reason of a candidate whose reason was `candidate`. A model that fails, or whose reply states no score, leaves the scores as they were. THE ORDER is by score, the highest first. Candidates of one score stay in the order they were found: the listing by name, the listing by entity type, the neighbours in the order of the graph's edges, the vector index's hits. When the request states a `limit`, the answer is that many of the first candidates at most. FAILURES. A focus that is not an annotation is answered on `match:search-failed`, and no source is asked. So is a request whose `limit` is less than 1, in the words `limit must be at least 1`. So is a search whose listing by name fails, with the failure's message. What the prompt says and how a reply is read are not this table's. Add a case here before changing an implementation.",
+  "$comment": "What a reference search answers, as every implementation of the Librarian must answer it: a request, what each source the search reads answers, and the candidates in order, each with its score and the reason given for it. Semiont's Librarian (apps/librarian: reference_search.py) runs every case, in apps/librarian/tests/test_score_cases.py, and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `request` is the payload of `match:search-requested`. `now` is the moment the search is made: recency is counted from it, so a runner sets its clock to it. `resources` describes each resource the case names; a source that has a resource answers this description of it. `graph.byName` is what the graph's listing by name answers, as ids in the order it answers them, or `fails` with the failure's message. `graph.byEntityType` is what its listing by entity type answers; it is absent when that listing is not asked. `graph.byId` states, for each id the graph is asked to give the description of, whether the description is `held` or `absent`, or that the read `fails`. `views` states, for each id the view store is asked for, whether the view is `held` or `absent`. No other id is asked of either. `vectors` is what the vector index answers: its `hits` in the order it answers them, each a resource's id and a score, or `fails`; it is absent when the index is not asked. `model` is absent when the model is not asked. Otherwise `shown` is the ids of the candidates it is asked to score, in the order they are numbered from 1, and `answers` is the array of elements it answers, each a `candidate`, by its number, and a `score`, or `fails` says it does not answer. `term` is the search term the sources are asked with. `results` is the `response` of `match:search-results`: each candidate is the description of its resource with `score` and `matchReason` added, and a case states its id and those two. `failed` is the `error` of `match:search-failed`, and such a case states only what is needed to reach it. Either reply carries the request's `referenceId`. THE TERM is the focus's selected text and its hint, each left out when it is absent or empty, joined by one space. THE SOURCES. The graph's listing by name is asked for at most 20 resources by the term, whatever the term is. Its listing by entity type is asked for at most 50 resources of the context's entity types (`metadata.entityTypes`), and only when the context has any. The neighbours are the resources the context's graph connects the request's resource to: each is asked of the graph by id, and of the view store when the graph has none or its read fails; a neighbour neither holds is no candidate. The vector index is asked for at most 40 hits that score 0.4 or more against the embedding of the term, of chunks of any resource but the request's own, and only when the term is not blank: empty, or white space alone. An index that fails has answered no hits. Each hit's resource is read as a neighbour's is, and a hit neither store holds is no candidate. A resource is one candidate however many sources found it, and it is found by each source that answered it: by name, by entity type, as a neighbour, by the vector index. The request's own resource is no candidate, whichever source answers it. THE SCORE is the sum of these, rounded to two decimals. Entity types, only when the context and the candidate each have any: 30 times the types they share divided by the distinct types of both together, and for each shared type 5 divided by the base-2 logarithm of one more than the type's frequency (`metadata.entityTypeFrequencies`; a type with no stated frequency, or with one below 1, counts as seen once). Connection: 20 when the graph connects the request's resource to the candidate both ways, 10 when it connects it one way. Name, the candidate's name and the term compared without regard to the case of letters: 25 when they are equal, else 15 when the name begins with the term, else 10 when the name has the term in it; a blank term matches no name. Recency, for a candidate that states `dateCreated`: 5 times one less the candidate's age in days divided by 30, nothing from thirty days on, and nothing for a date after the moment of the search. Vector index: 25 times the hit's score, and of several hits of one resource the highest of their scores. What cites the request's resource adds nothing to any candidate. Several sources: 3 for each source that found the candidate, when more than one did. THE REASON is these, in this order, joined by `; `: `entity types: ` and the shared types in the context's order, joined by `, `; `bidirectional connection` or `connected`; `exact name match`, `prefix name match` or `contains name match`; `semantic similarity` for a vector hit; and the count of sources followed by ` retrieval sources`, when more than one found it. A candidate with none of these has the reason `candidate`. THE MODEL is asked once, unless the request states `useSemanticScoring` as false or there is no candidate. It is shown the twenty candidates of the highest scores, or all of them when there are fewer, numbered from 1 with the highest score first, and those of one score in the order they were found. Each score it gives a candidate it was shown adds 25 times that score, and the sum is rounded to two decimals again; a score above 0.5 adds `semantic match` to the reason, and is the whole reason of a candidate whose reason was `candidate`. A model that fails, or whose reply states no score, leaves the scores as they were. THE ORDER is by score, the highest first. Candidates of one score stay in the order they were found: the listing by name, the listing by entity type, the neighbours in the order of the graph's edges, the vector index's hits. When the request states a `limit`, the answer is that many of the first candidates at most. FAILURES. A focus that is not an annotation is answered on `match:search-failed`, and no source is asked. So is a search whose listing by name fails, with the failure's message. A `limit` is 1 to 200 by the request's schema, so no case states one outside it. What the prompt says and how a reply is read are not this table's. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a resource found by name alone, whose name is the term in other letter case, is an exact name match",
@@ -827,7 +827,7 @@
       ],
       "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
       "vectors": { "hits": [] },
-      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "1. 0.8\n2. 0.5\n3. 0.51" },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "answers": [{ "candidate": 1, "score": 0.8 }, { "candidate": 2, "score": 0.5 }, { "candidate": 3, "score": 0.51 }] },
       "term": "Black Hawk",
       "results": [
         { "id": "res-bh", "score": 45, "matchReason": "exact name match; semantic match" },
@@ -860,7 +860,7 @@
       ],
       "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
       "vectors": { "hits": [] },
-      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "1. 0.2\n2. 0.4\n3. 0.9" },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "answers": [{ "candidate": 1, "score": 0.2 }, { "candidate": 2, "score": 0.4 }, { "candidate": 3, "score": 0.9 }] },
       "term": "Black Hawk",
       "results": [
         { "id": "res-auto", "score": 32.5, "matchReason": "contains name match; semantic match" },
@@ -926,7 +926,7 @@
       ],
       "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
       "vectors": { "hits": [] },
-      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "I cannot score these candidates." },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "answers": [] },
       "term": "Black Hawk",
       "results": [
         { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
@@ -967,7 +967,7 @@
       ]
     },
     {
-      "why": "of twenty-one candidates the model is shown twenty: a score it gives the twentieth counts, and a line of its reply numbered 21 names no candidate and adds nothing. Each candidate shares the context's one entity type, seen 31 times, for 31; they were made a day and a half apart, the first at the moment of the search, so recency gives the first 5 and each one after it a quarter less",
+      "why": "of twenty-one candidates the model is shown twenty: a score it gives the twentieth counts, and an element of its reply numbered 21 names no candidate and adds nothing. Each candidate shares the context's one entity type, seen 31 times, for 31; they were made a day and a half apart, the first at the moment of the search, so recency gives the first 5 and each one after it a quarter less",
       "now": "2026-03-31T00:00:00.000Z",
       "request": {
         "resourceId": "res-main",
@@ -1014,7 +1014,7 @@
       "vectors": { "hits": [] },
       "model": {
         "shown": ["res-treaty-01", "res-treaty-02", "res-treaty-03", "res-treaty-04", "res-treaty-05", "res-treaty-06", "res-treaty-07", "res-treaty-08", "res-treaty-09", "res-treaty-10", "res-treaty-11", "res-treaty-12", "res-treaty-13", "res-treaty-14", "res-treaty-15", "res-treaty-16", "res-treaty-17", "res-treaty-18", "res-treaty-19", "res-treaty-20"],
-        "reply": "20. 0.8\n21. 1.0"
+        "answers": [{ "candidate": 20, "score": 0.8 }, { "candidate": 21, "score": 1 }]
       },
       "term": "the treaty of 1804",
       "results": [
@@ -1267,14 +1267,14 @@
       ],
       "graph": { "byName": ["res-hawk"] },
       "vectors": { "hits": [] },
-      "model": { "shown": ["res-hawk"], "reply": "1. 0.8" },
+      "model": { "shown": ["res-hawk"], "answers": [{ "candidate": 1, "score": 0.8 }] },
       "term": "Black Hawk",
       "results": [
         { "id": "res-hawk", "score": 20, "matchReason": "semantic match" }
       ]
     },
     {
-      "why": "the model is shown the twenty candidates of the highest scores, and not the first twenty found: of twenty-one the listing by name answers, the first has no name match and scores least, so the other twenty are shown, and the score the reply gives number 1 is the second one found's",
+      "why": "the model is shown the twenty candidates of the highest scores, and not the first twenty found: of twenty-one the listing by name answers, the first has no name match and scores least, so the other twenty are shown, and the score the reply gives candidate 1 is the second one found's",
       "now": "2026-03-31T00:00:00.000Z",
       "request": {
         "resourceId": "res-main",
@@ -1316,7 +1316,7 @@
       ],
       "graph": { "byName": ["res-fox-00", "res-fox-01", "res-fox-02", "res-fox-03", "res-fox-04", "res-fox-05", "res-fox-06", "res-fox-07", "res-fox-08", "res-fox-09", "res-fox-10", "res-fox-11", "res-fox-12", "res-fox-13", "res-fox-14", "res-fox-15", "res-fox-16", "res-fox-17", "res-fox-18", "res-fox-19", "res-fox-20"] },
       "vectors": { "hits": [] },
-      "model": { "shown": ["res-fox-01", "res-fox-02", "res-fox-03", "res-fox-04", "res-fox-05", "res-fox-06", "res-fox-07", "res-fox-08", "res-fox-09", "res-fox-10", "res-fox-11", "res-fox-12", "res-fox-13", "res-fox-14", "res-fox-15", "res-fox-16", "res-fox-17", "res-fox-18", "res-fox-19", "res-fox-20"], "reply": "1. 0.4" },
+      "model": { "shown": ["res-fox-01", "res-fox-02", "res-fox-03", "res-fox-04", "res-fox-05", "res-fox-06", "res-fox-07", "res-fox-08", "res-fox-09", "res-fox-10", "res-fox-11", "res-fox-12", "res-fox-13", "res-fox-14", "res-fox-15", "res-fox-16", "res-fox-17", "res-fox-18", "res-fox-19", "res-fox-20"], "answers": [{ "candidate": 1, "score": 0.4 }] },
       "term": "Fox",
       "results": [
         { "id": "res-fox-01", "score": 25, "matchReason": "prefix name match" },
@@ -1341,28 +1341,6 @@
         { "id": "res-fox-20", "score": 15, "matchReason": "prefix name match" },
         { "id": "res-fox-00", "score": 0, "matchReason": "candidate" }
       ]
-    },
-    {
-      "why": "a limit of 0 is answered with a failure, and no source is asked",
-      "now": "2026-03-31T00:00:00.000Z",
-      "request": {
-        "resourceId": "res-main",
-        "referenceId": "ann-ref",
-        "limit": 0,
-        "context": {
-          "focus": {
-            "kind": "annotation",
-            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
-            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
-            "selected": { "text": "Black Hawk" }
-          },
-          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
-          "metadata": {}
-        }
-      },
-      "resources": [],
-      "graph": {},
-      "failed": "limit must be at least 1"
     },
     {
       "why": "a focus that is a resource, and not an annotation, is answered with a failure, and no source is asked",

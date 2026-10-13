@@ -30,7 +30,7 @@ from semiont_inference.factory import create_inference_client
 from semiont_inference.interface import InferenceLimits
 from semiont_inference.mock import MockInferenceClient
 
-ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None)
+ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None)
 mock = MockInferenceClient(["[]"], stop_reasons=["end_turn"], limits={LIMITS})
 print(ollama.provider, mock.provider, {LOADED}, "semiont_inference.anthropic" in sys.modules, "semiont_inference.openai" in sys.modules)
 """
@@ -39,7 +39,7 @@ ASKING_FOR_ANTHROPIC = """
 import sys
 from semiont_inference.factory import create_inference_client
 
-client = create_inference_client(provider="anthropic", model="claude-x", base_url="http://127.0.0.1:1", api_key="k")
+client = create_inference_client(provider="anthropic", model="claude-x", base_url="http://127.0.0.1:1", api_key="k", catalogue=None)
 print(client.provider, "anthropic" in sys.modules, "semiont_inference.anthropic" in sys.modules)
 """
 
@@ -52,15 +52,15 @@ from semiont_inference.factory import create_inference_client
 for ask in ("the factory", "the module"):
     try:
         if ask == "the factory":
-            create_inference_client(provider="anthropic", model="claude-x", base_url="http://127.0.0.1:1", api_key="k")
+            create_inference_client(provider="anthropic", model="claude-x", base_url="http://127.0.0.1:1", api_key="k", catalogue=None)
         else:
             import semiont_inference.anthropic
     except ModuleNotFoundError as missing:
         print(ask, "|", type(missing).__name__, "|", missing.name, "|", type(missing.__cause__).__name__, "|", missing)
-print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None).provider)
+print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
-# The factory does not make an OpenAI client: `openai` is not yet a provider the protocol names. Its module is asked for.
+# The driver is asked for by its own module here: what importing it loads is what is held, and the factory imports it the same way.
 ASKING_FOR_OPENAI = f"""
 import sys
 from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
@@ -83,7 +83,7 @@ try:
     import semiont_inference.openai
 except ModuleNotFoundError as missing:
     print(type(missing).__name__, "|", missing.name, "|", type(missing.__cause__).__name__, "|", missing)
-print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None).provider)
+print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
 

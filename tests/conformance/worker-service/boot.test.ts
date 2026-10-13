@@ -71,6 +71,7 @@ eachWorkerService("the worker's boot", (world) => {
     ['the issuer', (d: Document) => delete d.identity['issuer'], 'issuer'],
     ['its identity', (d: Document) => delete (d as Record<string, unknown>)['identity'], 'identity'],
     ['its agents', (d: Document) => delete (d as Record<string, unknown>)['agents'], 'agents'],
+    ['its model catalogue', (d: Document) => delete d['modelCatalogue'], 'modelCatalogue'],
     ['its port', (d: Document) => delete d['port'], 'port'],
     ['its log level', (d: Document) => delete d['logLevel'], 'logLevel'],
     ['its log format', (d: Document) => delete d['logFormat'], 'logFormat'],
@@ -94,7 +95,7 @@ eachWorkerService("the worker's boot", (world) => {
   it.each([
     ['no agent at all', (d: Document) => (d.agents = []), /agents/],
     ['an agent that serves no job', (d: Document) => (d.agents[0]!['accepts'] = []), /accepts/],
-    ['a provider it does not know', (d: Document) => (d.agents[0]!['agent'] = { provider: 'openai', model: 'm' }), /provider/],
+    ['a provider it does not know', (d: Document) => (d.agents[0]!['agent'] = { provider: 'mistral', model: 'm' }), /provider/],
     ['a port that is not one', (d: Document) => (d['port'] = 70_000), /port/],
     ['a member the schema does not have', (d: Document) => (d['dispatcherUrl'] = 'http://dispatcher'), /dispatcherUrl/],
     ["a provider's key as a value", (d: Document) => (d.agents[0]!['apiKey'] = 'hunter2-not-a-name'), /apiKey/],

@@ -51,7 +51,7 @@ from semiont.transport import ContentTransport
 from semiont.types import AnchoredTextAnswer, LibrarianConfig, LibrarianModelConfig
 from semiont_graph.factory import create_graph_reader
 from semiont_graph.interface import GraphReader
-from semiont_inference.factory import create_inference_client
+from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
 from semiont_inference.interface import InferenceClient
 from semiont_service.archivist import ArchivistContent
 from semiont_service.config import Refused, config_path_of, service_account_of
@@ -137,19 +137,27 @@ class _Started:
     gatherer: InferenceClient
 
 
-def _model_of(actor: Actor, model: LibrarianModelConfig, environment: Mapping[str, str]) -> InferenceClient:
+def _model_of(actor: Actor, config: LibrarianConfig, environment: Mapping[str, str]) -> InferenceClient:
     """An actor's model, as its part of the document states it.
 
     Refused, by the member, for a provider that takes a key where the
-    document names no variable for one.
+    document names no variable for one, and for a provider whose facts are
+    read from the model catalogue where the file the document names cannot
+    be read or lacks the model.
     """
-    key = api_key_of(actor, model, environment)
+    model: LibrarianModelConfig = config.matcher if actor == "matcher" else config.gatherer
     try:
-        return create_inference_client(provider=model.agent.provider, model=model.agent.model, base_url=model.base_url, api_key=key)
-    except ValueError as keyless:
-        if key is not None:
-            raise
+        return create_inference_client(
+            provider=model.agent.provider,
+            model=model.agent.model,
+            base_url=model.base_url,
+            api_key=api_key_of(actor, model, environment),
+            catalogue=Path(config.model_catalogue),
+        )
+    except KeyRequired as keyless:
         raise Refused(f"{actor}.apiKeyEnv is not stated, and {actor}.agent.provider is {model.agent.provider}: {keyless}") from keyless
+    except CatalogueRequired as lacking:
+        raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve the {actor}: {lacking}") from lacking
 
 
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
@@ -164,8 +172,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # A reader of the index: it is told no width, because it makes nothing there.
     vectors = create_vector_reader(config.vectors)
-    matcher = _model_of("matcher", config.matcher, environment)
-    gatherer = _model_of("gatherer", config.gatherer, environment)
+    matcher = _model_of("matcher", config, environment)
+    gatherer = _model_of("gatherer", config, environment)
     return _Started(
         config=config, credential=credential, graph=graph, vectors=vectors, embedding=embedding, matcher=matcher, gatherer=gatherer
     )

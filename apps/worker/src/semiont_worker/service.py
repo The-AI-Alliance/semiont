@@ -26,12 +26,13 @@ import sys
 from collections.abc import Mapping, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
+from pathlib import Path
 from typing import final
 
 from semiont.http import Credential, ServiceToken
 from semiont.model import written
 from semiont.types import WorkerConfig
-from semiont_inference.factory import create_inference_client
+from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
 from semiont_inference.interface import InferenceClient
 from semiont_service.config import Refused, config_path_of, read_config, service_account_of
 from semiont_service.health import bind_health
@@ -54,18 +55,37 @@ class _Started:
     clients: list[InferenceClient]
 
 
+def _client_of(config: WorkerConfig, index: int, environment: Mapping[str, str]) -> InferenceClient:
+    """A client of one agent's provider and model, as the document states them.
+
+    Refused, by the member, for a provider that takes a key where the agent
+    names no variable for one, and for a provider whose facts are read from
+    the model catalogue where the file the document names cannot be read or
+    lacks the model.
+    """
+    entry = config.agents[index]
+    agent = f"agents[{index}]"
+    try:
+        return create_inference_client(
+            provider=entry.agent.provider,
+            model=entry.agent.model,
+            base_url=entry.base_url,
+            api_key=api_key_of(config, index, environment),
+            catalogue=Path(config.model_catalogue),
+        )
+    except KeyRequired as keyless:
+        raise Refused(f"{agent}.apiKeyEnv is not stated, and {agent}.agent.provider is {entry.agent.provider}: {keyless}") from keyless
+    except CatalogueRequired as lacking:
+        raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve {agent}: {lacking}") from lacking
+
+
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
     config = read_config(SERVICE, WorkerConfig, config_path_of(SERVICE, arguments))
     # What is written from the document's level: the service's own code, the inference drivers' and the SDK's.
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_inference", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
-    clients = [
-        create_inference_client(
-            provider=entry.agent.provider, model=entry.agent.model, base_url=entry.base_url, api_key=api_key_of(config, index, environment)
-        )
-        for index, entry in enumerate(config.agents)
-    ]
+    clients = [_client_of(config, index, environment) for index in range(len(config.agents))]
     return _Started(config=config, credential=credential, clients=clients)
 
 

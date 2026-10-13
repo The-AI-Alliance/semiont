@@ -21,20 +21,26 @@ from semiont_service.content import ContentReads
 
 from semiont_librarian.reads import AnchoredText
 
-__all__ = ["preview_of", "text_of"]
+__all__ = ["has_stored_bytes", "preview_of", "text_of"]
 
 _PREVIEW_LENGTH: Final = 200
 """How many code points of a resource's text a preview is, at most."""
 
 
-def _stored_media_type(resource: ResourceDescriptor) -> str | None:
-    """The media type of a resource's stored bytes, read from its primary representation. `None` for a resource with no stored bytes.
+def has_stored_bytes(resource: ResourceDescriptor) -> bool:
+    """Whether a resource's description says where its bytes are stored. This is the one place that decides it.
 
     A resource with no representation has none, and neither has one whose
-    representation states no `storageUri`.
+    primary representation states no `storageUri`.
     """
     primary = primary_representation(resource)
-    if primary is None or not primary.storage_uri:
+    return primary is not None and bool(primary.storage_uri)
+
+
+def _stored_media_type(resource: ResourceDescriptor) -> str | None:
+    """The media type of a resource's stored bytes, read from its primary representation. `None` for a resource with no stored bytes."""
+    primary = primary_representation(resource)
+    if primary is None or not has_stored_bytes(resource):
         return None
     return primary.media_type
 

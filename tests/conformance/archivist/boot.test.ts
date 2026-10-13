@@ -73,7 +73,7 @@ withArchivist("the Archivist's boot", (world) => {
     ['missing the anchored-text store', (d: Record<string, Record<string, unknown>>) => delete d['anchoredTextDir'], /anchoredTextDir/],
     ['missing a staging bound', (d: Record<string, Record<string, unknown>>) => delete d['staging']!['maxWaitMs'], /maxWaitMs/],
     ['not saying whether to rebuild', (d: Record<string, Record<string, unknown>>) => delete d['skipRebuild'], /skipRebuild/],
-    ['with a role served by a provider it does not know', (d: Record<string, Record<string, unknown>>) => (d['roster']!['actors'] = { matcher: { provider: 'openai', model: 'm' } }), /provider|matcher/],
+    ['with a role served by a provider it does not know', (d: Record<string, Record<string, unknown>>) => (d['roster']!['actors'] = { matcher: { provider: 'mistral', model: 'm' } }), /provider|matcher/],
     ['with a role carrying a credential', (d: Record<string, Record<string, unknown>>) => (d['roster']!['actors'] = { matcher: { provider: 'ollama', model: 'm', apiKey: 'hunter2' } }), /apiKey/],
     ['with a field the schema does not have', (d: Record<string, unknown>) => (d['stateDir'] = '/state'), /stateDir/],
   ])('refuses a document %s, naming the field', async (_what, breakIt, field) => {

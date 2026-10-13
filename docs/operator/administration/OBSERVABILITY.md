@@ -63,8 +63,8 @@ The Worker service:
 |------------------------|----------|---------------------------------------------------------|---------|-----------------------------------------------|
 | `job:{jobType}`        | consumer | `job.type` (`mark`/`yield`), `job.motivation` on a `mark` job, `job.id`, `resource.id` | traffic | A job a worker held, from the claim that handed it over to its conclusion |
 | `detection:prepare`    | internal | `resource.id`, `media.type`                             | traffic | A `mark` job's reading of its resource: the description's media type, and the text read by it |
-| `inference:structured` | internal | `inference.provider` (`anthropic`/`ollama`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound |
-| `inference:text`       | internal | `inference.provider` (`anthropic`/`ollama`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for text, from the request to its answer or its time bound |
+| `inference:structured` | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound |
+| `inference:text`       | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for text, from the request to its answer or its time bound |
 
 The `archivist.*` spans are the third hop on the byte path. The gateway's `content.{put,get}.server` span makes a network call to the archivist, and without a span of its own, a slow archivist would read as a slow gateway.
 

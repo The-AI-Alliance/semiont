@@ -6,7 +6,27 @@
     },
     "relevantFields": {
       "type": "object",
-      "additionalProperties": {}
+      "description": "What the summary is of: the resource the annotation is on, and the annotation's entity types.",
+      "properties": {
+        "resourceId": {
+          "$ref": "./ResourceId.json"
+        },
+        "resourceName": {
+          "type": "string"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "resourceId",
+        "resourceName",
+        "entityTypes"
+      ],
+      "additionalProperties": false
     },
     "context": {
       "type": "object",

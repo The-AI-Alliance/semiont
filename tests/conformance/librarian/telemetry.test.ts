@@ -64,7 +64,7 @@ eachLibrarian('what a Librarian exports', (world) => {
     // Two requests of a model that are answered, the first with the tokens its provider counted.
     const marsh = await world().created(TIDE, { name: 'A salt marsh' });
     await world().ready(marsh);
-    world().gatherer.script({ response: 'A marsh that floods twice a day.', usage: { prompt: 212, output: 9 } }, { response: 'Read the tide tables\nWalk the sea wall' });
+    world().gatherer.script({ response: 'A marsh that floods twice a day.', usage: { prompt: 212, output: 9 } }, { response: JSON.stringify([{ suggestion: 'Read the tide tables' }, { suggestion: 'Walk the sea wall' }]) });
     await world().answered('gather:resource-requested', { resourceId: marsh, options: SUMMARIZED });
 
     // A request of a model that fails: the gather is answered without its summary and its suggestions.

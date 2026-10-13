@@ -50,7 +50,7 @@ from semiont_librarian.knowledge_graph import build_knowledge_graph, refuse_dept
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, reference_suggestions_prompt, resource_summary_prompt
 from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, SmeltWaits, SmeltWaitTimedOut, Views, WeaveWaits
-from semiont_librarian.replies import read_suggestions
+from semiont_librarian.replies import SUGGESTION_ELEMENT, ask_for_elements, read_suggestions
 from semiont_librarian.resource_text import text_of
 
 __all__ = ["gather"]
@@ -190,7 +190,7 @@ async def gather(
         try:
             summary = await ask(inference, resource_summary_prompt(name=main.name, content=main_text, entity_types=types))
             suggesting = reference_suggestions_prompt(title=main.name, entity_type=types[0] if types else None)
-            suggestions = read_suggestions(await ask(inference, suggesting))
+            suggestions = read_suggestions(await ask_for_elements(inference, suggesting, SUGGESTION_ELEMENT))
         except Exception as failure:
             degraded.note("suggestions")
             LOG.warning(

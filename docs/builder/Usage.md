@@ -489,7 +489,7 @@ the resource the reference is on and the text it covers. It is a live query.
 
 ```typescript
 const references = await semiont.gather.referencedBy(resourceId).fresh();
-for (const ref of references) console.log(`${ref.resourceName}: "${ref.target.selector.exact}"`);
+for (const ref of references) console.log(`${ref.resourceName ?? ref.target.source}: "${ref.target.selector.exact}"`);
 ```
 
 ## Beckon

@@ -301,22 +301,30 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
 
-It runs in two stages and ends in a gate. `census` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for both, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires. `npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, that no job of them checks out, installs or builds and then checks nothing, and that `ci.yml` has its first stage, its edges and its gate.
+It runs in two stages and ends in a gate. `census`, `changes` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for all three, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires.
+
+On a pull request, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, one per Python project), and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/sdk-go`. A change under `.github/`, `scripts/ci/` or `specs/` runs everything, and so does a push to `main` or a dispatch. A skipped job is reported as Success and passes the gate.
+
+The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) looks, and builds nothing of its own.
+
+`npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, that no job of them checks out, installs or builds and then checks nothing, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines, and that `cargo build` runs in `build-rust` alone.
 
 | Job | What it covers |
 |---|---|
 | `census` | The `lint:*` gates, over the tree and no build: the stylesheets, the translations, the docs' names, the spec's own consistency, the toolchain versions, the Dependabot entries, the workflows, and more |
+| `changes` | Which areas the push touched, for every other job's `if` |
 | `test-browser` | `npm run typecheck` and `npm test` for `apps/browser` |
+| `build-rust` | `cargo build --release` of the gateway, the dispatcher, the Archivist and the Rust SDK's three conformance drivers, once, published as an artifact the nine conformance jobs fetch into `target/release` |
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
-| `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
-| `dispatcher-conformance` | Builds the gateway and the dispatcher and runs the `dispatcher` project |
-| `archivist-conformance` | Builds the gateway and the Archivist and runs the `archivist` project |
-| `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
-| `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
-| `worker-service-conformance` | Builds the gateway and `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
-| `weaver-conformance` | Builds the gateway, the Archivist and `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
-| `smelter-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
-| `librarian-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
+| `gateway-conformance` | Runs the conformance suite's `gateway` project against the binaries `build-rust` built |
+| `dispatcher-conformance` | Runs the `dispatcher` project |
+| `archivist-conformance` | Runs the `archivist` project |
+| `sdk-conformance` | Builds `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
+| `worker-conformance` | Builds the packages, installs the Python SDK's locked environment, and runs the `worker` project |
+| `worker-service-conformance` | Builds `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
+| `weaver-conformance` | Builds `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
+| `smelter-conformance` | Builds `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
+| `librarian-conformance` | Builds `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
 | `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/sdk-python`; the distributions a release uploads are built and checked, on 3.12 |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/inference-python` |
@@ -330,7 +338,7 @@ It runs in two stages and ends in a gate. `census` and `generated-artifacts` nee
 | `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/smelter` |
 | `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
-| `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
+| `build-all` | `npm run build` over every npm workspace |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for the launcher; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows |

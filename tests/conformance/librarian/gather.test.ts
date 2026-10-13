@@ -285,15 +285,17 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       expect(annotationFocus(whole.response).selected).toEqual({ before: text.slice(0, at), text: 'vixen', after: text.slice(end) });
     });
 
-    it.each([99, 5001])('fails a gather whose window is %i, which is out of bounds, and asks its model nothing', async (contextWindow) => {
+    it.each([99, 5001])('does not gather with a window of %i, which is out of bounds, and asks its model nothing', async (contextWindow) => {
       const source = await world().created(FOX, { name: 'A fox and a dog' });
       const highlight = await world().highlighted(source, 'fox');
       await world().ready(source);
 
-      const failure = await world().failed('gather:requested', { annotationId: highlight, resourceId: source, options: { contextWindow } });
-
-      expect(failure.annotationId).toBe(highlight);
-      expect(failure.message).toMatch(/window/i);
+      // A window out of bounds is not gathered: the gateway refuses the request, or the Librarian fails it.
+      const refused = await world()
+        .ask('gather:requested', { annotationId: highlight, resourceId: source, options: { contextWindow } })
+        .then((reply) => (reply.ok ? 'answered' : reply.failure.message), (thrown: unknown) => String(thrown));
+      expect(refused).not.toBe('answered');
+      expect(refused).toMatch(/window|gather:requested/i);
       expect(world().gatherer.generations).toEqual([]);
     });
 
@@ -371,8 +373,11 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const source = await world().created(TIDE, { name: 'A salt marsh' });
       await world().ready(source);
 
-      // Two generations, in this order: the summary, then the suggestions, one to a line.
-      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: 'Read the tide tables\nWalk the sea wall' });
+      // Two generations, in this order: the summary, then the suggestions, each an element.
+      world().gatherer.script(
+        { response: 'A marsh that floods twice a day.' },
+        { response: JSON.stringify([{ suggestion: 'Read the tide tables' }, { suggestion: 'Walk the sea wall' }]) },
+      );
       const reply = await world().answered('gather:resource-requested', { resourceId: source, options: { ...TEXTS, includeSummary: true } });
 
       const focus = resourceFocus(reply.response);
@@ -392,7 +397,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const source = await world().created(TIDE, { name: 'A salt marsh' });
       await world().ready(source);
 
-      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: 'Read the tide tables' });
+      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: JSON.stringify([{ suggestion: 'Read the tide tables' }]) });
       const reply = await world().answered('gather:resource-requested', {
         resourceId: source,
         options: { ...TEXTS, includeContent: false, includeSummary: true },
@@ -564,7 +569,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const { response } = await world().answered('gather:summary-requested', { annotationId: reference, resourceId: source });
 
       expect(response.summary).toBe('The passage names a wading bird.');
-      expect(response.relevantFields).toMatchObject({ resourceName: 'A heron between two runs of letters', entityTypes: ['Bird'] });
+      expect(response.relevantFields).toEqual({ resourceId: source, resourceName: 'A heron between two runs of letters', entityTypes: ['Bird'] });
       // Two hundred on each side: the end of what is before, and the start of what is after.
       expect(response.context).toEqual({ before: text.slice(at - 200, at), selected: 'heron', after: text.slice(end, end + 200) });
 

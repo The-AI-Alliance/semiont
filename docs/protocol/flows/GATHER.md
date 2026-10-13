@@ -82,7 +82,7 @@ const context = await semiont.gather.resource(resourceId, {
 
 // What refers to a resource
 const references = await semiont.gather.referencedBy(resourceId).fresh();
-for (const ref of references) console.log(`${ref.resourceName}: "${ref.target.selector.exact}"`);
+for (const ref of references) console.log(`${ref.resourceName ?? ref.target.source}: "${ref.target.selector.exact}"`);
 ```
 
 From the launcher: `semiont gather <resourceId>` for a resource, and `semiont gather <resourceId> <annotationId>` for an annotation.

@@ -439,6 +439,7 @@ class Librarian:
                 vectors=self._vectors,
                 embedding=self._embedding,
                 inference=self._matcher,
+                people=self._people,
                 now=self._now,
             )
 
