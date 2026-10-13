@@ -299,7 +299,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch:
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled. `npm run lint:workflows` holds every workflow that runs on pull requests to that `concurrency`, and fails a job of any of them that checks out, installs or builds and then checks nothing.
 
 | Job | What it covers |
 |---|---|
@@ -314,20 +314,19 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `weaver-conformance` | Builds the gateway, the Archivist and `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `smelter-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
 | `librarian-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
-| `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
+| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/sdk-python`; the distributions a release uploads are built and checked, on 3.12 |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
-| `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
-| `test-service-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/service-python` |
-| `test-worker-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/worker` |
-| `test-graph-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/graph-python` |
+| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/inference-python` |
+| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/service-python` |
+| `test-worker-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/worker` |
+| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/graph-python` |
 | `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |
-| `test-vectors-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/vectors-python` |
+| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/vectors-python` |
 | `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
-| `test-weaver-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/weaver` |
-| `test-smelter-python` | Installs the `tesseract` program, then `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/smelter` |
-| `test-librarian-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/librarian` |
+| `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/weaver` |
+| `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/smelter` |
+| `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
 | `test-comprehensive` | The Browser suite again, after a full package build |
-| `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |

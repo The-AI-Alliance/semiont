@@ -7,6 +7,13 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+# One run per pull request: a push cancels the run of the push before it, which
+# nobody is waiting for. A push to main is never cancelled: it is the run that
+# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test-browser:
     name: Browser Tests
@@ -1569,26 +1576,6 @@ jobs:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-
-  validate-config:
-    name: Configuration Validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Install dependencies
-        run: |
-          npm ci --include=optional
-          npm run build:packages
 
   check-phantom-deps:
     name: Phantom Dependency Check

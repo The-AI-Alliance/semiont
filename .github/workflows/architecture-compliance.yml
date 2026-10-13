@@ -7,6 +7,13 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# One run per pull request: a push cancels the run of the push before it, which
+# nobody is waiting for. A push to main is never cancelled: it is the run that
+# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   compliance-check:
     name: React Hooks Architecture Review
@@ -107,6 +114,7 @@ jobs:
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
           npm run lint:internal-deps || fail=1
+          npm run lint:workflows || fail=1
           echo "::endgroup::"
           exit $fail
 
