@@ -30,7 +30,7 @@ from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor, ResourceView
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
-from semiont_vectors.store import SearchOptions, VectorSearchResult
+from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResult
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, why
 
 from semiont_librarian.reads import GraphReads, Views
@@ -284,7 +284,7 @@ def each_once(asked: Iterable[str]) -> list[str]:
 
 def test_the_runner_found_the_table_s_cases() -> None:
     only(TABLE, TABLE_MEMBERS, "the table")
-    assert len(CASES) >= 34
+    assert len(CASES) >= 42
     assert len(ANSWERED) + len(FAILED) == len(CASES)
 
 
@@ -356,8 +356,10 @@ def test_a_reference_search_answers_the_candidates_the_table_states_and_asks_eac
     assert each_once(world.graph.read) == sorted(states(graph, "byId", "byId")), why(case)
     assert each_once(world.views.asked) == sorted(states(case, "views", "views")), why(case)
     assert world.embedding.asked == ([term] if "vectors" in case else []), why(case)
+    # The index is asked for chunks of any resource but the request's own.
+    hits_asked = SearchOptions(limit=40, score_threshold=0.4, filter=SearchFilter(exclude_resource_id=request.resource_id))
     index_asked = [(read, options) for read, _, options in world.vectors.asked]
-    assert index_asked == ([("search_resources", SearchOptions(limit=40, score_threshold=0.4))] if "vectors" in case else []), why(case)
+    assert index_asked == ([("search_resources", hits_asked)] if "vectors" in case else []), why(case)
     shown = [strings(thing(case["model"], "model")["shown"], "shown")] if "model" in case else []
     assert [shown_in(asked.prompt) for asked in world.inference.asked] == shown, why(case)
 

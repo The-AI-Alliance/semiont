@@ -21,7 +21,7 @@ The librarian also answers `match:limits-requested`, with the [limits](../LIBRAR
 
 ## How candidates are found and ranked
 
-Candidates come from four sources, and are deduplicated:
+Candidates come from four sources, and are deduplicated. The resource the reference is on is never one of them.
 
 1. **By name**: the reference's text against each resource's name, its location and its entity types.
 2. **By entity type**: resources that share entity types with the reference.
@@ -30,7 +30,7 @@ Candidates come from four sources, and are deduplicated:
 
 Each candidate is scored on structural signals: entity types in common (rare types count for more), how well its name matches, whether it is already connected to the source and in which directions, how recent it is, how close the vector index found it, and how many of the sources found it.
 
-With semantic scoring on, a model then scores at most twenty of the candidates against the passage. If the model fails, the structural ranking stands.
+With semantic scoring on, a model then scores the twenty candidates that rank highest on those signals against the passage. If the model fails, the structural ranking stands.
 
 Scores are sums of points, not probabilities. They order candidates; they are not bounded at one. The weights are the librarian's: see [The score](../LIBRARIAN.md#the-score).
 
@@ -38,7 +38,9 @@ Scores are sums of points, not probabilities. They order candidates; they are no
 
 The text is matched first against each resource's name, its location and its entity types, and the resources that match are ordered by how directly the name answers and then by how recent they are. The reply's `matchKind` is `lexical`.
 
-When nothing matches by text, the answer is the resources that discuss the query, found through the vector index, and `matchKind` is `semantic`.
+When nothing matches by text, the answer is the resources that discuss the query, found through the vector index, and `matchKind` is `semantic`. The filters hold there too: a search kept to an entity type finds only resources of that type, and a search for archived resources is answered by text alone, since archived resources are not in the vector index.
+
+A limit below 1 is refused, for either search.
 
 ## Rules
 

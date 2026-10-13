@@ -197,10 +197,11 @@ rule; this section says it in prose.
   resources of the context's entity types, and only when the context has any.
   The neighbours: the resources the context's graph connects the request's
   resource to ([The lists read off a graph](#the-lists-read-off-a-graph)).
-  The vector index, for at most 40 chunks of resources that score 0.4 or
-  more against the embedding of the term, and only when the term is not
-  blank: nothing, or nothing but what Unicode gives the White_Space
-  property. The two listings and the index are asked together.
+  The vector index, for at most 40 chunks that score 0.4 or more against
+  the embedding of the term, of any resource but the request's own, and
+  only when the term is not blank: nothing, or nothing but what Unicode
+  gives the White_Space property. The two listings and the index are asked
+  together.
   *Held by `apps/librarian/tests/test_reference_search.py`, for what a blank term is, by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a candidate from each of the four and one embedding of the term.*
 - **A neighbour and a vector hit are each read back as a resource from the
   graph, and from the views when the graph has none or its read fails.** One
@@ -216,6 +217,9 @@ rule; this section says it in prose.
 - **A resource is one candidate however many sources found it,** and is
   counted as found by each source that answered it.
   *Held by `apps/librarian/tests/test_score_cases.py`.*
+- **The request's own resource is no candidate,** whichever source answers
+  it. A reference does not refer to the resource it is on.
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a resource that holds the quoted text.*
 - **The answer is the candidates ordered by score, the highest first.**
   Candidates of one score stay in the order they were found: the listing by
   name, the listing by entity type, the neighbours in the order of the
@@ -225,6 +229,9 @@ rule; this section says it in prose.
 - **When the request states a `limit`, the answer is at most that many of
   the first candidates.**
   *Held by `apps/librarian/tests/test_score_cases.py` and `librarian/search`.*
+- **A `limit` less than 1 is answered on the failure channel, in the words
+  `limit must be at least 1`, and no source is asked.**
+  *Held by `apps/librarian/tests/test_score_cases.py`, for a limit of 0, by `apps/librarian/tests/test_reference_search.py`, for one below 0, and by `librarian/search`.*
 
 ### The score
 
@@ -236,22 +243,26 @@ A candidate's score is the sum of these terms, added in this order.
   30 times the types they share divided by the distinct types of both
   together; and, for each shared type, 5 divided by the base-2 logarithm of
   one more than the type's frequency in the context's
-  `metadata.entityTypeFrequencies`. A type with no stated frequency counts as
-  seen once. *Held by `apps/librarian/tests/test_score_cases.py`.*
+  `metadata.entityTypeFrequencies`. A type with no stated frequency, or with
+  one below 1, counts as seen once.
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `apps/librarian/tests/test_reference_search.py`, for a frequency below 0.*
 - **Connection:** 20 when the context's graph connects the request's
   resource to the candidate both ways, 10 when it connects it one way.
   *Held by `apps/librarian/tests/test_score_cases.py`.*
-- **Citations,** for a candidate found as a neighbour: 2 for each resource
-  that cites the request's resource, 15 at most.
+- **What cites the request's resource adds nothing to any candidate.** It
+  says nothing of the candidate.
   *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Name,** the candidate's name and the term compared without regard to the
   case of letters: 25 when they are equal, else 15 when the name begins with
-  the term, else 10 when the name has the term in it.
-  *Held by `apps/librarian/tests/test_score_cases.py`.*
+  the term, else 10 when the name has the term in it. A blank term matches
+  no name. *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Recency,** for a candidate that states `dateCreated`: 5 times one less
-  the candidate's age in days divided by 30, and nothing from thirty days on.
-  *Held by `apps/librarian/tests/test_score_cases.py`.*
-- **Vector index:** 25 times the hit's score.
+  the candidate's age in days divided by 30, and nothing from thirty days
+  on. Nothing for a date after the moment of the search, and nothing for a
+  `dateCreated` that cannot be read as a date.
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `apps/librarian/tests/test_reference_search.py`, for what is no date.*
+- **Vector index:** 25 times the hit's score, and of several hits of one
+  resource the highest of their scores. Such a resource is read back once.
   *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Several sources:** 3 for each source that found the candidate, when more
   than one did. *Held by `apps/librarian/tests/test_score_cases.py`.*
@@ -269,9 +280,17 @@ A candidate's score is the sum of these terms, added in this order.
   ([The prompts](#the-prompts)), for at most twenty candidates,** unless the
   request states `useSemanticScoring` as false or there is no candidate.
   *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for the one prompt and for none where the request asks for no scoring by a model.*
+- **It is shown the twenty candidates of the highest scores,** numbered from
+  1 with the highest first, and those of one score in the order they were
+  found. *Held by `apps/librarian/tests/test_score_cases.py`.*
+- **What a comment or an assessment says is a line of the prompt:** the text
+  of the first item of the annotation's body whose purpose is `commenting`
+  or `assessing`. An item that is there for another purpose, or states none,
+  is not shown. *Held by `apps/librarian/tests/test_reference_search.py`.*
 - **Each score it gives a candidate it was shown adds 25 times that score,**
   and the sum is rounded to two decimals again. A score above 0.5 adds
-  `semantic match` to the reason.
+  `semantic match` to the reason, and is the whole reason of a candidate
+  whose reason was `candidate`.
   *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a higher score and the reason.*
 - **A reply is read a line at a time, as
   [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
@@ -297,6 +316,9 @@ search as what each store answers and the page that follows, and is the rule.
   finds nothing, and no store is asked:** the page has no resources, a total
   of 0, and is `lexical`.
   *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
+- **A `limit` less than 1 is answered on the failure channel, in the words
+  `limit must be at least 1`, and no store is asked.**
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **Otherwise the graph's listing is asked,** with the text, with `archived`
   and the entity type where they are given, with the offset, which is 0 where
   none is given, and with the limit, which is 50 where none is given. The
@@ -309,10 +331,19 @@ search as what each store answers and the page that follows, and is the rule.
   the page is the graph's and is `lexical`,** and nothing else is asked. Only
   a first page that found nothing is answered by meaning.
   *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
+- **A search for archived resources is answered by the graph alone:** where
+  `archived` is true and nothing matched, the page is the graph's, empty and
+  `lexical`, and nothing is embedded. The index holds no chunk of an archived
+  resource ([SMELTER.md](./SMELTER.md#what-each-event-does)).
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **Otherwise the text is embedded once, and the vector index is asked for
   four times the page's limit of chunks.** Its hits are folded to one for
   each resource: the hit with the highest score, with that chunk's text.
   *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for the one embedding and one hit for each resource.*
+- **A search kept to an entity type asks the index for chunks of resources
+  of that type alone.** A search that states `archived` as false is asked of
+  it as one that states no `archived` is.
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **A resource is kept when its score is the semantic floor or more.** The
   kept are ordered by score, the highest first, and by nothing else. `total`
   is how many are kept. *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
@@ -867,40 +898,12 @@ Each of these is what today's Librarian does, and is wrong. Another
 implementation does not copy them. Each names the module of
 `apps/librarian/src/semiont_librarian` it is in.
 
-- **The model is shown the first twenty candidates found, and not the twenty
-  with the highest scores.** The candidates are ordered by score only after
-  the model has been asked (`reference_search.py`).
-- **An empty search term gives every candidate with a name a prefix name
-  match:** every name begins with the empty text (`score.py`).
-- **An entity type whose stated frequency is 0 gives an infinite score**
-  (`score.py`).
-- **A `dateCreated` in the future scores more than 5 for recency, and one
-  that cannot be read as a date leaves the whole score not a number**
-  (`score.py`).
-- **A reference search with `limit: 0` answers every candidate, and one with
-  a limit below 0 leaves that many off the end** (`reference_search.py`).
-- **The citation term counts the resources that cite the request's
-  resource,** and so is the same for every neighbour. It says nothing of the
-  candidate (`score.py`).
-- **Several vector hits for one resource keep the score of the last hit the
-  index answered,** in a reference search (`reference_search.py`).
-- **A candidate with no reason that a model scores above 0.5 has the reason
-  `candidate; semantic match`** (`score.py`).
 - **A view that fails to be read while a neighbour or a vector hit is read
   back fails the whole reference search,** where an index that fails does
   not (`grace.py`, `reference_search.py`).
-- **A reference's own resource is not left out of its candidates.** A
-  listing or the index that answers it makes it a candidate like any other
-  (`reference_search.py`).
 - **The reply to a reference search has no one named** ([Names](#names)),
   where the replies to a text search and to what refers to a resource do
   (`librarian.py`).
-- **The score prompt's line for a comment or an assessment is the first item
-  of the annotation's body,** whatever that item's purpose is
-  (`reference_search.py`).
-- **A text search that no name matches is answered from the index with no
-  filter.** A search kept to an entity type, or to archived resources, can
-  then answer resources of neither (`text_search.py`).
 - **A text search logs nothing when it reads a resource from its view
   because the graph does not hold it.** A reference search and a request for
   what refers to a resource each log it (`text_search.py`).

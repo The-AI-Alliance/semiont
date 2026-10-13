@@ -43,9 +43,10 @@ from semiont.types import (
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
 from semiont_service.content import Content
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorSearchResult
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, whole, why
 
+from semiont_librarian.limit import LimitRefused
 from semiont_librarian.reads import GraphReads, PeopleUnread, Views
 from semiont_librarian.text_search import Page, answer, search_resources, with_previews
 
@@ -61,7 +62,7 @@ SEARCH_MEMBERS = ("why", "filters", "semanticFloor", "graph", "embedding", "inde
 PREVIEW_MEMBERS = ("why", "resources", "served", "previews")
 STORE_MEMBERS = ("asked", "answers", "fails")
 ASKED_OF_THE_GRAPH = ("search", "archived", "entityTypes", "offset", "limit")
-ASKED_OF_THE_INDEX = ("embedding", "limit")
+ASKED_OF_THE_INDEX = ("embedding", "limit", "entityTypes")
 LISTING_MEMBERS = ("resources", "total")
 HIT_MEMBERS = ("id", "resourceId", "score", "text")
 HYDRATED_MEMBERS = ("resource", "graph", "view")
@@ -313,8 +314,9 @@ def test_a_search_asks_each_store_what_the_table_states_and_answers_its_page(cas
     else:
         asked = thing(indexed["asked"], "what the index is asked")
         only(asked, ASKED_OF_THE_INDEX, "what the index is asked")
-        # The index is asked for chunks of any resource: with a limit, and with no filter and no threshold.
-        options = SearchOptions(limit=whole(asked["limit"], "limit"))
+        # The index is asked with a limit and no threshold, and with no filter but the entity types the case states.
+        kept_to = SearchFilter(entity_types=tuple(strings(asked["entityTypes"], "entityTypes"))) if "entityTypes" in asked else None
+        options = SearchOptions(limit=whole(asked["limit"], "limit"), filter=kept_to)
         assert index.asked == [("search_resources", vector_of(asked["embedding"], "embedding"), options)]
     assert graph.read == [text(entry["resource"], "resource") for entry in hydrated]
     assert views.asked == [text(entry["resource"], "resource") for entry in hydrated if "view" in entry]
@@ -425,6 +427,18 @@ def test_the_reply_states_the_offset_and_the_limit_the_request_stated() -> None:
     assert response.resources == []
     asked = ResourceQuery(search="hawk", archived=True, entity_types=("Person",), offset=20, limit=10)
     assert at.graph.asked_of("list_resources") == [asked]
+
+
+@pytest.mark.parametrize("limit", [0, -1], ids=["none", "fewer than none"])
+def test_a_limit_below_1_is_refused_and_no_store_is_asked(limit: int) -> None:
+    at = stores(lists=nothing_listed())
+
+    with pytest.raises(LimitRefused, match=r"^limit must be at least 1$"):
+        reply_to(MatchResourcesRequest(search="hawk", limit=limit), at)
+
+    assert at.graph.asked == []
+    assert at.embedding.asked == []
+    assert at.vectors.asked == []
 
 
 def test_an_index_with_no_such_collection_fails_a_search_that_no_name_matches() -> None:
