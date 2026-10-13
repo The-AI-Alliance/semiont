@@ -54,11 +54,7 @@ def reported(reader: InMemoryMetricReader, name: str) -> list[Metric]:
     if data is None:
         return []
     return [
-        metric
-        for resource in data.resource_metrics
-        for scope in resource.scope_metrics
-        for metric in scope.metrics
-        if metric.name == name
+        metric for resource in data.resource_metrics for scope in resource.scope_metrics for metric in scope.metrics if metric.name == name
     ]
 
 
