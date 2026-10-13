@@ -550,7 +550,7 @@ def test_a_resource_the_index_holds_the_bytes_of_and_that_nothing_is_like_is_ans
         world = a_world_of_the_quay()
         # The Librarian keeps no decision of the quay's bytes: one it was started after, or has forgotten.
         del world.smelt.settled[(QUAY, CHECKSUM)]
-        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum=CHECKSUM, entity_types=())
+        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum=CHECKSUM, entity_types=(), media_type="text/markdown")
 
         said = written(await world.gathered(options()))
 
@@ -566,7 +566,7 @@ def test_a_resource_the_index_holds_the_bytes_of_and_that_nothing_is_like_is_ans
 def test_a_resource_the_index_holds_other_bytes_of_is_waited_for() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum="sum-of-what-the-quay-was", entity_types=())
+        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum="sum-of-what-the-quay-was", entity_types=(), media_type="text/markdown")
 
         await world.gathered(options())
 

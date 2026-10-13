@@ -16,7 +16,8 @@ everything it writes is its log, on stdout.
 It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
 as the agent its embedding provider and its model name, reaches its vector
 index, which asks its provider how wide a vector is where the index has to be
-made, follows the record, opens its health port, and then runs reconcile. A
+made, makes the index again where it was made by another model or cut another
+way, follows the record, opens its health port, and then runs reconcile. A
 reconcile that fails is said, in the log and at the health port, and does
 not end the service: ending it would make the index no fresher, and would
 take away the one thing still applying what arrives. Told to stop, it stops
@@ -29,6 +30,7 @@ import signal
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Final, final
 
@@ -50,12 +52,14 @@ from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
 from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config
 from semiont_smelter.extraction import PdfExtractor
+from semiont_smelter.index_stamp import hold_to, stamp_of
 from semiont_smelter.log import LOG, words_of
 from semiont_smelter.pdfium import PdfiumReader
 from semiont_smelter.record import READ
 from semiont_smelter.recorded import FOLLOWED
 from semiont_smelter.smelter import Smelter
 from semiont_smelter.stamp import current_stamp
+from semiont_smelter.telemetry import points_held
 from semiont_smelter.tesseract import TesseractEngine
 
 __all__ = ["CHANNELS", "boot", "main"]
@@ -95,6 +99,12 @@ async def _listening(port: int, health: Health) -> asyncio.Server:
         raise Refused(f"Cannot listen on port {port}: {unheard}") from unheard
 
 
+async def _reached(index: VectorStore, config: SmelterConfig) -> None:
+    """Reach the index, and hold it to what this Smelter makes one by: one made by another model, or cut another way, is made again."""
+    await index.connect()
+    await hold_to(index, stamp_of(config))
+
+
 async def _reconciled(smelter: Smelter) -> None:
     """Run the reconcile of this start. One that fails has said so, in the log and in what the health endpoint reports, and ends nothing."""
     try:
@@ -119,7 +129,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
     async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
-        await connected("vector index and the embedding provider", started.index.connect())
+        await connected("vector index and the embedding provider", _reached(started.index, config))
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (
@@ -146,9 +156,15 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
                     # Run once it is following and its health answers: what was recorded while no Smelter ran is
                     # found, and what is recorded meanwhile is applied as it arrives.
-                    reconciling = asyncio.ensure_future(_reconciled(smelter))
-                    sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
-                    running = (reconciling, *(() if sampling is None else (sampling,)))
+                    running = [asyncio.ensure_future(_reconciled(smelter))]
+                    if exporting is not None:
+                        running.append(asyncio.ensure_future(exporting.sample_the_loop()))
+                        size = exporting.sample(
+                            "semiont.vector.index.size",
+                            partial(points_held, started.index),
+                            description="Points the vector index holds, of resources and of annotations together",
+                        )
+                        running.append(asyncio.ensure_future(size))
                     try:
                         await told_to_stop.wait()
                         LOG.info("Shutting down")

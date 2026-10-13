@@ -26,7 +26,7 @@ from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_vectors.embedding import EmbeddingProvider, EmbeddingProviderError
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.mock import MockEmbeddingProvider, deterministic_vector
-from semiont_vectors.store import ResourceStamp, SearchFilter, SearchOptions
+from semiont_vectors.store import Declined, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
@@ -329,6 +329,8 @@ class Held:
     """The texts of each such resource's points, sorted."""
     annotations: Mapping[str, AnnotationPoint]
     """Each annotation's point, by the annotation's id."""
+    declined: Mapping[str, Declined]
+    """What the index remembers of each resource it declined."""
 
 
 async def held_by(index: MemoryVectorStore) -> Held:
@@ -349,7 +351,12 @@ async def held_by(index: MemoryVectorStore) -> Held:
     # What the index lists of each annotation's point is what a search answers of it.
     listed = {of: (stamp.resource_id, stamp.entity_types) for of, stamp in (await index.list_annotation_stamps()).items()}
     assert listed == {of: (point.resource, point.entity_types) for of, point in annotations.items()}
-    return Held(stamps=by_name, chunks=chunks, annotations=annotations)
+    remembered: dict[str, Declined] = {}
+    for resource, what in (await index.list_declined()).items():
+        remembered[resource] = what
+    # An index holds a resource's points or remembers its decline, and never both.
+    assert not set(by_name) & set(remembered)
+    return Held(stamps=by_name, chunks=chunks, annotations=annotations, declined=remembered)
 
 
 # ── The rig ────────────────────────────────────────────────────────────

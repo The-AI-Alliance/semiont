@@ -30,7 +30,7 @@ It runs on asyncio and requires Python 3.12 or later. It is checked by
 | `semiont_service.health` | Answers `GET /health`, and nothing else, on the service's port | What the endpoint says, asked afresh for each request |
 | `semiont_service.lanes` | Does what is put on a lane one piece at a time, in the order it was put there, with the lanes working beside each other, and does one piece of work with no lane working | The lane of each piece of work, which is a resource's id for a service that follows the record |
 | `semiont_service.log` | Writes the process's log to stdout, an event a line, as JSON or plainly, from the level the document names | Its word for itself, and the names of the loggers that are its own |
-| `semiont_service.observability` | Exports spans and metrics as the environment says, or installs nothing, and takes the readings every service takes of itself | Its word for itself, and its environment |
+| `semiont_service.observability` | Exports spans and metrics as the environment says, or installs nothing, takes the readings every service takes of itself, and reports as a gauge a number a service reads of what it keeps | Its word for itself, and its environment; for a gauge of its own, the gauge's name and what reads the number |
 | `semiont_service.shard` | Works out the two directory names a file of the record is filed under, as [`shard-cases.json`][shard] states the arithmetic | The key: a resource's id, or a checksum |
 | `semiont_service.white_space` | Says what white space is, which is Unicode's and not Python's own, and trims a text of it | The text |
 
@@ -51,7 +51,8 @@ reads them, in one module, and hands them on.
 - **What a process exports of itself is the telemetry table's.** The readings
   registered here are rows of
   [`specs/src/service-telemetry/telemetry.json`][telemetry], and the tests
-  hold each to its row.
+  hold each to its row. A gauge a service has reported here is a row of the
+  table that lists that service, and its conformance suite holds it there.
 - **OpenTelemetry's SDK and its exporter are stated here, once.** A service
   requires this package and states no version of either.
 - **Where a file is filed is the table's.** Every reader and writer of the

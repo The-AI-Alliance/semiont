@@ -48,13 +48,14 @@ async def index_and_ask(
     chunks = [
         EmbeddingChunk(chunk_index=at, text=text, embedding=vector) for at, (text, vector) in enumerate(zip(texts, vectors, strict=True))
     ]
-    await store.upsert_resource_vectors(resource_id, chunks, checksum, [], machine_read=False)
+    await store.upsert_resource_vectors(resource_id, chunks, checksum, [], machine_read=False, media_type="text/plain")
     return await store.search_resources(await provider.embed_query(question), SearchOptions(limit=5))
 ```
 
 A Qdrant store is told where its Qdrant is, and how to learn how wide its
 vectors are. It asks that only when it has to make a collection, so a store
-that connects to collections that exist asks no provider anything.
+that connects to collections that exist asks no provider anything. A store
+told to make its index anew asks again.
 
 ```python
 from semiont_vectors.ollama import OllamaEmbeddingProvider
@@ -99,7 +100,11 @@ exports nothing.
   `search_by_resource`, `get_resource_stamp`); `VectorStore`, the protocol
   every store is, which is a reader's members, the writes and the listings
   of what is indexed, a stamp for each resource and one for each
-  annotation; and what their members take and answer.
+  annotation; and what their members take and answer. Among the writes are
+  `decline_resource`, for a resource whose bytes gave no text, and
+  `make_anew`, which empties the index and has it state an `IndexStamp`;
+  among the listings, `list_declined`, which answers a `Declined` for each
+  such resource, and `index_stamp`.
 - `semiont_vectors.payload`: what a point of the index is, and how a
   resource's stamp, an annotation's stamp and a search result are read
   from one.
@@ -108,8 +113,8 @@ exports nothing.
 - `semiont_vectors.memory`: `MemoryVectorStore`, a store, and so a reader
   too.
 - `semiont_vectors.qdrant`: `QdrantVectorStore`, which makes the collections
-  and their payload indexes when it connects, and `QdrantVectorReader`,
-  which makes nothing.
+  and their payload indexes when it connects, and again when it makes the
+  index anew, and `QdrantVectorReader`, which makes nothing.
 - `semiont_vectors.embedding`: `EmbeddingProvider`, the protocol every
   provider is (`embed_query`, `embed_documents`, `dimensions`), and
   `EmbeddingProviderError`, the failure one raises.
@@ -132,6 +137,27 @@ tables, the Qdrant store against a real Qdrant.
 
 A vector is as wide as the embedding model makes it. The width is measured,
 by asking the provider for one vector, and is written down nowhere.
+
+A point does not say which model made its vector, or how its text was cut.
+The index says what made its points once, for all of them: its stamp, which
+whoever writes the index gives when it has the index made anew
+(`make_anew`), and reads back when it starts (`index_stamp`). A store keeps
+the stamp whole and reads nothing of it. An index that nothing has made anew
+states none, and so does one left half made. Making an index anew takes
+everything out of it, and makes it as wide as the provider's vectors are
+then.
+
+Every point of a resource's chunks states the checksum of the bytes its text
+came from and the media type those bytes were read as, so the same bytes
+recorded under another type are told from the ones that were indexed.
+
+A resource whose bytes give no text has no points. So that it is not read
+again at every start to learn that, the index remembers it
+(`decline_resource`): the checksum of those bytes, the media type they were
+read as, and why they gave no text. A resource has points or is remembered
+so, and never both, and what is remembered is no point: it is never
+searched and is not counted. A Qdrant keeps it in a third collection,
+`declined`.
 
 ## Asking a provider
 
@@ -163,8 +189,8 @@ uv run pytest tests/qdrant_live.py   # against a real Qdrant
 ```
 
 The second run is told where a Qdrant is by `QDRANT_HOST`. It deletes that
-Qdrant's `resources` and `annotations` collections before each case, and
-fails, and is not skipped, without the variable.
+Qdrant's `resources`, `annotations` and `declined` collections before each
+case, and fails, and is not skipped, without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python

@@ -9,23 +9,33 @@ each annotation that quotes text. What a point is, and how a stamp and a
 search result are read from one, is `semiont_vectors.payload`'s to say, and
 is the same in every store.
 
+Beside its points an index keeps two things that nothing searches. It
+remembers each resource whose bytes gave no text to index (`Declined`), so
+that whoever writes the index need not read those bytes again to learn it.
+And it states what made its points (`IndexStamp`), once for the index as a
+whole, so that whoever writes it can tell an index made some other way, and
+make it anew.
+
 A store is handed vectors and makes none: the text was embedded before it
 came here. It works out no checksum and reads no clock.
 
 No type of a database's client appears here.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol, final
 
+from pydantic import JsonValue
 from semiont.identifiers import AnnotationId, ResourceId
 
 __all__ = [
     "AnnotationPayload",
     "AnnotationStamp",
     "CollectionAbsent",
+    "Declined",
     "EmbeddingChunk",
+    "IndexStamp",
     "ResourceStamp",
     "SearchFilter",
     "SearchOptions",
@@ -33,6 +43,12 @@ __all__ = [
     "VectorSearchResult",
     "VectorStore",
 ]
+
+type IndexStamp = Mapping[str, JsonValue]
+"""What made an index's points, as whoever writes the index states it.
+
+A store keeps it whole, compares nothing in it and reads nothing of it.
+"""
 
 
 @final
@@ -69,10 +85,25 @@ class ResourceStamp:
 
     content_checksum: str | None
     """The checksum of the bytes the points' text came from. `None` for points that state none."""
+    media_type: str | None
+    """The media type those bytes were read as, with whatever parameters it stated. `None` for points that state none."""
     entity_types: tuple[str, ...]
     """The entity types the points were given, in the order given. Empty for points that state none."""
     machine_read: bool = False
     """Whether the text was read from pixels."""
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Declined:
+    """What an index remembers of a resource whose bytes gave no text to index: which bytes, read as what, and why."""
+
+    content_checksum: str
+    """The checksum of the bytes that gave no text."""
+    media_type: str
+    """The media type those bytes were read as, with whatever parameters it stated."""
+    reason: str
+    """Why they gave no text, in words."""
 
 
 @final
@@ -211,13 +242,19 @@ class VectorStore(VectorReader, Protocol):
         entity_types: Sequence[str],
         *,
         machine_read: bool,
+        media_type: str,
     ) -> None:
         """Make a resource's points these chunks: every point it had before is gone, and with no chunks it has none.
 
         `content_checksum` is the checksum of the bytes the chunks' text came
-        from, and `entity_types` the resource's: both are kept on every
-        point, so that what is indexed can be compared with what the record
-        says should be. `machine_read` says the text was read from pixels.
+        from, `media_type` the media type those bytes were read as, with
+        whatever parameters it stated, and `entity_types` the resource's:
+        each is kept on every point as it is given, so that what is indexed
+        can be compared with what the record says should be. `machine_read`
+        says the text was read from pixels.
+
+        Whatever the index remembered of a decline of the resource is
+        forgotten, with chunks or with none.
         """
         ...
 
@@ -242,7 +279,11 @@ class VectorStore(VectorReader, Protocol):
         ...
 
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
-        """Take every point of a resource's chunks. The points of annotations on it stay."""
+        """Take every point of a resource's chunks. The points of annotations on it stay.
+
+        Whatever the index remembered of a decline of the resource is
+        forgotten too.
+        """
         ...
 
     async def delete_annotation_vector(self, annotation_id: AnnotationId) -> None: ...
@@ -251,10 +292,33 @@ class VectorStore(VectorReader, Protocol):
         """Take the point of every annotation on a resource. The resource's own points stay."""
         ...
 
+    async def decline_resource(self, resource_id: ResourceId, declined: Declined) -> None:
+        """Take every point of a resource's chunks, and remember `declined` in their place.
+
+        It is for a resource whose bytes gave no text to index. A resource
+        has points or a decline, and never both. One declined again is
+        remembered as it was last declined. The points of annotations on it
+        stay.
+        """
+        ...
+
+    async def make_anew(self, stamp: IndexStamp) -> None:
+        """Take everything out of the index, and make it again, empty, saying that `stamp` made it.
+
+        Everything is every point of a resource, every point of an
+        annotation and everything remembered of a decline. The index made is
+        as wide as the embedding provider's vectors are now: a store that is
+        told how wide they are asks again.
+        """
+        ...
+
     # ── What is indexed ────────────────────────────────────────────────
 
     async def count(self) -> int:
-        """How many points there are, of resources and of annotations together."""
+        """How many points there are, of resources and of annotations together.
+
+        What is remembered of a decline is no point, and is not counted.
+        """
         ...
 
     async def list_resource_stamps(self) -> dict[ResourceId, ResourceStamp]:
@@ -266,5 +330,17 @@ class VectorStore(VectorReader, Protocol):
 
         A point that names an annotation and no resource is listed, with no
         resource: whoever lists is to be able to take it out.
+        """
+        ...
+
+    async def list_declined(self) -> dict[ResourceId, Declined]:
+        """What the index remembers of every resource that was declined, and has not been put or deleted since."""
+        ...
+
+    async def index_stamp(self) -> IndexStamp | None:
+        """What the index says made its points: the stamp it was last made anew with.
+
+        `None` for an index that says nothing, as one that nothing has made
+        anew does, and for one whose parts say different things.
         """
         ...

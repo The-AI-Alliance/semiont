@@ -4,11 +4,14 @@ The table is the one every implementation of the stores runs. Here
 `semiont_vectors.payload` alone is held to all of it: the id a point is kept
 under and its payload, whole, for each point a stored case states, in the
 chunks' order; the stamp read from a payload, a resource's and an
-annotation's; and the result read from one.
+annotation's; and the result read from one. Of the point that remembers a
+decline, the id alone is held here: its payload is built by the store that
+keeps a decline as a point.
 
 What a store answers after it was handed the same writes is the store
 contract's (`store_contract.py`), which every store runs. What the table
-states of Qdrant's collections is the Qdrant store's to be held to.
+states of Qdrant's collections is the Qdrant store's to be held to, and so
+is the payload of the point that remembers a decline.
 """
 
 from typing import Final
@@ -17,6 +20,8 @@ import pytest
 from spec import SPEC, JsonObject, objects, read, strings, text, thing
 from store_contract import (
     ANNOTATION_STORED,
+    DECLINE_POINT,
+    DECLINE_STORED,
     PAYLOAD_CASES,
     POINT,
     RESOURCE_STORED,
@@ -53,6 +58,7 @@ COLLECTIONS = thing(TABLE["collections"], "collections")
 PARTS: Final[dict[str, tuple[str, ...]]] = {
     "resourceStored": RESOURCE_STORED,
     "annotationStored": ANNOTATION_STORED,
+    "declineStored": DECLINE_STORED,
     "stampRead": ("payload", "stamp"),
     "annotationStampRead": ("payload", "stamp"),
     "resultRead": ("collection", "payload", "score", "result"),
@@ -68,7 +74,7 @@ def read_result(payload: JsonObject, score: float) -> JsonObject:
     return stated
 
 
-def test_the_table_has_a_case_of_each_of_its_five_parts_and_each_case_is_of_one() -> None:
+def test_the_table_has_a_case_of_each_of_its_six_parts_and_each_case_is_of_one() -> None:
     only(TABLE, ("$comment", "collections", "cases"), "the table")
     for name in PARTS:
         assert part(name) != [], name
@@ -84,12 +90,13 @@ def test_the_table_has_a_case_of_each_of_its_five_parts_and_each_case_is_of_one(
 def test_a_resources_chunks_stored(given: JsonObject) -> None:
     resource_id = resource(given)
     checksum = text(given["contentChecksum"], "contentChecksum")
+    media_type = text(given["mediaType"], "mediaType")
     entity_types = strings(given["entityTypes"], "entityTypes")
 
     # One point for each chunk, in the chunks' order.
     for chunk, point in zip(chunks(given), objects(given["points"], "points"), strict=True):
         only(point, POINT, "a point")
-        payload = chunk_payload(resource_id, chunk, checksum, entity_types, machine_read=machine_read(given))
+        payload = chunk_payload(resource_id, chunk, checksum, entity_types, machine_read=machine_read(given), media_type=media_type)
 
         assert qdrant_id(chunk_key(resource_id, chunk.chunk_index)) == point["qdrantId"]
         assert payload == point["payload"]
@@ -113,6 +120,14 @@ def test_an_annotation_stored(given: JsonObject) -> None:
     assert annotation_of(payload) == stated.annotation_id
     assert annotation_stamp_of(payload) == AnnotationStamp(resource_id=stated.resource_id, entity_types=tuple(stated.entity_types))
     assert read_result(payload, 1.0) == point["result"]
+
+
+@pytest.mark.parametrize("given", part("declineStored"))
+def test_a_decline_stored(given: JsonObject) -> None:
+    point = thing(given["point"], "point")
+    only(point, DECLINE_POINT, "the point")
+    # It is kept under the id made of its resource's id alone.
+    assert qdrant_id(str(resource(given))) == point["qdrantId"]
 
 
 @pytest.mark.parametrize("given", part("stampRead"))

@@ -18,7 +18,7 @@ from aio import run
 from semiont.identifiers import AnnotationId, ResourceId
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, SearchOptions, VectorReader, VectorStore
+from semiont_vectors.store import AnnotationPayload, Declined, SearchOptions, VectorReader, VectorStore
 
 RESOURCE: Final = ResourceId("res-1")
 ANNOTATION: Final = AnnotationId("ann-1")
@@ -29,6 +29,7 @@ QUOTED: Final = AnnotationPayload(
     entity_types=[],
     exact_text="some words",
 )
+DECLINED: Final = Declined(content_checksum="checksum", media_type="image/png", reason="no text was read from the image")
 ONE: Final = SearchOptions(limit=1)
 
 
@@ -43,14 +44,22 @@ def store() -> QdrantVectorStore:
 
 type Call = Callable[[VectorStore], Awaitable[object]]
 
+
+def put(held: VectorStore) -> Awaitable[object]:
+    """A put of no chunks, with everything a put takes."""
+    return held.upsert_resource_vectors(RESOURCE, [], "checksum", [], machine_read=False, media_type="text/plain")
+
+
 CALLS: Final[dict[str, Call]] = {
-    "upsert_resource_vectors": lambda held: held.upsert_resource_vectors(RESOURCE, [], "checksum", [], machine_read=False),
+    "upsert_resource_vectors": put,
     "update_resource_entity_types": lambda held: held.update_resource_entity_types(RESOURCE, []),
     "upsert_annotation_vector": lambda held: held.upsert_annotation_vector([1.0, 0.0], QUOTED),
     "update_annotation_entity_types": lambda held: held.update_annotation_entity_types(ANNOTATION, []),
     "delete_resource_vectors": lambda held: held.delete_resource_vectors(RESOURCE),
     "delete_annotation_vector": lambda held: held.delete_annotation_vector(ANNOTATION),
     "delete_annotation_vectors_for_resource": lambda held: held.delete_annotation_vectors_for_resource(RESOURCE),
+    "decline_resource": lambda held: held.decline_resource(RESOURCE, DECLINED),
+    "make_anew": lambda held: held.make_anew({}),
     "search_resources": lambda held: held.search_resources([1.0, 0.0], ONE),
     "search_annotations": lambda held: held.search_annotations([1.0, 0.0], ONE),
     "search_by_resource": lambda held: held.search_by_resource(RESOURCE, ONE),
@@ -58,6 +67,8 @@ CALLS: Final[dict[str, Call]] = {
     "list_resource_stamps": lambda held: held.list_resource_stamps(),
     "get_resource_stamp": lambda held: held.get_resource_stamp(RESOURCE),
     "list_annotation_stamps": lambda held: held.list_annotation_stamps(),
+    "list_declined": lambda held: held.list_declined(),
+    "index_stamp": lambda held: held.index_stamp(),
 }
 """Every member of a store that asks its index something, each called with what it takes."""
 

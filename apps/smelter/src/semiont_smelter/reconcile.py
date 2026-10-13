@@ -12,6 +12,16 @@ for a resource's first representation are each the SHA-256 of the bytes, in
 lower-case hex and with nothing before it: the Archivist writes that, and the
 Smelter writes the other two. A plan compares them as text.
 
+**So is a media type.** A resource's points state the media type its bytes
+were read as, which is the one the Archivist answered them with: the catalog's,
+as it is written, with whatever parameters it states. The same bytes read as
+another type are another text, so a plan compares the two as text.
+
+**A decline is remembered.** A resource whose bytes gave no text has no
+points, and the index remembers which bytes those were and what they were read
+as. A plan does not set out to index such a resource again while the catalog
+states those bytes and that type of it.
+
 **Entity types are compared as sets:** in no order, and a type stated twice
 is stated once. A resource's are compared, and so are those of an annotation
 that has a point.
@@ -31,7 +41,7 @@ from semiont.media_types import text_source_of, yields_geometry_of
 from semiont.resources import primary_representation, resource_entity_types
 from semiont.types import Annotation, ResourceDescriptor, SmeltSettledReason
 from semiont_service.white_space import trimmed
-from semiont_vectors.store import ResourceStamp
+from semiont_vectors.store import Declined, ResourceStamp
 
 __all__ = [
     "Embed",
@@ -57,6 +67,8 @@ class Embeddable:
 
     checksum: str | None
     """The checksum of its first representation: of the bytes a Smelter would read. `None` where the catalog states none."""
+    media_type: str
+    """The media type of its first representation, as the catalog states it: what a Smelter would read its bytes as."""
     entity_types: frozenset[str]
     """Its entity types, which its points are to carry."""
     yields_geometry: bool
@@ -144,6 +156,7 @@ def classify_embeddable(resources: Iterable[ResourceDescriptor]) -> dict[Resourc
             continue
         embeddable[resource.id] = Embeddable(
             checksum=representation.checksum,
+            media_type=representation.media_type,
             entity_types=frozenset(resource_entity_types(resource)),
             yields_geometry=yields_geometry_of(representation.media_type),
         )
@@ -153,6 +166,7 @@ def classify_embeddable(resources: Iterable[ResourceDescriptor]) -> dict[Resourc
 def plan_reconcile(
     *,
     indexed_resources: Mapping[ResourceId, ResourceStamp],
+    declined: Mapping[ResourceId, Declined],
     indexed_annotations: Mapping[AnnotationId, Collection[str]],
     anchored_keys: Collection[str],
     embeddable: Mapping[ResourceId, Embeddable],
@@ -161,8 +175,9 @@ def plan_reconcile(
     """The work that brings an index and an anchored-text store to what the catalog says, in an order it can be done in.
 
     `indexed_resources` is the stamp of each resource the index holds points
-    for, and `indexed_annotations` each annotation it holds a point for, with
-    the entity types that point carries.
+    for, `declined` what it remembers of each resource it declined, and
+    `indexed_annotations` each annotation it holds a point for, with the
+    entity types that point carries.
     `anchored_keys` is the keys of the anchored-text store. `embeddable` is
     `classify_embeddable`'s answer for the catalog's resources, and
     `live_annotations` every annotation of every resource of the catalog,
@@ -174,15 +189,29 @@ def plan_reconcile(
     resource's points as they then are. The work is otherwise in no stated
     order.
     """
-    work: list[Work] = [Purge(resource) for resource in indexed_resources if resource not in embeddable]
+    # Whatever the index holds of a resource that is none of the catalog's with text is taken out: its points, or
+    # what is remembered of its decline. An index holds one of the two, and each resource is planned once.
+    held = dict.fromkeys((*indexed_resources, *declined))
+    work: list[Work] = [Purge(resource) for resource in held if resource not in embeddable]
 
     for resource, catalog in embeddable.items():
         indexed = indexed_resources.get(resource)
         if indexed is None:
-            work.append(Embed(resource))
+            remembered = declined.get(resource)
+            if remembered is None or (remembered.content_checksum, remembered.media_type) != (catalog.checksum, catalog.media_type):
+                # No points, and no decline of the bytes and the type the catalog states. A catalog that states no
+                # checksum does not say that the bytes are the ones that were declined.
+                work.append(Embed(resource))
+            elif catalog.yields_geometry and catalog.checksum not in anchored_keys:
+                # Declined, and the store has lost what the document was declined by: that is derived again.
+                work.append(Reanchor(resource))
             continue
         if catalog.checksum is not None and indexed.content_checksum != catalog.checksum:
             # Points made from earlier bytes, or points that state no checksum at all. Indexing reads the entity types afresh too.
+            work.append(Embed(resource))
+            continue
+        if indexed.media_type != catalog.media_type:
+            # The same bytes, read as another type or as none that is stated: another text.
             work.append(Embed(resource))
             continue
         if frozenset(indexed.entity_types) != catalog.entity_types:

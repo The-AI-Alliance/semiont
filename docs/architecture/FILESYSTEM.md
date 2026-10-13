@@ -98,7 +98,7 @@ Each derived store has one owner, and that owner recovers it from the record:
 |---|---|---|
 | Views | Archivist | Rebuilds them from the event log every time it starts, before it serves a request |
 | Graph | Weaver | Catches up from its checkpoint at startup; `weave:rebuild` is the full rebuild |
-| Vectors and anchored text | Smelter | Reconciles against the catalog at startup: re-embeds what is missing or stale, purges orphans |
+| Vectors and anchored text | Smelter | Reconciles against the catalog at startup: re-embeds what is missing or stale, purges orphans. An index made by another embedding model, or cut by other numbers, is cleared and filled again whole |
 
 The procedures are the operator's: [backing up and restoring](../operator/administration/BACKUP.md)
 and [rebuilding derived state](../operator/administration/MAINTENANCE.md#rebuilding-derived-state).

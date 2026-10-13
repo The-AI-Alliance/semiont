@@ -4,13 +4,30 @@ No library of Qdrant's is used. Each call is one request, with a JSON body,
 to `http://{host}:{port}`. What holds this module's reading of the API is a
 real Qdrant under this package's tests (`tests/qdrant_live.py`).
 
-The store makes the two collections `specs/src/vectors/payload-cases.json`
+The store makes the three collections `specs/src/vectors/payload-cases.json`
 states under `collections`, each with the distance and the payload indexes
-stated there. A collection is made only where there is none, as wide as the
-embedding provider's vectors: the width is asked for then and at no other
-time, so connecting to an index that is there asks no provider anything.
-What a point is (its id, its payload, how a stamp and a search result are
+stated there. Two hold the points that are searched, and are as wide as the
+embedding provider's vectors. Connecting makes a collection only where there
+is none, and the width is asked for only then, so connecting to an index
+that is there asks no provider anything. Making the index anew deletes every
+collection and makes each again, and asks for the width again. What a point
+of those two is (its id, its payload, how a stamp and a search result are
 read from one) is `semiont_vectors.payload`'s to say.
+
+The third collection, `declined`, is what the index remembers of each
+resource whose bytes gave no text to index. Its points hold no text and are
+never searched. Each is kept under the id made of its resource's id alone,
+and its payload is that resource's id, the checksum, the media type and the
+reason. Qdrant keeps a point by a vector, so the collection is one number
+wide and each of its points has the vector `[0.0]`, which says nothing. It
+is compared by the dot product: a collection of cosine distance keeps each
+vector at unit length, and a vector of 0 has none.
+
+What made the index's points, its stamp, is in the metadata of each of the
+two collections that are searched, as `{"stamp": ...}`, written when the
+collection is made anew. A collection made because there was none states no
+stamp, and `declined` never states one. The index states a stamp only where
+both state the same one, so an index left half made anew states none.
 
 The reader makes nothing: no collection, no index of a payload member, no
 point. It searches as the store does, by the same requests, and is told no
@@ -45,12 +62,14 @@ generates from Qdrant's OpenAPI document.
   with `usage` beside them. A failure is a status of 4XX or 5XX, whose body
   is `{"status": {"error": "what went wrong"}, "time": ...}`.
 - `GET /collections/{name}` answers what a collection is: its `size` and
-  `distance` under `config.params.vectors`, and each indexed member's
-  `data_type` under `payload_schema`. The reference says a failure is a 4XX,
-  and does not say which one a collection that is not there gets. It is 404
+  `distance` under `config.params.vectors`, each indexed member's
+  `data_type` under `payload_schema`, and its `metadata` under `config`,
+  which is absent or null for a collection that was given none. The
+  reference says a failure is a 4XX, and does not say which one a
+  collection that is not there gets. It is 404
   (`Not found: Collection ... doesn't exist!`): that is read from Qdrant's
   issues and not from its reference, and the tests hold it, since they make
-  both collections on a Qdrant that has neither. A scroll and a query of a
+  the collections on a Qdrant that has none of them. A scroll and a query of a
   collection that is not there are taken to be answered the same way, with a
   404: the reference does not say so either, and the tests hold it, since
   they search a Qdrant that has neither collection.
@@ -58,7 +77,21 @@ generates from Qdrant's OpenAPI document.
   changes nothing.
 - `PUT /collections/{name}` with `{"vectors": {"size": ..., "distance": ...}}`
   makes a collection, and answers `true`. It takes a `timeout` and no
-  `wait`.
+  `wait`. A `distance` is `Cosine`, `Euclid`, `Dot` or `Manhattan`. A `size`
+  is a whole number, and the types state no least one: that a collection
+  may be 1 wide, and keep a vector of 0, is held by the tests. The body may
+  state `metadata`, an object of any JSON, which the types say is for
+  whatever an application has to say of a collection, such as which model
+  made its vectors. The types do not say since which Qdrant a collection
+  has it.
+- `DELETE /collections/{name}` deletes a collection and all that is in it,
+  and answers a boolean. It takes a `timeout` and no `wait`. The types do
+  not say what it answers for a collection that is not there, so the store
+  deletes only a collection that `GET` says is there, and takes `true`
+  alone to mean it is gone.
+- `PATCH /collections/{name}` with `{"metadata": ...}` puts the members
+  given into a collection's metadata, beside those it has. The store never
+  asks it: the tests do, to make two collections state different stamps.
 - `PUT /collections/{name}/index` with `{"field_name": ..., "field_schema": ...}`
   indexes a payload member, as a `keyword` here. It takes `wait`.
 - `PUT /collections/{name}/points` with `{"points": [...]}`, each an `id`, a
@@ -131,7 +164,9 @@ from semiont_vectors.store import (
     AnnotationPayload,
     AnnotationStamp,
     CollectionAbsent,
+    Declined,
     EmbeddingChunk,
+    IndexStamp,
     ResourceStamp,
     SearchFilter,
     SearchOptions,
@@ -156,15 +191,24 @@ class _Collection:
     """What its vectors are compared by, in Qdrant's word for it."""
     indexes: Mapping[str, str]
     """The payload members Qdrant indexes, and as what, so that a filter on one does not read every point."""
+    size: int | None
+    """How wide its vectors are, where that is fixed. `None` for a collection as wide as the embedding provider's vectors."""
 
     def at(self, call: str = "") -> str:
         """The path of the collection, or of one of its calls."""
         return f"/collections/{self.name}{call}"
 
 
-_RESOURCES: Final = _Collection(name="resources", distance="Cosine", indexes={"entityTypes": "keyword", "resourceId": "keyword"})
-_ANNOTATIONS: Final = _Collection(name="annotations", distance="Cosine", indexes={"resourceId": "keyword"})
-_COLLECTIONS: Final = (_RESOURCES, _ANNOTATIONS)
+_RESOURCES: Final = _Collection(name="resources", distance="Cosine", indexes={"entityTypes": "keyword", "resourceId": "keyword"}, size=None)
+_ANNOTATIONS: Final = _Collection(name="annotations", distance="Cosine", indexes={"resourceId": "keyword"}, size=None)
+# What the index remembers of each declined resource, which nothing searches: see the module's documentation.
+_DECLINED: Final = _Collection(name="declined", distance="Dot", indexes={}, size=1)
+_COLLECTIONS: Final = (_RESOURCES, _ANNOTATIONS, _DECLINED)
+# The collections of the embedding provider's vectors: the ones whose points are counted, and the ones that state the index's stamp.
+_EMBEDDED: Final = tuple(collection for collection in _COLLECTIONS if collection.size is None)
+
+# The vector of every point of the declined. It says nothing: Qdrant keeps a point by a vector, and nothing searches these.
+_NOTHING: Final = (0.0,)
 
 # How long a request may take. An answer is waited for five minutes: a write is
 # answered only once Qdrant has applied it, and the longest of them, indexing a
@@ -221,6 +265,18 @@ class _Counted(BaseModel, frozen=True):
     count: int
 
 
+class _Config(BaseModel, frozen=True):
+    """A collection's configuration, read for its metadata alone, which is absent or null where the collection was given none."""
+
+    metadata: dict[str, JsonValue] | None = None
+
+
+class _Described(BaseModel, frozen=True):
+    """What Qdrant answers a collection is, read for its configuration alone."""
+
+    config: _Config
+
+
 _BATCH: Final = TypeAdapter[list[_Found]](list[_Found])
 
 
@@ -258,16 +314,67 @@ async def _write(client: httpx.AsyncClient, method: str, path: str, body: _Body)
         raise RuntimeError(f"Qdrant answered {method} {path} before it had made the change: {result}")
 
 
-async def _made(client: httpx.AsyncClient, collection: _Collection, dimensions: Callable[[], Awaitable[int]]) -> None:
-    """Make a collection where there is none. Only then is anybody asked how wide a vector is."""
+async def _there(client: httpx.AsyncClient, collection: _Collection) -> bool:
+    """Whether Qdrant has a collection. Raises for an answer that says neither that it has it nor that it has none."""
     held = await client.get(collection.at())
-    if held.status_code != _NOT_THERE:
-        _result(held)
-        return
-    size = await resolve_dimensions(dimensions)
-    made = _result(await client.put(collection.at(), json={"vectors": {"size": size, "distance": collection.distance}}))
+    if held.status_code == _NOT_THERE:
+        return False
+    _result(held)
+    return True
+
+
+async def _make(client: httpx.AsyncClient, collection: _Collection, size: int, stamp: IndexStamp | None) -> None:
+    """Make a collection that is not there, `size` numbers wide. Its metadata states `stamp`, where it is given one."""
+    body: _Body = {"vectors": {"size": size, "distance": collection.distance}}
+    if stamp is not None:
+        stated: _Body = {**stamp}
+        metadata: _Body = {"stamp": stated}
+        body["metadata"] = metadata
+    made = _result(await client.put(collection.at(), json=body))
     if made is not True:
         raise RuntimeError(f"Qdrant did not make the collection {collection.name}: it answered {made}")
+
+
+async def _made(client: httpx.AsyncClient, collection: _Collection, dimensions: Callable[[], Awaitable[int]]) -> None:
+    """Make a collection where there is none. It states no stamp.
+
+    Only then is anybody asked how wide a vector is, and only for a
+    collection as wide as the provider's vectors.
+    """
+    if await _there(client, collection):
+        return
+    size = collection.size if collection.size is not None else await resolve_dimensions(dimensions)
+    await _make(client, collection, size, None)
+
+
+async def _dropped(client: httpx.AsyncClient, collection: _Collection) -> None:
+    """Delete a collection that is there, and every point of it. One that is not there is left so."""
+    if not await _there(client, collection):
+        return
+    dropped = _result(await client.delete(collection.at()))
+    if dropped is not True:
+        raise RuntimeError(f"Qdrant did not delete the collection {collection.name}: it answered {dropped}")
+
+
+async def _indexed(client: httpx.AsyncClient) -> None:
+    """Ask for each index of a payload member, of every collection. Qdrant takes an index it has already as no failure."""
+    for collection in _COLLECTIONS:
+        for member, kind in collection.indexes.items():
+            await _write(client, "PUT", collection.at("/index"), {"field_name": member, "field_schema": kind})
+
+
+async def _stamp(client: httpx.AsyncClient, collection: _Collection) -> IndexStamp | None:
+    """The stamp a collection states in its metadata. `None` for one that states none, or states one that is no object.
+
+    Raises `CollectionAbsent` for a collection that is not there.
+    """
+    held = await client.get(collection.at())
+    if held.status_code == _NOT_THERE:
+        answered = f"it answered {held.status_code} to GET {collection.at()}"
+        raise CollectionAbsent(f"Qdrant has no such collection ({answered}): no store has made it yet")
+    metadata = _Described.model_validate(_result(held)).config.metadata
+    stated = None if metadata is None else metadata.get("stamp")
+    return stated if isinstance(stated, dict) else None
 
 
 async def _pages(client: httpx.AsyncClient, collection: _Collection, asked: _Body) -> AsyncIterator[list[_Point]]:
@@ -290,6 +397,30 @@ def _point(key: str, embedding: Sequence[float], payload: Payload) -> _Body:
     """A point as Qdrant is given one: the id its key is kept under, its vector and its payload."""
     vector: list[JsonValue] = [*embedding]
     return {"id": qdrant_id(key), "vector": vector, "payload": payload}
+
+
+def _remembered(resource_id: ResourceId, declined: Declined) -> _Body:
+    """The point that remembers a decline, as Qdrant is given one: kept under its resource's id, with the vector that says nothing."""
+    payload: Payload = {
+        "resourceId": str(resource_id),
+        "contentChecksum": declined.content_checksum,
+        "mediaType": declined.media_type,
+        "reason": declined.reason,
+    }
+    return _point(str(resource_id), _NOTHING, payload)
+
+
+def _declined_of(payload: Payload) -> tuple[ResourceId, Declined]:
+    """The resource a point of the declined is of, and what it remembers of it.
+
+    Raises `ValueError` for a payload that does not state all four members:
+    it is no decline, and nothing is made up for what it leaves out.
+    """
+    resource_id = resource_of(payload)
+    checksum, media_type, reason = payload.get("contentChecksum"), payload.get("mediaType"), payload.get("reason")
+    if resource_id is None or not isinstance(checksum, str) or not isinstance(media_type, str) or not isinstance(reason, str):
+        raise ValueError(f"a point of the declined does not state all that a decline is: {payload}")
+    return resource_id, Declined(content_checksum=checksum, media_type=media_type, reason=reason)
 
 
 def _equal(member: str, value: str) -> JsonValue:
@@ -470,7 +601,9 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
 
     Connecting makes each collection that is not there, and asks for each
     index of a payload member. `dimensions` answers how wide the embedding
-    provider's vectors are. It is asked only when a collection must be made.
+    provider's vectors are. It is asked only when a collection of those
+    vectors must be made: where there is none at connecting, and whenever
+    the index is made anew.
     """
 
     def __init__(self, *, host: str, port: int, dimensions: Callable[[], Awaitable[int]]) -> None:
@@ -481,11 +614,8 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
     async def _ready(self, client: httpx.AsyncClient) -> None:
         for collection in _COLLECTIONS:
             await _made(client, collection, self._dimensions)
-        # Asked for at every connection: Qdrant takes an index it has already as no failure, and a collection
-        # made before one of these members was indexed gets its index here.
-        for collection in _COLLECTIONS:
-            for member, kind in collection.indexes.items():
-                await _write(client, "PUT", collection.at("/index"), {"field_name": member, "field_schema": kind})
+        # Asked for at every connection: a collection made before one of these members was indexed gets its index here.
+        await _indexed(client)
 
     # ── Writes ─────────────────────────────────────────────────────────
 
@@ -498,15 +628,17 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
         entity_types: Sequence[str],
         *,
         machine_read: bool,
+        media_type: str,
     ) -> None:
         client = self._reached()
         # Every point the resource had goes first: a resource with fewer chunks than before would keep the rest.
+        # What was remembered of a decline of it goes with them.
         await self.delete_resource_vectors(resource_id)
         if not chunks:
             return
         points: list[JsonValue] = []
         for chunk in chunks:
-            payload = chunk_payload(resource_id, chunk, content_checksum, entity_types, machine_read=machine_read)
+            payload = chunk_payload(resource_id, chunk, content_checksum, entity_types, machine_read=machine_read, media_type=media_type)
             points.append(_point(chunk_key(resource_id, chunk.chunk_index), chunk.embedding, payload))
         await _write(client, "PUT", _RESOURCES.at("/points"), {"points": points})
 
@@ -534,7 +666,10 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
 
     @override
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
-        await _write(self._reached(), "POST", _RESOURCES.at("/points/delete"), {"filter": _points_of(resource_id)})
+        client = self._reached()
+        await _write(client, "POST", _RESOURCES.at("/points/delete"), {"filter": _points_of(resource_id)})
+        # By its id: a point that is not there is taken as no failure.
+        await _write(client, "POST", _DECLINED.at("/points/delete"), {"points": [qdrant_id(str(resource_id))]})
 
     @override
     async def delete_annotation_vector(self, annotation_id: AnnotationId) -> None:
@@ -544,13 +679,35 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
     async def delete_annotation_vectors_for_resource(self, resource_id: ResourceId) -> None:
         await _write(self._reached(), "POST", _ANNOTATIONS.at("/points/delete"), {"filter": _points_of(resource_id)})
 
+    @override
+    async def decline_resource(self, resource_id: ResourceId, declined: Declined) -> None:
+        client = self._reached()
+        # The points go first: a store stopped between the two leaves a resource with neither, and never with both.
+        await _write(client, "POST", _RESOURCES.at("/points/delete"), {"filter": _points_of(resource_id)})
+        # One point for each resource, under its id: a decline put again replaces the one before.
+        await _write(client, "PUT", _DECLINED.at("/points"), {"points": [_remembered(resource_id, declined)]})
+
+    @override
+    async def make_anew(self, stamp: IndexStamp) -> None:
+        client = self._reached()
+        # Asked before anything is taken: a provider that does not answer leaves the index as it was.
+        width = await resolve_dimensions(self._dimensions)
+        for collection in _COLLECTIONS:
+            await _dropped(client, collection)
+        for collection in _COLLECTIONS:
+            if collection.size is None:
+                await _make(client, collection, width, stamp)
+            else:
+                await _make(client, collection, collection.size, None)
+        await _indexed(client)
+
     # ── What is indexed ────────────────────────────────────────────────
 
     @override
     async def count(self) -> int:
         client = self._reached()
         total = 0
-        for collection in _COLLECTIONS:
+        for collection in _EMBEDDED:
             counted = await _read(client, collection.at("/points/count"), {"exact": True})
             total += _Counted.model_validate(counted).count
         return total
@@ -577,3 +734,20 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
                 if annotation_id is not None:
                     stamps[annotation_id] = annotation_stamp_of(payload)
         return stamps
+
+    @override
+    async def list_declined(self) -> dict[ResourceId, Declined]:
+        declined: dict[ResourceId, Declined] = {}
+        whole: _Body = {"limit": _PAYLOAD_PAGE, "with_payload": True, "with_vector": False}
+        async for page in _pages(self._reached(), _DECLINED, whole):
+            for point in page:
+                resource_id, remembered = _declined_of(_said(point))
+                declined[resource_id] = remembered
+        return declined
+
+    @override
+    async def index_stamp(self) -> IndexStamp | None:
+        client = self._reached()
+        stated = [await _stamp(client, collection) for collection in _EMBEDDED]
+        # Each was given the stamp when it was made anew. Where one states another, or none, the index says nothing.
+        return stated[0] if all(each == stated[0] for each in stated) else None

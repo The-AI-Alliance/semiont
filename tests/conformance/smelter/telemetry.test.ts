@@ -3,13 +3,14 @@
  * specs/src/service-telemetry/telemetry.json lists for it, and the rows of
  * specs/src/sdk-telemetry/telemetry.json it names there, exported over OTLP
  * to the endpoint the standard OpenTelemetry environment names; and nothing
- * else.
+ * else. And what its gauge of the index says: the number of points the index
+ * holds.
  */
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { eachSmelter } from '../harness/smelter-world';
-import { spanName } from '../harness/spec';
+import { metricName, spanName } from '../harness/spec';
 import { outsideTheTable, received } from '../harness/telemetry';
 
 let receiver: OtlpReceiver | undefined;
@@ -42,5 +43,13 @@ eachSmelter('what a Smelter exports', (world) => {
     expect(span.service).toBe('semiont-smelter');
 
     expect(await outsideTheTable(otlp(), 'smelter'), received(otlp())).toEqual([]);
+
+    // The index holds the resource's points now. A reading is up to an export interval old, so the gauge is waited for.
+    const size = metricName('semiont.vector.index.size');
+    const held = await eventually('the gauge to say how many points the index holds', 15_000, async () => {
+      const points = (await world().index.count('resources')) + (await world().index.count('annotations'));
+      return otlp().metrics.get(size)?.values.at(-1) === points ? points : undefined;
+    });
+    expect(held).toBeGreaterThan(0);
   });
 });

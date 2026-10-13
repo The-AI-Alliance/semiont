@@ -310,11 +310,19 @@ and no `used`: Python keeps no count of how much of its heap is in use. Its `lim
 container's own memory limit. It counts a `semiont.process.abnormal_exit` for a failure
 nothing caught once it had started, as `uncaughtException`.
 
-The Weaver and the Smelter are Python too. Each exports the `semiont.process.*` and
-`semiont.runtime.*` instruments as the Worker service does, with the same three readings of its
-memory, and no metric of its own. How many events the Weaver could not apply and how its two
-boot passes ended, and how many events the Smelter has applied and how its reconcile ended, are
-what each one's health says.
+The Weaver is Python too. It exports the `semiont.process.*` and `semiont.runtime.*`
+instruments as the Worker service does, with the same three readings of its memory, and no
+metric of its own. How many events it could not apply and how its two boot passes ended are
+what its health says.
+
+The Smelter is Python too. It exports the `semiont.process.*` and `semiont.runtime.*`
+instruments as the Worker service does, with the same three readings of its memory, and this:
+
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.vector.index.size`  | gauge            | (none)                                                  | export  | Points the vector index holds, of resources and of annotations together. The Smelter counts them once in each export interval; while the index does not answer the count, the series has no point |
+
+How many events the Smelter has applied and how its reconcile ended are what its health says.
 
 The Librarian is Python too. It exports the `semiont.process.*` and `semiont.runtime.*`
 instruments as the Worker service does, with the same three readings of its memory, the three

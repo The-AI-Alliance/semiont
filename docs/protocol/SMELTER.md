@@ -177,9 +177,11 @@ entity types from its description as the Archivist answers it then.
   resource whose text grew shorter keeps no point of the longer text.
   *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
-  checksum of the bytes, the resource's entity types, and a mark when the
-  text was read from pixels,** as
+  checksum of the bytes and the media type they were read as, the resource's
+  entity types, and a mark when the text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
+  The media type is the one the Archivist answered the bytes with, as it is
+  written, with whatever parameters it states.
   *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
   *Held by `apps/smelter/tests/test_properties.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -251,6 +253,12 @@ and says so.
 - **A skipped resource has no points.** Points made from bytes it had before
   are taken out. The points of its annotations are kept.
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
+- **The index remembers a skip of a media type that has text:** the checksum
+  of the bytes that gave none, the media type they were read as, and the
+  reason. It is forgotten when the resource is indexed, when it is archived,
+  and when a start takes it out. A skip of a media type that has no text is
+  not remembered: the catalog says as much of the resource.
+  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
@@ -327,14 +335,22 @@ states what each kind of document becomes.
 ## The index
 
 - **The index is two collections of points,** one of resources' chunks and one
-  of annotations, searched by cosine similarity.
+  of annotations, searched by cosine similarity, **and a third that is never
+  searched,** which holds what is remembered of each skipped resource.
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
   *Held by `packages/vectors-python/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/vectors-python/tests/qdrant_live.py`.*
-- **A collection is as wide as the embedding model's vectors,** which the
-  Smelter learns by asking the provider to embed once, when it first makes
-  the collection.
+- **A collection that is searched is as wide as the embedding model's
+  vectors,** which the Smelter learns by asking the provider to embed once,
+  each time it makes the collections: where there are none when it connects,
+  and when it makes the index again. A Smelter that starts on an index that
+  is there, and was made as it makes one, asks nothing.
   *Held by `packages/vectors-python/tests/qdrant_live.py`, against a Qdrant.*
+- **The index states what made it:** the embedding provider's type and its
+  model, and the two numbers a text is cut by. Where the model is served is
+  no part of it. The two collections that are searched each state it, and an
+  index whose two state different things states nothing.
+  *Held by `apps/smelter/tests/test_index_stamp.py` and `packages/vectors-python/tests/store_contract.py`, and for a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
 - **What a search of the index answers is what
   [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
   *Held by `packages/vectors-python/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
@@ -381,12 +397,24 @@ A Smelter asks one provider for its vectors: an Ollama
 ## Boot
 
 A Smelter starts in this order: it reads its settings; signs in; reaches its
-embedding provider and its vector database; subscribes to what it follows;
-opens its health port; runs reconcile.
+embedding provider and its vector database; holds the index to what it makes
+one by; subscribes to what it follows; opens its health port; runs reconcile.
 
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
   *Held by `packages/service-python/tests/test_connect.py`.*
+- **An index that states another model or another cut than the Smelter is
+  configured with, or states nothing, is made again:** emptied, and as wide
+  as the provider's vectors are then, before anything is followed. A warning
+  in the log says what the index stated and what the Smelter makes one by,
+  and the reconcile of that start indexes every resource and every annotation
+  again. An index that holds nothing and states nothing is given its stamp
+  with no warning. The stamp says what made the vectors, and nothing of
+  whether the index holds what the record holds now: the record, the index's
+  collections and the anchored-text store are kept apart, one may be restored
+  or cleared without the others, and no stamp says so. That is the
+  reconcile's to find.
+  *Held by `apps/smelter/tests/test_index_stamp.py` and `smelter/reconcile`.*
 - **Its health answers before reconcile begins,** and events recorded from
   then on are applied as they arrive, while reconcile runs.
   *Held by `smelter/boot`.*
@@ -409,11 +437,18 @@ in prose.
   indexed while it runs is never taken for one that should not be there.
   *Held by `apps/smelter/tests/test_smelter.py`.*
 - **A resource of the catalog whose media type has text, and which has no
-  points, is indexed.**
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  points, is indexed,** unless the index remembers skipping it, by the
+  checksum and the media type the catalog states of it: its bytes gave no
+  text, and they are the bytes it has. A catalog that states no checksum does
+  not say so, and such a resource is indexed.
+  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **One whose points carry another checksum than the catalog states is
   indexed again.**
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+- **One whose points carry another media type than the catalog states, or
+  none, is indexed again:** the same bytes read as another type are another
+  text. A media type is compared as it is written.
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `apps/smelter/tests/test_smelter.py`.*
 - **One whose points carry the catalog's checksum and other entity types has
   its entity types rewritten, and nothing is embedded.**
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
@@ -423,9 +458,12 @@ in prose.
   under their checksum. Nothing is embedded, the index is not touched, and
   nothing is signalled.
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+- **A skipped document whose bytes the anchored-text store has no entry for
+  has what it was skipped by derived again,** and is not indexed.
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `apps/smelter/tests/test_smelter.py`.*
 - **Points of a resource that is none of the catalog's resources with text
-  are taken out:** one that is archived, one that is gone, one whose media
-  type has no text.
+  are taken out, and so is what is remembered of its skip:** one that is
+  archived, one that is gone, one whose media type has no text.
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **An annotation that quotes text, on any resource of the catalog, and has
   no point is indexed; a point whose annotation is not among them is taken
@@ -519,12 +557,20 @@ in prose.
   lists for the smelter, and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
   the first names for it under `sdk`.** Those are what every service says of
-  its own process (when it started, how late its loop runs, its memory), a
-  span for each frame it sends and each it receives on the bus, and a count
-  of the frames it sent. Every span and metric it exports is one of those
-  rows, of the row's kind, carrying only the row's attributes; and every one
-  of those rows that its work can make arrives, with every attribute the row
-  does not mark as conditional. *Held by `smelter/telemetry`.*
+  its own process (when it started, how late its loop runs, its memory), how
+  many points its index holds, a span for each frame it sends and each it
+  receives on the bus, and a count of the frames it sent. Every span and
+  metric it exports is one of those rows, of the row's kind, carrying only
+  the row's attributes; and every one of those rows that its work can make
+  arrives, with every attribute the row does not mark as conditional.
+  *Held by `smelter/telemetry`.*
+- **`semiont.vector.index.size` is the number of points its index holds,** of
+  resources and of annotations together. A Smelter that exports asks its
+  index for the number when it has started, and again once in each export
+  interval, and the gauge says what was last answered. While the index does
+  not answer, each asking that failed is logged as a warning and the gauge
+  says nothing: a number answered before says nothing of now.
+  *Held by `smelter/telemetry`, `packages/service-python/tests/test_observability.py` and `apps/smelter/tests/test_telemetry.py`.*
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
@@ -563,9 +609,11 @@ it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
 
 ## Not specified here
 
-- **What made a point.** A point names neither the embedding model nor the
-  two numbers its text was cut by. What becomes of an index when any of the
-  three changes is not stated here.
+- **What a Smelter itself changes.** The index states the model and the cut.
+  A change to how a Smelter makes a point that is neither of those (where it
+  cuts at a boundary, what it tells its provider a text is for, how it
+  derives a document's text) is in no stamp, and an index made before such a
+  change is not made again.
 - **Events it does not follow.** `yield:moved` and
   `yield:representation-removed` change a resource, and the index is not
   told of either as it happens.
@@ -573,5 +621,4 @@ it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
   the resources it set out to index came to are outcomes. The other counts
   are of what was planned.
 - **Telemetry of its own work.** No span or metric says what a Smelter
-  indexed, skipped or failed on, nor how many points its index holds: its log
-  and its health say the first, and nothing says the second.
+  indexed, skipped or failed on: its log and its health say that.

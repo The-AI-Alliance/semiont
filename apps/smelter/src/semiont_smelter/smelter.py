@@ -78,7 +78,7 @@ from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.lanes import Lanes
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import AnnotationPayload, AnnotationStamp, EmbeddingChunk, VectorStore
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, Declined, EmbeddingChunk, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking, chunk_text
@@ -134,10 +134,11 @@ class ReconcileState:
 @final
 @dataclass(frozen=True, slots=True)
 class _Text:
-    """A resource's text, the checksum of the bytes it came from, and whether it was read from pixels."""
+    """A resource's text, the checksum of the bytes it came from, what those bytes were read as, and whether it was read from pixels."""
 
     text: str
     checksum: str
+    content_type: str
     machine_read: bool
 
 
@@ -413,7 +414,9 @@ class Smelter:
             EmbeddingChunk(chunk_index=index, text=chunk, embedding=embedding)
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
         ]
-        await self._index.upsert_resource_vectors(resource, points, read.checksum, types, machine_read=read.machine_read)
+        await self._index.upsert_resource_vectors(
+            resource, points, read.checksum, types, machine_read=read.machine_read, media_type=read.content_type
+        )
         await self._settle(SmeltSettled(resource_id=resource, content_checksum=read.checksum, outcome="indexed"))
         LOG.info("Indexed resource", extra={"resourceId": resource, "chunks": len(chunks)})
         return None
@@ -431,7 +434,14 @@ class Smelter:
             )
             # A decline is a decision, and the index is made to agree with it: a resource whose bytes give no
             # text keeps no points made from bytes it had before.
-            await self._index.delete_resource_vectors(resource)
+            if read.reason == "no-extractor":
+                # A type that has no text: the catalog says as much, and a start plans nothing of it.
+                await self._index.delete_resource_vectors(resource)
+            else:
+                # A type that has text, and bytes that gave none: remembered by their checksum, so that a start does
+                # not read them again to learn the same.
+                declined = Declined(content_checksum=read.checksum, media_type=read.content_type, reason=read.reason)
+                await self._index.decline_resource(resource, declined)
             await self._settle(SmeltSettled(resource_id=resource, content_checksum=read.checksum, outcome="skipped", reason=read.reason))
         else:
             # No decision: nothing is signalled and the index is not changed. A signal of `skipped` would tell
@@ -485,7 +495,7 @@ class Smelter:
                 assert_never(source)
         if trimmed(text) == "":
             return _Declined(checksum, content.content_type, "empty")
-        return _Text(text, checksum, machine_read)
+        return _Text(text, checksum, content.content_type, machine_read)
 
     async def _derived(self, checksum: str, content: Content) -> ExtractionOutcome:
         """What deriving a PDF's text comes to, for bytes of this checksum: the stored outcome where there is one, or derived and stored.
@@ -524,7 +534,7 @@ class Smelter:
         LOG.info("Restamped resource entity types", extra={"resourceId": resource, "entityTypes": [*types]})
 
     async def _purge(self, resource: ResourceId) -> None:
-        """Take out the points of a resource that is none of the catalog's resources with text."""
+        """Take out the points of a resource that is none of the catalog's resources with text, or what is remembered of its decline."""
         await self._index.delete_resource_vectors(resource)
         LOG.info("Reconcile deleted orphan resource vectors", extra={"resourceId": resource})
 
@@ -636,14 +646,15 @@ class Smelter:
     async def _reconciled(self) -> ReconcileSummary:
         # The index is read before the catalog: a resource indexed while this runs is then never taken for one
         # that should not be there. The store's keys are one read, and no entry is opened.
-        indexed_resources, annotation_points, anchored_keys = await asyncio.gather(
-            self._index.list_resource_stamps(), self._index.list_annotation_stamps(), self._anchored.list()
+        indexed_resources, declined, annotation_points, anchored_keys = await asyncio.gather(
+            self._index.list_resource_stamps(), self._index.list_declined(), self._index.list_annotation_stamps(), self._anchored.list()
         )
         resources = await self._record.resources()
         LOG.info(
             "Reconcile started",
             extra={
                 "indexedResources": len(indexed_resources),
+                "declinedResources": len(declined),
                 "indexedAnnotations": len(annotation_points),
                 "anchoredEntries": len(anchored_keys),
                 "liveResources": len(resources),
@@ -659,6 +670,7 @@ class Smelter:
 
         work = plan_reconcile(
             indexed_resources=indexed_resources,
+            declined=declined,
             indexed_annotations={annotation: point.entity_types for annotation, point in annotation_points.items()},
             anchored_keys=frozenset(anchored_keys),
             embeddable=embeddable,

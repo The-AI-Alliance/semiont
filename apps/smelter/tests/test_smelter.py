@@ -29,7 +29,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import ExtractedText, ExtractionDeclined, SmeltSettledReason
 from semiont_service.content import Content
 from semiont_vectors.mock import deterministic_vector
-from semiont_vectors.store import AnnotationStamp, EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
+from semiont_vectors.store import AnnotationStamp, Declined, EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
 from semiont_smelter.chunking import Chunking, chunk_text
@@ -65,9 +65,9 @@ type Signal = tuple[str, str, str, str | None]
 # ── Reading what a Smelter did ─────────────────────────────────────────
 
 
-def stamp(data: bytes, *entity_types: str, machine_read: bool = False) -> ResourceStamp:
-    """What a resource's points say of it, when they were made from `data`."""
-    return ResourceStamp(content_checksum=checksum_of(data), entity_types=entity_types, machine_read=machine_read)
+def stamp(data: bytes, *entity_types: str, machine_read: bool = False, media_type: str = "text/markdown") -> ResourceStamp:
+    """What a resource's points say of it, when they were made from `data`, read as `media_type`."""
+    return ResourceStamp(content_checksum=checksum_of(data), entity_types=entity_types, machine_read=machine_read, media_type=media_type)
 
 
 def indexed(resource: str, data: bytes) -> Signal:
@@ -186,11 +186,17 @@ def failing_to_write(rig: Rig, monkeypatch: pytest.MonkeyPatch, resource: str) -
     upsert = rig.index.upsert_resource_vectors
 
     async def refusing(
-        resource_id: ResourceId, chunks: Sequence[EmbeddingChunk], checksum: str, types: Sequence[str], *, machine_read: bool
+        resource_id: ResourceId,
+        chunks: Sequence[EmbeddingChunk],
+        checksum: str,
+        types: Sequence[str],
+        *,
+        machine_read: bool,
+        media_type: str,
     ) -> None:
         if resource_id == resource:
             raise ConnectionError("the database did not answer")
-        await upsert(resource_id, chunks, checksum, types, machine_read=machine_read)
+        await upsert(resource_id, chunks, checksum, types, machine_read=machine_read, media_type=media_type)
 
     monkeypatch.setattr(rig.index, "upsert_resource_vectors", refusing)
 
@@ -247,7 +253,7 @@ async def planned_and_waiting(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> tupl
 
 @final
 @dataclass(frozen=True, slots=True)
-class Declined:
+class DeclinedBytes:
     """Bytes a Smelter declines, the type they are stored under, and what a rig's reader and its engine are told of them."""
 
     data: bytes
@@ -256,25 +262,25 @@ class Declined:
     reads: Mapping[bytes, OcrRead]
 
 
-def declined_for(reason: str) -> Declined:
+def declined_for(reason: str) -> DeclinedBytes:
     """Bytes that are declined for one of the six reasons."""
     match reason:
         case "no-extractor":
-            return Declined(PNG, "image/png", {}, {})
+            return DeclinedBytes(PNG, "image/png", {}, {})
         case "empty":
             # Nothing but white space, which U+0085 and U+3000 are.
-            return Declined(" \n\t\u0085\u3000".encode(), "text/plain", {}, {})
+            return DeclinedBytes(" \n\t\u0085\u3000".encode(), "text/plain", {}, {})
         case "no-text-layer":
             # A scan in which the engine reads nothing.
             document, reads = scanned(3)
-            return Declined(PDF, "application/pdf", {PDF: document}, reads)
+            return DeclinedBytes(PDF, "application/pdf", {PDF: document}, reads)
         case "encrypted":
-            return Declined(PDF, "application/pdf", {PDF: PdfEncrypted("the document asks for a password")}, {})
+            return DeclinedBytes(PDF, "application/pdf", {PDF: PdfEncrypted("the document asks for a password")}, {})
         case "corrupt":
-            return Declined(PDF, "application/pdf", {PDF: PdfUnreadable("the bytes are no PDF")}, {})
+            return DeclinedBytes(PDF, "application/pdf", {PDF: PdfUnreadable("the bytes are no PDF")}, {})
         case "too-large":
             # Declined by its size alone, before a reader is handed it: the reader is told nothing.
-            return Declined(bytes(LARGEST_PDF_BYTES + 1), "application/pdf", {}, {})
+            return DeclinedBytes(bytes(LARGEST_PDF_BYTES + 1), "application/pdf", {}, {})
         case _:
             raise AssertionError(f"{reason} is no reason a resource is skipped for")
 
@@ -697,7 +703,7 @@ def test_a_pdfs_text_is_derived_from_the_document(tmp_path: Path) -> None:
             assert "Ada Lovelace wrote the first program" in derived.text
             held = await rig.held()
             # Read from the document's own text, and so with no mark of pixels.
-            assert held.stamps == {"pdf-1": stamp(PDF)}
+            assert held.stamps == {"pdf-1": stamp(PDF, media_type="application/pdf")}
             assert held.chunks == {"pdf-1": (derived.text,)}
             assert rig.reader.opened == [PDF]
 
@@ -781,7 +787,7 @@ def test_text_read_from_pixels_is_marked_on_every_point_made_from_it(tmp_path: P
             derived = await rig.store.read(checksum_of(SCAN))
             assert isinstance(derived, ExtractedText)
             assert derived.method == "ocr"
-            assert (await rig.held()).stamps == {"scan-1": stamp(SCAN, machine_read=True)}
+            assert (await rig.held()).stamps == {"scan-1": stamp(SCAN, machine_read=True, media_type="application/pdf")}
             every = await rig.index.search_resources(deterministic_vector("Ada", DIMENSIONS), SearchOptions(limit=100))
             assert len(every) > 1
             assert all(point.machine_read for point in every)
@@ -1167,6 +1173,10 @@ def test_a_skipped_resource_has_no_points_and_its_reason_is_said(reason: str, tm
             await rig.happened(rig.world.put("res-1", declined.data, declined.content_type))
 
             assert await rig.index.count() == 0
+            # A decline of a type that has text is remembered, by the bytes and the type. One of a type with none is
+            # not: the catalog says that much of it.
+            kept = Declined(content_checksum=checksum, media_type=declined.content_type, reason=reason)
+            assert (await rig.held()).declined == ({} if reason == "no-extractor" else {"res-1": kept})
             assert signals(rig) == [indexed("res-1", TEXT), ("res-1", checksum, "skipped", reason)]
             assert rig.provider.asked == []
 
@@ -1177,6 +1187,25 @@ def test_a_skipped_resource_has_no_points_and_its_reason_is_said(reason: str, tm
     assert said["reason"] == reason
     assert said["contentType"] == declined.content_type
     assert said["contentChecksum"] == checksum
+
+
+def test_a_decline_is_forgotten_when_the_resource_is_indexed_and_when_it_is_archived(tmp_path: Path) -> None:
+    blank = b"  \n\t  "
+
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", blank, "text/plain"), rig.world.put("res-2", blank, "text/plain"))
+            kept = Declined(content_checksum=checksum_of(blank), media_type="text/plain", reason="empty")
+            assert (await rig.held()).declined == {"res-1": kept, "res-2": kept}
+
+            # One is given bytes that have text, and the other is archived: neither is a declined resource of the catalog.
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.archive("res-2"))
+
+            held = await rig.held()
+            assert held.declined == {}
+            assert held.stamps == {"res-1": stamp(TEXT)}
+
+    run(scenario())
 
 
 def test_a_skipped_resource_keeps_the_points_of_its_annotations(tmp_path: Path) -> None:
@@ -1326,7 +1355,7 @@ def test_an_entry_that_cannot_be_written_does_not_stop_the_indexing(tmp_path: Pa
             await rig.happened(rig.world.put("pdf-1", PDF, "application/pdf"))
 
             held = await rig.held()
-            assert held.stamps == {"pdf-1": stamp(PDF)}
+            assert held.stamps == {"pdf-1": stamp(PDF, media_type="application/pdf")}
             assert "Ada Lovelace wrote the first program" in held.chunks["pdf-1"][0]
             assert signals(rig) == [indexed("pdf-1", PDF)]
             assert await rig.store.read(checksum_of(PDF)) is None
@@ -1358,7 +1387,7 @@ def test_an_empty_index_is_filled_whole_and_a_later_start_plans_nothing(tmp_path
 
             assert summary == came_to(embedded=3, annotations=2, eligible=3, indexed=3)
             held = await first.held()
-            assert held.stamps == {"res-1": stamp(TEXT, "Person"), "res-2": stamp(LATER), "pdf-1": stamp(PDF)}
+            assert held.stamps == {"res-1": stamp(TEXT, "Person"), "res-2": stamp(LATER), "pdf-1": stamp(PDF, media_type="application/pdf")}
             assert held.annotations == {
                 "ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False),
                 "ann-3": AnnotationPoint("img-1", "a caption", (), False),
@@ -1671,6 +1700,71 @@ def test_a_point_whose_annotation_the_catalog_does_not_have_is_taken_out_in_its_
             await rig.settled()
 
             assert (await rig.held()).annotations == {}
+
+    run(scenario())
+
+
+def test_a_start_does_not_read_again_a_resource_it_remembers_declining(tmp_path: Path) -> None:
+    blank = b"  \n\t  "
+
+    async def scenario() -> None:
+        async with Rig(tmp_path) as first:
+            await first.happened(first.world.put("res-1", blank, "text/plain"), first.world.put("pdf-1", NO_PDF, "application/pdf"))
+            had = await first.held()
+            assert set(had.declined) == {"res-1", "pdf-1"}
+            read = len(first.world.read_of)
+
+        async with Rig(tmp_path, after=first) as later:
+            # Each has a type with text, and so is a resource a start would index. Neither is read: each is as it was declined.
+            assert await later.smelter.reconcile() == came_to(eligible=2, indexed=0)
+
+            assert await later.held() == had
+            assert len(later.world.read_of) == read
+            assert signals(later) == []
+
+    run(scenario())
+
+
+def test_a_start_indexes_a_declined_resource_whose_bytes_changed_and_a_resource_recorded_again_as_another_type(tmp_path: Path) -> None:
+    blank = b"  \n\t  "
+
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", blank, "text/plain"), rig.world.put("res-2", TEXT, "text/plain"))
+            # One is given bytes that have text. The other is recorded again with the bytes it had, as another type.
+            # The Smelter misses both.
+            rig.world.put("res-1", LATER)
+            rig.world.put("res-2", TEXT)
+            rig.provider.asked.clear()
+
+            assert await rig.smelter.reconcile() == came_to(embedded=2, eligible=2, indexed=2)
+
+            held = await rig.held()
+            assert held.stamps == {"res-1": stamp(LATER), "res-2": stamp(TEXT)}
+            assert held.declined == {}
+            assert len(rig.provider.asked) == 2
+
+    run(scenario())
+
+
+def test_a_declined_document_whose_anchored_text_entry_was_lost_has_it_derived_again_and_is_not_indexed(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path / "first") as first:
+            await first.happened(first.world.put("pdf-1", NO_PDF, "application/pdf"))
+            had = await first.held()
+            stored = await first.store.read(checksum_of(NO_PDF))
+            assert isinstance(stored, ExtractionDeclined)
+
+        # The store was cleared while the Smelter was stopped: it starts over a directory with nothing in it.
+        async with Rig(tmp_path / "cleared", after=first) as later:
+            assert await later.store.list() == []
+
+            assert await later.smelter.reconcile() == came_to(reanchored=1, eligible=1, indexed=0)
+
+            assert await later.store.read(checksum_of(NO_PDF)) == stored
+            assert await later.held() == had
+            assert later.provider.asked == []
+            assert signals(later) == []
 
     run(scenario())
 
@@ -2125,7 +2219,7 @@ def test_the_work_of_reconcile_and_of_a_rebuild_is_not_counted_among_the_events_
             rebuild(rig, "c-1")
             await rig.settled()
 
-            assert (await rig.held()).stamps == {"res-1": stamp(TEXT), "pdf-1": stamp(PDF)}
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT), "pdf-1": stamp(PDF, media_type="application/pdf")}
             assert len(rig.answered("smelt:rebuild-anchors-ok")) == 1
             assert applied(rig) == 0
 

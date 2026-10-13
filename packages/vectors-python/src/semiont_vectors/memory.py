@@ -10,12 +10,18 @@ result and what a filter reads all come from that payload, as they do from a
 Qdrant's. A store that kept what it was handed and answered from that would
 answer what no index holds.
 
+What is remembered of a declined resource is no point: it has no vector and
+no text, and nothing searches it. It is kept as it was given, under its
+resource. The index's stamp is kept whole, as a copy that is the store's own.
+
 A search compares its vector with every point: nothing is approximate, and a
 search by a resource's own vectors misses no resource. No collection is
 made, so the store is told no width: it holds vectors as wide as it is
-handed, and refuses to compare two that are not as wide as each other.
+handed, and refuses to compare two that are not as wide as each other. Made
+anew, it asks nobody how wide a vector is.
 """
 
+import copy
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
@@ -40,7 +46,9 @@ from semiont_vectors.payload import (
 from semiont_vectors.store import (
     AnnotationPayload,
     AnnotationStamp,
+    Declined,
     EmbeddingChunk,
+    IndexStamp,
     ResourceStamp,
     SearchFilter,
     SearchOptions,
@@ -108,11 +116,16 @@ def _take(points: dict[str, _Point], resource_id: ResourceId) -> None:
 
 @final
 class MemoryVectorStore(VectorStore):
-    """An index in two dictionaries, one of resources' chunks and one of annotations. See the module's documentation."""
+    """An index in three dictionaries: of resources' chunks, of annotations, and of what is remembered of each declined resource.
+
+    See the module's documentation.
+    """
 
     def __init__(self) -> None:
         self._resources: Final[dict[str, _Point]] = {}
         self._annotations: Final[dict[str, _Point]] = {}
+        self._declined: Final[dict[ResourceId, Declined]] = {}
+        self._stamp: IndexStamp | None = None
 
     @override
     async def connect(self) -> None:
@@ -133,13 +146,13 @@ class MemoryVectorStore(VectorStore):
         entity_types: Sequence[str],
         *,
         machine_read: bool,
+        media_type: str,
     ) -> None:
         _take(self._resources, resource_id)
+        self._declined.pop(resource_id, None)
         for chunk in chunks:
-            self._resources[chunk_key(resource_id, chunk.chunk_index)] = _Point(
-                vector=tuple(chunk.embedding),
-                payload=chunk_payload(resource_id, chunk, content_checksum, entity_types, machine_read=machine_read),
-            )
+            payload = chunk_payload(resource_id, chunk, content_checksum, entity_types, machine_read=machine_read, media_type=media_type)
+            self._resources[chunk_key(resource_id, chunk.chunk_index)] = _Point(vector=tuple(chunk.embedding), payload=payload)
 
     @override
     async def update_resource_entity_types(self, resource_id: ResourceId, entity_types: Sequence[str]) -> None:
@@ -166,6 +179,7 @@ class MemoryVectorStore(VectorStore):
     @override
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
         _take(self._resources, resource_id)
+        self._declined.pop(resource_id, None)
 
     @override
     async def delete_annotation_vector(self, annotation_id: AnnotationId) -> None:
@@ -174,6 +188,19 @@ class MemoryVectorStore(VectorStore):
     @override
     async def delete_annotation_vectors_for_resource(self, resource_id: ResourceId) -> None:
         _take(self._annotations, resource_id)
+
+    @override
+    async def decline_resource(self, resource_id: ResourceId, declined: Declined) -> None:
+        _take(self._resources, resource_id)
+        self._declined[resource_id] = declined
+
+    @override
+    async def make_anew(self, stamp: IndexStamp) -> None:
+        self._resources.clear()
+        self._annotations.clear()
+        self._declined.clear()
+        # A copy of the store's own: what the caller does to its stamp afterwards changes nothing here.
+        self._stamp = copy.deepcopy(stamp)
 
     # ── Searches ───────────────────────────────────────────────────────
 
@@ -233,3 +260,11 @@ class MemoryVectorStore(VectorStore):
             if annotation_id is not None:
                 stamps[annotation_id] = annotation_stamp_of(point.payload)
         return stamps
+
+    @override
+    async def list_declined(self) -> dict[ResourceId, Declined]:
+        return dict(self._declined)
+
+    @override
+    async def index_stamp(self) -> IndexStamp | None:
+        return copy.deepcopy(self._stamp)

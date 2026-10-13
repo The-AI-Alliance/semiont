@@ -6,8 +6,8 @@ whose HTTP API is asked on port 6333. A run without it fails and says why. It
 is not skipped: a store nothing ran against a database is a store nothing is
 known of.
 
-Both collections are deleted before each case. Point it at no Qdrant that
-holds anything to keep.
+The three collections are deleted before each case. Point it at no Qdrant
+that holds anything to keep.
 
 The store asks a Qdrant by requests of its own making, and nothing but a
 Qdrant says whether they are requests Qdrant takes, and whether it answers
@@ -16,8 +16,11 @@ them as the store reads its answers. So every history of
 only a Qdrant shows is here too, read back by this module's own requests and
 never through the store: that each point
 `specs/src/vectors/payload-cases.json` states is kept under its `qdrantId`
-with exactly its `payload`, and that the collections are as that table's
-`collections` states them.
+with exactly its `payload`, the point that remembers a decline among them;
+that the collections are as that table's `collections` states them; and that
+an index made anew is as wide as the provider's vectors are then, and states
+its stamp in the metadata of the two collections that are searched, where
+another store reads it, and states none once the two differ.
 
 The Qdrant reader is held here too: that connecting it makes no collection,
 by the collections the Qdrant then says it has; that a search of a
@@ -36,7 +39,7 @@ from aio import run
 from pydantic import JsonValue, TypeAdapter
 from semiont.identifiers import AnnotationId, ResourceId
 from spec import SPEC, JsonObject, objects, read, text, thing
-from store_contract import StoreContract, part, put_annotation, put_resource, width_of
+from store_contract import StoreContract, decline_resource, part, put_annotation, put_resource, width_of
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
 from semiont_vectors.store import AnnotationPayload, AnnotationStamp, CollectionAbsent, EmbeddingChunk, SearchOptions, VectorStore
@@ -47,10 +50,15 @@ FIVE: Final = SearchOptions(limit=5)
 
 TABLE: Final = read(SPEC / "vectors/payload-cases.json")
 COLLECTIONS: Final = {role: thing(stated, role) for role, stated in thing(TABLE["collections"], "collections").items()}
-"""What the table states of each collection: of the one of resources' chunks, and of the one of annotations."""
+"""What the table states of each collection: of resources' chunks, of annotations, and of what is remembered of each declined resource."""
 
 RESOURCES: Final = text(COLLECTIONS["resources"]["name"], "name")
 ANNOTATIONS: Final = text(COLLECTIONS["annotations"]["name"], "name")
+DECLINED: Final = text(COLLECTIONS["declined"]["name"], "name")
+
+STAMP: Final[JsonObject] = {"model": "a-model", "revision": 1}
+OTHER_STAMP: Final[JsonObject] = {"model": "another-model", "revision": 2}
+"""Two stamps an index may be made anew with. What one states is its writer's to say: a store reads nothing of it."""
 
 _OBJECT: Final = TypeAdapter[JsonObject](JsonObject)
 
@@ -74,9 +82,9 @@ def answered(response: httpx.Response) -> JsonObject:
 
 
 async def cleared() -> None:
-    """Delete both collections, by this module's own requests: the store has no member that empties it."""
+    """Delete every collection, by this module's own requests: a store that connects afterwards finds an index nobody has made."""
     async with qdrant() as http:
-        for name in (RESOURCES, ANNOTATIONS):
+        for name in (RESOURCES, ANNOTATIONS, DECLINED):
             response = await http.delete(f"/collections/{name}")
             # A collection that was not there is as gone as one that was deleted.
             assert response.status_code in (200, 404), f"deleting {name} answered {response.status_code}: {response.text}"
@@ -122,6 +130,14 @@ async def made(collection: str) -> JsonObject:
     return {"name": collection, "size": vectors["size"], "distance": vectors["distance"], "indexes": indexes}
 
 
+async def stated_stamp(collection: str) -> JsonValue:
+    """The stamp the Qdrant itself says a collection states, in its metadata. `None` for a collection that states none."""
+    async with qdrant() as http:
+        info = answered(await http.get(f"/collections/{collection}"))
+    metadata = thing(info["config"], "config").get("metadata")
+    return metadata.get("stamp") if isinstance(metadata, dict) else None
+
+
 @final
 class TestQdrantVectorStore(StoreContract):
     @override
@@ -161,15 +177,34 @@ def test_an_annotation_is_kept_under_its_id_with_exactly_its_payload(given: Json
     run(whole())
 
 
+@pytest.mark.parametrize("given", part("declineStored"))
+def test_a_decline_is_kept_under_its_id_with_exactly_its_payload(given: JsonObject) -> None:
+    point = thing(given["point"], "point")
+
+    async def whole() -> None:
+        # A decline states no vector, so the index is of any width.
+        store = await emptied(2)
+        try:
+            await decline_resource(store, given)
+            assert await points(DECLINED) == {text(point["qdrantId"], "qdrantId"): point["payload"]}
+            assert await points(RESOURCES) == {}
+            assert await points(ANNOTATIONS) == {}
+        finally:
+            await store.disconnect()
+
+    run(whole())
+
+
 def test_the_collections_are_as_the_table_states_and_as_wide_as_the_provider_says() -> None:
     async def whole() -> None:
         # No case of either table has vectors of five numbers: the width made is the width answered, and no other.
         store = await emptied(5)
         try:
-            # A collection the table grows is one the store must make: this names the two it makes.
-            assert sorted(COLLECTIONS) == ["annotations", "resources"]
+            # A collection the table grows is one the store must make: this names the three it makes.
+            assert sorted(COLLECTIONS) == ["annotations", "declined", "resources"]
             for stated in COLLECTIONS.values():
-                assert await made(text(stated["name"], "name")) == {**stated, "size": 5}
+                # The table states how wide a collection is only where that is fixed: any other is as wide as the provider says.
+                assert await made(text(stated["name"], "name")) == {"size": 5, **stated}
         finally:
             await store.disconnect()
 
@@ -186,9 +221,79 @@ def test_connecting_to_collections_that_are_there_asks_nobody_how_wide_a_vector_
         try:
             assert await second.count() == 0
             for stated in COLLECTIONS.values():
-                assert await made(text(stated["name"], "name")) == {**stated, "size": 3}
+                assert await made(text(stated["name"], "name")) == {"size": 3, **stated}
         finally:
             await second.disconnect()
+
+    run(whole())
+
+
+def test_an_index_made_anew_is_as_wide_as_the_providers_vectors_are_then() -> None:
+    widths = [2]
+
+    async def dimensions() -> int:
+        return widths[-1]
+
+    of_three = EmbeddingChunk(chunk_index=0, text="of three numbers", embedding=[1.0, 0.0, 0.0])
+
+    async def whole() -> None:
+        await cleared()
+        store = QdrantVectorStore(host=host(), port=PORT, dimensions=dimensions)
+        await store.connect()
+        try:
+            for stated in COLLECTIONS.values():
+                assert await made(text(stated["name"], "name")) == {"size": 2, **stated}
+            # The provider's model is changed for one whose vectors are wider, and the width is asked for again.
+            widths.append(3)
+            await store.make_anew(STAMP)
+            for stated in COLLECTIONS.values():
+                assert await made(text(stated["name"], "name")) == {"size": 3, **stated}
+            await store.upsert_resource_vectors(ResourceId("res-a"), [of_three], "sum-a", [], machine_read=False, media_type="text/plain")
+            found = await store.search_resources([1.0, 0.0, 0.0], FIVE)
+            assert [(str(each.resource_id), each.text) for each in found] == [("res-a", "of three numbers")]
+        finally:
+            await store.disconnect()
+
+    run(whole())
+
+
+def test_a_store_that_connects_to_an_index_another_made_anew_reads_the_stamp_it_was_given() -> None:
+    async def whole() -> None:
+        first = await emptied(2)
+        try:
+            assert await first.index_stamp() is None
+            await first.make_anew(STAMP)
+        finally:
+            await first.disconnect()
+        # The stamp is in the metadata of each collection that is searched, and the declined states none.
+        assert await stated_stamp(RESOURCES) == STAMP
+        assert await stated_stamp(ANNOTATIONS) == STAMP
+        assert await stated_stamp(DECLINED) is None
+        second = QdrantVectorStore(host=host(), port=PORT, dimensions=never_asked)
+        await second.connect()
+        try:
+            assert await second.index_stamp() == STAMP
+        finally:
+            await second.disconnect()
+
+    run(whole())
+
+
+def test_an_index_whose_two_collections_state_different_stamps_states_none() -> None:
+    async def whole() -> None:
+        store = await emptied(2)
+        try:
+            await store.make_anew(STAMP)
+            assert await store.index_stamp() == STAMP
+            # By this module's own request, as nothing of the store's does: one collection is given another stamp.
+            async with qdrant() as http:
+                changed = await http.patch(f"/collections/{ANNOTATIONS}", json={"metadata": {"stamp": OTHER_STAMP}})
+            assert changed.is_success, f"changing the metadata of {ANNOTATIONS} answered {changed.status_code}: {changed.text}"
+            assert await stated_stamp(RESOURCES) == STAMP
+            assert await stated_stamp(ANNOTATIONS) == OTHER_STAMP
+            assert await store.index_stamp() is None
+        finally:
+            await store.disconnect()
 
     run(whole())
 
@@ -239,6 +344,7 @@ def test_a_reader_that_connects_makes_no_collection() -> None:
         before = await collections()
         assert RESOURCES not in before
         assert ANNOTATIONS not in before
+        assert DECLINED not in before
         reading = reader()
         await reading.connect()
         try:
@@ -286,8 +392,10 @@ def test_a_reader_finds_what_a_store_wrote() -> None:
         store = await emptied(2)
         reading = reader()
         try:
-            await store.upsert_resource_vectors(ResourceId("res-a"), [ahead], "checksum-a", [], machine_read=False)
-            await store.upsert_resource_vectors(ResourceId("res-b"), [mostly_ahead], "checksum-b", [], machine_read=False)
+            await store.upsert_resource_vectors(ResourceId("res-a"), [ahead], "checksum-a", [], machine_read=False, media_type="text/plain")
+            await store.upsert_resource_vectors(
+                ResourceId("res-b"), [mostly_ahead], "checksum-b", [], machine_read=False, media_type="text/plain"
+            )
             await store.upsert_annotation_vector([0.0, 1.0], quoted)
             await reading.connect()
 

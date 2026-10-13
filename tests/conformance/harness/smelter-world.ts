@@ -361,7 +361,7 @@ export class SmelterWorld {
   }
 
   /**
-   * Clear the index: both collections gone, as a wiped volume leaves it. Only
+   * Clear the index: every collection gone, as a wiped volume leaves it. Only
    * while no Smelter runs: one that is running made its collections when it
    * connected, and its next write would fail.
    */

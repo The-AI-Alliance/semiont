@@ -28,6 +28,7 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
+from semiont_vectors.store import VectorReader, VectorStore
 from spec import PROJECT, ROOT, SDK
 
 from semiont_librarian.config import SERVICE
@@ -99,6 +100,10 @@ def importing(library: str) -> list[str]:
     """The modules of this project that import `library`, by their paths in it."""
     names_it = re.compile(rf"^\s*(import|from)\s+{library}\b", re.MULTILINE)
     return sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if names_it.search(path.read_text(encoding="utf-8")))
+
+
+def public(thing: object) -> set[str]:
+    return {name for name in dir(thing) if not name.startswith("_")}
 
 
 def naming(text: str) -> list[str]:
@@ -298,14 +303,15 @@ def test_it_reads_only() -> None:
         "delete_annotation",
         "resolve_reference",
         "clear_database",
-        "upsert_resource_vectors",
-        "update_resource_entity_types",
-        "upsert_annotation_vector",
-        "delete_resource_vectors",
-        "delete_annotation_vector",
     )
     for writing in writes:
         assert naming(writing) == [], writing
+    # What a writer of the index has and a reader of it has not is read off the two protocols, so that a member a
+    # store is given later is held too: the Librarian calls none of them.
+    of_a_writer_alone = public(VectorStore) - public(VectorReader)
+    assert "upsert_resource_vectors" in of_a_writer_alone
+    for member in sorted(of_a_writer_alone):
+        assert naming(f".{member}(") == [], member
 
 
 def test_one_module_names_the_logger_and_one_reads_the_process_s_environment_and_its_arguments() -> None:

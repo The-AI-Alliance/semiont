@@ -17,9 +17,12 @@ Smelter's code and works nothing out of bytes or of a quote. Each of the
 bytes a resource may be given is stated with what it comes to, and each
 quote with whether it quotes text. From those the fold says what an index is
 to hold: a resource has points if and only if it is not archived and its
-bytes give text, the points carry the checksum of its bytes and its entity
-types, and an annotation has a point if and only if its resource is not
-archived and it quotes text, which carries the entity types its body states.
+bytes give text, the points carry the checksum of its bytes, the media type
+they were read as and its entity types, and an annotation has a point if and
+only if its resource is not archived and it quotes text, which carries the
+entity types its body states. A resource that is not archived, whose type has
+text and whose bytes give none, is remembered as declined, by those bytes,
+that type and the reason.
 
 One property begins a reconcile in the middle of a history, and goes on
 making changes while the reconcile reads and works. What a reconcile plans,
@@ -57,11 +60,13 @@ MOST_CHANGES: Final = 16
 
 MARKDOWN: Final = "text/markdown"
 """A media type whose bytes are its text."""
+PLAIN: Final = "text/plain"
+"""Another."""
 PDF: Final = "application/pdf"
 """A media type whose text is derived from its bytes: here by a reader that was told what one document draws."""
 PNG: Final = "image/png"
 """A media type that has no text."""
-WITH_TEXT: Final = frozenset({MARKDOWN, PDF})
+WITH_TEXT: Final = frozenset({MARKDOWN, PLAIN, PDF})
 """The media types whose resources have text: the ones a Smelter that starts sets out to index."""
 
 _TURNS: Final = 100_000
@@ -96,6 +101,8 @@ DOCUMENT: Final = Stored(b"%PDF-1.7 the one document the reader was told of", PD
 CONTENTS: Final[tuple[Stored, ...]] = (
     Stored(b"# The treaty of 1804\n\nSigned at St. Louis, and disputed ever after.\n", MARKDOWN, None),
     Stored(b"Black Hawk led a band of the Sauk back across the Mississippi in 1832.", MARKDOWN, None),
+    # The same bytes under another type that has text: a resource recorded again with them has other points.
+    Stored(b"Black Hawk led a band of the Sauk back across the Mississippi in 1832.", PLAIN, None),
     # One character, and it is not white space, though `str.isspace` says it is: a text.
     Stored(b"\x1f", MARKDOWN, None),
     Stored(" \n\t\u0085\u3000".encode(), MARKDOWN, "empty"),
@@ -291,8 +298,10 @@ def histories(draw: st.DrawFn) -> History:
 class Indexed:
     """What an index holds, as far as the fold says it."""
 
-    resources: Mapping[str, tuple[str | None, frozenset[str]]]
-    """Each resource that has points: the checksum they carry, and their entity types, in no order and each once."""
+    resources: Mapping[str, tuple[str | None, str | None, frozenset[str]]]
+    """Each resource that has points: the checksum and the media type they carry, and their entity types, in no order and each once."""
+    declined: Mapping[str, tuple[str, str, str]]
+    """Each resource the index remembers declining: the checksum of its bytes, the media type they were read as, and the reason."""
     annotations: Mapping[str, tuple[str, str, frozenset[str]]]
     """Each annotation that has a point: the resource it is on, the text it quotes, and its entity types, in no order."""
 
@@ -313,11 +322,18 @@ class Folded:
 
     def index(self, *, unread: str | None = None) -> Indexed:
         """What an index is to hold. `unread` names a resource whose bytes cannot be read, which has no points whatever they are."""
+        decided = {resource: content for resource, content in self.stored.items() if resource not in self.archived and resource != unread}
         return Indexed(
             resources={
-                resource: (content.checksum, self.entity_types[resource])
-                for resource, content in self.stored.items()
-                if resource not in self.archived and content.declined is None and resource != unread
+                resource: (content.checksum, content.media_type, self.entity_types[resource])
+                for resource, content in decided.items()
+                if content.declined is None
+            },
+            # A type with no text is told from the catalog, and nothing is remembered of it.
+            declined={
+                resource: (content.checksum, content.media_type, content.declined)
+                for resource, content in decided.items()
+                if content.declined is not None and content.media_type in WITH_TEXT
             },
             annotations={
                 annotation: (on, quote, self.tagged[annotation])
@@ -345,16 +361,11 @@ class Folded:
         """What a reconcile is to report where it finds the index as it should be, by the names its health gives each count.
 
         Nothing is mended. A resource that is not archived, whose type has
-        text and whose bytes give none, has no points. So every start sets
-        out to index it again, and declines it again for the same reason.
+        text and whose bytes give none, has no points and is remembered as
+        declined: no start sets out to index it again.
         """
         live = [content for resource, content in self.stored.items() if resource not in self.archived]
-        declined_again: dict[str, int] = {}
-        for content in live:
-            if content.media_type in WITH_TEXT and content.declined is not None:
-                declined_again[content.declined] = declined_again.get(content.declined, 0) + 1
         skipped: JsonObject = {}
-        skipped.update(declined_again)
         return {
             "resourcesEmbedded": 0,
             "resourcesSkipped": skipped,
@@ -415,7 +426,10 @@ def folded(changes: Sequence[Change]) -> Folded:
 def indexed(held: Held) -> Indexed:
     """What an index holds, read as the fold states it."""
     return Indexed(
-        resources={resource: (stamp.content_checksum, frozenset(stamp.entity_types)) for resource, stamp in held.stamps.items()},
+        resources={
+            resource: (stamp.content_checksum, stamp.media_type, frozenset(stamp.entity_types)) for resource, stamp in held.stamps.items()
+        },
+        declined={resource: (kept.content_checksum, kept.media_type, kept.reason) for resource, kept in held.declined.items()},
         annotations={
             annotation: (point.resource, point.text, frozenset(point.entity_types)) for annotation, point in held.annotations.items()
         },

@@ -30,7 +30,7 @@ import pytest
 from pydantic import BaseModel, Field
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import Annotation, ResourceDescriptor
-from semiont_vectors.store import ResourceStamp
+from semiont_vectors.store import Declined, ResourceStamp
 from spec import ROOT, SPEC
 
 from semiont_smelter.reconcile import (
@@ -54,11 +54,20 @@ class Stated(BaseModel, frozen=True, extra="forbid", strict=True):
 
 
 class IndexedResource(Stated, frozen=True):
-    """A resource the index holds points for, with what those points carry: no checksum, where none is stated."""
+    """A resource the index holds points for, with what those points carry: no checksum and no media type, where none is stated."""
 
     id: str
     checksum: str | None = None
+    media_type: Annotated[str | None, Field(alias="mediaType")] = None
     entity_types: Annotated[list[str], Field(alias="entityTypes")]
+
+
+class DeclinedResource(Stated, frozen=True):
+    """A resource the index remembers declining: the checksum of the bytes that gave no text, and the media type they were read as."""
+
+    id: str
+    checksum: str
+    media_type: Annotated[str, Field(alias="mediaType")]
 
 
 class IndexedAnnotation(Stated, frozen=True):
@@ -70,6 +79,7 @@ class IndexedAnnotation(Stated, frozen=True):
 
 class Index(Stated, frozen=True):
     resources: list[IndexedResource]
+    declined: list[DeclinedResource]
     annotations: list[IndexedAnnotation]
 
 
@@ -161,7 +171,12 @@ def annotation_on(resource: str, annotation: str, quote: str | None, *, tags: Se
 
 def stamp_of(held: IndexedResource) -> ResourceStamp:
     """What a resource's points say of it, as the index lists it."""
-    return ResourceStamp(content_checksum=held.checksum, entity_types=tuple(held.entity_types))
+    return ResourceStamp(content_checksum=held.checksum, entity_types=tuple(held.entity_types), media_type=held.media_type)
+
+
+def decline_of(remembered: DeclinedResource) -> Declined:
+    """What the index remembers of a decline, as it lists it. The table states no reason: a plan reads none."""
+    return Declined(content_checksum=remembered.checksum, media_type=remembered.media_type, reason="empty")
 
 
 def plan_of(case: Case) -> list[Work]:
@@ -179,6 +194,7 @@ def plan_of(case: Case) -> list[Work]:
     ]
     return plan_reconcile(
         indexed_resources={ResourceId(held.id): stamp_of(held) for held in case.index.resources},
+        declined={ResourceId(remembered.id): decline_of(remembered) for remembered in case.index.declined},
         indexed_annotations={AnnotationId(point.id): point.entity_types for point in case.index.annotations},
         anchored_keys=frozenset(case.anchored),
         embeddable=classify_embeddable(descriptor_of(listed) for listed in case.catalog),
@@ -245,7 +261,7 @@ def plans_both(case: Case) -> bool:
 
 
 def test_the_runner_found_the_table_s_cases() -> None:
-    assert len(TABLE.cases) >= 30
+    assert len(TABLE.cases) >= 50
 
 
 def test_each_case_is_told_from_the_others_by_its_why() -> None:
@@ -256,7 +272,8 @@ def test_every_list_of_a_case_states_each_thing_once() -> None:
     # A case's lists are sets: a thing stated twice would be a case of what the table does not state.
     for case in TABLE.cases:
         lists = [
-            [held.id for held in case.index.resources],
+            # One list of both: an index holds a resource's points or remembers its decline, and never both.
+            [*(held.id for held in case.index.resources), *(remembered.id for remembered in case.index.declined)],
             [point.id for point in case.index.annotations],
             case.anchored,
             [listed.id for listed in case.catalog],
@@ -298,7 +315,8 @@ def plan_about(annotation: Annotation, *, carrying: Collection[str] | None) -> l
     """
     points: dict[AnnotationId, Collection[str]] = {} if carrying is None else {annotation.id: carrying}
     return plan_reconcile(
-        indexed_resources={R1: ResourceStamp(content_checksum=CHECKSUM, entity_types=())},
+        indexed_resources={R1: ResourceStamp(content_checksum=CHECKSUM, entity_types=(), media_type="text/markdown")},
+        declined={},
         indexed_annotations=points,
         anchored_keys=frozenset(),
         embeddable=classify_embeddable([described(R1, media_type="text/markdown", checksum=CHECKSUM, entity_types=[])]),
@@ -341,7 +359,8 @@ def test_an_annotation_of_a_resource_as_a_whole_quotes_no_text() -> None:
 )
 def test_points_that_carry_the_catalog_s_entity_types_as_a_set_are_not_restamped(carried: tuple[str, ...], stated: list[str]) -> None:
     plan = plan_reconcile(
-        indexed_resources={R1: ResourceStamp(content_checksum=CHECKSUM, entity_types=carried)},
+        indexed_resources={R1: ResourceStamp(content_checksum=CHECKSUM, entity_types=carried, media_type="text/markdown")},
+        declined={},
         indexed_annotations={},
         anchored_keys=frozenset(),
         embeddable=classify_embeddable([described(R1, media_type="text/markdown", checksum=CHECKSUM, entity_types=stated)]),
@@ -355,9 +374,7 @@ def test_points_that_carry_the_catalog_s_entity_types_as_a_set_are_not_restamped
     [(("Person", "Person"), ["Person"]), (("Person",), ["Person", "Person"]), (("a", "b"), ["b", "a"])],
     ids=["a type the point carries twice", "a type the body states twice", "another order"],
 )
-def test_a_point_that_carries_its_annotation_s_entity_types_as_a_set_is_not_restamped(
-    carried: tuple[str, ...], stated: list[str]
-) -> None:
+def test_a_point_that_carries_its_annotation_s_entity_types_as_a_set_is_not_restamped(carried: tuple[str, ...], stated: list[str]) -> None:
     assert plan_about(annotation_on(R1, A1, "Black Hawk", tags=stated), carrying=carried) == []
     # One type more or one fewer is another set, and the point's are rewritten.
     assert plan_about(annotation_on(R1, A1, "Black Hawk", tags=[*stated, "Treaty"]), carrying=carried) == [RestampAnnotation(R1, A1)]

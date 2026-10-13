@@ -31,10 +31,13 @@ function qdrantId(key: string): string {
 /** A point's id and its payload, whole: what the table states of a point, beside its vector. */
 const stated = ({ id, payload }: Point) => ({ id, payload });
 
-/** The point the table states for one chunk of a resource whose text was not read from pixels: it has no mark of that, and no other member. */
+/** The media type every text of this file is recorded as, and so the one its points state its bytes were read as. */
+const PLAIN = 'text/plain';
+
+/** The point the table states for one chunk of a plain text, which was not read from pixels: it has no mark of that, and no other member. */
 const chunkPoint = (resource: string, index: number, text: string, checksum: string, entityTypes: string[]) => ({
   id: qdrantId(`${resource}-${index}`),
-  payload: { resourceId: resource, chunkIndex: index, text, contentChecksum: checksum, entityTypes },
+  payload: { resourceId: resource, chunkIndex: index, text, contentChecksum: checksum, mediaType: PLAIN, entityTypes },
 });
 
 /** Whether a point's vector is the one the stand-in provider gives `text`: that text was embedded, and its vector landed on this point. */
@@ -65,7 +68,7 @@ eachSmelter('a Smelter, as the record changes', (world) => {
 
   /** Record a text, and wait until the Smelter says it is indexed, under the checksum of those bytes: the resource's id. */
   async function indexed(text: string): Promise<string> {
-    const resource = await onceApplied(() => world().created(text, 'text/plain'));
+    const resource = await onceApplied(() => world().created(text, PLAIN));
     expect(await world().settled(resource)).toEqual({ resourceId: resource, contentChecksum: sha256(text), outcome: 'indexed' });
     return resource;
   }

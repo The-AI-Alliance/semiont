@@ -3,7 +3,8 @@
  * case stops the Smelter, changes the index, the record or the anchored-text
  * store behind its back, starts it again, and reads what the two stores then
  * hold, what its embedding provider was asked, and what its health reports of
- * the pass. With it, that the work of a reconcile is no event (§ Health).
+ * the pass. With it, that the work of a reconcile is no event (§ Health), and
+ * that an index another cut made is made again (§ Boot).
  *
  * The work a start plans is stated, difference by difference, in
  * specs/src/smelter/reconcile-cases.json, which each implementation runs
@@ -318,5 +319,54 @@ eachSmelter('a Smelter, starting after what it keeps was changed behind it', (wo
     // What is recorded next is an event, and is counted.
     await indexedText(world(), 'Recorded after, and counted', 'A text recorded after the Smelter started, which is an event.');
     expect((await world().applied(1)).eventsProcessed).toBe(1);
+  });
+
+  it('does not read again, or decide again, a text it remembers skipping', async () => {
+    const id = await world().created(' \n\t\n', 'text/plain', { name: 'Nothing but white space' });
+    expect(await world().settled(id)).toMatchObject({ outcome: 'skipped', reason: 'empty' });
+    expect(await world().index.pointsOf('resources', id)).toEqual([]);
+
+    await world().stop();
+    const before = world().provider.mark();
+    await world().start();
+
+    // Its media type has text and it has no points, and still it is not set out to be indexed: nothing is skipped again, and nothing is signalled of it again.
+    expectOnly(await summaryOf(world()), {});
+    expect(world().provider.since(before)).toEqual([]);
+    expect(world().settledSignals(id)).toHaveLength(1);
+  });
+
+  it('makes its index again, and indexes everything again, when it is started to cut a text by other numbers', async () => {
+    const text = 'A text that is indexed, and indexed again by a Smelter that cuts a text by other numbers.';
+    const id = await indexedText(world(), 'Cut by other numbers', text);
+    const quote = 'indexed again by a Smelter';
+    const annotation = await indexedAnnotation(world(), id, quote);
+    const held = await world().index.pointsOf('resources', id, true);
+    const heldOfAnnotation = await pointOfAnnotation(world(), annotation);
+    const settings = world().launch().settings;
+
+    await world().stop();
+    const before = world().provider.mark();
+    await world().start({ settings: { ...settings, chunking: { chunkSize: 256, overlap: 32 } } });
+
+    // The index said another cut made it. Every resource whose media type has text is set out to be indexed again, and each is indexed or skipped.
+    const summary = await summaryOf(world());
+    const skipped = Object.values(summary.resourcesSkipped).reduce((sum, count) => sum + count, 0);
+    expect(summary.resourcesEmbedded + skipped).toBe(summary.resourcesEligible);
+    expect([summary.resourcesUnavailable, summary.resourcesFailed]).toEqual([0, 0]);
+    expect(summary.annotationsEmbedded).toBeGreaterThan(0);
+    const asked = world().provider.since(before).flatMap((request) => request.texts);
+    expect(asked).toContain(text);
+    expect(asked).toContain(quote);
+    // A text this short is one chunk by either cut: its point is as it was, and so is the annotation's.
+    expectSame(await world().index.pointsOf('resources', id, true), held);
+    expectSame([await pointOfAnnotation(world(), annotation)], [heldOfAnnotation]);
+
+    // Started as it was before, it finds an index the other cut made, and makes it again: the index is as this world's Smelter makes one.
+    await world().stop();
+    const again = world().provider.mark();
+    await world().start();
+    expect(world().provider.since(again).flatMap((request) => request.texts)).toContain(text);
+    expect((await summaryOf(world())).resourcesEmbedded).toBe(summary.resourcesEmbedded);
   });
 });

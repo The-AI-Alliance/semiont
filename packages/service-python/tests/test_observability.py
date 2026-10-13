@@ -5,7 +5,9 @@ variable does, and that service's conformance suite holds a started service
 to it, exporter by exporter. A process installs its telemetry once, so what
 is installed is those suites' to hold. Here is what is decided before
 anything is installed, and each reading, held to the rows of
-`specs/src/service-telemetry/telemetry.json` that every service exports.
+`specs/src/service-telemetry/telemetry.json` that every service exports. And
+here is how a number a service reads of what it keeps is reported as a gauge:
+when it is read, and what the gauge says between two reads.
 """
 
 import asyncio
@@ -44,6 +46,25 @@ def points(metric: Metric) -> Sequence[NumberDataPoint]:
         assert isinstance(point, NumberDataPoint)
         read.append(point)
     return read
+
+
+def reported(reader: InMemoryMetricReader, name: str) -> list[Metric]:
+    """The metric `name` as the process reports it when read now. Empty where it reports nothing: a gauge with no point is left out."""
+    data = reader.get_metrics_data()
+    if data is None:
+        return []
+    return [
+        metric
+        for resource in data.resource_metrics
+        for scope in resource.scope_metrics
+        for metric in scope.metrics
+        if metric.name == name
+    ]
+
+
+def numbers(reader: InMemoryMetricReader, name: str) -> list[float]:
+    """What the gauge `name` reports when it is read now: the number of each of its points."""
+    return [point.value for metric in reported(reader, name) for point in points(metric)]
 
 
 def held_to(row: MetricRow, metric: Metric) -> None:
@@ -139,7 +160,7 @@ def test_the_loop_s_lateness_is_of_what_was_measured_since_it_was_last_read() ->
 def test_the_loop_s_lateness_is_how_long_past_its_ten_milliseconds_a_sleep_woke() -> None:
     async def scenario() -> None:
         lag = Lag()
-        sampling = await under_way(Exporting(lag, lambda: None).sample_the_loop())
+        sampling = await under_way(Exporting(lag, lambda: None, 30_000).sample_the_loop())
         # The clock is moved a quarter of a second while the loop is asked to sleep ten milliseconds: each waking is late.
         await pass_time(1.0, step=0.25)
         sampling.cancel()
@@ -200,6 +221,88 @@ def test_without_either_of_the_supervisor_s_two_variables_the_restarts_do_not_ex
     assert "semiont.process.restarts" not in exported(environment, Lag())
 
 
+# ── a number a service reads of what it keeps ───────────────────────────
+
+
+def test_a_number_a_service_samples_is_reported_as_last_read_and_not_at_all_where_the_last_read_answered_none(
+    metric_reader: InMemoryMetricReader,
+) -> None:
+    # The one row of the table that is such a number: the Smelter's count of the points its index holds.
+    (row,) = metrics_named("semiont.vector.index.size").values()
+
+    async def scenario() -> None:
+        answers = iter([3, 5, None, 8])
+
+        async def read() -> int | None:
+            return next(answers)
+
+        exporting = Exporting(Lag(), lambda: None, 60_000)
+        sampling = await under_way(exporting.sample(row.name, read, description="Points the index holds"))
+        # Read at once. What was read is reported at every export until it is read again.
+        (metric,) = reported(metric_reader, row.name)
+        held_to(row, metric)
+        assert numbers(metric_reader, row.name) == [3]
+        assert numbers(metric_reader, row.name) == [3]
+        await pass_time(60.0, step=10.0)
+        assert numbers(metric_reader, row.name) == [5]
+        # A read that answered no number: nothing is reported, and never the number read before it.
+        await pass_time(60.0, step=10.0)
+        assert numbers(metric_reader, row.name) == []
+        await pass_time(60.0, step=10.0)
+        assert numbers(metric_reader, row.name) == [8]
+        sampling.cancel()
+        await asyncio.gather(sampling, return_exceptions=True)
+
+    run(scenario())
+
+
+def test_a_sampled_number_is_read_at_once_and_then_once_in_each_export_interval(metric_reader: InMemoryMetricReader) -> None:
+    async def scenario() -> None:
+        reads: list[float] = []
+
+        async def read() -> int | None:
+            reads.append(asyncio.get_running_loop().time())
+            return len(reads)
+
+        name = "semiont.test.sampled.each_interval"
+        sampling = await under_way(Exporting(Lag(), lambda: None, 60_000).sample(name, read, description="A test's own"))
+        assert len(reads) == 1
+        for read_so_far in (1, 2, 3):
+            # Fifty seconds of the sixty have passed, and it has not been read again.
+            await pass_time(50.0, step=10.0)
+            assert len(reads) == read_so_far
+            await pass_time(10.0, step=10.0)
+            assert len(reads) == read_so_far + 1
+        assert numbers(metric_reader, name) == [4]
+        sampling.cancel()
+        await asyncio.gather(sampling, return_exceptions=True)
+
+    run(scenario())
+
+
+def test_a_number_is_sampled_for_as_long_as_that_is_awaited_and_is_not_reported_afterwards(metric_reader: InMemoryMetricReader) -> None:
+    async def scenario() -> None:
+        reads: list[float] = []
+
+        async def read() -> int | None:
+            reads.append(asyncio.get_running_loop().time())
+            return 7
+
+        name = "semiont.test.sampled.until_cancelled"
+        sampling = await under_way(Exporting(Lag(), lambda: None, 60_000).sample(name, read, description="A test's own"))
+        assert numbers(metric_reader, name) == [7]
+        sampling.cancel()
+        await asyncio.gather(sampling, return_exceptions=True)
+        assert sampling.cancelled()
+        # Nothing reads it now, so the number last read says nothing of now: it is not reported, and it is not read again.
+        assert numbers(metric_reader, name) == []
+        await pass_time(180.0, step=60.0)
+        assert len(reads) == 1
+        assert numbers(metric_reader, name) == []
+
+    run(scenario())
+
+
 # ── a process that ends ─────────────────────────────────────────────────
 
 
@@ -209,7 +312,7 @@ def test_a_failure_nothing_caught_is_counted_once_under_the_reason_the_table_lis
     (listed,) = row.attributes
     assert listed.key == "reason"
     before = counted(metric_reader, row.name, "reason")
-    Exporting(Lag(), lambda: None).died()
+    Exporting(Lag(), lambda: None, 30_000).died()
     added = counted(metric_reader, row.name, "reason") - before
     assert sum(added.values()) == 1
     ((reason,),) = added
@@ -219,7 +322,7 @@ def test_a_failure_nothing_caught_is_counted_once_under_the_reason_the_table_lis
 
 def test_what_is_buffered_is_sent_when_the_process_stops_and_a_collector_that_does_not_answer_holds_it_two_seconds_at_most() -> None:
     ended = threading.Event()
-    Exporting(Lag(), ended.set).shutdown()
+    Exporting(Lag(), ended.set, 30_000).shutdown()
     assert ended.is_set()
 
     # A last export that never returns: the process waits two seconds for it, and goes.
@@ -229,7 +332,7 @@ def test_what_is_buffered_is_sent_when_the_process_stops_and_a_collector_that_do
         never.wait(30)
 
     began = time.monotonic()
-    Exporting(Lag(), unanswered).shutdown()
+    Exporting(Lag(), unanswered, 30_000).shutdown()
     waited = time.monotonic() - began
     never.set()
     assert 1.9 < waited < 5

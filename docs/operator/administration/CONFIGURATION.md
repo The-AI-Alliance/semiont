@@ -254,6 +254,8 @@ overlap = 64
 
 An Ollama embedding is served by the same Ollama that serves inference. On a config whose inference is all remote, Ollama runs for the embeddings alone.
 
+The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost. Where the model is served (`baseUrl`, `endpoint`) is no part of it.
+
 ### Graph and vectors
 
 ```toml

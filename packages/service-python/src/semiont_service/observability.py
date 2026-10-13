@@ -25,7 +25,7 @@ import math
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from importlib.metadata import version
 from pathlib import Path
 from typing import Final, final
@@ -75,6 +75,25 @@ class Lag:
             Observation(p99, {"lag.stat": "p99"}),
             Observation(samples[-1], {"lag.stat": "max"}),
         ]
+
+
+@final
+class _Reading:
+    """A number read in the loop, kept for the exporter's thread to report: the one last read, or none."""
+
+    def __init__(self) -> None:
+        self._last: int | None = None
+        self._taking: Final = threading.Lock()
+
+    def note(self, read: int | None) -> None:
+        with self._taking:
+            self._last = read
+
+    def observed(self, _: CallbackOptions) -> Iterable[Observation]:
+        """What was last read. Nothing where that read answered no number, and never nought: nought is a number."""
+        with self._taking:
+            last = self._last
+        return [] if last is None else [Observation(last)]
 
 
 def _status_bytes(name: str) -> int | None:
@@ -130,11 +149,13 @@ def lives_less_one(events: str, name: str) -> Callable[[CallbackOptions], Iterab
 
 @final
 class Exporting:
-    """The process's telemetry while it is exported: what samples the loop, and what sends the last of it."""
+    """The process's telemetry while it is exported: what samples the loop and what a service reads, and what sends the last of it."""
 
-    def __init__(self, lag: Lag, end: Callable[[], None]) -> None:
+    def __init__(self, lag: Lag, end: Callable[[], None], export_interval_ms: int) -> None:
         self._lag: Final = lag
         self._end: Final = end
+        self._between_reads: Final = export_interval_ms / 1000
+        """The seconds between two reads of a number a service samples: one export interval."""
         self._abnormal_exits: Final = metrics.get_meter("semiont").create_counter(
             "semiont.process.abnormal_exit", description="Process terminations that were not a clean shutdown"
         )
@@ -146,6 +167,30 @@ class Exporting:
             asked = loop.time()
             await asyncio.sleep(_LAG_RESOLUTION_SECONDS)
             self._lag.note(max(0.0, loop.time() - asked - _LAG_RESOLUTION_SECONDS) * 1000)
+
+    async def sample(self, name: str, read: Callable[[], Awaitable[int | None]], *, description: str) -> None:
+        """Report as a gauge of this name a number the service reads of what it keeps, for as long as this is awaited.
+
+        The number is read at once, and again once in each export interval,
+        and the gauge reports what was last read. `read` answers `None` where
+        the number could not be read. The gauge then reports nothing until a
+        read answers a number: one read before the failure says nothing of
+        now. `read` raises nothing: what it failed at is its own to log.
+
+        The exporter's thread asks for the number and cannot await, so it is
+        handed the one the loop last read. Once this is no longer awaited
+        nothing is reported. A name is sampled once in a process:
+        OpenTelemetry keeps the first gauge made under a name, and what a
+        second would report goes nowhere.
+        """
+        reading = _Reading()
+        metrics.get_meter("semiont").create_observable_gauge(name, callbacks=[reading.observed], description=description)
+        try:
+            while True:
+                reading.note(await read())
+                await asyncio.sleep(self._between_reads)
+        finally:
+            reading.note(None)
 
     def died(self) -> None:
         """Count a failure nothing caught, just before the process exits for it."""
@@ -235,9 +280,10 @@ def install(service: str, environment: Mapping[str, str]) -> Exporting | None:
     measures: MetricExporter = ConsoleMetricExporter(out=sys.stdout)
     if endpoint is not None and environment.get("OTEL_METRICS_EXPORTER") != "console":
         measures = OTLPMetricExporter(endpoint=f"{endpoint.removesuffix('/')}/v1/metrics")
+    every_ms = interval_ms(environment)
     meters = MeterProvider(
         resource=resource,
-        metric_readers=[PeriodicExportingMetricReader(measures, export_interval_millis=interval_ms(environment))],
+        metric_readers=[PeriodicExportingMetricReader(measures, export_interval_millis=every_ms)],
         shutdown_on_exit=False,
     )
 
@@ -251,4 +297,4 @@ def install(service: str, environment: Mapping[str, str]) -> Exporting | None:
         tracers.shutdown()
         meters.shutdown()
 
-    return Exporting(lag, end)
+    return Exporting(lag, end, every_ms)
