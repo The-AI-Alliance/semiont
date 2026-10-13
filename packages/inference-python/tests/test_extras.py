@@ -60,7 +60,7 @@ for ask in ("the factory", "the module"):
 print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
-# The factory does not make an OpenAI client: `openai` is not yet a provider the protocol names. Its module is asked for.
+# The driver is asked for by its own module here: what importing it loads is what is held, and the factory imports it the same way.
 ASKING_FOR_OPENAI = f"""
 import sys
 from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit

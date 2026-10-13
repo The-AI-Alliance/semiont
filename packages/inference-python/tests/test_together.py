@@ -1376,7 +1376,7 @@ ollama = create_inference_client(provider="ollama", model="llama3", base_url="ht
 print(ollama.provider, {LOADED}, "semiont_inference.together" in sys.modules)
 """
 
-# The factory does not make a Together client: `together` is not yet a provider the protocol names. Its module is asked for.
+# The driver is asked for by its own module here: what importing it loads is what is held, and the factory imports it the same way.
 ASKING_FOR_TOGETHER = f"""
 import sys
 from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
