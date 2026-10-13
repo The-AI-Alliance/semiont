@@ -5528,7 +5528,13 @@ class MatchResourcesResponse(WireModel, frozen=True):
             ge=0,
         ),
     ]
-    offset: Annotated[int, Field(description="The offset the search was made with.", ge=0)]
+    offset: Annotated[
+        int,
+        Field(
+            description="How many of the resources the search found were passed over before this page, as the request stated.",
+            ge=0,
+        ),
+    ]
     limit: Annotated[int, Field(description="The limit the search was made with.", ge=1)]
     match_kind: Annotated[MatchResourcesResponseMatchKind, Field(alias="matchKind")]
 

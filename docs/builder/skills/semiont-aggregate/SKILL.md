@@ -72,7 +72,7 @@ const references = await semiont.gather.referencedBy(anchorId).fresh();
 
 console.log(`${references.length} passages refer to ${anchor.name}`);
 for (const ref of references) {
-  console.log(`  ${ref.resourceName}: "${ref.target.selector.exact}"`);
+  console.log(`  ${ref.resourceName ?? ref.target.source}: "${ref.target.selector.exact}"`);
 }
 ```
 
@@ -176,7 +176,8 @@ async function aggregate(anchorIdStr: string): Promise<void> {
           quote = `${before ?? ''}${text}${after ?? ''}`.replace(/\s+/g, ' ').trim();
         }
       }
-      rows.push({ source: ref.target.source, name: ref.resourceName, quote: quote.replace(/\|/g, '\\|') });
+      // An entry states no name where no description of its resource is held: the row then names it by its id.
+      rows.push({ source: ref.target.source, name: ref.resourceName ?? ref.target.source, quote: quote.replace(/\|/g, '\\|') });
     }
 
     // 4. Compose

@@ -5243,7 +5243,7 @@ type MatchResourcesResponse struct {
 	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
 	MatchKind MatchResourcesResponseMatchKind `json:"matchKind"`
 
-	// Offset The offset the search was made with.
+	// Offset How many of the resources the search found were passed over before this page, as the request stated.
 	Offset    int                  `json:"offset"`
 	Resources []ResourceDescriptor `json:"resources"`
 
