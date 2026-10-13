@@ -17,13 +17,13 @@ from typing import Final, final
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import FakeEmbedding, FakeGraph, FakeInference, FakeVectors, FakeViews, described, tag, view
+from rig import ADA, LOVELACE, FakeEmbedding, FakeGraph, FakeInference, FakePeople, FakeVectors, FakeViews, described, tag, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import MatchSearchRequest, MatchSearchResult, ResourceDescriptor
 from semiont_graph.interface import ResourceListing, ResourceQuery
 from semiont_vectors.store import CollectionAbsent, VectorSearchResult
-from spec import JsonObject
+from spec import JsonObject, objects
 
 from semiont_librarian.limit import LimitRefused
 from semiont_librarian.reference_search import search
@@ -46,7 +46,6 @@ def request(
     *,
     neighbours: tuple[str, ...] = (),
     entity_types: tuple[str, ...] = (),
-    limit: int | None = None,
     scored_by_a_model: bool = False,
     motivation: str = "linking",
     body: JsonValue = None,
@@ -64,7 +63,6 @@ def request(
             "resourceId": MAIN,
             "referenceId": "ann-ref",
             "useSemanticScoring": scored_by_a_model,
-            **({} if limit is None else {"limit": limit}),
             "context": {
                 "focus": {
                     "kind": "annotation",
@@ -101,6 +99,7 @@ class World:
     vectors: FakeVectors = field(default_factory=FakeVectors)
     embedding: FakeEmbedding = field(default_factory=FakeEmbedding)
     inference: FakeInference = field(default_factory=FakeInference)
+    people: FakePeople = field(default_factory=FakePeople)
 
     def __post_init__(self) -> None:
         self.graph.listing = lambda query: ResourceListing(resources=[], total=0)
@@ -114,6 +113,7 @@ class World:
             vectors=self.vectors,
             embedding=self.embedding,
             inference=self.inference,
+            people=self.people,
             now=lambda: NOW,
         )
 
@@ -186,9 +186,11 @@ def test_an_entity_type_whose_stated_frequency_is_below_0_counts_as_seen_once() 
 @pytest.mark.parametrize("limit", [0, -1], ids=["none", "fewer than none"])
 def test_a_limit_below_1_is_refused_and_no_source_is_asked(limit: int) -> None:
     world = World()
+    # Stated as a caller that does not hold its request to the schema states it: the schema refuses such a limit too.
+    asked = request().model_copy(update={"limit": limit})
 
     with pytest.raises(LimitRefused, match=r"^limit must be at least 1$"):
-        run(world.search(request(limit=limit)))
+        run(world.search(asked))
 
     assert world.graph.asked == []
     assert world.embedding.asked == []
@@ -198,6 +200,17 @@ def test_a_limit_below_1_is_refused_and_no_source_is_asked(limit: int) -> None:
 def says(value: str, purpose: str) -> JsonObject:
     """A body item that says `value`, for `purpose`."""
     return {"type": "TextualBody", "value": value, "purpose": purpose}
+
+
+def test_the_people_of_a_reply_are_named_as_the_projection_holds_them_and_it_is_read_once() -> None:
+    world = World(people=FakePeople(LOVELACE))
+    world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE, wasAttributedTo=[ADA])
+
+    reply = run(world.search(request(neighbours=(ROCK,))))
+
+    (candidate,) = objects(written(reply)["response"], "response")
+    assert candidate["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
+    assert world.people.reads == 1
 
 
 def body_line(prompt: str) -> list[str]:

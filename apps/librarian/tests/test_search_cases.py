@@ -433,8 +433,9 @@ def test_the_reply_states_the_offset_and_the_limit_the_request_stated() -> None:
 def test_a_limit_below_1_is_refused_and_no_store_is_asked(limit: int) -> None:
     at = stores(lists=nothing_listed())
 
+    # Stated as a caller that does not hold its request to the schema states it: the schema refuses such a limit too.
     with pytest.raises(LimitRefused, match=r"^limit must be at least 1$"):
-        reply_to(MatchResourcesRequest(search="hawk", limit=limit), at)
+        reply_to(MatchResourcesRequest.model_construct(search="hawk", limit=limit), at)
 
     assert at.graph.asked == []
     assert at.embedding.asked == []

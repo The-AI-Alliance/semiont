@@ -9,12 +9,14 @@ import logging
 
 import pytest
 from aio import run
+from pydantic import ValidationError
 from rig import LOVELACE, FakeGraph, FakePeople, FakeViews, described, link, reference, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import GatherReferencedByRequest, GatherReferencedByResult, ResourceView
 from spec import JsonObject
 
+from semiont_librarian.annotation_gather import Ungathered
 from semiont_librarian.reads import PeopleUnread
 from semiont_librarian.referenced_by import answer
 
@@ -37,8 +39,9 @@ def graph() -> FakeGraph:
 def reply_to(
     request: GatherReferencedByRequest, graph: FakeGraph, *views: ResourceView, people: FakePeople | None = None
 ) -> GatherReferencedByResult:
-    """The reply to a request, answered from the graph, these views, and a projection in which Ada has a profile."""
-    return run(answer(request, graph=graph, views=FakeViews(*views), people=FakePeople(LOVELACE) if people is None else people))
+    """The reply to a request, answered from the graph, a view of the cited resource and these, and a projection that names Ada."""
+    held = FakeViews(view(described(CITED)), *views)
+    return run(answer(request, graph=graph, views=held, people=FakePeople(LOVELACE) if people is None else people))
 
 
 def entries(reply: GatherReferencedByResult) -> list[JsonObject]:
@@ -71,17 +74,25 @@ def test_each_resource_the_annotations_are_on_is_read_once(graph: FakeGraph) -> 
         reference("ann-1", R1, link(CITED)),
         reference("ann-3", R2, link(CITED)),
     ]
-    views = FakeViews()
+    views = FakeViews(view(described(CITED)))
     run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
     assert sorted(graph.asked_of("get_resource"), key=str) == [R1, R2]
-    # The graph holds both, so no view is read.
-    assert views.asked == []
+    # The graph holds both, so no view is read but the cited resource's own.
+    assert views.asked == [CITED]
 
 
-def test_the_graph_is_asked_for_every_annotation_where_the_request_names_no_motivation_or_an_empty_one(graph: FakeGraph) -> None:
+def test_a_resource_nobody_made_fails_the_request_and_the_graph_is_not_asked(graph: FakeGraph) -> None:
+    graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED))]
+    people = FakePeople(LOVELACE)
+    with pytest.raises(Ungathered, match=r"^Resource not found$"):
+        run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=FakeViews(), people=people))
+    assert graph.asked == []
+    assert people.reads == 0
+
+
+def test_the_graph_is_asked_for_every_annotation_where_the_request_names_no_motivation(graph: FakeGraph) -> None:
     reply_to(GatherReferencedByRequest(resource_id=CITED), graph)
-    reply_to(GatherReferencedByRequest(resource_id=CITED, motivation=""), graph)
-    assert graph.asked_of("get_resource_referenced_by") == [(CITED, None), (CITED, None)]
+    assert graph.asked_of("get_resource_referenced_by") == [(CITED, None)]
 
 
 def test_the_graph_is_asked_for_the_annotations_of_the_motivation_the_request_names(graph: FakeGraph) -> None:
@@ -89,11 +100,10 @@ def test_the_graph_is_asked_for_the_annotations_of_the_motivation_the_request_na
     assert graph.asked_of("get_resource_referenced_by") == [(CITED, "linking")]
 
 
-def test_a_motivation_no_annotation_can_have_is_answered_with_no_entry_and_the_graph_is_not_asked(graph: FakeGraph) -> None:
-    graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED))]
-    reply = reply_to(GatherReferencedByRequest(resource_id=CITED, motivation="no such motivation"), graph)
-    assert entries(reply) == []
-    assert graph.asked == []
+@pytest.mark.parametrize("motivation", ["no such motivation", ""], ids=["a word that is none", "the empty text"])
+def test_a_motivation_no_annotation_can_have_is_no_request_the_channel_carries(motivation: str) -> None:
+    with pytest.raises(ValidationError):
+        GatherReferencedByRequest.model_validate({"resourceId": CITED, "motivation": motivation})
 
 
 def test_the_words_are_those_of_the_quote_selector_and_the_empty_string_where_the_target_has_none(graph: FakeGraph) -> None:
@@ -148,6 +158,8 @@ def test_a_resource_nobody_holds_is_logged_as_a_warning_and_its_annotation_is_st
     with caplog.at_level(logging.INFO, logger="semiont_librarian"):
         reply = reply_to(GatherReferencedByRequest(resource_id=CITED), graph)
     assert [(entry.id, entry.target.source) for entry in reply.response.referenced_by] == [("ann-1", R1)]
+    # No name is made up for it: the entry states none.
+    assert entries(reply) == [{"id": "ann-1", "target": {"source": R1, "selector": {"exact": "some words"}}}]
     (said,) = lines(caplog, logging.WARNING)
     assert said["resourceId"] == R1
     assert lines(caplog, logging.INFO) == []
@@ -167,11 +179,11 @@ def test_a_view_that_cannot_be_read_leaves_its_resource_unnamed_and_the_request_
 ) -> None:
     graph.resources[R1] = None
     graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED)), reference("ann-2", R2, link(CITED))]
-    views = FakeViews(view(described(R1, name="As the view holds it")))
+    views = FakeViews(view(described(CITED)), view(described(R1, name="As the view holds it")))
     views.unread.add(R1)
     with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
         reply = run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
-    assert [entry.resource_name for entry in reply.response.referenced_by] == ["Untitled Resource", "Keokuk"]
+    assert [entry.resource_name for entry in reply.response.referenced_by] == [None, "Keokuk"]
     # One warning says the view could not be read, and one that nobody holds the resource.
     assert [said["resourceId"] for said in lines(caplog, logging.WARNING)] == [R1, R1]
 

@@ -22,7 +22,7 @@ pub(super) type ReferencedBy = GetReferencedByResponseReferencedByItem;
 /// How much of the source an annotation's context takes, in characters,
 /// when its caller states no window. Every SDK sends the same: the cases of
 /// specs/src/client/surface.json hold each to it.
-const CONTEXT_WINDOW: i64 = 2000;
+const CONTEXT_WINDOW: u16 = 2000;
 
 /// What a resource's context takes when its caller states nothing: two hops
 /// of the graph, ten resources, their content, and no summary. Held by the
@@ -96,7 +96,7 @@ impl GatherNamespace {
         &self,
         resource_id: &ResourceId,
         annotation_id: &AnnotationId,
-        context_window: Option<i64>,
+        context_window: Option<u16>,
     ) -> Running<GatherAnnotationComplete> {
         let links = self.links.clone();
         let request = GatherAnnotationRequest {

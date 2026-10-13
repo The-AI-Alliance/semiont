@@ -9,13 +9,19 @@
       }
     },
     "total": {
-      "type": "number"
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many resources the search found in all, and not only on this page."
     },
     "offset": {
-      "type": "number"
+      "type": "integer",
+      "minimum": 0,
+      "description": "The offset the search was made with."
     },
     "limit": {
-      "type": "number"
+      "type": "integer",
+      "minimum": 1,
+      "description": "The limit the search was made with."
     },
     "matchKind": {
       "type": "string",

@@ -19,7 +19,7 @@ use serde_json::Value;
 /// How many candidates a search gives when its caller states no limit.
 /// Every SDK asks for as many: the cases of specs/src/client/surface.json
 /// hold each to it.
-const LIMIT: i64 = 10;
+const LIMIT: u16 = 10;
 
 /// A search for resources: the text, and which resources it is among.
 pub(super) type ResourceSearch = (String, ResourceFilters);
@@ -39,7 +39,9 @@ impl MatchNamespace {
                 async move {
                     let request = MatchResourcesRequest {
                         search,
-                        limit: Some(filters.limit()),
+                        // A page's limit is 1 to 200 on the wire. One this type cannot state is sent as
+                        // the largest it can, which the gateway refuses, as it refuses any out of bounds.
+                        limit: Some(u16::try_from(filters.limit()).unwrap_or(u16::MAX)),
                         archived: filters.archived,
                         entity_type: filters.entity_type,
                         offset: Some(0),

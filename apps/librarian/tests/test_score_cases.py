@@ -25,7 +25,7 @@ from typing import Final, final, override
 
 import pytest
 from aio import run
-from rig import FakeEmbedding, FakeInference, FakeVectors, view
+from rig import FakeEmbedding, FakeInference, FakePeople, FakeVectors, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor, ResourceView
@@ -247,6 +247,7 @@ async def searched(case: JsonObject, world: World) -> MatchSearchResult:
         vectors=world.vectors,
         embedding=world.embedding,
         inference=world.inference,
+        people=FakePeople(),
         now=lambda: moment,
     )
 
@@ -284,7 +285,7 @@ def each_once(asked: Iterable[str]) -> list[str]:
 
 def test_the_runner_found_the_table_s_cases() -> None:
     only(TABLE, TABLE_MEMBERS, "the table")
-    assert len(CASES) >= 42
+    assert len(CASES) >= 41
     assert len(ANSWERED) + len(FAILED) == len(CASES)
 
 

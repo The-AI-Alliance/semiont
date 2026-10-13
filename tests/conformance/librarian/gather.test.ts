@@ -285,15 +285,17 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       expect(annotationFocus(whole.response).selected).toEqual({ before: text.slice(0, at), text: 'vixen', after: text.slice(end) });
     });
 
-    it.each([99, 5001])('fails a gather whose window is %i, which is out of bounds, and asks its model nothing', async (contextWindow) => {
+    it.each([99, 5001])('does not gather with a window of %i, which is out of bounds, and asks its model nothing', async (contextWindow) => {
       const source = await world().created(FOX, { name: 'A fox and a dog' });
       const highlight = await world().highlighted(source, 'fox');
       await world().ready(source);
 
-      const failure = await world().failed('gather:requested', { annotationId: highlight, resourceId: source, options: { contextWindow } });
-
-      expect(failure.annotationId).toBe(highlight);
-      expect(failure.message).toMatch(/window/i);
+      // A window out of bounds is not gathered: the gateway refuses the request, or the Librarian fails it.
+      const refused = await world()
+        .ask('gather:requested', { annotationId: highlight, resourceId: source, options: { contextWindow } })
+        .then((reply) => (reply.ok ? 'answered' : reply.failure.message), (thrown: unknown) => String(thrown));
+      expect(refused).not.toBe('answered');
+      expect(refused).toMatch(/window|gather:requested/i);
       expect(world().gatherer.generations).toEqual([]);
     });
 
@@ -564,7 +566,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const { response } = await world().answered('gather:summary-requested', { annotationId: reference, resourceId: source });
 
       expect(response.summary).toBe('The passage names a wading bird.');
-      expect(response.relevantFields).toMatchObject({ resourceName: 'A heron between two runs of letters', entityTypes: ['Bird'] });
+      expect(response.relevantFields).toEqual({ resourceId: source, resourceName: 'A heron between two runs of letters', entityTypes: ['Bird'] });
       // Two hundred on each side: the end of what is before, and the start of what is after.
       expect(response.context).toEqual({ before: text.slice(at - 200, at), selected: 'heron', after: text.slice(end, end + 200) });
 

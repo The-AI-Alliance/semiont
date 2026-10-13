@@ -13,10 +13,15 @@
       "type": "string"
     },
     "offset": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many of the resources the search finds are passed over before the page begins."
     },
     "limit": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "description": "The most resources a page has."
     }
   },
   "required": [

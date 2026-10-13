@@ -399,7 +399,11 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("bind", "reportBodyError") => client.bind.report_body_error(args.typed("input")),
 
         ("gather", "annotation") => {
-            let window = args.options().get("contextWindow").and_then(Value::as_i64);
+            let window = args
+                .options()
+                .get("contextWindow")
+                .and_then(Value::as_u64)
+                .and_then(|window| u16::try_from(window).ok());
             go!(client
                 .gather
                 .annotation(

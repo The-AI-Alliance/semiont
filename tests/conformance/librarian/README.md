@@ -120,12 +120,12 @@ the stand-in answers what the real Archivist answers when it is asked.
 - **Finding things** (`search.test.ts`): a reference search's candidates from
   each of its four sources, with a score and a reason, and its own resource
   left out, with its model's scoring and without, when the model or the
-  embedding provider fails, its limit, and a limit it refuses; a text search
-  answered by name with previews and by meaning with the passage that
-  matched, a later page, blank text, its filters by name and by meaning, a
-  limit it refuses, the floor a hit by meaning must reach, and a PDF's empty
-  preview; what refers to a
-  resource; the names of the people a page mentions; and the limits each
+  embedding provider fails, and its limit; a text search answered by name
+  with previews and by meaning with the passage that matched, a later page,
+  blank text, its filters by name and by meaning, the floor a hit by meaning
+  must reach, and a PDF's empty preview; what refers to a resource, and the
+  failure for a resource nobody made; the names of the people a page and a
+  candidate mention; and the limits each
   actor reports of its own model, with a provider that does not answer left
   out.
 - **Gathering** (`gather.test.ts`): around an annotation, the annotation and
