@@ -130,27 +130,32 @@ the stand-in answers what the real Archivist answers when it is asked.
   out.
 - **Gathering** (`gather.test.ts`): around an annotation, the annotation and
   its resource, the text selected with what is before and after it, a linked
-  resource with its text and summary, the knowledge graph, entity types and
+  resource with its text and summary, and without the summary when its model
+  fails on it, the knowledge graph, entity types and
   their frequencies, the sentence its model writes, similar passages, each
   option, and each failure; around a resource, its text and its neighbours',
-  a summary and suggestions when asked, similar passages by its own vectors,
+  a summary and suggestions when asked, with the texts and without them,
+  similar passages by its own vectors,
   and each failure; an annotation's summary; and that gathers for one
   resource are answered one at a time.
 - **When a writer is behind** (`barriers.test.ts`): with the Weaver or the
   Smelter stopped by the suite, a gather that waits for the graph and one
   that fails saying the graph is behind; a search answered from a view for a
   resource the graph does not hold yet; a gather that waits for the Smelter's
-  decision, one answered at once for a resource the Smelter skips, and one
-  answered without similar passages when the settle bound passes; and a
+  decision, one answered at once for a resource the Smelter skips, one
+  answered at once, by a Librarian that has heard no decision, for an
+  indexed resource that nothing is like and for an image, and one answered
+  without similar passages when the settle bound passes; and a
   Librarian that answers as before after it is started again.
 - **What it exports** (`telemetry.test.ts`): a Librarian told where to
   export, held to the telemetry table in both directions: every row the table
   lists for it arrives, under its name, and nothing arrives that the table
   does not list. Its traffic is a gather whose model answers and reports its
-  tokens, one whose model fails, one that reads a PDF's text, one the Smelter
-  does not decide in time, and one for a resource the graph does not come to
-  hold: every way a request of a model ends, and everything a gather can go
-  without.
+  tokens, one whose model fails, one around a bound reference whose model
+  fails on the linked resource's summary and on the relationship sentence,
+  one that reads a PDF's text, one the Smelter does not decide in time, and
+  one for a resource the graph does not come to hold: every way a request of
+  a model ends, and everything a gather can go without.
 
 ## Running it
 

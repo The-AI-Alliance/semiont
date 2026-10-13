@@ -55,8 +55,15 @@ otherwise leave open, and is read as `skipped` is: the index is not asked
 again, and nothing is counted.
 """
 
-type Projection = Literal["graph", "vectors", "suggestions"]
-"""What a gather went without: the graph or the index, whose wait ran out, or the suggestions a model failed to give."""
+type Projection = Literal["graph", "vectors", "suggestions", "summary", "relationship"]
+"""What a gather went without.
+
+`graph`: the graph did not come to hold the resource. `vectors`: the index
+failed, or did not settle in time. The other three are what a model failed to
+give: `suggestions`, the summary and the suggestions of a gather around a
+resource; `summary`, the summary of the resource an annotation links to; and
+`relationship`, the relationship sentence.
+"""
 
 
 @final

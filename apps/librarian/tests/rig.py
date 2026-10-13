@@ -38,7 +38,7 @@ from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.mock import MockEmbeddingProvider
-from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResult
+from semiont_vectors.store import ResourceStamp, SearchOptions, VectorReader, VectorSearchResult
 from spec import JsonObject
 
 from semiont_librarian.prompts import Prompt
@@ -55,6 +55,7 @@ from semiont_librarian.reads import (
     WeaveWaits,
     WeaveWaitTimedOut,
 )
+from semiont_librarian.record import ViewUnread
 
 ADA_ID: Final = "did:web:example.org:users:ada"
 """The id of the one person a rig's builders name."""
@@ -131,17 +132,22 @@ def view(resource: ResourceDescriptor, *annotations: Annotation, last_sequence: 
 
 @final
 class FakeViews(Views):
-    """The views a test states. `held` is each, by its resource, and `asked` every resource a view was asked for."""
+    """The views a test states. `held` is each, by its resource, and `asked` every resource a view was asked for.
+
+    `failing` fails every read. `unread` is the resources whose view is
+    there and cannot be read, as a file that is no view cannot.
+    """
 
     def __init__(self, *held: ResourceView) -> None:
         self.held: Final[dict[ResourceId, ResourceView]] = {each.resource.id: each for each in held}
         self.asked: Final[list[ResourceId]] = []
         self.failing: Exception | None = None
+        self.unread: Final[set[ResourceId]] = set()
 
     @override
     async def get(self, resource_id: ResourceId) -> ResourceView | None:
         self.asked.append(resource_id)
-        await _turn(self.failing)
+        await _turn(ViewUnread(f"the view of {resource_id} cannot be read") if resource_id in self.unread else self.failing)
         return self.held.get(resource_id)
 
 
@@ -293,12 +299,17 @@ class FakeVectors(VectorReader):
     search's name and as it is stated, whatever its filter and its limit say.
     A search a test stated nothing for is answered from `store`, an index in
     the process. `failing` is by a read's name, `connect` among them.
-    `connected` says whether it is reached.
+    `connected` says whether it is reached. `stamps` is the stamp of each
+    resource a test states one for, and `stamps_asked` every resource whose
+    stamp was asked for; a resource a test stated none for is answered from
+    `store`.
     """
 
     def __init__(self) -> None:
         self.store: Final = MemoryVectorStore()
         self.stated: Final[dict[str, list[VectorSearchResult]]] = {}
+        self.stamps: Final[dict[ResourceId, ResourceStamp]] = {}
+        self.stamps_asked: Final[list[ResourceId]] = []
         self.asked: Final[list[tuple[str, object, SearchOptions]]] = []
         self.failing: Final[dict[str, Exception]] = {}
         self.connected = False
@@ -336,6 +347,14 @@ class FakeVectors(VectorReader):
         if "search_by_resource" in self.stated:
             return [*self.stated["search_by_resource"]]
         return await self.store.search_by_resource(resource_id, options)
+
+    @override
+    async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
+        self.stamps_asked.append(resource_id)
+        await _turn(self.failing.get("get_resource_stamp"))
+        if resource_id in self.stamps:
+            return self.stamps[resource_id]
+        return await self.store.get_resource_stamp(resource_id)
 
 
 @final
@@ -392,7 +411,8 @@ class FakeInference(InferenceClient):
 
     `asked` is every request, in order. With no reply stated it answers the
     empty text. Every reply ends as a model that had finished ends one
-    (`end_turn`).
+    (`end_turn`). `failing` fails every request, and `failing_on` each one
+    whose prompt has that text in it.
     """
 
     def __init__(self, *replies: str) -> None:
@@ -400,6 +420,12 @@ class FakeInference(InferenceClient):
         self._mock: Final = MockInferenceClient(said, stop_reasons=["end_turn"] * len(said), limits=LIMITS)
         self.asked: Final[list[Prompted]] = []
         self.failing: Exception | None = None
+        self.failing_on: str | None = None
+
+    def _failure_of(self, prompt: str) -> Exception | None:
+        if self.failing_on is not None and self.failing_on in prompt:
+            return RuntimeError("the model failed on this prompt")
+        return self.failing
 
     def say(self, *replies: str) -> None:
         """Answer from these replies from now on, beginning with the first."""
@@ -432,7 +458,7 @@ class FakeInference(InferenceClient):
     @override
     async def generate_text(self, prompt: str, max_tokens: int, temperature: float) -> InferenceResponse:
         self.asked.append(Prompted(prompt, max_tokens, temperature))
-        await _turn(self.failing)
+        await _turn(self._failure_of(prompt))
         return await self._mock.generate_text(prompt, max_tokens, temperature)
 
     @override

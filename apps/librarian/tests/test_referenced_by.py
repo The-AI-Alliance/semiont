@@ -162,13 +162,18 @@ def test_a_graph_that_fails_to_answer_fails_the_request_and_nothing_else_is_read
     assert people.reads == 0
 
 
-def test_a_view_that_fails_fails_the_request(graph: FakeGraph) -> None:
+def test_a_view_that_cannot_be_read_leaves_its_resource_unnamed_and_the_request_is_answered(
+    graph: FakeGraph, caplog: pytest.LogCaptureFixture
+) -> None:
     graph.resources[R1] = None
-    graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED))]
-    views = FakeViews()
-    views.failing = RuntimeError("the state volume is away")
-    with pytest.raises(RuntimeError, match=r"the state volume is away"):
-        run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
+    graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED)), reference("ann-2", R2, link(CITED))]
+    views = FakeViews(view(described(R1, name="As the view holds it")))
+    views.unread.add(R1)
+    with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
+        reply = run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
+    assert [entry.resource_name for entry in reply.response.referenced_by] == ["Untitled Resource", "Keokuk"]
+    # One warning says the view could not be read, and one that nobody holds the resource.
+    assert [said["resourceId"] for said in lines(caplog, logging.WARNING)] == [R1, R1]
 
 
 def test_the_projection_is_read_once_for_the_reply_and_a_reply_is_sent_where_it_cannot_be_read(

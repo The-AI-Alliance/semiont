@@ -23,15 +23,24 @@ from rig import (
     FakeViews,
     FakeWeave,
     described,
+    link,
+    reference,
     sent,
     view,
 )
 from semiont.identifiers import ResourceId
 from semiont.model import written
-from semiont.types import GatheredContext, GatherResourceRequest, GatherResourceRequestOptions, ResourceDescriptor, ResourceView
+from semiont.types import (
+    Annotation,
+    GatheredContext,
+    GatherResourceRequest,
+    GatherResourceRequestOptions,
+    ResourceDescriptor,
+    ResourceView,
+)
 from semiont_graph.interface import GraphConnection
 from semiont_service.content import Content
-from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, ResourceStamp, SearchFilter, SearchOptions, VectorSearchResult
 from spec import JsonObject, objects, thing
 
 from semiont_librarian.annotation_gather import Ungathered
@@ -477,11 +486,138 @@ def test_a_wait_that_fails_in_any_way_but_running_out_fails_the_gather() -> None
     run(scenario())
 
 
-def test_an_index_that_fails_fails_the_gather() -> None:
+@pytest.mark.parametrize("read", ["search_by_resource", "get_resource_stamp"])
+def test_an_index_that_fails_leaves_the_context_without_similar_passages_and_is_counted_and_nothing_waits(read: str) -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.vectors.failing["search_by_resource"] = RuntimeError("the index is away")
-        with pytest.raises(RuntimeError, match=r"the index is away"):
+        world.vectors.failing[read] = RuntimeError("the index is away")
+
+        said = written(await world.gathered(options()))
+
+        assert "semanticContext" not in said
+        assert thing(thing(said["focus"], "focus")["content"], "content")["main"] == TEXT
+        assert world.smelt.asked == []
+        assert world.degraded.noted == ["vectors"]
+
+    run(scenario())
+
+
+def test_an_index_with_no_such_collection_fails_the_gather() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        world.vectors.failing["search_by_resource"] = CollectionAbsent("Qdrant has no such collection: no store has made it yet")
+        with pytest.raises(CollectionAbsent, match=r"no such collection"):
             await world.gathered(options())
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_a_resource_the_index_holds_the_bytes_of_and_that_nothing_is_like_is_answered_with_no_wait() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        # The Librarian keeps no decision of the quay's bytes: one it was started after, or has forgotten.
+        del world.smelt.settled[(QUAY, CHECKSUM)]
+        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum=CHECKSUM, entity_types=())
+
+        said = written(await world.gathered(options()))
+
+        assert "semanticContext" not in said
+        assert world.vectors.stamps_asked == [QUAY]
+        assert world.smelt.asked == []
+        assert len(world.vectors.asked) == 1
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_a_resource_the_index_holds_other_bytes_of_is_waited_for() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        world.vectors.stamps[QUAY] = ResourceStamp(content_checksum="sum-of-what-the-quay-was", entity_types=())
+
+        await world.gathered(options())
+
+        assert world.vectors.stamps_asked == [QUAY]
+        assert world.smelt.asked == [(QUAY, CHECKSUM, SETTLE)]
+
+    run(scenario())
+
+
+def test_a_resource_whose_media_type_has_no_text_is_not_waited_for_and_the_index_is_not_asked_what_it_holds() -> None:
+    async def scenario() -> None:
+        chart = described(QUAY, name="A chart of the quay", representations=[{"mediaType": "image/png", "checksum": CHECKSUM}])
+        world = World(view(chart))
+        world.weave_in(chart)
+        del world.smelt.settled[(QUAY, CHECKSUM)]
+
+        said = written(await world.gathered(options()))
+
+        assert "semanticContext" not in said
+        assert world.vectors.stamps_asked == []
+        assert world.smelt.asked == []
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_a_summary_asked_for_without_content_is_made_of_the_text_and_the_focus_states_no_content() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        world.inference.say("A quay a ferry leaves from.", "- Read the timetable")
+
+        focus = thing(written(await world.gathered(options(include_content=False, include_summary=True)))["focus"], "focus")
+
+        assert focus["summary"] == "A quay a ferry leaves from."
+        assert focus["suggestedReferences"] == ["Read the timetable"]
+        assert "content" not in focus
+        assert world.content.asked == [QUAY]
+        assert world.inference.asked[0] == sent(resource_summary_prompt(name="The quay", content=TEXT, entity_types=[]))
+
+    run(scenario())
+
+
+def test_a_related_resource_whose_view_cannot_be_read_is_left_out_and_the_others_are_read() -> None:
+    async def scenario() -> None:
+        quay = stored(QUAY, "The quay", checksum=CHECKSUM)
+        ferry, tides = stored(FERRY, "The ferry"), stored(TIDES, "The tides")
+        world = World(view(quay), view(ferry), view(tides))
+        world.views.unread.add(FERRY)
+        world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
+        world.content.held[TIDES] = Content(b"High water at noon.", "text/plain")
+        world.weave_in(quay, ferry, tides)
+
+        context = await world.gathered(options())
+
+        related = thing(thing(written(context)["focus"], "focus")["content"], "content")["related"]
+        assert related == {TIDES: "High water at noon."}
+        # The graph is whole: the ferry is a node of it, as the graph database described it.
+        assert [node.id for node in context.graph.nodes] == [QUAY, FERRY, TIDES]
+
+    run(scenario())
+
+
+def cites(annotation: str, on: ResourceId) -> Annotation:
+    """An annotation on a resource that links to the quay."""
+    return reference(annotation, on, link(QUAY))
+
+
+def test_a_citing_resource_that_is_a_node_already_is_not_read_again_and_one_whose_view_cannot_be_read_is_named_by_its_id() -> None:
+    async def scenario() -> None:
+        quay = stored(QUAY, "The quay", checksum=CHECKSUM)
+        ferry, tides = stored(FERRY, "The ferry"), stored(TIDES, "The tides")
+        world = World(view(quay), view(ferry), view(tides))
+        world.views.unread.add(TIDES)
+        world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
+        # The quay links to the ferry, and the ferry and the tides each cite the quay.
+        world.weave_in(quay, ferry)
+        world.graph.referenced_by[QUAY] = [cites("ann-from-the-ferry", FERRY), cites("ann-from-the-tides", TIDES)]
+
+        context = await world.gathered(options(include_content=False))
+
+        labels = {node.id: node.label for node in context.graph.nodes if node.id in (FERRY, TIDES)}
+        assert labels == {FERRY: "The ferry", TIDES: TIDES}
+        # The ferry's view is read once, as a related resource. The tides' is asked for as a citing resource, and again as a related one.
+        assert world.views.asked == [QUAY, TIDES, FERRY, TIDES]
 
     run(scenario())

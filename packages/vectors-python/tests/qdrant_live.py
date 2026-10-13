@@ -262,6 +262,8 @@ def test_a_search_of_a_collection_that_is_not_there_fails_saying_so_and_makes_no
                 await reading.search_annotations([1.0, 0.0], FIVE)
             with pytest.raises(CollectionAbsent, match=r"no such collection"):
                 await reading.search_by_resource(ResourceId("res-a"), FIVE)
+            with pytest.raises(CollectionAbsent, match=r"no such collection"):
+                await reading.get_resource_stamp(ResourceId("res-a"))
             assert await collections() == before
         finally:
             await reading.disconnect()
@@ -296,6 +298,13 @@ def test_a_reader_finds_what_a_store_wrote() -> None:
             annotations = await reading.search_annotations([0.0, 1.0], FIVE)
             assert [(each.annotation_id, each.text) for each in annotations] == [(AnnotationId("ann-1"), "some words")]
             assert annotations == await store.search_annotations([0.0, 1.0], FIVE)
+
+            # A reader is answered a resource's stamp as the store is, and none for a resource with no points.
+            stamp = await reading.get_resource_stamp(ResourceId("res-a"))
+            assert stamp is not None
+            assert stamp.content_checksum == "checksum-a"
+            assert stamp == await store.get_resource_stamp(ResourceId("res-a"))
+            assert await reading.get_resource_stamp(ResourceId("res-none")) is None
 
             alike = await reading.search_by_resource(ResourceId("res-a"), FIVE)
             assert [(str(each.resource_id), each.text) for each in alike] == [("res-b", "mostly ahead")]

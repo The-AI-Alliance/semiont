@@ -158,10 +158,12 @@ async def _by_meaning(
     applied here and not by the index, so that what is below it is there to
     be counted: the line logged of each search is what the floor is set by.
 
-    Whatever fails in here, the answer is the page the search already had,
-    with nothing on it and lexical. A search that found nothing does not
-    become a failure. One failure is not read so: an index with no such
-    collection, which no store has made yet, fails the search.
+    An embedding or an index that fails leaves the answer the page the
+    search already had, with nothing on it and lexical: a search that found
+    nothing does not become a failure. One failure is not read so: an index
+    with no such collection, which no store has made yet, fails the search.
+    A hit whose resource cannot be read back is left out, and the others are
+    the page.
     """
     try:
         vector = await embedding.embed(search)
@@ -183,11 +185,16 @@ async def _by_meaning(
         )
         # The order of the scores is the order of the page, and nothing else is: not which resource is the newest.
         resources: list[ResourceDescriptor] = []
+        lagged = 0
         for hit in kept[:limit]:
             # The index can hold a resource a moment after it is gone: a hit nobody holds a resource for is left out.
             graced = await resource_with_view_grace(graph, views, hit.resource_id)
+            if graced.lagged_behind_view:
+                lagged += 1
             if graced.resource is not None:
                 resources.append(graced.resource.model_copy(update={"content": hit.text}))
+        if lagged > 0:
+            LOG.info("[graph lag] text search hits hydrated from view", extra={"count": lagged})
         return Page(resources=resources, total=len(kept), match_kind="semantic")
     except CollectionAbsent:
         raise

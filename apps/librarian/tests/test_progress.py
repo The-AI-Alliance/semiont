@@ -203,6 +203,27 @@ def test_an_applied_entry_more_than_five_minutes_old_is_forgotten_at_most_once_a
     run(scenario())
 
 
+def test_a_signal_that_states_nothing_new_makes_its_entry_new() -> None:
+    async def scenario() -> None:
+        clock = Clock()
+        began = clock.now
+        progress = WeaveProgress(clock)
+        progress.noted(R1, 3)
+
+        # Four minutes on the same is signalled again, and a lower one: the entry is as new as the last of them.
+        clock.now = began + 4 * MINUTE
+        progress.noted(R1, 3)
+        progress.noted(R1, 2)
+
+        # Five minutes and a second from the first signal a sweep finds it a minute old, and keeps it, as high as it was.
+        clock.now = began + 5 * MINUTE + 1
+        progress.noted(R2, 1)
+        await soon(progress.when_applied(R1, 3, LONG))
+        await progress.aclose()
+
+    run(scenario())
+
+
 def test_a_stopped_weave_fold_lets_a_wait_go_as_if_the_signal_had_come() -> None:
     async def scenario() -> None:
         progress = WeaveProgress(Clock())

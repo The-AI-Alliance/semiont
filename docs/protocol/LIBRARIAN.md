@@ -112,7 +112,9 @@ knowledge base's config states neither. The Librarian supplies no value.
   database's password, the embedding provider's key, and the key of each
   actor's model. With that variable unset or empty it refuses to start, and
   names the member of the document and the variable. A provider that takes
-  no key names no variable.
+  no key names no variable. A provider that takes one, in a document that
+  names no variable for it, is refused by the member: `matcher.apiKeyEnv` or
+  `gatherer.apiKeyEnv`.
   *Held by `apps/librarian/tests/test_config.py` and `apps/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password.*
 
 ## What it answers
@@ -205,8 +207,9 @@ rule; this section says it in prose.
   *Held by `apps/librarian/tests/test_reference_search.py`, for what a blank term is, by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a candidate from each of the four and one embedding of the term.*
 - **A neighbour and a vector hit are each read back as a resource from the
   graph, and from the views when the graph has none or its read fails.** One
-  neither holds is no candidate.
-  *Held by `apps/librarian/tests/test_score_cases.py` and `apps/librarian/tests/test_grace.py`, and by `librarian/barriers`, for a vector hit the graph does not hold yet.*
+  neither holds is no candidate, and neither is one whose view cannot be
+  read: the search is answered with the others.
+  *Held by `apps/librarian/tests/test_score_cases.py`, `apps/librarian/tests/test_grace.py` and `apps/librarian/tests/test_reference_search.py`, and by `librarian/barriers`, for a vector hit the graph does not hold yet.*
 - **A listing by name that fails fails the search,** with the failure's
   message. *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **A listing by entity type that fails fails the search too.**
@@ -349,12 +352,14 @@ search as what each store answers and the page that follows, and is the rule.
   is how many are kept. *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **The first `limit` of the kept are read back, each in turn, from the
   graph, and from the views where the graph has no such resource or fails.**
-  One neither has is left out of the page. Each resource of the page carries
+  One neither has, and one whose view cannot be read, is left out of the
+  page, and the others are read. A resource read from its view is counted in
+  a line of the log. Each resource of the page carries
   its chunk's text as `content`, and the page is `semantic`, also where
   nothing is kept. *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for the page and each chunk's text, and `librarian/barriers`, for a resource read from its view.*
-- **Where the embedding, the index or a view fails, the answer is the page
-  with no resources, a total of 0, and `lexical`.** A search that found
-  nothing does not become a failure.
+- **Where the embedding or the index fails, the answer is the page with no
+  resources, a total of 0, and `lexical`.** A search that found nothing does
+  not become a failure. An index with no such collection fails the search.
   *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for an embedding that fails.*
 - **Each resource of a lexical page is given a preview as `content`; a
   semantic page's `content` is left as it is.**
@@ -385,11 +390,14 @@ failure, and is the rule.
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/gather`, for the resource first and a resource a reference links to.*
 - **Then each annotation elsewhere that refers to the resource:** its citing
   resource is a node, named and typed by its view, or named by its id and
-  with no entity types where it has no view; the annotation is a node; an
+  with no entity types where it has no view that can be read; the annotation
+  is a node; an
   `annotation-of` edge runs from the annotation to its citing resource, and a
   `cites` edge from the annotation to the resource. An annotation that is on
-  the resource itself is not a citation.
-  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
+  the resource itself is not a citation. A citing resource that is a node
+  already, as one the resource links to is, keeps the name it has, and its
+  view is not read for it.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `apps/librarian/tests/test_resource_gather.py`, for which views are read and for one that cannot be.*
 - **Then each annotation on the resource is a node, with an `annotation-of`
   edge to the resource.**
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `librarian/gather`.*
@@ -467,8 +475,11 @@ within a bound, and nothing else it does waits.
 
 - **It keeps, for each resource, the highest sequence number `weave:applied`
   has signalled, and the last decision `smelt:settled` has signalled.** What
-  it keeps is forgotten when it stops, and an entry more than five minutes
-  old may be forgotten before that.
+  it keeps is forgotten when it stops. An entry more than five minutes old
+  may be forgotten before that, as another signal is noted, and every signal
+  of a resource makes its entry new, one that states nothing new among them.
+  A Librarian that hears no signal forgets nothing: it holds no more than it
+  did, and what it holds still answers a wait.
   *Held by `apps/librarian/tests/test_progress.py`.*
 - **The wait for the graph.** When the views hold a resource and the graph
   database does not, the build waits at most 500 milliseconds for
@@ -483,22 +494,30 @@ within a bound, and nothing else it does waits.
   not missing. It is logged as a warning and counted
   (`semiont.gather.degraded`, `projection` `graph`).
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/barriers`, for the failure and its message.*
-- **The wait for the index, which only a gather of a resource makes.** When
-  the index answers no match for the resource, and the resource's
-  description states a checksum for its bytes, the gather waits, for the
-  settle bound at most, for `smelt:settled` to state a decision of exactly
-  that checksum. A decision it already keeps ends the wait at once.
+- **The wait for the index, which only a gather of a resource makes, and
+  only for bytes the index does not hold yet.** When the index answers no
+  match for the resource, it is asked what it holds of the resource. Points
+  of the bytes the resource's description states are a resource that is
+  indexed and that nothing is like: nothing waits. Nothing waits either for
+  a resource whose description states no checksum, or a media type that has
+  no text, which the Smelter does not index. Otherwise the gather waits, for
+  the settle bound at most, for `smelt:settled` to state a decision of
+  exactly that checksum. A decision it already keeps ends the wait at once.
   On `indexed` it asks the index again; on `skipped` it does not.
-  *Held by `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_progress.py`, and by `librarian/barriers`, for a resource the Smelter then indexes and for one it skips.*
+  *Held by `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_progress.py`, and by `librarian/barriers`, for a resource the Smelter then indexes, for one it skips, and for an indexed resource and an image asked of a Librarian that has heard no decision.*
 - **An index that does not settle within the bound leaves the context
   without `semanticContext`, and the gather is answered.** It is logged as a
   warning and counted (`semiont.gather.degraded`, `projection` `vectors`).
   *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/barriers`, for the answer, when it comes and the warning.*
-- **The counter has three values of `projection`:** `graph` and `vectors`,
-  the two waits that ran out, and `suggestions`, a summary the model failed
-  to give ([Gathering around a resource](#gathering-around-a-resource)).
-  Each gather that went without one is counted once.
-  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, for a graph that stayed behind, and `apps/librarian/tests/test_resource_gather.py`, for the other two.*
+- **The counter has five values of `projection`:** `graph`, a graph that
+  did not come to hold the resource; `vectors`, an index that failed or did
+  not settle in time; and three for what a model failed to give:
+  `suggestions`, the summary and suggestions of a resource; `summary`, the
+  summary of the resource an annotation links to; and `relationship`, the
+  relationship sentence
+  ([What a failed read does](#what-a-failed-read-does)). A gather is counted
+  once for each it went without.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, for a graph that stayed behind, `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_annotation_gather.py`, for the others, and by `librarian/telemetry`, for each value arriving.*
 - **A wait that fails in any way but running out fails the gather.**
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `apps/librarian/tests/test_resource_gather.py`.*
 
@@ -519,7 +538,7 @@ order of the rules below.
   *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for an annotation the view does not hold and for one on another resource.*
 - **Where the annotation's body links to a resource, that resource's view is
   read,** and its description is the focus's `targetResource`. A link to a
-  resource with no view gives none.
+  resource with no view, or with one that cannot be read, gives none.
   *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for a link to a resource that has a view.*
 - **The selected text is cut from the resource's text,** when
   `includeSourceContext` is true. A resource with no stored bytes fails the
@@ -545,8 +564,10 @@ order of the rules below.
 - **The linked resource's text is read, when `includeTargetContext` is true
   and it has stored bytes,** and the focus's `targetContext` is the start of
   that text, twice `contextWindow` code points long, with a summary of the resource from
-  the Gatherer's model (the resource-summary prompt).
-  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the option, a text shorter than that, a PDF's text, and the summary.*
+  the Gatherer's model (the resource-summary prompt). A model that fails
+  leaves `targetContext` with the text and no summary, and the gather goes
+  on, counted (`projection` `summary`).
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the option, a text shorter than that, a PDF's text, the summary, and a model that fails on it.*
 - **The knowledge graph of the resource is built, one link out**
   ([The knowledge graph](#the-knowledge-graph)), and is the context's
   `graph`. A build that fails fails the gather.
@@ -560,14 +581,18 @@ order of the rules below.
 - **Where a selection was cut, the Gatherer's model is asked for the
   relationship sentence** (the relationship prompt), made from the passage
   and the lists read off the graph. A model that fails leaves the context
-  without `inferredRelationshipSummary`, and the gather goes on.
+  without `inferredRelationshipSummary`, and the gather goes on, counted
+  (`projection` `relationship`).
   *Held by `apps/librarian/tests/test_annotation_gather.py` and `librarian/gather`.*
 - **Where the selected text is not empty, it is embedded, and the vector
   index is asked for at most 10 annotations that score 0.5 or more and are
   on another resource.** Each is named by its resource's view, and one whose
-  resource has no view, or a view that states an empty name, is left out.
-  The matches are `semanticContext`, which is absent where there are none. An embedding, an index or a view that
-  fails here leaves the context without it, and the gather goes on.
+  resource has no view, a view that cannot be read, or a view that states an
+  empty name, is left out. The matches are `semanticContext`, which is
+  absent where there are none. An embedding or an index that fails here
+  leaves the context without it, and the gather goes on, counted
+  (`projection` `vectors`). An index with no such collection fails the
+  gather.
   *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the one embedding, a match on another resource with its name, and none from the annotation's own.*
 
 ## Gathering around a resource
@@ -583,10 +608,11 @@ resource. The reads are made in the order of the rules below.
   *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a depth of 4.*
 - **The resource's view is read.** A resource with no view fails the gather.
   *Held by `apps/librarian/tests/test_resource_gather.py`, `librarian/gather` and `librarian/barriers`.*
-- **The resource's text is read when `includeContent` is true,** and is the
-  focus's `content.main` where it is not empty. The focus states `content`
-  whenever `includeContent` is true, and not otherwise.
-  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a text and for a PDF.*
+- **The resource's text is read when `includeContent` or `includeSummary`
+  is true.** It is the focus's `content.main` where it is not empty and
+  `includeContent` is true. The focus states `content` whenever
+  `includeContent` is true, and not otherwise.
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a text, for a PDF, and for a summary asked for without the texts.*
 - **The knowledge graph of the resource is built, `depth` links out**
   ([The knowledge graph](#the-knowledge-graph)), and is the context's
   `graph`. A build that fails fails the gather.
@@ -594,12 +620,13 @@ resource. The reads are made in the order of the rules below.
 - **The related resources are the first `maxResources` less one of the
   graph's resource nodes, but for the resource itself,** which are the
   nearest to it. The view of each is
-  read, and one with no view is passed by. When `includeContent` is true the
+  read, and one with no view, or with one that cannot be read, is passed by.
+  When `includeContent` is true the
   text of each is read, and `content.related` holds each text that is not
   empty, by resource id. A read of bytes that fails fails the gather.
   *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for how many are read and what is held of each.*
-- **When `includeSummary` and `includeContent` are both true and the
-  resource's text is not empty, the Gatherer's model is asked:** first for a
+- **When `includeSummary` is true and the resource's text is not empty, the
+  Gatherer's model is asked:** first for a
   summary (the resource-summary prompt), then for suggestions (the
   reference-suggestions prompt, with the resource's name and its first
   entity type). They are the focus's `summary` and `suggestedReferences`.
@@ -617,16 +644,20 @@ resource. The reads are made in the order of the rules below.
 - **The vector index is asked for what is like the resource:** at most
   `maxResources` passages of other resources that score 0.5 or more against
   the resource's own stored vectors, without those of the entity types the
-  request excludes. Nothing is embedded. Where the index answers no match,
-  the gather waits for the index
+  request excludes. Nothing is embedded. Where the index answers no match
+  and does not hold the resource's bytes yet, the gather waits for the index
   ([The two waits](#the-two-waits)).
   *Held by `apps/librarian/tests/test_resource_gather.py`, `librarian/gather` and `librarian/barriers`.*
 - **Each match is named by its resource's view, and one whose resource has
-  no view, or a view that states an empty name, is left out.** The matches
+  no view, a view that cannot be read, or a view that states an empty name,
+  is left out.** The matches
   are `semanticContext`, with the entity types that were excluded where any
   were; it is absent where there are no matches.
   *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the names and the excluded entity types, and `librarian/barriers`, for none.*
-- **An index that fails fails the gather.**
+- **An index that fails leaves the context without `semanticContext`, and
+  the gather is answered.** It is logged as a warning and counted
+  (`semiont.gather.degraded`, `projection` `vectors`), and nothing waits. An
+  index with no such collection fails the gather.
   *Held by `apps/librarian/tests/test_resource_gather.py`.*
 - **`metadata` states the resource's language and `resourceType`
   `document`,** and no entity types.
@@ -669,8 +700,9 @@ resource. The reads are made in the order of the rules below.
   entry, and the graph database is not asked.**
   *Held by `apps/librarian/tests/test_referenced_by.py`.*
 - **Each resource those annotations are on is read once, from the graph, and
-  from the views where the graph has none or its read fails.** A view that
-  fails to be read fails the request.
+  from the views where the graph has none or its read fails.** A resource
+  whose view cannot be read is one nobody holds: its entry is answered, and
+  names it `Untitled Resource`.
   *Held by `apps/librarian/tests/test_referenced_by.py` and `apps/librarian/tests/test_grace.py`.*
 - **The answer has one entry for each annotation, in the graph's order:** its
   `id`; `resourceName`, the name of the resource it is on; and `target`, with
@@ -713,6 +745,81 @@ volume.
   *Held by `apps/librarian/tests/test_naming_cases.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_referenced_by.py`.*
 - **The replies to the two gathers, to a summary and to the two limits
   requests are not named.** *Held by no case.*
+
+## What a failed read does
+
+Each operation makes several reads, and each read can fail. One rule decides
+what a failure does: **a read the answer cannot be made without fails the
+request; a read that only adds to the answer leaves the answer without that
+part, and says so.** The sections above state each case where it arises.
+This one states them together.
+
+- **A request fails, on its failure channel, with what failed, when it
+  cannot read what the answer is about or is made of:** the view of the
+  resource it names; the bytes of a text it was asked for; the graph, in a
+  listing, in the build of a knowledge graph, in a count of entity types and
+  in a list of what refers to a resource; and the model, in an annotation's
+  summary, which is nothing but what the model says.
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, `apps/librarian/tests/test_resource_gather.py`, `apps/librarian/tests/test_summary.py`, `apps/librarian/tests/test_referenced_by.py`, `apps/librarian/tests/test_score_cases.py` and `apps/librarian/tests/test_search_cases.py`.*
+- **A gather that goes without a part is answered, logged as a warning and
+  counted** on `semiont.gather.degraded`, by what it went without
+  ([The two waits](#the-two-waits)).
+  *Held by `apps/librarian/tests/test_annotation_gather.py` and `apps/librarian/tests/test_resource_gather.py`.*
+- **A search that goes without a source is answered, and logged as a
+  warning.** No counter counts it ([Known defects](#known-defects)).
+  *Held by `apps/librarian/tests/test_reference_search.py` and `apps/librarian/tests/test_search_cases.py`.*
+- **A view that only adds to an answer, and cannot be read, is passed over
+  with a warning that names its resource:** one candidate of a search, one
+  hit of a page, one related resource, one similar passage, the name of a
+  citing resource, the resource an annotation links to. A view that is not
+  there is no failure, and nothing is logged of it.
+  *Held by `apps/librarian/tests/test_grace.py`, `apps/librarian/tests/test_reference_search.py`, `apps/librarian/tests/test_annotation_gather.py`, `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_referenced_by.py`.*
+- **A file that is there and is no view is never taken for a view that is
+  not there.** It is a failure that names the file: of the request, for the
+  view the answer is about, and a warning, for one that only adds.
+  *Held by `apps/librarian/tests/test_record.py` and `apps/librarian/tests/test_grace.py`.*
+- **An index with no such collection fails every request that asks it,**
+  where an index that fails in any other way does not: nobody has started
+  the index, and that is no empty answer.
+  *Held by `apps/librarian/tests/test_reference_search.py`, `apps/librarian/tests/test_search_cases.py`, `apps/librarian/tests/test_annotation_gather.py` and `apps/librarian/tests/test_resource_gather.py`.*
+
+| Operation | Read | When it fails |
+|---|---|---|
+| reference search | the listing by name, the listing by entity type | the search fails |
+| | the embedding of the term, the vector index | answered from the other sources; logged |
+| | a candidate's description: the graph | read from its view |
+| | a candidate's description: its view | that candidate is left out; logged |
+| | the model | answered with the scores as they were; logged |
+| text search | the listing | the search fails |
+| | the embedding, the vector index | the empty `lexical` page; logged |
+| | a hit's description: the graph | read from its view |
+| | a hit's description: its view | that hit is left out; logged |
+| | a preview's bytes | the empty string |
+| | the people projection | no one is named; logged |
+| gather around an annotation | the resource's view | the gather fails |
+| | the linked resource's view | no `targetResource`; logged |
+| | the resource's text, the linked resource's text | the gather fails |
+| | the model, for the linked resource's summary | `targetContext` without `summary`; counted `summary` |
+| | the graph: the build, the counts of entity types | the gather fails; a graph behind its view is counted `graph` |
+| | a citing resource's view | the node is named by its id; logged |
+| | the model, for the relationship sentence | no `inferredRelationshipSummary`; counted `relationship` |
+| | the embedding of the selection, the vector index | no `semanticContext`; counted `vectors` |
+| | a similar annotation's view | that match is left out; logged |
+| gather around a resource | the resource's view | the gather fails |
+| | the resource's text, a related resource's text | the gather fails |
+| | the graph | as around an annotation |
+| | a related resource's view | that resource is left out; logged |
+| | the model, for the summary and the suggestions | neither; counted `suggestions` |
+| | the vector index, and the Smelter's decision when it does not come in time | no `semanticContext`; counted `vectors` |
+| | a similar passage's view | that match is left out; logged |
+| an annotation's summary | a view, the text, the model | the request fails |
+| what refers to a resource | the graph's list | the request fails |
+| | a citing resource's description: the graph | read from its view; logged |
+| | a citing resource's description: its view | named `Untitled Resource`; logged |
+| | the people projection | no one is named; logged |
+| limits | the provider | left out of the list |
+
+In every row, a vector index with no such collection fails the request.
 
 ## The prompts
 
@@ -898,15 +1005,9 @@ Each of these is what today's Librarian does, and is wrong. Another
 implementation does not copy them. Each names the module of
 `apps/librarian/src/semiont_librarian` it is in.
 
-- **A view that fails to be read while a neighbour or a vector hit is read
-  back fails the whole reference search,** where an index that fails does
-  not (`grace.py`, `reference_search.py`).
 - **The reply to a reference search has no one named** ([Names](#names)),
   where the replies to a text search and to what refers to a resource do
   (`librarian.py`).
-- **A text search logs nothing when it reads a resource from its view
-  because the graph does not hold it.** A reference search and a request for
-  what refers to a resource each log it (`text_search.py`).
 - **A quote selector is found at the first place the text has its words,**
   whatever its prefix and its suffix say (`window.py`).
 - **A gather around an annotation reads the first selector of a list, and no
@@ -914,29 +1015,19 @@ implementation does not copy them. Each names the module of
   list (`window.py`).
 - **The bound on `contextWindow`, 100 to 5,000, is in no schema.** A request
   outside it is valid on the bus and fails in the Librarian (`window.py`).
-- **A model that fails on the summary of a linked resource fails the whole
-  gather around an annotation.** A model that fails on the relationship
-  sentence does not (`annotation_gather.py`).
 - **An annotation's summary states no `resourceId` in `relevantFields`**
   (`summary.py`).
-- **A citing resource's view is read though the resource is already a node
-  of the graph,** and the name read is not used (`knowledge_graph.py`).
-- **The wait for the index begins whenever the index answers no match for
-  the resource, and not only when it holds no vector of it.** A resource
-  that is indexed and has nothing like it, and one the Smelter skipped, are
-  each answered without a wait only while the Librarian still keeps the
-  Smelter's decision of them. Once it has been started again, or has
-  forgotten the decision, a gather of such a resource waits the whole settle
-  bound, and is logged and counted as one the index did not settle for
+- **A resource the Smelter skipped, of a media type that has text, is
+  waited for once the Librarian no longer keeps the Smelter's decision of
+  it:** a PDF the Smelter declined to derive the text of, or a text of
+  white space alone. The index holds no point of it, so a gather of it,
+  asked of a Librarian that was started again or has forgotten, waits the
+  whole settle bound and is counted as one the index did not settle for
   (`resource_gather.py`).
-- **What it keeps of a signal is forgotten only when another signal is
-  noted,** so a Librarian that hears no signal forgets nothing; and a
-  `weave:applied` no higher than the one kept does not make the entry newer
-  (`progress.py`).
-- **A gather around a resource that asks for a summary and not for content
-  asks the model nothing, and answers no summary and no suggestions.** The
-  summary is made from the text, and the text is read only for
-  `includeContent` (`resource_gather.py`).
+- **A preview whose bytes cannot be read is the empty string, and nothing
+  is logged** (`resource_text.py`).
+- **A search that went without a source is logged and not counted.** Only a
+  gather has a counter (`reference_search.py`, `text_search.py`).
 - **A suggestion's bullet is dropped before the white space that starts its
   line is,** so a bullet after white space is kept; and a line that starts
   with two asterisks loses one (`replies.py`).

@@ -12,7 +12,7 @@ import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { metricName, spanName, telemetry } from '../harness/spec';
 import { outsideTheTable, received } from '../harness/telemetry';
 import { pdfOf } from '../smelter/support';
-import { TIDE } from './support';
+import { FOX, TIDE } from './support';
 
 let receiver: OtlpReceiver | undefined;
 beforeAll(async () => {
@@ -70,6 +70,15 @@ eachLibrarian('what a Librarian exports', (world) => {
     // A request of a model that fails: the gather is answered without its summary and its suggestions.
     world().gatherer.script(FAILS);
     await world().answered('gather:resource-requested', { resourceId: marsh, options: SUMMARIZED });
+
+    // Two more requests of a model that fail, in a gather around a reference bound to the marsh: the summary of
+    // what it links to, and then the relationship sentence. The gather is answered without either.
+    const fable = await world().created(FOX, { name: 'A fox and a dog' });
+    const reference = await world().referenced(fable, 'fox');
+    await world().bound(fable, reference, marsh);
+    await world().ready(fable);
+    world().gatherer.script(FAILS, FAILS);
+    await world().answered('gather:requested', { annotationId: reference, resourceId: fable });
 
     // A text that is derived from a resource's bytes is asked of the gateway.
     const pdf = await world().created(pdfOf([['A snipe drums over the fen']]), { name: 'Birds of the fen', format: 'application/pdf' });

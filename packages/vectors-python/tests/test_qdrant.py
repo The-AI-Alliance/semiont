@@ -105,28 +105,29 @@ def reader() -> QdrantVectorReader:
     return QdrantVectorReader(host="127.0.0.1", port=1)
 
 
-type Search = Callable[[VectorReader], Awaitable[object]]
+type Read = Callable[[VectorReader], Awaitable[object]]
 
-SEARCHES: Final[dict[str, Search]] = {
+READS: Final[dict[str, Read]] = {
     "search_resources": lambda held: held.search_resources([1.0, 0.0], ONE),
     "search_annotations": lambda held: held.search_annotations([1.0, 0.0], ONE),
     "search_by_resource": lambda held: held.search_by_resource(RESOURCE, ONE),
+    "get_resource_stamp": lambda held: held.get_resource_stamp(RESOURCE),
 }
 """Every member of a reader that asks its index something, each called with what it takes."""
 
 
 def test_every_member_of_a_reader_that_asks_the_index_something_is_among_those_called_here() -> None:
     members = {name for name in dir(VectorReader) if not name.startswith("_")}
-    assert set(SEARCHES) == members - {"connect", "disconnect"}
+    assert set(READS) == members - {"connect", "disconnect"}
     # A store is a reader too: what a reader is asked, a store is asked.
-    assert set(SEARCHES) <= set(CALLS)
+    assert set(READS) <= set(CALLS)
 
 
-@pytest.mark.parametrize("member", sorted(SEARCHES))
-def test_a_search_before_connect_says_the_reader_is_not_connected(member: str) -> None:
+@pytest.mark.parametrize("member", sorted(READS))
+def test_a_read_before_connect_says_the_reader_is_not_connected(member: str) -> None:
     async def whole() -> None:
         with pytest.raises(RuntimeError, match="not connected"):
-            await SEARCHES[member](reader())
+            await READS[member](reader())
 
     run(whole())
 

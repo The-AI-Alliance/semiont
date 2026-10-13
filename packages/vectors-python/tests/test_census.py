@@ -161,7 +161,7 @@ def test_a_store_has_the_members_of_a_vector_index_and_no_others() -> None:
 
 def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -> None:
     members = public(VectorReader)
-    assert members == {"connect", "disconnect", "search_resources", "search_annotations", "search_by_resource"}
+    assert members == {"connect", "disconnect", "search_resources", "search_annotations", "search_by_resource", "get_resource_stamp"}
     # A store is asked everything a reader is, so whatever is handed a reader can be handed a store.
     assert members < public(VectorStore)
     in_memory: VectorReader = MemoryVectorStore()

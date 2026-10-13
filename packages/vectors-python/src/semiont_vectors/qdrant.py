@@ -378,7 +378,7 @@ def _stamps(limit: int) -> _Body:
 
 
 class _QdrantSearches(VectorReader):
-    """What the reader and the store share: the way to the Qdrant at `host` and `port`, and the three searches asked over it."""
+    """What the reader and the store share: the way to the Qdrant at `host` and `port`, and a reader's reads asked over it."""
 
     def __init__(self, *, host: str, port: int) -> None:
         self._origin: Final = f"http://{host}:{port}"
@@ -424,6 +424,12 @@ class _QdrantSearches(VectorReader):
     async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
         return await _search_alike(self._reached(), resource_id, options)
 
+    @override
+    async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
+        asked: _Body = {**_stamps(1), "filter": _points_of(resource_id)}
+        page = _Page.model_validate(await _read(self._reached(), _RESOURCES.at("/points/scroll"), asked))
+        return stamp_of(_said(page.points[0])) if page.points else None
+
 
 @final
 class QdrantVectorReader(_QdrantSearches):
@@ -434,11 +440,11 @@ class QdrantVectorReader(_QdrantSearches):
     which changes nothing, and raises where the Qdrant cannot be reached. A
     reader is told no width, and asks no embedding provider anything.
 
-    A search of a collection that is not there answers no result. The
+    A read of a collection that is not there raises `CollectionAbsent`. The
     service that writes the index makes its collections, and until it has,
-    no point is near anything. Qdrant answers a scroll or a query of such a
+    there is no index to ask. Qdrant answers a scroll or a query of such a
     collection with the status 404, and that status alone is read so: every
-    other failure of a search is raised.
+    other failure of a read is raised as it failed.
     """
 
     @override
@@ -540,12 +546,6 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
                 if resource_id is not None and resource_id not in stamps:
                     stamps[resource_id] = stamp_of(payload)
         return stamps
-
-    @override
-    async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
-        asked: _Body = {**_stamps(1), "filter": _points_of(resource_id)}
-        page = _Page.model_validate(await _read(self._reached(), _RESOURCES.at("/points/scroll"), asked))
-        return stamp_of(_said(page.points[0])) if page.points else None
 
     @override
     async def list_annotation_ids(self) -> set[AnnotationId]:
