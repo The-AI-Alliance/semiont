@@ -106,7 +106,8 @@ gateway, and reads bytes from the Archivist.
   ([What it decides](#what-it-decides)).
   *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It writes the vector index and the anchored-text store, and nothing
-  else.** It records nothing: no event is its. *Held by no case.*
+  else.** It records nothing: no event is its.
+  *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
 
 ## What each event does
 
@@ -126,8 +127,11 @@ entity types from its description as the Archivist answers it then.
   Archivist answers for it,** so that an unarchived resource is found again
   without a restart.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
-- **`mark:added` indexes the annotation the event carries**
-  ([Indexing an annotation](#indexing-an-annotation)).
+- **`mark:added` indexes the annotation the event carries, where its
+  resource is not archived**
+  ([Indexing an annotation](#indexing-an-annotation)). An annotation made on
+  an archived resource has no point until the resource is unarchived, which
+  is what a start leaves too.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
@@ -315,14 +319,27 @@ A Smelter asks one provider for its vectors: an Ollama
 (`POST <address>/api/embed`, with the model and a list of texts), or Voyage
 (`POST https://api.voyageai.com/v1/embeddings`, with a bearer key).
 
+- **Every text a Smelter has embedded is a text that is searched, and it
+  says so where the provider asks.** Voyage is told `input_type: document`;
+  whoever searches the index tells it `query`. An Ollama is told neither: its
+  API has no such member.
+  *Held by `packages/vectors-python/tests/test_voyage.py` and `packages/vectors-python/tests/test_ollama.py`.*
+
 - **A batch of texts is cut into slices of 128, each one request, made in
   the order of the texts,** and the vectors are given back in that order.
   *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **Each request has 15 seconds of its own,** counted from when it is sent
-  and not from when its batch began.
+  and not from when its batch began. Asking a busy provider again is within
+  them.
   *Held by `packages/vectors-python/tests/test_slices.py`.*
 - **One request at a time is made of an Ollama, and four of Voyage,** however
   many resources are being indexed.
+  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+- **A request for the vectors of documents that a provider answers 429 or
+  503 is asked again,** after 1, 2 and 4 seconds, while the request's own 15
+  seconds allow the wait. A provider that says it is busy four times fails
+  the request with that status. A query is asked once: whoever searches is
+  waiting.
   *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **A request that fails fails its whole batch, and says which provider,
   which model, what status and which slice.** The resource it was for gets no
@@ -331,8 +348,8 @@ A Smelter asks one provider for its vectors: an Ollama
 - **A provider that answers 404 when the Smelter starts is taken to be still
   fetching the model, and one that cannot be reached to be still starting:
   either is asked again,** up to twelve times, within the time the Smelter
-  has to start ([Boot](#boot)). An answer of any other failing status is not
-  asked again.
+  has to start ([Boot](#boot)). No other failing status is waited on by a
+  start, and the request that measures the model's vectors is asked once.
   *Held by `smelter/boot` for a 404, and by `packages/vectors-python/tests/test_dimensions.py` for both.*
 
 ## Boot
@@ -424,7 +441,8 @@ in prose.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Rebuilds are done one at a time, and never while the work of reconcile
   is being done:** of a rebuild and a reconcile, the one whose work is ready
-  first is done first, and the other waits. *Held by no case.*
+  first is done first, and the other waits.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It answers `smelt:rebuild-anchors-ok` when every resource was done, and
   `smelt:rebuild-anchors-failed`, saying how many of how many were not,
   otherwise.** The ones that could be done are done.

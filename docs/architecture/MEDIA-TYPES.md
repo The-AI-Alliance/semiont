@@ -306,12 +306,12 @@ is held and has nothing under the shape.
 11. **The canvas emits `mark:create-request`** with a `FragmentSelector`, plus a
     `TextQuoteSelector` when `textUnder` found anything. The archivist appends
     **`mark:added`** and replies `mark:create-ok`.
-12. **Or AI detection.** `job:create` → a worker runs `prepareDetection`, which
-    reads the stored artifact through `browse.resourceAnchoredText`, behind the
-    same settle barrier the canvas waits on. A worker never extracts. The model
-    returns a verbatim quote; `reconcile` finds it in the text, and
-    `annotationOfSpan` builds the annotation: `locate()` turns the span into
-    one `FragmentSelector` per line.
+12. **Or AI detection.** `job:create` → the Worker runs `prepare_detection`
+    (`apps/worker`), which reads the stored artifact through
+    `browse.resource_anchored_text`, behind the same settle barrier the canvas
+    waits on. A worker never extracts. The model returns a verbatim quote; the
+    SDK's `reconcile` finds it in the text, and `annotation_of_span` builds the
+    annotation: `locate` turns the span into one `FragmentSelector` per line.
 
 ### How annotation events feed back
 

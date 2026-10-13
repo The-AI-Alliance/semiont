@@ -7,6 +7,7 @@ is what a second graph, folded from the same record, holds.
 """
 
 import asyncio
+import hashlib
 import tempfile
 from collections.abc import Coroutine, Mapping, Sequence
 from pathlib import Path
@@ -76,7 +77,8 @@ def created(resource: str, **payload: JsonValue) -> JsonObject:
     stated: JsonObject = {
         "name": f"Name of {resource}",
         "format": "text/markdown",
-        "contentChecksum": f"sha256:{resource}",
+        # A checksum as the Archivist writes one: the SHA-256, in lower-case hex, with nothing before it.
+        "contentChecksum": hashlib.sha256(resource.encode()).hexdigest(),
         "wasAttributedTo": ADA,
     }
     return event("yield:created", resource, 1, {**stated, **payload})

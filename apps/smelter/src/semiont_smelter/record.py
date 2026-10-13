@@ -33,14 +33,21 @@ class Record:
         """Every resource of the catalog that is not archived (`semiont_service.catalog`)."""
         return await catalog.resources(self._bus, self._stopping, archived=False)
 
+    async def _described(self, resource_id: ResourceId) -> ResourceDescriptor:
+        """A resource's description, as the Archivist answers it now. A read that fails is raised."""
+        return (await self._bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response.resource
+
     async def entity_types(self, resource_id: ResourceId) -> list[str]:
         """A resource's entity types, as its description states them now.
 
         A read that fails is raised: points written with no entity types
         would be found by a search that was to leave the resource out.
         """
-        described = (await self._bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response
-        return resource_entity_types(described.resource)
+        return resource_entity_types(await self._described(resource_id))
+
+    async def archived(self, resource_id: ResourceId) -> bool:
+        """Whether a resource is archived, as its description states it now: one that is, is no resource of the catalog."""
+        return (await self._described(resource_id)).archived is True
 
     async def annotations(self, resource_id: ResourceId) -> list[Annotation]:
         """A resource's annotations, as the record's view holds them."""

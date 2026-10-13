@@ -1,10 +1,11 @@
 """The Ollama provider: an embedding model served by Ollama, asked over Ollama's own HTTP API.
 
 One call is made of it: `POST {base_url}/api/embed`, with the model's name
-and a list of texts (`input`). Ollama answers an object whose `embeddings`
-is a vector for each text, in the order of the texts. A model it does not
-have is a 404, which is also what it answers while the model is still being
-fetched.
+and a list of texts (`input`). The call has no member that says what a text
+is for, so a query and a document are sent alike. Ollama answers an object
+whose `embeddings` is a vector for each text, in the order of the texts. A
+model it does not have is a 404, which is also what it answers while the
+model is still being fetched.
 """
 
 from collections.abc import Sequence
@@ -15,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from semiont_vectors._dimensions import Width
 from semiont_vectors._slices import CONNECT_SECONDS, Batches
-from semiont_vectors.embedding import BatchPolicy, EmbeddingProviderError
+from semiont_vectors.embedding import BatchPolicy, EmbeddingProviderError, TextKind
 
 __all__ = ["OLLAMA_BATCH_POLICY", "OllamaEmbeddingProvider"]
 
@@ -67,20 +68,21 @@ class OllamaEmbeddingProvider:
         self._model: Final = model
         self._url: Final = f"{base_url.rstrip('/')}/api/embed"
         self._batches: Final = Batches(provider="ollama", model=model, policy=OLLAMA_BATCH_POLICY, post=self._post)
-        self._width: Final = Width(self.embed)
+        self._width: Final = Width(self.embed_query)
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed_query(self, text: str) -> list[float]:
         # One text is a batch of one: there is one way a request is made, and it waits its turn like any other.
-        (vector,) = await self.embed_batch([text])
+        (vector,) = await self._batches.embed([text], "query")
         return vector
 
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        return await self._batches.embed(texts)
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return await self._batches.embed(texts, "document")
 
     async def dimensions(self) -> int:
         return await self._width.get()
 
-    async def _post(self, texts: Sequence[str]) -> list[list[float]]:
+    async def _post(self, texts: Sequence[str], kind: TextKind) -> list[list[float]]:
+        # Nothing of `kind` is sent: Ollama's call has no member that says what a text is for.
         try:
             # The address a caller names is the address asked: no proxy of the environment stands between.
             async with httpx.AsyncClient(timeout=_TIMEOUT, trust_env=False) as http:

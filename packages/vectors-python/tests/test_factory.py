@@ -54,7 +54,7 @@ def test_an_ollama_is_asked_for_the_model_at_the_address_the_document_states() -
             stated = embedding({"type": "ollama", "model": "a-model", "baseUrl": ollama.origin})
             provider = create_embedding_provider(stated, api_key=None)
             assert isinstance(provider, OllamaEmbeddingProvider)
-            await provider.embed("a")
+            await provider.embed_query("a")
             (asked,) = ollama.asked
             assert asked.json() == {"model": "a-model", "input": ["a"]}
 
@@ -67,9 +67,9 @@ def test_voyage_is_asked_for_the_model_at_the_address_the_document_states_with_t
             stated = embedding({"type": "voyage", "model": "a-model", "endpoint": voyage.endpoint, "apiKeyEnv": "VOYAGE_API_KEY"})
             provider = create_embedding_provider(stated, api_key=KEY)
             assert isinstance(provider, VoyageEmbeddingProvider)
-            await provider.embed("a")
+            await provider.embed_query("a")
             (asked,) = voyage.asked
-            assert asked.json() == {"model": "a-model", "input": ["a"]}
+            assert asked.json() == {"model": "a-model", "input": ["a"], "input_type": "query"}
             assert asked.headers["authorization"] == f"Bearer {KEY}"
 
     run(scenario())

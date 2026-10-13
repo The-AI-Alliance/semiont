@@ -68,6 +68,7 @@ SURFACE = {
         "EmbeddingProviderError",
         "ProviderName",
         "SliceRef",
+        "TextKind",
     ],
     "ollama": ["OLLAMA_BATCH_POLICY", "OllamaEmbeddingProvider"],
     "voyage": ["VOYAGE_BATCH_POLICY", "VoyageEmbeddingProvider"],
@@ -172,7 +173,7 @@ def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -
 
 def test_a_provider_has_the_members_of_an_embedding_provider_and_no_others() -> None:
     members = public(EmbeddingProvider)
-    assert members == {"dimensions", "embed", "embed_batch"}
+    assert members == {"dimensions", "embed_documents", "embed_query"}
     # Making a provider asks it nothing.
     assert public(OllamaEmbeddingProvider(model="a-model", base_url="http://127.0.0.1:1")) == members
     assert public(VoyageEmbeddingProvider(model="a-model", api_key="a-key", endpoint="http://127.0.0.1:1")) == members

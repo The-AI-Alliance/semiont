@@ -5480,7 +5480,7 @@ type Representation struct {
 	// ByteSize Size of the payload in bytes.
 	ByteSize *int `json:"byteSize,omitempty"`
 
-	// Checksum Integrity hash (e.g., sha256:abcd…).
+	// Checksum The SHA-256 of the bytes, as 64 lower-case hexadecimal digits with nothing before them. Whatever compares the checksums of two representations compares this text.
 	Checksum *string `json:"checksum,omitempty"`
 
 	// ConformsTo Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).

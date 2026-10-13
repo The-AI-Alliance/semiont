@@ -4400,7 +4400,12 @@ class Representation(WireModel, frozen=True, extra="allow"):
         int | None,
         Field(alias="byteSize", description="Size of the payload in bytes.", ge=0),
     ] = None
-    checksum: Annotated[str | None, Field(description="Integrity hash (e.g., sha256:abcd…).")] = None
+    checksum: Annotated[
+        str | None,
+        Field(
+            description="The SHA-256 of the bytes, as 64 lower-case hexadecimal digits with nothing before them. Whatever compares the checksums of two representations compares this text."
+        ),
+    ] = None
     encoding: Annotated[str | None, Field(description="Compression/transfer encoding if applicable.")] = None
     language: Annotated[str | None, Field(description="IETF BCP 47 language tag (e.g., en, es-ES).")] = None
     width: Annotated[int | None, Field(description="Pixels (images/video).", ge=0)] = None

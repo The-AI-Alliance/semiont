@@ -327,7 +327,12 @@ class Smelter:
                 await self._index_resource(resource)
                 await self._index_annotations(resource, await self._record.annotations(resource))
             case "mark:added":
-                await self._index_annotations(resource, [MARK_ADDED.event(event).annotation])
+                annotation = MARK_ADDED.event(event).annotation
+                # An annotation has a point only on a resource of the catalog, which an archived one is not: a start
+                # takes such a point out, so none is made here. One that quotes no text has no point whatever its
+                # resource is, and nothing is asked for it.
+                if quotes_text(annotation) and not await self._record.archived(resource):
+                    await self._index_annotations(resource, [annotation])
             case "mark:removed":
                 await self._unindex_annotation(MARK_REMOVED.event(event).annotation_id)
             case "mark:entity-tag-added" | "mark:entity-tag-removed":
@@ -348,7 +353,7 @@ class Smelter:
             return await self._conclude(resource, read)
         chunks = chunk_text(read.text, self._chunking)
         types = await self._record.entity_types(resource)
-        embeddings = await self._provider.embed_batch(chunks)
+        embeddings = await self._provider.embed_documents(chunks)
         points = [
             EmbeddingChunk(chunk_index=index, text=chunk, embedding=embedding)
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
@@ -506,7 +511,7 @@ class Smelter:
         if not quoting:
             return
         quotes = [annotation_exact_text(annotation) for annotation in quoting]
-        embeddings = await self._provider.embed_batch(quotes)
+        embeddings = await self._provider.embed_documents(quotes)
         stamp = await self._index.get_resource_stamp(resource)
         machine_read = stamp is not None and stamp.machine_read
         for annotation, quote, embedding in zip(quoting, quotes, embeddings, strict=True):

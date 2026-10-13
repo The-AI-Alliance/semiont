@@ -31,7 +31,9 @@ extra. Its dependencies are `semiont`, `pydantic` and `httpx`.
 ## A first use
 
 A provider makes a vector of a text, and a store keeps vectors and finds the
-nearest. A store is handed vectors and makes none.
+nearest. A store is handed vectors and makes none. A provider is told what a
+text is for: `embed_documents` for the texts that are put in an index, and
+`embed_query` for a text an index is searched by.
 
 ```python
 from semiont.identifiers import ResourceId
@@ -42,12 +44,12 @@ from semiont_vectors.store import EmbeddingChunk, SearchOptions, VectorSearchRes
 async def index_and_ask(
     store: VectorStore, provider: EmbeddingProvider, resource_id: ResourceId, texts: list[str], checksum: str, question: str
 ) -> list[VectorSearchResult]:
-    vectors = await provider.embed_batch(texts)
+    vectors = await provider.embed_documents(texts)
     chunks = [
         EmbeddingChunk(chunk_index=at, text=text, embedding=vector) for at, (text, vector) in enumerate(zip(texts, vectors, strict=True))
     ]
     await store.upsert_resource_vectors(resource_id, chunks, checksum, [], machine_read=False)
-    return await store.search_resources(await provider.embed(question), SearchOptions(limit=5))
+    return await store.search_resources(await provider.embed_query(question), SearchOptions(limit=5))
 ```
 
 A Qdrant store is told where its Qdrant is, and how to learn how wide its
@@ -108,7 +110,8 @@ exports nothing.
   and their payload indexes when it connects, and `QdrantVectorReader`,
   which makes nothing.
 - `semiont_vectors.embedding`: `EmbeddingProvider`, the protocol every
-  provider is, and `EmbeddingProviderError`, the failure one raises.
+  provider is (`embed_query`, `embed_documents`, `dimensions`), and
+  `EmbeddingProviderError`, the failure one raises.
 - `semiont_vectors.ollama`, `semiont_vectors.voyage`, `semiont_vectors.mock`:
   one provider each.
 - `semiont_vectors.factory`: `create_vector_store`, `create_vector_reader`
@@ -131,11 +134,20 @@ by asking the provider for one vector, and is written down nowhere.
 
 ## Asking a provider
 
+A request says what its texts are for where the provider's call has a member
+for it: Voyage is sent `input_type`, `query` or `document`, and gives the
+same words another vector for each. Ollama's call has none, and the mock
+answers a text the same vector either way.
+
 A batch of texts is cut into requests of at most 128 texts. One request at a
 time is made of an Ollama and four of Voyage, from one process, however many
 callers there are. Each request has fifteen seconds of its own, counted from
-when it is sent. One request that fails fails its batch, and the failure
-says which provider, which model, what status and which request.
+when it is sent. A provider that answers 429 or 503 says it is busy, and a
+request for documents is made again after one second, then two, then four,
+for as long as the wait ends within those fifteen seconds. A query is asked
+once: whoever searches is waiting. One request that fails fails its batch,
+and the failure says which provider, which model, what status and which
+request.
 
 A provider that answers 404 when a collection must be made is taken to be
 still fetching its model, and one that cannot be reached to be still

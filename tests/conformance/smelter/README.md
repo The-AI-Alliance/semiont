@@ -104,7 +104,8 @@ Smelter to `serving` only, and waits on `reconciled()`.
 - **As the record changes** (`index.test.ts`): what a recorded text becomes,
   by the table's points and the provider's vectors; a long text's several
   points; an update, an archive and an unarchive; an annotation added and
-  removed, and one that quotes nothing; entity types rewritten with nothing
+  removed, one that quotes nothing, and one made on an archived resource;
+  entity types rewritten with nothing
   embedded; an image and a blank text skipped, by reason, and logged; and
   that bytes it cannot read, or text it cannot get vectors for, change
   nothing and stop nothing.
@@ -122,8 +123,9 @@ Smelter to `serving` only, and waits on `reconciled()`.
   mends, what it asks of its provider, and what it reports.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
   128, each text given the vector that came back for it; one request at a
-  time; and a request that fails, which leaves its resource with no points
-  until the Smelter next starts.
+  time; a provider that says it is busy, which is asked again; and a request
+  that fails, which leaves its resource with no points until the Smelter next
+  starts.
 - **What it exports** (`telemetry.test.ts`): told where to export, a Smelter
   exports under its own name every row
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)

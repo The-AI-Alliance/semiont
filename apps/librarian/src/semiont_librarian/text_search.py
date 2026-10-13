@@ -166,7 +166,7 @@ async def _by_meaning(
     the page.
     """
     try:
-        vector = await embedding.embed(search)
+        vector = await embedding.embed_query(search)
         kept_to = None if entity_type is None else SearchFilter(entity_types=(entity_type,))
         hits = await vectors.search_resources(vector, SearchOptions(limit=limit * _CHUNKS_FOR_EACH_RESOURCE, filter=kept_to))
         folded = merge_by_resource(hits)

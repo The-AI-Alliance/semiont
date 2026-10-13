@@ -136,7 +136,7 @@ async def _hits(term: str, own: ResourceId, *, vectors: VectorReader, embedding:
     if trimmed(term) == "":
         return []
     try:
-        vector = await embedding.embed(term)
+        vector = await embedding.embed_query(term)
         options = SearchOptions(limit=MOST_HITS, score_threshold=WEAKEST_HIT, filter=SearchFilter(exclude_resource_id=own))
         return await vectors.search_resources(vector, options)
     except CollectionAbsent:

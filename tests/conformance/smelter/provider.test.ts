@@ -92,6 +92,25 @@ eachSmelter('a Smelter, asking its embedding provider', (world) => {
     expect(await world().index.pointsOf('resources', waiting)).toHaveLength(1);
   });
 
+  it('asks its provider again when it says it is busy, and indexes the resource with no restart', async () => {
+    const provider = world().provider;
+    const text = 'A text whose first request finds the provider busy.\n';
+    const before = provider.mark();
+    let busy = 1;
+    // The first request for this text is answered 503, and the same request asked again is answered with its vectors.
+    provider.choose = (request) => (request.texts.includes(text) && busy-- > 0 ? { status: 503, body: JSON.stringify({ error: 'server busy' }) } : undefined);
+    try {
+      const resource = await world().created(text, 'text/plain', { name: 'Recorded while the provider was busy' });
+
+      expect(await world().settled(resource)).toMatchObject({ outcome: 'indexed' });
+      const asked = provider.since(before).filter((request) => request.texts.includes(text));
+      expect(asked.map((request) => request.status)).toEqual([503, 200]);
+      expect(await world().index.pointsOf('resources', resource)).toHaveLength(1);
+    } finally {
+      provider.choose = undefined;
+    }
+  });
+
   it('gives a resource no points when a request of its batch fails, and finds the resource again when it next starts', async () => {
     const provider = world().provider;
     const text = numbered('the refused text');

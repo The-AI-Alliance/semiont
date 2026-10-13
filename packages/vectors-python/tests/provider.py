@@ -3,7 +3,8 @@
 `Ollama` plays the one call the Ollama driver makes (`POST /api/embed`).
 `Voyage` plays the one the Voyage driver makes (`POST /v1/embeddings`), from
 Voyage's API reference (https://docs.voyageai.com/reference/embeddings-api):
-nothing here has met the real service.
+nothing here has met the real service. What a request says its texts are
+for is kept with it (`Asked.input_type`), and changes nothing of the answer.
 
 A request is answered with a vector for each of its texts that says how long
 the text is (`told`), unless the test said otherwise: with `script` (the
@@ -27,6 +28,7 @@ from http import HTTPStatus
 from types import TracebackType
 from typing import Final, Self, final, override
 
+from aio import pass_time, settle, soon
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject, strings
 
@@ -58,6 +60,11 @@ class Asked:
     def texts(self) -> list[str]:
         """The texts it asks the vectors of: its `input`."""
         return strings(self.json().get("input"), "input")
+
+    @property
+    def input_type(self) -> JsonValue:
+        """What it says its texts are for: its `input_type`, and None where it carries none."""
+        return self.json().get("input_type")
 
 
 @final
@@ -319,6 +326,19 @@ class Played(ABC):
             await asyncio.gather(closed, answered, leaving, return_exceptions=True)
             if held in self._held:
                 self._held.remove(held)
+
+
+async def wait_out(played: Played, waits: Sequence[float]) -> None:
+    """Move the loop's clock past each of `waits` in turn, each one once the request before it has arrived and been answered.
+
+    It is how a test sees a provider asked again after a wait: no clock is
+    hurried, so a request has all of its own time for each attempt.
+    """
+    for attempt, wait in enumerate(waits, start=1):
+        await soon(played.arrived(attempt))
+        # Long enough for the answer to be read, and for the wait that follows it to have begun.
+        await settle()
+        await pass_time(wait, step=wait)
 
 
 type Play = Callable[[], Played]

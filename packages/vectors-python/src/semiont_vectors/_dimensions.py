@@ -20,8 +20,8 @@ PROBE: Final = "dimension probe"
 class Width:
     """How wide one provider's vectors are, measured at the first call and kept.
 
-    It is measured by `embed`, the provider's own, so the measuring is a
-    request like any other: it waits its turn, and has a request's time.
+    It is measured by `embed_query`, the provider's own, so the measuring is
+    a request like any other: it waits its turn, and has a request's time.
 
     Callers that ask while it is being measured share the one measuring. A
     failure is not kept: the next call measures again, so a provider that
@@ -32,8 +32,8 @@ class Width:
     on for the others and for the next call.
     """
 
-    def __init__(self, embed: Callable[[str], Awaitable[list[float]]]) -> None:
-        self._embed: Final = embed
+    def __init__(self, embed_query: Callable[[str], Awaitable[list[float]]]) -> None:
+        self._embed_query: Final = embed_query
         self._measured: int | None = None
         self._measuring: asyncio.Task[int] | None = None
 
@@ -48,7 +48,7 @@ class Width:
         return await asyncio.shield(self._measuring)
 
     async def _measure(self) -> int:
-        return len(await self._embed(PROBE))
+        return len(await self._embed_query(PROBE))
 
     def _settled(self, measuring: asyncio.Task[int]) -> None:
         self._measuring = None
@@ -70,6 +70,8 @@ async def resolve_dimensions(dimensions: Callable[[], Awaitable[int]]) -> int:
     at all, which is taken to mean it is still starting. Either is asked
     again, as `EMBEDDING_PROVIDER_RETRY` says. Any other failure is raised
     at once, as it is: a key that was refused is not accepted for waiting.
+    A provider that says it is busy is there. The request that measures is
+    a query, which is asked once, and it is not asked again here.
 
     When the attempts are spent on a provider that could not be reached, its
     `EmbeddingProviderError` is raised as it is. When they are spent on a

@@ -193,6 +193,25 @@ def failing_to_write(rig: Rig, monkeypatch: pytest.MonkeyPatch, resource: str) -
     monkeypatch.setattr(rig.index, "upsert_resource_vectors", refusing)
 
 
+def holding_the_first_read(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> tuple[asyncio.Event, asyncio.Event]:
+    """Have the first read of a resource's bytes wait: the event that is set when that read begins, and the one that lets it go.
+
+    Every read after it is answered as it comes. It is how a scenario holds
+    one piece of work open, and sees what is done beside it.
+    """
+    began, let_go = asyncio.Event(), asyncio.Event()
+    read = rig.world.read
+
+    async def reading(resource_id: ResourceId) -> Content:
+        if not began.is_set():
+            began.set()
+            await let_go.wait()
+        return await read(resource_id)
+
+    monkeypatch.setattr(rig.world, "read", reading)
+    return began, let_go
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class Declined:
@@ -394,6 +413,41 @@ def test_mark_added_indexes_the_annotation_the_event_carries(tmp_path: Path) -> 
 
             assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
             assert rig.asked("browse:annotations-requested") == []
+
+    run(scenario())
+
+
+def test_mark_added_makes_no_point_of_an_annotation_on_an_archived_resource(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.archive("res-1"))
+            rig.provider.asked.clear()
+
+            await rig.happened(rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+
+            # What a start would take out is not put in, and nothing is embedded for it.
+            assert (await rig.held()).annotations == {}
+            assert rig.provider.asked == []
+            assert applied(rig) == 3
+
+            # Unarchived, the resource is indexed with each annotation the Archivist answers, this one among them.
+            await rig.happened(rig.world.unarchive("res-1"))
+
+            assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+
+    run(scenario())
+
+
+def test_mark_added_asks_nothing_of_the_record_for_an_annotation_that_quotes_no_text(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            described = len(rig.asked("browse:resource-requested"))
+
+            await rig.happened(rig.world.annotate("res-1", "ann-1", None))
+
+            assert len(rig.asked("browse:resource-requested")) == described
+            assert (await rig.held()).annotations == {}
 
     run(scenario())
 
@@ -1466,6 +1520,107 @@ def test_a_rebuild_that_could_not_do_every_resource_answers_that_it_failed_and_s
             assert "1 of 2" in message
             # The one that could be done is done.
             assert await rig.store.list() == [checksum_of(PDF)]
+
+    run(scenario())
+
+
+def test_a_rebuild_that_cannot_read_the_catalog_answers_that_it_failed(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            rig.world.put("pdf-1", PDF, "application/pdf")
+            rig.failing.add("browse:resources-requested")
+
+            rebuild(rig, "c-1")
+            await rig.settled()
+
+            assert rig.answered("smelt:rebuild-anchors-ok") == []
+            (answer,) = rig.answered("smelt:rebuild-anchors-failed")
+            assert answer.correlation_id == "c-1"
+            assert isinstance(answer.payload["message"], str)
+            # What it could not list, it did not set out to do.
+            assert await rig.store.list() == []
+
+    run(scenario())
+
+
+def test_rebuilds_are_done_one_at_a_time(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:
+            rig.world.put("pdf-1", PDF, "application/pdf")
+            rig.world.put("pdf-2", OTHER_PDF, "application/pdf")
+            began, let_go = holding_the_first_read(rig, monkeypatch)
+
+            rebuild(rig, "c-1", "pdf-1")
+            await until(began.is_set)
+            rebuild(rig, "c-2", "pdf-2")
+            await a_while()
+
+            # The second names another resource, whose lane is idle, and still nothing of it is read.
+            assert rig.world.read_of == []
+            assert rig.answered("smelt:rebuild-anchors-ok") == []
+
+            let_go.set()
+            await rig.settled()
+
+            assert [answer.correlation_id for answer in rig.answered("smelt:rebuild-anchors-ok")] == ["c-1", "c-2"]
+            assert rig.world.read_of == ["pdf-1", "pdf-2"]
+
+    run(scenario())
+
+
+def test_a_rebuild_is_not_done_while_the_work_of_a_reconcile_is(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            # A PDF that is indexed already, and a text the reconcile is to index.
+            await rig.happened(rig.world.put("pdf-1", PDF, "application/pdf"))
+            rig.world.put("res-1", TEXT)
+            asked = len(rig.provider.asked)
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+            await until(lambda: len(rig.provider.asked) == asked + 1)
+
+            # The rebuild names the PDF, whose lane is idle, and still it waits: the reconcile's work is being done.
+            rebuild(rig, "c-1", "pdf-1")
+            await a_while()
+
+            assert rig.answered("smelt:rebuild-anchors-ok") == []
+
+            let_go.set()
+
+            assert await reconciling == came_to(embedded=1, eligible=2, indexed=2)
+            await rig.settled()
+            (answer,) = rig.answered("smelt:rebuild-anchors-ok")
+            assert answer.correlation_id == "c-1"
+
+    run(scenario())
+
+
+def test_the_work_of_a_reconcile_is_not_done_while_a_rebuild_is(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            rig.world.put("pdf-1", PDF, "application/pdf")
+            rig.world.put("res-1", TEXT)
+            began, let_go = holding_the_first_read(rig, monkeypatch)
+
+            # The rebuild's work is under way, held at the read of its resource's bytes.
+            rebuild(rig, "c-1", "pdf-1")
+            await until(began.is_set)
+            reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+            await until(lambda: rig.asked("browse:resources-requested") != [])
+            await a_while()
+
+            # The reconcile has read the catalog and does none of its work: the text is in another lane, which is
+            # idle, and its bytes are not read.
+            assert rig.world.read_of == []
+            assert rig.provider.asked == []
+
+            let_go.set()
+
+            assert await reconciling == came_to(embedded=2, eligible=2, indexed=2)
+            await rig.settled()
+            (answer,) = rig.answered("smelt:rebuild-anchors-ok")
+            assert answer.correlation_id == "c-1"
 
     run(scenario())
 

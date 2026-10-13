@@ -137,6 +137,22 @@ eachSmelter('a Smelter, as the record changes', (world) => {
     expect(embeds(back[0], 'the Mississippi')).toBe(true);
   });
 
+  it('gives no point to an annotation made on an archived resource, and gives it one when the resource is unarchived', async () => {
+    const text = 'Keokuk stayed west of the river that spring.\n';
+    const resource = await indexed(text);
+    await onceApplied(() => world().archived(resource));
+
+    // The record takes the annotation, and the Smelter applies its event: a start would take such a point out, so none is made.
+    const annotation = await onceApplied(() => world().annotated(resource, 'Keokuk'));
+    expect(await world().index.pointsOf('annotations', resource)).toEqual([]);
+
+    await onceApplied(() => world().unarchived(resource));
+    expect(await world().settled(resource, 2)).toEqual({ resourceId: resource, contentChecksum: sha256(text), outcome: 'indexed' });
+    const back = await world().index.pointsOf('annotations', resource, true);
+    expect(back.map((point) => point.payload['annotationId'])).toEqual([annotation]);
+    expect(embeds(back[0], 'Keokuk')).toBe(true);
+  });
+
   it('indexes an annotation that is added as one point, of the text it quotes, and takes the point out when the annotation is removed', async () => {
     const resource = await indexed('Black Hawk led the Sauk, and the war ended in 1832.\n');
     const annotation = await onceApplied(() => world().annotated(resource, 'Black Hawk', { motivation: 'linking', body: [tagging('Person'), tagging('Leader')] }));

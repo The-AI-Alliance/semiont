@@ -1,0 +1,29 @@
+# What no image's recipe copies, kept out of what a build is sent.
+#
+# Every image is built from the repository root, and each Dockerfile copies
+# named manifests and source directories. A builder that sends the whole
+# context first would otherwise send what was installed and built here: npm's
+# packages, cargo's output and each Python project's environment, which are
+# many times the size of the sources.
+#
+# A path a recipe copies is never listed here. Listing one fails that build at
+# its COPY, by the path's name.
+
+.git
+.claude
+.plans
+
+**/node_modules
+**/target
+**/.venv
+**/dist
+**/dist-types
+**/coverage
+
+**/__pycache__
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+
+tests/e2e/test-results
+tests/e2e/playwright-report

@@ -1,8 +1,10 @@
 """What an embedding provider is asked and answers, and the failure one raises.
 
 A provider makes a vector of a text. Which model it asks, and where, is given
-to it when it is made. A vector is as wide as the model makes it: the width
-is asked of the provider, which measures it, and is written down nowhere.
+to it when it is made. Whoever asks says what the text is for, a query or a
+document, since a provider may make another vector of the same words for
+each. A vector is as wide as the model makes it: the width is asked of the
+provider, which measures it, and is written down nowhere.
 
 No type of an HTTP client appears here.
 """
@@ -18,10 +20,14 @@ __all__ = [
     "EmbeddingProviderError",
     "ProviderName",
     "SliceRef",
+    "TextKind",
 ]
 
 type ProviderName = Literal["ollama", "voyage"]
 """Who serves the model."""
+
+type TextKind = Literal["query", "document"]
+"""What a text is for: a query is a text an index is searched by, and a document a text that is put in one."""
 
 EMBED_ROUND_TRIP_SECONDS: Final = 15.0
 """How long one request to a provider may take, from when it is sent: one request, never a whole batch.
@@ -87,12 +93,12 @@ class EmbeddingProviderError(Exception):
 class EmbeddingProvider(Protocol):
     """An embedding provider, as a service asks it. Every provider has these members and no others."""
 
-    async def embed(self, text: str) -> list[float]:
-        """The vector of one text. Raises `EmbeddingProviderError` where the provider gives none."""
+    async def embed_query(self, text: str) -> list[float]:
+        """The vector of one text an index is searched by. Raises `EmbeddingProviderError` where the provider gives none."""
         ...
 
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        """The vector of each text, in the order of the texts.
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        """The vector of each text that is put in an index, in the order of the texts.
 
         The texts are asked for in as many requests as the provider's policy
         makes of them. One request that fails fails them all: raises

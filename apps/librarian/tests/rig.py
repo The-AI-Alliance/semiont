@@ -371,16 +371,16 @@ class FakeEmbedding(EmbeddingProvider):
         self.failing: Exception | None = None
 
     @override
-    async def embed(self, text: str) -> list[float]:
+    async def embed_query(self, text: str) -> list[float]:
         self.asked.append(text)
         await _turn(self.failing)
-        return await self._worked_out.embed(text)
+        return await self._worked_out.embed_query(text)
 
     @override
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         self.asked.extend(texts)
         await _turn(self.failing)
-        return await self._worked_out.embed_batch(texts)
+        return await self._worked_out.embed_documents(texts)
 
     @override
     async def dimensions(self) -> int:

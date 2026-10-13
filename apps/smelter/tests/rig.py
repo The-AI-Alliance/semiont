@@ -242,18 +242,18 @@ class Provider(EmbeddingProvider):
         self.held: asyncio.Event | None = None
 
     @override
-    async def embed(self, text: str) -> list[float]:
-        (vector,) = await self.embed_batch([text])
+    async def embed_query(self, text: str) -> list[float]:
+        (vector,) = await self.embed_documents([text])
         return vector
 
     @override
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         self.asked.append([*texts])
         if self.held is not None:
             await self.held.wait()
         if self.failing:
             raise EmbeddingProviderError(provider="ollama", status=500, reached=True, model="rig", body="the rig's provider is failing")
-        return await self._worked_out.embed_batch(texts)
+        return await self._worked_out.embed_documents(texts)
 
     @override
     async def dimensions(self) -> int:

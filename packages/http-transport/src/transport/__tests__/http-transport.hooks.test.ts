@@ -369,7 +369,7 @@ describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
     const seen: SemiontError[] = [];
     transport.errors$.subscribe((e) => seen.push(e));
 
-    transport.actor.start();
+    // The transport was made with a token, and opened its stream then.
     await vi.waitFor(() => expect(seen).toHaveLength(1));
     // The error a refused request is, with a code from
     // specs/src/errors/codes.json: a consumer routing on `unauthorized` hears
@@ -414,7 +414,8 @@ describe('HttpTransport after dispose', () => {
   test('a request fails as closed at once: the transport does not build itself a new, unopened bus to wait on', async () => {
     mockFetch.mockReset();
     const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
-    transport.actor.start();
+    // Its bus is made before it is disposed: something asked for the connection's state.
+    transport.state$.subscribe().unsubscribe();
     transport.dispose();
 
     expect(await request(transport)).toMatchObject({ code: 'bus.closed' });

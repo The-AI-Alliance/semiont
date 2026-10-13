@@ -77,8 +77,8 @@ func generateSemiontconfig(p genParams) string {
 	w(`model = %q`, p.EmbeddingModel)
 	w(``)
 	w(`[environments.local.embedding.chunking]`)
-	w(`chunkSize = 512`)
-	w(`overlap = 64`)
+	w(`chunkSize = %d`, unstatedChunking.chunkSize)
+	w(`overlap = %d`, unstatedChunking.overlap)
 	w(``)
 	switch p.Inference {
 	case "anthropic":

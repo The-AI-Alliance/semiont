@@ -16,7 +16,7 @@ def length(vector: list[float]) -> float:
 def test_a_vector_is_as_wide_as_the_mock_was_told_and_of_length_one() -> None:
     async def scenario() -> None:
         provider = MockEmbeddingProvider(dimensions=8)
-        vector = await provider.embed("hello world")
+        vector = await provider.embed_query("hello world")
         assert len(vector) == 8
         assert length(vector) == pytest.approx(1.0)
         assert await provider.dimensions() == 8
@@ -27,8 +27,8 @@ def test_a_vector_is_as_wide_as_the_mock_was_told_and_of_length_one() -> None:
 def test_the_same_text_is_given_the_same_vector_and_another_text_another() -> None:
     async def scenario() -> None:
         provider = MockEmbeddingProvider(dimensions=8)
-        assert await provider.embed("hello") == await provider.embed("hello")
-        assert await provider.embed("hello") != await provider.embed("world")
+        assert await provider.embed_query("hello") == await provider.embed_query("hello")
+        assert await provider.embed_query("hello") != await provider.embed_query("world")
 
     run(scenario())
 
@@ -37,9 +37,17 @@ def test_it_answers_the_vector_deterministic_vector_states_singly_and_in_a_batch
     # A test states the vector it expects without asking the provider it is testing.
     async def scenario() -> None:
         provider = MockEmbeddingProvider(dimensions=8)
-        assert await provider.embed("hello") == deterministic_vector("hello", 8)
-        assert await provider.embed_batch(["a", "b", "c"]) == [deterministic_vector(text, 8) for text in ("a", "b", "c")]
-        assert await provider.embed_batch([]) == []
+        assert await provider.embed_query("hello") == deterministic_vector("hello", 8)
+        assert await provider.embed_documents(["a", "b", "c"]) == [deterministic_vector(text, 8) for text in ("a", "b", "c")]
+        assert await provider.embed_documents([]) == []
+
+    run(scenario())
+
+
+def test_a_text_is_given_the_same_vector_as_a_query_and_as_a_document() -> None:
+    async def scenario() -> None:
+        provider = MockEmbeddingProvider(dimensions=8)
+        assert await provider.embed_documents(["hello"]) == [await provider.embed_query("hello")]
 
     run(scenario())
 
@@ -68,8 +76,8 @@ def test_a_call_gives_the_loop_a_turn_so_that_a_cancellation_lands_inside_it() -
     # A real provider waits on a request. A mock that never waited could not be cancelled where a real one can.
     async def scenario() -> None:
         provider = MockEmbeddingProvider(dimensions=8)
-        one = asyncio.ensure_future(provider.embed("hello"))
-        many = asyncio.ensure_future(provider.embed_batch(["hello", "world"]))
+        one = asyncio.ensure_future(provider.embed_query("hello"))
+        many = asyncio.ensure_future(provider.embed_documents(["hello", "world"]))
         # One turn: each call has begun, and neither has ended.
         await asyncio.sleep(0)
         one.cancel()
