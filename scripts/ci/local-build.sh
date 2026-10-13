@@ -527,7 +527,7 @@ run_drift_check() {
     -w /workspace \
     "$GO_IMAGE" \
     sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-             -generate types,client,skip-prune -package semiont \
+             -config packages/sdk-go/oapi-codegen.yaml \
              -o /tmp/client_gen.check.go specs/openapi.json || exit 3
            diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
     2>&1 | tee "$DRIFT_LOG" \

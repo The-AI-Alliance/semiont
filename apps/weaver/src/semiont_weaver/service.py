@@ -39,6 +39,7 @@ from semiont.types import WeaverConfig
 from semiont_graph.factory import create_graph_database
 from semiont_graph.interface import GraphDatabase
 from semiont_service.config import Refused, config_path_of, service_account_of
+from semiont_service.connect import connected
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -56,9 +57,6 @@ CHANNELS: Final[tuple[str, ...]] = (*FOLLOWED, WEAVE_REBUILD.name, *reply_channe
 _PROVIDER: Final = "semiont"
 _MODEL: Final = "weaver"
 """Who the Weaver works as. It asks no model anything, so it is the same agent wherever it runs: `(semiont, weaver)`."""
-
-_CONNECT_SECONDS: Final = 60.0
-"""How long the graph database is given to answer when the service starts. Past it the service exits, to be started again."""
 
 
 @final
@@ -119,11 +117,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=ServiceToken(started.credential)) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
-        try:
-            async with asyncio.timeout(_CONNECT_SECONDS):
-                await started.graph.connect()
-        except TimeoutError:
-            raise Refused(f"The graph database did not answer within {_CONNECT_SECONDS:.0f} seconds") from None
+        await connected("graph database", started.graph.connect())
         LOG.info("Graph database ready", extra={"type": config.graph.type})
         try:
             async with (

@@ -75,7 +75,7 @@ func TestArchivistDocumentIsResolved(t *testing.T) {
 	if doc.Staging.FlushMs != 250 || doc.Staging.MaxWaitMs != 2_000 {
 		t.Errorf("staging = %+v, want the bounds a deployment runs with", doc.Staging)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("log = %q %q", doc.LogLevel, doc.LogFormat)
 	}
 	if doc.Roster.Workers.Yield == nil || doc.Roster.Workers.Yield.Model != "claude-haiku-4-5" {

@@ -90,7 +90,7 @@ func TestWeaverDocumentIsResolved(t *testing.T) {
 		t.Errorf("identity.issuer = %q", doc.Identity.Issuer)
 	}
 	want := semiont.Neo4jGraphConfig{
-		Type:        semiont.Neo4j,
+		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:7687",
 		Username:    "neo4j",
 		Database:    "neo4j",
@@ -105,7 +105,7 @@ func TestWeaverDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("weaver").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }

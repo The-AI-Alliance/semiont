@@ -38,6 +38,7 @@ from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import SmelterConfig
 from semiont_service.archivist import ArchivistContent
 from semiont_service.config import Refused, config_path_of, service_account_of
+from semiont_service.connect import connected
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -61,12 +62,6 @@ __all__ = ["CHANNELS", "boot", "main"]
 
 CHANNELS: Final[tuple[str, ...]] = (*FOLLOWED, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
 """What the Smelter's stream names: the events it follows, the command it answers, and the replies of what it asks."""
-
-_CONNECT_SECONDS: Final = 60.0
-"""How long the vector index and the embedding provider are given to answer when the service starts.
-
-Past it the service exits, to be started again.
-"""
 
 
 @final
@@ -124,11 +119,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
     async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
-        try:
-            async with asyncio.timeout(_CONNECT_SECONDS):
-                await started.index.connect()
-        except TimeoutError:
-            raise Refused(f"The vector index and the embedding provider did not answer within {_CONNECT_SECONDS:.0f} seconds") from None
+        await connected("vector index and the embedding provider", started.index.connect())
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (

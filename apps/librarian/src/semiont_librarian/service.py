@@ -27,7 +27,7 @@ import os
 import signal
 import sys
 import time
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,6 +55,7 @@ from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inf
 from semiont_inference.interface import InferenceClient
 from semiont_service.archivist import ArchivistContent
 from semiont_service.config import Refused, config_path_of, service_account_of
+from semiont_service.connect import connected
 from semiont_service.health import bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -92,12 +93,6 @@ No reply channel is among them: it asks nothing over the bus.
 _PROVIDER: Final = "semiont"
 _MODEL: Final = "librarian"
 """Who the Librarian works as: one agent, `(semiont, librarian)`, whatever models its two actors ask."""
-
-_CONNECT_SECONDS: Final = 60.0
-"""How long the graph database and the vector index are each given to answer when the service starts.
-
-Past it the service exits, to be started again.
-"""
 
 
 def health() -> JsonValue:
@@ -179,15 +174,6 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     )
 
 
-async def _reached(what: str, connecting: Awaitable[None]) -> None:
-    """Wait for a store to answer as the service starts. Refused, saying which store, where it does not within the bound."""
-    try:
-        async with asyncio.timeout(_CONNECT_SECONDS):
-            await connecting
-    except TimeoutError:
-        raise Refused(f"The {what} did not answer within {_CONNECT_SECONDS:.0f} seconds") from None
-
-
 async def _listening(port: int) -> asyncio.Server:
     """The health endpoint, holding its port and answering nothing yet. Refused where the port cannot be taken."""
     try:
@@ -211,9 +197,9 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         try:
-            await _reached("graph database", started.graph.connect())
+            await connected("graph database", started.graph.connect())
             LOG.info("Graph database ready", extra={"type": config.graph.type})
-            await _reached("vector index", started.vectors.connect())
+            await connected("vector index", started.vectors.connect())
             LOG.info("Vector index ready", extra={"type": config.vectors.type})
             async with (
                 ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,

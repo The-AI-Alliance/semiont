@@ -44,7 +44,7 @@ var unstatedChunking = struct{ chunkSize, overlap int }{chunkSize: 512, overlap:
 // the Smelter is handed. An Ollama is asked without a key. A key that is not
 // exactly ${NAME} names nothing here; writing the document refuses it.
 func smelterNamedVars(env *envConfig) []string {
-	if env.Embedding == nil || env.Embedding.Type != string(semiont.Voyage) {
+	if env.Embedding == nil || env.Embedding.Type != string(semiont.VoyageEmbeddingConfigTypeVoyage) {
 		return nil
 	}
 	if name, _ := secretName("embedding.apiKey", env.Embedding.APIKey); name != nil {
@@ -78,7 +78,7 @@ func embeddingConfig(env *envConfig, vars map[string]string, who string) (embedd
 			return embedding, err
 		}
 		err = embedding.FromOllamaEmbeddingConfig(ollama)
-	case string(semiont.Voyage):
+	case string(semiont.VoyageEmbeddingConfigTypeVoyage):
 		voyage := semiont.VoyageEmbeddingConfig{Model: e.Model, Endpoint: voyageEmbeddingsEndpoint}
 		if e.Endpoint != "" {
 			if voyage.Endpoint, err = resolveRefs("embedding.endpoint", e.Endpoint, vars); err != nil {
@@ -112,7 +112,7 @@ func vectorsConfig(env *envConfig, vars map[string]string, who string) (vectors 
 	if v == nil {
 		return vectors, fmt.Errorf("the environment declares no [vectors]: %s has no vector index to reach", who)
 	}
-	if v.Type != string(semiont.Qdrant) {
+	if v.Type != string(semiont.QdrantVectorsConfigTypeQdrant) {
 		return vectors, fmt.Errorf("[vectors] type %q: the launcher writes %s's document for a qdrant index alone", v.Type, who)
 	}
 	if v.Host == "" {
@@ -175,6 +175,6 @@ func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.Json
+	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

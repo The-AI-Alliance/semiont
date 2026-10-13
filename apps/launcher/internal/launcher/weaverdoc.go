@@ -57,7 +57,7 @@ func graphConfig(env *envConfig, vars map[string]string, graphRun bool, who stri
 	if g == nil {
 		return graph, fmt.Errorf("the environment declares no [graph]: %s has no graph database to reach", who)
 	}
-	if g.Type != string(semiont.Neo4j) {
+	if g.Type != string(semiont.Neo4jGraphConfigTypeNeo4j) {
 		return graph, fmt.Errorf("[graph] type %q: the launcher writes %s's document for a neo4j graph alone", g.Type, who)
 	}
 	neo4j := semiont.Neo4jGraphConfig{Username: g.Username, Database: g.Database}
@@ -119,6 +119,6 @@ func weaverDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []s
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.Json
+	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

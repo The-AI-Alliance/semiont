@@ -401,6 +401,28 @@ def test_mark_unarchived_indexes_the_resource_and_then_each_annotation_the_archi
     run(scenario())
 
 
+def test_mark_unarchived_indexes_the_annotations_of_a_resource_whose_bytes_it_could_not_read(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(
+                rig.world.put("res-1", TEXT),
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.archive("res-1"),
+            )
+            assert await rig.index.count() == 0
+            rig.world.unread.add("res-1")
+
+            await rig.happened(rig.world.unarchive("res-1"))
+
+            held = await rig.held()
+            # Nothing is decided of the resource, and it has no points. The annotation the record holds on it has its own.
+            assert held.stamps == {}
+            assert held.annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+            assert signals(rig) == [indexed("res-1", TEXT)]
+
+    run(scenario())
+
+
 def test_mark_added_indexes_the_annotation_the_event_carries(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
@@ -947,6 +969,23 @@ def test_a_skipped_resource_has_no_points_and_its_reason_is_said(reason: str, tm
     assert said["reason"] == reason
     assert said["contentType"] == declined.content_type
     assert said["contentChecksum"] == checksum
+
+
+def test_a_skipped_resource_keeps_the_points_of_its_annotations(tmp_path: Path) -> None:
+    declined = declined_for("empty")
+
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs=declined.pdfs, reads=declined.reads) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+
+            await rig.happened(rig.world.put("res-1", declined.data, declined.content_type))
+
+            held = await rig.held()
+            # The resource's own points are gone. The annotation is still in the record, and quotes what it quotes.
+            assert held.stamps == {}
+            assert held.annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+
+    run(scenario())
 
 
 def test_bytes_that_could_not_be_read_are_no_decision(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:

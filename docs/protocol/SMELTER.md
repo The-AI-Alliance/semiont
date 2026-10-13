@@ -125,7 +125,8 @@ entity types from its description as the Archivist answers it then.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:unarchived` indexes the resource, and then each annotation the
   Archivist answers for it,** so that an unarchived resource is found again
-  without a restart.
+  without a restart. The annotations are indexed whatever the resource's
+  indexing came to: where its bytes were declined, or could not be read, too.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:added` indexes the annotation the event carries, where its
   resource is not archived**
@@ -182,6 +183,12 @@ entity types from its description as the Archivist answers it then.
   *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
   *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+- **An annotation's point outlives its resource's text.** An annotation that
+  quotes text, on a resource of the catalog, has a point whether or not the
+  resource has any: it is in the record, and it quotes what it quotes. A
+  resource whose bytes are declined loses its own points and not its
+  annotations', and a start leaves the same.
+  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_reconcile_cases.py`.*
 - **An annotation on a resource whose text was read from pixels carries the
   same mark,** read from the resource's points and not worked out again.
   *Held by `apps/smelter/tests/test_smelter.py`.*
@@ -223,15 +230,15 @@ and says so.
   declined ([A PDF's text](#a-pdfs-text)).
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **A skipped resource has no points.** Points made from bytes it had before
-  are taken out.
+  are taken out. The points of its annotations are kept.
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Bytes it could not read are not a decision.** Nothing is signalled, the
-  index is not changed, and the failure is logged. Whoever waits is left to
-  the end of its own wait.
+  resource's points are not changed, and the failure is logged. Whoever
+  waits is left to the end of its own wait.
   *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
 - **A signal that cannot be sent does not undo what was indexed.**
   *Held by `apps/smelter/tests/test_smelter.py`.*
@@ -360,7 +367,7 @@ opens its health port; runs reconcile.
 
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
-  *Held by no case.*
+  *Held by `packages/service-python/tests/test_connect.py`.*
 - **Its health answers before reconcile begins,** and events recorded from
   then on are applied as they arrive, while reconcile runs.
   *Held by `smelter/boot`.*

@@ -198,7 +198,7 @@ catch-up; runs reconcile.
   bounded number of times, then exits with a status other than 0, having said
   which address did not answer. *Held by `weaver/boot`.*
 - **It gives up when the graph database does not answer** within its connect
-  deadline. *Held by no case.*
+  deadline. *Held by `packages/service-python/tests/test_connect.py`.*
 - **Its health answers before catch-up begins,** and events recorded from then
   on are applied as they arrive, while the two passes run. *Held by no case.*
 - **A pass that fails does not end the Weaver.** The failure is logged and
