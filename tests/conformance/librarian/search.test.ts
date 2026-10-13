@@ -154,6 +154,24 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(world().matcher.generations).toEqual([]);
     });
 
+    it('does not answer the resource the reference is on, though the index holds its very text', async () => {
+      const quoted = 'dunlin turn as one over the mud';
+      // Two resources whose one chunk is the quoted text: the reference's own, and another.
+      const source = await world().created(quoted, { name: 'Shore log' });
+      const twin = await world().created(quoted, { name: 'Fair copy of a log' });
+      const reference = await world().referenced(source, quoted);
+      await world().ready(source, twin);
+      for (const resource of [source, twin]) {
+        expect((await world().index.pointsOf('resources', resource)).map((point) => point.payload['text'])).toEqual([quoted]);
+      }
+
+      const context = await gathered(source, reference);
+      const found = await world().answered('match:search-requested', { resourceId: source, referenceId: reference, context, useSemanticScoring: false });
+
+      expect(candidate(found.response, twin).matchReason).toContain('semantic similarity');
+      expect(found.response.map((one) => one['@id'])).not.toContain(source);
+    });
+
     it('has its model score the candidates in one prompt, which states the passage and lists each candidate; a candidate it scores above a half says so in its reason', async () => {
       const target = await world().created('A white wader with a flat bill.\n', { name: 'Spoonbill' });
       const source = await world().created('A spoonbill sweeps the shallows at first light.\n', { name: 'Dawn log' });
@@ -213,6 +231,11 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(all.response.length).toBeGreaterThan(1);
       const limited = await world().answered('match:search-requested', { ...search, limit: 1 });
       expect(limited.response.map((one) => one['@id'])).toEqual([all.response[0]?.['@id']]);
+
+      // A limit that asks for no candidate is refused, and the failure says which member it is about.
+      const refused = await world().failed('match:search-requested', { ...search, limit: 0 });
+      expect(refused.referenceId).toBe(reference);
+      expect(refused.error).toMatch(/limit/);
     });
 
     it('fails a search whose context was gathered for a resource and not for a reference: the failure names the reference and is about the focus, and nothing is searched', async () => {
@@ -339,7 +362,40 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(await found({ entityType: 'Carnivore' })).toEqual([tagged]);
       expect(await found({ archived: true })).toEqual([shelved]);
       expect(await found({ archived: false })).toEqual([tagged, plain].sort());
-      // No filter here leaves nothing: a page that is empty by name is answered from the index, which is another rule's.
+    });
+
+    it('keeps a page from the index to the entity type the search says, answers a search for archived resources from the graph alone, and refuses a limit that asks for no resource', async () => {
+      // No name here has a word of either text, so a search by one of them matches nothing by name.
+      const ofType = 'Butterwort holds its prey on a sticky leaf';
+      const ofNone = 'Bladderwort floats free in the peat cutting';
+      const tagged = await recorded(ofType, 'Sheet forty-one');
+      const plain = await recorded(ofNone, 'Sheet forty-two');
+      await world().tagged(tagged, 'Bogplant');
+      // The Smelter writes a resource's entity types on its points when they change.
+      await eventually(`the points of ${tagged} to carry its entity type`, 20_000, async () =>
+        (await world().index.pointsOf('resources', tagged)).every((point) => JSON.stringify(point.payload['entityTypes']) === '["Bogplant"]') ? true : undefined,
+      );
+
+      const found = async (search: string, filter: { entityType?: string; archived?: boolean }) => {
+        const page = (await world().answered('match:resources-requested', { search, ...filter })).response;
+        expect(page.total).toBe(page.resources.length);
+        return { matchKind: page.matchKind, resources: page.resources.map((hit) => hit['@id']) };
+      };
+      // By meaning, each text finds its own resource.
+      expect((await found(ofNone, {})).resources).toContain(plain);
+      expect(await found(ofType, { entityType: 'Bogplant' })).toEqual({ matchKind: 'semantic', resources: [tagged] });
+      // Kept to an entity type, a search does not answer a resource that has none, though the index holds its very text.
+      const kept = await found(ofNone, { entityType: 'Bogplant' });
+      expect(kept.matchKind).toBe('semantic');
+      expect(kept.resources).not.toContain(plain);
+      // The index holds no archived resource: a search for them is the graph's answer, and nothing is embedded.
+      const asked = world().embedder.mark();
+      expect(await found(ofNone, { archived: true })).toEqual({ matchKind: 'lexical', resources: [] });
+      expect(world().embedder.since(asked)).toEqual([]);
+      expect((await found(ofNone, { archived: false })).resources).toContain(plain);
+
+      const refused = await world().failed('match:resources-requested', { search: ofNone, limit: 0 });
+      expect(refused.message).toMatch(/limit/);
     });
 
     it(

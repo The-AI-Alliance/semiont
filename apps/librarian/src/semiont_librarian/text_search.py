@@ -9,9 +9,11 @@ tests run every case of it.
 The graph is asked first, and applies every filter before it cuts the page.
 Only a first page that found nothing is answered by meaning: the text is
 embedded once, the index's chunks are folded to one for each resource, and
-those at the semantic floor or above are the page. Each reads one index. A
-search that puts several sources together is a reference search, and is not
-made here.
+those at the semantic floor or above are the page. The index is held to the
+search's filters too: it is asked for the search's entity type alone, and a
+search for archived resources is not asked of it, since it holds none. Each
+reads one index. A search that puts several sources together is a reference
+search, and is not made here.
 """
 
 import asyncio
@@ -32,9 +34,10 @@ from semiont_service.content import ContentReads
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.merge import merge_by_resource
-from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorReader
+from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader
 
 from semiont_librarian.grace import resource_with_view_grace
+from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
 from semiont_librarian.naming import namer
 from semiont_librarian.reads import GraphReads, People, Views
@@ -97,13 +100,16 @@ async def search_resources(
 ) -> Page:
     """The page a text search answers.
 
-    The text is searched without the white space at its two ends, and one
-    that is then empty finds nothing and asks no store. Otherwise the graph
-    is asked, and a graph that fails is raised. Its page is the answer where
-    it matched anything, or the search is not for a first page. Otherwise
-    the index answers (`semantic_floor` is the least score a resource needs
-    to be found there).
+    A limit below 1 is refused before anything else
+    (`semiont_librarian.limit.LimitRefused`). The text is searched without
+    the white space at its two ends, and one that is then empty finds
+    nothing and asks no store. Otherwise the graph is asked, and a graph
+    that fails is raised. Its page is the answer where it matched anything,
+    where the search is not for a first page, and where the search is for
+    archived resources. Otherwise the index answers (`semantic_floor` is the
+    least score a resource needs to be found there).
     """
+    refuse_limit_below_least(filters.limit)
     offset, limit = _paged(filters)
     search = trimmed(filters.search)
     if not search:
@@ -118,15 +124,26 @@ async def search_resources(
         )
     )
     # What the index costs is paid only for a page that would otherwise be empty, and a later page of a search
-    # that matched nothing does not pay it again.
-    if lexical.total > 0 or offset > 0:
+    # that matched nothing does not pay it again. The index holds no chunk of an archived resource: the Smelter
+    # takes them out, so a search for archived resources has nothing to find there.
+    if lexical.total > 0 or offset > 0 or filters.archived is True:
         return Page(resources=lexical.resources, total=lexical.total, match_kind="lexical")
-    return await _by_meaning(search, limit, graph=graph, views=views, vectors=vectors, embedding=embedding, semantic_floor=semantic_floor)
+    return await _by_meaning(
+        search,
+        limit,
+        filters.entity_type or None,
+        graph=graph,
+        views=views,
+        vectors=vectors,
+        embedding=embedding,
+        semantic_floor=semantic_floor,
+    )
 
 
 async def _by_meaning(
     search: str,
     limit: int,
+    entity_type: str | None,
     *,
     graph: GraphReads,
     views: Views,
@@ -136,9 +153,10 @@ async def _by_meaning(
 ) -> Page:
     """The page the index answers for a text the graph matched nothing by, which is semantic also where nothing is kept.
 
-    The index is asked with no filter. The floor is applied here and not by
-    the index, so that what is below it is there to be counted: the line
-    logged of each search is what the floor is set by.
+    The index is asked for chunks of resources of `entity_type` alone, where
+    the search is kept to one, and with no filter otherwise. The floor is
+    applied here and not by the index, so that what is below it is there to
+    be counted: the line logged of each search is what the floor is set by.
 
     Whatever fails in here, the answer is the page the search already had,
     with nothing on it and lexical. A search that found nothing does not
@@ -147,7 +165,8 @@ async def _by_meaning(
     """
     try:
         vector = await embedding.embed(search)
-        hits = await vectors.search_resources(vector, SearchOptions(limit=limit * _CHUNKS_FOR_EACH_RESOURCE))
+        kept_to = None if entity_type is None else SearchFilter(entity_types=(entity_type,))
+        hits = await vectors.search_resources(vector, SearchOptions(limit=limit * _CHUNKS_FOR_EACH_RESOURCE, filter=kept_to))
         folded = merge_by_resource(hits)
         kept = [hit for hit in folded if hit.score >= semantic_floor]
         LOG.debug(

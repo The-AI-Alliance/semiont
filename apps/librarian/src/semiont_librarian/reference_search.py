@@ -4,10 +4,10 @@
 it (`docs/protocol/LIBRARIAN.md` § Reference search). Four sources are read
 for candidates: the graph's listing by name, its listing by entity type, the
 resources the context's graph connects the reference's resource to, and the
-vector index. A resource is one candidate however many of them found it.
-Each candidate is scored (`semiont_librarian.score`), a model is asked to
-score the first twenty found, and the answer is the candidates by score, the
-highest first. `specs/src/librarian/score-cases.json` states each search as
+vector index. A resource is one candidate however many of them found it, and
+the reference's own resource is none. Each candidate is scored
+(`semiont_librarian.score`), a model is asked to score the twenty of the
+highest scores, and the answer is the candidates by score, the highest first. `specs/src/librarian/score-cases.json` states each search as
 what every source answers and the candidates that follow.
 
 `search` answers the reply, or raises. What it raises is the failure, and its
@@ -40,9 +40,10 @@ from semiont_graph.interface import ResourceQuery
 from semiont_inference.interface import InferenceClient
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorReader, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader, VectorSearchResult
 
 from semiont_librarian.grace import resource_with_view_grace
+from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import score_prompt
 from semiont_librarian.reads import GraphReads, Views
@@ -85,15 +86,19 @@ class FocusNotAnAnnotation(Exception):
 class _Found:
     """The candidates, in the order they were found, each with what found it.
 
-    A resource is described as the first source to find it answered it.
+    A resource is described as the first source to find it answered it. The
+    request's own resource is no candidate, whichever source answers it.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, own: ResourceId) -> None:
+        self._own: Final = own
         self.resources: Final[dict[ResourceId, ResourceDescriptor]] = {}
         self.sources: Final[dict[ResourceId, set[Source]]] = {}
 
     def by(self, source: Source, resource: ResourceDescriptor) -> None:
         """Count `resource` as found by `source`."""
+        if resource.id == self._own:
+            return
         if resource.id in self.sources:
             self.sources[resource.id].add(source)
         else:
@@ -119,8 +124,8 @@ async def _by_entity_type(graph: GraphReads, entity_types: Sequence[str]) -> lis
     return (await graph.list_resources(ResourceQuery(entity_types=entity_types, limit=MOST_BY_ENTITY_TYPE))).resources
 
 
-async def _hits(term: str, *, vectors: VectorReader, embedding: EmbeddingProvider) -> list[VectorSearchResult]:
-    """The vector index's hits for the term, in the order it answers them.
+async def _hits(term: str, own: ResourceId, *, vectors: VectorReader, embedding: EmbeddingProvider) -> list[VectorSearchResult]:
+    """The vector index's hits for the term, in the order it answers them, of chunks of any resource but `own`, the request's.
 
     None for a blank term, which is not asked of it. None where the provider
     or the index fails, which is logged. An index with no such collection,
@@ -130,7 +135,8 @@ async def _hits(term: str, *, vectors: VectorReader, embedding: EmbeddingProvide
         return []
     try:
         vector = await embedding.embed(term)
-        return await vectors.search_resources(vector, SearchOptions(limit=MOST_HITS, score_threshold=WEAKEST_HIT))
+        options = SearchOptions(limit=MOST_HITS, score_threshold=WEAKEST_HIT, filter=SearchFilter(exclude_resource_id=own))
+        return await vectors.search_resources(vector, options)
     except CollectionAbsent:
         raise
     except Exception as failure:
@@ -138,11 +144,20 @@ async def _hits(term: str, *, vectors: VectorReader, embedding: EmbeddingProvide
         return []
 
 
+_SAID: Final = ("commenting", "assessing")
+"""The purposes of a body item that is what its annotation says of the passage: a comment's text, or an assessment's."""
+
+
 def _body_text(annotation: Annotation) -> str | None:
-    """The text of the first item of an annotation's body, whatever that item is for. Nothing where it has no text."""
-    first = annotation.body[0] if isinstance(annotation.body, list) else annotation.body
-    if isinstance(first, TextualBody) and first.value:
-        return first.value
+    """The text of the first item of an annotation's body whose purpose is commenting or assessing. Nothing where no item is one.
+
+    An item that tags the annotation with an entity type, or is there for
+    any other purpose, is not what the annotation says.
+    """
+    items = annotation.body if isinstance(annotation.body, list) else [annotation.body]
+    for item in items:
+        if isinstance(item, TextualBody) and item.purpose in _SAID and item.value:
+            return item.value
     return None
 
 
@@ -190,14 +205,16 @@ async def search(
     """The reply to a reference search: its candidates by score, the highest first, and no more of them than the request's limit.
 
     Raises `FocusNotAnAnnotation`, before any source is asked, where the
-    context's focus is not an annotation. Raises what a listing of the graph
-    raised, or a read of a view. `now` answers the moment the search is
-    made, with its offset.
+    context's focus is not an annotation, and
+    `semiont_librarian.limit.LimitRefused` for a limit below 1. Raises what
+    a listing of the graph raised, or a read of a view. `now` answers the
+    moment the search is made, with its offset.
     """
     context = request.context
     focus = context.focus
     if not isinstance(focus, GatheredContextFocusAnnotation):
         raise FocusNotAnAnnotation(f"Matcher expected annotation focus, received '{focus.kind}'")
+    refuse_limit_below_least(request.limit)
 
     term = _term(focus)
     entity_types = context.metadata.entity_types or []
@@ -218,7 +235,7 @@ async def search(
     named, typed, hits = await asyncio.gather(
         _by_name(graph, term),
         _by_entity_type(graph, entity_types),
-        _hits(term, vectors=vectors, embedding=embedding),
+        _hits(term, request.resource_id, vectors=vectors, embedding=embedding),
     )
 
     # A neighbour is read back from the graph, and from its view where the graph has none yet: the view is written
@@ -230,7 +247,7 @@ async def search(
     if lagged > 0:
         LOG.info("[graph lag] neighborhood candidates hydrated from view", extra={"count": lagged})
 
-    found = _Found()
+    found = _Found(request.resource_id)
     for resource in named:
         found.by("name", resource)
     for resource in typed:
@@ -239,13 +256,14 @@ async def search(
         if neighbour.resource is not None:
             found.by("neighborhood", neighbour.resource)
 
-    # Each hit is a chunk of a resource, read back as a neighbour is. Of several hits of one resource the last
-    # one's score is kept.
+    # Each hit is a chunk of a resource. Of several hits of one resource the best score is kept, and the resource
+    # is read back once, as a neighbour is.
     vector_scores: dict[ResourceId, float] = {}
-    lagged = 0
     for hit in hits:
-        vector_scores[hit.resource_id] = hit.score
-        graced = await resource_with_view_grace(graph, views, hit.resource_id)
+        vector_scores[hit.resource_id] = max(hit.score, vector_scores.get(hit.resource_id, hit.score))
+    lagged = 0
+    for hit_resource in vector_scores:
+        graced = await resource_with_view_grace(graph, views, hit_resource)
         if graced.lagged_behind_view:
             lagged += 1
         if graced.resource is not None:
@@ -283,7 +301,9 @@ async def search(
         for resource_id, resource in found.resources.items()
     ]
 
-    # The model is shown the first twenty found, before the candidates are put in the order of their scores.
+    # The model is shown the twenty of the highest scores. Python's sort keeps candidates of one score in the
+    # order they were found, in this direction too.
+    scored.sort(key=lambda each: each[1].points, reverse=True)
     if scored and request.use_semantic_scoring is not False:
         shown = [resource for resource, _ in scored[:MOST_SHOWN]]
         try:
@@ -296,7 +316,7 @@ async def search(
                 for number, (resource, score) in enumerate(scored, start=1)
             ]
 
-    # Python's sort keeps candidates of one score in the order they were found, in this direction too.
+    # Ordered again, by what the model added. Candidates of one score stay as they were before it.
     ordered = sorted(scored, key=lambda each: each[1].points, reverse=True)
     LOG.debug(
         "Search results scored",
@@ -307,5 +327,5 @@ async def search(
         },
     )
 
-    limited = ordered[: request.limit] if request.limit else ordered
+    limited = ordered if request.limit is None else ordered[: request.limit]
     return MatchSearchResult(reference_id=request.reference_id, response=[_candidate(resource, score) for resource, score in limited])
