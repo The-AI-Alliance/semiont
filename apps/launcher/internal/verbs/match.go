@@ -156,7 +156,7 @@ func Match(args []string) int {
 		if json.Unmarshal(reply, &found) != nil {
 			return rawFallback(reply)
 		}
-		printResources(u, found.Response.Resources, int(found.Response.Total))
+		printResources(u, found.Response.Resources, found.Response.Total)
 		return 0
 	}
 

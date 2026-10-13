@@ -12,7 +12,8 @@
           },
           "resourceName": {
             "type": "string",
-            "description": "Name of resource containing the reference"
+            "minLength": 1,
+            "description": "Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty."
           },
           "target": {
             "type": "object",
@@ -42,7 +43,6 @@
         },
         "required": [
           "id",
-          "resourceName",
           "target"
         ]
       }

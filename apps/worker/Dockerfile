@@ -84,6 +84,16 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --from=ghcr.io/typst/typst:0.15.1 /bin/typst /usr/local/bin/typst
 
 COPY LICENSE apps/worker/NOTICE /home/semiont/
+
+# The model catalogue: what models.dev says each model of Google, OpenAI and
+# Together can take, which those providers' own APIs do not say. A model of one
+# of them is asked with these facts, and the service's document names this
+# path (modelCatalogue). It is the repository's one generated copy, made by
+# scripts/inference/generate-model-catalogue.mjs from the npm package
+# package.json pins, and held to that pin by CI's drift job. Nothing is fetched
+# to build it here. Its licence notice goes with it.
+COPY packages/inference-python/tests/catalogue/model-catalogue.json /usr/share/semiont/model-catalogue.json
+COPY packages/inference-python/tests/catalogue/model-catalogue.LICENSE /usr/share/semiont/model-catalogue.LICENSE
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 

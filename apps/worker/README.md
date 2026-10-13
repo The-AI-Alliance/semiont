@@ -34,10 +34,13 @@ own library, which their package brings as an extra named for the provider
 ([what an install has](../../packages/inference-python/README.md#what-an-install-has)). The
 image is built with every extra, so it is not rebuilt to be pointed at another provider.
 
-**The service can be configured for two providers today:** `anthropic` and `ollama`, the two
-the protocol names. An agent of its document
-([`WorkerAgentConfig`](../../specs/src/components/schemas/WorkerAgentConfig.json)) names one
-of them, and a document that names another is refused when the service starts.
+**The service can be configured for any of the seven providers the protocol names:**
+`anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An agent of its
+document ([`WorkerAgentConfig`](../../specs/src/components/schemas/WorkerAgentConfig.json))
+names one of them, and a document that names another is refused when the service starts. A
+model of `google`, `openai` or `together` is asked with what the model catalogue says of it,
+which the image carries at `/usr/share/semiont/model-catalogue.json` and the document names
+(`modelCatalogue`). Only `anthropic` and `ollama` have been run against the real provider.
 
 **Typst ships in the image** (pinned) so generation can produce PDFs with real page geometry
 rather than recovered coordinates.

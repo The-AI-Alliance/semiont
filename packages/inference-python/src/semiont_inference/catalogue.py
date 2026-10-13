@@ -9,8 +9,9 @@ that does, kept by its maintainers from each provider's documentation.
 This package carries no copy of it and downloads nothing. A catalogue file
 holds the part of the database a driver reads. It is made by
 `scripts/inference/generate-model-catalogue.mjs` of the repository, from the
-npm package `@opencode-ai/models` at the version the repository pins, when an
-image is built. Whoever runs a driver whose provider is silent reads that
+npm package `@opencode-ai/models` at the version the repository pins. The
+repository keeps one generated copy, and an image that runs such a driver
+carries that copy. Whoever runs a driver whose provider is silent reads the
 file with `read_catalogue`, at the path it was given, and looks its model up
 with `catalogue_facts`. There is no path this module reads on its own.
 

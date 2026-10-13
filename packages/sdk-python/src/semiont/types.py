@@ -126,6 +126,7 @@ __all__ = [
     "ContentFormat",
     "ContextualSummaryResponse",
     "ContextualSummaryResponseContext",
+    "ContextualSummaryResponseRelevantFields",
     "CreateAnnotationRequest",
     "CreateResourceResponse",
     "DirEntry",
@@ -1004,6 +1005,8 @@ class GatherAnnotationOptions(WireModel, frozen=True):
         Field(
             alias="contextWindow",
             description="How much of the text on each side of the annotation to include, counted in Unicode code points",
+            ge=100,
+            le=5000,
         ),
     ] = None
 
@@ -1037,15 +1040,6 @@ class GatherSummaryRequest(WireModel, frozen=True):
 
     annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-
-
-class GatherReferencedByRequest(WireModel, frozen=True):
-    """
-    Request for the annotations elsewhere that refer to a resource. The Librarian answers from the graph.
-    """
-
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    motivation: str | None = None
 
 
 type DurabilityEvidence = Annotated[
@@ -1509,8 +1503,14 @@ class MatchResourcesRequest(WireModel, frozen=True):
     search: Annotated[str, Field(description="The text to search for.")]
     archived: bool | None = None
     entity_type: Annotated[str | None, Field(alias="entityType")] = None
-    offset: int | None = None
-    limit: int | None = None
+    offset: Annotated[
+        int | None,
+        Field(
+            description="How many of the resources the search finds are passed over before the page begins.",
+            ge=0,
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="The most resources a page has.", ge=1, le=200)] = None
 
 
 class MediaTokenRequest(WireModel, frozen=True):
@@ -2865,6 +2865,16 @@ type CommandErrorCode = Annotated[
 ]
 
 
+class ContextualSummaryResponseRelevantFields(WireModel, frozen=True, extra="forbid"):
+    """
+    What the summary is of: the resource the annotation is on, and the annotation's entity types.
+    """
+
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    resource_name: Annotated[str, Field(alias="resourceName")]
+    entity_types: Annotated[list[str], Field(alias="entityTypes")]
+
+
 class ContextualSummaryResponseContext(WireModel, frozen=True):
     before: str | None = None
     selected: str
@@ -2928,6 +2938,8 @@ class GatherResourceRequestOptions(WireModel, frozen=True):
         Field(
             alias="maxResources",
             description="Maximum number of related resources to include",
+            ge=1,
+            le=200,
         ),
     ]
     include_content: Annotated[
@@ -3624,7 +3636,12 @@ type AnchoredTextDeclinedEntryDeclined = Annotated[
 ]
 
 
-type ArchivistRosterRoleProvider = Annotated[Literal["anthropic", "ollama"], Field(description="The inference provider.")]
+type ArchivistRosterRoleProvider = Annotated[
+    Literal["anthropic", "google", "llamacpp", "ollama", "openai", "together", "vllm"],
+    Field(
+        description="The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software."
+    ),
+]
 
 
 type SmeltSettledOutcome = Literal["indexed", "skipped"]
@@ -3796,7 +3813,7 @@ class CommandError(WireModel, frozen=True):
 
 class ContextualSummaryResponse(WireModel, frozen=True):
     summary: str
-    relevant_fields: Annotated[dict[str, JsonValue], Field(alias="relevantFields")]
+    relevant_fields: Annotated[ContextualSummaryResponseRelevantFields, Field(alias="relevantFields")]
     context: ContextualSummaryResponseContext
 
 
@@ -3942,6 +3959,20 @@ class GatherResourceRequest(WireModel, frozen=True):
         ),
     ]
     options: GatherResourceRequestOptions
+
+
+class GatherReferencedByRequest(WireModel, frozen=True):
+    """
+    Request for the annotations elsewhere that refer to a resource. The Librarian answers from the graph.
+    """
+
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    motivation: Annotated[
+        Motivation | None,
+        Field(
+            description="The one motivation the annotations answered have. Every annotation that refers to the resource is answered where none is stated."
+        ),
+    ] = None
 
 
 class GetAnnotationHistoryResponse(WireModel, frozen=True):
@@ -5495,9 +5526,21 @@ class MatchResourcesResponse(WireModel, frozen=True):
     """
 
     resources: list[ResourceDescriptor]
-    total: float
-    offset: float
-    limit: float
+    total: Annotated[
+        int,
+        Field(
+            description="How many resources the search found in all, and not only on this page.",
+            ge=0,
+        ),
+    ]
+    offset: Annotated[
+        int,
+        Field(
+            description="How many of the resources the search found were passed over before this page, as the request stated.",
+            ge=0,
+        ),
+    ]
+    limit: Annotated[int, Field(description="The limit the search was made with.", ge=1)]
     match_kind: Annotated[MatchResourcesResponseMatchKind, Field(alias="matchKind")]
 
 
@@ -5769,12 +5812,13 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
 class GetReferencedByResponseReferencedByItem(WireModel, frozen=True):
     id: Annotated[AnnotationId, Field(description="Reference annotation ID")]
     resource_name: Annotated[
-        str,
+        str | None,
         Field(
             alias="resourceName",
-            description="Name of resource containing the reference",
+            description="Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.",
+            min_length=1,
         ),
-    ]
+    ] = None
     target: GetReferencedByResponseReferencedByItemTarget
 
 
@@ -6191,6 +6235,14 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
+    model_catalogue: Annotated[
+        str,
+        Field(
+            alias="modelCatalogue",
+            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.",
+            min_length=1,
+        ),
+    ]
     port: Annotated[
         int,
         Field(description="The port the worker answers `/health` on.", ge=1, le=65535),
@@ -6235,6 +6287,14 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     embedding: EmbeddingConfig
     matcher: LibrarianModelConfig
     gatherer: LibrarianModelConfig
+    model_catalogue: Annotated[
+        str,
+        Field(
+            alias="modelCatalogue",
+            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.",
+            min_length=1,
+        ),
+    ]
     gather: LibrarianConfigGather
     search: LibrarianConfigSearch
     port: Annotated[
@@ -6536,7 +6596,10 @@ class MatchSearchRequest(WireModel, frozen=True):
         GatheredContext,
         Field(description="Gathered context for the reference annotation"),
     ]
-    limit: Annotated[int | None, Field(description="Maximum number of candidate results to return")] = None
+    limit: Annotated[
+        int | None,
+        Field(description="Maximum number of candidate results to return", ge=1, le=200),
+    ] = None
     use_semantic_scoring: Annotated[
         bool | None,
         Field(

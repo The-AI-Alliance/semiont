@@ -412,13 +412,16 @@ class FakeInference(InferenceClient):
     `asked` is every request, in order. With no reply stated it answers the
     empty text. Every reply ends as a model that had finished ends one
     (`end_turn`). `failing` fails every request, and `failing_on` each one
-    whose prompt has that text in it.
+    whose prompt has that text in it. A request for elements is answered
+    with the next reply read as a JSON array, and `schemas` is the schema of
+    each such request, in order.
     """
 
     def __init__(self, *replies: str) -> None:
         said = replies or ("",)
         self._mock: Final = MockInferenceClient(said, stop_reasons=["end_turn"] * len(said), limits=LIMITS)
         self.asked: Final[list[Prompted]] = []
+        self.schemas: Final[list[ElementSchema]] = []
         self.failing: Exception | None = None
         self.failing_on: str | None = None
 
@@ -430,6 +433,10 @@ class FakeInference(InferenceClient):
     def say(self, *replies: str) -> None:
         """Answer from these replies from now on, beginning with the first."""
         self._mock.set_responses(replies, stop_reasons=["end_turn"] * len(replies))
+
+    def say_as(self, reply: str, *, stopped: str) -> None:
+        """Answer with this reply from now on, ended for the reason given: `max_tokens` is a reply cut off at its limit."""
+        self._mock.set_responses([reply], stop_reasons=[stopped])
 
     @property
     @override
@@ -466,7 +473,8 @@ class FakeInference(InferenceClient):
         self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
     ) -> StructuredResponse:
         self.asked.append(Prompted(prompt, max_tokens, temperature))
-        await _turn(self.failing)
+        self.schemas.append(element_schema)
+        await _turn(self._failure_of(prompt))
         return await self._mock.generate_structured(prompt, max_tokens, temperature, element_schema)
 
 

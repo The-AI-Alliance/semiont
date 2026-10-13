@@ -22,7 +22,7 @@ from spec import ROOT, JsonObject, objects, only, read, text, thing, whole, why
 from semiont_librarian.window import (
     LARGEST_WINDOW,
     LEAST_WINDOW,
-    PositionRequired,
+    Unplaced,
     Window,
     WindowRefused,
     annotation_context,
@@ -99,7 +99,7 @@ def test_each_case_is_told_from_the_others_by_its_why() -> None:
 
 
 @pytest.mark.parametrize("case", AROUND, ids=[why(case) for case in AROUND])
-def test_the_text_around_an_annotation_that_has_a_position_is_the_table_s(case: JsonObject) -> None:
+def test_the_text_a_summary_cuts_around_an_annotation_is_the_table_s(case: JsonObject) -> None:
     annotation = annotation_with(case.get("selector"))
     content = text(case["text"], "text")
     window = thing(case["window"], "window")
@@ -107,7 +107,7 @@ def test_the_text_around_an_annotation_that_has_a_position_is_the_table_s(case: 
     before, after = whole(window["before"], "before"), whole(window["after"], "after")
 
     if refused(case):
-        with pytest.raises(PositionRequired, match=r"TextPositionSelector required"):
+        with pytest.raises(Unplaced, match=r"^No selector of the annotation's target places it in the text$"):
             annotation_context(annotation, content, before, after)
         return
 
@@ -162,7 +162,7 @@ def test_a_target_that_is_a_resource_s_id_states_no_selector() -> None:
         }
     )
     assert selection_of(bare, QUICK, LEAST_WINDOW) is None
-    with pytest.raises(PositionRequired):
+    with pytest.raises(Unplaced):
         annotation_context(bare, QUICK, 5, 5)
 
 

@@ -360,7 +360,7 @@ def test_a_text_search_is_answered_with_its_page_and_fails_with_a_message() -> N
 
 def test_what_refers_to_a_resource_is_answered_and_fails_with_a_message() -> None:
     async def scenario() -> None:
-        async with World() as world:
+        async with World(view(described(QUAY))) as world:
             world.graph.referenced_by[QUAY] = []
             world.ask("gather:referenced-by-requested", {"resourceId": QUAY}, "c-1")
             await world.librarian.settled()
@@ -555,7 +555,8 @@ def test_reference_searches_are_made_one_at_a_time_and_everything_else_is_handle
             world.ask("gather:summary-requested", {"annotationId": CROSSING, "resourceId": NOWHERE}, "c-5")
             await turns()
             assert world.answered_for("match:resources-result") == ["c-3"]
-            assert world.answered_for("gather:referenced-by-result") == ["c-4"]
+            # These views hold no resource, so what refers to one fails: it is answered all the same.
+            assert world.answered_for("gather:referenced-by-failed") == ["c-4"]
             assert world.answered_for("gather:summary-failed") == ["c-5"]
             assert world.answered("match:search-results") == []
             assert len(world.graph.asked_of("list_resources")) == 1

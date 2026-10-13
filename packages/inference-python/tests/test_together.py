@@ -1372,11 +1372,11 @@ import sys
 import semiont_inference
 from semiont_inference.factory import create_inference_client
 
-ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None)
+ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None)
 print(ollama.provider, {LOADED}, "semiont_inference.together" in sys.modules)
 """
 
-# The factory does not make a Together client: `together` is not yet a provider the protocol names. Its module is asked for.
+# The driver is asked for by its own module here: what importing it loads is what is held, and the factory imports it the same way.
 ASKING_FOR_TOGETHER = f"""
 import sys
 from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
@@ -1399,7 +1399,7 @@ try:
     import semiont_inference.together
 except ModuleNotFoundError as missing:
     print(type(missing).__name__, "|", missing.name, "|", type(missing.__cause__).__name__, "|", missing)
-print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None).provider)
+print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
 

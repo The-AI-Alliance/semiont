@@ -234,7 +234,12 @@
           "key": "inference.provider",
           "values": [
             "anthropic",
-            "ollama"
+            "google",
+            "llamacpp",
+            "ollama",
+            "openai",
+            "together",
+            "vllm"
           ]
         },
         {
@@ -258,7 +263,12 @@
           "key": "inference.provider",
           "values": [
             "anthropic",
-            "ollama"
+            "google",
+            "llamacpp",
+            "ollama",
+            "openai",
+            "together",
+            "vllm"
           ]
         },
         {
@@ -665,7 +675,12 @@
           "key": "inference.provider",
           "values": [
             "anthropic",
-            "ollama"
+            "google",
+            "llamacpp",
+            "ollama",
+            "openai",
+            "together",
+            "vllm"
           ]
         },
         {
@@ -694,7 +709,12 @@
           "key": "inference.provider",
           "values": [
             "anthropic",
-            "ollama"
+            "google",
+            "llamacpp",
+            "ollama",
+            "openai",
+            "together",
+            "vllm"
           ]
         },
         {
@@ -723,7 +743,12 @@
           "key": "inference.provider",
           "values": [
             "anthropic",
-            "ollama"
+            "google",
+            "llamacpp",
+            "ollama",
+            "openai",
+            "together",
+            "vllm"
           ]
         },
         {

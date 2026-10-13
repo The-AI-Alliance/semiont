@@ -6,9 +6,14 @@
       "type": "string",
       "enum": [
         "anthropic",
-        "ollama"
+        "google",
+        "llamacpp",
+        "ollama",
+        "openai",
+        "together",
+        "vllm"
       ],
-      "description": "The inference provider."
+      "description": "The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software."
     },
     "model": {
       "type": "string",

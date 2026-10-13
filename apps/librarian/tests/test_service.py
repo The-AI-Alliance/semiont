@@ -121,6 +121,7 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
         "embedding",
         "matcher",
         "gatherer",
+        "modelCatalogue",
         "gather",
         "search",
         "port",
@@ -191,6 +192,25 @@ def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_the_document
     assert refusal(["--config", keyless_gatherer], environment) == (
         "gatherer.apiKeyEnv is not stated, and gatherer.agent.provider is anthropic: api_key is required for the Anthropic inference client"
     )
+
+
+def test_a_model_whose_facts_are_a_catalogue_s_is_refused_by_the_member_without_them_and_a_server_a_deployment_runs_reads_none(
+    tmp_path: Path,
+) -> None:
+    environment = {**ACCOUNT, **PASSWORD, "OPENAI_KEY": "sk-test"}
+    openai: dict[str, JsonValue] = {
+        "agent": {"provider": "openai", "model": "gpt-listed"},
+        "baseUrl": "http://127.0.0.1:1/v1",
+        "apiKeyEnv": "OPENAI_KEY",
+    }
+    nowhere = tmp_path / "none.json"
+    absent = refusal(["--config", written(tmp_path, {**DOCUMENT, "gatherer": openai, "modelCatalogue": str(nowhere)})], environment)
+    assert absent.startswith(f"modelCatalogue names {nowhere}, which does not serve the gatherer: the model catalogue cannot be read: ")
+
+    # The document names a catalogue file that is not there, as every document here does: nothing reads it for these.
+    vllm: dict[str, JsonValue] = {"agent": {"provider": "vllm", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1/v1"}
+    started = boot(["--config", written(tmp_path, {**DOCUMENT, "matcher": vllm, "gatherer": vllm})], environment)
+    assert (started.matcher.provider, started.gatherer.provider) == ("vllm", "vllm")
 
 
 def test_a_refusal_is_one_line_on_stderr_and_status_1_and_nothing_on_stdout(

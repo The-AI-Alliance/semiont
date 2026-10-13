@@ -39,6 +39,12 @@ const stateHomeTarget = "/semiont-state"
 // neither, and a test harness writes its own.
 var archivistStaging = struct{ flushMs, maxWaitMs int }{flushMs: 250, maxWaitMs: 2_000}
 
+// providerNames: the providers Semiont has a client for, as a refusal lists
+// them for an operator. The list itself is the spec's, which the generated
+// ArchivistRosterRoleProvider.Valid decides; TestProviderNamesAreTheSpecs
+// holds these words to it.
+const providerNames = "anthropic, google, llamacpp, ollama, openai, together or vllm"
+
 // rosterRole: one binding as the roster states it. A binding that names
 // neither a provider nor a model binds nothing; one that names half of an
 // agent, or a provider Semiont has no client for, is refused by name.
@@ -48,7 +54,7 @@ func rosterRole(field string, b *bindingCfg) (*semiont.ArchivistRosterRole, erro
 	}
 	provider := semiont.ArchivistRosterRoleProvider(b.Inference.Type)
 	if !provider.Valid() || b.Inference.Model == "" {
-		return nil, fmt.Errorf("%s.inference must name type \"anthropic\" or \"ollama\" and a model (got type %q, model %q)", field, b.Inference.Type, b.Inference.Model)
+		return nil, fmt.Errorf("%s.inference must name a type (%s) and a model (got type %q, model %q)", field, providerNames, b.Inference.Type, b.Inference.Model)
 	}
 	return &semiont.ArchivistRosterRole{Provider: provider, Model: b.Inference.Model}, nil
 }

@@ -1526,7 +1526,7 @@ import sys
 import semiont_inference
 from semiont_inference.factory import create_inference_client
 
-ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None)
+ollama = create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None)
 print(ollama.provider, {LOADED}, "semiont_inference.google" in sys.modules)
 """
 
@@ -1562,7 +1562,7 @@ try:
 except ModuleNotFoundError as missing:
     cause = missing.__cause__
     print(type(missing).__name__, "|", missing.name, "|", None if cause is None else cause.name, "|", missing)
-print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None).provider)
+print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
 

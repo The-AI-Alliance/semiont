@@ -54,7 +54,7 @@ SURFACE = {
     "together": ["TogetherInferenceClient"],
     "vllm": ["VllmInferenceClient"],
     "mock": ["MockInferenceClient"],
-    "factory": ["create_inference_client"],
+    "factory": ["CatalogueRequired", "KeyRequired", "create_inference_client"],
     "limits_report": ["answer_limits_requests", "report_limits"],
     "catalogue": [
         "BudgetTokensOption",
@@ -207,8 +207,9 @@ def test_a_catalogue_is_a_third_partys_word_and_only_a_driver_whose_provider_is_
     # The catalogue is models.dev's. Anthropic, Ollama, vLLM and llama.cpp's server state a model's facts themselves
     # and are asked: their drivers, the mock and what every driver shares never read one. The APIs of OpenAI, Google
     # and Together are silent on some of a model's facts, and their drivers are the ones handed a catalogue's, with
-    # the one module that puts the reasoning efforts a catalogue names in order.
-    assert importing(r"semiont_inference\.catalogue") == ["_effort.py", "google.py", "openai.py", "together.py"]
+    # the one module that puts the reasoning efforts a catalogue names in order. The factory looks a model up in the
+    # catalogue it is handed, for those three alone.
+    assert importing(r"semiont_inference\.catalogue") == ["_effort.py", "factory.py", "google.py", "openai.py", "together.py"]
 
 
 def test_the_checkers_and_their_strictness_are_the_sdks() -> None:

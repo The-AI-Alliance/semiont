@@ -44,7 +44,7 @@ from semiont_librarian.knowledge_graph import LEAST_DEPTH, build_knowledge_graph
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, relationship_prompt, resource_summary_prompt
 from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Views, WeaveWaits
-from semiont_librarian.resource_text import text_of
+from semiont_librarian.resource_text import has_stored_bytes, text_of
 from semiont_librarian.views import derive_views
 from semiont_librarian.window import Window, refuse_out_of_bounds, selection_of
 
@@ -68,11 +68,11 @@ class Ungathered(Exception):
 def language_of(resource: ResourceDescriptor) -> str | None:
     """The language a resource's description states, which is a gathered context's `metadata.language`. Nothing where it states none.
 
-    A description's schema has no such member, so one that states it carries
-    it beside the members the schema has.
+    A description states it of its primary representation, where the
+    Archivist puts the language a resource was recorded with.
     """
-    said: object = (resource.model_extra or {}).get("language")
-    return said if isinstance(said, str) else None
+    representation = primary_representation(resource)
+    return None if representation is None else representation.language or None
 
 
 async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[SemanticMatch]:
@@ -101,12 +101,6 @@ async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[
             )
         )
     return similar
-
-
-def _has_stored_bytes(resource: ResourceDescriptor) -> bool:
-    """Whether a resource's description says where its bytes are stored."""
-    representation = primary_representation(resource)
-    return representation is not None and bool(representation.storage_uri)
 
 
 async def gather(
@@ -168,7 +162,7 @@ async def gather(
 
     selection: Window | None = None
     if include_source:
-        if not _has_stored_bytes(source):
+        if not has_stored_bytes(source):
             raise Ungathered("Source content not found: no storageUri")
         text = await text_of(source, content=content, anchored=anchored)
         if text is None:
@@ -177,9 +171,10 @@ async def gather(
             selection = selection_of(annotation, text, window)
 
     target_context: GatheredContextFocusAnnotationTargetContext | None = None
-    if include_target and linked is not None and _has_stored_bytes(linked):
+    if include_target and linked is not None and has_stored_bytes(linked):
         linked_text = await text_of(linked, content=content, anchored=anchored)
-        if linked_text is not None:
+        # A text with nothing in it is no context, and nothing a model can summarize.
+        if linked_text:
             summarizing = resource_summary_prompt(name=linked.name, content=linked_text, entity_types=resource_entity_types(linked))
             # The summary adds to what is said of the linked resource: its text is answered with it or without.
             summary: str | None = None

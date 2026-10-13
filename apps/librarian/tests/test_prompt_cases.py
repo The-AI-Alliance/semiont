@@ -21,6 +21,7 @@ from semiont_librarian.prompts import (
     resource_summary_prompt,
     score_prompt,
 )
+from semiont_librarian.replies import SCORE_ELEMENT, SUGGESTION_ELEMENT
 
 TABLE: Final = read(SPEC / "librarian/prompt-cases.json")
 CASES: Final = objects(TABLE["cases"], "the table's cases")
@@ -133,6 +134,11 @@ def test_a_prompt_is_the_text_the_table_gives_with_its_token_limit_and_its_tempe
 
 
 # The table holds every cut where every count is the same. This holds what a cut counts.
+
+
+def test_the_two_prompts_asked_for_elements_are_sent_with_the_schemas_the_table_states() -> None:
+    assert set(TABLE) == {"$comment", "elements", "cases"}
+    assert thing(TABLE["elements"], "elements") == {"score": SCORE_ELEMENT, "reference-suggestions": SUGGESTION_ELEMENT}
 
 
 def test_a_cut_counts_code_points_and_splits_no_character() -> None:

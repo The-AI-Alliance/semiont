@@ -180,8 +180,10 @@ def test_a_gather_answers_the_selection_the_graph_the_frequencies_the_relationsh
 def test_a_window_less_than_100_or_more_than_5000_fails_the_gather_and_nothing_is_read(window: int) -> None:
     async def scenario() -> None:
         world = a_world_of_the_myths()
+        # Stated as a caller that does not hold its request to the schema states it: the schema refuses such a window too.
+        asked = GatherAnnotationOptions.model_construct(context_window=window)
         with pytest.raises(WindowRefused, match=r"contextWindow must be between 100 and 5000"):
-            await world.gathered(GatherAnnotationOptions(context_window=window))
+            await world.gathered(asked)
         assert world.views.asked == []
         assert world.content.asked == []
         assert world.graph.asked == []
@@ -329,6 +331,30 @@ def test_a_model_that_fails_on_the_linked_resource_s_summary_leaves_its_text_and
         assert focus["targetContext"] == {"content": BOOK}
         assert said["inferredRelationshipSummary"] == "The passage links to the poem."
         assert world.degraded.noted == ["summary"]
+
+    run(scenario())
+
+
+def test_a_linked_resource_whose_text_has_nothing_in_it_has_no_target_context_and_is_not_summarized() -> None:
+    async def scenario() -> None:
+        myths = stored(MYTHS, "Greek Myths")
+        zeus = reference(REFERENCE, MYTHS, link(THEOGONY), target=at(START, END))
+        theogony = stored(THEOGONY, "Theogony")
+        world = World(view(myths, zeus), view(theogony))
+        world.content.held[MYTHS] = Content(TEXT.encode(), "text/plain")
+        world.content.held[THEOGONY] = Content(b"", "text/plain")
+        world.weave_in(myths, zeus, connected=(theogony,))
+        world.inference.say("The passage links to the poem.")
+
+        said = written(await world.gathered())
+
+        focus = thing(said["focus"], "focus")
+        assert thing(focus["targetResource"], "targetResource")["@id"] == THEOGONY
+        assert "targetContext" not in focus
+        # The one request of the model is the relationship sentence.
+        assert len(world.inference.asked) == 1
+        assert said["inferredRelationshipSummary"] == "The passage links to the poem."
+        assert world.degraded.noted == []
 
     run(scenario())
 

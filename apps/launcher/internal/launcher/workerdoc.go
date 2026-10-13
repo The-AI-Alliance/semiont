@@ -57,17 +57,31 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 	if !declared {
 		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: %s has no address to reach %s at", envName, provider, who, provider)
 	}
-	switch provider {
-	case semiont.ArchivistRosterRoleProviderAnthropic:
+	if provider == semiont.ArchivistRosterRoleProviderAnthropic {
 		if section.Endpoint == "" {
 			return saasBase(remoteProviderAddress(env, string(provider))), nil
 		}
 		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
+	}
+	// Every other provider is reached where its section says: the launcher keeps no vendor's address but
+	// Anthropic's, and runs no server but Ollama's.
+	if section.BaseURL == "" {
+		return "", fmt.Errorf("[environments.%s.inference.%s] states no baseURL: %s has no address to reach %s at", envName, provider, who, provider)
+	}
+	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
+	switch provider {
+	case semiont.ArchivistRosterRoleProviderGoogle:
+		return resolveRefs("inference.google.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderLlamacpp:
+		return resolveRefs("inference.llamacpp.baseURL", section.BaseURL, vars)
 	case semiont.ArchivistRosterRoleProviderOllama:
-		if section.BaseURL == "" {
-			return "", fmt.Errorf("[environments.%s.inference.ollama] states no baseURL: %s has no address to reach ollama at", envName, who)
-		}
 		return resolveRefs("inference.ollama.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderOpenai:
+		return resolveRefs("inference.openai.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderTogether:
+		return resolveRefs("inference.together.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderVllm:
+		return resolveRefs("inference.vllm.baseURL", section.BaseURL, vars)
 	}
 	return "", fmt.Errorf("%s's document has no address for the provider %q", who, provider)
 }
@@ -75,14 +89,33 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 // providerKeyName: the variable holding a provider's key, as its section of
 // the environment names it; none when the section states no key.
 func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvider) (*string, error) {
+	key := env.Inference[string(provider)].APIKey
+	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
 	switch provider {
 	case semiont.ArchivistRosterRoleProviderAnthropic:
-		return secretName("inference.anthropic.apiKey", env.Inference["anthropic"].APIKey)
+		return secretName("inference.anthropic.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderGoogle:
+		return secretName("inference.google.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderLlamacpp:
+		return secretName("inference.llamacpp.apiKey", key)
 	case semiont.ArchivistRosterRoleProviderOllama:
-		return secretName("inference.ollama.apiKey", env.Inference["ollama"].APIKey)
+		return secretName("inference.ollama.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderOpenai:
+		return secretName("inference.openai.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderTogether:
+		return secretName("inference.together.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderVllm:
+		return secretName("inference.vllm.apiKey", key)
 	}
 	return nil, nil
 }
+
+// modelCatalogueTarget: where the worker's image and the Librarian's each
+// carry the model catalogue file, which each one's document names. A service
+// reads the file only for a provider whose own API leaves a model's facts
+// unsaid, and which those are is the service's to know, not the launcher's.
+// TestModelCatalogueIsWhereTheImagesCarryIt holds this to the two Dockerfiles.
+const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
 
 // workerNamedVars: the variables the worker's document names rather than
 // resolves — the key of each provider that serves a job — and so the ones the
@@ -119,7 +152,7 @@ func workerAgents(env *envConfig, envName string, vars map[string]string) ([]sem
 		return nil, err
 	}
 	if len(served) == 0 {
-		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with type = \"anthropic\" or \"ollama\" and a model", workerBindingSection(envName))
+		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with a type (%s) and a model", workerBindingSection(envName), providerNames)
 	}
 	var agents []semiont.WorkerAgentConfig
 	for _, s := range served {
@@ -173,6 +206,7 @@ func workerDocument(env *envConfig, envName, rt, addr string, issuerPort int, us
 	if doc.Agents, err = workerAgents(env, envName, vars); err != nil {
 		return nil, err
 	}
+	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
 
 	doc.LogLevel = "info"

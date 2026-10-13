@@ -192,6 +192,43 @@ A job that none of its bindings covers is served by no one. A section under `wor
 
 Providers can be mixed: a stronger model for the workers that reason, a lighter or local one for the high-volume ones. Every provider a binding names needs its provider section.
 
+A binding's `type` is one of seven providers. `semiont init` writes a config for `anthropic` or `ollama`; the other five are added by hand.
+
+| `type` | What it is | Its section states |
+|---|---|---|
+| `anthropic` | Anthropic's API | `apiKey`, and `endpoint` where it is not Anthropic's own |
+| `ollama` | An Ollama server, which the launcher runs or finds | nothing, or `baseURL` for one somebody else runs |
+| `openai` | OpenAI's API | `baseURL` and `apiKey` |
+| `google` | Google's Gemini API | `baseURL` and `apiKey` |
+| `together` | Together's API | `baseURL` and `apiKey` |
+| `vllm` | A vLLM server you run or reach | `baseURL`, and `apiKey` where the server was started with one |
+| `llamacpp` | A llama.cpp server you run or reach | `baseURL`, and `apiKey` where the server was started with one |
+
+```toml
+[environments.local.inference.openai]
+platform = "external"
+baseURL = "https://api.openai.com/v1"
+apiKey = "${OPENAI_API_KEY}"
+
+[environments.local.inference.vllm]
+platform = "external"
+baseURL = "http://vllm.internal:8000/v1"
+
+[environments.local.workers.mark.tagging.inference]
+type = "openai"
+model = "gpt-5-mini"
+
+[environments.local.workers.yield.inference]
+type = "vllm"
+model = "the-model-the-server-serves"
+```
+
+The launcher runs none of these five and keeps no address for them: a section with no `baseURL` is refused, and the refusal names the section. The `baseURL` is the address the provider's own documentation gives for its API. An `apiKey` is a `${VAR}` reference, as every secret in a config is.
+
+OpenAI's, Google's and Together's APIs do not say what a model can take: its window, whether it holds a reply to a schema, how its reasoning is set. A model of one of them is asked with what a model catalogue says of it. The worker's image and the Librarian's each carry the catalogue, a copy of [models.dev](https://models.dev) made when the release was cut, and a service whose model the catalogue does not list refuses to start and names the model. A model newer than the release is one it does not list.
+
+**None of these five has been run against its real provider.** Each is tested against a stand-in that plays the provider's API as its documentation describes it.
+
 With any binding on Ollama, the launcher uses an Ollama installed on the machine when there is one, runs one in a container when there is not, and pulls the models the bindings name.
 
 ### Embedding

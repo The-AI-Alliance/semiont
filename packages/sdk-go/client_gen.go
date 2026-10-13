@@ -267,7 +267,12 @@ func (e ArchivistHealthStatus) Valid() bool {
 // Defines values for ArchivistRosterRoleProvider.
 const (
 	ArchivistRosterRoleProviderAnthropic ArchivistRosterRoleProvider = "anthropic"
+	ArchivistRosterRoleProviderGoogle    ArchivistRosterRoleProvider = "google"
+	ArchivistRosterRoleProviderLlamacpp  ArchivistRosterRoleProvider = "llamacpp"
 	ArchivistRosterRoleProviderOllama    ArchivistRosterRoleProvider = "ollama"
+	ArchivistRosterRoleProviderOpenai    ArchivistRosterRoleProvider = "openai"
+	ArchivistRosterRoleProviderTogether  ArchivistRosterRoleProvider = "together"
+	ArchivistRosterRoleProviderVllm      ArchivistRosterRoleProvider = "vllm"
 )
 
 // Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
@@ -275,7 +280,17 @@ func (e ArchivistRosterRoleProvider) Valid() bool {
 	switch e {
 	case ArchivistRosterRoleProviderAnthropic:
 		return true
+	case ArchivistRosterRoleProviderGoogle:
+		return true
+	case ArchivistRosterRoleProviderLlamacpp:
+		return true
 	case ArchivistRosterRoleProviderOllama:
+		return true
+	case ArchivistRosterRoleProviderOpenai:
+		return true
+	case ArchivistRosterRoleProviderTogether:
+		return true
+	case ArchivistRosterRoleProviderVllm:
 		return true
 	default:
 		return false
@@ -2576,11 +2591,11 @@ type ArchivistRosterRole struct {
 	// Model The model identifier, as the provider names it.
 	Model string `json:"model"`
 
-	// Provider The inference provider.
+	// Provider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 	Provider ArchivistRosterRoleProvider `json:"provider"`
 }
 
-// ArchivistRosterRoleProvider The inference provider.
+// ArchivistRosterRoleProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 type ArchivistRosterRoleProvider string
 
 // AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
@@ -3166,8 +3181,16 @@ type ContextualSummaryResponse struct {
 		Before   *string `json:"before,omitempty"`
 		Selected string  `json:"selected"`
 	} `json:"context"`
-	RelevantFields map[string]interface{} `json:"relevantFields"`
-	Summary        string                 `json:"summary"`
+
+	// RelevantFields What the summary is of: the resource the annotation is on, and the annotation's entity types.
+	RelevantFields struct {
+		EntityTypes []string `json:"entityTypes"`
+
+		// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+		ResourceId   ResourceId `json:"resourceId"`
+		ResourceName string     `json:"resourceName"`
+	} `json:"relevantFields"`
+	Summary string `json:"summary"`
 }
 
 // CreateAnnotationRequest defines model for CreateAnnotationRequest.
@@ -3634,7 +3657,8 @@ type GatherFailedCode string
 
 // GatherReferencedByRequest Request for the annotations elsewhere that refer to a resource. The Librarian answers from the graph.
 type GatherReferencedByRequest struct {
-	Motivation *string `json:"motivation,omitempty"`
+	// Motivation The one motivation the annotations answered have. Every annotation that refers to the resource is answered where none is stated.
+	Motivation *Motivation `json:"motivation,omitempty"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -3934,8 +3958,8 @@ type GetReferencedByResponse struct {
 		// Id Reference annotation ID
 		Id AnnotationId `json:"id"`
 
-		// ResourceName Name of resource containing the reference
-		ResourceName string `json:"resourceName"`
+		// ResourceName Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.
+		ResourceName *string `json:"resourceName,omitempty"`
 		Target       struct {
 			Selector struct {
 				// Exact The selected text that references this resource
@@ -4885,6 +4909,9 @@ type LibrarianConfig struct {
 	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
 	Matcher LibrarianModelConfig `json:"matcher"`
 
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
+
 	// Port The port the Librarian answers `/health` on.
 	Port int `json:"port"`
 
@@ -5215,8 +5242,12 @@ type MarkUpdateEntityTypesCommand struct {
 type MatchResourcesRequest struct {
 	Archived   *bool   `json:"archived,omitempty"`
 	EntityType *string `json:"entityType,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-	Offset     *int    `json:"offset,omitempty"`
+
+	// Limit The most resources a page has.
+	Limit *int `json:"limit,omitempty"`
+
+	// Offset How many of the resources the search finds are passed over before the page begins.
+	Offset *int `json:"offset,omitempty"`
 
 	// Search The text to search for.
 	Search string `json:"search"`
@@ -5224,13 +5255,18 @@ type MatchResourcesRequest struct {
 
 // MatchResourcesResponse One page of the resources a text search found, and which kind of answer it is.
 type MatchResourcesResponse struct {
-	Limit float32 `json:"limit"`
+	// Limit The limit the search was made with.
+	Limit int `json:"limit"`
 
 	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
 	MatchKind MatchResourcesResponseMatchKind `json:"matchKind"`
-	Offset    float32                         `json:"offset"`
-	Resources []ResourceDescriptor            `json:"resources"`
-	Total     float32                         `json:"total"`
+
+	// Offset How many of the resources the search found were passed over before this page, as the request stated.
+	Offset    int                  `json:"offset"`
+	Resources []ResourceDescriptor `json:"resources"`
+
+	// Total How many resources the search found in all, and not only on this page.
+	Total int `json:"total"`
 }
 
 // MatchResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
@@ -6565,6 +6601,9 @@ type WorkerConfig struct {
 
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
+
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
 
 	// Port The port the worker answers `/health` on.
 	Port int `json:"port"`

@@ -91,6 +91,28 @@ eachPlane('emitting', (world, plane) => {
     }
   });
 
+  it('a request of the Librarian that is out of a bound its schema states is refused with 400, and never reaches a Librarian', async () => {
+    const token = await world().person('emitter');
+    const gather = { depth: 1, maxResources: 10, includeContent: false, includeSummary: false };
+    const cases: Array<[string, string, Record<string, unknown>]> = [
+      ['a page of no resource', 'match:resources-requested', { search: 'tide', limit: 0 }],
+      ['a page of more than 200', 'match:resources-requested', { search: 'tide', limit: 201 }],
+      ['an offset below 0', 'match:resources-requested', { search: 'tide', offset: -1 }],
+      ['a window below 100', 'gather:requested', { annotationId: 'ann-1', resourceId: 'res-1', options: { contextWindow: 99 } }],
+      ['a window above 5,000', 'gather:requested', { annotationId: 'ann-1', resourceId: 'res-1', options: { contextWindow: 5001 } }],
+      ['a depth above 3', 'gather:resource-requested', { resourceId: 'res-1', options: { ...gather, depth: 4 } }],
+      ['no related resource', 'gather:resource-requested', { resourceId: 'res-1', options: { ...gather, maxResources: 0 } }],
+      ['more than 200 related resources', 'gather:resource-requested', { resourceId: 'res-1', options: { ...gather, maxResources: 201 } }],
+      ['a word that is no motivation', 'gather:referenced-by-requested', { resourceId: 'res-1', motivation: 'citing' }],
+      ['an empty motivation', 'gather:referenced-by-requested', { resourceId: 'res-1', motivation: '' }],
+    ];
+    for (const [why, channel, payload] of cases) {
+      const reply = await world().emit(token, { channel, payload });
+      expect(reply.status, why).toBe(400);
+      expect(nonConformance('post', '/bus/emit', reply), why).toEqual([]);
+    }
+  });
+
   // Each kind of id, on a channel whose payload carries one and needs nothing else.
   const carriers = [
     { kind: 'ResourceId', channel: BROADCAST, property: 'resourceId' },

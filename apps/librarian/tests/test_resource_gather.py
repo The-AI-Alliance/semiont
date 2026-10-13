@@ -47,6 +47,7 @@ from semiont_librarian.annotation_gather import Ungathered
 from semiont_librarian.knowledge_graph import RESOURCE_CEILING, DepthRefused
 from semiont_librarian.prompts import reference_suggestions_prompt, resource_summary_prompt
 from semiont_librarian.reads import Settled
+from semiont_librarian.replies import SUGGESTION_ELEMENT
 from semiont_librarian.resource_gather import gather
 
 QUAY: Final = ResourceId("res-quay")
@@ -326,17 +327,48 @@ def test_a_text_with_nothing_in_it_is_no_main_content_and_the_focus_still_states
 def test_a_summary_and_suggestions_are_asked_of_the_model_when_the_request_asks_for_them() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay(entityTypes=["Place", "Harbour"])
-        world.inference.say("A quay a ferry leaves from.", "- Read the timetable\n- Map the crossing")
+        suggested = '[{"suggestion": "Read the timetable"}, {"suggestion": "Map the crossing"}]'
+        world.inference.say("A quay a ferry leaves from.", suggested)
 
         focus = thing(written(await world.gathered(options(include_summary=True)))["focus"], "focus")
 
         assert focus["summary"] == "A quay a ferry leaves from."
         assert focus["suggestedReferences"] == ["Read the timetable", "Map the crossing"]
+        # The summary is asked for as text, and the suggestions as elements held to the suggestion's schema.
+        assert world.inference.schemas == [SUGGESTION_ELEMENT]
         # The summary first, of the text; then the suggestions, of the resource's name and its first entity type.
         summarizing = resource_summary_prompt(name="The quay", content=TEXT, entity_types=["Place", "Harbour"])
         suggesting = reference_suggestions_prompt(title="The quay", entity_type="Place")
         assert world.inference.asked == [sent(summarizing), sent(suggesting)]
         assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_a_reply_with_no_suggestion_leaves_the_summary_and_states_no_suggestions() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        world.inference.say("A quay a ferry leaves from.", "[]")
+
+        focus = thing(written(await world.gathered(options(include_summary=True)))["focus"], "focus")
+
+        assert focus["summary"] == "A quay a ferry leaves from."
+        assert "suggestedReferences" not in focus
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_suggestions_that_are_no_array_are_a_model_that_failed_and_the_context_has_neither() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        world.inference.say("A quay a ferry leaves from.", "- Read the timetable\n- Map the crossing")
+
+        focus = thing(written(await world.gathered(options(include_summary=True)))["focus"], "focus")
+
+        assert "summary" not in focus
+        assert "suggestedReferences" not in focus
+        assert world.degraded.noted == ["suggestions"]
 
     run(scenario())
 
@@ -561,10 +593,27 @@ def test_a_resource_whose_media_type_has_no_text_is_not_waited_for_and_the_index
     run(scenario())
 
 
+def test_the_language_of_a_context_is_the_one_the_resource_s_representation_states() -> None:
+    async def scenario() -> None:
+        german: JsonObject = {"mediaType": "text/plain", "storageUri": f"file://{QUAY}", "checksum": CHECKSUM, "language": "de"}
+        quay = described(QUAY, name="Der Kai", representations=[german])
+        world = World(view(quay))
+        world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
+        world.weave_in(quay)
+
+        assert written(await world.gathered(options()))["metadata"] == {"resourceType": "document", "language": "de"}
+
+        # A resource that states none has none stated of it.
+        plain = a_world_of_the_quay()
+        assert written(await plain.gathered(options()))["metadata"] == {"resourceType": "document"}
+
+    run(scenario())
+
+
 def test_a_summary_asked_for_without_content_is_made_of_the_text_and_the_focus_states_no_content() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.inference.say("A quay a ferry leaves from.", "- Read the timetable")
+        world.inference.say("A quay a ferry leaves from.", '[{"suggestion": "Read the timetable"}]')
 
         focus = thing(written(await world.gathered(options(include_content=False, include_summary=True)))["focus"], "focus")
 

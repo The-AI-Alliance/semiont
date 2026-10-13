@@ -31,6 +31,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
         },
         {"agent": {"provider": "ollama", "model": "gemma2:27b"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama:11434"},
     ],
+    "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
     "logLevel": "info",
     "logFormat": "json",
