@@ -46,6 +46,17 @@
  *    `<dir>/**` of some filter of the map. A package nobody mapped would be
  *    tested by no job on a pull request that changed it alone.
  *
+ * 6. `cargo build` is run by one job of ci.yml, build-rust, which publishes
+ *    the release binaries the conformance suites start. A suite that built
+ *    its own would spend the two to three minutes the shared build exists to
+ *    spend once, nine times.
+ *
+ * 7. A job's areas are a subset of the areas of every job it needs that has
+ *    areas of its own. `needs` wants success, so a need skipped for its areas
+ *    skips the job whatever the job's own `if` said, and the gate passes a
+ *    skipped job: a suite whose area build-rust does not list would never
+ *    run on that area, and nothing would say so.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
@@ -114,6 +125,7 @@ for (const file of workflows) {
   if (file === CI) {
     stagesAndGate(workflow.jobs ?? {});
     changedAreas(workflow.jobs ?? {});
+    oneRustBuild(workflow.jobs ?? {});
   }
 }
 
@@ -165,6 +177,8 @@ function changedAreas(jobs) {
   for (const output of outputs) if (!areas.includes(output)) failures.push(`${CI}: job changes outputs ${output}, which no filter defines`);
 
   const term = /^needs\.changes\.outputs\.([a-z][a-z0-9-]*) == 'true'$/;
+  /** The areas a job's `if` reads, by job id; a job with no area condition is absent. */
+  const areasOf = new Map();
   for (const [id, job] of Object.entries(jobs)) {
     if (id === 'gate' || [].concat(job.needs ?? []).length === 0) continue; // the gate and the first stage run always
     if (![].concat(job.needs ?? []).includes('changes')) failures.push(`${CI}: job ${id} does not need changes, so it cannot read the areas`);
@@ -173,10 +187,24 @@ function changedAreas(jobs) {
       failures.push(`${CI}: job ${id} has no if over the changed areas, so it runs on every push`);
       continue;
     }
+    const read = new Set();
     for (const part of condition.split(' || ')) {
       const area = term.exec(part.trim())?.[1];
       if (area == null) failures.push(`${CI}: job ${id}: the condition ${JSON.stringify(part.trim())} is not needs.changes.outputs.<area> == 'true'`);
       else if (!areas.includes(area)) failures.push(`${CI}: job ${id} reads the area ${area}, which the changes job does not define: it would never run`);
+      else read.add(area);
+    }
+    areasOf.set(id, read);
+  }
+
+  // Rule 7: a job's areas are within those of every need that has areas.
+  for (const [id, read] of areasOf) {
+    for (const need of [].concat(jobs[id].needs ?? [])) {
+      const needReads = areasOf.get(need);
+      if (needReads == null) continue;
+      for (const area of read) {
+        if (!needReads.has(area)) failures.push(`${CI}: job ${id} runs on the area ${area} and needs ${need}, which does not: on a change to ${area} alone ${need} is skipped, so ${id} is skipped whatever its if says, and the gate passes it`);
+      }
     }
   }
 
@@ -191,6 +219,19 @@ function changedAreas(jobs) {
   }
 }
 
+/** Rule 6: the release binaries are built once. */
+function oneRustBuild(jobs) {
+  if (!('build-rust' in jobs)) failures.push(`${CI}: no job build-rust: nothing builds the binaries the conformance suites start`);
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id === 'build-rust') continue;
+    for (const step of job.steps ?? []) {
+      if (typeof step.run === 'string' && /\bcargo build\b/.test(step.run)) {
+        failures.push(`${CI}: job ${id} runs cargo build; build-rust builds the binaries once, fetch them from its artifact`);
+      }
+    }
+  }
+}
+
 if (held === 0) failures.push('no workflow runs on pull_request: the check has lost what it reads');
 
 if (failures.length > 0) {
@@ -198,4 +239,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, and ends in a gate`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, builds its Rust once, and ends in a gate`);
