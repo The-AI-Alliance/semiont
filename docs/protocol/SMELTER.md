@@ -407,7 +407,8 @@ one by; subscribes to what it follows; opens its health port; runs reconcile.
   configured with, or states nothing, is made again:** emptied, and as wide
   as the provider's vectors are then, before anything is followed. A warning
   in the log says what the index stated and what the Smelter makes one by,
-  and the reconcile of that start indexes every resource and every annotation
+  its [health](#health) says that this start made the index again, and the
+  reconcile of that start indexes every resource and every annotation
   again. An index that holds nothing and states nothing is given its stamp
   with no warning. The stamp says what made the vectors, and nothing of
   whether the index holds what the record holds now: the record, the index's
@@ -531,18 +532,59 @@ in prose.
 
 ## Health
 
+A Smelter's health answers for the Smelter alone, and from what it holds: to
+answer, it asks nothing of the gateway, of its embedding provider or of its
+vector database. Whether each of those is up is its own to say, and whoever
+runs the stack watches each for that. What only the Smelter knows is here:
+whether events reach it, what became of those that did, how its reconcile
+ended, and what its index is made by. Its index is as the record says, as far
+as the Smelter knows, when `stream` is `open`; `streamDrops`, `eventsFailed`
+and `eventsWaiting` are 0; and `reconcile` is `done`, with nothing failed and
+nothing unavailable in its summary.
+
 - **`GET /health`, on the port its document states, answers `200` with a JSON
-  object:** `status`;
-  `eventsProcessed`, the number of events it has applied since it started;
-  and `reconcile`, a `phase` (`pending`, `running`, `done` or `failed`) with
-  the pass's `summary` when it is done, or its `error` when it failed.
+  object of eight members:** `status`, `stream`, `streamDrops`,
+  `eventsProcessed`, `eventsFailed`, `eventsWaiting`, `reconcile` and `index`.
   *Held by `smelter/boot`.*
+- **`status` is `ok` whenever the Smelter answers.** It says that the process
+  is up and answering, and nothing else: a Smelter whose stream is down, or
+  whose reconcile failed, answers `ok`, and says what is so in the members
+  beside it.
+  *Held by `smelter/boot`, for a Smelter whose reconcile has ended and for one whose reconcile is at work.*
+- **`stream` is the state of the Smelter's own stream of the record,** one of
+  the seven of
+  [TRANSPORT-HTTP.md § Connection lifecycle](./TRANSPORT-HTTP.md#connection-lifecycle).
+  Events are delivered to it while it is `open`. It is the Smelter's stream,
+  and no report on the gateway: a Smelter whose token was refused is
+  `unauthenticated` at a gateway that serves everyone else.
+  *Held by `smelter/boot`, for a stream that is `open`.*
+- **`streamDrops` is the number of times that stream has dropped since the
+  Smelter started,** and each drop is logged as a warning. What is recorded
+  while the stream is down is not delivered when it opens again: the stream
+  names no scope, and the gateway gives a stream what it missed for a scope
+  alone
+  ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
+  The index of a Smelter that reports a drop may be behind the record, and is
+  brought up to it when the Smelter next starts ([Reconcile](#reconcile)).
+  *Held by `apps/smelter/tests/test_smelter.py`, for the count and the warning.*
+- **`eventsProcessed` is the number of events it has applied since it
+  started, `eventsFailed` the number delivered to it that it could not apply,
+  and `eventsWaiting` the number delivered to it that are neither yet.** A
+  frame on a followed channel that carries no event, and an event that names
+  no resource, are counted as failed.
+  *Held by `apps/smelter/tests/test_smelter.py`, and by `smelter/boot` for a Smelter that was delivered nothing.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
-- **`status` is `ok` whenever the Smelter answers.** It says nothing of
-  whether the Smelter can reach the gateway, its provider or its index.
-  *Held by no case.*
+- **`reconcile` is how far the reconcile of this start has got:** a `phase`
+  (`pending`, `running`, `done` or `failed`), with the pass's `summary` when
+  it is done, or its `error` when it failed.
+  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
+- **`index` is what the Smelter holds its index to, and what this start did
+  for that:** `stamp`, the model and the cut it makes an index by
+  ([Boot](#boot)); and `madeAnew`, whether this start made the index again,
+  as it does where the index stated another stamp, or none.
+  *Held by `smelter/boot` and `smelter/reconcile`.*
 
 ## Stopping
 

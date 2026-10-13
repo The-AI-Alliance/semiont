@@ -26,6 +26,7 @@ from pydantic import JsonValue
 from rig import DIMENSIONS, AnnotationPoint, Held, Rig, checksum_of, drawn, scanned
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.transport import ConnectionState, Frame
 from semiont.types import ExtractedText, ExtractionDeclined, SmeltSettledReason
 from semiont_service.content import Content
 from semiont_vectors.mock import deterministic_vector
@@ -2182,6 +2183,116 @@ def test_events_processed_counts_the_events_applied_since_this_start(tmp_path: P
             assert applied(later) == 1
 
     run(scenario())
+
+
+def test_events_failed_counts_each_event_delivered_that_could_not_be_applied(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            assert rig.smelter.events_failed == 0
+
+            # One event fails at the provider, and then two that wait for one turn fail together.
+            rig.provider.failing = True
+            await rig.happened(rig.world.put("res-2", LATER))
+            await rig.happened(
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"), rig.world.annotate("res-1", "ann-2", "the first program")
+            )
+
+            assert rig.smelter.events_failed == 3
+
+            # A frame that carries no recorded event, and an event that names no resource, are passed by: each is one more.
+            rig.provider.failing = False
+            unnamed = {name: value for name, value in rig.world.tag("res-1", "Person").items() if name != "resourceId"}
+            rig.transport.deliver(Frame(channel="yield:created", payload={"type": "yield:created"}))
+            await rig.happened(unnamed)
+
+            assert rig.smelter.events_failed == 5
+            assert rig.smelter.events_waiting == 0
+            assert applied(rig) == 1
+
+    run(scenario())
+
+
+def test_events_waiting_counts_what_was_delivered_and_is_neither_applied_nor_failed_yet(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            assert rig.smelter.events_waiting == 0
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(rig.world.put("res-1", TEXT))
+            await until(lambda: len(rig.provider.asked) == 1)
+
+            # The first is in the provider's hands. One waits behind it in its resource's lane, and two wait together for one turn.
+            rig.deliver(
+                rig.world.tag("res-1", "Person"),
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.annotate("res-1", "ann-2", "the first program"),
+            )
+
+            assert rig.smelter.events_waiting == 4
+            assert applied(rig) == 0
+
+            let_go.set()
+            await rig.settled()
+
+            assert rig.smelter.events_waiting == 0
+            assert applied(rig) == 4
+
+            # One that fails waits no longer either.
+            rig.provider.held = None
+            rig.provider.failing = True
+            await rig.happened(rig.world.put("res-2", LATER))
+
+            assert (rig.smelter.events_waiting, rig.smelter.events_failed, applied(rig)) == (0, 1, 4)
+
+    run(scenario())
+
+
+def test_stream_drops_counts_each_time_its_stream_drops_and_says_so(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    async def becomes(rig: Rig, *states: ConnectionState) -> None:
+        for state in states:
+            rig.transport.set_state(state)
+            await a_while()
+
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await a_while()
+            assert rig.smelter.stream_drops == 0
+
+            # It drops, is down for long enough to be called degraded, and opens again: one drop, counted when it dropped.
+            await becomes(rig, "reconnecting")
+            assert rig.smelter.stream_drops == 1
+            await becomes(rig, "degraded", "connecting", "open")
+            assert rig.smelter.stream_drops == 1
+
+            # One that drops and opens again before the Smelter has looked is a drop too: open, and open again.
+            rig.transport.set_state("reconnecting")
+            rig.transport.set_state("connecting")
+            rig.transport.set_state("open")
+            await a_while()
+            assert rig.smelter.stream_drops == 2
+
+            # A token that is refused ends the stream as a drop does.
+            await becomes(rig, "reconnecting", "unauthenticated")
+            assert rig.smelter.stream_drops == 3
+
+    with caplog.at_level(logging.WARNING, logger="semiont_smelter"):
+        run(scenario())
+    assert [said["streamDrops"] for said in lines(caplog, logging.WARNING)] == [1, 2, 3]
+
+
+def test_a_stream_that_is_closed_has_not_dropped(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await a_while()
+            rig.transport.set_state("closed")
+            await a_while()
+
+            assert rig.smelter.stream_drops == 0
+
+    with caplog.at_level(logging.WARNING, logger="semiont_smelter"):
+        run(scenario())
+    assert lines(caplog, logging.WARNING) == []
 
 
 def test_reconcile_state_says_how_far_the_reconcile_of_this_start_has_got(tmp_path: Path) -> None:

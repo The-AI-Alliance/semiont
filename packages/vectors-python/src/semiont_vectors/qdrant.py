@@ -40,13 +40,17 @@ Every write waits. Qdrant answers a write once it has saved it, and applies
 it afterwards, unless the request says `wait=true`. Each write here says it,
 so a write that was answered is one the next read sees.
 
-Searching by a resource's own vectors can miss a resource. Each chunk of the
-resource asks Qdrant for the points nearest it, four times the limit of
-them, and the points are folded to resources afterwards
-(`semiont_vectors.merge`). A limit on points is no limit on resources: a
-resource with many chunks near the one searched by can take every place of
-every answer, and a resource that belongs in the result is then not in it.
-The in-memory store scores every point and misses none.
+Searching by a resource's own vectors is cut to its limit in resources, and
+not in points. Each chunk of the resource asks Qdrant for the points nearest
+it grouped by the resource each is of, one point to a group and as many
+groups as the caller's limit: the best point of each of the nearest
+resources. A resource with many chunks near the one searched by is then one
+group, and takes one place. The answers of the chunks are folded to one for
+each resource (`semiont_vectors.merge`) and cut to the limit. A resource
+that belongs in the result is among the nearest resources of the chunk it is
+nearest to, so it is in the result, as far as Qdrant's grouping is whole:
+Qdrant's documentation calls the number of groups it answers a best effort.
+The in-memory store scores every point, and misses none.
 
 A collection of cosine distance keeps each vector at unit length, so a
 vector read back is not the one that was written. It points the same way,
@@ -121,9 +125,15 @@ generates from Qdrant's OpenAPI document.
   the points answered score "better than this threshold": by an issue of
   Qdrant's own client, a point that scores exactly the threshold is not
   answered, where the in-memory store answers it.
-- `POST /collections/{name}/points/query/batch` with `{"searches": [...]}`,
-  each what a query takes, answers a list: one `{"points": [...]}` for each
-  search, in the searches' order.
+- `POST /collections/{name}/points/query/groups` takes what a query takes
+  and, beside it, `group_by`, the payload member whose value a group is of,
+  which is a string or an integer, and `group_size`, the most points
+  answered of one group. Its `limit` is the most groups, and
+  not the most points. It answers `{"groups": [...]}`, each an `id`, which
+  is the member's value, and its `hits`, each what a query answers of a
+  point. The documentation says the groups come in the order of each one's
+  best point, which the store does not rest on: it folds and sorts what it
+  is answered. There is no call that asks several of these at once.
 - A filter is `{"must": [...], "must_not": [...]}`: every condition of
   `must` holds of a point it keeps, and none of `must_not`. The condition
   `{"key": ..., "match": {"value": ...}}` holds where the member is that
@@ -134,6 +144,7 @@ generates from Qdrant's OpenAPI document.
   and reads no payload.
 """
 
+import asyncio
 from abc import abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -222,8 +233,8 @@ _WAIT: Final = {"wait": "true"}
 # The status Qdrant answers when asked what a collection is that it does not have, or asked to read one.
 _NOT_THERE: Final = 404
 
-# How many points each chunk of a resource asks for, for each resource its caller wants: see the module's documentation.
-_OVER_FETCH: Final = 4
+# How many chunks of a resource ask at once for the resources nearest them: each is a request of its own.
+_ALIKE_AT_ONCE: Final = 8
 
 # How many points one page of a scroll asks for: of payloads, and of vectors, which are the larger.
 _PAYLOAD_PAGE: Final = 1000
@@ -277,7 +288,16 @@ class _Described(BaseModel, frozen=True):
     config: _Config
 
 
-_BATCH: Final = TypeAdapter[list[_Found]](list[_Found])
+class _Group(BaseModel, frozen=True):
+    """One group of a grouped query: the points of one resource that it answers, the best first."""
+
+    hits: list[_Scored]
+
+
+class _Grouped(BaseModel, frozen=True):
+    """What a grouped query answers."""
+
+    groups: list[_Group]
 
 
 def _result(response: httpx.Response) -> JsonValue:
@@ -505,13 +525,18 @@ async def _search_alike(client: httpx.AsyncClient, resource_id: ResourceId, opti
     # The resource itself is never answered, whatever the caller's filter says of it.
     stated = SearchFilter() if options.filter is None else options.filter
     conditions = _conditions(replace(stated, exclude_resource_id=resource_id))
-    # One search for each chunk, all in one request. A limit here counts points, and the caller's counts
-    # resources, so each asks for more than the caller's: see the module's documentation.
-    limit = options.limit
-    searches: list[JsonValue] = [_query(vector, limit * _OVER_FETCH, options, conditions) for vector in vectors]
-    answered = _BATCH.validate_python(await _read(client, _RESOURCES.at("/points/query/batch"), {"searches": searches}))
-    hits = [result_of(point.payload, point.score) for found in answered for point in found.points]
-    return merge_by_resource(hits)[:limit]
+    turns = asyncio.Semaphore(_ALIKE_AT_ONCE)
+
+    async def nearest(vector: Sequence[float]) -> list[VectorSearchResult]:
+        """The best point of each of the resources nearest one chunk, as many resources as the caller's limit."""
+        # Grouped by resource, one point to a group: the limit counts resources, as the caller's does.
+        body: _Body = {**_query(vector, options.limit, options, conditions), "group_by": "resourceId", "group_size": 1}
+        async with turns:
+            answered = _Grouped.model_validate(await _read(client, _RESOURCES.at("/points/query/groups"), body))
+        return [result_of(hit.payload, hit.score) for group in answered.groups for hit in group.hits]
+
+    found = await asyncio.gather(*(nearest(vector) for vector in vectors))
+    return merge_by_resource([hit for hits in found for hit in hits])[: options.limit]
 
 
 def _asking_for(members: Sequence[str], limit: int) -> _Body:

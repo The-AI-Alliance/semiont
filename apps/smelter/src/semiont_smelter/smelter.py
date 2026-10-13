@@ -263,6 +263,9 @@ class Smelter:
         self._moved: set[ResourceId] | None = None
         """The resources an event has arrived for since the reconcile under way began to read. `None` while none is under way."""
         self._events_processed = 0
+        self._events_failed = 0
+        self._events_waiting = 0
+        self._stream_drops = 0
         self._reconcile = ReconcileState(phase="pending")
 
     # ── From the way in to the way out ─────────────────────────────────
@@ -271,7 +274,9 @@ class Smelter:
         # Every frame the transport delivers from here on is handed over as it is delivered, whatever its channel:
         # one stream, in the order of delivery.
         self._transport.bridge_into(_Delivered(self))
-        self._doing.append(asyncio.get_running_loop().create_task(self._answer_rebuilds()))
+        loop = asyncio.get_running_loop()
+        self._doing.append(loop.create_task(self._answer_rebuilds()))
+        self._doing.append(loop.create_task(self._count_stream_drops()))
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
@@ -289,6 +294,27 @@ class Smelter:
         return self._events_processed
 
     @property
+    def events_failed(self) -> int:
+        """How many of the events delivered to it since it started it could not apply: each was logged and passed by."""
+        return self._events_failed
+
+    @property
+    def events_waiting(self) -> int:
+        """How many recorded events were delivered to it and wait to be applied, those being applied now among them."""
+        return self._events_waiting
+
+    @property
+    def stream_drops(self) -> int:
+        """How many times its stream of the record has dropped since it was first seen open.
+
+        Nothing recorded while its stream is down is delivered to it when
+        the stream opens again: a stream that names no scope is given no
+        replay (`docs/protocol/TRANSPORT-HTTP.md` § Event id and
+        resumption). What it missed is found when it next starts.
+        """
+        return self._stream_drops
+
+    @property
     def reconcile_state(self) -> ReconcileState:
         """How far the reconcile of this start has got."""
         return self._reconcile
@@ -304,6 +330,21 @@ class Smelter:
 
     # ── Following ──────────────────────────────────────────────────────
 
+    async def _count_stream_drops(self) -> None:
+        """Count each time the stream drops, and say so in the log. A stream that is closed has not dropped: it has ended."""
+        was_open = False
+        async for state in self._transport.state:
+            if state == "closed":
+                return
+            # A state that was open and is open again was something else between the two looks.
+            if was_open:
+                self._stream_drops += 1
+                LOG.warning(
+                    "The stream of the record dropped: what is recorded until it opens again is not delivered to this Smelter",
+                    extra={"streamDrops": self._stream_drops},
+                )
+            was_open = state == "open"
+
     def delivered(self, frame: Frame) -> None:
         """Take a frame the transport delivered: a followed event goes to its resource's lane, and a rebuild command waits its turn.
 
@@ -318,16 +359,19 @@ class Smelter:
             event = stored_event(frame)
         except ValidationError as unread:
             LOG.error("A frame on a followed channel is not a recorded event", extra={"channel": frame.channel, "error": words_of(unread)})
+            self._events_failed += 1
             return
         if event is None:
             return
         if event.resource_id is None:
             # Every event a Smelter follows is a resource's. One that names none says nothing it can act on.
             LOG.error("A followed event names no resource, and was passed by", extra={"type": event.type, "eventId": event.id})
+            self._events_failed += 1
             return
         resource = event.resource_id
         if self._moved is not None:
             self._moved.add(resource)
+        self._events_waiting += 1
         waiting = self._gathering.get(resource)
         if event.type == "mark:added" and waiting is not None:
             waiting.append(event)
@@ -343,8 +387,8 @@ class Smelter:
     async def _apply_in_turn(self, resource: ResourceId, together: list[StoredEventResponse]) -> None:
         """Apply, in their lane, the events that have one turn: one event, or the `mark:added` events that waited for it together.
 
-        What fails is logged and passed by, once for each event: what it
-        missed is found when the Smelter next starts.
+        What fails is logged, counted and passed by, once for each event:
+        what it missed is found when the Smelter next starts.
         """
         if self._gathering.get(resource) is together:
             # Their turn has come: one that arrives from here on waits for a turn of its own.
@@ -354,7 +398,11 @@ class Smelter:
         except Exception as failure:
             for event in together:
                 LOG.error("Smelter failed to process event", extra={"type": event.type, "resourceId": resource, **failure_said(failure)})
+            self._events_failed += len(together)
             return
+        finally:
+            # Applied, failed or cancelled: none of them waits any longer.
+            self._events_waiting -= len(together)
         self._events_processed += len(together)
 
     async def _apply(self, resource: ResourceId, together: Sequence[StoredEventResponse]) -> None:

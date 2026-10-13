@@ -349,7 +349,12 @@ eachSmelter('a Smelter, starting after what it keeps was changed behind it', (wo
     const before = world().provider.mark();
     await world().start({ settings: { ...settings, chunking: { chunkSize: 256, overlap: 32 } } });
 
-    // The index said another cut made it. Every resource whose media type has text is set out to be indexed again, and each is indexed or skipped.
+    // The index said another cut made it, and the Smelter's health says it made the index again, and by what.
+    expect((await world().smelter.health()).index).toEqual({
+      stamp: { embedding: { type: settings.embedding.type, model: settings.embedding.model }, chunking: { chunkSize: 256, overlap: 32 } },
+      madeAnew: true,
+    });
+    // Every resource whose media type has text is set out to be indexed again, and each is indexed or skipped.
     const summary = await summaryOf(world());
     const skipped = Object.values(summary.resourcesSkipped).reduce((sum, count) => sum + count, 0);
     expect(summary.resourcesEmbedded + skipped).toBe(summary.resourcesEligible);

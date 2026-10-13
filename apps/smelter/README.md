@@ -70,7 +70,10 @@ its health port, and then reconciles: it compares what the index holds, what the
 the knowledge base holds, and which bytes the anchored-text store has an entry for, and does
 the work that brings them together. So an index that was cleared, an anchored-text store that
 was cleared, and events recorded while no Smelter ran are each mended by starting it. `/health`
-reports how the reconcile ended, and what it came to.
+reports how the reconcile ended, and what it came to. Beside that it says what only the
+Smelter knows: the state of its stream of the record and how many times that has dropped, how
+many events it has applied, could not apply and has waiting, and what its index is made by.
+It answers for itself alone, and asks nothing of the gateway or the vector database to answer.
 
 **A reconcile that fails does not end the service.** The failure is said in the log and at
 `/health`, and the Smelter goes on applying what arrives.

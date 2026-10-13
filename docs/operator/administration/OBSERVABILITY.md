@@ -322,7 +322,9 @@ instruments as the Worker service does, with the same three readings of its memo
 |------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
 | `semiont.vector.index.size`  | gauge            | (none)                                                  | export  | Points the vector index holds, of resources and of annotations together. The Smelter counts them once in each export interval; while the index does not answer the count, the series has no point |
 
-How many events the Smelter has applied and how its reconcile ended are what its health says.
+The rest is what its health says, of itself alone: the state of its stream of the record and
+how many times that stream has dropped, how many events it has applied, could not apply and
+has waiting, how its reconcile ended, and what its index is made by.
 
 The Librarian is Python too. It exports the `semiont.process.*` and `semiont.runtime.*`
 instruments as the Worker service does, with the same three readings of its memory, the three

@@ -34,6 +34,7 @@ from functools import partial
 from pathlib import Path
 from typing import Final, final
 
+from pydantic import JsonValue
 from semiont.bus import reply_channels_for
 from semiont.channels import SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
@@ -46,7 +47,7 @@ from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.factory import create_embedding_provider, create_vector_store
-from semiont_vectors.store import VectorStore
+from semiont_vectors.store import IndexStamp, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
@@ -99,10 +100,30 @@ async def _listening(port: int, health: Health) -> asyncio.Server:
         raise Refused(f"Cannot listen on port {port}: {unheard}") from unheard
 
 
-async def _reached(index: VectorStore, config: SmelterConfig) -> None:
-    """Reach the index, and hold it to what this Smelter makes one by: one made by another model, or cut another way, is made again."""
+async def _reached(index: VectorStore, stamp: IndexStamp) -> bool:
+    """Reach the index, and hold it to the stamp this Smelter makes one by. Answers whether it was made again for that."""
     await index.connect()
-    await hold_to(index, stamp_of(config))
+    return await hold_to(index, stamp)
+
+
+def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> JsonValue:
+    """What the health endpoint answers (`docs/protocol/SMELTER.md` § Health).
+
+    It answers for this Smelter alone, from what the Smelter holds: nothing
+    is asked of the gateway, of the embedding provider or of the index's
+    store to answer it. Whether each of those is up is its own to say.
+    """
+    index: dict[str, JsonValue] = {"stamp": dict(stamp), "madeAnew": made_anew}
+    return {
+        "status": "ok",
+        "stream": transport.state.value,
+        "streamDrops": smelter.stream_drops,
+        "eventsProcessed": smelter.events_processed,
+        "eventsFailed": smelter.events_failed,
+        "eventsWaiting": smelter.events_waiting,
+        "reconcile": smelter.reconcile_state.said(),
+        "index": index,
+    }
 
 
 async def _reconciled(smelter: Smelter) -> None:
@@ -129,7 +150,8 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
     async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
-        await connected("vector index and the embedding provider", _reached(started.index, config))
+        stamp = stamp_of(config)
+        made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (
@@ -146,10 +168,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 ) as smelter,
             ):
                 LOG.info("Following the record")
-                health = await _listening(
-                    config.port,
-                    lambda: {"status": "ok", "eventsProcessed": smelter.events_processed, "reconcile": smelter.reconcile_state.said()},
-                )
+                health = await _listening(config.port, partial(_health_of, smelter, transport, stamp=stamp, made_anew=made_anew))
                 try:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})

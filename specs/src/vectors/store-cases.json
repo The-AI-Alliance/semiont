@@ -1674,6 +1674,78 @@
       ]
     },
     {
+      "why": "a search by a resource's own vectors is cut to its limit in resources, and not in chunks: a resource with many chunks near the one searched by takes one place of the answer, and the next resource is answered though nine chunks of the first are nearer than its one",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of b", "embedding": [100, 1] },
+            { "index": 1, "text": "the second chunk of b", "embedding": [100, 2] },
+            { "index": 2, "text": "the third chunk of b", "embedding": [100, 3] },
+            { "index": 3, "text": "the fourth chunk of b", "embedding": [100, 4] },
+            { "index": 4, "text": "the fifth chunk of b", "embedding": [100, 5] },
+            { "index": 5, "text": "the sixth chunk of b", "embedding": [100, 6] },
+            { "index": 6, "text": "the seventh chunk of b", "embedding": [100, 7] },
+            { "index": 7, "text": "the eighth chunk of b", "embedding": [100, 8] },
+            { "index": 8, "text": "the ninth chunk of b", "embedding": [100, 9] }
+          ],
+          "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [5, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 2,
+          "answers": [
+            { "score": 0.999950, "resourceId": "res-b", "text": "the first chunk of b", "entityTypes": [] },
+            { "score": 0.980581, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": [] }
+          ]
+        },
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 1,
+          "answers": [
+            { "score": 0.999950, "resourceId": "res-b", "text": "the first chunk of b", "entityTypes": [] }
+          ]
+        }
+      ]
+    },
+    {
       "why": "a search by a resource's own vectors answers one result for each resource: a resource found by two of its chunks is answered once, with the score and the text of the chunk that scored best. A search of resources by an embedding answers both chunks",
       "writes": [
         {
