@@ -33,10 +33,23 @@
  *    fails when any job failed or was cancelled, and passes a job skipped
  *    by a condition, which GitHub reports as Success.
  *
+ * 4. Every job of ci.yml behind the first stage is in the map of changed
+ *    areas: its `if` is `needs.changes.outputs.<area> == 'true'` terms joined
+ *    by `||`, each area one the `changes` job's filter defines and its
+ *    `outputs` carry, and it needs `changes`. A job that is in no area would
+ *    run on every push, which is the cost the map exists to end; an area the
+ *    filter does not define would read as false and skip the job forever,
+ *    and the gate would pass it.
+ *
+ * 5. Every directory under apps/ or packages/ that holds a manifest
+ *    (package.json, Cargo.toml, pyproject.toml, go.mod) is a pattern
+ *    `<dir>/**` of some filter of the map. A package nobody mapped would be
+ *    tested by no job on a pull request that changed it alone.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { repositoryFiles } from './repository-files.mjs';
@@ -67,7 +80,8 @@ function isPreparation(step) {
     .every((line) => PREPARATION_LINE.test(line));
 }
 
-const workflows = repositoryFiles(ROOT).filter((file) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file));
+const repository = repositoryFiles(ROOT).filter((file) => !file.split('/').includes('node_modules'));
+const workflows = repository.filter((file) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file));
 
 const failures = [];
 if (workflows.length === 0) failures.push('no workflow was found under .github/workflows: the check has lost what it reads');
@@ -97,7 +111,10 @@ for (const file of workflows) {
     }
   }
 
-  if (file === CI) stagesAndGate(workflow.jobs ?? {});
+  if (file === CI) {
+    stagesAndGate(workflow.jobs ?? {});
+    changedAreas(workflow.jobs ?? {});
+  }
 }
 
 /** Rule 3: a first stage every job waits for, and a gate that needs them all. */
@@ -129,6 +146,51 @@ function stagesAndGate(jobs) {
   }
 }
 
+/** Rule 4: every job behind the first stage is in the map of changed areas. */
+function changedAreas(jobs) {
+  const changes = jobs.changes;
+  if (changes == null) {
+    failures.push(`${CI}: no job changes: nothing maps a push to the areas it touched`);
+    return;
+  }
+  const filterStep = (changes.steps ?? []).find((step) => typeof step.uses === 'string' && step.uses.startsWith('dorny/paths-filter@'));
+  const filters = typeof filterStep?.with?.filters === 'string' ? yaml.load(filterStep.with.filters) : null;
+  if (filters == null || typeof filters !== 'object') {
+    failures.push(`${CI}: job changes has no dorny/paths-filter step with a filters string`);
+    return;
+  }
+  const areas = Object.keys(filters).filter((name) => name !== 'all');
+  const outputs = Object.keys(changes.outputs ?? {});
+  for (const area of areas) if (!outputs.includes(area)) failures.push(`${CI}: job changes defines the area ${area} and does not output it`);
+  for (const output of outputs) if (!areas.includes(output)) failures.push(`${CI}: job changes outputs ${output}, which no filter defines`);
+
+  const term = /^needs\.changes\.outputs\.([a-z][a-z0-9-]*) == 'true'$/;
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id === 'gate' || [].concat(job.needs ?? []).length === 0) continue; // the gate and the first stage run always
+    if (![].concat(job.needs ?? []).includes('changes')) failures.push(`${CI}: job ${id} does not need changes, so it cannot read the areas`);
+    const condition = typeof job.if === 'string' ? job.if.trim() : '';
+    if (condition === '') {
+      failures.push(`${CI}: job ${id} has no if over the changed areas, so it runs on every push`);
+      continue;
+    }
+    for (const part of condition.split(' || ')) {
+      const area = term.exec(part.trim())?.[1];
+      if (area == null) failures.push(`${CI}: job ${id}: the condition ${JSON.stringify(part.trim())} is not needs.changes.outputs.<area> == 'true'`);
+      else if (!areas.includes(area)) failures.push(`${CI}: job ${id} reads the area ${area}, which the changes job does not define: it would never run`);
+    }
+  }
+
+  // Rule 5: every package of the repository is under some filter.
+  const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
+  const patterns = new Set(Object.values(filters).flat());
+  const packages = repository
+    .filter((file) => /^(apps|packages)\/[^/]+\/[^/]+$/.test(file) && MANIFESTS.includes(basename(file)))
+    .map((file) => dirname(file));
+  for (const dir of new Set(packages)) {
+    if (!patterns.has(`${dir}/**`)) failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/**: a change to it alone would run no job`);
+  }
+}
+
 if (held === 0) failures.push('no workflow runs on pull_request: the check has lost what it reads');
 
 if (failures.length > 0) {
@@ -136,4 +198,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages and ends in a gate`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, and ends in a gate`);
