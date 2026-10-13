@@ -1544,39 +1544,6 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  test-comprehensive:
-    name: Comprehensive Test Suite
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Install dependencies
-        run: |
-          npm ci --include=optional
-          npm run build:packages
-
-      - name: Run comprehensive test suite
-        run: |
-          echo "Running comprehensive test suite..."
-          # One subshell per suite: `bash -e` ignores non-final failures
-          # inside a bare `&&` chain, but honors a subshell's exit status.
-          (cd apps/browser && npm test)
-
-          echo "All tests completed successfully"
-        env:
-          CI: true
-          NODE_OPTIONS: "--max-old-space-size=4096"
-
-
   check-phantom-deps:
     name: Phantom Dependency Check
     runs-on: ubuntu-latest

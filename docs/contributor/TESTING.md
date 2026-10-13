@@ -326,7 +326,6 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/weaver` |
 | `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/smelter` |
 | `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
-| `test-comprehensive` | The Browser suite again, after a full package build |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
