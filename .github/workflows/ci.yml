@@ -400,12 +400,21 @@ jobs:
           done
           node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
-  gateway-conformance:
-    name: Gateway Conformance
+  # ── The Rust binaries, built once ─────────────────────────────────────
+  # The nine conformance suites start a gateway, and some a dispatcher, an
+  # Archivist or the Rust SDK's three drivers, all from target/release
+  # (tests/conformance/harness/paths.ts). Each suite built its own: nine
+  # release builds a run, twenty minutes of a pool of twenty against thirteen
+  # of suites. This job builds the six binaries once and publishes them; the
+  # suites fetch them and build nothing. It runs whenever any suite does: its
+  # areas are the union of theirs. Gateway Tests builds the debug profile for
+  # cargo test and is not this. lint:workflows holds the release build to
+  # this job alone.
+  build-rust:
+    name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
-
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -426,8 +435,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      - name: Build the services and the Rust drivers
+        run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
+
+      # Several paths: the artifact's root is their common directory, so a
+      # suite fetching it into target/release gets the six files there.
+      - name: Publish the binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-binaries
+          path: |
+            target/release/semiont-gateway
+            target/release/semiont-dispatcher
+            target/release/semiont-archivist
+            target/release/semiont-wire-driver
+            target/release/semiont-live-driver
+            target/release/semiont-worker-driver
+          # Long enough for a job re-run to find them; storage is free here.
+          retention-days: 30
+          if-no-files-found: error
+
+  gateway-conformance:
+    name: Gateway Conformance
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts, build-rust]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: rust-binaries
+          path: target/release
+
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -463,32 +509,22 @@ jobs:
   dispatcher-conformance:
     name: Dispatcher Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # The dispatcher reaches the bus only through a gateway.
-      - name: Build the dispatcher and the gateway
-        run: cargo build --release --locked -p semiont-dispatcher -p semiont-gateway
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -523,32 +559,22 @@ jobs:
   archivist-conformance:
     name: Archivist Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # The Archivist reaches the bus only through a gateway.
-      - name: Build the gateway and the Archivist
-        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -583,33 +609,22 @@ jobs:
   sdk-conformance:
     name: SDK Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # Every SDK is held to a real gateway; the Rust SDK's two drivers are
-      # binaries of the same workspace.
-      - name: Build the gateway and the Rust drivers
-        run: cargo build --release --locked -p semiont-gateway -p semiont-conformance-drivers
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -658,31 +673,22 @@ jobs:
   worker-conformance:
     name: Worker Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      - name: Build the gateway and the Rust drivers
-        run: cargo build --release --locked -p semiont-gateway -p semiont-conformance-drivers
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -732,7 +738,7 @@ jobs:
   weaver-conformance:
     name: Weaver Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
       # Where the suite finds its graph database, and the password it is
@@ -744,26 +750,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # The Weaver reaches the bus through a gateway, and is given its events
-      # and its history by an Archivist.
-      - name: Build the gateway and the Archivist
-        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -831,7 +826,7 @@ jobs:
   smelter-conformance:
     name: Smelter Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
       # Where the suite finds its vector database: a container this job makes,
@@ -842,26 +837,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # The Smelter reaches the bus through a gateway, and is given its events
-      # and a resource's bytes by an Archivist.
-      - name: Build the gateway and the Archivist
-        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -937,7 +921,7 @@ jobs:
   librarian-conformance:
     name: Librarian Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
       # Where the suite finds its graph database, with the password it is
@@ -951,26 +935,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      # The Librarian reaches the bus through a gateway, and reads the views
-      # an Archivist writes and the bytes it serves.
-      - name: Build the gateway and the Archivist
-        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1071,31 +1044,22 @@ jobs:
   worker-service-conformance:
     name: Worker Service Conformance
     runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts]
+    needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Install the pinned Rust toolchain
-        run: |
-          rustup toolchain install
-
-      # The workspace's release build, shared with Gateway Conformance.
-      - name: Cache cargo
-        uses: actions/cache@v6.1.0
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-release-
+          name: rust-binaries
+          path: target/release
 
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -2116,6 +2080,7 @@ jobs:
       - changes
       - test-browser
       - test-gateway
+      - build-rust
       - gateway-conformance
       - dispatcher-conformance
       - archivist-conformance
