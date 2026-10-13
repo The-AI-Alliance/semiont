@@ -17,6 +17,7 @@ or of a case that nothing here reads fails.
 """
 
 import asyncio
+import json
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -47,7 +48,7 @@ CASE_MEMBERS = ("why", "now", "request", "resources", "graph", "views", "vectors
 GRAPH_MEMBERS = ("byName", "byEntityType", "byId")
 VECTORS_MEMBERS = ("hits", "fails")
 HIT_MEMBERS = ("resourceId", "score")
-MODEL_MEMBERS = ("shown", "reply", "fails")
+MODEL_MEMBERS = ("shown", "answers", "fails")
 RESULT_MEMBERS = ("id", "score", "matchReason")
 
 HELD: Final = "held"
@@ -221,10 +222,11 @@ def world_of(case: JsonObject) -> World:
         only(model, MODEL_MEMBERS, "a case's model")
         if FAILS in model:
             assert model[FAILS] is True
-            assert "reply" not in model
+            assert "answers" not in model
             inference.failing = Fails("the model failed")
         else:
-            inference.say(text(model["reply"], "reply"))
+            # A model answers elements as a JSON array, which its client reads.
+            inference.say(json.dumps(objects(model["answers"], "answers")))
     else:
         inference.failing = Unstated("the model was asked, and the case states no answer of it")
 
@@ -329,7 +331,7 @@ def test_the_table_has_a_case_of_each_source_failing_or_not_asked_of_the_model_i
     assert any(FAILS in by_id(case) for case in CASES)
     assert any(HELD in of_views(case) for case in CASES)
     assert any(ABSENT in of_views(case) for case in CASES)
-    assert any("reply" in model(case) for case in CASES)
+    assert any("answers" in model(case) for case in CASES)
     assert any(FAILS in model(case) for case in CASES)
     assert any(shown(case) == 20 for case in CASES)
     assert any(request_of(case).use_semantic_scoring is False for case in CASES)

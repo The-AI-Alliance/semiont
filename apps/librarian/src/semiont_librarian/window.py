@@ -3,9 +3,10 @@
 A Librarian cuts a text around an annotation in two places
 (`docs/protocol/LIBRARIAN.md` § Gathering around an annotation, § An
 annotation's summary), and `specs/src/librarian/window-cases.json` states
-both. The cut is one. What differs is which selector says where: a gather
-reads the first selector of a target, a position or a quote, and a summary
-reads the position selector, wherever in a list it is.
+both. The cut is one, and so is the rule for where: a target's position
+selector, wherever among its selectors it is, and otherwise its quote
+selector, found in the text as every SDK finds a quote
+(`semiont.annotations.reconcile`), which reads its prefix and its suffix.
 
 An offset counts Unicode code points from the start of the text, and so does
 a window. A `str` is indexed by code point, so an offset is the string's own
@@ -16,13 +17,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, final
 
-from semiont.annotations import target_selector
+from semiont.annotations import QuotedText, reconcile, target_selector
 from semiont.types import Annotation, Selector, TextPositionSelector, TextQuoteSelector
 
 __all__ = [
     "LARGEST_WINDOW",
     "LEAST_WINDOW",
-    "PositionRequired",
+    "Unplaced",
     "Window",
     "WindowRefused",
     "annotation_context",
@@ -44,8 +45,8 @@ class WindowRefused(Exception):
 
 
 @final
-class PositionRequired(Exception):
-    """An annotation's target states no position selector, and the cut asked for is the one made at a position."""
+class Unplaced(Exception):
+    """No selector of an annotation's target places it in the text, and the cut asked for cannot be made without a place."""
 
 
 @final
@@ -80,41 +81,18 @@ def text_around(text: str, start: int, end: int, before: int, after: int) -> Win
     return Window(before=text[max(0, start - before) : start], selected=text[start:end], after=text[end : end + after])
 
 
-def selection_of(annotation: Annotation, text: str, window: int) -> Window | None:
-    """What a gather cuts of `text` around an annotation: the selection, and `window` code points on each side of it.
+def _placed(annotation: Annotation, text: str) -> tuple[int, int] | None:
+    """Where an annotation's target places it in `text`: the two offsets of what it selects. `None` where no selector places it.
 
-    The selector read is the target's first, and no other. A position
-    selector selects from its `start` to its `end`. A quote selector selects
-    the first place the text has its `exact` words, whatever its prefix and
-    its suffix say. `None` where there is no selection: words the text does
-    not have, a target that states no selector, and a selector of another
-    kind.
-
-    Raises `WindowRefused` for a window outside `LEAST_WINDOW` to
-    `LARGEST_WINDOW`, before anything is read of the annotation.
-    """
-    refuse_out_of_bounds(window)
-    stated = target_selector(annotation.target)
-    if isinstance(stated, list):
-        if not stated:
-            return None
-        stated = stated[0]
-    if isinstance(stated, TextPositionSelector):
-        return text_around(text, stated.start, stated.end, window, window)
-    if isinstance(stated, TextQuoteSelector):
-        found = text.find(stated.exact)
-        if found == -1:
-            return None
-        return text_around(text, found, found + len(stated.exact), window, window)
-    return None
-
-
-def annotation_context(annotation: Annotation, text: str, before: int, after: int) -> Window:
-    """What a summary cuts of `text` around an annotation: the span of its position selector, with a window of its own on each side.
-
-    The position selector is the first the target states, wherever in a
-    list of selectors it is. Raises `PositionRequired` for a target that
-    states none, whatever else it states.
+    The first position selector the target states is the place, wherever
+    among its selectors it is: its `start` and its `end`. A target with none
+    is placed by the first quote selector it states, found in the text as a
+    quote is found everywhere (`semiont.annotations.reconcile`): where the
+    text has its words once, there; where it has them more than once, at the
+    place its prefix and its suffix fit, and at the first where neither
+    chooses; and where it does not have them as written, where a looser
+    search finds them. Words the text has nowhere place nothing, and neither
+    does a selector of another kind.
     """
     stated = target_selector(annotation.target)
     selectors: Sequence[Selector]
@@ -125,6 +103,36 @@ def annotation_context(annotation: Annotation, text: str, before: int, after: in
     else:
         selectors = (stated,)
     position = next((each for each in selectors if isinstance(each, TextPositionSelector)), None)
-    if position is None:
-        raise PositionRequired("TextPositionSelector required for context")
-    return text_around(text, position.start, position.end, before, after)
+    if position is not None:
+        return position.start, position.end
+    quote = next((each for each in selectors if isinstance(each, TextQuoteSelector)), None)
+    if quote is None:
+        return None
+    found = reconcile(text, QuotedText(exact=quote.exact, prefix=quote.prefix, suffix=quote.suffix))
+    return None if found is None else (found.start, found.end)
+
+
+def selection_of(annotation: Annotation, text: str, window: int) -> Window | None:
+    """What a gather cuts of `text` around an annotation: the selection, and `window` code points on each side of it.
+
+    `None` where no selector of the target places the annotation in the
+    text.
+
+    Raises `WindowRefused` for a window outside `LEAST_WINDOW` to
+    `LARGEST_WINDOW`, before anything is read of the annotation.
+    """
+    refuse_out_of_bounds(window)
+    place = _placed(annotation, text)
+    return None if place is None else text_around(text, *place, window, window)
+
+
+def annotation_context(annotation: Annotation, text: str, before: int, after: int) -> Window:
+    """What a summary cuts of `text` around an annotation: what its target selects, with a window of its own on each side.
+
+    Raises `Unplaced` where no selector of the target places the annotation
+    in the text: a summary is of a passage, and there is none.
+    """
+    place = _placed(annotation, text)
+    if place is None:
+        raise Unplaced("No selector of the annotation's target places it in the text")
+    return text_around(text, *place, before, after)

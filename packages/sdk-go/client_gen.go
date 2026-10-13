@@ -267,7 +267,12 @@ func (e ArchivistHealthStatus) Valid() bool {
 // Defines values for ArchivistRosterRoleProvider.
 const (
 	ArchivistRosterRoleProviderAnthropic ArchivistRosterRoleProvider = "anthropic"
+	ArchivistRosterRoleProviderGoogle    ArchivistRosterRoleProvider = "google"
+	ArchivistRosterRoleProviderLlamacpp  ArchivistRosterRoleProvider = "llamacpp"
 	ArchivistRosterRoleProviderOllama    ArchivistRosterRoleProvider = "ollama"
+	ArchivistRosterRoleProviderOpenai    ArchivistRosterRoleProvider = "openai"
+	ArchivistRosterRoleProviderTogether  ArchivistRosterRoleProvider = "together"
+	ArchivistRosterRoleProviderVllm      ArchivistRosterRoleProvider = "vllm"
 )
 
 // Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
@@ -275,7 +280,17 @@ func (e ArchivistRosterRoleProvider) Valid() bool {
 	switch e {
 	case ArchivistRosterRoleProviderAnthropic:
 		return true
+	case ArchivistRosterRoleProviderGoogle:
+		return true
+	case ArchivistRosterRoleProviderLlamacpp:
+		return true
 	case ArchivistRosterRoleProviderOllama:
+		return true
+	case ArchivistRosterRoleProviderOpenai:
+		return true
+	case ArchivistRosterRoleProviderTogether:
+		return true
+	case ArchivistRosterRoleProviderVllm:
 		return true
 	default:
 		return false
@@ -2576,11 +2591,11 @@ type ArchivistRosterRole struct {
 	// Model The model identifier, as the provider names it.
 	Model string `json:"model"`
 
-	// Provider The inference provider.
+	// Provider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 	Provider ArchivistRosterRoleProvider `json:"provider"`
 }
 
-// ArchivistRosterRoleProvider The inference provider.
+// ArchivistRosterRoleProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 type ArchivistRosterRoleProvider string
 
 // AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
@@ -4894,6 +4909,9 @@ type LibrarianConfig struct {
 	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
 	Matcher LibrarianModelConfig `json:"matcher"`
 
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
+
 	// Port The port the Librarian answers `/health` on.
 	Port int `json:"port"`
 
@@ -6583,6 +6601,9 @@ type WorkerConfig struct {
 
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
+
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
 
 	// Port The port the worker answers `/health` on.
 	Port int `json:"port"`

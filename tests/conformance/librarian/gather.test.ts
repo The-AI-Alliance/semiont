@@ -373,8 +373,11 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const source = await world().created(TIDE, { name: 'A salt marsh' });
       await world().ready(source);
 
-      // Two generations, in this order: the summary, then the suggestions, one to a line.
-      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: 'Read the tide tables\nWalk the sea wall' });
+      // Two generations, in this order: the summary, then the suggestions, each an element.
+      world().gatherer.script(
+        { response: 'A marsh that floods twice a day.' },
+        { response: JSON.stringify([{ suggestion: 'Read the tide tables' }, { suggestion: 'Walk the sea wall' }]) },
+      );
       const reply = await world().answered('gather:resource-requested', { resourceId: source, options: { ...TEXTS, includeSummary: true } });
 
       const focus = resourceFocus(reply.response);
@@ -394,7 +397,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const source = await world().created(TIDE, { name: 'A salt marsh' });
       await world().ready(source);
 
-      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: 'Read the tide tables' });
+      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: JSON.stringify([{ suggestion: 'Read the tide tables' }]) });
       const reply = await world().answered('gather:resource-requested', {
         resourceId: source,
         options: { ...TEXTS, includeContent: false, includeSummary: true },

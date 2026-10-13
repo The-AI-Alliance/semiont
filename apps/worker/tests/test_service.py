@@ -44,6 +44,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
             "apiKeyEnv": "SECOND_KEY",
         },
     ],
+    "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
     "logLevel": "warn",
     "logFormat": "simple",
@@ -60,6 +61,84 @@ def refusal(arguments: list[str], environment: dict[str, str]) -> str:
     with pytest.raises(Refused) as refused:
         boot(arguments, environment)
     return str(refused.value)
+
+
+CATALOGUE: Final[dict[str, JsonValue]] = {
+    "package": "@opencode-ai/models",
+    "version": "0.0.0",
+    "generatedAt": "2026-10-09T00:00:00.000Z",
+    "license": "MIT",
+    "providers": {
+        "google": {"models": {}},
+        "openai": {
+            "models": {
+                "gpt-listed": {
+                    "limit": {"context": 8192, "input": None, "output": 4096},
+                    "reasoning": False,
+                    "reasoning_options": None,
+                    "status": None,
+                    "structured_output": True,
+                    "temperature": True,
+                }
+            }
+        },
+        "togetherai": {"models": {}},
+    },
+}
+"""A model catalogue file with one model in it, OpenAI's `gpt-listed`."""
+
+
+def of_one_agent(provider: str, model: str, **stated: JsonValue) -> dict[str, JsonValue]:
+    """The document, with one agent of this provider and model at an address, and over that whatever a test states of the document."""
+    agent: dict[str, JsonValue] = {
+        "agent": {"provider": provider, "model": model},
+        "accepts": [{"jobType": "yield"}],
+        "baseUrl": "http://127.0.0.1:1/v1",
+    }
+    return {**DOCUMENT, "agents": [agent], **stated}
+
+
+@pytest.mark.usefixtures("unconfigured")
+def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_its_agent_names_no_variable_for_one(tmp_path: Path) -> None:
+    said = refusal(["--config", written(tmp_path, of_one_agent("anthropic", "claude-test"))], dict(ACCOUNT))
+    assert said == (
+        "agents[0].apiKeyEnv is not stated, and agents[0].agent.provider is anthropic: "
+        "api_key is required for the Anthropic inference client"
+    )
+
+
+@pytest.mark.usefixtures("unconfigured")
+def test_a_server_a_deployment_runs_boots_with_no_key_and_its_catalogue_is_not_read(tmp_path: Path) -> None:
+    # The document names a catalogue file that is not there, as every document here does: nothing reads it.
+    for provider in ("vllm", "llamacpp"):
+        started = boot(["--config", written(tmp_path, of_one_agent(provider, "a-model"))], dict(ACCOUNT))
+        assert [(client.provider, client.model_id) for client in started.clients] == [(provider, "a-model")]
+
+
+@pytest.mark.usefixtures("unconfigured")
+def test_a_provider_whose_facts_are_a_catalogue_s_boots_with_them_and_is_refused_by_the_member_without(tmp_path: Path) -> None:
+    catalogue = tmp_path / "model-catalogue.json"
+    catalogue.write_text(json.dumps(CATALOGUE), encoding="utf-8")
+    keyed = {**ACCOUNT, "OPENAI_KEY": "sk-test"}
+
+    def stating(model: str, **stated: JsonValue) -> str:
+        document = of_one_agent("openai", model, **stated)
+        agents = document["agents"]
+        assert isinstance(agents, list)
+        (agent,) = agents
+        assert isinstance(agent, dict)
+        agent["apiKeyEnv"] = "OPENAI_KEY"
+        return written(tmp_path, document)
+
+    unlisted = refusal(["--config", stating("gpt-unlisted", modelCatalogue=str(catalogue))], keyed)
+    assert unlisted.startswith(f"modelCatalogue names {catalogue}, which does not serve agents[0]: ")
+    assert unlisted.endswith("states nothing of the model gpt-unlisted of the provider openai")
+    nowhere = tmp_path / "none.json"
+    absent = refusal(["--config", stating("gpt-listed", modelCatalogue=str(nowhere))], keyed)
+    assert absent.startswith(f"modelCatalogue names {nowhere}, which does not serve agents[0]: the model catalogue cannot be read: ")
+
+    started = boot(["--config", stating("gpt-listed", modelCatalogue=str(catalogue))], keyed)
+    assert [(client.provider, client.model_id) for client in started.clients] == [("openai", "gpt-listed")]
 
 
 @pytest.mark.usefixtures("unconfigured")

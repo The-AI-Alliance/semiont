@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
+import { MODEL_CATALOGUE } from './paths';
 
 /** Who serves a model: the provider's kind, the model and the provider's address. */
 export interface ModelSettings {
@@ -125,6 +126,7 @@ function document(settings: LibrarianSettings, port: number): string {
     embedding: settings.embedding,
     matcher: actor(settings.matcher),
     gatherer: actor(settings.gatherer),
+    modelCatalogue: MODEL_CATALOGUE,
     gather: settings.settleTimeoutMs === undefined ? undefined : { settleTimeoutMs: settings.settleTimeoutMs },
     search: settings.semanticFloor === undefined ? undefined : { semanticFloor: settings.semanticFloor },
     port,

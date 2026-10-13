@@ -374,7 +374,7 @@ func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 		{"no matcher", withoutSection(librarianDocFixture, "actors.matcher.inference"), true, "[environments.local.actors.matcher.inference]"},
 		{"no gatherer", withoutSection(librarianDocFixture, "actors.gatherer.inference"), true, "[environments.local.actors.gatherer.inference]"},
 		{"half an agent", librarianConfig("actors.matcher.inference", "type = \"anthropic\"\n"), true, "actors.matcher.inference"},
-		{"a provider Semiont has no client for", librarianConfig("actors.gatherer.inference", "type = \"openai\"\nmodel = \"m\"\n"), true, "actors.gatherer.inference"},
+		{"a provider Semiont has no client for", librarianConfig("actors.gatherer.inference", "type = \"mistral\"\nmodel = \"m\"\n"), true, "actors.gatherer.inference"},
 		{"a provider with no section", withoutSection(librarianDocFixture, "inference.anthropic"), true, "[environments.local.inference.anthropic]"},
 		{"an Ollama with no address", strings.Replace(librarianDocFixture, "platform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"", "platform = \"external\"", 1), true, "[environments.local.inference.ollama]"},
 		{"a model provider's key written as a value", strings.Replace(librarianDocFixture, `apiKey = "${ANTHROPIC_API_KEY}"`, `apiKey = "hunter2"`, 1), true, "inference.anthropic.apiKey"},

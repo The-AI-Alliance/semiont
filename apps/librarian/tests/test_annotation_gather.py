@@ -335,6 +335,30 @@ def test_a_model_that_fails_on_the_linked_resource_s_summary_leaves_its_text_and
     run(scenario())
 
 
+def test_a_linked_resource_whose_text_has_nothing_in_it_has_no_target_context_and_is_not_summarized() -> None:
+    async def scenario() -> None:
+        myths = stored(MYTHS, "Greek Myths")
+        zeus = reference(REFERENCE, MYTHS, link(THEOGONY), target=at(START, END))
+        theogony = stored(THEOGONY, "Theogony")
+        world = World(view(myths, zeus), view(theogony))
+        world.content.held[MYTHS] = Content(TEXT.encode(), "text/plain")
+        world.content.held[THEOGONY] = Content(b"", "text/plain")
+        world.weave_in(myths, zeus, connected=(theogony,))
+        world.inference.say("The passage links to the poem.")
+
+        said = written(await world.gathered())
+
+        focus = thing(said["focus"], "focus")
+        assert thing(focus["targetResource"], "targetResource")["@id"] == THEOGONY
+        assert "targetContext" not in focus
+        # The one request of the model is the relationship sentence.
+        assert len(world.inference.asked) == 1
+        assert said["inferredRelationshipSummary"] == "The passage links to the poem."
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
 def test_a_linked_resource_whose_view_cannot_be_read_is_no_target_and_the_gather_is_answered() -> None:
     async def scenario() -> None:
         myths = stored(MYTHS, "Greek Myths")

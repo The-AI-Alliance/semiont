@@ -20,6 +20,7 @@ import { startClientProxy, type ClientProxy, type ProxiedRequest } from './clien
 import { everyJob } from './dispatcher-world';
 import { freePort } from './net';
 import { startOllama, type StandInOllama } from './ollama';
+import { MODEL_CATALOGUE } from './paths';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
 import { errorsOf, principals, spec } from './spec';
 import type { BusFrame, BusStream } from './stream';
@@ -300,6 +301,7 @@ export class WorkerServiceWorld {
       gatewayUrl,
       identity: { issuer: this.world.issuer.origin },
       agents: agents ?? [{ agent: { provider: first.provider, model: first.model }, accepts: everyJob(), baseUrl: this.ollama.origin }],
+      modelCatalogue: MODEL_CATALOGUE,
       port: await freePort(),
       logLevel: 'info',
       logFormat: 'json',

@@ -252,7 +252,7 @@ try:
     import semiont_inference.llamacpp
 except ModuleNotFoundError as missing:
     print(type(missing).__name__, "|", missing.name, "|", type(missing.__cause__).__name__, "|", missing)
-print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None).provider)
+print(create_inference_client(provider="ollama", model="llama3", base_url="http://127.0.0.1:1", api_key=None, catalogue=None).provider)
 """
 
 WITHOUT_WHAT_THE_LIBRARY_NEEDS = """
