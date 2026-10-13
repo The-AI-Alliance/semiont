@@ -57,26 +57,57 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 	if !declared {
 		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: %s has no address to reach %s at", envName, provider, who, provider)
 	}
-	switch provider {
-	case semiont.ArchivistRosterRoleProviderAnthropic:
+	if provider == semiont.ArchivistRosterRoleProviderAnthropic {
 		if section.Endpoint == "" {
 			return saasBase(remoteProviderAddress(env, string(provider))), nil
 		}
 		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
-	default:
-		// Every other provider is reached where its section says: the launcher keeps no vendor's address but
-		// Anthropic's, and runs no server but Ollama's.
-		if section.BaseURL == "" {
-			return "", fmt.Errorf("[environments.%s.inference.%s] states no baseURL: %s has no address to reach %s at", envName, provider, who, provider)
-		}
-		return resolveRefs("inference."+string(provider)+".baseURL", section.BaseURL, vars)
 	}
+	// Every other provider is reached where its section says: the launcher keeps no vendor's address but
+	// Anthropic's, and runs no server but Ollama's.
+	if section.BaseURL == "" {
+		return "", fmt.Errorf("[environments.%s.inference.%s] states no baseURL: %s has no address to reach %s at", envName, provider, who, provider)
+	}
+	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
+	switch provider {
+	case semiont.ArchivistRosterRoleProviderGoogle:
+		return resolveRefs("inference.google.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderLlamacpp:
+		return resolveRefs("inference.llamacpp.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderOllama:
+		return resolveRefs("inference.ollama.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderOpenai:
+		return resolveRefs("inference.openai.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderTogether:
+		return resolveRefs("inference.together.baseURL", section.BaseURL, vars)
+	case semiont.ArchivistRosterRoleProviderVllm:
+		return resolveRefs("inference.vllm.baseURL", section.BaseURL, vars)
+	}
+	return "", fmt.Errorf("%s's document has no address for the provider %q", who, provider)
 }
 
 // providerKeyName: the variable holding a provider's key, as its section of
 // the environment names it; none when the section states no key.
 func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvider) (*string, error) {
-	return secretName("inference."+string(provider)+".apiKey", env.Inference[string(provider)].APIKey)
+	key := env.Inference[string(provider)].APIKey
+	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
+	switch provider {
+	case semiont.ArchivistRosterRoleProviderAnthropic:
+		return secretName("inference.anthropic.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderGoogle:
+		return secretName("inference.google.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderLlamacpp:
+		return secretName("inference.llamacpp.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderOllama:
+		return secretName("inference.ollama.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderOpenai:
+		return secretName("inference.openai.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderTogether:
+		return secretName("inference.together.apiKey", key)
+	case semiont.ArchivistRosterRoleProviderVllm:
+		return secretName("inference.vllm.apiKey", key)
+	}
+	return nil, nil
 }
 
 // modelCatalogueTarget: where the worker's image and the Librarian's each

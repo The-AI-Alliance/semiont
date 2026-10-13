@@ -95,7 +95,7 @@ eachWorkerService("the worker's boot", (world) => {
   it.each([
     ['no agent at all', (d: Document) => (d.agents = []), /agents/],
     ['an agent that serves no job', (d: Document) => (d.agents[0]!['accepts'] = []), /accepts/],
-    ['a provider it does not know', (d: Document) => (d.agents[0]!['agent'] = { provider: 'openai', model: 'm' }), /provider/],
+    ['a provider it does not know', (d: Document) => (d.agents[0]!['agent'] = { provider: 'mistral', model: 'm' }), /provider/],
     ['a port that is not one', (d: Document) => (d['port'] = 70_000), /port/],
     ['a member the schema does not have', (d: Document) => (d['dispatcherUrl'] = 'http://dispatcher'), /dispatcherUrl/],
     ["a provider's key as a value", (d: Document) => (d.agents[0]!['apiKey'] = 'hunter2-not-a-name'), /apiKey/],
