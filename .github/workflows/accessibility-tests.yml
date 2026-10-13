@@ -10,6 +10,13 @@ on:
     # Run daily at 6 AM UTC to catch accessibility regressions
     - cron: '0 6 * * *'
 
+# One run per pull request: a push cancels the run of the push before it, which
+# nobody is waiting for. A push to main is never cancelled: it is the run that
+# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # WCAG 2.1 AA compliance target
   LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90

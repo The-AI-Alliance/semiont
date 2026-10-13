@@ -15,7 +15,7 @@ How this repository's dependencies are kept current, how a vulnerable one is fix
 | GitHub Actions | the workflows |
 | Docker | the base images of the Browser and the seven service images |
 
-Packages that must move together are grouped, so they arrive in one pull request: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, `gateway-crates`, `desktop-crates` and `service-base-images`.
+Each entry's updates arrive in one pull request a week: its last group takes every package its earlier groups did not. The earlier groups are the packages that must move together, or alone, matched first: `react`, `i18n`, `bundler-binaries` and `opentelemetry` for npm; `nats-server` for the launcher; `mypy`, `pyright`, `ruff` and `pytest` for the Python projects, so a gate that goes red names the tool.
 
 `npm run lint:dependabot` fails when a manifest has no Dependabot entry, or an entry has no manifest. A new Dockerfile, lockfile or crate cannot go un-updated without CI saying so.
 

@@ -7,10 +7,92 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+# One run per pull request: a push cancels the run of the push before it, which
+# nobody is waiting for. A push to main is never cancelled: it is the run that
+# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # ── The first stage ──────────────────────────────────────────────────
+  # census and generated-artifacts need no build and finish in about two
+  # minutes. Every other job needs both, so a tree that fails a census or has
+  # drifted from its spec starts none of the forty-odd matrix legs behind it, and the
+  # pool of twenty concurrent jobs the organisation shares goes to pull
+  # requests that can pass. lint:workflows holds every job to this.
+  census:
+    name: Census
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      # The lints read the tree as git holds it and the tools in node_modules;
+      # none reads a built package, so nothing is built here.
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # Every gate below is INDEPENDENT: each checks a different invariant, and
+      # a failure in one says nothing about the others, so all of them run and
+      # the step fails if any did.
+      - name: Run the lint gates
+        run: |
+          fail=0
+          npm run lint:css || fail=1
+          npm run lint:css-variables || fail=1
+          npm run lint:css-classes || fail=1
+          npm run lint:docs-names || fail=1
+          npm run lint:translations || fail=1
+          npm run lint:no-utility-classes || fail=1
+          npm run lint:core-subpaths || fail=1
+          npm run lint:service-role || fail=1
+          npm run lint:attribution || fail=1
+          npm run lint:coverage-roster || fail=1
+          npm run lint:compliance-audits || fail=1
+          npm run lint:vitest-coverage || fail=1
+          npm run lint:notice || fail=1
+          npm run lint:dependabot || fail=1
+          npm run lint:broker-boundary || fail=1
+          npm run lint:staging-boundary || fail=1
+          npm run lint:placeholder-readers || fail=1
+          npm run lint:secure-context-apis || fail=1
+          npm run lint:event-tags || fail=1
+          npm run lint:spec-protocol || fail=1
+          npm run lint:spec-jobs || fail=1
+          npm run lint:spec-archivist || fail=1
+          npm run lint:spec-identifiers || fail=1
+          npm run lint:spec-case-tables || fail=1
+          npm run lint:spec-channel-rosters || fail=1
+          npm run lint:spec-reference-forms || fail=1
+          npm run lint:spec-offset-units || fail=1
+          npm run openapi:lint || fail=1
+          npm run lint:service-environment || fail=1
+          npm run lint:telemetry-doc || fail=1
+          npm run lint:rust-images || fail=1
+          npm run lint:rust-toolchain || fail=1
+          npm run lint:go-toolchain || fail=1
+          npm run lint:python-version || fail=1
+          npm run lint:node-version || fail=1
+          npm run lint:nats-version || fail=1
+          npm run lint:conformance-readmes || fail=1
+          npm run lint:transport-contract || fail=1
+          npm run lint:client-surface || fail=1
+          npm run lint:internal-deps || fail=1
+          npm run lint:workflows || fail=1
+          exit $fail
+
   test-browser:
     name: Browser Tests
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -49,6 +131,7 @@ jobs:
   test-gateway:
     name: Gateway Tests
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -203,6 +286,7 @@ jobs:
   gateway-conformance:
     name: Gateway Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -261,6 +345,7 @@ jobs:
   dispatcher-conformance:
     name: Dispatcher Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -319,6 +404,7 @@ jobs:
   archivist-conformance:
     name: Archivist Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -377,6 +463,7 @@ jobs:
   sdk-conformance:
     name: SDK Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -450,6 +537,7 @@ jobs:
   worker-conformance:
     name: Worker Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -522,6 +610,7 @@ jobs:
   weaver-conformance:
     name: Weaver Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     env:
       # Where the suite finds its graph database, and the password it is
       # started with below: a container this job makes, and the suite clears.
@@ -619,6 +708,7 @@ jobs:
   smelter-conformance:
     name: Smelter Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     env:
       # Where the suite finds its vector database: a container this job makes,
       # whose index the suite clears.
@@ -723,6 +813,7 @@ jobs:
   librarian-conformance:
     name: Librarian Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     env:
       # Where the suite finds its graph database, with the password it is
       # started with below, and its vector database: containers this job
@@ -855,6 +946,7 @@ jobs:
   worker-service-conformance:
     name: Worker Service Conformance
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -929,6 +1021,7 @@ jobs:
   test-sdk-python:
     name: Python SDK
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -991,6 +1084,7 @@ jobs:
   test-sdk-python-windows:
     name: Python SDK (sign-in store, Windows)
     runs-on: windows-latest
+    needs: [census, generated-artifacts]
 
     defaults:
       run:
@@ -1022,6 +1116,7 @@ jobs:
   test-inference-python:
     name: Python Inference Drivers
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1073,6 +1168,7 @@ jobs:
   test-service-python:
     name: Python Service Package
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1124,6 +1220,7 @@ jobs:
   test-worker-python:
     name: Python Worker Service
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1189,6 +1286,7 @@ jobs:
   test-graph-python:
     name: Python Graph Stores
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1238,6 +1336,7 @@ jobs:
   test-graph-python-neo4j:
     name: Python Graph Stores (neo4j)
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     env:
       # Where the run finds its database, and the password it was started
       # with below: a container this job makes and discards.
@@ -1287,6 +1386,7 @@ jobs:
   test-vectors-python:
     name: Python Vector Stores
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1337,6 +1437,7 @@ jobs:
   test-vectors-python-qdrant:
     name: Python Vector Stores (Qdrant)
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     env:
       # Where the run finds its Qdrant: a container this job makes and discards.
       QDRANT_HOST: localhost
@@ -1384,6 +1485,7 @@ jobs:
   test-weaver-python:
     name: Python Weaver
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1437,6 +1539,7 @@ jobs:
   test-smelter-python:
     name: Python Smelter
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1495,6 +1598,7 @@ jobs:
   test-librarian-python:
     name: Python Librarian
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -1537,62 +1641,10 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  test-comprehensive:
-    name: Comprehensive Test Suite
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Install dependencies
-        run: |
-          npm ci --include=optional
-          npm run build:packages
-
-      - name: Run comprehensive test suite
-        run: |
-          echo "Running comprehensive test suite..."
-          # One subshell per suite: `bash -e` ignores non-final failures
-          # inside a bare `&&` chain, but honors a subshell's exit status.
-          (cd apps/browser && npm test)
-
-          echo "All tests completed successfully"
-        env:
-          CI: true
-          NODE_OPTIONS: "--max-old-space-size=4096"
-
-
-  validate-config:
-    name: Configuration Validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Install dependencies
-        run: |
-          npm ci --include=optional
-          npm run build:packages
-
   check-phantom-deps:
     name: Phantom Dependency Check
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -1789,6 +1841,7 @@ jobs:
   test-launcher:
     name: Launcher Tests (Go)
     runs-on: ubuntu-latest
+    needs: [census, generated-artifacts]
 
     steps:
       - name: Checkout code
@@ -1872,6 +1925,7 @@ jobs:
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
     runs-on: windows-latest
+    needs: [census, generated-artifacts]
     # A ceiling, not an estimate: how long the suite takes on a Windows runner
     # is measured by its first runs. It starts a process per fake command,
     # which costs more there than on Linux.
@@ -1902,3 +1956,57 @@ jobs:
       - name: Test sdk-go
         working-directory: packages/sdk-go
         run: go test -timeout 5m ./...
+
+  # ── The gate ─────────────────────────────────────────────────────────
+  # The one check the merge ruleset requires. It needs every job and runs
+  # whatever they did: a job that failed or was cancelled fails it; one skipped
+  # by a condition passes it, as GitHub reports a skipped job as Success.
+  # `always()`, not `!cancelled()` as the audits next door use: a gate that is
+  # skipped when a job is cancelled would itself report Success, and the
+  # cancelled job's failure would never reach the ruleset. lint:workflows
+  # holds the condition and its needs to the whole workflow.
+  gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - census
+      - test-browser
+      - test-gateway
+      - gateway-conformance
+      - dispatcher-conformance
+      - archivist-conformance
+      - sdk-conformance
+      - worker-conformance
+      - weaver-conformance
+      - smelter-conformance
+      - librarian-conformance
+      - worker-service-conformance
+      - test-sdk-python
+      - test-sdk-python-windows
+      - test-inference-python
+      - test-service-python
+      - test-worker-python
+      - test-graph-python
+      - test-graph-python-neo4j
+      - test-vectors-python
+      - test-vectors-python-qdrant
+      - test-weaver-python
+      - test-smelter-python
+      - test-librarian-python
+      - check-phantom-deps
+      - build-all
+      - generated-artifacts
+      - test-launcher
+      - test-launcher-windows
+    steps:
+      - name: What each job did
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: echo "$NEEDS"
+
+      - name: Fail when a job failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "::error::A job failed or was cancelled; its name is above with result failure or cancelled"
+          exit 1

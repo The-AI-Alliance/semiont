@@ -299,10 +299,13 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch:
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
+
+It runs in two stages and ends in a gate. `census` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for both, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires. `npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, that no job of them checks out, installs or builds and then checks nothing, and that `ci.yml` has its first stage, its edges and its gate.
 
 | Job | What it covers |
 |---|---|
+| `census` | The `lint:*` gates, over the tree and no build: the stylesheets, the translations, the docs' names, the spec's own consistency, the toolchain versions, the Dependabot entries, the workflows, and more |
 | `test-browser` | `npm run typecheck` and `npm test` for `apps/browser` |
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
@@ -314,25 +317,24 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `weaver-conformance` | Builds the gateway, the Archivist and `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `smelter-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
 | `librarian-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
-| `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
+| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/sdk-python`; the distributions a release uploads are built and checked, on 3.12 |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
-| `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
-| `test-service-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/service-python` |
-| `test-worker-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/worker` |
-| `test-graph-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/graph-python` |
+| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/inference-python` |
+| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/service-python` |
+| `test-worker-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/worker` |
+| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/graph-python` |
 | `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |
-| `test-vectors-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/vectors-python` |
+| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/vectors-python` |
 | `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
-| `test-weaver-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/weaver` |
-| `test-smelter-python` | Installs the `tesseract` program, then `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/smelter` |
-| `test-librarian-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/librarian` |
-| `test-comprehensive` | The Browser suite again, after a full package build |
-| `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
+| `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/weaver` |
+| `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/smelter` |
+| `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for the launcher; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows |
+| `gate` | Needs every job above; fails when any failed or was cancelled |
 
 Four other workflows gate the same pushes and pull requests:
 
@@ -341,7 +343,7 @@ Four other workflows gate the same pushes and pull requests:
 | [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job |
 | [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`; a built Browser probed for privileged content in its shell; a built gateway probed for 401s on protected routes, the error shape, and leaked secrets |
 | [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; the Browser's suite; Lighthouse against a built Browser, failing below an accessibility score of 90. Also daily |
-| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/) and the `lint:*` gates: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the spec's own consistency, the operator's telemetry tables (`lint:telemetry-doc`), and more. Also on pushes to `feature/**` |
+| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports. Also on pushes to `feature/**` |
 
 [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on every pull request. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh), which boots a real stack and says what it checks.
 
