@@ -1,0 +1,133 @@
+name: Python Image Licences
+
+# The licence of every package a Python service image installs from PyPI, held
+# to the permissive allowlist before the change that brings the package in is
+# merged: check-licenses.mjs over each image's bill of materials, as
+# publish-service-images.yml runs it when an image is published.
+#
+# That gate runs at a publish alone, so a package it refuses was found at a
+# release, on images no pull request had built. This runs it when what an image
+# installs changes: a lockfile, a manifest a lockfile resolves, a Dockerfile, or
+# the policy and the scripts that judge.
+#
+# Nothing of an install is written here. Each image's Dockerfile makes its
+# environment in a stage named `builder`, and the image it publishes copies that
+# environment and installs nothing more from PyPI. So this builds that stage,
+# with the Dockerfile's own uv, base image and `uv sync` line, and reads what is
+# in it. The stage still has pip, which the published image removes: one package
+# more is judged here than is published, and none fewer.
+#
+# No schedule: a published package's licence does not change without a commit
+# here. The scanner's reading of one can, when its action moves, and the action
+# is named in this file, which is among the paths.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/*/uv.lock'
+      - 'apps/*/pyproject.toml'
+      - 'apps/*/Dockerfile'
+      - 'packages/*-python/pyproject.toml'
+      - scripts/ci/python-floor.sh
+      - '.github/licenses/**'
+      - .github/scripts/check-licenses.mjs
+      - .github/scripts/license-policy.mjs
+      - .github/workflows/python-image-licenses.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Python Images
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.find.outputs.services }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # A Python image is one whose Dockerfile installs with uv. They are found,
+      # not listed, so a new one is judged from its first pull request.
+      - name: Find the images that install from PyPI
+        id: find
+        run: |
+          found=$(grep -lE '^RUN uv sync ' apps/*/Dockerfile || true)
+          if [ -z "$found" ]; then
+            echo "::error::No Dockerfile under apps/ installs with uv: this check has lost what it holds."
+            exit 1
+          fi
+          services=$(printf '%s\n' "$found" | sed -E 's#^apps/([^/]+)/Dockerfile$#\1#' | jq -R . | jq -sc .)
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "Python images: $services"
+
+  licences:
+    name: Licences (${{ matrix.service }})
+    needs: images
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.images.outputs.services) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # The licence gate runs node.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      # The Python every Python image runs on, which its Dockerfile takes as an
+      # argument with no default.
+      - name: Build argument
+        id: args
+        run: echo "floor=$(scripts/ci/python-floor.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      # The stage that installs, and no further: the published image adds
+      # nothing from PyPI to it. The cache is read and not written: a publish
+      # writes it, from the default branch.
+      - name: Build the stage that installs (${{ matrix.service }})
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./apps/${{ matrix.service }}/Dockerfile
+          target: builder
+          load: true
+          tags: semiont-${{ matrix.service }}:licences
+          build-args: PYTHON_FLOOR=${{ steps.args.outputs.floor }}
+          cache-from: type=gha
+
+      # The same scanner at the same version as the publish, so a licence is
+      # read here as it will be read there.
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-${{ matrix.service }}:licences
+          format: spdx-json
+          output: sbom.spdx.json
+
+      # Silence is not agreement. A bill of materials that names no package
+      # passes the gate with nothing judged, so it has to name the service's
+      # own, which the stage builds from this repository and installs.
+      - name: The SBOM names what the stage installed
+        run: |
+          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' "apps/${{ matrix.service }}/pyproject.toml" | head -1)
+          if [ -z "$name" ]; then
+            echo "::error::apps/${{ matrix.service }}/pyproject.toml names no package."
+            exit 1
+          fi
+          if ! jq -e --arg name "$name" 'any(.packages[]; .name == $name)' sbom.spdx.json > /dev/null; then
+            echo "::error::The bill of materials does not name $name: the scanner did not read what the builder stage installed, so the gate would judge nothing."
+            exit 1
+          fi
+
+      - name: License policy gate
+        run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt

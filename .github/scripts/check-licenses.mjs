@@ -13,7 +13,9 @@
 // The policy — the allowlist, the exceptions, and how an SPDX expression is
 // judged — is license-policy.mjs's. An undetermined license fails as "unknown"
 // so a human reviews, unless exceptions.txt lists the package with a
-// human-verified SPDX id (itself still checked against the allowlist).
+// human-verified SPDX id (itself still checked against the allowlist). A
+// license the scanner reports under a name SPDX does not have fails the same
+// way, unless exceptions.txt answers for that name on that package.
 
 import { readFileSync } from 'node:fs';
 import { loadPolicy } from './license-policy.mjs';
@@ -30,6 +32,9 @@ const policy = loadPolicy(allowlistPath, exceptionsPath);
 
 const sbom = JSON.parse(readFileSync(sbomPath, 'utf8'));
 const packages = Array.isArray(sbom.packages) ? sbom.packages : [];
+
+/** The name the scanner reports each license under that SPDX does not have, by the `LicenseRef-*` it stands behind. */
+const namesOfReferences = new Map((sbom.hasExtractedLicensingInfos ?? []).map((info) => [info.licenseId, info.name]));
 
 /** The package indexes whose packages are judged, by the purl each one's package carries. */
 const ECOSYSTEMS = { 'pkg:npm/': 'npm', 'pkg:pypi/': 'PyPI' };
@@ -56,6 +61,7 @@ function licenseOf(pkg) {
 const disallowed = [];
 const unknown = [];
 const excepted = [];
+const named = [];
 const scanned = Object.fromEntries(Object.values(ECOSYSTEMS).map((ecosystem) => [ecosystem, 0]));
 
 for (const pkg of packages) {
@@ -80,8 +86,15 @@ for (const pkg of packages) {
     unknown.push({ name, license: pkg.licenseDeclared ?? 'NOASSERTION' });
     continue;
   }
-  if (!policy.allows(license, pkg.name)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
-  else if (viaException) excepted.push({ name, license });
+
+  // A license the scanner could not name is answered the same way: only that
+  // name, on that package. What it did name stays in the expression.
+  const { expression, answers } = policy.answered(license, pkg.name, namesOfReferences);
+  if (!policy.allows(expression, pkg.name)) {
+    const how = viaException ? ' (exception)' : answers.length > 0 ? ` (with ${answers.map((a) => `"${a.reported}" answered as ${a.verified}`).join(', ')})` : '';
+    disallowed.push({ name, license: `${license}${how}` });
+  } else if (viaException) excepted.push({ name, license });
+  else for (const answer of answers) named.push({ name, ...answer });
 }
 
 // --- Report ----------------------------------------------------------------
@@ -91,6 +104,9 @@ console.log(`Scanned ${counted} packages against ${policy.size} allowlist entrie
 
 for (const e of excepted) {
   console.log(`ℹ️  ${e.name}: no license in metadata; using verified exception → ${e.license}`);
+}
+for (const n of named) {
+  console.log(`ℹ️  ${n.name}: "${n.reported}" is no SPDX license; using verified exception → ${n.verified}`);
 }
 
 if (disallowed.length === 0 && unknown.length === 0) {
