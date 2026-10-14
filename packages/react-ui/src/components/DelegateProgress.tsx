@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { components } from '@semiont/core';
 import type { AnnotatorKey } from '../lib/annotation-registry';
 import { ItemFoundLog } from './ItemFoundLog';
@@ -21,6 +22,8 @@ type JobProgressMessage = components['schemas']['JobProgressMessage'];
 export interface DelegateProgressTranslations {
   /** Control label while the run is in flight. */
   cancel: string;
+  /** Control label once it has been pressed to cancel, until the run ends. */
+  cancelling: string;
   /** Control label once the run has ended. */
   close: string;
   /** Localized copy for a progress code. */
@@ -96,8 +99,13 @@ export interface DelegateProgressProps {
    * Cancel the job this display follows. `DelegateShell` passes the one its
    * `controls` hold, which is absent until the queue has named the job: a
    * pending job is cancelled, a running one is stopped by its worker.
+   *
+   * Resolves with whether the queue acted on it, and rejects when the request
+   * was refused. From the click the control reads as cancelling and cannot be
+   * pressed again, until the run ends; an answer of `false`, or a refusal,
+   * gives it back.
    */
-  onCancel?: () => void;
+  onCancel?: () => Promise<boolean>;
   /** Dismiss the display, once the job has ended. `DelegateShell` passes its `controls`' dismiss. */
   onDismiss?: () => void;
   translations: DelegateProgressTranslations;
@@ -131,6 +139,20 @@ export function DelegateProgress({
   const current = progress.current;
   const done = progress.processed;
   const total = progress.total;
+
+  // Nothing announces a cancellation to the job's follower, so the run goes on
+  // on screen after the click; the control says it was pressed meanwhile. A
+  // display follows one job: `DelegateShell` keys it by the job's id, so the
+  // next job's display starts with its control live.
+  const [cancelling, setCancelling] = useState(false);
+  const cancel = onCancel && (() => {
+    setCancelling(true);
+    onCancel().then(
+      (acted) => { if (!acted) setCancelling(false); },
+      () => setCancelling(false),
+    );
+  });
+  const pressed = cancelling && !ended;
 
   // The params line earns its space only when it says something the status
   // line does not. The ONLY redundant case is a single entity type, where the
@@ -224,13 +246,14 @@ export function DelegateProgress({
       </div>
 
       {/* ONE control, its meaning set by the lifecycle. */}
-      {(ended ? onDismiss : onCancel) && (
+      {(ended ? onDismiss : cancel) && (
         <button
-          onClick={ended ? onDismiss : onCancel}
+          onClick={ended ? onDismiss : cancel}
+          disabled={pressed}
           className="semiont-delegate-progress__control"
           data-testid="semiont-delegate-control"
-          title={ended ? tr.close : tr.cancel}
-          aria-label={ended ? tr.close : tr.cancel}
+          title={ended ? tr.close : pressed ? tr.cancelling : tr.cancel}
+          aria-label={ended ? tr.close : pressed ? tr.cancelling : tr.cancel}
           type="button"
         >
           ✕

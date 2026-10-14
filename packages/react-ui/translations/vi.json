@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Loại thực thể",
     "subjectKindCategory": "Danh mục",
     "cancel": "Hủy",
+    "cancelling": "Đang hủy...",
     "inProgress": "Đang chú thích..."
   },
   "PdfViewer": {

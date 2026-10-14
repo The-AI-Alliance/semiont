@@ -106,6 +106,7 @@ export function DelegateSection({
       progressProps={{
         translations: {
           cancel: t('cancel'),
+          cancelling: ta('cancelling'),
           inProgress: t('annotating'),
           close: ta('close'),
           message: delegateProgressCopy(ta),

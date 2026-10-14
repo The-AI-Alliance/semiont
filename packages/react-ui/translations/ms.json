@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Jenis entiti",
     "subjectKindCategory": "Kategori",
     "cancel": "Batal",
+    "cancelling": "Membatalkan...",
     "inProgress": "Menganotasi..."
   },
   "PdfViewer": {

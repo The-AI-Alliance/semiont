@@ -14,7 +14,7 @@
  * assertion failing means "rendered something other than what was passed".
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { components } from '@semiont/core';
@@ -66,7 +66,7 @@ describe('DelegateProgress', () => {
     const { rerender } = render(
       <DelegateProgress ended={false}
         progress={detecting()} dataType="reference"
-        onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
+        onCancel={vi.fn(async () => true)} onDismiss={vi.fn()} translations={T3()}
       />,
     );
     expect(screen.getByLabelText('tr.cancel')).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('DelegateProgress', () => {
     rerender(
       <DelegateProgress
         progress={detecting()} dataType="reference" ended
-        onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
+        onCancel={vi.fn(async () => true)} onDismiss={vi.fn()} translations={T3()}
       />,
     );
     expect(screen.getByLabelText('tr.close')).toBeInTheDocument();
@@ -111,6 +111,7 @@ const PARAMS = 'semiont-delegate-params';
 const T3 = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTranslations =>
   ({
     cancel: 'tr.cancel',
+    cancelling: 'tr.cancelling',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
     message: (m: JobProgressMessage) => `tr.code(${m.code})`,
@@ -155,7 +156,7 @@ describe('DelegateProgress — the consolidated widget', () => {
   });
 
   it('A3: offers exactly one control, and it means cancel while running', async () => {
-    const onCancel = vi.fn();
+    const onCancel = vi.fn(async () => true);
     const onDismiss = vi.fn();
     render(
       <DelegateProgress ended={false}
@@ -174,7 +175,7 @@ describe('DelegateProgress — the consolidated widget', () => {
   it('A3: the same single control means dismiss once the run has ENDED', async () => {
     // Terminality is the owner's fact, arriving as the `ended` prop: the
     // component reads no terminal marker from the payload.
-    const onCancel = vi.fn();
+    const onCancel = vi.fn(async () => true);
     const onDismiss = vi.fn();
     render(
       <DelegateProgress
@@ -320,5 +321,74 @@ describe('DelegateProgress — the honest ended frame', () => {
       <DelegateProgress ended={false} endedMessage="tr.ended" progress={detecting()} dataType="generation" translations={T3()} />,
     );
     expect(screen.getByTestId(STATUS).textContent).toBe('tr.code(detecting-entities)');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Between the click and the end. Nothing announces a cancellation to the
+// display's follower, so the job runs on screen for seconds after the click.
+// The control says it was pressed until the job ends, and takes that back
+// when nothing was cancelled: the request refused, or answered `false`.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('DelegateProgress — between the click and the end', () => {
+  const live = { progress: detecting(), dataType: 'reference' as const, translations: T3() };
+
+  /** A cancel request the test answers when it chooses. */
+  function heldCancel() {
+    let answer!: (acted: boolean) => void;
+    let refuse!: (error: Error) => void;
+    const onCancel = vi.fn(() => new Promise<boolean>((resolve, reject) => { answer = resolve; refuse = reject; }));
+    return { onCancel, answer: (acted: boolean) => answer(acted), refuse: (error: Error) => refuse(error) };
+  }
+
+  it('after a click the control is disabled and reads as cancelling', async () => {
+    const unanswered = vi.fn(() => new Promise<boolean>(() => {}));
+    render(<DelegateProgress {...live} ended={false} onCancel={unanswered} />);
+
+    await userEvent.click(screen.getByTestId(CONTROL));
+
+    expect(unanswered).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId(CONTROL)).toBeDisabled();
+    expect(screen.getByTestId(CONTROL)).toHaveAccessibleName('tr.cancelling');
+  });
+
+  it('a cancel the queue accepted stays pressed until the job ends, and then the control dismisses', async () => {
+    const onDismiss = vi.fn();
+    const props = { ...live, onCancel: vi.fn(async () => true), onDismiss };
+    const { rerender } = render(<DelegateProgress {...props} ended={false} />);
+
+    await userEvent.click(screen.getByTestId(CONTROL));
+    await waitFor(() => expect(props.onCancel).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId(CONTROL)).toBeDisabled();
+
+    rerender(<DelegateProgress {...props} ended />);
+    expect(screen.getByTestId(CONTROL)).toBeEnabled();
+    expect(screen.getByTestId(CONTROL)).toHaveAccessibleName('tr.close');
+    await userEvent.click(screen.getByTestId(CONTROL));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('a refused cancel puts the control back', async () => {
+    const held = heldCancel();
+    render(<DelegateProgress {...live} ended={false} onCancel={held.onCancel} />);
+
+    await userEvent.click(screen.getByTestId(CONTROL));
+    expect(screen.getByTestId(CONTROL)).toBeDisabled();
+    held.refuse(new Error('the queue refused'));
+
+    await waitFor(() => expect(screen.getByTestId(CONTROL)).toBeEnabled());
+    expect(screen.getByTestId(CONTROL)).toHaveAccessibleName('tr.cancel');
+  });
+
+  it('a cancel the queue did not act on puts the control back', async () => {
+    const held = heldCancel();
+    render(<DelegateProgress {...live} ended={false} onCancel={held.onCancel} />);
+
+    await userEvent.click(screen.getByTestId(CONTROL));
+    expect(screen.getByTestId(CONTROL)).toBeDisabled();
+    held.answer(false);
+
+    await waitFor(() => expect(screen.getByTestId(CONTROL)).toBeEnabled());
+    expect(screen.getByTestId(CONTROL)).toHaveAccessibleName('tr.cancel');
   });
 });

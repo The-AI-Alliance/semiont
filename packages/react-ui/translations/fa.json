@@ -26,6 +26,7 @@
     "subjectKindEntityType": "نوع موجودیت",
     "subjectKindCategory": "دسته‌بندی",
     "cancel": "انصراف",
+    "cancelling": "در حال انصراف...",
     "inProgress": "در حال حاشیه‌نویسی..."
   },
   "PdfViewer": {

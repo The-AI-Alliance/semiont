@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Entitetstype",
     "subjectKindCategory": "Kategori",
     "cancel": "Avbryt",
+    "cancelling": "Avbryter...",
     "inProgress": "Annoterer..."
   },
   "PdfViewer": {

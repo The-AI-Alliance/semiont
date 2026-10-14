@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Тип сутності",
     "subjectKindCategory": "Категорія",
     "cancel": "Скасувати",
+    "cancelling": "Скасування...",
     "inProgress": "Анотування..."
   },
   "PdfViewer": {

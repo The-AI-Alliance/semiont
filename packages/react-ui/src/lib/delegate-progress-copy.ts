@@ -168,6 +168,7 @@ export function delegateProgressTranslations(
 ): DelegateProgressTranslations {
   return {
     cancel: t('cancel'),
+    cancelling: t('cancelling'),
     close: t('close'),
     inProgress: t('inProgress'),
     message: delegateProgressCopy(t),

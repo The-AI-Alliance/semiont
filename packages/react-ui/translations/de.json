@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Entitätstyp",
     "subjectKindCategory": "Kategorie",
     "cancel": "Abbrechen",
+    "cancelling": "Wird abgebrochen...",
     "inProgress": "Wird annotiert..."
   },
   "PdfViewer": {

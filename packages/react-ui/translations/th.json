@@ -26,6 +26,7 @@
     "subjectKindEntityType": "ประเภทเอนทิตี",
     "subjectKindCategory": "หมวดหมู่",
     "cancel": "ยกเลิก",
+    "cancelling": "กำลังยกเลิก...",
     "inProgress": "กำลังสร้างคำอธิบายประกอบ..."
   },
   "PdfViewer": {

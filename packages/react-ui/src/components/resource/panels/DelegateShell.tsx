@@ -76,6 +76,9 @@ export function DelegateShell({ delegateType, title, isDelegating, progress, for
           {!progress && form}
           {progress && (
             <DelegateProgress
+              // One display per job: what it holds of its own, such as a
+              // pressed cancel, does not carry over to the next job.
+              key={controls.jobId}
               progress={progress}
               dataType={delegateType}
               // `ended` is deliberately NOT in `progressProps` (it is Omit'd):

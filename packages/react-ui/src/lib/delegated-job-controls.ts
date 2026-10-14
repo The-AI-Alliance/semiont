@@ -11,15 +11,23 @@ import type { SemiontSession } from '@semiont/sdk';
  * given the job's id, makes one.
  */
 class Controls {
-  readonly #onCancel: (() => void) | undefined;
+  readonly #jobId: JobId | null;
+  readonly #onCancel: (() => Promise<boolean>) | undefined;
   readonly #onDismiss: (() => void) | undefined;
 
-  constructor(onCancel: (() => void) | undefined, onDismiss: (() => void) | undefined) {
+  constructor(jobId: JobId | null, onCancel: (() => Promise<boolean>) | undefined, onDismiss: (() => void) | undefined) {
+    this.#jobId = jobId;
     this.#onCancel = onCancel;
     this.#onDismiss = onDismiss;
   }
 
-  get onCancel(): (() => void) | undefined {
+  /** The job the display follows; `null` until the queue has named it. */
+  get jobId(): JobId | null {
+    return this.#jobId;
+  }
+
+  /** Resolves with whether the queue acted on the cancel; rejects when the request was refused. */
+  get onCancel(): (() => Promise<boolean>) | undefined {
     return this.#onCancel;
   }
 
@@ -32,8 +40,9 @@ export type DelegatedJobControls = Controls;
 
 /**
  * The controls of the display that follows the job `jobId`. With no id yet,
- * because the queue has not answered the job's creation, there is no cancel
- * and the display shows no control while the job runs.
+ * because the queue has not answered the job's creation, or with no session
+ * to send it on, there is no cancel and the display shows no control while
+ * the job runs.
  *
  * @emits job:cancel-requested - Cancel the delegated job, by its id: pending, it is cancelled; running, the worker that holds it stops its work and settles it as cancelled. Payload: { jobId: JobId }
  */
@@ -42,14 +51,13 @@ export function delegatedJobControls(
   jobId: JobId | null,
   onDismiss: (() => void) | undefined,
 ): DelegatedJobControls {
-  const onCancel = jobId
-    ? () => {
-        session?.client.job.cancel(jobId).catch((error: unknown) => {
-          console.error(`Failed to cancel job ${jobId}:`, error);
-        });
-      }
+  const onCancel = session && jobId
+    ? () => session.client.job.cancel(jobId).catch((error: unknown) => {
+        console.error(`Failed to cancel job ${jobId}:`, error);
+        throw error;
+      })
     : undefined;
-  return new Controls(onCancel, onDismiss);
+  return new Controls(jobId, onCancel, onDismiss);
 }
 
 /**

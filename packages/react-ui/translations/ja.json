@@ -26,6 +26,7 @@
     "subjectKindEntityType": "エンティティタイプ",
     "subjectKindCategory": "カテゴリ",
     "cancel": "キャンセル",
+    "cancelling": "キャンセル中...",
     "inProgress": "アノテーション中..."
   },
   "PdfViewer": {

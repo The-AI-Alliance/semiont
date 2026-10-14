@@ -26,6 +26,7 @@
     "subjectKindEntityType": "סוג ישות",
     "subjectKindCategory": "קטגוריה",
     "cancel": "ביטול",
+    "cancelling": "מבטל...",
     "inProgress": "מעיר..."
   },
   "PdfViewer": {

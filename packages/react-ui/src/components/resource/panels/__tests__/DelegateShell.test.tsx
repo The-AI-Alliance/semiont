@@ -4,12 +4,15 @@
  * running — the SHELL owns that policy; DelegateProgress just renders whatever
  * callback it is handed).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { jobId } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+import { createTestSession } from '@semiont/sdk/testing';
 import { DelegateShell } from '../DelegateShell';
-import { delegatedJobControls } from '../../../../lib/delegated-job-controls';
+import { delegatedJobControls, markJobControls } from '../../../../lib/delegated-job-controls';
 
 const progress = { percentage: 50 };
 const noJob = delegatedJobControls(null, null, undefined);
@@ -17,6 +20,7 @@ const noJob = delegatedJobControls(null, null, undefined);
 /** DelegateProgress requires a full translation set; the shell just passes it through. */
 const TR = {
   cancel: 'tr.cancel',
+  cancelling: 'tr.cancelling',
   close: 'tr.close',
   inProgress: 'tr.inProgress',
   message: () => 'tr.code',
@@ -24,9 +28,16 @@ const TR = {
   paramLabel: (c: string) => `tr.param(${c})`,
 };
 
+const sessions: SemiontSession[] = [];
+
 describe('DelegateShell', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    for (const session of sessions.splice(0)) session.dispose();
   });
 
   it('renders the form when there is no progress, the progress when there is', () => {
@@ -57,6 +68,23 @@ describe('DelegateShell', () => {
     rerender(<DelegateShell {...props} isDelegating={false} />);
     await userEvent.click(screen.getByLabelText('Close'));
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("starts a second job's display live, though the first job's cancel was never answered", async () => {
+    const { session, client } = createTestSession();
+    sessions.push(session);
+    vi.spyOn(client.job, 'cancel').mockReturnValue(new Promise<boolean>(() => {}));
+    const running = (job: string) => (
+      <DelegateShell delegateType="reference" title="t" isDelegating={true} progress={progress}
+        form={null} controls={markJobControls(session, jobId(job))} progressProps={{ translations: TR }} />
+    );
+    const { rerender } = render(running('job-1'));
+    await userEvent.click(screen.getByTestId('semiont-delegate-control'));
+    expect(screen.getByTestId('semiont-delegate-control')).toBeDisabled();
+
+    rerender(running('job-2'));
+    expect(screen.getByTestId('semiont-delegate-control')).toBeEnabled();
+    expect(screen.getByTestId('semiont-delegate-control')).toHaveAccessibleName('tr.cancel');
   });
 
   it('does not compile when it names no job: a panel cannot leave the control out', () => {

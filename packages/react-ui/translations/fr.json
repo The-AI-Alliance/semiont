@@ -26,6 +26,7 @@
     "subjectKindEntityType": "Type d'entité",
     "subjectKindCategory": "Catégorie",
     "cancel": "Annuler",
+    "cancelling": "Annulation en cours...",
     "inProgress": "Annotation en cours..."
   },
   "PdfViewer": {

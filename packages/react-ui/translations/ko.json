@@ -26,6 +26,7 @@
     "subjectKindEntityType": "개체 유형",
     "subjectKindCategory": "카테고리",
     "cancel": "취소",
+    "cancelling": "취소 중...",
     "inProgress": "주석 달기 중..."
   },
   "PdfViewer": {

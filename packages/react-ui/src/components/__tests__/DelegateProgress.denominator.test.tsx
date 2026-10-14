@@ -25,6 +25,7 @@ const TALLY = 'semiont-delegate-tally';
 const T = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTranslations =>
   ({
     cancel: 'tr.cancel',
+    cancelling: 'tr.cancelling',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
     message: (m: any) => `tr.code(${m.code})`,
