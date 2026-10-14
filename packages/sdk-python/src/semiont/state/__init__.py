@@ -17,8 +17,19 @@ way out, and what it had running has ended by then.
 from semiont.state.beckon import BeckonStateUnit
 from semiont.state.gather import GatherStateUnit
 from semiont.state.hover import HoverDwell
+from semiont.state.mark import MarkStateUnit, PendingAnnotation
 from semiont.state.match import MatchStateUnit
 from semiont.state.search import SearchPipeline, SearchState
 from semiont.state.yield_ import YieldStateUnit
 
-__all__ = ["BeckonStateUnit", "GatherStateUnit", "HoverDwell", "MatchStateUnit", "SearchPipeline", "SearchState", "YieldStateUnit"]
+__all__ = [
+    "BeckonStateUnit",
+    "GatherStateUnit",
+    "HoverDwell",
+    "MarkStateUnit",
+    "MatchStateUnit",
+    "PendingAnnotation",
+    "SearchPipeline",
+    "SearchState",
+    "YieldStateUnit",
+]

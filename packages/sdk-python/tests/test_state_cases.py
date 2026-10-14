@@ -14,7 +14,7 @@ import asyncio
 import copy
 import re
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
-from typing import Final, Protocol, TypedDict, final, get_type_hints
+from typing import Final, Protocol, TypedDict, cast, final, get_type_hints
 
 import pytest
 from aio import pass_time, run, turns
@@ -28,7 +28,17 @@ from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel, written
-from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit, SearchPipeline, SearchState, YieldStateUnit
+from semiont.state import (
+    BeckonStateUnit,
+    GatherStateUnit,
+    HoverDwell,
+    MarkStateUnit,
+    MatchStateUnit,
+    PendingAnnotation,
+    SearchPipeline,
+    SearchState,
+    YieldStateUnit,
+)
 from semiont.state_unit import StateUnit
 from semiont.testing import Delay, DropReply, FaultAction, FaultyTransport, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame, Transport
@@ -36,6 +46,15 @@ from semiont.watched import Watched
 
 # The SDK this runner is, as the names table's `absent` names it.
 SDK: Final = "python"
+
+SETTLE_TURNS: Final = 200
+"""How many turns of the loop a settle lets pass: enough for what any case sets going to run to its end, as a paused clock lets it."""
+
+
+async def settle() -> None:
+    """Let what is ready run, and what that makes ready, without moving the clock."""
+    await turns(SETTLE_TURNS)
+
 
 TABLE: Final = read(SPEC / "client/state-units.json")
 NAMES: Final = read(SPEC / "client/surface.json")
@@ -92,6 +111,7 @@ MAKERS: Final[Mapping[str, Make]] = {
     "gather": lambda client, searches, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
     "search": lambda client, searches, made: search_pipeline(searches, made),
     "yield": lambda client, searches, made: YieldStateUnit(client, text(made["locale"], "a locale")),
+    "mark": lambda client, searches, made: MarkStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
 }
 """How this SDK makes each unit it has, from the client and what the case makes it from."""
 
@@ -211,8 +231,14 @@ def wire(held: object) -> JsonValue:
         return written(held)
     if isinstance(held, SemiontError):
         return {"code": held.code, "message": held.message}
+    if isinstance(held, PendingAnnotation):
+        if isinstance(held.selector, list):
+            several: list[JsonValue] = [written(one) for one in held.selector]
+            return {"selector": several, "motivation": held.motivation}
+        return {"selector": written(held.selector), "motivation": held.motivation}
     if isinstance(held, SearchState):
-        shown: SearchState[object] = held
+        # Narrowed from `object`, a generic class's parameter is unknown to pyright: the results are read as objects.
+        shown = cast(SearchState[object], held)
         return {"results": [wire(result) for result in shown.results], "isSearching": shown.is_searching}
     if held is None or isinstance(held, str | bool | int | float):
         return held
@@ -334,7 +360,7 @@ async def play(case: JsonObject) -> None:
             if collector is not None:
                 collector.cancel()
                 await asyncio.gather(collector, return_exceptions=True)
-            await turns()
+            await settle()
 
 
 def request_id(transport: FaultyTransport, named: JsonValue) -> str | None:
@@ -358,7 +384,7 @@ async def perform(
 ) -> int:
     """Perform one step. Returns how much of what was heard has been checked."""
     if step == "settle":
-        await turns()
+        await settle()
         return told
     assert isinstance(step, dict)
     if "say" in step:
@@ -380,9 +406,10 @@ async def perform(
         method: Method = getattr(units[text(step["of"], "a unit")], snake(text(step["invoke"], "a member")))
         method(**{snake(name): argument(method, snake(name), value) for name, value in args.items()})
     elif "pass" in step:
-        # What is ready runs at the time it became ready, before the clock moves.
-        await turns()
+        # What is ready runs at the time it became ready, before the clock moves; what falls due runs to its end.
+        await settle()
         await pass_time(duration_ms(step["pass"]) / 1000)
+        await settle()
     elif "dispose" in step:
         units[text(step["dispose"], "a unit")].dispose()
     elif "answerSearch" in step:
@@ -410,7 +437,7 @@ async def perform(
     elif "nothingSent" in step:
         assert list(transport.request_log) == [], f"requests were sent: {list(transport.request_log)!r}"
     elif "heard" in step:
-        await turns()
+        await settle()
         frames = heard[told:]
         stated = step["heard"]
         assert isinstance(stated, list)

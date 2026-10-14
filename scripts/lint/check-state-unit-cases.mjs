@@ -21,6 +21,8 @@
  *   to less than nothing;
  * - a search answered or its queries checked in a case that is not a search
  *   pipeline's;
+ * - a motivation `MarkJobParams` tells apart that no case of the mark unit
+ *   delegates a job of;
  * - a fixture that does not exist, or one no case uses;
  * - a case with no step that checks anything: it drives, and asserts nothing.
  *
@@ -273,6 +275,20 @@ for (const [index, c] of (table.cases ?? []).entries()) {
   }
   if (checks === 0) fail(`${where} checks nothing: it drives its units and states nothing they did`);
 }
+
+// The mark unit reads a job's motivation off its parameters, whichever member of
+// MarkJobParams they are: its cases delegate a job of every motivation the spec tells apart.
+const toldApart = Object.keys(read('specs/src/components/schemas/MarkJobParams.json').discriminator?.mapping ?? {});
+if (toldApart.length === 0) fail('specs/src/components/schemas/MarkJobParams.json tells its members apart by no mapping this lint can read');
+const delegated = new Set(
+  (table.cases ?? [])
+    .filter((c) => c.unit === 'mark')
+    .flatMap((c) => c.steps ?? [])
+    .filter((step) => isObject(step) && step.say === 'mark:delegate-request')
+    .map((step) => step.payload?.params?.motivation),
+);
+const undelegated = toldApart.filter((motivation) => !delegated.has(motivation));
+if (undelegated.length > 0) fail(`${TABLE}: no case of the mark unit delegates a job of ${undelegated.join(', ')}, which MarkJobParams tells apart`);
 
 // A fixture may be made of another.
 for (const [name, value] of Object.entries(table.fixtures ?? {})) fixtures(value, `${TABLE}: fixtures.${name}`);

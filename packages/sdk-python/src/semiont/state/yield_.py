@@ -11,9 +11,10 @@ from types import TracebackType
 from typing import Final, Self, final, override
 
 from semiont.client import SemiontClient
-from semiont.errors import JobError, SemiontError
+from semiont.errors import SemiontError
 from semiont.identifiers import JobId
 from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
+from semiont.state._jobs import cancelled
 from semiont.state._reading import Reading
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
@@ -110,7 +111,7 @@ class YieldStateUnit(StateUnit):
         except SemiontError as failure:
             # Why it ended is said before the end itself. A cancelled run's progress stays.
             self._failure.set(failure)
-            if not (isinstance(failure, JobError) and failure.code == "job.cancelled"):
+            if not cancelled(failure):
                 self._progress.set(None)
         self._generating.set(False)
         if created is not None and self._job_id.value == created:

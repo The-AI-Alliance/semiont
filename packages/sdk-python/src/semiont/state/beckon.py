@@ -8,6 +8,8 @@ viewer or by another participant driving it, and turns the viewer's focus to it.
 from types import TracebackType
 from typing import Final, Self, final, override
 
+from pydantic import ValidationError
+
 from semiont.bus import decoded
 from semiont.channels import BECKON_FOCUS, BECKON_HOVER, BECKON_SPARKLE, BROWSE_CLICK
 from semiont.client import SemiontClient
@@ -48,13 +50,20 @@ class BeckonStateUnit(StateUnit):
     async def _listen(self, heard: Events[Frame]) -> None:
         async with heard:
             async for frame in heard:
-                if frame.channel == BECKON_HOVER.name:
-                    hovered = decoded(BECKON_HOVER, frame.payload).annotation_id
-                    self._hovered.set(hovered)
-                    if hovered is not None:
-                        self._client.bus.publish(BECKON_SPARKLE, BeckonSparkleEvent(annotation_id=hovered))
-                else:
-                    self.focus(decoded(BROWSE_CLICK, frame.payload).annotation_id)
+                try:
+                    self._heard(frame)
+                except ValidationError:
+                    # A frame that is not its channel's is nobody's to act on.
+                    continue
+
+    def _heard(self, frame: Frame) -> None:
+        if frame.channel == BECKON_HOVER.name:
+            hovered = decoded(BECKON_HOVER, frame.payload).annotation_id
+            self._hovered.set(hovered)
+            if hovered is not None:
+                self._client.bus.publish(BECKON_SPARKLE, BeckonSparkleEvent(annotation_id=hovered))
+        else:
+            self.focus(decoded(BROWSE_CLICK, frame.payload).annotation_id)
 
     @override
     def dispose(self) -> None:

@@ -788,10 +788,7 @@
         { "member": "progressMotivation" },
         { "member": "failure" },
         { "member": "jobId" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no mark unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     },
     {
       "unit": "yield",
