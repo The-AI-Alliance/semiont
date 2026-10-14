@@ -138,11 +138,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Trigger browser and service image workflows
+        # The images are built from the ref this run was started on: the
+        # release's tag when release.yml started it, and the branch when it was
+        # started by hand on one. Seven of the eight images are built from the
+        # repository's own source, so a run with no ref would build whatever
+        # main is when it starts.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.publish.outputs.version }}
+          REF: ${{ github.ref_name }}
         run: |
           for wf in publish-browser.yml publish-service-images.yml; do
-            gh workflow run "$wf" --field version="$VERSION" --field tag_latest=true
-            echo "Triggered $wf @ $VERSION (tag_latest=true)"
+            gh workflow run "$wf" --ref "$REF" --field version="$VERSION" --field tag_latest=true
+            echo "Triggered $wf @ $VERSION at $REF (tag_latest=true)"
           done

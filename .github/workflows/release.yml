@@ -102,9 +102,12 @@ jobs:
       - name: Trigger npm publish workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # At the tag, as the launcher, the crates and PyPI are. Without a ref
+        # the run builds whatever main is when it starts, and a merge between
+        # the tag and that moment would be published under this version.
         run: |
-          gh workflow run publish-npm-packages.yml --field stable_release=true
-          echo "Triggered publish-npm-packages.yml (stable release)"
+          gh workflow run publish-npm-packages.yml --ref "${{ needs.tag.outputs.tag }}" --field stable_release=true
+          echo "Triggered publish-npm-packages.yml at ${{ needs.tag.outputs.tag }} (stable release)"
 
   trigger-launcher:
     name: Trigger launcher release (runs separately)

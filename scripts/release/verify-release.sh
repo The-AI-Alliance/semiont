@@ -32,6 +32,27 @@ ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+# within <seconds> <command…>: the command's exit status, or 124 when it had not
+# ended in time and was stopped. macOS has no `timeout`, and an alarm does not
+# end gh, so the command runs beside a watcher that stops it, its children
+# first. The watcher leaves a mark before it stops anything: a command whose
+# child was stopped ends with a failure of its own, which is not the answer.
+within() {
+  local limit=$1; shift
+  "$@" &
+  local pid=$!
+  local mark="$WORK/within.$pid"
+  # `&&`: a watcher whose sleep is ended below, because the command finished,
+  # goes no further and leaves no mark.
+  ( sleep "$limit" && { : > "$mark"; pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; sleep 2; kill -9 "$pid" 2>/dev/null; } ) &
+  local watcher=$!
+  local status=0
+  wait "$pid" 2>/dev/null || status=$?
+  pkill -P "$watcher" 2>/dev/null; kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
+  if [ -e "$mark" ]; then rm -f "$mark"; return 124; fi
+  return "$status"
+}
+
 # ghcr allows anonymous pulls of public packages; no PAT needed to read manifests.
 ghcr_token() { curl -sf "https://ghcr.io/token?scope=repository:the-ai-alliance/$1:pull" | jq -r .token; }
 ghcr_digest() {
@@ -267,6 +288,10 @@ fi
 
 PREV=$(git -C "$ROOT" tag -l 'v*' --sort=-v:refname 2>/dev/null | grep -v "^v$VERSION$" | head -1 | sed 's/^v//')
 
+# Each provenance check answers in a few seconds.
+ATTEST_LIMIT=60
+mkdir -p "$WORK/docker-config"
+
 for svc in $matrix_services browser; do
   img="semiont-$svc"
   tok=$(ghcr_token "$img")
@@ -293,13 +318,22 @@ for svc in $matrix_services browser; do
     bad "$img:latest resolves to ${d_lat:-nothing}, which is neither :$VERSION nor :$PREV"
   fi
 
-  if gh attestation verify "oci://$GHCR/$img:$VERSION" --owner "$OWNER" --format json > "$WORK/att.json" 2>/dev/null; then
+  # gh reads the image through the machine's Docker configuration, and so
+  # through its credential helper. The images are public and need no
+  # credential, and a helper that does not answer holds the check with nothing
+  # printed. So gh is given an empty configuration, and a time limit.
+  within "$ATTEST_LIMIT" env DOCKER_CONFIG="$WORK/docker-config" \
+    gh attestation verify "oci://$GHCR/$img:$VERSION" --owner "$OWNER" --format json > "$WORK/att.json" 2> "$WORK/att.err"
+  att=$?
+  if [ "$att" -eq 0 ]; then
     subj=$(jq -r '.[0].verificationResult.statement.subject[0].digest.sha256' "$WORK/att.json")
     [ "sha256:$subj" = "$d_ver" ] \
       && ok "$img:$VERSION provenance verified, subject matches tag" \
       || bad "$img:$VERSION provenance subject sha256:${subj:0:16}… != tag digest ${d_ver:0:23}…"
+  elif [ "$att" -eq 124 ]; then
+    bad "$img:$VERSION provenance check gave no answer in ${ATTEST_LIMIT}s"
   else
-    bad "$img:$VERSION provenance did not verify"
+    bad "$img:$VERSION provenance did not verify: $(tail -n 1 "$WORK/att.err")"
   fi
 done
 

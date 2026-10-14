@@ -40,7 +40,7 @@ gh workflow run release.yml
 [`release.yml`](../../.github/workflows/release.yml) then:
 
 1. Verifies the versions again, tags the commit `v<version>`, and creates the GitHub Release.
-2. Dispatches the npm publish. When the packages are live, that workflow dispatches both image workflows with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
+2. Dispatches the npm publish at the tag. When the packages are live, that workflow dispatches both image workflows at the ref it runs on, with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
 3. Dispatches the launcher release at the tag.
 4. Dispatches the crates publish at the tag.
 5. Dispatches the PyPI publish at the tag.
@@ -111,9 +111,11 @@ Then the image is pushed with its version, `sha-<commit>` and, when `tag_latest`
 `tag_latest` defaults to false on both image workflows. The release always passes true. The default governs a manual dispatch, where rebuilding an older version must not move `latest` onto it:
 
 ```bash
-gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
-gh workflow run publish-browser.yml --field version=<version> --field dry_run=true
+gh workflow run publish-service-images.yml --ref v<version> --field version=<version> --field tag_latest=true
+gh workflow run publish-browser.yml --ref v<version> --field version=<version> --field dry_run=true
 ```
+
+An image workflow builds the ref it is dispatched on. Seven of the eight images are built from the repository's own source, so `--ref v<version>` is what makes an image the release's; without it the run builds the default branch.
 
 What an operator sees of all this is in [Container Images](../operator/administration/IMAGES.md).
 
