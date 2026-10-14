@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Entiteitstype",
     "subjectKindCategory": "Categorie",
     "cancel": "Annuleren",
+    "cancelling": "Bezig met annuleren...",
+    "cancelled": "Geannuleerd",
     "inProgress": "Annoteren..."
   },
   "PdfViewer": {

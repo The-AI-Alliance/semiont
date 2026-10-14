@@ -63,7 +63,9 @@ Each motivation's panel can hand a pass over the whole resource to the knowledge
 | Tags | A **Framework** (a tag schema) and its categories. The knowledge base needs at least one schema registered |
 | References | The entity types to look for, and **Include descriptive references** to also catch phrases such as "the CEO" |
 
-Progress shows while the pass runs, and it can be cancelled. What it creates are ordinary annotations, the same as yours: read them in the panel, and delete the ones you do not want.
+Progress shows while the pass runs, with **✕** to cancel it. Once pressed it reads **Cancelling…** until the pass stops, which it does after the part of the resource it is working on. A cancelled pass keeps what it had made by then. When a pass ends, finished or cancelled, its progress stays in the panel to say how it ended until you close it with **✕**.
+
+What a pass creates are ordinary annotations, the same as yours: read them in the panel, and delete the ones you do not want.
 
 ## References
 
@@ -82,6 +84,8 @@ A resolved reference can be opened, unlinked, converted to a highlight, or delet
 1. Choose what to gather: the resource's content, its summary, how many links deep to follow, and how many resources to take.
 2. **Gather**, and read what came back. Deselect an entity type to leave it out.
 3. Set the new resource's title, instructions, language, creativity, length, format and save location, then **Generate**.
+
+The generation's progress shows in **Resource Info**, with **✕** to cancel it. A generation cancelled before it saves the new resource makes nothing; one that has begun saving finishes.
 
 The new resource records that it was derived from this one.
 

@@ -4,8 +4,9 @@ import { useState, useCallback } from 'react';
 import { delegateProgressCopy, delegateSubjectCopy, delegateParamLabel } from '../../../lib/delegate-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
-import type { MarkJobParams, components } from '@semiont/core';
+import type { JobId, MarkJobParams, components } from '@semiont/core';
 import type { AnnotatorKey } from '../../../lib/annotation-registry';
+import { markJobControls } from '../../../lib/delegated-job-controls';
 import { DelegateShell } from './DelegateShell';
 import './DelegateSection.css';
 
@@ -35,6 +36,10 @@ interface DelegateSectionProps {
   /** BCP-47 tag of the resource being analyzed. Forwarded to the prompt so the LLM analyzes non-English source correctly. */
   sourceLanguage?: string;
   progress?: JobProgress | null | undefined;
+  /** The id of the delegated job: what the cancel control names. Null until the queue has named it. */
+  jobId: JobId | null;
+  /** The delegated job ended cancelled: its display stays, in its cancelled form. */
+  cancelled: boolean;
 }
 
 /**
@@ -44,7 +49,6 @@ interface DelegateSectionProps {
  * their own fields (entity chips; schema + categories).
  *
  * @emits mark:delegate-request - Delegate a `mark` job for the annotation type. Payload: { params: MarkJobParams }, the `mark` job's own parameters, its motivation among them
- * @emits mark:progress-dismiss - Dismiss the annotation progress display
  */
 export function DelegateSection({
   session,
@@ -53,6 +57,8 @@ export function DelegateSection({
   locale,
   sourceLanguage,
   progress,
+  jobId,
+  cancelled,
 }: DelegateSectionProps) {
 
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
@@ -91,10 +97,6 @@ export function DelegateSection({
     // Don't reset density/useDensity - persist across delegated jobs
   }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, session]);
 
-  const handleDismissProgress = useCallback(() => {
-    session?.client.mark.dismissProgress();
-  }, [session]);
-
   return (
     <DelegateShell
       delegateType={annotationType}
@@ -102,11 +104,14 @@ export function DelegateSection({
                annotationType === 'assessment' ? 'annotateAssessments' :
                'annotateComments')}
       isDelegating={isDelegating}
+      cancelled={cancelled}
       progress={progress}
+      controls={markJobControls(session, jobId)}
       progressProps={{
-        onDismiss: handleDismissProgress,
         translations: {
           cancel: t('cancel'),
+          cancelling: ta('cancelling'),
+          cancelled: ta('cancelled'),
           inProgress: t('annotating'),
           close: ta('close'),
           message: delegateProgressCopy(ta),

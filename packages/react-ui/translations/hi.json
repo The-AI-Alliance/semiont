@@ -26,6 +26,8 @@
     "subjectKindEntityType": "इकाई प्रकार",
     "subjectKindCategory": "श्रेणी",
     "cancel": "रद्द करें",
+    "cancelling": "रद्द किया जा रहा है...",
+    "cancelled": "रद्द कर दिया गया",
     "inProgress": "एनोटेट हो रहा है..."
   },
   "PdfViewer": {

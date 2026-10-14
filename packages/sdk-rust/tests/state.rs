@@ -18,7 +18,9 @@ use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_a
 use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
 };
-use semiont::timing::{BUS_REQUEST_TIMEOUT, DELEGATE_SILENCE, HOVER_DELAY, SEARCH_DEBOUNCE};
+use semiont::timing::{
+    BUS_REQUEST_TIMEOUT, DELEGATE_SILENCE, HOVER_DELAY, JOB_SILENCE, SEARCH_DEBOUNCE,
+};
 use semiont::transport::{Envelope, Frame};
 use semiont::types::{
     AnnotationSelector, CommentingJobParams, CommentingJobParamsTone, GatherResourceRequestOptions,
@@ -875,6 +877,22 @@ fn progress(job_type: &str, percentage: f64) -> Value {
     )
 }
 
+/// Have the next question about the job's status answered: it was
+/// cancelled. Nothing announces a cancellation, so this is how its follower
+/// learns of one, once the job has said nothing for `JOB_SILENCE`.
+fn cancelled_when_asked(transport: &FaultyTransport, job_type: &str) {
+    transport.queue_reply(
+        "job:status-requested",
+        [Some(json!({
+            "jobId": "job-1",
+            "type": job_type,
+            "status": "cancelled",
+            "userId": "did:web:example.org:users:alice",
+            "created": "2026-10-01T00:00:00.000Z",
+        }))],
+    );
+}
+
 /// Everything a yield unit holds: whether it generates, the percentage of
 /// its progress, and its outcome.
 fn yielding(unit: &YieldStateUnit) -> (bool, Option<f64>, Option<YieldOutcome>) {
@@ -1057,6 +1075,47 @@ fn failure(unit: &YieldStateUnit) -> Option<(&'static str, String)> {
         .borrow()
         .as_ref()
         .map(|failure| (failure.code(), failure.to_string()))
+}
+
+#[tokio::test(start_paused = true)]
+async fn yield_keeps_a_cancelled_runs_progress_and_says_it_was_cancelled() {
+    let (client, transport) = jobs();
+    let unit = YieldStateUnit::new(client.clone(), "en");
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    say(&client, "job:report-progress", progress(YIELD, 40.0));
+    settle().await;
+
+    // Nothing was made, and the display stays to say so until it is dismissed.
+    cancelled_when_asked(&transport, YIELD);
+    tokio::time::sleep(JOB_SILENCE * 2).await;
+    assert_eq!(yielding(&unit), (false, Some(40.0), None));
+    assert_eq!(
+        failure(&unit),
+        Some(("job.cancelled", "The job was cancelled".to_owned()))
+    );
+
+    unit.dismiss_progress();
+    assert_eq!(yielding(&unit), (false, None, None));
+    assert_eq!(failure(&unit), None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn yield_begins_each_run_without_the_last_ones_progress() {
+    let (client, transport) = jobs();
+    let unit = YieldStateUnit::new(client.clone(), "en");
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    say(&client, "job:report-progress", progress(YIELD, 40.0));
+    settle().await;
+    cancelled_when_asked(&transport, YIELD);
+    tokio::time::sleep(JOB_SILENCE * 2).await;
+    assert_eq!(yielding(&unit), (false, Some(40.0), None));
+
+    // Otherwise the kept progress, its failure now let go, reads as a run
+    // that completed: it is gone when the call returns.
+    unit.generate(generation(json!({})), None);
+    assert_eq!(yielding(&unit), (false, None, None));
 }
 
 #[tokio::test(start_paused = true)]
@@ -1435,6 +1494,19 @@ fn delegating(unit: &MarkStateUnit) -> (Option<Motivation>, Option<f64>) {
     )
 }
 
+/// The motivation of the run whose progress a mark unit holds.
+fn shown(unit: &MarkStateUnit) -> Option<Motivation> {
+    *unit.progress_motivation().borrow()
+}
+
+/// Why a mark unit's last delegated job ended without completing: its code.
+fn why_it_ended(unit: &MarkStateUnit) -> Option<&'static str> {
+    unit.failure()
+        .borrow()
+        .as_ref()
+        .map(|failure| failure.code())
+}
+
 const MARK: &str = "mark";
 
 #[tokio::test(start_paused = true)]
@@ -1573,6 +1645,110 @@ async fn mark_clears_a_delegated_job_that_fails_and_says_no_silence_of_it() {
 
     tokio::time::sleep(DELEGATE_SILENCE * 2).await;
     assert!(heard(&mut silences).await.is_empty());
+}
+
+// A cancelled job's commits stand, so its display stays to say so, as a
+// finished one's does. A failure has its toast, and its display goes.
+
+#[tokio::test(start_paused = true)]
+async fn mark_keeps_a_cancelled_jobs_progress_and_says_it_was_cancelled() {
+    let (client, transport) = jobs();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    ask_to_delegate(&client);
+    settle().await;
+    say(&client, "job:report-progress", progress(MARK, 60.0));
+    settle().await;
+
+    cancelled_when_asked(&transport, MARK);
+    tokio::time::sleep(JOB_SILENCE * 2).await;
+    assert_eq!(delegating(&unit), (None, Some(60.0)));
+    assert_eq!(shown(&unit), Some(Motivation::Highlighting));
+    assert_eq!(why_it_ended(&unit), Some("job.cancelled"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mark_clears_the_motivation_of_a_failed_jobs_progress_and_says_why_it_ended() {
+    let (client, _transport) = jobs();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    ask_to_delegate(&client);
+    settle().await;
+    say(&client, "job:report-progress", progress(MARK, 30.0));
+    settle().await;
+
+    say(
+        &client,
+        "job:fail",
+        job_frame(MARK, json!({ "error": "the model refused" })),
+    );
+    settle().await;
+    assert_eq!(delegating(&unit), (None, None));
+    assert_eq!(shown(&unit), None);
+    assert_eq!(why_it_ended(&unit), Some("job.failed"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mark_holds_the_motivation_its_progress_is_of_until_the_progress_is_dismissed() {
+    let (client, _transport) = jobs();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    assert_eq!(shown(&unit), None);
+
+    ask_to_delegate(&client);
+    settle().await;
+    assert_eq!(shown(&unit), Some(Motivation::Highlighting));
+    say(&client, "job:report-progress", progress(MARK, 100.0));
+    say(&client, "job:complete", job_frame(MARK, json!({})));
+    settle().await;
+    // Ended: nothing is delegating, and the finished run's display is still
+    // the highlights'.
+    assert_eq!(delegating(&unit), (None, Some(100.0)));
+    assert_eq!(shown(&unit), Some(Motivation::Highlighting));
+
+    client.mark.dismiss_progress();
+    settle().await;
+    assert_eq!(shown(&unit), None);
+
+    // The next run's display is its own motivation's.
+    client.mark.request_delegate(CommentingJobParams::new());
+    settle().await;
+    assert_eq!(shown(&unit), Some(Motivation::Commenting));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mark_holds_why_a_job_ended_until_it_is_dismissed_or_another_begins() {
+    let (client, _transport) = jobs();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    let fail = |client: &SemiontClient| {
+        say(
+            client,
+            "job:fail",
+            job_frame(MARK, json!({ "error": "the model refused" })),
+        );
+    };
+    assert_eq!(why_it_ended(&unit), None);
+
+    ask_to_delegate(&client);
+    settle().await;
+    fail(&client);
+    settle().await;
+    assert_eq!(why_it_ended(&unit), Some("job.failed"));
+    client.mark.dismiss_progress();
+    settle().await;
+    assert_eq!(why_it_ended(&unit), None);
+
+    ask_to_delegate(&client);
+    settle().await;
+    fail(&client);
+    settle().await;
+    assert_eq!(why_it_ended(&unit), Some("job.failed"));
+    // The next job does not begin with the last one's ending.
+    ask_to_delegate(&client);
+    settle().await;
+    assert_eq!(why_it_ended(&unit), None);
+
+    // A completion is no failure.
+    say(&client, "job:complete", job_frame(MARK, json!({})));
+    settle().await;
+    assert_eq!(why_it_ended(&unit), None);
 }
 
 /// The unit reads a job's motivation off its parameters, whichever member of
@@ -1823,6 +1999,8 @@ impl AxiomSubject for Marks {
             Box::new(unit.pending()),
             Box::new(unit.delegating()),
             Box::new(unit.progress()),
+            Box::new(unit.progress_motivation()),
+            Box::new(unit.failure()),
             Box::new(unit.job_id()),
         ]
     }

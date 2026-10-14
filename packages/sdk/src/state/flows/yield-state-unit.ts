@@ -3,6 +3,7 @@ import type { GenerationJobParams, JobId, ResourceId, components } from '@semion
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { DelegationObservable, YieldJobCompletion } from '../../awaitable';
+import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -123,9 +124,13 @@ export function createYieldStateUnit(
         forgetJob();
       },
       error: (error: unknown) => {
-        progress$.next(null);
-        isGenerating$.next(false);
+        // Why it ended is said before the end itself, so no reader sees an
+        // ended run that has no reason yet.
         failure$.next(error instanceof Error ? error : new Error(String(error)));
+        // A cancelled run made nothing, and its display stays to say so; any
+        // other ending without a result clears it.
+        if (!(error instanceof JobCancelledError)) progress$.next(null);
+        isGenerating$.next(false);
         forgetJob();
       },
     });
@@ -133,8 +138,9 @@ export function createYieldStateUnit(
   };
 
   const generate = (params: GenerationJobParams, stallDeadlineMs?: number): void => {
-    // A new run's frame must not carry the previous run's link, its
-    // failure, or its job's id.
+    // A new run's frame must not carry the previous run's progress, its
+    // link, its failure, or its job's id.
+    progress$.next(null);
     outcome$.next(null);
     failure$.next(null);
     jobId$.next(null);

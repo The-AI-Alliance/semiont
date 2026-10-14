@@ -25,6 +25,7 @@ import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
+import { JobCancelledError } from '@semiont/sdk';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useCollaborators } from '../../../hooks/useCollaborators';
@@ -266,7 +267,9 @@ export function ResourceViewerPage({
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
   const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const progressMotivation = useObservable(stateUnit?.mark.progressMotivation$) ?? null;
   const delegatedJobId = useObservable(stateUnit?.mark.jobId$) ?? null;
+  const delegationFailure = useObservable(stateUnit?.mark.failure$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
   const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
   const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
@@ -275,6 +278,10 @@ export function ResourceViewerPage({
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const generationJobId = useObservable(stateUnit?.yield.jobId$) ?? null;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
+  const generationFailure = useObservable(stateUnit?.yield.failure$) ?? null;
+  // The reference whose generation is running. Only while it runs: a
+  // cancelled run's progress is kept, and its reference is still unresolved.
+  const generatingReferenceId = isGenerating ? (generationProgress?.annotationId ?? null) : null;
 
   // A completion witnessed on this page reveals the derivation edge the worker
   // minted — the annotations panel opens on References, scrolls to the
@@ -597,7 +604,7 @@ export function ResourceViewerPage({
                   shape={toolbarPrefs.shape}
                   onShapeChange={toolbarPrefs.setShape}
                   sparkleAnnotationIds={sparkleAnnotationIds}
-                  generatingReferenceId={generationProgress?.annotationId ?? null}
+                  generatingReferenceId={generatingReferenceId}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
@@ -640,13 +647,16 @@ export function ResourceViewerPage({
                 annotateMode={annotateMode}
                 delegatingMotivation={delegatingMotivation}
                 progress={progress}
+                progressMotivation={progressMotivation}
                 jobId={delegatedJobId}
+                // A cancelled job's commits stand: its display stays, to say so.
+                cancelled={delegationFailure instanceof JobCancelledError}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 annotationsError={annotationsError}
                 onRetryAnnotations={stateUnit?.annotations.retry}
                 entityTypesError={entityTypesError}
-                generatingReferenceId={generationProgress?.annotationId ?? null}
+                generatingReferenceId={generatingReferenceId}
                 sparkleAnnotationIds={sparkleAnnotationIds}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
@@ -707,6 +717,7 @@ export function ResourceViewerPage({
                 }
                 generationJobId={generationJobId}
                 generationOutcome={generationOutcome}
+                generationCancelled={generationFailure instanceof JobCancelledError}
                 onDismissProgress={() => stateUnit?.yield.dismissProgress()}
               />
             )}

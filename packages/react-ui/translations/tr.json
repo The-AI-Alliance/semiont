@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Varlık türü",
     "subjectKindCategory": "Kategori",
     "cancel": "İptal",
+    "cancelling": "İptal ediliyor...",
+    "cancelled": "İptal edildi",
     "inProgress": "Açıklanıyor..."
   },
   "PdfViewer": {

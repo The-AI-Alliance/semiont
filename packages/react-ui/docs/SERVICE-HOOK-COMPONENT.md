@@ -161,7 +161,9 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
   const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const progressMotivation = useObservable(stateUnit?.mark.progressMotivation$) ?? null;
   const delegatedJobId = useObservable(stateUnit?.mark.jobId$) ?? null;
+  const delegationFailure = useObservable(stateUnit?.mark.failure$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
 
   // Layer 3: render JSX. The panels delegate through the session they
@@ -177,7 +179,9 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
           annotators={ANNOTATORS}
           delegatingMotivation={delegatingMotivation}
           progress={progress}
+          progressMotivation={progressMotivation}
           jobId={delegatedJobId}
+          cancelled={delegationFailure instanceof JobCancelledError}
           pendingAnnotation={pendingAnnotation}
           Link={Link}
           routes={routes}
@@ -422,6 +426,7 @@ it('calls mark.requestDelegate when Annotate is clicked', () => {
       isDelegating={false}
       progress={null}
       jobId={null}
+      cancelled={false}
       pendingAnnotation={null}
       allEntityTypes={['Person', 'Organization']}
       Link={Link}

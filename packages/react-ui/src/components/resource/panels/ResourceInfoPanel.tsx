@@ -11,6 +11,7 @@ import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
 import { DelegateShell } from './DelegateShell';
 import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
+import { delegatedJobControls } from '../../../lib/delegated-job-controls';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
@@ -52,6 +53,11 @@ interface Props {
   generationJobId?: JobId | null;
   /** The finished run's result; the ended frame links it by name. */
   generationOutcome?: YieldOutcome | null;
+  /**
+   * The run ended cancelled (`yield.failure$` holds a `JobCancelledError`):
+   * its display stays, in its cancelled form, until dismissed.
+   */
+  generationCancelled?: boolean;
   /** Clear the finished display — wires `yield.dismissProgress()`. */
   onDismissProgress?: () => void;
 }
@@ -63,7 +69,6 @@ interface Props {
  * @emits mark:unarchive - Unarchive this resource
  * @emits mark:archive - Archive this resource
  * @emits browse:resource-open - Open a resource this panel links to, the generated one among them. Payload: { resourceId: string }
- * @emits job:cancel-requested - Cancel the generation job, by its id: pending, it is cancelled; running, it is left to its worker. Payload: { jobId: JobId }
  */
 export function ResourceInfoPanel({
   session,
@@ -84,6 +89,7 @@ export function ResourceInfoPanel({
   generationProgress = null,
   generationJobId = null,
   generationOutcome = null,
+  generationCancelled = false,
   onDismissProgress,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
@@ -251,16 +257,10 @@ export function ResourceInfoPanel({
           delegateType="generation"
           title={t('generate')}
           isDelegating={isGenerating}
+          cancelled={generationCancelled}
           progress={generationProgress}
+          controls={delegatedJobControls(session, generationJobId ?? null, onDismissProgress)}
           progressProps={{
-            ...(generationJobId ? {
-              onCancel: () => {
-                session?.client.job.cancel(generationJobId).catch((error: unknown) => {
-                  console.error(`Failed to cancel job ${generationJobId}:`, error);
-                });
-              },
-            } : {}),
-            ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
             ...(generationOutcome ? {
               outcome: {
                 label: generationOutcome.resourceName,

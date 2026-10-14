@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Typ entity",
     "subjectKindCategory": "Kategorie",
     "cancel": "Zrušit",
+    "cancelling": "Ruší se...",
+    "cancelled": "Zrušeno",
     "inProgress": "Anotování..."
   },
   "PdfViewer": {

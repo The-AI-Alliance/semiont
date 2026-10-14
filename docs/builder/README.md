@@ -50,7 +50,7 @@ The SDK is a library, not a service. It runs no process of its own: you give a c
 - **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own.
 - **An agent.** The same client a person's application uses. The [agent skills](./skills/README.md) are ready-made definitions for AI coding assistants, one per task.
 
-How a program signs in follows from which of these it is, and no password passes through your code in any of them. Each SDK's README shows the forms it has.
+How a program signs in follows from which of these it is, and no password passes through your code in any of them. [Signing in](./SIGN-IN.md) has each way side by side, and each SDK's README shows the forms it has.
 
 From a shell, the [`semiont` launcher](../../apps/launcher/README.md#login-and-upload) speaks the same eight verbs: `semiont yield`, `semiont browse` and the rest, each with `--help`.
 
@@ -63,6 +63,7 @@ Read in this order. Most people need only the first three.
 | [Quick Start](./QUICK-START.md) | A knowledge base running on your machine, to build against |
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
+| [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python and Rust |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
 | [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the nine shapes every SDK shares, in TypeScript, Rust and Python |
 | [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript and Rust |

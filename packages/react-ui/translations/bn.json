@@ -26,6 +26,8 @@
     "subjectKindEntityType": "সত্তার ধরন",
     "subjectKindCategory": "বিভাগ",
     "cancel": "বাতিল করুন",
+    "cancelling": "বাতিল করা হচ্ছে...",
+    "cancelled": "বাতিল করা হয়েছে",
     "inProgress": "টীকাকরণ হচ্ছে..."
   },
   "PdfViewer": {

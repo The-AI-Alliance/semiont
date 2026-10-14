@@ -301,6 +301,8 @@ const { annotations } = useResourceLoader(session.client, rId);
   resourceId={rId}
   annotations={annotations.highlights}
   pendingAnnotation={null}  // the mark in progress (`MarkStateUnit.pendingAnnotation$`), or null
+  jobId={null}              // the delegated job its cancel control names (`MarkStateUnit.jobId$`), or null
+  cancelled={false}         // whether it ended cancelled (`MarkStateUnit.failure$` holds a `JobCancelledError`)
   annotateMode
 />
 ```

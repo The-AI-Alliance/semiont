@@ -15,16 +15,19 @@
 //! **The delegated job.** `client.mark.request_delegate` starts one: the
 //! `mark` job whose parameters the request carries, delegated for this unit's
 //! resource. The motivation those parameters state is held while it runs,
-//! and its progress as it comes. A finished job's progress stays until it is
-//! dismissed (`client.mark.dismiss_progress`) or the next one begins. One
-//! that fails clears both. The job's id is held from the queue's answer to
-//! its creation to the job's end: it is what `client.job.cancel` names.
+//! and its progress as it comes, with the motivation that progress is of. A
+//! finished job's progress stays until it is dismissed
+//! (`client.mark.dismiss_progress`) or the next one begins, and so does a
+//! cancelled one's: its commits stand. One that fails clears it. Why a job
+//! ended without completing is held until the progress is dismissed or the
+//! next job begins. The job's id is held from the queue's answer to its
+//! creation to the job's end: it is what `client.job.cancel` names.
 //!
 //! A delegated job that says nothing for `DELEGATE_SILENCE` has gone quiet,
 //! which is not over: the unit says so once (`mark:delegate-timeout`) and
 //! keeps following, so a completion that arrives later still ends it.
 
-use super::{Held, Tasks, said, signal};
+use super::{Held, Tasks, cancelled, said, signal};
 use crate::channels::{
     Channel, MarkCancelPending, MarkCreateError, MarkDelegateRequest, MarkDelegateTimeout,
     MarkProgressDismiss, MarkRequested, MarkSelectAssessment, MarkSelectComment,
@@ -102,6 +105,8 @@ struct Shared {
     pending: Held<Option<PendingAnnotation>>,
     delegating: Held<Option<Motivation>>,
     progress: Held<Option<JobProgress>>,
+    progress_motivation: Held<Option<Motivation>>,
+    failure: Held<Option<SemiontError>>,
     job_id: Held<Option<JobId>>,
     tasks: Tasks,
 }
@@ -144,6 +149,8 @@ impl MarkStateUnit {
             pending: Held::new(None),
             delegating: Held::new(None),
             progress: Held::new(None),
+            progress_motivation: Held::new(None),
+            failure: Held::new(None),
             job_id: Held::new(None),
             tasks: Tasks::new(),
         });
@@ -165,6 +172,22 @@ impl MarkStateUnit {
     /// it is dismissed.
     pub fn progress(&self) -> watch::Receiver<Option<JobProgress>> {
         self.shared.progress.read()
+    }
+
+    /// The motivation of the run whose progress `progress` holds: set when a
+    /// job is delegated, kept through its end so its display stays its
+    /// motivation's, and none once the progress is dismissed or cleared by a
+    /// failure. `delegating` says what is running; this says whose display
+    /// the progress is.
+    pub fn progress_motivation(&self) -> watch::Receiver<Option<Motivation>> {
+        self.shared.progress_motivation.read()
+    }
+
+    /// Why the last delegated job ended without completing: it failed or was
+    /// cancelled. None while one runs, after one that completed, and once
+    /// dismissed.
+    pub fn failure(&self) -> watch::Receiver<Option<SemiontError>> {
+        self.shared.failure.read()
     }
 
     /// The id of the delegated job, from the queue's answer to its creation
@@ -212,12 +235,16 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
             };
             shared.delegating.set(Some(motivation));
             shared.progress.set(None);
+            shared.progress_motivation.set(Some(motivation));
+            shared.failure.set(None);
             shared.job_id.set(None);
             shared
                 .tasks
                 .spawn(delegate(shared.clone(), request.params, motivation));
         } else if said::<MarkProgressDismiss>(&frame).is_some() {
             shared.progress.set(None);
+            shared.progress_motivation.set(None);
+            shared.failure.set(None);
         }
     }
 }
@@ -280,9 +307,16 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
             // An attempt that will be tried again, or the completion, which
             // the stream's end follows.
             Some(Ok(JobEvent::Failed(_) | JobEvent::Complete(_))) => {}
-            Some(Err(_)) => {
+            Some(Err(error)) => {
+                // Why it ended is said before the end itself. A cancelled
+                // job's commits stand, and its display stays to say so.
+                let kept = cancelled(&error);
+                shared.failure.set(Some(error));
+                if !kept {
+                    shared.progress.set(None);
+                    shared.progress_motivation.set(None);
+                }
                 shared.delegating.set(None);
-                shared.progress.set(None);
                 forget(&created);
                 return;
             }
@@ -330,6 +364,8 @@ impl StateUnit for MarkStateUnit {
         self.shared.pending.end();
         self.shared.delegating.end();
         self.shared.progress.end();
+        self.shared.progress_motivation.end();
+        self.shared.failure.end();
         self.shared.job_id.end();
     }
 }

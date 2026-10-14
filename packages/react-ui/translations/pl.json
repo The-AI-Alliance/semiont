@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Typ encji",
     "subjectKindCategory": "Kategoria",
     "cancel": "Anuluj",
+    "cancelling": "Anulowanie...",
+    "cancelled": "Anulowano",
     "inProgress": "Adnotowanie..."
   },
   "PdfViewer": {

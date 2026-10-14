@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Τύπος οντότητας",
     "subjectKindCategory": "Κατηγορία",
     "cancel": "Ακύρωση",
+    "cancelling": "Γίνεται ακύρωση...",
+    "cancelled": "Ακυρώθηκε",
     "inProgress": "Σχολιασμός..."
   },
   "PdfViewer": {

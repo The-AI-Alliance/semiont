@@ -151,6 +151,8 @@ describe('AssessmentPanel Component', () => {
     resourceId: resourceId('res-1'),
     annotations: mockAssessments.empty,
     pendingAnnotation: null,
+    jobId: null,
+    cancelled: false,
   };
 
   beforeEach(() => {

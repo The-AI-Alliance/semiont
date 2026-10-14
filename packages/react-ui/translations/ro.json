@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Tip de entitate",
     "subjectKindCategory": "Categorie",
     "cancel": "Anulare",
+    "cancelling": "Se anulează...",
+    "cancelled": "Anulat",
     "inProgress": "Se adnotează..."
   },
   "PdfViewer": {

@@ -8,7 +8,8 @@
 //   - sdk: the builder docs (docs/builder) and the protocol docs
 //     (docs/protocol and its flows), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
-//     be revisited when a signature moves. Resolved like an external node
+//     be revisited when a signature moves. They teach scripts as well as
+//     applications, so Node's types are on; resolved like an external node
 //     consumer (nodenext).
 //   - skills: the agent skills (docs/builder/skills/*/SKILL.md, and their
 //     README). They teach Node scripts, so Node's types are on; resolved like
@@ -85,7 +86,7 @@ const SUITES = {
       'packages/sdk/README.md',
     ],
     preludes: ['prelude.ts'],
-    options: {},
+    options: { types: ['node'] },
     ambientModules: [],
     onlyDocDiagnostics: false,
   },

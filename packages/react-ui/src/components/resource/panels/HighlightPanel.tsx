@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
-import type { components, ResourceId, Selector } from '@semiont/core';
+import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { HighlightEntry } from './HighlightEntry';
 import { DelegateSection } from './DelegateSection';
@@ -29,6 +29,17 @@ interface HighlightPanelProps {
   pendingAnnotation: PendingAnnotation | null;
   isDelegating?: boolean;
   progress?: JobProgress | null;
+  /**
+   * The id of the delegated job (`mark.jobId$`): what the cancel control
+   * names. Null until the queue has answered the job's creation and once the
+   * job is over, and then there is no control.
+   */
+  jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -50,6 +61,8 @@ export function HighlightPanel({
   pendingAnnotation,
   isDelegating = false,
   progress,
+  jobId,
+  cancelled,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -159,6 +172,8 @@ export function HighlightPanel({
             annotationType="highlight"
             isDelegating={isDelegating}
             progress={progress}
+            jobId={jobId}
+            cancelled={cancelled}
             sourceLanguage={sourceLanguage}
           />
         )}

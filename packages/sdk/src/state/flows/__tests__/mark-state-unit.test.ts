@@ -4,6 +4,7 @@ import { DELEGATE_SILENCE_MS, annotationId, jobId, resourceId as makeResourceId 
 import { createMarkStateUnit } from '../mark-state-unit';
 import type { JobEvent, MarkJobCompletion } from '../../../awaitable';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { JobCancelledError, JobFailedError } from '../../../namespaces/job-status-poll';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const RID = makeResourceId('res-1');
@@ -25,21 +26,27 @@ describe('createMarkStateUnit', () => {
 
   afterEach(() => { tc?.bus.destroy(); });
 
-  it('initializes with null pending, null motivation, null progress, no job', () => {
+  it('initializes with null pending, null motivation, null progress, no job, no failure', () => {
     tc = withMark();
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const pend: unknown[] = [];
     const motiv: unknown[] = [];
     const prog: unknown[] = [];
+    const progMotiv: unknown[] = [];
     const ids: unknown[] = [];
+    const failures: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
     stateUnit.delegatingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.progressMotivation$.subscribe(v => progMotiv.push(v));
     stateUnit.jobId$.subscribe(v => ids.push(v));
+    stateUnit.failure$.subscribe(v => failures.push(v));
     expect(pend).toEqual([null]);
     expect(motiv).toEqual([null]);
     expect(prog).toEqual([null]);
+    expect(progMotiv).toEqual([null]);
     expect(ids).toEqual([null]);
+    expect(failures).toEqual([null]);
     stateUnit.dispose();
   });
 
@@ -261,6 +268,121 @@ describe('createMarkStateUnit', () => {
 
     expect(motiv[motiv.length - 1]).toBeNull();
     expect(prog[prog.length - 1]).toBeNull();
+    stateUnit.dispose();
+  });
+
+  // ── How a delegated job ended ───────────────────────────────────
+  // A cancelled job's commits stand, so its display stays to say so, as a
+  // finished one's does. A failure has its toast, and its display goes.
+
+  it("keeps a cancelled job's progress, and says it was cancelled", () => {
+    const job = new Subject<JobEvent<MarkJobCompletion>>();
+    tc = withMark({ delegate: vi.fn(() => job.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const motiv: unknown[] = [];
+    const prog: unknown[] = [];
+    const progMotiv: unknown[] = [];
+    const failures: unknown[] = [];
+    stateUnit.delegatingMotivation$.subscribe(v => motiv.push(v));
+    stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.progressMotivation$.subscribe(v => progMotiv.push(v));
+    stateUnit.failure$.subscribe(v => failures.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'tagging', schemaId: 's1', categories: ['claim'] } });
+    job.next({ kind: 'created', data: { jobId: jobId('job-1') } });
+    job.next({ kind: 'progress', data: { percentage: 60, processed: 1, total: 2 } });
+    const cancelled = new JobCancelledError('job-1');
+    job.error(cancelled);
+
+    expect(motiv.at(-1)).toBeNull();
+    expect(prog.at(-1)).toEqual({ percentage: 60, processed: 1, total: 2 });
+    expect(progMotiv.at(-1)).toBe('tagging');
+    expect(failures.at(-1)).toBe(cancelled);
+    stateUnit.dispose();
+  });
+
+  it('a failure clears the progress and the motivation it was of, and says why', () => {
+    const job = new Subject<JobEvent<MarkJobCompletion>>();
+    tc = withMark({ delegate: vi.fn(() => job.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const prog: unknown[] = [];
+    const progMotiv: unknown[] = [];
+    const failures: unknown[] = [];
+    stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.progressMotivation$.subscribe(v => progMotiv.push(v));
+    stateUnit.failure$.subscribe(v => failures.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    job.next({ kind: 'progress', data: { percentage: 30 } });
+    const refused = new JobFailedError('the model refused', 'job-1');
+    job.error(refused);
+
+    expect(prog.at(-1)).toBeNull();
+    expect(progMotiv.at(-1)).toBeNull();
+    expect(failures.at(-1)).toBe(refused);
+    stateUnit.dispose();
+  });
+
+  it('holds the motivation its progress is of, from the delegation until the progress is dismissed', () => {
+    const runs: Array<Subject<JobEvent<MarkJobCompletion>>> = [];
+    tc = withMark({ delegate: vi.fn(() => {
+      const run = new Subject<JobEvent<MarkJobCompletion>>();
+      runs.push(run);
+      return run.asObservable();
+    }) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const motiv: unknown[] = [];
+    const progMotiv: unknown[] = [];
+    stateUnit.delegatingMotivation$.subscribe(v => motiv.push(v));
+    stateUnit.progressMotivation$.subscribe(v => progMotiv.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    expect(progMotiv.at(-1)).toBe('highlighting');
+    runs[0]!.next({ kind: 'progress', data: { percentage: 100 } });
+    runs[0]!.next({ kind: 'complete', data: { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark' } });
+    runs[0]!.complete();
+    // Ended: nothing is delegating, and the finished run's display is still the highlights'.
+    expect(motiv.at(-1)).toBeNull();
+    expect(progMotiv.at(-1)).toBe('highlighting');
+
+    tc.bus.emit('mark:progress-dismiss', undefined);
+    expect(progMotiv.at(-1)).toBeNull();
+
+    // The next run's display is its own motivation's.
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'commenting' } });
+    expect(progMotiv.at(-1)).toBe('commenting');
+    stateUnit.dispose();
+  });
+
+  it('holds why a job ended without completing, until it is dismissed or another begins', () => {
+    const runs: Array<Subject<JobEvent<MarkJobCompletion>>> = [];
+    tc = withMark({ delegate: vi.fn(() => {
+      const run = new Subject<JobEvent<MarkJobCompletion>>();
+      runs.push(run);
+      return run.asObservable();
+    }) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const failures: unknown[] = [];
+    stateUnit.failure$.subscribe(v => failures.push(v));
+    const cancelled = new JobCancelledError('job-1');
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    runs[0]!.error(cancelled);
+    expect(failures.at(-1)).toBe(cancelled);
+    tc.bus.emit('mark:progress-dismiss', undefined);
+    expect(failures.at(-1)).toBeNull();
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    runs[1]!.error(cancelled);
+    expect(failures.at(-1)).toBe(cancelled);
+    // The next run does not begin with the last one's ending.
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    expect(failures.at(-1)).toBeNull();
+
+    // A completion is no failure.
+    runs[2]!.next({ kind: 'complete', data: { resourceId: RID, jobId: jobId('job-3'), jobType: 'mark' } });
+    runs[2]!.complete();
+    expect(failures.at(-1)).toBeNull();
     stateUnit.dispose();
   });
 
@@ -533,7 +655,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
         const tc = withMark();
         return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.pendingAnnotation$, u.delegatingMotivation$, u.progress$, u.jobId$],
+      surfaces: (u) => [u.pendingAnnotation$, u.delegatingMotivation$, u.progress$, u.progressMotivation$, u.jobId$, u.failure$],
     });
   });
 

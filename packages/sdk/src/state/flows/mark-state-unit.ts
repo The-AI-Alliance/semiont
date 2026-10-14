@@ -3,6 +3,7 @@ import { DELEGATE_SILENCE_MS } from '@semiont/core';
 import type { JobId, ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
+import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -15,6 +16,20 @@ export interface MarkStateUnit extends StateUnit {
   pendingAnnotation$: Observable<PendingAnnotation | null>;
   delegatingMotivation$: Observable<Motivation | null>;
   progress$: Observable<JobProgress | null>;
+  /**
+   * The motivation of the run whose progress `progress$` holds: set when a
+   * job is delegated, kept through its end so its display stays its
+   * motivation's, and null once the progress is dismissed or cleared by a
+   * failure. `delegatingMotivation$` says what is running; this says whose
+   * display the progress is.
+   */
+  progressMotivation$: Observable<Motivation | null>;
+  /**
+   * Why the last delegated job ended without completing: it failed or was
+   * cancelled. A `SemiontError`'s `code` says which. Null while a job is
+   * under way, after one that completed, and once dismissed.
+   */
+  failure$: Observable<Error | null>;
   /**
    * The id of the delegated job, from the queue's answer to its creation to
    * the job's end: what `client.job.cancel` names. Null before the answer,
@@ -43,12 +58,14 @@ export function createMarkStateUnit(
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
   const delegatingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
+  const progressMotivation$ = new BehaviorSubject<Motivation | null>(null);
+  const failure$ = new BehaviorSubject<Error | null>(null);
   const jobId$ = new BehaviorSubject<JobId | null>(null);
 
-  // A finished run STAYS on screen. There is no dismissal
-  // timer: the result line — "Created 7 references" — is the one thing in the
-  // whole run worth reading, and a timer that eats it makes the run seem to
-  // vanish mid-sentence. The ended display carries an
+  // A finished run STAYS on screen, and so does a cancelled one. There is no
+  // dismissal timer: the result line — "Created 7 references" — is the one
+  // thing in the whole run worth reading, and a timer that eats it makes the
+  // run seem to vanish mid-sentence. The ended display carries an
   // explicit Close control; it clears on that, on `mark:progress-dismiss`, or
   // when the next delegated job replaces it below.
 
@@ -117,6 +134,8 @@ export function createMarkStateUnit(
     const { motivation } = event.params;
     delegatingMotivation$.next(motivation);
     progress$.next(null);
+    progressMotivation$.next(motivation);
+    failure$.next(null);
     jobId$.next(null);
     // This job's id. At the job's end it is forgotten only while it is still
     // the one held: a job delegated later replaces it.
@@ -183,12 +202,19 @@ export function createMarkStateUnit(
         delegatingMotivation$.next(null);
         forgetJob();
       },
-      error: () => {
-        // A real failure: `job:fail` already toasts it through the outcome
-        // channel, so clear the delegated job's state and stay quiet here.
+      error: (error: unknown) => {
+        // Why it ended is said before the end itself, so no reader sees an
+        // ended job that has no reason yet.
         clearStale();
+        failure$.next(error instanceof Error ? error : new Error(String(error)));
+        // A cancellation is announced by nothing else, and the job's commits
+        // stand: its display stays, to say so. A real failure: `job:fail`
+        // already toasts it through the outcome channel, so its display goes.
+        if (!(error instanceof JobCancelledError)) {
+          progress$.next(null);
+          progressMotivation$.next(null);
+        }
         delegatingMotivation$.next(null);
-        progress$.next(null);
         forgetJob();
       },
     });
@@ -197,18 +223,24 @@ export function createMarkStateUnit(
 
   subs.push(client.bus.on('mark:progress-dismiss').subscribe(() => {
     progress$.next(null);
+    progressMotivation$.next(null);
+    failure$.next(null);
   }));
 
   return {
     pendingAnnotation$: pendingAnnotation$.asObservable(),
     delegatingMotivation$: delegatingMotivation$.asObservable(),
     progress$: progress$.asObservable(),
+    progressMotivation$: progressMotivation$.asObservable(),
+    failure$: failure$.asObservable(),
     jobId$: jobId$.asObservable(),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       pendingAnnotation$.complete();
       delegatingMotivation$.complete();
       progress$.complete();
+      progressMotivation$.complete();
+      failure$.complete();
       jobId$.complete();
     },
   };

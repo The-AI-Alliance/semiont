@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Entiteettityyppi",
     "subjectKindCategory": "Kategoria",
     "cancel": "Peruuta",
+    "cancelling": "Peruutetaan...",
+    "cancelled": "Peruutettu",
     "inProgress": "Merkinnöitä tehdään..."
   },
   "PdfViewer": {

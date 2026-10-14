@@ -228,8 +228,13 @@
   color: var(--semiont-text-secondary);
 }
 
-.semiont-delegate-progress__control:hover {
+.semiont-delegate-progress__control:hover:not(:disabled) {
   color: var(--semiont-text-primary);
+}
+
+.semiont-delegate-progress__control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-theme="dark"] .semiont-delegate-progress__control {

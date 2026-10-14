@@ -342,6 +342,24 @@ describe('ResourceInfoPanel Component', () => {
       expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
     });
 
+    it('a cancelled generation stays to say so, made nothing, and dismisses', () => {
+      const onDismissProgress = vi.fn();
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationCancelled
+          generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }}
+          onDismissProgress={onDismissProgress} />
+      );
+
+      // The mocked translator answers a key it does not list with the key.
+      expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('cancelled');
+      expect(screen.queryByTestId('semiont-delegate-outcome')).toBeNull();
+      expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
+      fireEvent.click(screen.getByTestId('semiont-delegate-control'));
+      expect(onDismissProgress).toHaveBeenCalledTimes(1);
+    });
+
     it('a running generation the queue has not named yet has no cancel control', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}

@@ -6,6 +6,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
+import { markJobControls } from '../../../lib/delegated-job-controls';
 import { DelegateShell } from './DelegateShell';
 import { ItemFoundLog } from '../../ItemFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
@@ -60,6 +61,11 @@ interface Props {
    * job is over, and then there is no control.
    */
   jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -102,8 +108,6 @@ interface Props {
  * @emits mark:delegate-request - Start reference annotation. Payload: MarkDelegateRequestEvent, its params those of a 'linking' job: entityTypes, includeDescriptiveReferences, language, sourceLanguage
  * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
- * @emits mark:progress-dismiss - Dismiss the reference annotation progress display. Payload: undefined
- * @emits job:cancel-requested - Cancel the delegated reference job, by its id: pending, it is cancelled; running, the worker that holds it stops its work and settles it as cancelled. Payload: { jobId: JobId }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
@@ -114,6 +118,7 @@ export function ReferencesPanel({
   isDelegating,
   progress,
   jobId,
+  cancelled,
   annotateMode = true,
   Link,
   routes,
@@ -384,15 +389,9 @@ export function ReferencesPanel({
             title={t('annotateReferences')}
             isDelegating={isDelegating}
             progress={progress}
+            cancelled={cancelled}
+            controls={markJobControls(session, jobId)}
             progressProps={{
-              ...(jobId ? {
-                onCancel: () => {
-                  session?.client.job.cancel(jobId).catch((error: unknown) => {
-                    console.error(`Failed to cancel job ${jobId}:`, error);
-                  });
-                },
-              } : {}),
-              onDismiss: () => session?.client.mark.dismissProgress(),
               translations: delegateProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),
                 // Rendered only when the wire prices a denominator.

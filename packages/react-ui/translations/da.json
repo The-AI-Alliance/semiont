@@ -26,6 +26,8 @@
     "subjectKindEntityType": "Enhedstype",
     "subjectKindCategory": "Kategori",
     "cancel": "Annuller",
+    "cancelling": "Annullerer...",
+    "cancelled": "Annulleret",
     "inProgress": "Annoterer..."
   },
   "PdfViewer": {
