@@ -93,12 +93,12 @@ export interface DelegateProgressProps {
    */
   ended: boolean;
   /**
-   * Cancel. Caller wires `client.job.cancel(jobId)` with the id of the job
-   * this display follows, and gives no callback while it has no id: a pending
-   * job is cancelled, a running one is left to its worker.
+   * Cancel the job this display follows. `DelegateShell` passes the one its
+   * `controls` hold, which is absent until the queue has named the job: a
+   * pending job is cancelled, a running one is stopped by its worker.
    */
   onCancel?: () => void;
-  /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
+  /** Dismiss the display, once the job has ended. `DelegateShell` passes its `controls`' dismiss. */
   onDismiss?: () => void;
   translations: DelegateProgressTranslations;
 }

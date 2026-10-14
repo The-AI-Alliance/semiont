@@ -6,9 +6,10 @@ import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
+import { markJobControls } from '../../../lib/delegated-job-controls';
 import { DelegateShell } from './DelegateShell';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
-import type { components, ResourceId, Selector } from '@semiont/core';
+import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
@@ -49,6 +50,12 @@ interface TaggingPanelProps {
   annotateMode?: boolean;
   isDelegating?: boolean;
   progress?: JobProgress | null;
+  /**
+   * The id of the delegated job (`mark.jobId$`): what the cancel control
+   * names. Null until the queue has answered the job's creation and once the
+   * job is over, and then there is no control.
+   */
+  jobId: JobId | null;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -64,7 +71,6 @@ interface TaggingPanelProps {
  *
  * @emits mark:delegate-request - Start tag annotation. Payload: MarkDelegateRequestEvent, its params those of a 'tagging' job: schemaId, categories, language, sourceLanguage
  * @emits mark:cancel-pending - Cancel pending tag annotation. Payload: undefined
- * @emits mark:progress-dismiss - Dismiss the tag annotation progress display. Payload: undefined
  * @emits mark:submit - Create new tag annotation. Payload: MarkSubmitEvent with motivation 'tagging' and two TextualBody items, the category and the schema's id
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
@@ -75,6 +81,7 @@ export function TaggingPanel({
   annotateMode = true,
   isDelegating = false,
   progress,
+  jobId,
   pendingAnnotation,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -84,12 +91,6 @@ export function TaggingPanel({
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
   const ta = useTranslations('DelegateProgress');
-
-  // Dismiss, wired as on every other delegate section: without it a finished
-  // progress display cannot be cleared.
-  const handleDismissProgress = useCallback(() => {
-    session?.client.mark.dismissProgress();
-  }, [session]);
 
   // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
   // registered by the KB at session start (see frame.addTagSchema).
@@ -362,8 +363,8 @@ export function TaggingPanel({
             title={t('annotateTags')}
             isDelegating={isDelegating}
             progress={progress}
+            controls={markJobControls(session, jobId)}
             progressProps={{
-              onDismiss: handleDismissProgress,
               translations: delegateProgressTranslations(ta),
             }}
             form={

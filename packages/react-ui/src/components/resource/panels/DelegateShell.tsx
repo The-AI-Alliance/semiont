@@ -3,6 +3,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import type { components } from '@semiont/core';
 import { DelegateProgress, type DelegateProgressProps, type DelegateDataType } from '../../DelegateProgress';
+import type { DelegatedJobControls } from '../../../lib/delegated-job-controls';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -16,15 +17,22 @@ export interface DelegateShellProps {
   /** The per-motivation form (fields + submit) — shown when no progress is displayed. */
   form: ReactNode;
   /**
-   * Pass-through config for the progress renderer (cancel/dismiss wiring,
-   * translations, percent bar). Dismiss policy lives HERE: the shell forwards
-   * `onDismiss` only once the delegated job is no longer running.
+   * The job this display follows, and what its control does: cancel while
+   * the job runs, dismiss once it has ended. Made by `delegatedJobControls`
+   * or `markJobControls`, never written in place, so no display can be
+   * composed without naming its job. Dismiss policy lives HERE: the shell
+   * offers the dismiss only once the delegated job is no longer running.
+   */
+  controls: DelegatedJobControls;
+  /**
+   * Pass-through config for the progress renderer (translations, outcome,
+   * ended sentence). It carries no callbacks: those are `controls`.
    *
    * Required because `translations` is: the shell renders the progress display
    * itself, so a caller that omitted this would render untranslated chrome —
    * the failure the widget's required translations exist to make impossible.
    */
-  progressProps: Omit<DelegateProgressProps, 'progress' | 'dataType' | 'ended'>;
+  progressProps: Omit<DelegateProgressProps, 'progress' | 'dataType' | 'ended' | 'onCancel' | 'onDismiss'>;
 }
 
 /**
@@ -34,7 +42,7 @@ export interface DelegateShellProps {
  * differ per motivation by design (instructions/tone/density vs entity chips
  * vs schema+categories), so the shell owns only what is genuinely shared.
  */
-export function DelegateShell({ delegateType, title, isDelegating, progress, form, progressProps }: DelegateShellProps) {
+export function DelegateShell({ delegateType, title, isDelegating, progress, form, controls, progressProps }: DelegateShellProps) {
   const [isExpanded, setIsExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem(`delegate-section-expanded-${delegateType}`);
@@ -79,7 +87,8 @@ export function DelegateShell({ delegateType, title, isDelegating, progress, for
               // about a cancel or a crash after the last tick.
               ended={!isDelegating}
               {...progressProps}
-              {...(isDelegating ? { onDismiss: undefined } : {})}
+              onCancel={controls.onCancel}
+              onDismiss={isDelegating ? undefined : controls.onDismiss}
             />
           )}
         </div>

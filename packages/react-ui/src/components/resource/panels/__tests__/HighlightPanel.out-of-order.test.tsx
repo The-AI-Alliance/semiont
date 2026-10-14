@@ -56,7 +56,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
   it('a scrambled initial load (concurrent units) renders in document order', () => {
     renderWithProviders(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')}
+      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
         annotations={[
           highlightAt('h-chunk3', 900, 'gamma'),
           highlightAt('h-chunk1', 100, 'alpha'),
@@ -74,7 +74,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
   it('an earlier-position annotation arriving LATE slots into place, not onto the end', () => {
     const { rerender } = renderWithProviders(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')}
+      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
         annotations={[highlightAt('h-late-chunk', 700, 'omega')]}
         pendingAnnotation={null}
         isDelegating={false}
@@ -86,7 +86,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
     // Chunk 1's find lands after chunk 2's — the out-of-order insert.
     rerender(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')}
+      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
         annotations={[highlightAt('h-late-chunk', 700, 'omega'), highlightAt('h-early-chunk', 50, 'alpha')]}
         pendingAnnotation={null}
         isDelegating={false}

@@ -155,6 +155,7 @@ describe('CommentsPanel Component', () => {
     resourceId: resourceId('res-1'),
     annotations: mockComments.empty,
     pendingAnnotation: null,
+    jobId: null,
   };
 
   beforeEach(() => {

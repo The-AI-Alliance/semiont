@@ -70,6 +70,7 @@ export * from './contexts/TranslationContext';
 export * from './components/CodeMirrorRenderer';
 export * from './components/DelegateProgress';
 export * from './components/resource/panels/DelegateShell';
+export * from './lib/delegated-job-controls';
 export * from './components/ErrorBoundary';
 export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';

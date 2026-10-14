@@ -289,6 +289,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             pendingAnnotation: props.pendingAnnotation,
             isDelegating,
             progress,
+            jobId,
             annotateMode: props.annotateMode,
             locale: props.locale,
             sourceLanguage: props.sourceLanguage,
@@ -316,7 +317,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 pendingAnnotation={commonProps.pendingAnnotation}
                 isDelegating={commonProps.isDelegating}
                 progress={commonProps.progress}
-                jobId={jobId}
+                jobId={commonProps.jobId}
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}

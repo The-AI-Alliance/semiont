@@ -11,6 +11,7 @@ import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
 import { DelegateShell } from './DelegateShell';
 import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
+import { delegatedJobControls } from '../../../lib/delegated-job-controls';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
@@ -63,7 +64,6 @@ interface Props {
  * @emits mark:unarchive - Unarchive this resource
  * @emits mark:archive - Archive this resource
  * @emits browse:resource-open - Open a resource this panel links to, the generated one among them. Payload: { resourceId: string }
- * @emits job:cancel-requested - Cancel the generation job, by its id: pending, it is cancelled; running, it is left to its worker. Payload: { jobId: JobId }
  */
 export function ResourceInfoPanel({
   session,
@@ -252,15 +252,8 @@ export function ResourceInfoPanel({
           title={t('generate')}
           isDelegating={isGenerating}
           progress={generationProgress}
+          controls={delegatedJobControls(session, generationJobId ?? null, onDismissProgress)}
           progressProps={{
-            ...(generationJobId ? {
-              onCancel: () => {
-                session?.client.job.cancel(generationJobId).catch((error: unknown) => {
-                  console.error(`Failed to cancel job ${generationJobId}:`, error);
-                });
-              },
-            } : {}),
-            ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
             ...(generationOutcome ? {
               outcome: {
                 label: generationOutcome.resourceName,

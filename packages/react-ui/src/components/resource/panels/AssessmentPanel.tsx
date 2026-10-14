@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
-import type { components, ResourceId, Selector } from '@semiont/core';
+import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { AssessmentEntry } from './AssessmentEntry';
 import { DelegateSection } from './DelegateSection';
@@ -46,6 +46,12 @@ interface AssessmentPanelProps {
   pendingAnnotation: PendingAnnotation | null;
   isDelegating?: boolean;
   progress?: JobProgress | null;
+  /**
+   * The id of the delegated job (`mark.jobId$`): what the cancel control
+   * names. Null until the queue has answered the job's creation and once the
+   * job is over, and then there is no control.
+   */
+  jobId: JobId | null;
   locale?: string;
   /** BCP-47 tag of the resource being analyzed — forwarded to the delegated job. */
   sourceLanguage?: string;
@@ -69,6 +75,7 @@ export function AssessmentPanel({
   pendingAnnotation,
   isDelegating = false,
   progress,
+  jobId,
   locale,
   sourceLanguage,
   annotateMode = true,
@@ -253,6 +260,7 @@ export function AssessmentPanel({
             locale={locale}
             sourceLanguage={sourceLanguage}
             progress={progress}
+            jobId={jobId}
           />
         )}
 
