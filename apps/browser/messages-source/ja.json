@@ -168,6 +168,7 @@
     "categories": "カテゴリ"
   },
   "Search": {
+    "title": "検索",
     "placeholder": "リソースとエンティティを検索...",
     "searching": "検索中...",
     "noResults": "結果が見つかりません",

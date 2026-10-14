@@ -168,6 +168,7 @@
     "categories": "Categorieën"
   },
   "Search": {
+    "title": "Zoeken",
     "placeholder": "Zoek naar bronnen en entiteiten...",
     "searching": "Zoeken...",
     "noResults": "Geen resultaten gevonden",

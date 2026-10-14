@@ -168,6 +168,7 @@
     "categories": "श्रेणियां"
   },
   "Search": {
+    "title": "खोज",
     "placeholder": "संसाधन और इकाइयां खोजें...",
     "searching": "खोज रहा है...",
     "noResults": "कोई परिणाम नहीं मिला",

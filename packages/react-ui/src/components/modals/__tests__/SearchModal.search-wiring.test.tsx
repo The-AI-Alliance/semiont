@@ -7,19 +7,23 @@
  * loading state) is covered by search-pipeline.test.ts and not duplicated
  * here.
  *
- * Mocks HeadlessUI to dodge the jsdom OOM that prevents the unmocked
- * SearchModal.* test files from running.
+ * HeadlessUI's Dialog is replaced with plain elements here: this suite is
+ * about the search. The keyboard and accessibility suites render the real one.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { asStates } from '../../../__tests__/test-client';
-import { screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { BehaviorSubject, map } from 'rxjs';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { SearchModal } from '../SearchModal';
+import {
+  buildResource,
+  matchResourcesMock,
+  resetSearch,
+  searchTranslations,
+  setBrowseResults,
+} from './search-modal-harness';
 
-// Mock HeadlessUI to avoid jsdom OOM issues
 vi.mock('@headlessui/react', () => ({
   Dialog: ({ children, ...props }: any) => (
     <div role="dialog" {...props}>
@@ -32,31 +36,10 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock the http-transport Observable surface
-const matchResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const matchResourcesMock = vi.fn((_search: string, _filters?: { limit?: number }) => asStates(matchResourcesSubject.asObservable().pipe(
-  // Arrays get the search envelope `match.resources()` emits; `undefined`
-  // passes through as the pending state.
-  map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
-)));
-
-// Stable client reference — useSemiont is called on every render, so a
-// fresh object literal would invalidate useMemo deps and restart the RxJS
-// pipeline on every keystroke. The real SemiontBrowser holds a single
-// activeSession$ BehaviorSubject; the mock must do the same.
-const stableMockClient = { match: { resources: matchResourcesMock } };
-const stableMockSession = { client: stableMockClient };
-const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
-const stableMockBrowser = { activeSession$: stableActiveSession$ };
-
-vi.mock('../../../session/SemiontProvider', async () => {
-  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
-    '../../../session/SemiontProvider'
-  );
-  return {
-    ...actual,
-    useSemiont: () => stableMockBrowser,
-  };
+vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
+  const { searchBrowser } = await import('./search-modal-harness');
+  return { ...actual, useSemiont: () => searchBrowser };
 });
 
 // Mock search announcements
@@ -68,41 +51,17 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
   })),
 }));
 
-function setBrowseResults(resources: any[] | undefined) {
-  act(() => {
-    matchResourcesSubject.next(resources);
-  });
-}
-
-const buildResource = (id: string, name: string, content?: string) => ({
-  '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': id,
-  name,
-  content,
-  representations: [{ mediaType: 'text/plain', isPrimary: true }],
-});
-
 describe('SearchModal — search wiring', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
     onNavigate: vi.fn(),
-    translations: {
-      placeholder: 'Search resources, entities...',
-      searching: 'Searching...',
-      noResults: 'No results found for',
-      startTyping: 'Start typing to search...',
-      navigate: 'Navigate',
-      select: 'Select',
-      close: 'Close',
-      enter: 'Enter',
-      esc: 'ESC',
-    },
+    translations: searchTranslations,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    matchResourcesSubject.next(undefined);
+    resetSearch();
   });
 
   it('renders the search input when open', () => {

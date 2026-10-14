@@ -1,9 +1,8 @@
 /**
  * SearchModal shows the strings its host gives it and has none of its own.
  *
- * HeadlessUI's Dialog is replaced with plain elements here: the real one
- * exhausts jsdom's memory, which is why the other SearchModal suites are
- * skipped.
+ * HeadlessUI's Dialog is replaced with plain elements here: this suite is
+ * about strings. The keyboard and accessibility suites render the real one.
  */
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -20,6 +19,7 @@ vi.mock('@headlessui/react', () => ({
 }));
 
 const translations = {
+  title: '[title]',
   placeholder: '[placeholder]',
   searching: '[searching]',
   noResults: '[noResults]',
@@ -42,6 +42,7 @@ describe('SearchModal translations', () => {
     open();
 
     expect(screen.getByPlaceholderText('[placeholder]')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '[title]' })).toBeInTheDocument();
     for (const shown of ['[startTyping]', '[navigate]', '[select]', '[close]', '[enter]']) {
       expect(screen.getByText(shown)).toBeInTheDocument();
     }

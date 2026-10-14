@@ -1,105 +1,80 @@
 /**
- * SearchModal Component Tests - Accessibility
+ * SearchModal for a person using assistive technology: a modal dialog with a
+ * name, a named search box with focus in it when it opens, and nothing
+ * axe-core finds wrong, empty or with results. The real HeadlessUI Dialog is
+ * rendered: the dialog's role, its modality and its focus are its behaviour,
+ * not the modal's own.
  */
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import '@testing-library/jest-dom';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import { renderWithProviders } from '../../../test-utils';
 import { SearchModal } from '../SearchModal';
+import {
+  buildResource,
+  matchResourcesMock,
+  resetSearch,
+  searchTranslations,
+  setBrowseResults,
+} from './search-modal-harness';
 
-// Mock the hooks
-vi.mock('../../../hooks/useSearchAnnouncements', () => ({
-  useSearchAnnouncements: () => ({
-    announceSearchResults: vi.fn(),
-    announceSearching: vi.fn()
-  })
-}));
-
-// Mock getResourceId
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getResourceId: vi.fn((resource: any) => resource?.id)
-  };
+vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
+  const { searchBrowser } = await import('./search-modal-harness');
+  return { ...actual, useSemiont: () => searchBrowser };
 });
 
-describe.skip('SearchModal Component - Accessibility', () => {
-  // TODO: All SearchModal tests skipped due to HeadlessUI Dialog + jsdom memory issues
-  // These tests cause OOM even with increased heap size
-  // Need to either:
-  // 1. Mock HeadlessUI Dialog component entirely
-  // 2. Use Playwright/Cypress for integration tests instead of jsdom
-  // 3. Redesign SearchModal to use a lighter modal implementation
+expect.extend(toHaveNoViolations);
 
-  const defaultProps = {
-    isOpen: true,
-    onClose: vi.fn(),
-    onNavigate: vi.fn(),
-    translations: {
-      placeholder: 'Search resources, entities...',
-      searching: 'Searching...',
-      noResults: 'No results found for',
-      startTyping: 'Start typing to search...',
-      navigate: 'Navigate',
-      select: 'Select',
-      close: 'Close',
-      enter: 'Enter',
-      esc: 'ESC',
-    },
-  };
+function open() {
+  renderWithProviders(
+    <SearchModal isOpen onClose={vi.fn()} onNavigate={vi.fn()} translations={searchTranslations} />,
+  );
+  return screen.getByRole('textbox', { name: searchTranslations.title });
+}
 
+/** Search, and answer with one result per name. */
+async function search(input: HTMLElement, ...names: string[]) {
+  fireEvent.change(input, { target: { value: 'doc' } });
+  await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+  setBrowseResults(names.map((name, index) => buildResource(`res-${index + 1}`, name)));
+  await waitFor(() => expect(screen.getByText(names.at(-1)!)).toBeInTheDocument(), { timeout: 1500 });
+}
+
+describe('SearchModal — Accessibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetSearch();
   });
 
-  describe('Accessibility', () => {
-    it('should have proper dialog role', () => {
-      render(<SearchModal {...defaultProps} />);
+  it('is a modal dialog, named by its title', () => {
+    open();
 
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-    });
-
-    it('should trap focus within modal', () => {
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-      expect(document.activeElement).toBe(input);
-    });
-
-    it('should have search input with proper attributes', () => {
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-      expect(input).toHaveAttribute('type', 'text');
-      expect(input).toHaveProperty('autofocus');
-    });
-
-    it('should render search icon', () => {
-      const { container } = render(<SearchModal {...defaultProps} />);
-
-      const searchIcon = container.querySelector('svg path[d*="M21 21l-6-6"]');
-      expect(searchIcon).toBeInTheDocument();
-    });
+    const dialog = screen.getByRole('dialog', { name: searchTranslations.title });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
   });
 
-  describe('Result Interaction', () => {
-    // These tests would need proper mocking of search results
-    // Currently the component has hardcoded empty results
+  it('names its search box', () => {
+    expect(open()).toBeInTheDocument();
+  });
 
-    it('should call onNavigate when result is clicked', async () => {
-      // TODO: Test when search results can be properly mocked
-      render(<SearchModal {...defaultProps} />);
-    });
+  it('puts focus in the search box when it opens', async () => {
+    const input = open();
 
-    it('should close modal after navigation', async () => {
-      // TODO: Test when search results can be properly mocked
-      render(<SearchModal {...defaultProps} />);
-    });
+    await waitFor(() => expect(input).toHaveFocus());
+  });
 
-    it('should update selected index on mouse hover', async () => {
-      // TODO: Test when search results can be properly mocked
-      render(<SearchModal {...defaultProps} />);
-    });
+  it('has no axe violations when it opens', async () => {
+    open();
+
+    // The dialog is portalled to the body, outside the render's container.
+    expect(await axe(document.body)).toHaveNoViolations();
+  });
+
+  it('has no axe violations with results shown', async () => {
+    const input = open();
+    await search(input, 'First', 'Second');
+
+    expect(await axe(document.body)).toHaveNoViolations();
   });
 });

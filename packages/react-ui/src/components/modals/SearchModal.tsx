@@ -20,6 +20,8 @@ export interface SearchModalProps {
   onNavigate: (type: 'resource' | 'entity', id: string) => void;
   /** Every string the modal shows; it has none of its own. */
   translations: {
+    /** The dialog's name and its search box's, as assistive technology says them. */
+    title: string;
     placeholder: string;
     searching: string;
     noResults: string;
@@ -134,7 +136,7 @@ export function SearchModal({
 
   return (
     <Transition appear show={isOpen}>
-      <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
+      <Dialog as="div" className="semiont-search-modal" onClose={onClose} aria-label={translations.title}>
         {/* Backdrop */}
         <TransitionChild
                    enter="ease-out duration-200"
@@ -171,6 +173,7 @@ export function SearchModal({
                     value={query}
                     onChange={(e) => pipeline.setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    aria-label={translations.title}
                     placeholder={translations.placeholder}
                     className="semiont-search-modal__input"
                     autoFocus

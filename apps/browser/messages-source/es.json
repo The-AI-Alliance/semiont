@@ -168,6 +168,7 @@
     "categories": "Categorías"
   },
   "Search": {
+    "title": "Buscar",
     "placeholder": "Buscar recursos y entidades...",
     "searching": "Buscando...",
     "noResults": "No se encontraron resultados",

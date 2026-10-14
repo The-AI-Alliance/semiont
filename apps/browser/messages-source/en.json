@@ -211,6 +211,7 @@
     "categories": "Categories"
   },
   "Search": {
+    "title": "Search",
     "placeholder": "Search for resources and entities...",
     "searching": "Searching...",
     "noResults": "No results found",

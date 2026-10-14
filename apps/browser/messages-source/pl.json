@@ -168,6 +168,7 @@
     "categories": "Kategorie"
   },
   "Search": {
+    "title": "Szukaj",
     "placeholder": "Szukaj zasobów i encji...",
     "searching": "Wyszukiwanie...",
     "noResults": "Nie znaleziono wyników",

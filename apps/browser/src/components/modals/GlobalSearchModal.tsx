@@ -26,6 +26,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
       onClose={onClose}
       onNavigate={handleNavigate}
       translations={{
+        title: t('title'),
         placeholder: t('placeholder'),
         searching: t('searching'),
         noResults: t('noResults'),

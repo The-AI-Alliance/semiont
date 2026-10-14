@@ -168,6 +168,7 @@
     "categories": "Kategoriat"
   },
   "Search": {
+    "title": "Haku",
     "placeholder": "Hae resursseja ja entiteettejä...",
     "searching": "Haetaan...",
     "noResults": "Tuloksia ei löytynyt",

@@ -36,6 +36,7 @@ describe.skip('SearchModal Component - Visual States', () => {
     onClose: vi.fn(),
     onNavigate: vi.fn(),
     translations: {
+      title: 'Search',
       placeholder: 'Search resources, entities...',
       searching: 'Searching...',
       noResults: 'No results found for',

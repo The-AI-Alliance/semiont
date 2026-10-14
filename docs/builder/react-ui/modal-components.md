@@ -18,7 +18,7 @@ A comprehensive global search modal with keyboard navigation and real-time searc
 - **Keyboard Navigation**: Arrow keys to navigate, Enter to select, ESC to close
 - **Result Types**: Renders resource and entity rows; the search it runs returns resources
 - **Visual Feedback**: Loading states, empty states, and result highlighting
-- **Accessibility**: Full keyboard and screen reader support
+- **Accessibility**: a modal dialog named by `translations.title`; its search box has the same name and has focus when the dialog opens; ↑, ↓, Enter and Esc do what the pointer does
 
 #### Props
 
@@ -26,7 +26,7 @@ The props are the component's own — `ComponentProps<typeof SearchModal>`:
 
 - `isOpen`, `onClose` — the parent owns the open state; picking a result calls `onClose` before `onNavigate`.
 - `onNavigate(type, id)` — called with the picked result's type (`'resource' | 'entity'`) and id; the host routes.
-- `translations` — `placeholder`, `searching`, `noResults`, `startTyping`, `navigate`, `select`, `close`, `enter`, `esc`. All nine are required: the modal has no strings of its own.
+- `translations` — `title`, `placeholder`, `searching`, `noResults`, `startTyping`, `navigate`, `select`, `close`, `enter`, `esc`. All ten are required: the modal has no strings of its own. `title` is what assistive technology calls the dialog and its search box.
 
 #### Usage Example
 
@@ -52,6 +52,7 @@ function GlobalSearch() {
         onClose={() => setIsOpen(false)}
         onNavigate={handleNavigate}
         translations={{
+          title: t('title'),
           placeholder: t('placeholder'),
           searching: t('searching'),
           noResults: t('noResults'),

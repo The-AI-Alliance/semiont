@@ -171,27 +171,17 @@ describe('useDropdown', () => {
 
 ## Known Test Issues
 
-### SearchModal Tests (Skipped)
+### SearchModal Tests
 
-Four SearchModal test files are skipped because of memory issues with HeadlessUI Dialog in jsdom:
+`SearchModal.keyboard.test.tsx` and `SearchModal.accessibility.test.tsx` render HeadlessUI's real
+`<Dialog>`. They share `__tests__/search-modal-harness.ts` with `SearchModal.search-wiring.test.tsx`:
+one browser for the whole file, because `useSemiont` is called on every render and a browser made
+per render restarts the modal's search pipeline on every keystroke. `search-wiring` and
+`SearchModal.translations.test.tsx` replace the dialog's parts with plain elements: they are about
+the search and the strings.
 
-- **Issue**: HeadlessUI's `<Dialog>` component creates complex DOM structures with portals, transitions, and focus management that cause Out Of Memory errors in jsdom, even with increased heap size
-- **Impact**: 36 tests across 4 test files are skipped
-- **Files affected**:
-  - `SearchModal.basic.test.tsx` (6 tests)
-  - `SearchModal.visual.test.tsx` (15 tests)
-  - `SearchModal.accessibility.test.tsx` (7 tests)
-  - `SearchModal.keyboard.test.tsx` (8 tests)
-
-`SearchModal.search-wiring.test.tsx` runs: it replaces HeadlessUI's dialog parts with plain
-elements through `vi.mock`.
-
-**Potential solutions**:
-1. Mock HeadlessUI Dialog component entirely
-2. Use Playwright/Cypress for integration tests instead of jsdom
-3. Redesign SearchModal to use a lighter modal implementation
-
-The tests remain in place with detailed TODO comments for future implementation.
+`SearchModal.basic.test.tsx` and `SearchModal.visual.test.tsx` are skipped. They render without the
+session provider the modal needs, so they cannot pass as written.
 
 ## Testing Philosophy Summary
 

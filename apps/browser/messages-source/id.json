@@ -168,6 +168,7 @@
     "categories": "Kategori"
   },
   "Search": {
+    "title": "Cari",
     "placeholder": "Cari sumber daya dan entitas...",
     "searching": "Mencari...",
     "noResults": "Tidak ada hasil ditemukan",

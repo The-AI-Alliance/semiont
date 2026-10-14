@@ -30,6 +30,7 @@ describe('SearchModal Component - Basic Rendering', () => {
     onClose: vi.fn(),
     onNavigate: vi.fn(),
     translations: {
+      title: 'Search',
       placeholder: 'Search resources, entities...',
       searching: 'Searching...',
       noResults: 'No results found for',
@@ -70,6 +71,7 @@ describe('SearchModal Component - Basic Rendering', () => {
 
     it('should render with custom translations', () => {
       const translations = {
+        title: 'Custom title',
         placeholder: 'Custom search',
         startTyping: 'Type to search',
         noResults: 'Nothing found for',
