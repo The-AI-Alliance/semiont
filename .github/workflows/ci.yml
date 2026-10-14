@@ -86,6 +86,7 @@ jobs:
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
           npm run lint:state-unit-census || fail=1
+          npm run lint:state-unit-cases || fail=1
           npm run lint:internal-deps || fail=1
           npm run lint:workflows || fail=1
           exit $fail

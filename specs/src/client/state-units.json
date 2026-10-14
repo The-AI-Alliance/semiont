@@ -1,0 +1,376 @@
+{
+  "$comment": "AUTHORITY for what a client's state units do: each case builds units over a scripted transport, drives them, and states what they hold and what they said. Every SDK runs these cases against its own units, so a unit means one thing in TypeScript, Rust and Python; specs/src/client/surface.json's `stateUnits` names the units and their members, and this table holds what they do. A case names its `unit` (a row of `stateUnits`) and what it is (`case`); an SDK the names table says lacks the unit (`absent`) does not run its cases. `transport` is what answers the client's requests: `answers` is `refuses` (every request is refused at once), `never` (every request reaches the gateway and is answered only by an `answer` step) or `jobs` (`job:create` is answered `{\"jobId\": \"job-1\"}`, `job:status-requested` with job-1 running, and anything else is refused at once); `replies` queues responses by operation, each given before the rule; `delayMs` holds every reply that long. The client's stream carries the replies and the broadcasts, never the requests it sent. `made` names each unit the case builds, with what it is built from: a gather or mark unit its `resourceId`, a yield unit its `locale`, a hover dwell its `delayMs`, saying what is hovered through the client's `beckon.hover`. `listen` names channels of the client's bus read from the moment the units are made. `steps` run in order. Driving: `say` publishes on the client's own bus, as a signal or a job event is; `deliver` gives the client a frame from the wire, as another participant's is; `answer` replies to the `nth` request sent on a channel, on `reply`, under that request's correlation id; `queueReply` queues the next response to an operation; `invoke` calls a method of the unit `of` names, with `args` by the method's parameter names; `\"settle\"` lets what is ready run and moves no time; `pass` moves the clock, letting what falls due run as it does; `dispose` disposes the named unit. Checking: `expect` states, for each named unit, what members hold now (it lets nothing run first); `sent` lists every request sent on a channel so far, or gives their `count`; `nothingSent` says no request was sent; `heard` lists exactly what the `listen` channels carried since the units were made or since the last `heard`, once what is ready has run; `ended` names members whose readers have ended; `busDestroyed` says whether the client's bus has ended. A duration is milliseconds, or `{\"timing\": <a name of specs/src/client/timing.json>}` with `times` and `plusMs` to scale and move it. Values are as the wire writes them, compared exactly: a state holding a wire model is written as the wire writes it, ids are strings and none is null. Two forms compare less: `{\"$has\": {…}}` matches an object holding at least those members, and a state holding an error is written `{\"code\": …}`, `{\"message\": …}` or both, and compared on those; a case states a message only where the wire wrote it, never one an SDK or its test double writes. `{\"$fixture\": name}` is the table's fixture of that name. A `heard` entry gives the frame's `channel`, its `payload` and its `correlationId`, which is absent when the frame carries none, or `{\"sent\": <channel>, \"nth\": <n>}` for the id a request carried. What a case cannot state stays a test of the SDK's own: the axioms, which each SDK's harness checks, and how often a state wakes its readers, which differs by language. scripts/lint/check-state-unit-cases.mjs holds this table to the names table, the bus registry and the timing table.",
+  "fixtures": {
+    "context": {
+      "focus": {
+        "kind": "resource",
+        "resource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "text/plain" }] }
+      },
+      "graph": { "nodes": [], "edges": [] },
+      "metadata": {}
+    }
+  },
+  "cases": [
+    {
+      "unit": "match",
+      "case": "runs the search it is asked for, and answers under the asker's id after the wire's reply",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-results"],
+      "steps": [
+        "settle",
+        { "nothingSent": true },
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "sent": "match:search-requested", "payloads": [{ "$has": { "referenceId": "ref-1", "resourceId": "res-1" } }] },
+        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-results", "payload": { "referenceId": "ref-1", "response": [] } },
+        { "heard": [
+          { "channel": "match:search-results", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "response": [] } },
+          { "channel": "match:search-results", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "response": [] } }
+        ] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "says a search that failed, with its reference and the reason, under the asker's id",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-failed"],
+      "steps": [
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-failed", "payload": { "referenceId": "ref-1", "error": "the index is down" } },
+        { "heard": [
+          { "channel": "match:search-failed", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "error": "the index is down" } },
+          { "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "error": "the index is down" } }
+        ] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "says a search never answered as failed, at the request's deadline",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-failed"],
+      "steps": [
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        { "pass": { "timing": "busRequestTimeoutMs", "plusMs": -1000 } },
+        { "heard": [] },
+        { "pass": 2000 },
+        { "heard": [{ "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "$has": { "referenceId": "ref-1" } } }] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "disposed, runs nothing, and leaves the client's bus alone",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "steps": [
+        { "dispose": "unit" },
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "nothingSent": true },
+        { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "holds what is hovered, and a hover of none clears it",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "expect": { "unit": { "hoveredAnnotationId": null } } },
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        "settle",
+        { "expect": { "unit": { "hoveredAnnotationId": "ann-1" } } },
+        { "say": "beckon:hover", "payload": { "annotationId": null } },
+        "settle",
+        { "expect": { "unit": { "hoveredAnnotationId": null } } }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "sparkles what is hovered, and nothing when nothing is",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:sparkle"],
+      "steps": [
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        { "say": "beckon:hover", "payload": { "annotationId": null } },
+        { "heard": [{ "channel": "beckon:sparkle", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "turns the focus to an annotation that is opened, here or by another participant",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:focus"],
+      "steps": [
+        { "say": "browse:click", "payload": { "annotationId": "ann-1" } },
+        { "deliver": "browse:click", "payload": { "annotationId": "ann-2" } },
+        { "heard": [
+          { "channel": "beckon:focus", "payload": { "annotationId": "ann-1" } },
+          { "channel": "beckon:focus", "payload": { "annotationId": "ann-2" } }
+        ] },
+        { "expect": { "unit": { "hoveredAnnotationId": null } } }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "focus says the focus",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:focus"],
+      "steps": [
+        { "invoke": "focus", "of": "unit", "args": { "annotationId": "ann-7" } },
+        { "heard": [{ "channel": "beckon:focus", "payload": { "annotationId": "ann-7" } }] }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "disposed, hears nothing and says nothing, and leaves the client's bus alone",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:sparkle", "beckon:focus"],
+      "steps": [
+        { "dispose": "unit" },
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        { "say": "browse:click", "payload": { "annotationId": "ann-1" } },
+        { "invoke": "focus", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "heard": [] },
+        { "ended": { "unit": ["hoveredAnnotationId"] } },
+        { "expect": { "unit": { "hoveredAnnotationId": null } } },
+        { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that rests hovers, and one that leaves stops at once",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "plusMs": -2 } },
+        { "heard": [] },
+        { "pass": 4 },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": null } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that passes over hovers nothing",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 0.5 } },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that moves on hovers only where it rests",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 0.5 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-2" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-2" } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "an annotation already hovered is not said again",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "disposed, forgets the rest it was waiting out",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "dispose": "unit" },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "disposed, says nothing more, not even the pointer leaving what it hovered",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-2" } },
+        { "dispose": "unit" },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-3" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "begins with nothing, and asks for nothing",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "nothingSent": true }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "asks for an annotation's context of its own resource, and holds it",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "sent": "gather:requested", "payloads": [{ "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 2000 } }] },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": { "$fixture": "context" }, "loading": false, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "takes the window it is asked for",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere", "options": { "contextWindow": 500 } } },
+        "settle",
+        { "sent": "gather:requested", "payloads": [{ "$has": { "options": { "contextWindow": 500 } } }] }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "holds the failure of a gather, and the next one clears it and the context the last one left",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        "settle",
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:failed", "payload": { "annotationId": "ann-1", "message": "no such annotation" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": { "message": "no such annotation" }, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-2", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "answer": "gather:requested", "nth": 1, "reply": "gather:complete", "payload": { "annotationId": "ann-2", "response": { "$fixture": "context" } } },
+        "settle",
+        { "say": "gather:requested", "payload": { "annotationId": "ann-3", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-3", "resourceContext": null, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "fails a gather never answered, at the request's deadline",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "pass": { "timing": "busRequestTimeoutMs", "plusMs": -1000 } },
+        { "expect": { "unit": { "loading": true } } },
+        { "pass": 2000 },
+        { "expect": { "unit": { "loading": false, "error": { "code": "bus.timeout" } } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "a resource's gather is loading when the call returns, and then holds the context",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": true, "resourceError": null } } },
+        "settle",
+        { "sent": "gather:resource-requested", "payloads": [{ "$has": { "resourceId": "res-9" } }] },
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-complete", "payload": { "resourceId": "res-9", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": { "$fixture": "context" }, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "a resource's gather holds its failure, and the next one clears it",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-failed", "payload": { "resourceId": "res-9", "message": "no such resource" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": true, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "keeps an annotation's gather and a resource's apart",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-failed", "payload": { "resourceId": "res-9", "message": "no such resource" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": { "$fixture": "context" }, "loading": false, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "disposed, is inert, an answer that comes later lands nowhere, and it leaves the client's bus alone",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "dispose": "unit" },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-complete", "payload": { "resourceId": "res-9", "response": { "$fixture": "context" } } },
+        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "ended": { "unit": ["context", "resourceContext"] } },
+        { "expect": { "unit": { "context": null, "resourceContext": null } } },
+        { "sent": "gather:requested", "count": 1 },
+        { "sent": "gather:resource-requested", "count": 1 },
+        { "busDestroyed": false }
+      ]
+    }
+  ]
+}

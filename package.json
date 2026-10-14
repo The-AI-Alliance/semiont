@@ -101,6 +101,7 @@
     "lint:event-tags": "node scripts/lint/check-event-tags.mjs",
     "lint:client-surface": "node scripts/lint/check-client-surface.mjs",
     "lint:state-unit-census": "node scripts/lint/check-state-unit-census.mjs",
+    "lint:state-unit-cases": "node scripts/lint/check-state-unit-cases.mjs",
     "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs",
     "lint:workflows": "node scripts/lint/check-workflows.mjs"
   },
