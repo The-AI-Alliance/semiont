@@ -168,6 +168,7 @@
     "categories": "分类"
   },
   "Search": {
+    "title": "搜索",
     "placeholder": "搜索资源和实体...",
     "searching": "搜索中...",
     "noResults": "未找到结果",

@@ -168,6 +168,7 @@
     "categories": "Danh mục"
   },
   "Search": {
+    "title": "Tìm kiếm",
     "placeholder": "Tìm kiếm tài nguyên và thực thể...",
     "searching": "Đang tìm kiếm...",
     "noResults": "Không tìm thấy kết quả",

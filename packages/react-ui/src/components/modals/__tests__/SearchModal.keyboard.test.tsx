@@ -1,134 +1,125 @@
 /**
- * SearchModal Component Tests - Keyboard Navigation
+ * SearchModal from the keyboard: the arrow keys move one selection through
+ * the results and wrap at either end, Enter opens the selected result, and
+ * Escape closes the modal. The real HeadlessUI Dialog is rendered: Escape is
+ * its behaviour, not the modal's own.
  */
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import '@testing-library/jest-dom';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '../../../test-utils';
 import { SearchModal } from '../SearchModal';
+import {
+  buildResource,
+  matchResourcesMock,
+  resetSearch,
+  searchTranslations,
+  setBrowseResults,
+} from './search-modal-harness';
 
-// Mock the hooks
-vi.mock('../../../hooks/useSearchAnnouncements', () => ({
-  useSearchAnnouncements: () => ({
-    announceSearchResults: vi.fn(),
-    announceSearching: vi.fn()
-  })
-}));
-
-// Mock getResourceId
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getResourceId: vi.fn((resource: any) => resource?.id)
-  };
+vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
+  const { searchBrowser } = await import('./search-modal-harness');
+  return { ...actual, useSemiont: () => searchBrowser };
 });
 
-describe.skip('SearchModal Component - Keyboard Navigation', () => {
-  // TODO: All SearchModal tests skipped due to HeadlessUI Dialog + jsdom memory issues
-  // These tests cause OOM even with increased heap size
-  // Need to either:
-  // 1. Mock HeadlessUI Dialog component entirely
-  // 2. Use Playwright/Cypress for integration tests instead of jsdom
-  // 3. Redesign SearchModal to use a lighter modal implementation
+const SELECTED = 'semiont-search-modal__result--selected';
 
-  const defaultProps = {
-    isOpen: true,
-    onClose: vi.fn(),
-    onNavigate: vi.fn(),
-    translations: {
-      placeholder: 'Search resources, entities...',
-      searching: 'Searching...',
-      noResults: 'No results found for',
-      startTyping: 'Start typing to search...',
-      navigate: 'Navigate',
-      select: 'Select',
-      close: 'Close',
-      enter: 'Enter',
-      esc: 'ESC',
-    },
-  };
+/** The row of the result named `name`. */
+const row = (name: string) => screen.getByText(name).closest('button')!;
 
+/** Open the modal, search, and answer with one result per name. */
+async function openWith(...names: string[]) {
+  const onClose = vi.fn();
+  const onNavigate = vi.fn();
+  renderWithProviders(
+    <SearchModal isOpen onClose={onClose} onNavigate={onNavigate} translations={searchTranslations} />,
+  );
+  const input = screen.getByPlaceholderText(searchTranslations.placeholder);
+  fireEvent.change(input, { target: { value: 'doc' } });
+  await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+  setBrowseResults(names.map((name, index) => buildResource(`res-${index + 1}`, name)));
+  if (names.length > 0) {
+    await waitFor(() => expect(screen.getByText(names.at(-1)!)).toBeInTheDocument(), { timeout: 1500 });
+  } else {
+    await waitFor(() => expect(screen.getByText(/No results found for/)).toBeInTheDocument(), { timeout: 1500 });
+  }
+  return { input, onClose, onNavigate };
+}
+
+describe('SearchModal — keyboard', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetSearch();
   });
 
-  describe('Keyboard Navigation', () => {
-    it('should handle Escape key to close modal', () => {
-      render(<SearchModal {...defaultProps} />);
+  it('selects the first result when the results arrive', async () => {
+    await openWith('First', 'Second', 'Third');
 
-      const dialog = screen.getByRole('dialog');
-      fireEvent.keyDown(dialog, { key: 'Escape' });
-
-      expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle Arrow Down key to navigate results', async () => {
-
-      // TODO: Mock search results when API is integrated
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-
-      fireEvent.keyDown(input, { key: 'ArrowDown' });
-      // Selection should cycle through available results
-    });
-
-    it('should handle Arrow Up key to navigate results', async () => {
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-
-      fireEvent.keyDown(input, { key: 'ArrowUp' });
-      // Selection should cycle backwards through results
-    });
-
-    it('should handle Enter key to select result', async () => {
-      // TODO: Add when results can be mocked
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-
-      // Would need mock results to test properly
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    it('should prevent default behavior for navigation keys', () => {
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-
-      const downEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
-      const preventDefault = vi.spyOn(downEvent, 'preventDefault');
-
-      input.dispatchEvent(downEvent);
-      expect(preventDefault).toHaveBeenCalled();
-    });
+    expect(row('First')).toHaveClass(SELECTED);
+    expect(row('Second')).not.toHaveClass(SELECTED);
   });
 
-  describe('Result Display', () => {
-    it('should show start typing message when query is empty', () => {
-      render(<SearchModal {...defaultProps} />);
+  it('moves the selection down with ArrowDown, and wraps past the last result', async () => {
+    const { input } = await openWith('First', 'Second', 'Third');
 
-      expect(screen.getByText('Start typing to search...')).toBeInTheDocument();
-    });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(row('Second')).toHaveClass(SELECTED);
+    expect(row('First')).not.toHaveClass(SELECTED);
 
-    it('should show keyboard shortcuts', () => {
-      render(<SearchModal {...defaultProps} />);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(row('First')).toHaveClass(SELECTED);
+  });
 
-      expect(screen.getByText('↑↓')).toBeInTheDocument();
-      expect(screen.getByText('Navigate')).toBeInTheDocument();
-      expect(screen.getByText('Enter')).toBeInTheDocument();
-      expect(screen.getByText('Select')).toBeInTheDocument();
-      expect(screen.getByText('Esc')).toBeInTheDocument();
-      expect(screen.getByText('Close')).toBeInTheDocument();
-    });
+  it('moves the selection up with ArrowUp, and wraps before the first result', async () => {
+    const { input } = await openWith('First', 'Second', 'Third');
 
-    it('should display ESC key hint in header', () => {
-      render(<SearchModal {...defaultProps} />);
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(row('Third')).toHaveClass(SELECTED);
+  });
 
-      const escHint = screen.getByText('ESC');
-      expect(escHint).toBeInTheDocument();
-      expect(escHint.parentElement).toHaveClass('px-2', 'py-1');
-    });
+  it('keeps the arrow keys from moving the cursor in the search box', async () => {
+    const { input } = await openWith('First', 'Second');
+
+    // `fireEvent` answers false when a handler prevented the default.
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(false);
+    expect(fireEvent.keyDown(input, { key: 'ArrowUp' })).toBe(false);
+  });
+
+  it('opens the selected result with Enter, and closes', async () => {
+    const { input, onClose, onNavigate } = await openWith('First', 'Second', 'Third');
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('resource', 'res-2');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('opens nothing with Enter when there are no results', async () => {
+    const { input, onNavigate } = await openWith();
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('closes with Escape', async () => {
+    const { input, onClose, onNavigate } = await openWith('First');
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('moves the same selection with the pointer as with the keys', async () => {
+    const { input, onNavigate } = await openWith('First', 'Second', 'Third');
+
+    fireEvent.mouseEnter(row('Third'));
+    expect(row('Third')).toHaveClass(SELECTED);
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('resource', 'res-3');
   });
 });

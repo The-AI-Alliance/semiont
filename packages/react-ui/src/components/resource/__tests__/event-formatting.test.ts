@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { annotationId, resourceId, type Annotation, type StoredEventLike } from '@semiont/core';
 import {
   formatEventType,
   getEventEmoji,
@@ -8,15 +9,38 @@ import {
   getResourceCreationDetails,
 } from '../event-formatting';
 
-// Mock http-transport functions
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getExactText: vi.fn((selector: any) => selector?.exact ?? null),
-  getTargetSelector: vi.fn((target: any) => target?.selector ?? null),
-  };
+/** A stored event as the history reads it off the wire: its type, and its payload as sent. */
+const stored = (type: string, payload: Record<string, unknown>): StoredEventLike => ({
+  id: `event-${type}`,
+  type,
+  timestamp: '2026-10-14T00:00:00.000Z',
+  userId: 'did:web:example.org:users:alice',
+  payload,
+  metadata: { sequenceNumber: 1 },
 });
+
+/**
+ * A reference on "Ada Lovelace". Its id is a name, as every annotation's is,
+ * and its entity types are the values of its tagging bodies.
+ */
+const reference: Annotation = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId('ann-1'),
+  motivation: 'linking',
+  created: '2026-10-14T00:00:00.000Z',
+  target: {
+    source: resourceId('res-1'),
+    selector: [
+      { type: 'TextPositionSelector', start: 0, end: 12 },
+      { type: 'TextQuoteSelector', exact: 'Ada Lovelace' },
+    ],
+  },
+  body: [
+    { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+    { type: 'TextualBody', value: 'Mathematician', purpose: 'tagging' },
+  ],
+};
 
 const t = vi.fn((key: string, params?: Record<string, string | number>) => {
   if (params) return `${key}(${JSON.stringify(params)})`;
@@ -68,7 +92,7 @@ describe('event-formatting', () => {
     });
 
     it('returns raw type for unknown event types', () => {
-      expect(formatEventType('custom.event' as any, t)).toBe('custom.event');
+      expect(formatEventType('custom.event', t)).toBe('custom.event');
     });
   });
 
@@ -104,7 +128,7 @@ describe('event-formatting', () => {
     });
 
     it('returns default emoji for unknown', () => {
-      expect(getEventEmoji('unknown' as any)).toBe('📝');
+      expect(getEventEmoji('unknown')).toBe('📝');
     });
   });
 
@@ -142,90 +166,78 @@ describe('event-formatting', () => {
 
   describe('getEventDisplayContent', () => {
     it('returns resource name for yield:created', () => {
-      const event = { type: 'yield:created' as const, payload: { name: 'My Document' }, userId: 'u1', timestamp: '' } as any;
-      const result = getEventDisplayContent(event, [], []);
+      const result = getEventDisplayContent(stored('yield:created', { name: 'My Document' }), [], []);
       expect(result).toEqual({ exact: 'My Document', isQuoted: false, isTag: false });
     });
 
     it('returns resource name for yield:cloned', () => {
-      const event = { type: 'yield:cloned' as const, payload: { name: 'Cloned Doc' }, userId: 'u1', timestamp: '' } as any;
-      const result = getEventDisplayContent(event, [], []);
+      const result = getEventDisplayContent(stored('yield:cloned', { name: 'Cloned Doc' }), [], []);
       expect(result).toEqual({ exact: 'Cloned Doc', isQuoted: false, isTag: false });
     });
 
     it('returns entity type for entitytag events', () => {
-      const event = { type: 'mark:entity-tag-added' as const, payload: { entityType: 'Person' }, userId: 'u1', timestamp: '' } as any;
-      const result = getEventDisplayContent(event, [], []);
+      const result = getEventDisplayContent(stored('mark:entity-tag-added', { entityType: 'Person' }), [], []);
       expect(result).toEqual({ exact: 'Person', isQuoted: false, isTag: true });
     });
 
     it('returns null for job:started', () => {
-      const event = { type: 'job:started' as const, payload: {}, userId: 'u1', timestamp: '' } as any;
-      expect(getEventDisplayContent(event, [], [])).toBeNull();
+      expect(getEventDisplayContent(stored('job:started', {}), [], [])).toBeNull();
     });
 
     it('returns null for yield:representation events', () => {
-      const event = { type: 'yield:representation-added' as const, payload: {}, userId: 'u1', timestamp: '' } as any;
-      expect(getEventDisplayContent(event, [], [])).toBeNull();
+      expect(getEventDisplayContent(stored('yield:representation-added', {}), [], [])).toBeNull();
+    });
+
+    it('shows the text an added annotation quotes', () => {
+      const added = stored('mark:added', { annotation: reference });
+      expect(getEventDisplayContent(added, [], [added])).toEqual({ exact: 'Ada Lovelace', isQuoted: true, isTag: false });
+    });
+
+    it('shows the text of an annotation whose body was updated, found by its id', () => {
+      const updated = stored('mark:body-updated', { annotationId: 'ann-1', operations: [] });
+      expect(getEventDisplayContent(updated, [reference], [updated])).toEqual({ exact: 'Ada Lovelace', isQuoted: true, isTag: false });
+    });
+
+    it('shows the text of a removed annotation, from the event that added it', () => {
+      // A removed annotation is in no list of annotations: its text is the event's that added it.
+      const added = stored('mark:added', { annotation: reference });
+      const removed = stored('mark:removed', { annotationId: 'ann-1' });
+      expect(getEventDisplayContent(removed, [], [added, removed])).toEqual({ exact: 'Ada Lovelace', isQuoted: true, isTag: false });
+    });
+
+    it('shows nothing for an annotation it cannot find', () => {
+      const removed = stored('mark:removed', { annotationId: 'ann-2' });
+      expect(getEventDisplayContent(removed, [reference], [stored('mark:added', { annotation: reference }), removed])).toBeNull();
     });
   });
 
   describe('getEventEntityTypes', () => {
-    it('returns entity types from mark:added with linking motivation', () => {
-      const event = {
-        type: 'mark:added' as const,
-        payload: {
-          annotation: {
-            motivation: 'linking',
-            body: { entityTypes: ['Person', 'Place'] },
-          },
-        },
-      } as any;
-      expect(getEventEntityTypes(event)).toEqual(['Person', 'Place']);
+    it("reads a reference's entity types off its tagging bodies", () => {
+      expect(getEventEntityTypes(stored('mark:added', { annotation: reference }))).toEqual(['Person', 'Mathematician']);
     });
 
-    it('returns empty array for non-linking annotations', () => {
-      const event = {
-        type: 'mark:added' as const,
-        payload: {
-          annotation: { motivation: 'highlighting', body: null },
-        },
-      } as any;
-      expect(getEventEntityTypes(event)).toEqual([]);
+    it('states none for an annotation that does not link: a tag\'s category is no entity type', () => {
+      const tag: Annotation = { ...reference, motivation: 'tagging', body: [{ type: 'TextualBody', value: 'Issue', purpose: 'tagging' }] };
+      expect(getEventEntityTypes(stored('mark:added', { annotation: tag }))).toEqual([]);
     });
 
     it('returns empty array for non-annotation events', () => {
-      const event = { type: 'yield:created' as const, payload: { name: 'test' } } as any;
-      expect(getEventEntityTypes(event)).toEqual([]);
+      expect(getEventEntityTypes(stored('yield:created', { name: 'test' }))).toEqual([]);
     });
   });
 
   describe('getResourceCreationDetails', () => {
     it('returns created details for yield:created', () => {
-      const event = {
-        type: 'yield:created' as const,
-        payload: { name: 'Doc' },
-        userId: 'user-1',
-        timestamp: '',
-      } as any;
-      const result = getResourceCreationDetails(event);
-      expect(result).toEqual({ type: 'created' });
+      expect(getResourceCreationDetails(stored('yield:created', { name: 'Doc' }))).toEqual({ type: 'created' });
     });
 
     it('returns cloned details for yield:cloned', () => {
-      const event = {
-        type: 'yield:cloned' as const,
-        payload: { name: 'Clone', parentResourceId: 'parent-1' },
-        userId: 'user-2',
-        timestamp: '',
-      } as any;
-      const result = getResourceCreationDetails(event);
-      expect(result).toEqual({ type: 'cloned', sourceDocId: 'parent-1' });
+      const cloned = stored('yield:cloned', { name: 'Clone', parentResourceId: 'parent-1' });
+      expect(getResourceCreationDetails(cloned)).toEqual({ type: 'cloned', sourceDocId: 'parent-1' });
     });
 
     it('returns null for non-creation events', () => {
-      const event = { type: 'mark:added' as const, payload: {} } as any;
-      expect(getResourceCreationDetails(event)).toBeNull();
+      expect(getResourceCreationDetails(stored('mark:added', {}))).toBeNull();
     });
   });
 });

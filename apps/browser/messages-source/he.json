@@ -168,6 +168,7 @@
     "categories": "קטגוריות"
   },
   "Search": {
+    "title": "חיפוש",
     "placeholder": "חיפוש משאבים וישויות...",
     "searching": "מחפש...",
     "noResults": "לא נמצאו תוצאות",

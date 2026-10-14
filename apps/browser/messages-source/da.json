@@ -168,6 +168,7 @@
     "categories": "Kategorier"
   },
   "Search": {
+    "title": "Søg",
     "placeholder": "Søg efter ressourcer og enheder...",
     "searching": "Søger...",
     "noResults": "Ingen resultater fundet",

@@ -168,6 +168,7 @@
     "categories": "Categorii"
   },
   "Search": {
+    "title": "Căutare",
     "placeholder": "Caută resurse și entități...",
     "searching": "Se caută...",
     "noResults": "Niciun rezultat găsit",

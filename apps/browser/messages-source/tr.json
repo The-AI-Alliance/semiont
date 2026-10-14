@@ -168,6 +168,7 @@
     "categories": "Kategoriler"
   },
   "Search": {
+    "title": "Ara",
     "placeholder": "Kaynak ve varlıkları ara...",
     "searching": "Aranıyor...",
     "noResults": "Sonuç bulunamadı",

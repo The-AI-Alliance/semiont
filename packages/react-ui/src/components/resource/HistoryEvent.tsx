@@ -3,7 +3,7 @@
 import type { AnnotationId } from '@semiont/core';
 import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import type { AttributedEvent, StoredEventLike, PersistedEventType } from '@semiont/core';
+import type { Annotation, AttributedEvent, StoredEventLike } from '@semiont/core';
 import { getAnnotationIdFromEvent } from '@semiont/core';
 import {
   formatEventType,
@@ -19,7 +19,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 
 interface Props {
   event: AttributedEvent;
-  annotations: any[]; // Unified annotations array (all types)
+  annotations: Annotation[];
   allEvents: StoredEventLike[];
   isRelated: boolean;
   t: TranslateFn;
@@ -88,7 +88,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationId ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationId),
-    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.type as PersistedEventType, t) }),
+    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.type, t) }),
     className: 'semiont-history-event',
     'data-related': isRelated ? 'true' : 'false',
     'data-interactive': 'true'
@@ -112,7 +112,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.type as PersistedEventType, event.payload)}
+          {getEventEmoji(event.type, event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -130,7 +130,7 @@ export function HistoryEvent({
           )
         ) : (
           <span className="semiont-history-event__text">
-            {formatEventType(event.type as PersistedEventType, t, event.payload)}
+            {formatEventType(event.type, t, event.payload)}
           </span>
         )}
         {actor && (

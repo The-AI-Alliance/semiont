@@ -168,6 +168,7 @@
     "categories": "Kategorie"
   },
   "Search": {
+    "title": "Hledat",
     "placeholder": "Hledat zdroje a entity...",
     "searching": "Hledání...",
     "noResults": "Žádné výsledky nenalezeny",
