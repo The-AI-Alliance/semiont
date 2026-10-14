@@ -420,6 +420,18 @@ describe('ReferencesPanel Component', () => {
       expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
     });
 
+    it('shows how many of the priced entities a running job has found', () => {
+      // The wire prices the denominator; the panel's own copy words it. The
+      // count goes through the same translations the panel builds for its
+      // display, so it fails here if they drop it on the way.
+      renderWithEventBus(
+        <ReferencesPanel {...panelProps()} isDelegating={true}
+          progress={{ percentage: 40, entitiesFound: 3, entitiesExpected: 10 }} />,
+      );
+
+      expect(screen.getByTestId('semiont-delegate-tally')).toBeInTheDocument();
+    });
+
     it('should clear selected types after detection starts', async () => {
       const { rerender } = renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 

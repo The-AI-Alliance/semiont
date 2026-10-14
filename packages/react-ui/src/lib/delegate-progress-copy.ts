@@ -159,8 +159,10 @@ export function delegateParamLabel(t: Translate): (code: string) => string {
  * read differently depending on which panel you opened, invisible until
  * someone used the app in a locale nobody on the team reads.
  *
- * `found` stays a caller opt-in: only flows that count per-item results pass it,
- * and its copy ("5 found") belongs to the panel that owns those results.
+ * `found` and `tally` stay a caller's opt-in: only flows that count per-item
+ * results pass `found`, and only the reference flow, whose wire prices a
+ * denominator, passes `tally`. Their copy ("5 found", "3 of ~10 entities")
+ * belongs to the panel that owns those results.
  */
 export function delegateProgressTranslations(
   t: Translate,
@@ -176,5 +178,6 @@ export function delegateProgressTranslations(
     subject: delegateSubjectCopy(t),
     paramLabel: delegateParamLabel(t),
     ...(extra?.found ? { found: extra.found } : {}),
+    ...(extra?.tally ? { tally: extra.tally } : {}),
   };
 }
