@@ -51,7 +51,7 @@
  *     stale-beats-error.
  */
 
-import { BusRequestError } from '@semiont/core';
+import { BusRequestError, type StateUnit } from '@semiont/core';
 import {
   BehaviorSubject,
   Observable,
@@ -101,7 +101,7 @@ export const isReady = <T,>(s: CacheState<T>): s is { status: 'ready'; value: T 
 export const readyValue = <T,>(s: CacheState<T>): T | undefined =>
   s.status === 'ready' ? s.value : undefined;
 
-export interface Cache<K, V> {
+export interface Cache<K, V> extends StateUnit {
   /** Observable stream of the state at `key` (SWR live view). Fetch fires on first subscribe. */
   observe(key: K): Observable<CacheState<V>>;
 
@@ -154,9 +154,6 @@ export interface Cache<K, V> {
    * can lag the persisted content but never lead it (C1).
    */
   persistencePending(): boolean;
-
-  /** Release the underlying subject. Observers complete. */
-  dispose(): void;
 }
 
 export function createCache<K, V>(

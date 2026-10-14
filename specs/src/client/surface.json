@@ -852,6 +852,39 @@
         { "member": "state" },
         { "member": "setQuery" }
       ]
+    },
+    {
+      "unit": "sessionSignals",
+      "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals" },
+      "members": [
+        { "member": "sessionEnded" },
+        { "member": "permissionDenied" },
+        { "member": "kbIdentityConflict" },
+        { "member": "notifySessionEnded" },
+        { "member": "notifyPermissionDenied" },
+        { "member": "notifyKbIdentityConflict" },
+        { "member": "acknowledgeSessionEnded" },
+        { "member": "acknowledgePermissionDenied" },
+        { "member": "acknowledgeKbIdentityConflict" }
+      ]
+    },
+    {
+      "unit": "cache",
+      "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
+      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache" },
+      "members": [
+        { "member": "observe" },
+        { "member": "fetch" },
+        { "member": "get" },
+        { "member": "known" },
+        { "member": "keys" },
+        { "member": "invalidate" },
+        { "member": "invalidateAll" },
+        { "member": "remove" },
+        { "member": "set" },
+        { "member": "persistencePending" }
+      ]
     }
   ]
 }

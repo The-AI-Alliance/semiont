@@ -15,7 +15,7 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
-import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession, type SessionEndReason } from '@semiont/sdk';
+import { SemiontBrowser, createSessionSignals, type SemiontClient, type SemiontSession, type SessionEndReason } from '@semiont/sdk';
 import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
@@ -71,7 +71,7 @@ function createTestBrowser(): SemiontBrowser {
   // connected shape from the first render. Both values are real objects, so
   // seeding them states a fact rather than faking one.
   browser.activeSession$.next(session);
-  browser.activeSignals$.next(new SessionSignals());
+  browser.activeSignals$.next(createSessionSignals());
   return browser;
 }
 

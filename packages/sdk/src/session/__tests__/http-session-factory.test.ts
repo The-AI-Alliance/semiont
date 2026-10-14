@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createHttpSessionFactory } from '../http-session-factory';
-import { SessionSignals } from '../session-signals';
+import { createSessionSignals } from '../session-signals';
 import type { SemiontSessionError } from '../errors';
 import { getStoredSession } from '../storage';
 import { seedStoredSession, TestStorage, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
@@ -90,7 +90,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     const stored = jwt(1);
     seedStoredSession(storage, KB.id, stored, 'r');
 
-    const session = createHttpSessionFactory()({ kb: KB, storage, signals: new SessionSignals(), onError: () => {} });
+    const session = createHttpSessionFactory()({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
     await session.ready;
     await settled(50);
 
@@ -108,7 +108,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     refusesEveryone = true;
     const storage = new TestStorage();
     seedStoredSession(storage, KB.id, jwt(1), 'r');
-    const signals = new SessionSignals();
+    const signals = createSessionSignals();
     const errors: SemiontSessionError[] = [];
 
     const session = createHttpSessionFactory()({ kb: KB, storage, signals, onError: (error) => errors.push(error) });
@@ -135,7 +135,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     const storage = new TestStorage();
     const stored = jwt(1);
     seedStoredSession(storage, KB.id, stored, 'r');
-    const signals = new SessionSignals();
+    const signals = createSessionSignals();
     const errors: SemiontSessionError[] = [];
     const session = createHttpSessionFactory()({ kb: KB, storage, signals, onError: (error) => errors.push(error) });
     await session.ready;

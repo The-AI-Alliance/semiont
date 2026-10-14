@@ -204,7 +204,8 @@ export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection 
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export {
-  SessionSignals,
+  createSessionSignals,
+  type SessionSignals,
   type SessionEndReason,
   type SessionEnded,
   type PermissionDenied,

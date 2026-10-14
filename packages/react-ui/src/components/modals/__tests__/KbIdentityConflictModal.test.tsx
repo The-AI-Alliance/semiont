@@ -14,7 +14,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
-import { SessionSignals } from '@semiont/sdk';
+import { createSessionSignals } from '@semiont/sdk';
 
 const harness = vi.hoisted(() => ({
   browser: null as unknown as {
@@ -37,7 +37,7 @@ const EXPECTED = 'did:web:example.github.io:prod-kb';
 const OBSERVED = 'did:web:example.github.io:scratch-kb';
 
 function mount(withConflict: boolean) {
-  const signals = new SessionSignals();
+  const signals = createSessionSignals();
   if (withConflict) {
     signals.notifyKbIdentityConflict({ expectedDid: EXPECTED, observedDid: OBSERVED });
   }

@@ -62,7 +62,7 @@ import {
   type TabCheck,
 } from './open-resource';
 import { SemiontSession } from './semiont-session';
-import { SessionSignals } from './session-signals';
+import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
@@ -479,7 +479,7 @@ export class SemiontBrowser {
       // Construct the modal signals up front; the session's
       // onAuthFailed callback writes into them, so they must exist
       // before the session's ctor does its startup validation.
-      const signals = new SessionSignals();
+      const signals = createSessionSignals();
 
       let session: SemiontSession;
       try {

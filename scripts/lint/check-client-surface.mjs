@@ -78,13 +78,15 @@
  * `worker`. What a unit does is not read here: each SDK's tests of its units
  * hold that.
  *
- * TypeScript's units are the interfaces of packages/sdk/src/state, a unit
- * being one that extends `StateUnit`. Rust's are the `pub struct`s of
- * packages/sdk-rust/src/state, their members the `pub fn`s of their inherent
- * `impl`s, a unit being one with `impl StateUnit for` it. Python's are the
- * classes of packages/sdk-python/src/semiont/state, their members their
- * public methods, properties and attributes, a unit being one that names
- * `StateUnit` as a base.
+ * Each SDK's unit is read where it is declared in that SDK's source, its
+ * tests and its test doubles (`testing`) left out. TypeScript's is an
+ * interface of packages/sdk/src, a unit being one that extends `StateUnit`.
+ * Rust's is a `pub struct` of packages/sdk-rust/src, its members the `pub
+ * fn`s of its inherent `impl`s that take it (`self`), a unit being one with
+ * `impl StateUnit for` it. Python's is a class of
+ * packages/sdk-python/src/semiont, its members its public methods,
+ * properties and attributes, a unit being one that names `StateUnit` as a
+ * base. A `StateUnit` that no row makes is looked for in the same places.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -99,9 +101,9 @@ const PYTHON_NAMESPACES = 'packages/sdk-python/src/semiont/namespaces';
 const TS_CLAIMS = 'packages/sdk/src/claims.ts';
 const RUST_CLAIMS = 'packages/sdk-rust/src/claims.rs';
 const PYTHON_CLAIMS = 'packages/sdk-python/src/semiont/claims.py';
-const TS_STATE = 'packages/sdk/src/state';
-const RUST_STATE = 'packages/sdk-rust/src/state';
-const PYTHON_STATE = 'packages/sdk-python/src/semiont/state';
+const TS_SDK = 'packages/sdk/src';
+const RUST_SDK = 'packages/sdk-rust/src';
+const PYTHON_SDK = 'packages/sdk-python/src/semiont';
 const SCHEMAS = 'specs/src/components/schemas';
 const SDKS = ['typescript', 'rust', 'python'];
 
@@ -789,12 +791,13 @@ for (const unit of table.stateUnits ?? []) {
   }
 }
 
-/** The files under `directory` whose names end in `extension`, tests left out. */
+/** The files under `directory` whose names end in `extension`, its tests and its test doubles (`testing`) left out. */
 function sources(directory, extension) {
   if (!existsSync(join(ROOT, directory))) return [];
   return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : sources(path, extension);
+    if (entry.isDirectory()) return ['__tests__', 'testing'].includes(entry.name) ? [] : sources(path, extension);
+    if (entry.name === `testing${extension}`) return [];
     return entry.name.endsWith(extension) && !entry.name.endsWith(`.test${extension}`) ? [path] : [];
   });
 }
@@ -807,7 +810,7 @@ function sources(directory, extension) {
  */
 
 function typescriptUnit(made) {
-  const found = sources(TS_STATE, '.ts').flatMap((file) => {
+  const found = sources(TS_SDK, '.ts').flatMap((file) => {
     const source = typescriptCode(read(file));
     return [...source.matchAll(new RegExp(`\\bexport interface ${made}(?:<[^>{]*>)?\\s*(?:extends\\s+([^{]+?))?\\s*\\{`, 'g'))].map((header) => ({ file, source, header }));
   });
@@ -829,26 +832,29 @@ function typescriptUnit(made) {
 }
 
 function rustUnit(made) {
-  const files = sources(RUST_STATE, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') }));
+  const files = sources(RUST_SDK, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') }));
   const struct = new RegExp(`^pub struct ${made}\\b`, 'm');
   const declared = files.filter(({ source }) => struct.test(source));
   if (declared.length === 0) return undefined;
   if (declared.length > 1) fail(`${declared.map(({ file }) => file).join(', ')}: \`pub struct ${made}\` is declared ${declared.length} times, and this reads the one`);
   const [{ file, source }] = declared;
   const members = new Set();
-  const inherent = [...source.matchAll(new RegExp(`^impl(?:<[^>{]*>)? ${made}(?:<[^>{]*>)?\\s*\\{`, 'gm'))];
-  for (const impl of inherent) {
-    for (const fn of braced(source, impl.index + impl[0].length - 1).matchAll(/\bpub (?:async )?fn (\w+)/g)) {
-      // How it is made is no member.
-      if (fn[1] !== 'new') members.add(camel(fn[1]));
+  // An `impl`'s header, with its generics and any `where` clause, up to the brace that opens its body.
+  const header = (of) => new RegExp(`^impl(?:<[^>{]*>)? ${of}(?:<[^>{]*>)?(?:\\s+where\\b[^{]*)?\\s*\\{`, 'gm');
+  for (const impl of source.matchAll(header(made))) {
+    const body = braced(source, impl.index + impl[0].length - 1);
+    for (const fn of body.matchAll(/\bpub (?:async )?fn (\w+)/g)) {
+      // A member takes the unit; a function that takes none is how it is made (`new`, `persisted`).
+      const taken = parenthesised(body, body.indexOf('(', fn.index + fn[0].length));
+      if (/^\s*(?:&\s*(?:'\w+\s+)?)?(?:mut\s+)?self\b/.test(taken)) members.add(camel(fn[1]));
     }
   }
-  const isUnit = new RegExp(`^impl(?:<[^>{]*>)? StateUnit for ${made}(?:<[^>{]*>)?\\s*\\{`, 'm').test(source);
+  const isUnit = header(`StateUnit for ${made}`).test(source);
   return { where: `${made} in ${file}`, isUnit, members };
 }
 
 function pythonUnit(made) {
-  const found = sources(PYTHON_STATE, '.py').flatMap((file) => {
+  const found = sources(PYTHON_SDK, '.py').flatMap((file) => {
     const source = withoutPythonComments(read(file));
     const header = new RegExp(`^class ${made}(?:\\[[^\\]]*\\])?(?:\\(([^)]*)\\))?:\\n`, 'm').exec(source);
     return header ? [{ file, source, header }] : [];
@@ -877,18 +883,18 @@ function pythonUnit(made) {
 function declaredUnits(sdk) {
   const extending = (list) => splitOutside(list ?? '', ',').map(squeezed).includes('StateUnit');
   if (sdk === 'typescript') {
-    return sources(TS_STATE, '.ts').flatMap((file) =>
+    return sources(TS_SDK, '.ts').flatMap((file) =>
       [...typescriptCode(read(file)).matchAll(/\bexport interface (\w+)(?:<[^>{]*>)?\s*(?:extends\s+([^{]+?))?\s*\{/g)]
         .filter((header) => extending(header[2]))
         .map((header) => ({ name: header[1], file })),
     );
   }
   if (sdk === 'rust') {
-    return sources(RUST_STATE, '.rs').flatMap((file) =>
+    return sources(RUST_SDK, '.rs').flatMap((file) =>
       [...withoutComments(read(file), '"').matchAll(/^impl(?:<[^>{]*>)? StateUnit for (\w+)/gm)].map((impl) => ({ name: impl[1], file })),
     );
   }
-  return sources(PYTHON_STATE, '.py').flatMap((file) =>
+  return sources(PYTHON_SDK, '.py').flatMap((file) =>
     [...withoutPythonComments(read(file)).matchAll(/^class (\w+)(?:\[[^\]]*\])?\(([^)]*)\):/gm)]
       .filter((header) => extending(header[2]))
       .map((header) => ({ name: header[1], file })),

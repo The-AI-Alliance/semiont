@@ -7,12 +7,13 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SessionSignals } from '../session-signals';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
+import { createSessionSignals, type SessionSignals } from '../session-signals';
 
 let signals: SessionSignals;
 
 beforeEach(() => {
-  signals = new SessionSignals();
+  signals = createSessionSignals();
 });
 
 /** Every value `subject` emits from here on, the current one included. */
@@ -104,5 +105,23 @@ describe('SessionSignals — dispose', () => {
     signals.dispose();
 
     expect(completed).toEqual(['sessionEnded', 'permissionDenied', 'kbIdentityConflict']);
+  });
+});
+
+describe('SessionSignals — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms, and hands out no notice that a reader could write', () => {
+    assertStateUnitAxioms<SessionSignals>({
+      setup: () => createSessionSignals(),
+      surfaces: (u) => [u.sessionEnded$, u.permissionDenied$, u.kbIdentityConflict$],
+      invocations: (u) => [
+        () => u.notifySessionEnded('expired'),
+        () => u.notifyPermissionDenied(null),
+        () => u.notifyKbIdentityConflict({ expectedDid: 'did:web:kb.example.org', observedDid: 'did:web:other.example.org' }),
+        () => u.acknowledgeSessionEnded(),
+        () => u.acknowledgePermissionDenied(),
+        () => u.acknowledgeKbIdentityConflict(),
+      ],
+    });
+    expect('next' in signals.sessionEnded$).toBe(false);
   });
 });

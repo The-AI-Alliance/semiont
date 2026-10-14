@@ -57,6 +57,7 @@ const MADE = {
   mark: { resourceId: 'string' },
   yield: { locale: 'string' },
   search: { debounceMs: 'duration?', initialQuery: 'string?' },
+  sessionSignals: {},
 };
 const ANSWERS = ['refuses', 'never', 'jobs'];
 const CHECKS = ['expect', 'sent', 'nothingSent', 'heard', 'ended', 'busDestroyed', 'searched'];

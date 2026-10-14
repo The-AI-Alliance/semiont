@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, screen, waitFor } from '@testing-library/react';
 import type { ResourceDescriptor } from '@semiont/core';
-import { SemiontBrowser, SessionSignals } from '@semiont/sdk';
+import { SemiontBrowser, createSessionSignals } from '@semiont/sdk';
 import { createTestSession, inMemoryContent, stubGateway } from '@semiont/sdk/testing';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
@@ -98,7 +98,7 @@ async function mountPageFor(mediaType: string, bytes: string) {
   const resourceViewed = vi.spyOn(client.browse, 'resourceViewed');
   const browser = new SemiontBrowser({ storage, sessionFactory: () => session });
   browser.activeSession$.next(session);
-  browser.activeSignals$.next(new SessionSignals());
+  browser.activeSignals$.next(createSessionSignals());
   cleanups.push(async () => {
     await browser.dispose();
     client.dispose();

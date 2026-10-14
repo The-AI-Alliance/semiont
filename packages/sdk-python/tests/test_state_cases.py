@@ -28,6 +28,7 @@ from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel, written
+from semiont.session_signals import SessionSignals
 from semiont.state import (
     BeckonStateUnit,
     GatherStateUnit,
@@ -110,6 +111,7 @@ MAKERS: Final[Mapping[str, Make]] = {
     "search": lambda client, searches, made: search_pipeline(searches, made),
     "yield": lambda client, searches, made: YieldStateUnit(client, text(made["locale"], "a locale")),
     "mark": lambda client, searches, made: MarkStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
+    "sessionSignals": lambda client, searches, made: SessionSignals(),
 }
 """How this SDK makes each unit it has, from the client and what the case makes it from."""
 
