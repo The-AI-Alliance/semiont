@@ -55,7 +55,7 @@ impl BeckonStateUnit {
     }
 
     /// The annotation this viewer hovers, or none.
-    pub fn hovered(&self) -> watch::Receiver<Option<AnnotationId>> {
+    pub fn hovered_annotation_id(&self) -> watch::Receiver<Option<AnnotationId>> {
         self.shared.hovered.read()
     }
 

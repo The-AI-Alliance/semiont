@@ -69,7 +69,7 @@ ResourceViewer
 - Renders markdown via `MemoizedMarkdown` (memo'd to avoid re-renders on annotation changes)
 - Applies annotations as DOM overlays after paint using `annotation-overlay.ts`
 - Builds source→rendered position map, text node index, resolves annotation ranges, and applies highlights
-- Handles hover via delegated `createHoverHandlers` with configurable delay
+- Handles hover via delegated events and a `createHoverDwell` with configurable delay
 - Emits `browse:click` and `beckon:hover` events
 
 ### CodeMirrorRenderer

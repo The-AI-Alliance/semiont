@@ -35,15 +35,25 @@ export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
 
 type EmitHover = (annotationId: AnnotationId | null) => void;
 
-export interface HoverHandlers {
-  handleMouseEnter: (annotationId: AnnotationId) => void;
-  handleMouseLeave: () => void;
-  cleanup: () => void;
+/**
+ * A pointer's dwell: an annotation is hovered once the pointer has rested on
+ * it for `delayMs`, and no longer the moment it leaves. A pointer crossing
+ * the page hovers nothing on its way. `emit` is told each change: the
+ * annotation hovered, or none; `client.beckon.hover` is what it is usually
+ * given. Disposing it forgets a rest that has not run its time, and it says
+ * nothing more.
+ */
+export interface HoverDwell extends StateUnit {
+  /** The pointer is on an annotation. One already hovered is not said again. */
+  enter(annotationId: AnnotationId): void;
+  /** The pointer left. Said at once, and only when something was hovered. */
+  leave(): void;
 }
 
-export function createHoverHandlers(emit: EmitHover, delayMs: number): HoverHandlers {
+export function createHoverDwell(emit: EmitHover, delayMs: number): HoverDwell {
   let currentHover: AnnotationId | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let disposed = false;
 
   const cancelTimer = () => {
     if (timer !== null) {
@@ -52,23 +62,27 @@ export function createHoverHandlers(emit: EmitHover, delayMs: number): HoverHand
     }
   };
 
-  const handleMouseEnter = (annotationId: AnnotationId) => {
-    if (currentHover === annotationId) return;
-    cancelTimer();
-    timer = setTimeout(() => {
-      timer = null;
-      currentHover = annotationId;
-      emit(annotationId);
-    }, delayMs);
+  return {
+    enter(annotationId) {
+      if (disposed || currentHover === annotationId) return;
+      cancelTimer();
+      timer = setTimeout(() => {
+        timer = null;
+        currentHover = annotationId;
+        emit(annotationId);
+      }, delayMs);
+    },
+    leave() {
+      if (disposed) return;
+      cancelTimer();
+      if (currentHover !== null) {
+        currentHover = null;
+        emit(null);
+      }
+    },
+    dispose() {
+      disposed = true;
+      cancelTimer();
+    },
   };
-
-  const handleMouseLeave = () => {
-    cancelTimer();
-    if (currentHover !== null) {
-      currentHover = null;
-      emit(null);
-    }
-  };
-
-  return { handleMouseEnter, handleMouseLeave, cleanup: cancelTimer };
 }

@@ -8,7 +8,7 @@ import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from 
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { annotationId as toAnnotationId, textOffsets } from '@semiont/core';
 import { isReference } from '@semiont/core';
-import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
+import { createHoverDwell, type SemiontSession } from '@semiont/sdk';
 import {
   documentPositions,
   convertSegmentPositions,
@@ -297,7 +297,7 @@ export function CodeMirrorRenderer({
     // Attach hover event listeners using native DOM events with delegation
     const container = view.dom;
 
-    const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
+    const dwell = createHoverDwell(
       (id) => sessionRef.current?.client.beckon.hover(id),
       hoverDelayMs
     );
@@ -306,13 +306,13 @@ export function CodeMirrorRenderer({
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-      if (annotationId) handleMouseEnter(toAnnotationId(annotationId));
+      if (annotationId) dwell.enter(toAnnotationId(annotationId));
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
-      if (annotationElement) handleMouseLeave();
+      if (annotationElement) dwell.leave();
     };
 
     // Delegated widget event handlers (logic in lib/codemirror-handlers)
@@ -357,7 +357,7 @@ export function CodeMirrorRenderer({
       container.removeEventListener('click', onWidgetClick);
       container.removeEventListener('mouseenter', onWidgetMouseEnter, true);
       container.removeEventListener('mouseleave', onWidgetMouseLeave, true);
-      cleanupHover();
+      dwell.dispose();
       view.destroy();
       viewRef.current = null;
     };

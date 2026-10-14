@@ -159,12 +159,12 @@ impl MarkStateUnit {
     }
 
     /// The annotation being composed, or none.
-    pub fn pending(&self) -> watch::Receiver<Option<PendingAnnotation>> {
+    pub fn pending_annotation(&self) -> watch::Receiver<Option<PendingAnnotation>> {
         self.shared.pending.read()
     }
 
     /// The motivation of the delegated job that is running, or none.
-    pub fn delegating(&self) -> watch::Receiver<Option<Motivation>> {
+    pub fn delegating_motivation(&self) -> watch::Receiver<Option<Motivation>> {
         self.shared.delegating.read()
     }
 
@@ -177,8 +177,8 @@ impl MarkStateUnit {
     /// The motivation of the run whose progress `progress` holds: set when a
     /// job is delegated, kept through its end so its display stays its
     /// motivation's, and none once the progress is dismissed or cleared by a
-    /// failure. `delegating` says what is running; this says whose display
-    /// the progress is.
+    /// failure. `delegating_motivation` says what is running; this says whose
+    /// display the progress is.
     pub fn progress_motivation(&self) -> watch::Receiver<Option<Motivation>> {
         self.shared.progress_motivation.read()
     }

@@ -228,7 +228,7 @@ let session = live.wait_for(Option::is_some).await?.clone();
 // being composed on a resource.
 if let Some(session) = session {
     let marking = MarkStateUnit::new(session.client().clone(), &resource_id);
-    let mut pending = marking.pending();
+    let mut pending = marking.pending_annotation();
     while pending.changed().await.is_ok() {
         render(pending.borrow_and_update().as_ref());
     }
@@ -457,6 +457,7 @@ so does dropping it.
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
 | `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
 | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
+| `HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `enter`, `leave` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 
 The ideas behind them are in [State Units](../../docs/builder/STATE-UNITS.md).

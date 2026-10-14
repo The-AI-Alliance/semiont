@@ -60,6 +60,31 @@
  * with those of the class each is made from, and of `Claims`, in
  * packages/sdk-python/src/semiont/claims.py. A declaration this cannot read
  * is a failure, never a member passed over.
+ *
+ * THE STATE UNITS. The table's `stateUnits` section lists each state unit,
+ * what each SDK makes it as (`made`), and its members by name. Each SDK is
+ * held to it both ways, as it is to `worker`:
+ *
+ * - a unit an SDK does not declare;
+ * - a unit an SDK declares that is not a StateUnit;
+ * - a StateUnit an SDK declares there that no row makes;
+ * - a member the table lists that an SDK's unit lacks;
+ * - a public member an SDK's unit has that the table does not list;
+ * - a unit the table says an SDK lacks (`absent`) that the SDK declares.
+ *
+ * `dispose` is no member: every unit has it, being a StateUnit. How a unit is
+ * made is no member either (Rust's `new`, Python's `__init__`), nor what a
+ * language's protocols give it. A member is held by its name alone, as for
+ * `worker`. What a unit does is not read here: each SDK's tests of its units
+ * hold that.
+ *
+ * TypeScript's units are the interfaces of packages/sdk/src/state, a unit
+ * being one that extends `StateUnit`. Rust's are the `pub struct`s of
+ * packages/sdk-rust/src/state, their members the `pub fn`s of their inherent
+ * `impl`s, a unit being one with `impl StateUnit for` it. Python's are the
+ * classes of packages/sdk-python/src/semiont/state, their members their
+ * public methods, properties and attributes, a unit being one that names
+ * `StateUnit` as a base.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -74,6 +99,9 @@ const PYTHON_NAMESPACES = 'packages/sdk-python/src/semiont/namespaces';
 const TS_CLAIMS = 'packages/sdk/src/claims.ts';
 const RUST_CLAIMS = 'packages/sdk-rust/src/claims.rs';
 const PYTHON_CLAIMS = 'packages/sdk-python/src/semiont/claims.py';
+const TS_STATE = 'packages/sdk/src/state';
+const RUST_STATE = 'packages/sdk-rust/src/state';
+const PYTHON_STATE = 'packages/sdk-python/src/semiont/state';
 const SCHEMAS = 'specs/src/components/schemas';
 const SDKS = ['typescript', 'rust', 'python'];
 
@@ -726,6 +754,180 @@ for (const [sdk, worker] of [['typescript', typescriptWorker()], ['rust', rustWo
   }
 }
 
+// ── The state units ─────────────────────────────────────────────────────
+
+/** unit → its row, with member → row */
+const units = new Map();
+if (!Array.isArray(table.stateUnits) || table.stateUnits.length === 0) fail(`${TABLE}: \`stateUnits\` lists no state unit`);
+for (const unit of table.stateUnits ?? []) {
+  const what = `${TABLE}: stateUnits.${unit.unit}`;
+  if (units.has(unit.unit)) fail(`${what} is listed twice`);
+  const members = new Map();
+  units.set(unit.unit, { ...unit, members });
+  const strays = Object.keys(unit).filter((key) => !['unit', 'docs', 'made', 'members', 'absent'].includes(key));
+  if (strays.length > 0) fail(`${what} states ${strays.join(', ')}, which a unit's row does not: what a unit does is its SDKs' tests' to hold`);
+  if (typeof unit.docs !== 'string' || unit.docs === '') fail(`${what} does not say what it is (\`docs\`)`);
+  for (const sdk of SDKS) {
+    if (typeof unit.made?.[sdk] !== 'string' || !/^\w+$/.test(unit.made[sdk])) fail(`${what} does not say what ${sdk} makes it as (\`made\`)`);
+  }
+  for (const sdk of Object.keys(unit.made ?? {})) {
+    if (!SDKS.includes(sdk)) fail(`${what}: \`made\` names "${sdk}", which is no SDK this lint reads`);
+  }
+  for (const [sdk, why] of Object.entries(unit.absent ?? {})) {
+    if (!SDKS.includes(sdk)) fail(`${what}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+    if (typeof why !== 'string' || why === '') fail(`${what}: \`absent\` does not say why ${sdk} lacks it`);
+  }
+  if (SDKS.every((sdk) => unit.absent?.[sdk] !== undefined)) fail(`${what} is absent from every SDK: it is no unit`);
+  if (!Array.isArray(unit.members)) fail(`${what} does not list its members: a unit with none lists none`);
+  for (const row of unit.members ?? []) {
+    const name = `${what}.${row.member}`;
+    if (members.has(row.member)) fail(`${name} is listed twice`);
+    members.set(row.member, row);
+    const others = Object.keys(row).filter((key) => key !== 'member');
+    if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a unit's member is its name alone`);
+    if (row.member === 'dispose') fail(`${name}: \`dispose\` is every unit's, being a StateUnit, and is listed for none`);
+  }
+}
+
+/** The files under `directory` whose names end in `extension`, tests left out. */
+function sources(directory, extension) {
+  if (!existsSync(join(ROOT, directory))) return [];
+  return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : sources(path, extension);
+    return entry.name.endsWith(extension) && !entry.name.endsWith(`.test${extension}`) ? [path] : [];
+  });
+}
+
+/**
+ * Each reader answers what its SDK makes a unit as, given the name the table
+ * says it makes it under: where it is declared, whether it is a StateUnit,
+ * and its members, each as the table spells it. `undefined` when the SDK
+ * declares nothing of that name. A declaration it cannot read is a failure.
+ */
+
+function typescriptUnit(made) {
+  const found = sources(TS_STATE, '.ts').flatMap((file) => {
+    const source = typescriptCode(read(file));
+    return [...source.matchAll(new RegExp(`\\bexport interface ${made}(?:<[^>{]*>)?\\s*(?:extends\\s+([^{]+?))?\\s*\\{`, 'g'))].map((header) => ({ file, source, header }));
+  });
+  if (found.length === 0) return undefined;
+  const [{ file, source, header }] = found;
+  if (found.length > 1) fail(`${found.map((declared) => declared.file).join(', ')}: \`interface ${made}\` is declared ${found.length} times, and this reads the one`);
+  const members = new Set();
+  for (const member of splitOutside(braced(source, header.index + header[0].length - 1), ';')) {
+    const text = squeezed(member);
+    const named = /^(?:readonly\s+)?(\w+?)\$?\??\s*[(:]/.exec(text);
+    if (!named) {
+      fail(`${file}: \`interface ${made}\` has a member that is neither a property nor a method: ${text}`);
+      continue;
+    }
+    if (named[1] !== 'dispose') members.add(named[1]);
+  }
+  const extended = splitOutside(header[1] ?? '', ',').map(squeezed);
+  return { where: `interface ${made} in ${file}`, isUnit: extended.includes('StateUnit'), members };
+}
+
+function rustUnit(made) {
+  const files = sources(RUST_STATE, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') }));
+  const struct = new RegExp(`^pub struct ${made}\\b`, 'm');
+  const declared = files.filter(({ source }) => struct.test(source));
+  if (declared.length === 0) return undefined;
+  if (declared.length > 1) fail(`${declared.map(({ file }) => file).join(', ')}: \`pub struct ${made}\` is declared ${declared.length} times, and this reads the one`);
+  const [{ file, source }] = declared;
+  const members = new Set();
+  const inherent = [...source.matchAll(new RegExp(`^impl(?:<[^>{]*>)? ${made}(?:<[^>{]*>)?\\s*\\{`, 'gm'))];
+  for (const impl of inherent) {
+    for (const fn of braced(source, impl.index + impl[0].length - 1).matchAll(/\bpub (?:async )?fn (\w+)/g)) {
+      // How it is made is no member.
+      if (fn[1] !== 'new') members.add(camel(fn[1]));
+    }
+  }
+  const isUnit = new RegExp(`^impl(?:<[^>{]*>)? StateUnit for ${made}(?:<[^>{]*>)?\\s*\\{`, 'm').test(source);
+  return { where: `${made} in ${file}`, isUnit, members };
+}
+
+function pythonUnit(made) {
+  const found = sources(PYTHON_STATE, '.py').flatMap((file) => {
+    const source = withoutPythonComments(read(file));
+    const header = new RegExp(`^class ${made}(?:\\[[^\\]]*\\])?(?:\\(([^)]*)\\))?:\\n`, 'm').exec(source);
+    return header ? [{ file, source, header }] : [];
+  });
+  if (found.length === 0) return undefined;
+  if (found.length > 1) fail(`${found.map(({ file }) => file).join(', ')}: \`class ${made}\` is declared ${found.length} times, and this reads the one`);
+  const [{ file, source, header }] = found;
+  // The class's body: every line after its header, up to the next that begins at the margin.
+  const rest = source.slice(header.index + header[0].length);
+  const end = rest.search(/^\S/m);
+  const body = end === -1 ? rest : rest.slice(0, end);
+  const members = new Set();
+  const named = [
+    ...[...body.matchAll(/^ {4}(?:async )?def (\w+)/gm)].map((def) => def[1]),
+    ...[...body.matchAll(/^ {4}(\w+)\s*[:=]/gm)].map((attribute) => attribute[1]),
+    ...[...body.matchAll(/\bself\.(\w+)\s*(?::[^=\n]+)?=(?!=)/g)].map((attribute) => attribute[1]),
+  ];
+  for (const name of named) {
+    if (!name.startsWith('_') && name !== 'dispose') members.add(camel(name));
+  }
+  const bases = splitOutside(header[1] ?? '', ',').map(squeezed);
+  return { where: `class ${made} in ${file}`, isUnit: bases.includes('StateUnit'), members };
+}
+
+/** Every unit `sdk` declares, by name, each with the file it is declared in. */
+function declaredUnits(sdk) {
+  const extending = (list) => splitOutside(list ?? '', ',').map(squeezed).includes('StateUnit');
+  if (sdk === 'typescript') {
+    return sources(TS_STATE, '.ts').flatMap((file) =>
+      [...typescriptCode(read(file)).matchAll(/\bexport interface (\w+)(?:<[^>{]*>)?\s*(?:extends\s+([^{]+?))?\s*\{/g)]
+        .filter((header) => extending(header[2]))
+        .map((header) => ({ name: header[1], file })),
+    );
+  }
+  if (sdk === 'rust') {
+    return sources(RUST_STATE, '.rs').flatMap((file) =>
+      [...withoutComments(read(file), '"').matchAll(/^impl(?:<[^>{]*>)? StateUnit for (\w+)/gm)].map((impl) => ({ name: impl[1], file })),
+    );
+  }
+  return sources(PYTHON_STATE, '.py').flatMap((file) =>
+    [...withoutPythonComments(read(file)).matchAll(/^class (\w+)(?:\[[^\]]*\])?\(([^)]*)\):/gm)]
+      .filter((header) => extending(header[2]))
+      .map((header) => ({ name: header[1], file })),
+  );
+}
+
+for (const sdk of SDKS) {
+  const listed = new Set([...units.values()].map((unit) => unit.made?.[sdk]));
+  for (const { name, file } of declaredUnits(sdk)) {
+    if (!listed.has(name)) fail(`${file}: ${sdk}'s ${name} is a StateUnit that no row of \`stateUnits\` in ${TABLE} makes: add a row for it there before any SDK has it, with an \`absent\` for each SDK that is not to`);
+  }
+}
+
+const readers = { typescript: typescriptUnit, rust: rustUnit, python: pythonUnit };
+for (const [name, unit] of units) {
+  const row = `the \`${name}\` row of \`stateUnits\` in ${TABLE}`;
+  for (const sdk of SDKS) {
+    const made = unit.made?.[sdk];
+    if (typeof made !== 'string') continue;
+    const declared = readers[sdk](made);
+    if (unit.absent?.[sdk] !== undefined) {
+      if (declared) fail(`${sdk} has ${declared.where}, and ${row} says ${sdk} has no ${name} unit: the row's \`absent\` is stale, so take ${sdk} out of it`);
+      continue;
+    }
+    if (!declared) {
+      fail(`${sdk} declares no ${made}, which ${row} says it makes the ${name} unit as: add it to the SDK, or say in the row's \`absent\` why ${sdk} has none`);
+      continue;
+    }
+    const its = `${sdk}'s ${name} unit (${declared.where})`;
+    if (!declared.isUnit) fail(`${its} is not a StateUnit: say so where it is declared, so it ends by \`dispose\` as every unit does`);
+    for (const member of unit.members.keys()) {
+      if (!declared.members.has(member)) fail(`${its} has no ${member}, which ${row} lists: add it to the SDK, under that name`);
+    }
+    for (const member of declared.members) {
+      if (!unit.members.has(member)) fail(`${its} has ${member}, which ${row} does not list: rename it to the row's name for it, or add a row for it there before any SDK has it`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`✗ lint:client-surface — ${failures.length} problem${failures.length === 1 ? '' : 's'}`);
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -733,4 +935,5 @@ if (failures.length > 0) {
 }
 const count = [...rows.values()].reduce((total, methods) => total + methods.size, 0);
 const membersCount = [...handed.values()].reduce((total, members) => total + members.size, 0);
-console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, and ${membersCount} members of what a worker is handed, held by TypeScript, Rust and Python`);
+const unitMembers = [...units.values()].reduce((total, unit) => total + unit.members.size, 0);
+console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${membersCount} members of what a worker is handed, and ${unitMembers} members of ${units.size} state units, held by TypeScript, Rust and Python`);

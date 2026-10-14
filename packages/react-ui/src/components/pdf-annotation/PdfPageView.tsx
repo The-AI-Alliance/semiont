@@ -4,7 +4,7 @@ import type { ResourceId } from '@semiont/core';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
 import { createFragmentSelector, textUnder } from '@semiont/core';
-import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
+import { createHoverDwell, type SemiontSession } from '@semiont/sdk';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { rectsForPage } from './rects-for-page';
 import { useTranslations } from '../../contexts/TranslationContext';
@@ -333,9 +333,9 @@ export function PdfPageView({
   // (multi-selector) annotation, exactly one for a manual annotation.
   const pageRects = rectsForPage(existingAnnotations, pageNumber);
 
-  // Hover handlers with currentHover guard and dwell delay
-  const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((id) => session?.client.beckon.hover(id), hoverDelayMs),
+  // The pointer's dwell: an annotation is hovered once the pointer rests on it
+  const dwell = useMemo(
+    () => createHoverDwell((id) => session?.client.beckon.hover(id), hoverDelayMs),
     [session, hoverDelayMs]
   );
 
@@ -425,8 +425,8 @@ export function PdfPageView({
                       opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                     }}
                     onClick={(e) => session?.client.browse.click(r.annId, e.currentTarget.getBoundingClientRect())}
-                    onMouseEnter={() => handleMouseEnter(r.annId)}
-                    onMouseLeave={handleMouseLeave}
+                    onMouseEnter={() => dwell.enter(r.annId)}
+                    onMouseLeave={() => dwell.leave()}
                   />
                 );
               })}

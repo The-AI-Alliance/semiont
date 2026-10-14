@@ -5,7 +5,7 @@ import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as React
 import { annotationId as toAnnotationId } from '@semiont/core';
 import { capabilitiesOf, getBodySource, isResolvedReference, textOffsets } from '@semiont/core';
 import type { Annotation, ResourceDescriptor } from '@semiont/core';
-import { createHoverHandlers } from '@semiont/sdk';
+import { createHoverDwell } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
@@ -205,7 +205,7 @@ export const BrowseView = memo(function BrowseView({
       }
     };
 
-    const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
+    const dwell = createHoverDwell(
       (id) => {
         session.client.beckon.hover(id);
         if (id) startReferenceHover(id); else endReferenceHover();
@@ -220,7 +220,7 @@ export const BrowseView = memo(function BrowseView({
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
       if (annotationId) {
         hoveredElement = annotationElement as HTMLElement; // anchor for onReferenceHover
-        handleMouseEnter(toAnnotationId(annotationId));
+        dwell.enter(toAnnotationId(annotationId));
       }
     };
 
@@ -228,7 +228,7 @@ export const BrowseView = memo(function BrowseView({
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
-      if (annotationElement) handleMouseLeave();
+      if (annotationElement) dwell.leave();
     };
 
     // Apply animation classes to new annotations
@@ -250,7 +250,7 @@ export const BrowseView = memo(function BrowseView({
       container.removeEventListener('click', handleClick);
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
-      cleanupHover();
+      dwell.dispose();
       referentSub?.unsubscribe(); // in-flight referent load dies with the effect
     };
   }, [content, allAnnotations, sparkleAnnotationIds, hoverDelayMs, session, onReferenceHover]);

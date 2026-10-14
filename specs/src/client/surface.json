@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -774,6 +774,102 @@
         { "member": "fail" },
         { "member": "cancel" }
       ]
+    }
+  ],
+  "stateUnits": [
+    {
+      "unit": "mark",
+      "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. It is moved by the signals the mark namespace publishes, which name its resource.",
+      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit" },
+      "members": [
+        { "member": "pendingAnnotation" },
+        { "member": "delegatingMotivation" },
+        { "member": "progress" },
+        { "member": "progressMotivation" },
+        { "member": "failure" },
+        { "member": "jobId" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no mark unit yet: it is being added, unit by unit, after match."
+      }
+    },
+    {
+      "unit": "yield",
+      "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
+      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit" },
+      "members": [
+        { "member": "isGenerating" },
+        { "member": "progress" },
+        { "member": "outcome" },
+        { "member": "failure" },
+        { "member": "jobId" },
+        { "member": "generate" },
+        { "member": "dismissProgress" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no yield unit yet: it is being added, unit by unit, after match."
+      }
+    },
+    {
+      "unit": "gather",
+      "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed.",
+      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit" },
+      "members": [
+        { "member": "context" },
+        { "member": "loading" },
+        { "member": "error" },
+        { "member": "annotationId" },
+        { "member": "resourceContext" },
+        { "member": "resourceLoading" },
+        { "member": "resourceError" },
+        { "member": "gatherResource" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no gather unit yet: it is being added, unit by unit, after match."
+      }
+    },
+    {
+      "unit": "match",
+      "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
+      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit" },
+      "members": []
+    },
+    {
+      "unit": "beckon",
+      "docs": "Attention: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus for one clicked here or by another participant.",
+      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit" },
+      "members": [
+        { "member": "hoveredAnnotationId" },
+        { "member": "focus" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no beckon unit yet: it is being added, unit by unit, after match."
+      }
+    },
+    {
+      "unit": "hoverDwell",
+      "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
+      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell" },
+      "members": [
+        { "member": "enter" },
+        { "member": "leave" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no hover dwell unit yet: it is being added, unit by unit, after match."
+      }
+    },
+    {
+      "unit": "search",
+      "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
+      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline" },
+      "members": [
+        { "member": "query" },
+        { "member": "state" },
+        { "member": "setQuery" }
+      ],
+      "absent": {
+        "python": "The Python SDK has no search unit yet: it is being added, unit by unit, after match."
+      }
     }
   ]
 }

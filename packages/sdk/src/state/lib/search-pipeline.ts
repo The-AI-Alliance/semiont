@@ -16,7 +16,7 @@
  * `undefined`.
  */
 
-import { SEARCH_DEBOUNCE_MS } from '@semiont/core';
+import { SEARCH_DEBOUNCE_MS, type StateUnit } from '@semiont/core';
 import { Subject, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
 
@@ -25,15 +25,13 @@ export interface SearchState<T> {
   isSearching: boolean;
 }
 
-export interface SearchPipeline<T> {
+export interface SearchPipeline<T> extends StateUnit {
   /** Latest query string. Bind to a controlled input. */
   query$: Observable<string>;
   /** Latest search state — results plus a loading flag. */
   state$: Observable<SearchState<T>>;
   /** Push a new query value. Triggers the debounced fetch. */
   setQuery(value: string): void;
-  /** Tear down the input Subject. Call from the consumer's cleanup hook. */
-  dispose(): void;
 }
 
 export interface SearchPipelineOptions {
