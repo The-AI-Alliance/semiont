@@ -14,7 +14,7 @@ import asyncio
 import copy
 import re
 from collections.abc import Callable, Mapping
-from typing import Final
+from typing import Final, Protocol
 
 import pytest
 from aio import pass_time, run, turns
@@ -25,8 +25,9 @@ from semiont import timing
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
+from semiont.identifiers import ResourceId
 from semiont.model import WireModel, written
-from semiont.state import MatchStateUnit
+from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit
 from semiont.state_unit import StateUnit
 from semiont.testing import Delay, DropReply, FaultAction, FaultyTransport, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame, Transport
@@ -43,6 +44,9 @@ type Make = Callable[[Client, JsonObject], StateUnit]
 
 MAKERS: Final[Mapping[str, Make]] = {
     "match": lambda client, made: MatchStateUnit(client),
+    "beckon": lambda client, made: BeckonStateUnit(client),
+    "hoverDwell": lambda client, made: HoverDwell(client.beckon.hover, round(duration_ms(made["delayMs"]))),
+    "gather": lambda client, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
 }
 """How this SDK makes each unit it has, from the client and what the case makes it from."""
 
@@ -200,6 +204,12 @@ def holds(expected: JsonValue, held: object) -> bool:
     return matches(resolved(expected), wire(held))
 
 
+class Method(Protocol):
+    """A unit's method, as a case calls it: by its parameters' names."""
+
+    def __call__(self, **args: JsonValue) -> object: ...
+
+
 def state_of(units: Mapping[str, StateUnit], name: str, member: str) -> Watched[object]:
     """The state a unit's member holds, read by the member's name."""
     state: Watched[object] = getattr(units[name], snake(member))
@@ -302,7 +312,7 @@ async def perform(
     elif "invoke" in step:
         args = step["args"]
         assert isinstance(args, dict)
-        method: Callable[..., object] = getattr(units[text(step["of"], "a unit")], snake(text(step["invoke"], "a member")))
+        method: Method = getattr(units[text(step["of"], "a unit")], snake(text(step["invoke"], "a member")))
         method(**{snake(name): resolved(value) for name, value in args.items()})
     elif "pass" in step:
         await pass_time(duration_ms(step["pass"]) / 1000)

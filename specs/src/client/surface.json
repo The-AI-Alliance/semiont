@@ -823,10 +823,7 @@
         { "member": "resourceLoading" },
         { "member": "resourceError" },
         { "member": "gatherResource" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no gather unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     },
     {
       "unit": "match",
@@ -841,10 +838,7 @@
       "members": [
         { "member": "hoveredAnnotationId" },
         { "member": "focus" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no beckon unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     },
     {
       "unit": "hoverDwell",
@@ -853,10 +847,7 @@
       "members": [
         { "member": "enter" },
         { "member": "leave" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no hover dwell unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     },
     {
       "unit": "search",

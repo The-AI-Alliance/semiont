@@ -14,6 +14,9 @@ told afterwards does anything. Held with `async with`, a unit is disposed on the
 way out, and what it had running has ended by then.
 """
 
+from semiont.state.beckon import BeckonStateUnit
+from semiont.state.gather import GatherStateUnit
+from semiont.state.hover import HoverDwell
 from semiont.state.match import MatchStateUnit
 
-__all__ = ["MatchStateUnit"]
+__all__ = ["BeckonStateUnit", "GatherStateUnit", "HoverDwell", "MatchStateUnit"]

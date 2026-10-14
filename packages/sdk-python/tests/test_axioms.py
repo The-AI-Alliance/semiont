@@ -6,31 +6,15 @@ it does. Each variant below breaks one axiom and keeps the rest, so the harness
 must name the one it breaks, and a counter that breaks none must pass.
 """
 
-from collections.abc import AsyncIterable, AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterable, Callable, Sequence
 from typing import ClassVar, Final, final, override
 
 import pytest
 
+from semiont.state._reading import Reading
 from semiont.state_unit import StateUnit
 from semiont.testing.axioms import AxiomSubject, DisposeProbe, Fresh, assert_state_unit_axioms
 from semiont.watched import Variable, Watched
-
-
-@final
-class _Reading[T](Watched[T]):
-    """A count as its readers are given it: its value and its changes, and nothing that writes it."""
-
-    def __init__(self, held: Variable[T]) -> None:
-        self._held: Final = held
-
-    @property
-    @override
-    def value(self) -> T:
-        return self._held.value
-
-    @override
-    def __aiter__(self) -> AsyncIterator[T]:
-        return aiter(self._held)
 
 
 class Counter(StateUnit):
@@ -44,7 +28,7 @@ class Counter(StateUnit):
 
     @property
     def count(self) -> Watched[int]:
-        return _Reading(self._count)
+        return Reading(self._count)
 
     def increment(self) -> None:
         if not self._disposed:
