@@ -33,6 +33,7 @@ pub use yield_::{YieldOutcome, YieldStateUnit};
 use crate::bus::decoded;
 use crate::channels::Channel;
 use crate::client::SemiontClient;
+use crate::errors::{JobErrorCode, SemiontError};
 use crate::locked;
 use crate::transport::{Envelope, Frame};
 use std::future::Future;
@@ -168,4 +169,10 @@ pub(crate) fn said<C: Channel>(frame: &Frame) -> Option<C::Payload> {
 pub(crate) fn signal<C: Channel>(client: &SemiontClient, payload: &C::Payload, envelope: Envelope) {
     // A payload of the registry's types is always an object.
     let _ = client.bus().publish::<C>(payload, envelope);
+}
+
+/// Whether a delegated run ended because it was cancelled. Its commits
+/// stand, so a unit keeps such a run's progress, to show how it ended.
+pub(crate) fn cancelled(error: &SemiontError) -> bool {
+    matches!(error, SemiontError::Job(job) if job.code == JobErrorCode::Cancelled)
 }

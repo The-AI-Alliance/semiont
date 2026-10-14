@@ -51,7 +51,9 @@ const delegating = (
   pendingAnnotation: null,
   delegatingMotivation: motivation,
   progress: { percentage: 10 },
+  progressMotivation: motivation,
   jobId: job,
+  cancelled: false,
   resourceId: resourceId('res-1'),
   initialTab: tab,
   Link: TestLink,
@@ -88,5 +90,44 @@ describe('UnifiedAnnotationsPanel: the delegated job', () => {
     renderInEnglish(<UnifiedAnnotationsPanel {...delegating(session, 'highlighting', 'reference', jobId('job-1'))} />);
 
     expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
+  });
+});
+
+/**
+ * A delegated job that has ended: nothing is delegating, and its progress
+ * stays with the motivation it is of until it is dismissed.
+ */
+const ended = (
+  session: SemiontSession,
+  motivation: Motivation,
+  tab: AnnotatorKey,
+  cancelled: boolean,
+): PanelProps => ({
+  ...delegating(session, motivation, tab, null),
+  delegatingMotivation: null,
+  cancelled,
+});
+
+describe('UnifiedAnnotationsPanel: a delegated job that has ended', () => {
+  it.each(motivations)("keeps a finished $motivation job's display in its panel, with the dismiss", ({ tab, motivation }) => {
+    const { session } = harness();
+    renderInEnglish(<UnifiedAnnotationsPanel {...ended(session, motivation, tab, false)} />);
+
+    expect(screen.getByTestId('semiont-delegate-status')).toBeInTheDocument();
+    expect(screen.getByTestId('semiont-delegate-control')).toHaveAccessibleName('Close');
+  });
+
+  it.each(motivations)('says a cancelled $motivation job was cancelled', ({ tab, motivation }) => {
+    const { session } = harness();
+    renderInEnglish(<UnifiedAnnotationsPanel {...ended(session, motivation, tab, true)} />);
+
+    expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('Cancelled');
+  });
+
+  it("shows a finished job's display in no other motivation's panel", () => {
+    const { session } = harness();
+    renderInEnglish(<UnifiedAnnotationsPanel {...ended(session, 'highlighting', 'reference', false)} />);
+
+    expect(screen.queryByTestId('semiont-delegate-status')).toBeNull();
   });
 });

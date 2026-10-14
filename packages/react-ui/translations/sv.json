@@ -27,6 +27,7 @@
     "subjectKindCategory": "Kategori",
     "cancel": "Avbryt",
     "cancelling": "Avbryter...",
+    "cancelled": "Avbruten",
     "inProgress": "Annoterar..."
   },
   "PdfViewer": {

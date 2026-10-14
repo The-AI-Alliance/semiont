@@ -53,6 +53,11 @@ interface CommentsPanelProps {
    * job is over, and then there is no control.
    */
   jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   locale?: string;
   /** BCP-47 tag of the resource being analyzed — forwarded to the delegated job. */
   sourceLanguage?: string;
@@ -77,6 +82,7 @@ export function CommentsPanel({
   isDelegating = false,
   progress,
   jobId,
+  cancelled,
   locale,
   sourceLanguage,
   scrollToAnnotationId,
@@ -271,6 +277,7 @@ export function CommentsPanel({
             sourceLanguage={sourceLanguage}
             progress={progress}
             jobId={jobId}
+            cancelled={cancelled}
           />
         )}
 

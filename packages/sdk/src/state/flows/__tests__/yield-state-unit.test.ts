@@ -6,6 +6,7 @@ import { makeTestClient, type TestClient } from '../../../__tests__/test-client'
 import { resourceContextFor, annotationContextFor } from '../../../__tests__/fixtures/gathered-context';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { JobEvent } from '../../../awaitable';
+import { JobCancelledError } from '../../../namespaces/job-status-poll';
 import { resourceId, jobId } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -154,7 +155,8 @@ describe('createYieldStateUnit', () => {
     stateUnit.progress$.subscribe(v => prog.push(v));
 
     stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
-    expect(prog).toEqual([null, p]);
+    // The unit's first value, the frame `generate()` clears, then the run's.
+    expect(prog).toEqual([null, null, p]);
     expect(gen[gen.length - 1]).toBe(true);
     stateUnit.dispose();
   });
@@ -173,7 +175,7 @@ describe('createYieldStateUnit', () => {
     const p2 = makeProgress({ percentage: 60 });
     progressSubject.next(progressEvent(p1));
     progressSubject.next(progressEvent(p2));
-    expect(prog).toEqual([null, p1, p2]);
+    expect(prog).toEqual([null, null, p1, p2]);
     stateUnit.dispose();
   });
 
@@ -292,6 +294,58 @@ describe('createYieldStateUnit', () => {
 
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("a new generate() does not show the last run's progress", () => {
+    // Otherwise a kept frame, its failure now cleared, reads as a run that
+    // completed, until the new run's first report replaces it.
+    const runs: Array<Subject<JobEvent>> = [];
+    tc = withYield(vi.fn(() => {
+      const run = new Subject<JobEvent>();
+      runs.push(run);
+      return run.asObservable();
+    }));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const prog: unknown[] = [];
+    stateUnit.progress$.subscribe(v => prog.push(v));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
+    runs[0]!.next(progressEvent(makeProgress({ percentage: 40 })));
+    runs[0]!.error(new JobCancelledError('job-1'));
+    expect(prog.at(-1)).toEqual(makeProgress({ percentage: 40 }));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
+    expect(prog.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("keeps a cancelled run's progress, and says it was cancelled", () => {
+    // Nothing was made, and the display stays to say so until it is dismissed.
+    const cancelled = new JobCancelledError('job-1');
+    const delegateFn = vi.fn(() => new Observable<JobEvent>((sub) => {
+      sub.next(createdEvent('job-1'));
+      sub.next(progressEvent(makeProgress({ percentage: 40 })));
+      sub.error(cancelled);
+    }));
+    tc = withYield(delegateFn);
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const gen: boolean[] = [];
+    const prog: unknown[] = [];
+    const failures: unknown[] = [];
+    stateUnit.isGenerating$.subscribe(v => gen.push(v));
+    stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.failure$.subscribe(v => failures.push(v));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
+
+    expect(gen.at(-1)).toBe(false);
+    expect(prog.at(-1)).toEqual(makeProgress({ percentage: 40 }));
+    expect(failures.at(-1)).toBe(cancelled);
+
+    stateUnit.dismissProgress();
+    expect(prog.at(-1)).toBeNull();
+    expect(failures.at(-1)).toBeNull();
     stateUnit.dispose();
   });
 

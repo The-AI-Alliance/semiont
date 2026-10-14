@@ -24,6 +24,8 @@ export interface DelegateProgressTranslations {
   cancel: string;
   /** Control label once it has been pressed to cancel, until the run ends. */
   cancelling: string;
+  /** Status line once the run has ended cancelled. */
+  cancelled: string;
   /** Control label once the run has ended. */
   close: string;
   /** Localized copy for a progress code. */
@@ -71,30 +73,37 @@ export interface DelegateProgressProps {
   /**
    * What the finished run produced, offered as a link in the ended frame. The
    * label is the artifact's own name — user content, never translated. Rendered
-   * only once `ended`: mid-run there is no outcome to offer, whatever the
-   * caller has wired.
+   * only once the run has completed: mid-run there is no outcome to offer, and a
+   * cancelled run made none, whatever the caller has wired.
    */
   outcome?: { label: string; onOpen: () => void } | undefined;
   /**
    * The owner's terminal sentence, rendered in place of the payload message
-   * once `ended`. The producer's final frame is a fire-and-forget emit that
-   * can lose the race with `job:complete`, so an ended frame must not trust
-   * the last payload to describe the ending — the owner, which signalled
-   * `ended`, supplies the words too. Inert while the run is live.
+   * once the run has completed. The producer's final frame is a fire-and-forget
+   * emit that can lose the race with `job:complete`, so an ended frame must not
+   * trust the last payload to describe the ending — the owner, which signalled
+   * `ended`, supplies the words too. Inert while the run is live, and for a
+   * cancelled run, whose sentence is `translations.cancelled`.
    */
   endedMessage?: string;
   /**
-   * The run has ENDED. The owner's fact, not the payload's: terminality is
-   * signalled on `job:complete` / `job:fail`, which `DelegateShell` already
-   * observes via `isDelegating`. `JobProgress` carries no terminal marker for
-   * this component to read.
+   * Whether the run has ENDED, and how: `false` while it runs, `'completed'`
+   * once it has completed, `'cancelled'` once it was cancelled. The owner's
+   * fact, not the payload's: terminality is signalled on `job:complete` /
+   * `job:fail`, which `DelegateShell` already observes via `isDelegating`, and
+   * a cancellation is learnt from the job's status. `JobProgress` carries no
+   * terminal marker for this component to read.
+   *
+   * A cancelled job's commits stand, so its display stays, at the point it
+   * stopped: no ✅, the bar where the last report left it, no outcome, and
+   * `translations.cancelled` on the status line.
    *
    * REQUIRED. Nothing about a progress payload can tell this component the run
-   * is over, so the owner must say. Were it optional, a call site that forgot
-   * it would have a flow that can never reach the ended state — a default of
-   * `false` is a wrong answer, not a safe one.
+   * is over, or that it was cancelled, so the owner must say. Were it optional,
+   * a call site that forgot it would have a flow that can never reach the ended
+   * state — a default of `false` is a wrong answer, not a safe one.
    */
-  ended: boolean;
+  ended: false | 'completed' | 'cancelled';
   /**
    * Cancel the job this display follows. `DelegateShell` passes the one its
    * `controls` hold, which is absent until the queue has named the job: a
@@ -199,12 +208,14 @@ export function DelegateProgress({
 
       <div className="semiont-delegate-progress__status">
         <span className="semiont-delegate-progress__icon" aria-hidden="true">
-          {ended ? '✅' : '✨'}
+          {ended === 'cancelled' ? '⏹️' : ended ? '✅' : '✨'}
         </span>
         <span data-testid="semiont-delegate-status">
-          {ended && endedMessage
-            ? endedMessage
-            : progress.message ? tr.message(progress.message) : tr.inProgress}
+          {ended === 'cancelled'
+            ? tr.cancelled
+            : ended && endedMessage
+              ? endedMessage
+              : progress.message ? tr.message(progress.message) : tr.inProgress}
         </span>
       </div>
 
@@ -224,7 +235,7 @@ export function DelegateProgress({
       )}
 
       {/* The finished run's artifact, by name. */}
-      {ended && outcome && (
+      {ended === 'completed' && outcome && (
         <button
           type="button"
           onClick={outcome.onOpen}
@@ -235,13 +246,14 @@ export function DelegateProgress({
         </button>
       )}
 
-      {/* An ended run is 100% done by definition — the last payload's number
-          is a mid-run fact and must not survive the ending. */}
+      {/* A completed run is 100% done by definition — the last payload's
+          number is a mid-run fact and must not survive the ending. A cancelled
+          run stopped where its last report says. */}
       <div className="semiont-progress-bar" data-testid="semiont-delegate-bar">
         <div
           className="semiont-progress-bar__fill"
           data-type={dataType}
-          style={{ width: `${ended ? 100 : progress.percentage}%` }}
+          style={{ width: `${ended === 'completed' ? 100 : progress.percentage}%` }}
         />
       </div>
 

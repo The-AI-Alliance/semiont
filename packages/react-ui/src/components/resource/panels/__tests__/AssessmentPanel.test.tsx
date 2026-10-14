@@ -152,6 +152,7 @@ describe('AssessmentPanel Component', () => {
     annotations: mockAssessments.empty,
     pendingAnnotation: null,
     jobId: null,
+    cancelled: false,
   };
 
   beforeEach(() => {

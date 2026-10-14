@@ -60,8 +60,16 @@ interface UnifiedAnnotationsPanelProps {
   // Delegated annotation state (per motivation)
   delegatingMotivation?: Motivation | null;
   progress?: JobProgress | null;
+  /**
+   * The motivation the progress is of (`mark.progressMotivation$`): the panel
+   * it goes to. It outlasts `delegatingMotivation`, which is null once the job
+   * has ended, so the ended display stays where the run was until dismissed.
+   */
+  progressMotivation?: Motivation | null;
   /** The id of the delegated job (`mark.jobId$`); it goes where the progress goes. */
   jobId?: JobId | null;
+  /** The delegated job ended cancelled (`mark.failure$`); it goes where the progress goes. */
+  cancelled?: boolean;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
@@ -276,10 +284,12 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           const annotations = grouped[activeTab] || [];
           const isDelegating = props.delegatingMotivation === annotator.motivation;
-          // Only pass progress to the panel whose motivation matches delegatingMotivation
-          // This prevents progress from appearing in wrong tabs
-          const progress = isDelegating ? (props.progress ?? null) : null;
+          // The progress goes to the panel of the motivation it is of, and
+          // only there: running, and once ended, until it is dismissed.
+          const showsProgress = props.progressMotivation === annotator.motivation;
+          const progress = showsProgress ? (props.progress ?? null) : null;
           const jobId = isDelegating ? (props.jobId ?? null) : null;
+          const cancelled = showsProgress && props.cancelled === true;
 
           // Common props for all annotation panels
           const commonProps = {
@@ -290,6 +300,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             isDelegating,
             progress,
             jobId,
+            cancelled,
             annotateMode: props.annotateMode,
             locale: props.locale,
             sourceLanguage: props.sourceLanguage,
@@ -318,6 +329,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 isDelegating={commonProps.isDelegating}
                 progress={commonProps.progress}
                 jobId={commonProps.jobId}
+                cancelled={commonProps.cancelled}
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}

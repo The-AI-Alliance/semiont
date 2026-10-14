@@ -97,7 +97,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{
@@ -113,7 +113,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{
@@ -132,7 +132,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{
@@ -161,7 +161,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{
@@ -179,7 +179,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -195,7 +195,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={undefined}
@@ -211,7 +211,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={{
@@ -233,7 +233,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -247,7 +247,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
           progress={null}
@@ -261,7 +261,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
           progress={null}
@@ -275,7 +275,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
           progress={null}
@@ -290,7 +290,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
           progress={null}
@@ -305,7 +305,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -325,7 +325,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -351,7 +351,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
           progress={null}
@@ -377,7 +377,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
           progress={null}
@@ -403,7 +403,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -435,7 +435,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -453,7 +453,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -473,7 +473,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
           progress={null}
@@ -494,7 +494,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{
@@ -513,7 +513,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
-          jobId={null}
+          jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
           progress={{

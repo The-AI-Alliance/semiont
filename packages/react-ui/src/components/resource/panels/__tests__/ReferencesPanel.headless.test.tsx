@@ -67,7 +67,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
         annotations={[referenceAnnotation()]}
         isDelegating={false}
         progress={null}
-        jobId={null}
+        jobId={null} cancelled={false}
         pendingAnnotation={null}
         allEntityTypes={[]}
         Link={TestLink}
@@ -96,6 +96,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
         isDelegating: false,
         progress: null,
         jobId: null,
+        cancelled: false,
         pendingAnnotation: null,
         allEntityTypes: [],
         Link: TestLink,
@@ -159,7 +160,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
           annotations={[]}
           isDelegating={false}
           progress={null}
-          jobId={null}
+          jobId={null} cancelled={false}
           pendingAnnotation={null}
           allEntityTypes={[]}
           entityTypesError={new Error('boom')}

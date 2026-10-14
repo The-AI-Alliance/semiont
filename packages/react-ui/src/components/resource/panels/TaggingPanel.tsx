@@ -56,6 +56,11 @@ interface TaggingPanelProps {
    * job is over, and then there is no control.
    */
   jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -82,6 +87,7 @@ export function TaggingPanel({
   isDelegating = false,
   progress,
   jobId,
+  cancelled,
   pendingAnnotation,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -363,6 +369,7 @@ export function TaggingPanel({
             title={t('annotateTags')}
             isDelegating={isDelegating}
             progress={progress}
+            cancelled={cancelled}
             controls={markJobControls(session, jobId)}
             progressProps={{
               translations: delegateProgressTranslations(ta),

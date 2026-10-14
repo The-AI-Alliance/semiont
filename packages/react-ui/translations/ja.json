@@ -27,6 +27,7 @@
     "subjectKindCategory": "カテゴリ",
     "cancel": "キャンセル",
     "cancelling": "キャンセル中...",
+    "cancelled": "キャンセルされました",
     "inProgress": "アノテーション中..."
   },
   "PdfViewer": {

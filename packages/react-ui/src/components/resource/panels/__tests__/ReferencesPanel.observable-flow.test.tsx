@@ -72,7 +72,7 @@ function ObservableHarness({ source$, session }: { source$: BehaviorSubject<stri
       annotations={[]}
       isDelegating={false}
       progress={null}
-      jobId={null}
+      jobId={null} cancelled={false}
       annotateMode={true}
       Link={MockLink}
       routes={mockRoutes}

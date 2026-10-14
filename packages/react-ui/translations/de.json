@@ -27,6 +27,7 @@
     "subjectKindCategory": "Kategorie",
     "cancel": "Abbrechen",
     "cancelling": "Wird abgebrochen...",
+    "cancelled": "Abgebrochen",
     "inProgress": "Wird annotiert..."
   },
   "PdfViewer": {

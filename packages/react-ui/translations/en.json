@@ -27,6 +27,7 @@
     "subjectKindCategory": "Category",
     "cancel": "Cancel",
     "cancelling": "Cancelling...",
+    "cancelled": "Cancelled",
     "inProgress": "Annotating..."
   },
   "PdfViewer": {

@@ -200,11 +200,13 @@ const {
 
 Delegated detection is driven by the session-scoped **mark state unit**
 (`createMarkStateUnit`, in `@semiont/sdk`). The resource-viewer page state unit
-owns one per resource and exposes it as `stateUnit.mark`. It tracks four
+owns one per resource and exposes it as `stateUnit.mark`. It tracks six
 observables that the UI reads via `useObservable`:
 
 - `mark.delegatingMotivation$` — the motivation of the delegated job in progress (or `null` when idle)
-- `mark.progress$` — the latest `JobProgress`
+- `mark.progress$` — the latest `JobProgress`; a finished or cancelled job's stays until it is dismissed or the next job begins, and a failed job's is cleared
+- `mark.progressMotivation$` — the motivation that progress is of, which outlasts the job: `UnifiedAnnotationsPanel` gives the progress to that motivation's panel
+- `mark.failure$` — why the last job ended without completing (or `null`): a `JobCancelledError` for a cancelled job, whose display stays in its cancelled form
 - `mark.jobId$` — the delegated job's id, from the queue's answer to its creation to the job's end (or `null`); what `client.job.cancel` takes
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
 

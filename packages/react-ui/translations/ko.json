@@ -27,6 +27,7 @@
     "subjectKindCategory": "카테고리",
     "cancel": "취소",
     "cancelling": "취소 중...",
+    "cancelled": "취소됨",
     "inProgress": "주석 달기 중..."
   },
   "PdfViewer": {

@@ -35,6 +35,11 @@ interface HighlightPanelProps {
    * job is over, and then there is no control.
    */
   jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -57,6 +62,7 @@ export function HighlightPanel({
   isDelegating = false,
   progress,
   jobId,
+  cancelled,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -167,6 +173,7 @@ export function HighlightPanel({
             isDelegating={isDelegating}
             progress={progress}
             jobId={jobId}
+            cancelled={cancelled}
             sourceLanguage={sourceLanguage}
           />
         )}

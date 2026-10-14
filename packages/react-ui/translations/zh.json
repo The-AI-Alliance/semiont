@@ -27,6 +27,7 @@
     "subjectKindCategory": "分类",
     "cancel": "取消",
     "cancelling": "正在取消...",
+    "cancelled": "已取消",
     "inProgress": "正在注释..."
   },
   "PdfViewer": {

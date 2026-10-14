@@ -21,6 +21,7 @@ const noJob = delegatedJobControls(null, null, undefined);
 const TR = {
   cancel: 'tr.cancel',
   cancelling: 'tr.cancelling',
+  cancelled: 'tr.cancelled',
   close: 'tr.close',
   inProgress: 'tr.inProgress',
   message: () => 'tr.code',
@@ -42,12 +43,12 @@ describe('DelegateShell', () => {
 
   it('renders the form when there is no progress, the progress when there is', () => {
     const { rerender } = render(
-      <DelegateShell delegateType="tag" title="Annotate Tags" isDelegating={false} progress={null}
+      <DelegateShell delegateType="tag" title="Annotate Tags" isDelegating={false} cancelled={false} progress={null}
         form={<button type="button">the form</button>} controls={noJob} progressProps={{ translations: TR }} />,
     );
     expect(screen.getByText('the form')).toBeInTheDocument();
     rerender(
-      <DelegateShell delegateType="tag" title="Annotate Tags" isDelegating={true} progress={progress}
+      <DelegateShell delegateType="tag" title="Annotate Tags" isDelegating={true} cancelled={false} progress={progress}
         form={<button type="button">the form</button>} controls={noJob} progressProps={{ translations: TR }} />,
     );
     expect(screen.queryByText('the form')).not.toBeInTheDocument();
@@ -57,7 +58,7 @@ describe('DelegateShell', () => {
   it('withholds dismiss while delegating, offers it once terminal', async () => {
     const onDismiss = vi.fn();
     const props = {
-      delegateType: 'highlight' as const, title: 'Annotate Highlights', progress,
+      delegateType: 'highlight' as const, title: 'Annotate Highlights', progress, cancelled: false,
       form: <span>form</span>,
       controls: delegatedJobControls(null, null, onDismiss),
       progressProps: { translations: { ...TR, close: 'Close' } },
@@ -70,12 +71,24 @@ describe('DelegateShell', () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it('shows a job that ended cancelled in its cancelled form, with the dismiss', async () => {
+    const onDismiss = vi.fn();
+    render(
+      <DelegateShell delegateType="tag" title="t" isDelegating={false} cancelled={true} progress={progress}
+        form={<span>form</span>} controls={delegatedJobControls(null, null, onDismiss)} progressProps={{ translations: TR }} />,
+    );
+    expect(screen.queryByText('form')).not.toBeInTheDocument();
+    expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('tr.cancelled');
+    await userEvent.click(screen.getByLabelText('tr.close'));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it("starts a second job's display live, though the first job's cancel was never answered", async () => {
     const { session, client } = createTestSession();
     sessions.push(session);
     vi.spyOn(client.job, 'cancel').mockReturnValue(new Promise<boolean>(() => {}));
     const running = (job: string) => (
-      <DelegateShell delegateType="reference" title="t" isDelegating={true} progress={progress}
+      <DelegateShell delegateType="reference" title="t" isDelegating={true} cancelled={false} progress={progress}
         form={null} controls={markJobControls(session, jobId(job))} progressProps={{ translations: TR }} />
     );
     const { rerender } = render(running('job-1'));
@@ -91,21 +104,21 @@ describe('DelegateShell', () => {
     const elements = [
       // @ts-expect-error no job: the display would follow none, and show no cancel control
       <DelegateShell delegateType="tag" title="t" isDelegating={true} progress={progress}
-        form={null} progressProps={{ translations: TR }} />,
+        cancelled={false} form={null} progressProps={{ translations: TR }} />,
       // @ts-expect-error controls written in place, not made from a job
       <DelegateShell controls={{ onCancel: undefined, onDismiss: () => {} }} delegateType="tag" title="t"
-        isDelegating={true} progress={progress} form={null} progressProps={{ translations: TR }} />,
+        isDelegating={true} cancelled={false} progress={progress} form={null} progressProps={{ translations: TR }} />,
       // @ts-expect-error a cancel handed to the display around the job's controls
       <DelegateShell progressProps={{ translations: TR, onCancel: () => {} }} delegateType="tag" title="t"
-        isDelegating={true} progress={progress} form={null} controls={noJob} />,
+        isDelegating={true} cancelled={false} progress={progress} form={null} controls={noJob} />,
     ];
     expect(elements).toHaveLength(3);
   });
 
   it('persists the expand state per delegate type', async () => {
     render(
-      <DelegateShell delegateType="reference" title="Annotate References" isDelegating={false} progress={null}
-        form={<span>form</span>} controls={noJob} progressProps={{ translations: TR }} />,
+      <DelegateShell delegateType="reference" title="Annotate References" isDelegating={false} cancelled={false}
+        progress={null} form={<span>form</span>} controls={noJob} progressProps={{ translations: TR }} />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Annotate References/ }));
     expect(screen.queryByText('form')).not.toBeInTheDocument();

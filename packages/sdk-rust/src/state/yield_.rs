@@ -3,11 +3,12 @@
 //!
 //! The display it feeds stays once the run is over: the progress and the
 //! outcome are there until they are dismissed, or until the next run begins.
-//! A run that fails, or stalls, clears its progress and is no longer
-//! generating, and why it ended is held with the rest. A stall is said
+//! A cancelled run's progress stays too, though it made nothing. A run that
+//! fails, or stalls, clears its progress and is no longer generating. Why a
+//! run ended without a result is held with the rest. A stall is said
 //! nowhere else.
 
-use super::{Held, Tasks};
+use super::{Held, Tasks, cancelled};
 use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
@@ -96,6 +97,7 @@ impl YieldStateUnit {
     /// `client.yield_.delegate` does, in this unit's locale when the
     /// request states no language.
     pub fn generate(&self, mut params: GenerationJobParams, stall_deadline: Option<Duration>) {
+        self.shared.progress.set(None);
         self.shared.outcome.set(None);
         self.shared.failure.set(None);
         self.shared.job_id.set(None);
@@ -131,8 +133,12 @@ impl YieldStateUnit {
                     // run is not over.
                     Ok(JobEvent::Failed(_)) => {}
                     Err(failure) => {
-                        shared.progress.set(None);
+                        // Why it ended is said before the end itself.
+                        let kept = cancelled(&failure);
                         shared.failure.set(Some(failure));
+                        if !kept {
+                            shared.progress.set(None);
+                        }
                         break;
                     }
                 }

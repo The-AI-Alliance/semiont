@@ -27,6 +27,7 @@
     "subjectKindCategory": "فئة",
     "cancel": "إلغاء",
     "cancelling": "جارٍ الإلغاء...",
+    "cancelled": "تم الإلغاء",
     "inProgress": "جارٍ التوضيح..."
   },
   "PdfViewer": {

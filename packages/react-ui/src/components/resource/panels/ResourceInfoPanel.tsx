@@ -53,6 +53,11 @@ interface Props {
   generationJobId?: JobId | null;
   /** The finished run's result; the ended frame links it by name. */
   generationOutcome?: YieldOutcome | null;
+  /**
+   * The run ended cancelled (`yield.failure$` holds a `JobCancelledError`):
+   * its display stays, in its cancelled form, until dismissed.
+   */
+  generationCancelled?: boolean;
   /** Clear the finished display — wires `yield.dismissProgress()`. */
   onDismissProgress?: () => void;
 }
@@ -84,6 +89,7 @@ export function ResourceInfoPanel({
   generationProgress = null,
   generationJobId = null,
   generationOutcome = null,
+  generationCancelled = false,
   onDismissProgress,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
@@ -251,6 +257,7 @@ export function ResourceInfoPanel({
           delegateType="generation"
           title={t('generate')}
           isDelegating={isGenerating}
+          cancelled={generationCancelled}
           progress={generationProgress}
           controls={delegatedJobControls(session, generationJobId ?? null, onDismissProgress)}
           progressProps={{

@@ -38,6 +38,8 @@ interface DelegateSectionProps {
   progress?: JobProgress | null | undefined;
   /** The id of the delegated job: what the cancel control names. Null until the queue has named it. */
   jobId: JobId | null;
+  /** The delegated job ended cancelled: its display stays, in its cancelled form. */
+  cancelled: boolean;
 }
 
 /**
@@ -56,6 +58,7 @@ export function DelegateSection({
   sourceLanguage,
   progress,
   jobId,
+  cancelled,
 }: DelegateSectionProps) {
 
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
@@ -101,12 +104,14 @@ export function DelegateSection({
                annotationType === 'assessment' ? 'annotateAssessments' :
                'annotateComments')}
       isDelegating={isDelegating}
+      cancelled={cancelled}
       progress={progress}
       controls={markJobControls(session, jobId)}
       progressProps={{
         translations: {
           cancel: t('cancel'),
           cancelling: ta('cancelling'),
+          cancelled: ta('cancelled'),
           inProgress: t('annotating'),
           close: ta('close'),
           message: delegateProgressCopy(ta),

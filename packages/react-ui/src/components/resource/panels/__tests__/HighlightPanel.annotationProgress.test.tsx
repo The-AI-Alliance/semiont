@@ -104,7 +104,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
   describe('Detection Progress Prop Passing', () => {
     it('should pass progress to DelegateSection when provided', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -121,7 +121,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should pass null progress to DelegateSection', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -137,7 +137,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should pass undefined progress to DelegateSection', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -153,7 +153,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should keep progress visible after detection completes (isDelegating=false)', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -173,7 +173,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should pass progress with request parameters to DelegateSection', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -197,7 +197,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
   describe('Annotate Mode Toggling', () => {
     it('should render DelegateSection when annotateMode is true', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -211,7 +211,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should NOT render DelegateSection when annotateMode is false', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -225,7 +225,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should hide progress when switching to browse mode (annotateMode=false)', () => {
       const { rerender } = renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -240,7 +240,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
       // Switch to browse mode
       rerender(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -259,7 +259,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
   describe('State Combinations', () => {
     it('should handle isDelegating=true with no progress (starting state)', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -274,7 +274,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should handle isDelegating=false with progress (final state)', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -294,7 +294,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should handle multiple progress updates', () => {
       const { rerender } = renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -311,7 +311,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
       // Update to analyzing
       rerender(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -327,7 +327,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
       // Update to complete
       rerender(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={false}
@@ -347,7 +347,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
   describe('Highlights List Rendering', () => {
     it('should render highlights list alongside detection progress', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={mockAnnotations}
           pendingAnnotation={null}
           isDelegating={true}
@@ -365,7 +365,7 @@ describe('HighlightPanel + DelegateSection Integration', () => {
 
     it('should show empty state when no highlights', () => {
       renderWithProviders(
-        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null}
+        <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
           annotations={[]}
           pendingAnnotation={null}
           isDelegating={false}

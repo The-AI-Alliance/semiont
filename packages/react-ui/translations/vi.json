@@ -27,6 +27,7 @@
     "subjectKindCategory": "Danh mục",
     "cancel": "Hủy",
     "cancelling": "Đang hủy...",
+    "cancelled": "Đã hủy",
     "inProgress": "Đang chú thích..."
   },
   "PdfViewer": {

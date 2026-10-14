@@ -156,6 +156,7 @@ describe('CommentsPanel Component', () => {
     annotations: mockComments.empty,
     pendingAnnotation: null,
     jobId: null,
+    cancelled: false,
   };
 
   beforeEach(() => {

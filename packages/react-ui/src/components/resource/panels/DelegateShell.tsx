@@ -13,6 +13,13 @@ export interface DelegateShellProps {
   /** Collapsible section title (already translated). */
   title: string;
   isDelegating: boolean;
+  /**
+   * The job ended cancelled. Its commits stand, so its display stays, in its
+   * cancelled form, until it is dismissed. Read only once the job is no longer
+   * delegating. Required for the reason `DelegateProgress`'s `ended` is: a
+   * default of `false` would show a cancelled job as completed.
+   */
+  cancelled: boolean;
   progress: JobProgress | null | undefined;
   /** The per-motivation form (fields + submit) — shown when no progress is displayed. */
   form: ReactNode;
@@ -42,7 +49,7 @@ export interface DelegateShellProps {
  * differ per motivation by design (instructions/tone/density vs entity chips
  * vs schema+categories), so the shell owns only what is genuinely shared.
  */
-export function DelegateShell({ delegateType, title, isDelegating, progress, form, controls, progressProps }: DelegateShellProps) {
+export function DelegateShell({ delegateType, title, isDelegating, cancelled, progress, form, controls, progressProps }: DelegateShellProps) {
   const [isExpanded, setIsExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem(`delegate-section-expanded-${delegateType}`);
@@ -88,7 +95,7 @@ export function DelegateShell({ delegateType, title, isDelegating, progress, for
               // job lifecycle (job:complete / job:fail); the widget must never
               // infer "done" from a progress payload, which cannot tell it
               // about a cancel or a crash after the last tick.
-              ended={!isDelegating}
+              ended={isDelegating ? false : cancelled ? 'cancelled' : 'completed'}
               {...progressProps}
               onCancel={controls.onCancel}
               onDismiss={isDelegating ? undefined : controls.onDismiss}

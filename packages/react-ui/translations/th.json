@@ -27,6 +27,7 @@
     "subjectKindCategory": "หมวดหมู่",
     "cancel": "ยกเลิก",
     "cancelling": "กำลังยกเลิก...",
+    "cancelled": "ยกเลิกแล้ว",
     "inProgress": "กำลังสร้างคำอธิบายประกอบ..."
   },
   "PdfViewer": {

@@ -27,6 +27,7 @@
     "subjectKindCategory": "دسته‌بندی",
     "cancel": "انصراف",
     "cancelling": "در حال انصراف...",
+    "cancelled": "لغو شد",
     "inProgress": "در حال حاشیه‌نویسی..."
   },
   "PdfViewer": {

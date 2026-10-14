@@ -61,6 +61,11 @@ interface Props {
    * job is over, and then there is no control.
    */
   jobId: JobId | null;
+  /**
+   * The delegated job ended cancelled (`mark.failure$` holds a
+   * `JobCancelledError`): its display stays, in its cancelled form.
+   */
+  cancelled: boolean;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -113,6 +118,7 @@ export function ReferencesPanel({
   isDelegating,
   progress,
   jobId,
+  cancelled,
   annotateMode = true,
   Link,
   routes,
@@ -383,6 +389,7 @@ export function ReferencesPanel({
             title={t('annotateReferences')}
             isDelegating={isDelegating}
             progress={progress}
+            cancelled={cancelled}
             controls={markJobControls(session, jobId)}
             progressProps={{
               translations: delegateProgressTranslations(ta, {

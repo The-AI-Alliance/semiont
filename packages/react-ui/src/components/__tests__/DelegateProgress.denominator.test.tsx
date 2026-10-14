@@ -26,6 +26,7 @@ const T = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTr
   ({
     cancel: 'tr.cancel',
     cancelling: 'tr.cancelling',
+    cancelled: 'tr.cancelled',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
     message: (m: any) => `tr.code(${m.code})`,

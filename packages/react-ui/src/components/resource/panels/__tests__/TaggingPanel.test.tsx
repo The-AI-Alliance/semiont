@@ -191,6 +191,7 @@ describe('TaggingPanel Component', () => {
     annotations: mockTags.empty,
     pendingAnnotation: null,
     jobId: null,
+    cancelled: false,
     // Satisfies JSX at element construction only; the render helpers always
     // replace it (via cloneElement) with the per-test factory session. Never
     // put a live session here — module-scope clients get disposed after the

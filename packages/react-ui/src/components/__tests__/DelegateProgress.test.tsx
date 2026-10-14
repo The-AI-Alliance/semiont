@@ -73,7 +73,7 @@ describe('DelegateProgress', () => {
 
     rerender(
       <DelegateProgress
-        progress={detecting()} dataType="reference" ended
+        progress={detecting()} dataType="reference" ended="completed"
         onCancel={vi.fn(async () => true)} onDismiss={vi.fn()} translations={T3()}
       />,
     );
@@ -112,6 +112,7 @@ const T3 = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressT
   ({
     cancel: 'tr.cancel',
     cancelling: 'tr.cancelling',
+    cancelled: 'tr.cancelled',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
     message: (m: JobProgressMessage) => `tr.code(${m.code})`,
@@ -180,7 +181,7 @@ describe('DelegateProgress — the consolidated widget', () => {
     render(
       <DelegateProgress
         progress={detecting({ message: { code: 'complete-created', count: 7, motivation: 'linking' } })}
-        dataType="reference" ended
+        dataType="reference" ended="completed"
         onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
       />,
     );
@@ -256,7 +257,7 @@ describe('DelegateProgress — the consolidated widget', () => {
     expect(screen.queryByText('Summary of PB')).toBeNull();
 
     rerender(
-      <DelegateProgress ended progress={detecting()} dataType="generation"
+      <DelegateProgress ended="completed" progress={detecting()} dataType="generation"
         outcome={outcome} translations={T3()} />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Summary of PB' }));
@@ -295,7 +296,7 @@ describe('DelegateProgress — the consolidated widget', () => {
 describe('DelegateProgress — the honest ended frame', () => {
   it('an ended frame renders a FULL bar whatever the last payload said', () => {
     const { container } = render(
-      <DelegateProgress ended progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended="completed" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );
     const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
     expect(fill.style.width).toBe('100%');
@@ -311,7 +312,7 @@ describe('DelegateProgress — the honest ended frame', () => {
 
   it('endedMessage replaces the stale payload copy once ended', () => {
     render(
-      <DelegateProgress ended endedMessage="tr.ended" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended="completed" endedMessage="tr.ended" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );
     expect(screen.getByTestId(STATUS).textContent).toBe('tr.ended');
   });
@@ -321,6 +322,54 @@ describe('DelegateProgress — the honest ended frame', () => {
       <DelegateProgress ended={false} endedMessage="tr.ended" progress={detecting()} dataType="generation" translations={T3()} />,
     );
     expect(screen.getByTestId(STATUS).textContent).toBe('tr.code(detecting-entities)');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The cancelled ending. A cancelled job's commits stand, so its display stays
+// to say how it ended: not done, so no ✅ and no full bar, and nothing made, so
+// no outcome. Its control dismisses, as every ended display's does.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('DelegateProgress — the cancelled ending', () => {
+  it('says the run was cancelled, in place of the last report and of any ending sentence', () => {
+    render(
+      <DelegateProgress ended="cancelled" endedMessage="tr.ended" progress={detecting()} dataType="reference" translations={T3()} />,
+    );
+    expect(screen.getByTestId(STATUS).textContent).toBe('tr.cancelled');
+  });
+
+  it('keeps the bar where the run stopped, and claims nothing done', () => {
+    const { container } = render(
+      <DelegateProgress ended="cancelled" progress={detecting({ percentage: 40 })} dataType="reference" translations={T3()} />,
+    );
+    const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
+    expect(fill.style.width).toBe('40%');
+    expect(container.textContent).not.toContain('✅');
+  });
+
+  it('offers no outcome: a cancelled run made nothing', () => {
+    render(
+      <DelegateProgress ended="cancelled" outcome={{ label: 'A summary', onOpen: vi.fn() }}
+        progress={detecting()} dataType="generation" translations={T3()} />,
+    );
+    expect(screen.queryByTestId('semiont-delegate-outcome')).toBeNull();
+  });
+
+  it('keeps where the run stopped: the subject of its last report', () => {
+    render(<DelegateProgress ended="cancelled" progress={detecting()} dataType="reference" translations={T3()} />);
+    expect(screen.getByTestId(SUBJECT).textContent).toContain('tr.subject(entity-type:Person');
+  });
+
+  it('its one control dismisses', async () => {
+    const onDismiss = vi.fn();
+    render(
+      <DelegateProgress ended="cancelled" progress={detecting()} dataType="reference"
+        onCancel={vi.fn(async () => true)} onDismiss={onDismiss} translations={T3()} />,
+    );
+    const control = screen.getByTestId(CONTROL);
+    expect(control).toHaveAccessibleName('tr.close');
+    await userEvent.click(control);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -361,7 +410,7 @@ describe('DelegateProgress — between the click and the end', () => {
     await waitFor(() => expect(props.onCancel).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId(CONTROL)).toBeDisabled();
 
-    rerender(<DelegateProgress {...props} ended />);
+    rerender(<DelegateProgress {...props} ended="completed" />);
     expect(screen.getByTestId(CONTROL)).toBeEnabled();
     expect(screen.getByTestId(CONTROL)).toHaveAccessibleName('tr.close');
     await userEvent.click(screen.getByTestId(CONTROL));

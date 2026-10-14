@@ -102,6 +102,7 @@ describe('ReferencesPanel Component', () => {
     isDelegating: false,
     progress: null,
     jobId: null,
+    cancelled: false,
     annotateMode: true,
     Link: MockLink,
     routes: mockRoutes,
@@ -413,7 +414,7 @@ describe('ReferencesPanel Component', () => {
 
     it('a running job the queue has not named yet has no cancel control', () => {
       renderWithEventBus(
-        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={null} progress={{ percentage: 0, completedItems: [] }} />,
+        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={null} cancelled={false} progress={{ percentage: 0, completedItems: [] }} />,
       );
 
       expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();

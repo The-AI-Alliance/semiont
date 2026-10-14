@@ -27,6 +27,7 @@
     "subjectKindCategory": "Categoria",
     "cancel": "Annulla",
     "cancelling": "Annullamento in corso...",
+    "cancelled": "Annullato",
     "inProgress": "Annotazione in corso..."
   },
   "PdfViewer": {
