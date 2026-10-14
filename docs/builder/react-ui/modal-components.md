@@ -140,6 +140,7 @@ export function ViteSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         navigate(`/${type}/${id}`);
       }}
       translations={{
+        title: t('title'),
         placeholder: t('placeholder'),
         searching: t('searching'),
         noResults: t('noResults'),
