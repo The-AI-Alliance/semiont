@@ -2,7 +2,7 @@
 
 Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and nine Python projects beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
-For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
+For what each package is and where it is published, see **[../../packages/README.md](../../packages/README.md)**: one table per language.
 
 ## The npm packages
 
@@ -152,6 +152,6 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 ## See also
 
-- **[../../packages/README.md](../../packages/README.md)** — alphabetized package catalog with one-line descriptions and npm links.
+- **[../../packages/README.md](../../packages/README.md)** — every package in each of the four languages, with what it is and whether it is published.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the seven KB actors, and the service each runs in.
 - **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — how the service images fit together in a running stack.

@@ -1,59 +1,82 @@
-# @semiont Packages
+# Packages
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/branch/main/graph/badge.svg)](https://codecov.io/gh/The-AI-Alliance/semiont)
 
-Modular packages for the Semiont platform. For the layered design, dependency graph, and architectural principles that organize them, see **[docs/architecture/PACKAGE-ARCHITECTURE.md](../docs/architecture/PACKAGE-ARCHITECTURE.md)**.
+The libraries Semiont is built from, in four languages. The services and tools that run are in [apps/](../apps/README.md). What they share, and what a program outside this repository installs, is here.
 
-## npm Packages
+| Language | What is here | Published to |
+|---|---|---|
+| [TypeScript](#typescript) | The SDK, its transport and its telemetry, the React components, and an MCP server | npm |
+| [Rust](#rust) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io |
+| [Python](#python) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI |
+| [Go](#go) | The client the launcher is built on | nowhere |
 
-An application installs [`@semiont/sdk`](./sdk/), and [`@semiont/react-ui`](./react-ui/) if it has a UI. [`@semiont/mcp-server`](./mcp-server/) is a tool in its own right, run from a checkout. The rest are what those are built on: each README says who uses the package and what a change to it must keep.
+Semiont's own services are built on these SDKs too, each on the one of its language.
 
-| Package | Version | Source | Description |
-| ------- | ------- | ------ | ----------- |
-| [@semiont/http-transport](https://www.npmjs.com/package/@semiont/http-transport) | [![npm](https://img.shields.io/npm/v/@semiont/http-transport)](https://www.npmjs.com/package/@semiont/http-transport) | [http-transport](./http-transport/) | HTTP transport adapter — `HttpTransport` (REST + SSE), `HttpContentTransport` (binary I/O). Consumed by `@semiont/sdk` |
-| [@semiont/core](https://www.npmjs.com/package/@semiont/core) | [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core) | [core](./core/) | OpenAPI-generated types, branded IDs, EventBus + ITransport contract, event protocol, W3C / locale / text helpers |
-| [@semiont/mcp-server](./mcp-server/) | Not on npm: built from a checkout | [mcp-server](./mcp-server/) | Model Context Protocol server: ten tools over a knowledge base, for Claude Desktop and other MCP clients |
-| [@semiont/observability](https://www.npmjs.com/package/@semiont/observability) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | [observability](./observability/) | OpenTelemetry helpers for the TypeScript transport: `withSpan`, trace context across the bus, the count of the emits a client sent. No-op when no exporter is configured |
-| [@semiont/react-ui](https://www.npmjs.com/package/@semiont/react-ui) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | [react-ui](./react-ui/) | React components and hooks; `useStateUnit` / `useObservable` adapters over the SDK's state-unit layer |
-| [@semiont/sdk](https://www.npmjs.com/package/@semiont/sdk) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | [sdk](./sdk/) | `SemiontClient`, verb-oriented namespaces, `SemiontSession` + `SemiontBrowser`, state units, `bus-request` + cache. Transport-agnostic — pair with `@semiont/http-transport` (HTTP) |
+## What a program installs
 
-## Rust Crates
+A program that builds on a knowledge base installs one SDK. [Building with the Semiont SDK](../docs/builder/README.md) starts there.
 
-Seven crates of the Rust workspace live here. Four are published to crates.io, and are how a Rust program uses Semiont. Three are the Rust services' own: they are built into the gateway, the dispatcher and the Archivist, and published nowhere.
+| | Install | Read |
+|---|---|---|
+| TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
+| Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [sdk-rust](./sdk-rust/README.md), [http-transport-rust](./http-transport-rust/README.md) |
+| Python | `pip install semiont` | [sdk-python](./sdk-python/README.md) |
+| A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
 
-| Crate | Version | Source | Description |
-| ----- | ------- | ------ | ----------- |
-| [semiont](https://crates.io/crates/semiont) | [![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont) | [sdk-rust](./sdk-rust/) | The Rust SDK: the client of a knowledge base, the protocol's types, sessions and state units. A full peer of `@semiont/sdk` |
-| [semiont-http-transport](https://crates.io/crates/semiont-http-transport) | [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport) | [http-transport-rust](./http-transport-rust/) | The SDK's transport over a gateway, and signing a person or a service in |
-| [semiont-telemetry](https://crates.io/crates/semiont-telemetry) | [![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry) | [telemetry-rust](./telemetry-rust/) | The SDK's spans and counts, reported to whatever OpenTelemetry the application installed. It exports nothing |
-| [semiont-codegen](https://crates.io/crates/semiont-codegen) | [![crates.io](https://img.shields.io/crates/v/semiont-codegen.svg)](https://crates.io/crates/semiont-codegen) | [codegen-rust](./codegen-rust/) | The build-time generator of Rust types from the spec. A build dependency of `semiont`; nobody adds it by hand |
-| semiont-core | not published | [core-rust](./core-rust/) | What the Rust services share and no client needs: the embedded spec and its validators, the configuration documents, the reach to the messaging broker |
-| semiont-archivist-record, semiont-archivist-staging | not published | [apps/archivist](../apps/archivist/) | The Archivist's own crates beside its binary: the record (event log, views, projections), which reaches no network and runs no program, and the staging drivers |
-| semiont-http-service | not published | [http-service-rust](./http-service-rust/) | What the Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the trusted issuer |
-| semiont-observability | not published | [observability-rust](./observability-rust/) | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
+The rest is what those are built on, and what Semiont's own services are built on.
 
-## Python Packages
+## TypeScript
 
-Five distributions. One is published to PyPI, and is how a Python program uses Semiont. The other four are what Semiont's Python services are built from.
+The client side: the SDK and what it stands on. The Browser ([apps/browser](../apps/browser/README.md)) is built on these.
 
-| Package | Version | Source | Description |
-| ------- | ------- | ------ | ----------- |
-| [semiont](https://pypi.org/project/semiont/) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | [sdk-python](./sdk-python/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
-| semiont-inference | not published | [inference-python](./inference-python/) | The model providers a Python service calls, behind one interface: text and structured generation, discovered limits (Anthropic, Google's Gemini, llama.cpp's server, Ollama, OpenAI, Together AI, vLLM). A provider's own library is an extra |
-| semiont-graph | not published | [graph-python](./graph-python/) | The graph databases a Python service writes and reads, behind one interface (Neo4j, JanusGraph, Neptune, in-memory). A database's own client is an extra |
-| semiont-vectors | not published | [vectors-python](./vectors-python/) | The vector index a Python service writes and searches (Qdrant, in-memory), and the embedding providers that make its vectors (Ollama, Voyage), each behind one interface |
-| semiont-service | not published | [service-python](./service-python/) | What every Python service does to be one: read its configuration document, answer for its health, write its log and export its telemetry |
+| Package | Published | What it is |
+|---|---|---|
+| [@semiont/sdk](./sdk/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | The TypeScript SDK: `SemiontClient` and its verb namespaces, `SemiontSession` and `SemiontBrowser`, state units, and the cache behind live queries |
+| [@semiont/react-ui](./react-ui/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | React components and hooks over the SDK: the resource viewer, the annotation components, and the `useStateUnit` and `useObservable` adapters |
+| [@semiont/http-transport](./http-transport/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/http-transport)](https://www.npmjs.com/package/@semiont/http-transport) | How the SDK reaches a knowledge base over HTTP: `HttpTransport` and `HttpContentTransport`. The SDK depends on it |
+| [@semiont/core](./core/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core) | What every TypeScript package stands on: the protocol's types, generated from the spec, the ids, the event bus, and the contracts a transport implements |
+| [@semiont/observability](./observability/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | Tracing and metrics for the TypeScript transport, on OpenTelemetry. It does nothing until a process is given somewhere to export to |
+| [@semiont/mcp-server](./mcp-server/README.md) | Not published | A Model Context Protocol server: tools over a knowledge base, for Claude Desktop and other MCP clients. A tool in its own right, built from a checkout |
 
-The Go client is [sdk-go](./sdk-go/).
+## Rust
 
-## Getting Started
+The first four are how a Rust program uses Semiont. The last three are what the Rust services share, and are built into their binaries. A service's own crates are beside its binary in [apps/](../apps/README.md).
 
-To work on these packages, start at the contributor's [orientation](../docs/contributor/README.md): building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package).
+| Crate | Published | What it is |
+|---|---|---|
+| [semiont](./sdk-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont) | The Rust SDK: the client of a knowledge base, the protocol's types, sessions and state units |
+| [semiont-http-transport](./http-transport-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport) | The SDK's transport over a gateway, and signing a person or a service in |
+| [semiont-telemetry](./telemetry-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry) | The SDK's spans and counts, reported to whatever OpenTelemetry the application installed. It exports nothing |
+| [semiont-codegen](./codegen-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-codegen.svg)](https://crates.io/crates/semiont-codegen) | The build-time generator of Rust types from the spec. A build dependency of `semiont`: nobody adds it by hand |
+| [semiont-core](./core-rust/README.md) | Not published | What the Rust services share and no client needs: the embedded spec and its validators, the configuration documents, the reach to the messaging broker |
+| [semiont-http-service](./http-service-rust/README.md) | Not published | What the Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the trusted issuer |
+| [semiont-observability](./observability-rust/README.md) | Not published | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
+
+## Python
+
+The first is how a Python program uses Semiont. The other four are what the Python services are built from.
+
+| Distribution | Published | What it is |
+|---|---|---|
+| [semiont](./sdk-python/README.md) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
+| [semiont-service](./service-python/README.md) | Not published | What every Python service does to be one: read its configuration document, answer for its health, write its log and export its telemetry |
+| [semiont-inference](./inference-python/README.md) | Not published | The model providers a Python service calls, behind one interface: text and structured generation, and discovered limits. A provider's own library is an extra |
+| [semiont-graph](./graph-python/README.md) | Not published | The graph databases a Python service writes and reads, behind one interface. A database's own client is an extra |
+| [semiont-vectors](./vectors-python/README.md) | Not published | The vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface |
+
+## Go
+
+| Module | Published | What it is |
+|---|---|---|
+| [sdk-go](./sdk-go/README.md) | Not published | The Go client the `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on: the gateway's HTTP operations as generated Go, and the bus's vocabulary with a client that speaks it |
+
+## Working on a package
+
+- [Package Architecture](../docs/architecture/PACKAGE-ARCHITECTURE.md) draws how the packages depend on one another in each language, and says what each service image runs.
+- The contributor's [orientation](../docs/contributor/README.md) covers building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package). The pull-request process is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+- Each package's README says who uses it and what a change to it must keep.
 
 ## License
 
 Apache-2.0
-
-## Contributing
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md)

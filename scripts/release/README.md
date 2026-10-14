@@ -44,9 +44,9 @@ gh workflow run release.yml
 
 `release.yml` tags the commit, creates the GitHub Release, and dispatches
 `publish-npm-packages.yml`, `launcher-release.yml`, `publish-crates.yml` and
-`publish-pypi.yml`. The npm workflow in turn
-dispatches `publish-browser.yml` and `publish-service-images.yml` with
-`tag_latest=true`, since it is the only stage that knows the packages the images
+`publish-pypi.yml`, each at the tag. The npm workflow in turn
+dispatches `publish-browser.yml` and `publish-service-images.yml` at the ref it
+runs on, with `tag_latest=true`, since it is the only stage that knows the packages the images
 bundle are actually published.
 
 Nothing in that chain uses a `push: tags` trigger. Tags are pushed with
