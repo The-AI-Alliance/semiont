@@ -1,8 +1,8 @@
 """Running a test that waits: a scenario is a coroutine, and a test runs it to its end."""
 
 import asyncio
-from collections.abc import Awaitable, Coroutine
-from typing import final, override
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Final, final, override
 
 
 @final
@@ -18,9 +18,31 @@ class SteppedLoop(asyncio.SelectorEventLoop):
         return super().time() + self.ahead
 
 
+@final
+class StillLoop(asyncio.SelectorEventLoop):
+    """A loop whose clock moves only when a test moves it: nothing falls due while what is ready runs, however long that takes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._began: Final = super().time()
+        self.ahead = 0.0
+
+    @override
+    def time(self) -> float:
+        return self._began + self.ahead
+
+
 def run[T](scenario: Coroutine[None, None, T]) -> T:
     """Run `scenario` on a loop of its own, and fail if it left a task behind."""
+    return _ran(scenario, SteppedLoop)
 
+
+def run_still[T](scenario: Coroutine[None, None, T]) -> T:
+    """Run `scenario` as `run` does, on a loop whose clock moves only when the scenario moves it (`pass_time`)."""
+    return _ran(scenario, StillLoop)
+
+
+def _ran[T](scenario: Coroutine[None, None, T], loop: Callable[[], asyncio.AbstractEventLoop]) -> T:
     async def held() -> T:
         result = await scenario
         # What the loop had already been handed gets its turn: the HTTP library
@@ -34,7 +56,7 @@ def run[T](scenario: Coroutine[None, None, T]) -> T:
         assert left == [], f"tasks left running: {left}"
         return result
 
-    return asyncio.run(held(), loop_factory=SteppedLoop)
+    return asyncio.run(held(), loop_factory=loop)
 
 
 async def soon[T](wanted: Awaitable[T], within: float = 5.0) -> T:
@@ -56,7 +78,7 @@ async def pass_time(seconds: float, *, step: float = 1.0) -> None:
     loop, which is all that work held in memory needs.
     """
     loop = asyncio.get_running_loop()
-    assert isinstance(loop, SteppedLoop), "the scenario is not run by `run`"
+    assert isinstance(loop, SteppedLoop | StillLoop), "the scenario is not run by `run` or `run_still`"
     passed = 0.0
     while passed < seconds:
         ahead = min(step, seconds - passed)

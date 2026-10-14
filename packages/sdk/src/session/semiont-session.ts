@@ -45,6 +45,7 @@ import { isResourceScopedChannel } from '@semiont/core';
 import type { components, EventMap, ResourceId, ResourceScopedChannel, UnscopedChannel } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
 import type { SemiontError } from '@semiont/core';
+import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KbTarget } from './knowledge-base';
 import {
@@ -131,8 +132,10 @@ export class SemiontSession {
   readonly id: string;
   readonly kb: KbTarget;
   readonly client: SemiontClient;
-  readonly token$: BehaviorSubject<AccessToken | null>;
-  readonly user$: BehaviorSubject<UserInfo | null>;
+  /** The token the transport sends: the present one, and each after it. Only the session writes it. */
+  readonly token$: Watched<AccessToken | null>;
+  /** Who is signed in, once the gateway has said. Only the session writes it. */
+  readonly user$: Watched<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
   /**
    * Stream of `SemiontError` instances surfaced by the underlying transport
@@ -150,6 +153,8 @@ export class SemiontSession {
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
 
+  private readonly heldToken$: BehaviorSubject<AccessToken | null>;
+  private readonly heldUser$: BehaviorSubject<UserInfo | null>;
   private readonly storage: SessionStorage;
   private readonly doRefresh?: () => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
@@ -172,18 +177,20 @@ export class SemiontSession {
     this.onAuthFailed = config.onAuthFailed ?? (() => {});
     this.onError = config.onError ?? (() => {});
     this.client = config.client;
-    this.token$ = config.token$;
-    this.user$ = new BehaviorSubject<UserInfo | null>(null);
+    this.heldToken$ = config.token$;
+    this.token$ = watched(this.heldToken$);
+    this.heldUser$ = new BehaviorSubject<UserInfo | null>(null);
+    this.user$ = watched(this.heldUser$);
     this.errors$ = this.client.transport.errors$;
 
     // Reconcile stored token: if there's a fresh stored access token
     // and `token$` hasn't been seeded yet, push the stored value so the
     // transport (which shares this token$) sees it on first auth.
     const stored = getStoredSession(this.storage, this.kb.id);
-    if (stored && !isJwtExpired(stored.access) && this.token$.getValue() === null) {
-      this.token$.next(accessToken(stored.access));
+    if (stored && !isJwtExpired(stored.access) && this.heldToken$.getValue() === null) {
+      this.heldToken$.next(accessToken(stored.access));
     }
-    const initialToken = this.token$.getValue();
+    const initialToken = this.heldToken$.getValue();
 
     this.streamState$ = this.client.state$;
 
@@ -225,7 +232,7 @@ export class SemiontSession {
     }
 
     if (startToken !== stored.access) {
-      this.token$.next(accessToken(startToken));
+      this.heldToken$.next(accessToken(startToken));
       this.scheduleProactiveRefresh(startToken);
     }
 
@@ -248,7 +255,7 @@ export class SemiontSession {
       try {
         const data = await validate(accessToken(token));
         if (this.disposed) return;
-        this.user$.next(data);
+        this.heldUser$.next(data);
         return;
       } catch (err) {
         if (this.disposed) return;
@@ -269,7 +276,7 @@ export class SemiontSession {
         // The session's token has changed since the ask: the stream
         // was refused with it too, and `refresh` has renewed it meanwhile.
         // That token is the just-issued one, and is not renewed again.
-        const current = this.token$.getValue();
+        const current = this.heldToken$.getValue();
         if (current !== token) {
           if (current === null) return;
           token = current;
@@ -282,7 +289,7 @@ export class SemiontSession {
           this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
           return;
         }
-        this.token$.next(accessToken(renewed));
+        this.heldToken$.next(accessToken(renewed));
         this.scheduleProactiveRefresh(renewed);
         token = renewed;
         justIssued = true;
@@ -297,7 +304,7 @@ export class SemiontSession {
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
-    this.token$.next(null);
+    this.heldToken$.next(null);
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed(told);
     this.onError(new SemiontSessionError(code, why, this.kb.id));
@@ -366,11 +373,11 @@ export class SemiontSession {
       // Only a token the session still holds ends it: one replaced while
       // the gateway was being asked (another context signed in, or renewed)
       // is not the session's to be refused.
-      if (refused && this.token$.getValue() === renewed) {
+      if (refused && this.heldToken$.getValue() === renewed) {
         this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
       }
     }
-    return this.disposed ? null : this.token$.getValue();
+    return this.disposed ? null : this.heldToken$.getValue();
   }
 
   /**
@@ -384,7 +391,7 @@ export class SemiontSession {
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
-      this.token$.next(tok);
+      this.heldToken$.next(tok);
       this.scheduleProactiveRefresh(newAccess);
       return tok;
     }
@@ -398,7 +405,7 @@ export class SemiontSession {
     // (This also makes the REAL teardown below fire once: it clears the
     // stored session, so any follow-up 401s take this quiet path.)
     if (!getStoredSession(this.storage, this.kb.id)) {
-      this.token$.next(null);
+      this.heldToken$.next(null);
       return null;
     }
     this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
@@ -434,15 +441,15 @@ export class SemiontSession {
     if (this.disposed) return;
     if (key !== sessionKey(this.kb.id)) return;
     if (!newValue) {
-      this.token$.next(null);
-      this.user$.next(null);
+      this.heldToken$.next(null);
+      this.heldUser$.next(null);
       this.clearRefreshTimer();
       return;
     }
     try {
       const parsed = JSON.parse(newValue) as StoredSession;
       if (typeof parsed.access === 'string') {
-        this.token$.next(accessToken(parsed.access));
+        this.heldToken$.next(accessToken(parsed.access));
         this.scheduleProactiveRefresh(parsed.access);
       }
     } catch {
@@ -451,7 +458,7 @@ export class SemiontSession {
   }
 
   get expiresAt(): Date | null {
-    const token = this.token$.getValue();
+    const token = this.heldToken$.getValue();
     return token ? parseJwtExpiry(token) : null;
   }
 
@@ -523,8 +530,8 @@ export class SemiontSession {
 
     this.client.dispose();
 
-    this.token$.complete();
-    this.user$.complete();
+    this.heldToken$.complete();
+    this.heldUser$.complete();
   }
 
   /**

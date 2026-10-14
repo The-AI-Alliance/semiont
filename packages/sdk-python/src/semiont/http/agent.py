@@ -32,6 +32,7 @@ import httpx
 from pydantic import ValidationError
 
 from semiont._lacks import lacks
+from semiont._reading import Reading
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.http._withheld import why_unanswered
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
@@ -172,7 +173,7 @@ class AgentToken:
     @property
     def token(self) -> Watched[str | None]:
         """The agent token: the current one, and each one after it."""
-        return self._token
+        return Reading(self._token)
 
     @property
     def did(self) -> UserId:

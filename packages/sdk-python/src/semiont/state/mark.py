@@ -27,12 +27,12 @@ following, so a completion that arrives later still ends it.
 """
 
 import asyncio
-from dataclasses import dataclass
 from types import TracebackType
 from typing import Final, Self, final, override
 
 from pydantic import JsonValue, ValidationError
 
+from semiont._reading import Reading
 from semiont.bus import decoded
 from semiont.channels import (
     MARK_CANCEL_PENDING,
@@ -51,9 +51,9 @@ from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.identifiers import JobId, ResourceId
+from semiont.model import WireModel
 from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
 from semiont.state._jobs import cancelled
-from semiont.state._reading import Reading
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.timing import DELEGATE_SILENCE_MS
@@ -93,8 +93,7 @@ _HEARD: Final = (
 
 
 @final
-@dataclass(frozen=True, slots=True)
-class PendingAnnotation:
+class PendingAnnotation(WireModel, frozen=True):
     """An annotation being composed: where it is, and why it is made. Its selector is what `client.mark.submit` takes."""
 
     selector: AnnotationSelector
@@ -186,15 +185,21 @@ class MarkStateUnit(StateUnit):
             case MARK_REQUESTED.name:
                 request = decoded(MARK_REQUESTED, frame.payload)
                 if request.source == self._resource_id:
-                    self._pending.set(PendingAnnotation(request.selector, request.motivation))
+                    self._pending.set(PendingAnnotation(selector=request.selector, motivation=request.motivation))
             case MARK_SELECT_COMMENT.name:
-                self._pending.set(PendingAnnotation(_selected(decoded(MARK_SELECT_COMMENT, frame.payload)), "commenting"))
+                self._pending.set(
+                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_COMMENT, frame.payload)), motivation="commenting")
+                )
             case MARK_SELECT_TAG.name:
-                self._pending.set(PendingAnnotation(_selected(decoded(MARK_SELECT_TAG, frame.payload)), "tagging"))
+                self._pending.set(PendingAnnotation(selector=_selected(decoded(MARK_SELECT_TAG, frame.payload)), motivation="tagging"))
             case MARK_SELECT_ASSESSMENT.name:
-                self._pending.set(PendingAnnotation(_selected(decoded(MARK_SELECT_ASSESSMENT, frame.payload)), "assessing"))
+                self._pending.set(
+                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_ASSESSMENT, frame.payload)), motivation="assessing")
+                )
             case MARK_SELECT_REFERENCE.name:
-                self._pending.set(PendingAnnotation(_selected(decoded(MARK_SELECT_REFERENCE, frame.payload)), "linking"))
+                self._pending.set(
+                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_REFERENCE, frame.payload)), motivation="linking")
+                )
             case MARK_CANCEL_PENDING.name:
                 self._pending.set(None)
             case MARK_SUBMIT.name:
@@ -241,22 +246,23 @@ class MarkStateUnit(StateUnit):
         # This job's id. At the job's end it is let go only while it is still the one held: a job delegated later replaces it.
         created: JobId | None = None
         events = aiter(run)
+        # The next event, read on a task of its own: a silence gives up waiting for it, never the reading,
+        # since a delegation whose reader is cancelled is abandoned, and a quiet job is still followed.
+        coming = asyncio.ensure_future(anext(events))
         # Whether the next silence is still to be said. It is said once, and again only after the job has said something.
         listening_for_silence = True
         try:
             while True:
-                try:
-                    if listening_for_silence:
-                        async with asyncio.timeout(DELEGATE_SILENCE_MS / 1000):
-                            event = await anext(events)
-                    else:
-                        event = await anext(events)
-                except TimeoutError:
+                heard, _ = await asyncio.wait({coming}, timeout=DELEGATE_SILENCE_MS / 1000 if listening_for_silence else None)
+                if not heard:
                     listening_for_silence = False
                     self._gone_quiet(motivation)
                     continue
+                try:
+                    event = coming.result()
                 except StopAsyncIteration:
                     break
+                coming = asyncio.ensure_future(anext(events))
                 listening_for_silence = True
                 match event:
                     case JobCreated(data=job):
@@ -273,6 +279,9 @@ class MarkStateUnit(StateUnit):
             if not cancelled(error):
                 self._progress.set(None)
                 self._progress_motivation.set(None)
+        finally:
+            # Disposed while waiting: the reading stops with the unit, and the delegation is abandoned.
+            coming.cancel()
         self._delegating.set(None)
         if created is not None and self._job_id.value == created:
             self._job_id.set(None)

@@ -42,8 +42,8 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { accessToken as makeAccessToken, isObject, RETRY_RULES } from '@semiont/core';
-import type { AccessToken, ServiceAccountCredential, UserId } from '@semiont/core';
+import { accessToken as makeAccessToken, isObject, RETRY_RULES, watched } from '@semiont/core';
+import type { AccessToken, ServiceAccountCredential, UserId, Watched } from '@semiont/core';
 import { agentToken } from '@semiont/http-transport';
 import { parseJwtExpiry, refreshDelayMs } from './storage';
 
@@ -73,8 +73,8 @@ export interface AgentSession {
    * dial, one agent has two DIDs.
    */
   readonly did: UserId;
-  /** The current token, for HttpTransport's `token$`. */
-  readonly token$: BehaviorSubject<AccessToken | null>;
+  /** The current token, for HttpTransport's `token$`. Only the agent's renewal writes it. */
+  readonly token$: Watched<AccessToken | null>;
   /** Re-authenticate now and push the new token. HttpTransport's `tokenRefresher`. */
   refresh(): Promise<string | null>;
   /** Stop the proactive refresh. Call from the shutdown path. */
@@ -170,7 +170,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
 
   return {
     did: first.did,
-    token$,
+    token$: watched(token$),
     refresh,
     stop: () => {
       stopped = true;

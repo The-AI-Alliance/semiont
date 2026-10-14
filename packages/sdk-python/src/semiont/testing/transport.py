@@ -28,6 +28,7 @@ from typing import Final, Literal, NoReturn, final, override
 
 from pydantic import JsonValue, TypeAdapter
 
+from semiont._reading import Reading
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -336,7 +337,7 @@ class FaultyTransport(Transport):
     @property
     @override
     def state(self) -> Watched[ConnectionState]:
-        return self._state
+        return Reading(self._state)
 
     @override
     def failures(self) -> Events[SemiontError]:

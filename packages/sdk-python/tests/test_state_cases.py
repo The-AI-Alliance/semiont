@@ -14,10 +14,10 @@ import asyncio
 import copy
 import re
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
-from typing import Final, Protocol, TypedDict, cast, final, get_type_hints
+from typing import Final, Protocol, TypedDict, final, get_type_hints
 
 import pytest
-from aio import pass_time, run, turns
+from aio import pass_time, run_still, turns
 from pydantic import JsonValue
 from spec import SPEC, JsonObject, objects, read, strings, text
 
@@ -34,9 +34,7 @@ from semiont.state import (
     HoverDwell,
     MarkStateUnit,
     MatchStateUnit,
-    PendingAnnotation,
     SearchPipeline,
-    SearchState,
     YieldStateUnit,
 )
 from semiont.state_unit import StateUnit
@@ -231,15 +229,6 @@ def wire(held: object) -> JsonValue:
         return written(held)
     if isinstance(held, SemiontError):
         return {"code": held.code, "message": held.message}
-    if isinstance(held, PendingAnnotation):
-        if isinstance(held.selector, list):
-            several: list[JsonValue] = [written(one) for one in held.selector]
-            return {"selector": several, "motivation": held.motivation}
-        return {"selector": written(held.selector), "motivation": held.motivation}
-    if isinstance(held, SearchState):
-        # Narrowed from `object`, a generic class's parameter is unknown to pyright: the results are read as objects.
-        shown = cast(SearchState[object], held)
-        return {"results": [wire(result) for result in shown.results], "isSearching": shown.is_searching}
     if held is None or isinstance(held, str | bool | int | float):
         return held
     raise AssertionError(f"a state holds {held!r}, which this runner cannot write as the wire does")
@@ -478,7 +467,7 @@ def test_every_case_is_of_a_unit_the_names_table_has() -> None:
 
 @pytest.mark.parametrize("case", RUN, ids=[f"{case['unit']}: {case['case']}" for case in RUN])
 def test_a_unit_does_what_its_case_says(case: JsonObject) -> None:
-    run(play(case))
+    run_still(play(case))
 
 
 def test_the_runner_fails_a_case_whose_check_is_wrong() -> None:
@@ -489,4 +478,4 @@ def test_the_runner_fails_a_case_whose_check_is_wrong() -> None:
         if isinstance(step, dict) and "heard" in step:
             step["heard"] = []
     with pytest.raises(AssertionError, match="heard"):
-        run(play(told))
+        run_still(play(told))

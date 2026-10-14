@@ -72,6 +72,7 @@ from typing import Final, Literal, Self, assert_never, final
 from pydantic import JsonValue, TypeAdapter
 
 from semiont import telemetry
+from semiont._reading import Reading
 from semiont.bus import Bus, answer_of, reply_channels_for, request
 from semiont.channel import Operation
 from semiont.channels import (
@@ -353,7 +354,7 @@ class _Held:
 
         The work stops where it can, and the worker says `cancel`.
         """
-        return self._cancelled
+        return Reading(self._cancelled)
 
     @property
     def settled(self) -> bool:
@@ -951,7 +952,7 @@ class Claims:
 
         Nothing until there is one, and each one after is a change.
         """
-        return self._stall
+        return Reading(self._stall)
 
     async def aclose(self) -> None:
         """Stop claiming.

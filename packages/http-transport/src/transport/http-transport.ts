@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, type RetryPolicy } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -46,8 +46,8 @@ export type TokenRefresher = () => Promise<string | null>;
 
 export interface HttpTransportConfig {
   baseUrl: BaseUrl;
-  /** Observable token source; headers read the current value. */
-  token$?: BehaviorSubject<AccessToken | null>;
+  /** The token, read and never written here: headers read its current value. */
+  token$?: Watched<AccessToken | null>;
   /** The deadline on one request that is neither the stream nor an emit. Absent, `HTTP_REQUEST_TIMEOUT_MS`. */
   timeout?: number;
   retry?: number;
@@ -166,7 +166,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<Use
 export class HttpTransport implements ITransport, IGatewayOperations {
   readonly baseUrl: BaseUrl;
   private readonly http: KyInstance;
-  private readonly token$: BehaviorSubject<AccessToken | null>;
+  private readonly token$: Watched<AccessToken | null>;
   private readonly logger?: Logger;
   private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
   /**
@@ -200,7 +200,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.config = config;
 
     this.baseUrl = withoutTrailingSlash(baseUrl);
-    this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
+    this.token$ = config.token$ ?? watched(new BehaviorSubject<AccessToken | null>(null));
     this.logger = logger;
 
     // Retry policy: when a refresher is configured, a 401 earns one attempt
@@ -579,7 +579,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   /**
-   * The access token (synchronously read from the BehaviorSubject). Used by
+   * The access token (synchronously read from the token source). Used by
    * the content transport, which sets its own `Authorization` header.
    */
   getToken(): AccessToken | undefined {

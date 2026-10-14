@@ -10,12 +10,12 @@ result is held with the rest. A stall is said nowhere else.
 from types import TracebackType
 from typing import Final, Self, final, override
 
+from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.identifiers import JobId
 from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
 from semiont.state._jobs import cancelled
-from semiont.state._reading import Reading
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Transport

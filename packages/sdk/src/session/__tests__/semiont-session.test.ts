@@ -34,7 +34,7 @@ vi.mock('../../client', async () => {
 
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { userId, type AccessToken } from '@semiont/core';
+import { accessToken, userId, type AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
 
@@ -86,6 +86,19 @@ beforeEach(() => {
 });
 
 describe('SemiontSession — construction & initial token', () => {
+  it('hands out its token and its user read-only, showing what is written where they are held', async () => {
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const session = newSession({ token$ });
+    expect('next' in session.token$).toBe(false);
+    expect('next' in session.user$).toBe(false);
+
+    token$.next(accessToken('tok-1'));
+    expect(session.token$.getValue()).toBe('tok-1');
+
+    await session.ready;
+    await session.dispose();
+  });
+
   it('starts with null token when no stored session', async () => {
     const session = newSession();
     expect(session.token$.getValue()).toBeNull();

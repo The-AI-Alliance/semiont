@@ -14,11 +14,13 @@ is closed (`aclose`).
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Sequence
-from dataclasses import dataclass
 from types import TracebackType
-from typing import Final, Self, final, override
+from typing import Annotated, Final, Self, final, override
 
-from semiont.state._reading import Reading
+from pydantic import Field
+
+from semiont._reading import Reading
+from semiont.model import WireModel
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.timing import SEARCH_DEBOUNCE_MS
@@ -28,12 +30,11 @@ __all__ = ["SearchPipeline", "SearchState"]
 
 
 @final
-@dataclass(frozen=True, slots=True)
-class SearchState[T]:
-    """What a search shows: its results, and whether more are on their way."""
+class SearchState[T](WireModel, frozen=True):
+    """What a search shows: its results, and whether more are on their way. Written `{"results", "isSearching"}`."""
 
     results: tuple[T, ...]
-    is_searching: bool
+    is_searching: Annotated[bool, Field(alias="isSearching")]
 
 
 @final
@@ -50,7 +51,7 @@ class SearchPipeline[T](StateUnit):
         self._search: Final = search
         self._debounce: Final = debounce_ms / 1000
         self._query: Final = Variable(initial_query)
-        self._state: Final = Variable[SearchState[T]](SearchState((), is_searching=False))
+        self._state: Final = Variable[SearchState[T]](SearchState(results=(), is_searching=False))
         self._tasks: Final = Tasks()
         self._searched: str | None = None
         """The query last searched for."""
@@ -93,15 +94,17 @@ class SearchPipeline[T](StateUnit):
             self._following = None
         wanted = settled.strip()
         if not wanted:
-            self._state.set(SearchState((), is_searching=False))
+            self._state.set(SearchState(results=(), is_searching=False))
             return
-        self._state.set(SearchState((), is_searching=True))
+        self._state.set(SearchState(results=(), is_searching=True))
         self._following = self._tasks.run(self._follow(self._search(wanted)))
 
     async def _follow(self, answers: AsyncGenerator[Sequence[T] | None, None]) -> None:
         try:
             async for found in answers:
-                self._state.set(SearchState((), is_searching=True) if found is None else SearchState(tuple(found), is_searching=False))
+                self._state.set(
+                    SearchState(results=(), is_searching=True) if found is None else SearchState(results=tuple(found), is_searching=False)
+                )
         finally:
             await answers.aclose()
 

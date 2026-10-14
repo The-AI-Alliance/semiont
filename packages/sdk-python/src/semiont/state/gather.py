@@ -14,12 +14,12 @@ from collections.abc import Awaitable, Sequence
 from types import TracebackType
 from typing import Final, Self, TypedDict, final, override
 
+from semiont._reading import Reading
 from semiont.bus import Typed
 from semiont.channels import GATHER_REQUESTED
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.state._reading import Reading
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Transport

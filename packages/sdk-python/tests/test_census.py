@@ -199,3 +199,44 @@ def test_nothing_in_the_package_holds_state_outside_an_instance() -> None:
         for line in statics(path.read_text(encoding="utf-8"))
     ]
     assert found == [], f"state outside any instance (X3): {found}"
+
+
+def raw_states(source: str) -> list[str]:
+    """The members `source` hands a state out of without a view.
+
+    Each is typed `Watched[…]` and returns an attribute whose name begins with an underscore.
+
+    A state is held in a `Variable` and handed out as a read-only view of it
+    (`semiont._reading.Reading`), or as another member's state; the `Variable`
+    itself would let a reader write past what holds it.
+    """
+    return [
+        node.name
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.returns is not None
+        and ast.unparse(node.returns).startswith("Watched[")
+        for returned in ast.walk(node)
+        if isinstance(returned, ast.Return) and isinstance(returned.value, ast.Attribute) and returned.value.attr.startswith("_")
+    ]
+
+
+def test_the_view_gate_reads_what_it_is_shown() -> None:
+    sample = (
+        "class A:\n"
+        "    @property\n    def raw(self) -> Watched[int]:\n        return self._raw\n"
+        "    @property\n    def seen(self) -> Watched[int]:\n        return Reading(self._raw)\n"
+        "    @property\n    def passed_on(self) -> Watched[int]:\n        return self._stream.state\n"
+        "    def count(self) -> int:\n        return self._count\n"
+    )
+    assert raw_states(sample) == ["raw"]
+
+
+def test_every_state_the_package_hands_out_is_read_only() -> None:
+    found = [
+        f"{path.relative_to(PACKAGE)}: {name}"
+        for path in SOURCES
+        if path.is_relative_to(PACKAGE / "src") and not generated(path.read_text(encoding="utf-8"))
+        for name in raw_states(path.read_text(encoding="utf-8"))
+    ]
+    assert found == [], f"a state handed out as the Variable that holds it, which a reader could write: {found}"

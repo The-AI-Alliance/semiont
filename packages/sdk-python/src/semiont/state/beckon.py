@@ -10,12 +10,12 @@ from typing import Final, Self, final, override
 
 from pydantic import ValidationError
 
+from semiont._reading import Reading
 from semiont.bus import decoded
 from semiont.channels import BECKON_FOCUS, BECKON_HOVER, BECKON_SPARKLE, BROWSE_CLICK
 from semiont.client import SemiontClient
 from semiont.events import Events
 from semiont.identifiers import AnnotationId
-from semiont.state._reading import Reading
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Frame, Transport

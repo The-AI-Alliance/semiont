@@ -46,6 +46,7 @@ from typing import Final, Literal, Protocol, Self, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
 from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
@@ -300,12 +301,12 @@ class SemiontSession[T: Transport]:
     @property
     def token(self) -> Watched[str | None]:
         """The token the transport sends: the present one, and each after it."""
-        return self._token
+        return Reading(self._token)
 
     @property
     def user(self) -> Watched[UserResponse | None]:
         """Who is signed in, once the gateway has said."""
-        return self._user
+        return Reading(self._user)
 
     def expires_at(self) -> float | None:
         """When the token the session holds expires, in seconds since the epoch."""
