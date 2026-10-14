@@ -857,10 +857,7 @@
         { "member": "query" },
         { "member": "state" },
         { "member": "setQuery" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no search unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     }
   ]
 }

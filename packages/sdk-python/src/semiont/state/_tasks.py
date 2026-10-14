@@ -15,15 +15,16 @@ class Tasks:
         self._running: Final[set[asyncio.Task[None]]] = set()
         self._stopped = False
 
-    def run(self, work: Coroutine[object, object, None]) -> None:
-        """Run `work` as one of the unit's tasks. Once stopped, it is not started."""
+    def run(self, work: Coroutine[object, object, None]) -> asyncio.Task[None] | None:
+        """Run `work` as one of the unit's tasks, and return it. Once stopped, it is not started, and there is none."""
         if self._stopped:
             # Never awaited, so it is closed here and is not reported as forgotten.
             work.close()
-            return
+            return None
         task = asyncio.ensure_future(work)
         self._running.add(task)
         task.add_done_callback(self._running.discard)
+        return task
 
     def stop(self) -> None:
         """Cancel everything running, and start nothing more. Stopping twice is stopping once."""

@@ -19,6 +19,8 @@
  *   a channel the case does not listen to;
  * - a duration that names no timing of specs/src/client/timing.json, or comes
  *   to less than nothing;
+ * - a search answered or its queries checked in a case that is not a search
+ *   pipeline's;
  * - a fixture that does not exist, or one no case uses;
  * - a case with no step that checks anything: it drives, and asserts nothing.
  *
@@ -55,7 +57,9 @@ const MADE = {
   search: { debounceMs: 'duration?', initialQuery: 'string?' },
 };
 const ANSWERS = ['refuses', 'never', 'jobs'];
-const CHECKS = ['expect', 'sent', 'nothingSent', 'heard', 'ended', 'busDestroyed'];
+const CHECKS = ['expect', 'sent', 'nothingSent', 'heard', 'ended', 'busDestroyed', 'searched'];
+/** Steps of a search pipeline's case alone: only it searches with the case's search. */
+const SEARCHING = ['answerSearch', 'searched'];
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const used = new Set();
@@ -166,7 +170,7 @@ for (const [index, c] of (table.cases ?? []).entries()) {
       fail(`${said} is neither "settle" nor a step`);
       continue;
     }
-    const kinds = Object.keys(step).filter((key) => [...CHECKS, 'say', 'deliver', 'answer', 'queueReply', 'invoke', 'pass', 'dispose'].includes(key));
+    const kinds = Object.keys(step).filter((key) => [...CHECKS, 'say', 'deliver', 'answer', 'queueReply', 'invoke', 'pass', 'dispose', 'answerSearch'].includes(key));
     if (kinds.length !== 1) {
       fail(`${said} is ${kinds.length === 0 ? 'no step this table defines' : `several steps at once (${kinds.join(', ')})`}`);
       continue;
@@ -180,10 +184,12 @@ for (const [index, c] of (table.cases ?? []).entries()) {
       queueReply: ['response'],
       invoke: ['of', 'args'],
       sent: ['payloads', 'count'],
+      answerSearch: ['results'],
     }[kind] ?? [];
     const extra = Object.keys(step).filter((key) => key !== kind && !allowed.includes(key));
     if (extra.length > 0) fail(`${said}: a ${kind} step does not state ${extra.join(', ')}`);
     fixtures(step, said);
+    if (SEARCHING.includes(kind) && c.unit !== 'search') fail(`${said}: only a search pipeline's case has a search to ${kind === 'searched' ? 'ask' : 'answer'}`);
 
     switch (kind) {
       case 'say':
@@ -237,6 +243,13 @@ for (const [index, c] of (table.cases ?? []).entries()) {
         break;
       case 'busDestroyed':
         if (typeof step.busDestroyed !== 'boolean') fail(`${said}: busDestroyed is true or false`);
+        break;
+      case 'answerSearch':
+        if (!Number.isInteger(step.answerSearch) || step.answerSearch < 0) fail(`${said}: \`answerSearch\` counts the queries asked from 0`);
+        if (step.results !== null && !(Array.isArray(step.results))) fail(`${said}: an answer's results are a list, or null for one still on its way`);
+        break;
+      case 'searched':
+        if (!Array.isArray(step.searched) || step.searched.some((query) => typeof query !== 'string')) fail(`${said}: searched lists the queries asked, each a string`);
         break;
       case 'heard':
         if (!Array.isArray(step.heard)) {

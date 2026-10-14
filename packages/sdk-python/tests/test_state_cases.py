@@ -13,8 +13,8 @@ each unit's own test holds.
 import asyncio
 import copy
 import re
-from collections.abc import Callable, Mapping
-from typing import Final, Protocol
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+from typing import Final, Protocol, TypedDict, final
 
 import pytest
 from aio import pass_time, run, turns
@@ -25,9 +25,10 @@ from semiont import timing
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
+from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel, written
-from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit
+from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit, SearchPipeline, SearchState
 from semiont.state_unit import StateUnit
 from semiont.testing import Delay, DropReply, FaultAction, FaultyTransport, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame, Transport
@@ -40,13 +41,56 @@ TABLE: Final = read(SPEC / "client/state-units.json")
 NAMES: Final = read(SPEC / "client/surface.json")
 
 type Client = SemiontClient[Transport]
-type Make = Callable[[Client, JsonObject], StateUnit]
+
+
+@final
+class Searches:
+    """What a case's search pipeline searches with: it records each query it is asked, and gives each the answers a step gives it."""
+
+    def __init__(self) -> None:
+        self.asked: Final[list[tuple[str, asyncio.Queue[Sequence[str] | None]]]] = []
+
+    def search(self, query: str) -> AsyncGenerator[Sequence[str] | None, None]:
+        answers: asyncio.Queue[Sequence[str] | None] = asyncio.Queue()
+        self.asked.append((query, answers))
+        return self._answers(answers)
+
+    @staticmethod
+    async def _answers(answers: asyncio.Queue[Sequence[str] | None]) -> AsyncGenerator[Sequence[str] | None, None]:
+        while True:
+            yield await answers.get()
+
+    def answer(self, nth: int, results: Sequence[str] | None) -> None:
+        """Answer the `nth` query. One that was abandoned has nobody to give it to."""
+        assert len(self.asked) > nth, f"query #{nth} was not asked"
+        self.asked[nth][1].put_nowait(results)
+
+
+type Make = Callable[[Client, Searches, JsonObject], StateUnit]
+
+
+class _SearchOptions(TypedDict, total=False):
+    """What a case makes a search pipeline from. One it leaves out is the pipeline's own."""
+
+    debounce_ms: int
+    initial_query: str
+
+
+def search_pipeline(searches: Searches, made: JsonObject) -> SearchPipeline[str]:
+    options: _SearchOptions = {}
+    if "debounceMs" in made:
+        options["debounce_ms"] = round(duration_ms(made["debounceMs"]))
+    if "initialQuery" in made:
+        options["initial_query"] = text(made["initialQuery"], "an initial query")
+    return SearchPipeline(searches.search, **options)
+
 
 MAKERS: Final[Mapping[str, Make]] = {
-    "match": lambda client, made: MatchStateUnit(client),
-    "beckon": lambda client, made: BeckonStateUnit(client),
-    "hoverDwell": lambda client, made: HoverDwell(client.beckon.hover, round(duration_ms(made["delayMs"]))),
-    "gather": lambda client, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
+    "match": lambda client, searches, made: MatchStateUnit(client),
+    "beckon": lambda client, searches, made: BeckonStateUnit(client),
+    "hoverDwell": lambda client, searches, made: HoverDwell(client.beckon.hover, round(duration_ms(made["delayMs"]))),
+    "gather": lambda client, searches, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
+    "search": lambda client, searches, made: search_pipeline(searches, made),
 }
 """How this SDK makes each unit it has, from the client and what the case makes it from."""
 
@@ -166,6 +210,9 @@ def wire(held: object) -> JsonValue:
         return written(held)
     if isinstance(held, SemiontError):
         return {"code": held.code, "message": held.message}
+    if isinstance(held, SearchState):
+        shown: SearchState[object] = held
+        return {"results": [wire(result) for result in shown.results], "isSearching": shown.is_searching}
     if held is None or isinstance(held, str | bool | int | float):
         return held
     raise AssertionError(f"a state holds {held!r}, which this runner cannot write as the wire does")
@@ -239,6 +286,13 @@ async def has_ended(state: Watched[object]) -> bool:
 # ── A case, played ──────────────────────────────────────────────────────
 
 
+async def collect(frames: Events[Frame], heard: list[Frame]) -> None:
+    """Keep what `frames` gives, in order."""
+    async with frames:
+        async for frame in frames:
+            heard.append(frame)
+
+
 async def play(case: JsonObject) -> None:
     unit_kind = text(case["unit"], "a case's unit")
     transport = transport_of(case["transport"])
@@ -246,27 +300,23 @@ async def play(case: JsonObject) -> None:
     client = made.client
     made_from = case["made"]
     assert isinstance(made_from, dict)
+    searches = Searches()
     async with client:
         units: dict[str, StateUnit] = {}
         for name, given in made_from.items():
             assert isinstance(given, dict)
-            units[name] = MAKERS[unit_kind](client, given)
+            units[name] = MAKERS[unit_kind](client, searches, given)
         heard: list[Frame] = []
         listening = strings(case.get("listen", []), "listen")
-
-        async def collect() -> None:
-            async with client.bus.frames_among(listening) as frames:
-                async for frame in frames:
-                    heard.append(frame)
-
-        collector = asyncio.ensure_future(collect()) if listening else None
+        # Taken now, before anything runs, so what is said from the moment the units are made is heard.
+        collector = asyncio.ensure_future(collect(client.bus.frames_among(listening), heard)) if listening else None
         steps = case["steps"]
         assert isinstance(steps, list)
         told = 0
         try:
             for at, step in enumerate(steps):
                 try:
-                    told = await perform(step, client, transport, units, heard, told)
+                    told = await perform(step, client, transport, searches, units, heard, told)
                 except AssertionError as broken:
                     raise AssertionError(f"steps[{at}] {step}: {broken}") from broken
         finally:
@@ -289,7 +339,13 @@ def request_id(transport: FaultyTransport, named: JsonValue) -> str | None:
 
 
 async def perform(
-    step: JsonValue, client: Client, transport: FaultyTransport, units: Mapping[str, StateUnit], heard: list[Frame], told: int
+    step: JsonValue,
+    client: Client,
+    transport: FaultyTransport,
+    searches: Searches,
+    units: Mapping[str, StateUnit],
+    heard: list[Frame],
+    told: int,
 ) -> int:
     """Perform one step. Returns how much of what was heard has been checked."""
     if step == "settle":
@@ -315,9 +371,18 @@ async def perform(
         method: Method = getattr(units[text(step["of"], "a unit")], snake(text(step["invoke"], "a member")))
         method(**{snake(name): resolved(value) for name, value in args.items()})
     elif "pass" in step:
+        # What is ready runs at the time it became ready, before the clock moves.
+        await turns()
         await pass_time(duration_ms(step["pass"]) / 1000)
     elif "dispose" in step:
         units[text(step["dispose"], "a unit")].dispose()
+    elif "answerSearch" in step:
+        nth, results = step["answerSearch"], step["results"]
+        assert isinstance(nth, int)
+        searches.answer(nth, None if results is None else strings(results, "an answer's results"))
+    elif "searched" in step:
+        asked = [query for query, _ in searches.asked]
+        assert asked == strings(step["searched"], "searched"), f"the search was asked {asked!r}"
     elif "expect" in step:
         expected = step["expect"]
         assert isinstance(expected, dict)

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for what a client's state units do: each case builds units over a scripted transport, drives them, and states what they hold and what they said. Every SDK runs these cases against its own units, so a unit means one thing in TypeScript, Rust and Python; specs/src/client/surface.json's `stateUnits` names the units and their members, and this table holds what they do. A case names its `unit` (a row of `stateUnits`) and what it is (`case`); an SDK the names table says lacks the unit (`absent`) does not run its cases. `transport` is what answers the client's requests: `answers` is `refuses` (every request is refused at once), `never` (every request reaches the gateway and is answered only by an `answer` step) or `jobs` (`job:create` is answered `{\"jobId\": \"job-1\"}`, `job:status-requested` with job-1 running, and anything else is refused at once); `replies` queues responses by operation, each given before the rule; `delayMs` holds every reply that long. The client's stream carries the replies and the broadcasts, never the requests it sent. `made` names each unit the case builds, with what it is built from: a gather or mark unit its `resourceId`, a yield unit its `locale`, a hover dwell its `delayMs`, saying what is hovered through the client's `beckon.hover`. `listen` names channels of the client's bus read from the moment the units are made. `steps` run in order. Driving: `say` publishes on the client's own bus, as a signal or a job event is; `deliver` gives the client a frame from the wire, as another participant's is; `answer` replies to the `nth` request sent on a channel, on `reply`, under that request's correlation id; `queueReply` queues the next response to an operation; `invoke` calls a method of the unit `of` names, with `args` by the method's parameter names; `\"settle\"` lets what is ready run and moves no time; `pass` moves the clock, letting what falls due run as it does; `dispose` disposes the named unit. Checking: `expect` states, for each named unit, what members hold now (it lets nothing run first); `sent` lists every request sent on a channel so far, or gives their `count`; `nothingSent` says no request was sent; `heard` lists exactly what the `listen` channels carried since the units were made or since the last `heard`, once what is ready has run; `ended` names members whose readers have ended; `busDestroyed` says whether the client's bus has ended. A duration is milliseconds, or `{\"timing\": <a name of specs/src/client/timing.json>}` with `times` and `plusMs` to scale and move it. Values are as the wire writes them, compared exactly: a state holding a wire model is written as the wire writes it, ids are strings and none is null. Two forms compare less: `{\"$has\": {…}}` matches an object holding at least those members, and a state holding an error is written `{\"code\": …}`, `{\"message\": …}` or both, and compared on those; a case states a message only where the wire wrote it, never one an SDK or its test double writes. `{\"$fixture\": name}` is the table's fixture of that name. A `heard` entry gives the frame's `channel`, its `payload` and its `correlationId`, which is absent when the frame carries none, or `{\"sent\": <channel>, \"nth\": <n>}` for the id a request carried. What a case cannot state stays a test of the SDK's own: the axioms, which each SDK's harness checks, and how often a state wakes its readers, which differs by language. scripts/lint/check-state-unit-cases.mjs holds this table to the names table, the bus registry and the timing table.",
+  "$comment": "AUTHORITY for what a client's state units do: each case builds units over a scripted transport, drives them, and states what they hold and what they said. Every SDK runs these cases against its own units, so a unit means one thing in TypeScript, Rust and Python; specs/src/client/surface.json's `stateUnits` names the units and their members, and this table holds what they do. A case names its `unit` (a row of `stateUnits`) and what it is (`case`); an SDK the names table says lacks the unit (`absent`) does not run its cases. `transport` is what answers the client's requests: `answers` is `refuses` (every request is refused at once), `never` (every request reaches the gateway and is answered only by an `answer` step) or `jobs` (`job:create` is answered `{\"jobId\": \"job-1\"}`, `job:status-requested` with job-1 running, and anything else is refused at once); `replies` queues responses by operation, each given before the rule; `delayMs` holds every reply that long. The client's stream carries the replies and the broadcasts, never the requests it sent. `made` names each unit the case builds, with what it is built from: a gather or mark unit its `resourceId`, a yield unit its `locale`, a hover dwell its `delayMs`, saying what is hovered through the client's `beckon.hover`, and a search pipeline its `debounceMs` and `initialQuery`, each the pipeline's own when the case states none, searching with the case's search, which records each query it is asked and gives its answers when a step says. `listen` names channels of the client's bus read from the moment the units are made. `steps` run in order. Driving: `say` publishes on the client's own bus, as a signal or a job event is; `deliver` gives the client a frame from the wire, as another participant's is; `answer` replies to the `nth` request sent on a channel, on `reply`, under that request's correlation id; `queueReply` queues the next response to an operation; `invoke` calls a method of the unit `of` names, with `args` by the method's parameter names; `\"settle\"` lets what is ready run and moves no time; `pass` lets what is ready run and then moves the clock, letting what falls due run as it does; `dispose` disposes the named unit; `answerSearch` gives the `nth` query the case's search was asked an answer: its `results`, or null for one still on its way (a query that was abandoned has nobody to give it to). Checking: `expect` states, for each named unit, what members hold now (it lets nothing run first); `sent` lists every request sent on a channel so far, or gives their `count`; `nothingSent` says no request was sent; `heard` lists exactly what the `listen` channels carried since the units were made or since the last `heard`, once what is ready has run; `ended` names members whose readers have ended; `busDestroyed` says whether the client's bus has ended; `searched` lists every query the case's search has been asked so far. A duration is milliseconds, or `{\"timing\": <a name of specs/src/client/timing.json>}` with `times` and `plusMs` to scale and move it. Values are as the wire writes them, compared exactly: a state holding a wire model is written as the wire writes it, ids are strings, none is null, and a search pipeline's state is `{\"results\": […], \"isSearching\": …}`. Two forms compare less: `{\"$has\": {…}}` matches an object holding at least those members, and a state holding an error is written `{\"code\": …}`, `{\"message\": …}` or both, and compared on those; a case states a message only where the wire wrote it, never one an SDK or its test double writes. `{\"$fixture\": name}` is the table's fixture of that name. A `heard` entry gives the frame's `channel`, its `payload` and its `correlationId`, which is absent when the frame carries none, or `{\"sent\": <channel>, \"nth\": <n>}` for the id a request carried. What a case cannot state stays a test of the SDK's own: the axioms, which each SDK's harness checks, and how often a state wakes its readers, which differs by language. scripts/lint/check-state-unit-cases.mjs holds this table to the names table, the bus registry and the timing table.",
   "fixtures": {
     "context": {
       "focus": {
@@ -370,6 +370,156 @@
         { "sent": "gather:requested", "count": 1 },
         { "sent": "gather:resource-requested", "count": 1 },
         { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "begins idle, and a query of nothing but spaces searches for nothing",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "expect": { "unit": { "query": "", "state": { "results": [], "isSearching": false } } } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "   " } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": [] },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "waits for the query to stay the same, and holds the query as it is typed",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "p" } },
+        { "expect": { "unit": { "query": "p" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pa" } },
+        { "expect": { "unit": { "query": "pa" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "par" } },
+        { "expect": { "unit": { "query": "par" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pari" } },
+        { "expect": { "unit": { "query": "pari" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "expect": { "unit": { "query": "paris" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "searched": [] },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "waits as long as it was told",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "debounceMs": 2000 } },
+      "steps": [
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "pass": 1900 },
+        { "searched": [] },
+        { "pass": 200 },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "begun with a query, searches for it without the spaces around it once it has settled",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": " paris " } },
+      "steps": [
+        { "expect": { "unit": { "query": " paris " } } },
+        { "searched": [] },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "is searching until its results are known, and follows them after",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": null },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": ["Paris", "Paris, Texas"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Paris", "Paris, Texas"], "isSearching": false } } } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Paris"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a new query abandons the search before it",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "rome" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris", "rome"] },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 1, "results": ["Rome"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Rome"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a query already searched for is not searched for again",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pari" } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] },
+        { "expect": { "unit": { "state": { "results": ["Paris"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a query that is cleared has no results, and abandons its search",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } },
+        { "answerSearch": 0, "results": ["Paris", "Paris, Texas"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "disposed, is inert",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "dispose": "unit" },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "rome" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "ended": { "unit": ["query", "state"] } },
+        { "expect": { "unit": { "query": "paris" } } },
+        { "searched": [] }
       ]
     }
   ]
