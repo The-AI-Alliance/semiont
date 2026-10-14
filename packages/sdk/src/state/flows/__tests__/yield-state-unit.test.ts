@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import type { components } from '@semiont/core';
-import { createYieldStateUnit } from '../yield-state-unit';
+import { createYieldStateUnit, type YieldStateUnit } from '../yield-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { resourceContextFor, annotationContextFor } from '../../../__tests__/fixtures/gathered-context';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
@@ -517,7 +517,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
     // Gateway stub errors synchronously: drive()'s error path runs (no throw) and
     // the unit holds no timer, so none leaks across runs.
     const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<YieldStateUnit>({
       setup: () => {
         const tc = makeTestClient({ yield: { delegate: vi.fn(stub) } });
         return { unit: createYieldStateUnit(tc.client, 'en'), teardown: () => tc.bus.destroy() };

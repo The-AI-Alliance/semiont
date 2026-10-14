@@ -3,13 +3,14 @@
  *
  * Pure RxJS — no React, no jsdom, no act warnings. The pipeline is a plain
  * object: instantiate it with a stub fetch, push values via setQuery, assert
- * on emissions from state$ and query$.
+ * on emissions from state$ and query$. Its meaning is the Rust SDK's
+ * `SearchPipeline` (packages/sdk-rust/src/state/search.rs).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
-import { filter, take, toArray } from 'rxjs/operators';
-import { createSearchPipeline, type SearchState } from '../search-pipeline';
+import { BehaviorSubject, of } from 'rxjs';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
+import { createSearchPipeline, type SearchPipeline, type SearchState } from '../search-pipeline';
 
 describe('createSearchPipeline', () => {
   beforeEach(() => {
@@ -226,25 +227,89 @@ describe('createSearchPipeline', () => {
     pipeline.dispose();
   });
 
-  it('completes input$ on dispose', async () => {
-    const fetch = vi.fn(() => of([]));
+  it('gives a reader that arrives late the query and the state as they are now', () => {
+    const fetch = vi.fn(() => of(['hit']));
     const pipeline = createSearchPipeline<string>(fetch);
 
-    // Use real timers for the completion check (firstValueFrom + completion).
-    vi.useRealTimers();
-    const completed = firstValueFrom(
-      pipeline.query$.pipe(
-        // skip the synchronous startWith emission, then complete on dispose
-        filter((_, i) => i > 0),
-        take(1),
-        toArray(),
-      ),
-    );
+    pipeline.setQuery('foo');
+    vi.advanceTimersByTime(300);
+    const queries: string[] = [];
+    const states: SearchState<string>[] = [];
+    pipeline.query$.subscribe((q) => queries.push(q));
+    pipeline.state$.subscribe((s) => states.push(s));
 
-    pipeline.setQuery('one');
+    expect(queries).toEqual(['foo']);
+    expect(states).toEqual([{ results: ['hit'], isSearching: false }]);
+
     pipeline.dispose();
-    await completed;
-    // If we got here without timeout, dispose worked (the pipeline didn't hang).
-    expect(true).toBe(true);
+  });
+
+  it('searches with one search for all its readers', () => {
+    const fetch = vi.fn(() => of(['hit']));
+    const pipeline = createSearchPipeline<string>(fetch);
+    pipeline.state$.subscribe();
+    pipeline.state$.subscribe();
+
+    pipeline.setQuery('foo');
+    vi.advanceTimersByTime(300);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    pipeline.dispose();
+  });
+
+  it('does not restart the debounce when set to the query it already has', () => {
+    const fetch = vi.fn(() => of(['hit']));
+    const pipeline = createSearchPipeline<string>(fetch);
+
+    pipeline.setQuery('foo');
+    vi.advanceTimersByTime(200);
+    pipeline.setQuery('foo');
+    vi.advanceTimersByTime(100);
+
+    expect(fetch).toHaveBeenCalledWith('foo');
+
+    pipeline.dispose();
+  });
+
+  it('ends its state on dispose while a search is open, and searches no more', () => {
+    const answers = new BehaviorSubject<string[] | undefined>(undefined);
+    const fetch = vi.fn(() => answers.asObservable());
+    const pipeline = createSearchPipeline<string>(fetch);
+    let ended = false;
+    pipeline.state$.subscribe({ complete: () => { ended = true; } });
+
+    pipeline.setQuery('foo');
+    vi.advanceTimersByTime(300);
+    pipeline.dispose();
+    pipeline.setQuery('bar');
+    vi.advanceTimersByTime(300);
+
+    expect(ended).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('searches for nothing once disposed with a query still settling', () => {
+    const fetch = vi.fn(() => of(['hit']));
+    const pipeline = createSearchPipeline<string>(fetch);
+
+    pipeline.setQuery('foo');
+    pipeline.dispose();
+    vi.advanceTimersByTime(300);
+
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('SearchPipeline — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms, over a search that never ends', () => {
+    assertStateUnitAxioms<SearchPipeline<string>>({
+      setup: () =>
+        createSearchPipeline<string>(() => new BehaviorSubject<string[] | undefined>(undefined).asObservable(), {
+          initialQuery: 'seed',
+        }),
+      surfaces: (u) => [u.query$, u.state$],
+      invocations: (u) => [() => u.setQuery('a'), () => u.setQuery('')],
+    });
   });
 });

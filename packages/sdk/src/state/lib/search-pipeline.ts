@@ -1,12 +1,19 @@
 /**
  * createSearchPipeline
  *
- * A debounced-search RxJS pipeline factory. Combines an input Subject with a
- * downstream fetch function and emits typed `{ results, isSearching }` state.
+ * A search as it is typed: a query, and the results of the query it last
+ * settled on. Its meaning is the Rust SDK's `SearchPipeline`.
  *
- * Designed to be created once per consumer instance and held for its lifetime
- * (e.g. by a view layer's lazy initializer), then observed via `state$`. The
- * pipeline is pure RxJS — unit-testable without any view-layer dependency.
+ * The query is whatever was last set. Once it has stayed the same for the
+ * debounce, it is searched for, unless it is the query already searched for.
+ * A query of nothing but spaces searches for nothing and has no results. A new
+ * query abandons the search before it. The query it begins with settles like
+ * any other.
+ *
+ * Both are state: a reader is given the value now, and each value after it,
+ * and every reader shares the one search. The pipeline works from the moment
+ * it is made, and `dispose` ends it: the search in flight is abandoned, both
+ * states end, and nothing it is told afterwards does anything.
  *
  * The fetch function is expected to return `Observable<T[] | undefined>`:
  * `undefined` means "fetch in flight, no value yet"; an array means "data
@@ -17,7 +24,7 @@
  */
 
 import { SEARCH_DEBOUNCE_MS, type StateUnit } from '@semiont/core';
-import { Subject, of, type Observable } from 'rxjs';
+import { BehaviorSubject, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
 
 export interface SearchState<T> {
@@ -26,11 +33,11 @@ export interface SearchState<T> {
 }
 
 export interface SearchPipeline<T> extends StateUnit {
-  /** Latest query string. Bind to a controlled input. */
+  /** The query as it was last set. Bind to a controlled input. */
   query$: Observable<string>;
   /** Latest search state — results plus a loading flag. */
   state$: Observable<SearchState<T>>;
-  /** Push a new query value. Triggers the debounced fetch. */
+  /** Set the query. A query it already has changes nothing. */
   setQuery(value: string): void;
 }
 
@@ -46,13 +53,10 @@ export function createSearchPipeline<T>(
   options: SearchPipelineOptions = {},
 ): SearchPipeline<T> {
   const debounceMs = options.debounceMs ?? SEARCH_DEBOUNCE_MS;
-  const initial = options.initialQuery ?? '';
-  const input$ = new Subject<string>();
+  const query$ = new BehaviorSubject<string>(options.initialQuery ?? '');
+  const state$ = new BehaviorSubject<SearchState<T>>({ results: [], isSearching: false });
 
-  const query$: Observable<string> = input$.pipe(startWith(initial));
-
-  const state$: Observable<SearchState<T>> = input$.pipe(
-    startWith(initial),
+  const searching = query$.pipe(
     debounceTime(debounceMs),
     distinctUntilChanged(),
     switchMap((q): Observable<SearchState<T>> => {
@@ -68,12 +72,19 @@ export function createSearchPipeline<T>(
         startWith({ results: [], isSearching: true } as SearchState<T>),
       );
     }),
-  );
+  ).subscribe((state) => state$.next(state));
 
   return {
-    query$,
-    state$,
-    setQuery: (value) => input$.next(value),
-    dispose: () => input$.complete(),
+    query$: query$.asObservable(),
+    state$: state$.asObservable(),
+    setQuery: (value) => {
+      if (value !== query$.value) query$.next(value);
+    },
+    dispose: () => {
+      // Stopped before the query ends: an ending query would flush the debounce and search.
+      searching.unsubscribe();
+      query$.complete();
+      state$.complete();
+    },
   };
 }

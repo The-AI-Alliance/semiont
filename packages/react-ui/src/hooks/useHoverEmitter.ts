@@ -1,54 +1,19 @@
 'use client';
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import type { AnnotationId } from '@semiont/core';
-import { HOVER_DELAY_MS } from '@semiont/sdk';
-import type { SemiontSession } from '@semiont/sdk';
+import { HOVER_DELAY_MS, type SemiontSession } from '@semiont/sdk';
+import { useHoverDwell } from './useHoverDwell';
 
-export { HOVER_DELAY_MS } from '@semiont/sdk';
 export interface HoverEmitterProps {
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
 
-/**
- * @emits beckon:hover - The annotation when the pointer rests on it, and null when it leaves. Payload: { annotationId: string | null }
- */
+/** The pointer's dwell on one annotation's entry, as the entry's mouse handlers. */
 export function useHoverEmitter(session: SemiontSession | null, annotationId: AnnotationId, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
-  const currentHoverRef = useRef<AnnotationId | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const onMouseEnter = useCallback(() => {
-    if (currentHoverRef.current === annotationId) return;
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-    }
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      currentHoverRef.current = annotationId;
-      session?.client.beckon.hover(annotationId);
-    }, hoverDelayMs);
-  }, [annotationId, hoverDelayMs, session]);
-
-  const onMouseLeave = useCallback(() => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (currentHoverRef.current !== null) {
-      currentHoverRef.current = null;
-      session?.client.beckon.hover(null);
-    }
-  }, [session]);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, []);
-
+  const dwell = useHoverDwell(session, hoverDelayMs);
+  const onMouseEnter = useCallback(() => dwell?.enter(annotationId), [dwell, annotationId]);
+  const onMouseLeave = useCallback(() => dwell?.leave(), [dwell]);
   return { onMouseEnter, onMouseLeave };
 }

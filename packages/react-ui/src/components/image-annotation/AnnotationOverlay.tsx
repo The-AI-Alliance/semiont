@@ -1,9 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/core';
-import { createHoverDwell } from '@semiont/sdk';
+import { useHoverDwell } from '../../hooks/useHoverDwell';
 import { parseSvgSelector } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 interface AnnotationOverlayProps {
@@ -60,7 +59,6 @@ function getAnnotationTooltip(annotation: Annotation): string {
 /**
  * Render annotation overlay - displays existing annotations as SVG shapes
  *
- * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  * @emits browse:click - Annotation clicked. Payload: { annotationId: string, anchorRect?: AnchorRect }
  */
 export function AnnotationOverlay({
@@ -77,10 +75,7 @@ export function AnnotationOverlay({
   const scaleX = displayWidth / imageWidth;
   const scaleY = displayHeight / imageHeight;
 
-  const dwell = useMemo(
-    () => createHoverDwell((id) => session?.client.beckon.hover(id), hoverDelayMs),
-    [session, hoverDelayMs]
-  );
+  const dwell = useHoverDwell(session, hoverDelayMs);
 
   return (
     <svg
@@ -129,8 +124,8 @@ export function AnnotationOverlay({
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
                   onClick={(e) => session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect())}
-                  onMouseEnter={() => dwell.enter(annotation.id)}
-                  onMouseLeave={() => dwell.leave()}
+                  onMouseEnter={() => dwell?.enter(annotation.id)}
+                  onMouseLeave={() => dwell?.leave()}
                 />
                 {statusEmoji && (
                   <text
@@ -143,8 +138,8 @@ export function AnnotationOverlay({
                       e.stopPropagation();
                       session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect());
                     }}
-                    onMouseEnter={() => dwell.enter(annotation.id)}
-                    onMouseLeave={() => dwell.leave()}
+                    onMouseEnter={() => dwell?.enter(annotation.id)}
+                    onMouseLeave={() => dwell?.leave()}
                   >
                     {statusEmoji}
                   </text>
@@ -176,8 +171,8 @@ export function AnnotationOverlay({
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
                   onClick={(e) => session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect())}
-                  onMouseEnter={() => dwell.enter(annotation.id)}
-                  onMouseLeave={() => dwell.leave()}
+                  onMouseEnter={() => dwell?.enter(annotation.id)}
+                  onMouseLeave={() => dwell?.leave()}
                 />
                 {statusEmoji && (
                   <text
@@ -190,8 +185,8 @@ export function AnnotationOverlay({
                       e.stopPropagation();
                       session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect());
                     }}
-                    onMouseEnter={() => dwell.enter(annotation.id)}
-                    onMouseLeave={() => dwell.leave()}
+                    onMouseEnter={() => dwell?.enter(annotation.id)}
+                    onMouseLeave={() => dwell?.leave()}
                   >
                     {statusEmoji}
                   </text>
@@ -236,8 +231,8 @@ export function AnnotationOverlay({
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
                   onClick={(e) => session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect())}
-                  onMouseEnter={() => dwell.enter(annotation.id)}
-                  onMouseLeave={() => dwell.leave()}
+                  onMouseEnter={() => dwell?.enter(annotation.id)}
+                  onMouseLeave={() => dwell?.leave()}
                 />
                 {statusEmoji && (
                   <text
@@ -250,8 +245,8 @@ export function AnnotationOverlay({
                       e.stopPropagation();
                       session?.client.browse.click(annotation.id, e.currentTarget.getBoundingClientRect());
                     }}
-                    onMouseEnter={() => dwell.enter(annotation.id)}
-                    onMouseLeave={() => dwell.leave()}
+                    onMouseEnter={() => dwell?.enter(annotation.id)}
+                    onMouseLeave={() => dwell?.leave()}
                   >
                     {statusEmoji}
                   </text>

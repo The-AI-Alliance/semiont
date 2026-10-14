@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { components } from '@semiont/core';
-import { createShellStateUnit } from '../shell-state-unit';
+import { createShellStateUnit, type ShellStateUnit } from '../shell-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { SemiontBrowser } from '@semiont/sdk';
 import { createHttpSessionFactory } from '@semiont/sdk';
@@ -203,7 +203,7 @@ describe('ShellStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     // A fresh real SemiontBrowser per run (low numRuns to bound the cost). Two
     // independent browsers in X3 give genuine instance isolation.
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<ShellStateUnit>({
       setup: () => {
         const b = new SemiontBrowser({ storage: new InMemorySessionStorage(), sessionFactory: createHttpSessionFactory() });
         return { unit: createShellStateUnit(b), teardown: () => { void b.dispose(); } };

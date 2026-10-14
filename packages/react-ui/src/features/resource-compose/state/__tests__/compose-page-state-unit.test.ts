@@ -5,7 +5,7 @@ import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
-import { createComposePageStateUnit } from '../compose-page-state-unit';
+import { createComposePageStateUnit, type ComposePageStateUnit } from '../compose-page-state-unit';
 import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 /** Build an `UploadObservable`-shaped mock that emits started → finished. */
@@ -116,7 +116,7 @@ describe('createComposePageStateUnit', () => {
 
 describe('ComposePageStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<ComposePageStateUnit>({
       setup: () => {
         const browse = disposeProbe();
         return { unit: createComposePageStateUnit(sessionOf(mockClient()), browse as unknown as ShellStateUnit, {}), passedIn: [browse] };

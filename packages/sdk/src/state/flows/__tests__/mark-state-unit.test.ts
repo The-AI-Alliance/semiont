@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import { DELEGATE_SILENCE_MS, annotationId, jobId, resourceId as makeResourceId } from '@semiont/core';
-import { createMarkStateUnit } from '../mark-state-unit';
+import { createMarkStateUnit, type MarkStateUnit } from '../mark-state-unit';
 import type { JobEvent, MarkJobCompletion } from '../../../awaitable';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { JobCancelledError, JobFailedError } from '../../../namespaces/job-status-poll';
@@ -650,7 +650,7 @@ describe('createMarkStateUnit', () => {
 
 describe('MarkStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<MarkStateUnit>({
       setup: () => {
         const tc = withMark();
         return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };

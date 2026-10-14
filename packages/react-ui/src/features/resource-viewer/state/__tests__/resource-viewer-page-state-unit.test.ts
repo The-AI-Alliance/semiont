@@ -316,7 +316,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
 describe('ResourceViewerPageStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms (A7-passed: browse survives; A7-owned: children disposed)', () => {
     const RID = makeResourceId('res-ax');
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<ResourceViewerPageStateUnit>({
       setup: () => {
         const browse = disposeProbe();
         const tc = clientWithNamespaces();

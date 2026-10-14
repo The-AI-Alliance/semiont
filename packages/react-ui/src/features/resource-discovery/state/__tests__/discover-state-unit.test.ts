@@ -5,7 +5,7 @@ import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter, map, skip, take, toArray } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
-import { createDiscoverStateUnit } from '../discover-state-unit';
+import { createDiscoverStateUnit, type DiscoverStateUnit } from '../discover-state-unit';
 import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 function mockBrowse(): ShellStateUnit {
@@ -320,7 +320,7 @@ describe('createDiscoverStateUnit', () => {
 
 describe('DiscoverStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<DiscoverStateUnit>({
       setup: () => {
         const browse = disposeProbe();
         const { client } = mockClient();

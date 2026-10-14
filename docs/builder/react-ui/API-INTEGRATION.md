@@ -156,7 +156,8 @@ state for the query — `pipeline.query$` is the source of truth, surfaced via
 `useObservable`.
 
 **Why a helper instead of `useMemo` + inline RxJS?** The pipeline is a
-stateful long-lived object (a Subject + an Observable graph). Inlining it and
+stateful long-lived object: it holds the query and the state, and keeps one
+search running for every reader. Inlining it and
 stabilizing with `useMemo` is defensive plumbing against React re-runs, and
 it's easy to break — a fresh object returned on each render busts the deps and
 restarts the pipeline on every keystroke. The helper lives outside the render
@@ -165,7 +166,7 @@ lifecycle entirely.
 **For non-trivial result mapping** (e.g. adapting `ResourceDescriptor` to a
 modal-specific shape), put the mapping inside the fetch closure with `map()`.
 The closure can return `undefined` to signal "still loading" — see
-`SearchModal.tsx` and `ResourceSearchModal.tsx` for working examples.
+`SearchModal.tsx` for a working example.
 
 `createSearchPipeline` is unit-testable without React: pass a stub fetch
 function, push values into `setQuery`, assert on emissions from `state$`. See

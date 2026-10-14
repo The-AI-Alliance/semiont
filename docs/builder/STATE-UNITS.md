@@ -242,7 +242,7 @@ A few specific shapes are wrong and worth calling out:
 5. **Track every internal subscription.** Use a `Subscription[]` or `createDisposer()`. On `dispose()`, unsubscribe all of them and complete every Subject you own.
 6. **Compose by parameter, not by ownership.** Take collaborators as arguments. Don't dispose passed-in collaborators.
 7. **No module-scoped state.** Everything mutable lives in the closure.
-8. **Add the axiom block.** In the unit's test file, call `assertStateUnitAxioms({ setup, surfaces?, invocations?, ownedChildSurfaces? })` from `@semiont/core/testing/axioms` (add `fast-check` to your devDependencies — the doubles at `@semiont/core/testing` need no such thing) — it checks the lifecycle and composition axioms (A1/X1/A5/A5b/A6/X3/A7) for you. Mirror an existing `*-state-unit.test.ts`; see [§ How these rules are enforced](#how-these-rules-are-enforced).
+8. **Add the axiom block.** In the unit's test file, call `assertStateUnitAxioms<FooStateUnit>({ setup, surfaces?, invocations?, ownedChildSurfaces? })` from `@semiont/core/testing/axioms`, naming the unit it holds (add `fast-check` to your devDependencies — the doubles at `@semiont/core/testing` need no such thing) — it checks the lifecycle and composition axioms (A1/X1/A5/A5b/A6/X3/A7) for you. Mirror an existing `*-state-unit.test.ts`; see [§ How these rules are enforced](#how-these-rules-are-enforced).
 
 ## In Rust
 
@@ -268,7 +268,7 @@ Five enforcement tiers:
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3, as a test that fails any `static` item |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 12 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`. (One gap: no meta-check makes every *new* factory add a block. The Rust crate has that check: `packages/sdk-rust/tests/census.rs` fails a unit with no axiom test.)
+Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 14 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit` with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test.
 
 ### Rule reference
 

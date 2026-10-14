@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { annotationId } from '@semiont/core';
-import { createBeckonStateUnit, createHoverDwell } from '../beckon-state-unit';
+import { createBeckonStateUnit, createHoverDwell, type BeckonStateUnit, type HoverDwell } from '../beckon-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -179,7 +179,7 @@ describe('createHoverDwell', () => {
 describe('HoverDwell — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const aid = annotationId('ann-ax');
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<HoverDwell>({
       setup: () => createHoverDwell(() => {}, 100),
       invocations: (u) => [() => u.enter(aid), () => u.leave()],
     });
@@ -189,7 +189,7 @@ describe('HoverDwell — StateUnit axioms', () => {
 describe('BeckonStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const aid = annotationId('ann-ax');
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<BeckonStateUnit>({
       setup: () => {
         const tc = makeTestClient();
         return { unit: createBeckonStateUnit(tc.client), teardown: () => tc.bus.destroy() };

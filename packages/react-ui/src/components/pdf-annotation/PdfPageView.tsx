@@ -1,10 +1,11 @@
 'use client';
 
 import type { ResourceId } from '@semiont/core';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
 import { createFragmentSelector, textUnder } from '@semiont/core';
-import { createHoverDwell, type SemiontSession } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
+import { useHoverDwell } from '../../hooks/useHoverDwell';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { rectsForPage } from './rects-for-page';
 import { useTranslations } from '../../contexts/TranslationContext';
@@ -87,7 +88,6 @@ interface PdfPageViewProps {
  *
  * @emits browse:click - Annotation clicked on the page. Payload: { annotationId: string, anchorRect?: AnchorRect }
  * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when there is none
- * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfPageView({
   doc,
@@ -333,11 +333,7 @@ export function PdfPageView({
   // (multi-selector) annotation, exactly one for a manual annotation.
   const pageRects = rectsForPage(existingAnnotations, pageNumber);
 
-  // The pointer's dwell: an annotation is hovered once the pointer rests on it
-  const dwell = useMemo(
-    () => createHoverDwell((id) => session?.client.beckon.hover(id), hoverDelayMs),
-    [session, hoverDelayMs]
-  );
+  const dwell = useHoverDwell(session, hoverDelayMs);
 
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
@@ -425,8 +421,8 @@ export function PdfPageView({
                       opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                     }}
                     onClick={(e) => session?.client.browse.click(r.annId, e.currentTarget.getBoundingClientRect())}
-                    onMouseEnter={() => dwell.enter(r.annId)}
-                    onMouseLeave={() => dwell.leave()}
+                    onMouseEnter={() => dwell?.enter(r.annId)}
+                    onMouseLeave={() => dwell?.leave()}
                   />
                 );
               })}

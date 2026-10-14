@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { createMatchStateUnit } from '../match-state-unit';
+import { createMatchStateUnit, type MatchStateUnit } from '../match-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -132,7 +132,7 @@ describe('createMatchStateUnit', () => {
 
 describe('MatchStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<MatchStateUnit>({
       setup: () => {
         const tc = withMatch(vi.fn());
         return { unit: createMatchStateUnit(tc.client), teardown: () => tc.bus.destroy() };
