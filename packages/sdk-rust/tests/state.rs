@@ -1501,7 +1501,10 @@ fn shown(unit: &MarkStateUnit) -> Option<Motivation> {
 
 /// Why a mark unit's last delegated job ended without completing: its code.
 fn why_it_ended(unit: &MarkStateUnit) -> Option<&'static str> {
-    unit.failure().borrow().as_ref().map(|failure| failure.code())
+    unit.failure()
+        .borrow()
+        .as_ref()
+        .map(|failure| failure.code())
 }
 
 const MARK: &str = "mark";

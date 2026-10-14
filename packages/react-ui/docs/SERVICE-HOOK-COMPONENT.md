@@ -426,6 +426,7 @@ it('calls mark.requestDelegate when Annotate is clicked', () => {
       isDelegating={false}
       progress={null}
       jobId={null}
+      cancelled={false}
       pendingAnnotation={null}
       allEntityTypes={['Person', 'Organization']}
       Link={Link}

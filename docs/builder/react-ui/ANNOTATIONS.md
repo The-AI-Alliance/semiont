@@ -256,9 +256,33 @@ and streams progress on the **unified job channels**:
 - `job:complete` - the job finished successfully
 - `job:fail` - the job failed
 
+A cancellation is announced on none of them. The job's follower learns of one
+from the job's status, which it asks for once the job has said nothing for
+`jobSilenceMs`, and the delegation ends in a `JobCancelledError`.
+
 The mark state unit subscribes to these (filtered by its own `jobId`) and drives
 `delegatingMotivation$` / `progress$` from them; the panel just reads those
-observables. The SDK's read-through cache refreshes itself off the resource's
+observables.
+
+### The progress display's one control
+
+Every delegated job's progress display has one control, ✕. While the job runs
+it cancels it, through `client.job.cancel(jobId)`; from the click it reads
+**Cancelling…** and cannot be pressed again until the job ends, and a refused
+request, or an answer of `false`, gives it back. Once the job has ended it
+closes the display. A job the queue has not named yet has no control.
+
+`markJobControls(session, jobId)` makes a mark panel's controls, and
+`delegatedJobControls(session, jobId, onDismiss)` any other display's.
+`DelegateShell` takes nothing else, so no display can be composed without
+naming the job it follows.
+
+A cancelled job keeps what it committed: a mark job stops after the piece it is
+working on, and that piece's annotations stand. Its display stays, in its
+cancelled form, until it is closed: the status line says it was cancelled, and
+the bar stays where the job stopped. `DelegateProgress`'s `ended` is
+`false | 'completed' | 'cancelled'`, and `DelegateShell` sets it from its
+`isDelegating` and `cancelled` props. The SDK's read-through cache refreshes itself off the resource's
 `browse.*` live queries when `job:complete` lands, so **no manual cache
 invalidation is needed** — newly created annotations appear automatically.
 
