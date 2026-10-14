@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -846,9 +846,11 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "hypothesis", marker = "extra == 'axioms'", specifier = ">=6.130,<7" },
     { name = "opentelemetry-api", specifier = ">=1.30,<2" },
     { name = "pydantic", specifier = ">=2.12,<3" },
 ]
+provides-extras = ["axioms"]
 
 [package.metadata.requires-dev]
 conformance = [
@@ -857,6 +859,7 @@ conformance = [
 ]
 dev = [
     { name = "datamodel-code-generator", specifier = "==0.83.0" },
+    { name = "hypothesis", specifier = ">=6.130,<7" },
     { name = "mypy", specifier = "==2.4.0" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
