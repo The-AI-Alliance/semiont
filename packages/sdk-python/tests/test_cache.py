@@ -7,7 +7,7 @@ so every request waits until the test says how it ends.
 import asyncio
 import gc
 import logging
-from collections.abc import AsyncIterator, Coroutine, Mapping
+from collections.abc import AsyncIterable, AsyncIterator, Callable, Coroutine, Mapping, Sequence
 from typing import final, override
 
 import pytest
@@ -15,6 +15,7 @@ from aio import pass_time, run, soon, turns
 
 from semiont.cache import SAVE_DEBOUNCE_MS, Cache, CachePersister, CacheState, Failed, Pending, Ready, Runs
 from semiont.errors import BusRequestError, SemiontError
+from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 
 KEY = "k"
 
@@ -701,3 +702,25 @@ def test_a_failure_nobody_waited_for_is_not_said_to_be_unheard(caplog: pytest.Lo
         run(scenario())
         gc.collect()
     assert [record for record in caplog.records if "never retrieved" in record.getMessage()] == []
+
+
+@final
+class Caches(AxiomSubject[Cache[str, int]]):
+    """How the axioms reach a cache: one key observed, and what moves a key."""
+
+    @override
+    def setup(self) -> Fresh[Cache[str, int]]:
+        cache, _, _ = world()
+        return Fresh(cache)
+
+    @override
+    def surfaces(self, unit: Cache[str, int]) -> Sequence[AsyncIterable[object]]:
+        return (unit.observe("a"),)
+
+    @override
+    def invocations(self, unit: Cache[str, int]) -> Sequence[Callable[[], object]]:
+        return (lambda: unit.set("a", 1), lambda: unit.invalidate("a"), unit.invalidate_all)
+
+
+def test_the_cache_keeps_the_state_unit_axioms() -> None:
+    assert_state_unit_axioms(Caches())

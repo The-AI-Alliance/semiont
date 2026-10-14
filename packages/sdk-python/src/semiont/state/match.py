@@ -8,7 +8,7 @@ said.
 """
 
 from types import TracebackType
-from typing import Final, Self, TypedDict, final
+from typing import Final, Self, TypedDict, final, override
 
 from semiont.bus import Typed
 from semiont.channels import MATCH_SEARCH_FAILED, MATCH_SEARCH_REQUESTED, MATCH_SEARCH_RESULTS
@@ -62,6 +62,7 @@ class MatchStateUnit(StateUnit):
             return
         self._client.bus.publish(MATCH_SEARCH_RESULTS, found, correlation_id=correlation_id)
 
+    @override
     def dispose(self) -> None:
         self._tasks.stop()
 

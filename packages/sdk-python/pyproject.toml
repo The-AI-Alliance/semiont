@@ -26,6 +26,11 @@ dependencies = [
     "pydantic>=2.12,<3",
 ]
 
+[project.optional-dependencies]
+# What `semiont.testing.axioms` takes: a program holds its own state units to the
+# axioms this package's are held to. Nothing else in the package imports it.
+axioms = ["hypothesis>=6.130,<7"]
+
 [project.urls]
 Homepage = "https://the-ai-alliance.github.io/semiont/"
 Documentation = "https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md"
@@ -45,6 +50,7 @@ conformance = [
 ]
 dev = [
     "datamodel-code-generator==0.83.0",
+    "hypothesis>=6.130,<7",
     "mypy==2.4.0",
     "pyright==1.1.414",
     "pytest>=9.1,<10",

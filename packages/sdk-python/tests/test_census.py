@@ -5,8 +5,14 @@ formatter is told to leave alone. Hand-written code states no type by force: it
 has no `cast` and silences no checker. The one place a checker is silenced is
 `tests/refusals`, where each silenced line is a program that must not
 type-check, and a line that no longer needs silencing fails the checker.
+
+Every state unit (a class of `src` that names `StateUnit` as its base) has a
+test that runs the axioms against it, and nothing in `src` holds state outside
+an instance (axiom X3): a module states constants marked `Final`, type
+aliases, `__all__`, its imports and its definitions, and nothing else.
 """
 
+import ast
 import re
 import tomllib
 
@@ -81,3 +87,115 @@ def test_only_the_telemetry_module_names_opentelemetry() -> None:
         path for path in SOURCES if path.is_relative_to(PACKAGE / "src") and names_it.search(path.read_text(encoding="utf-8"))
     )
     assert [str(path.relative_to(PACKAGE)) for path in importing] == ["src/semiont/telemetry.py"]
+
+
+def _base_names(node: ast.ClassDef) -> list[str]:
+    """The names a class's bases are written with: `StateUnit`, and `AxiomSubject` of `AxiomSubject[Cache[str, int]]`."""
+    return [ast.unparse(base.value if isinstance(base, ast.Subscript) else base) for base in node.bases]
+
+
+def state_units(source: str) -> list[str]:
+    """The classes `source` makes state units: each that names `StateUnit` as a base."""
+    return [node.name for node in ast.walk(ast.parse(source)) if isinstance(node, ast.ClassDef) and "StateUnit" in _base_names(node)]
+
+
+def units_held_to_the_axioms(source: str) -> list[str]:
+    """The units whose axioms `source` runs: for each subject it hands to `assert_state_unit_axioms`, the unit that subject is of."""
+    tree = ast.parse(source)
+    handed = {
+        ast.unparse(node.args[0].func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and ast.unparse(node.func) == "assert_state_unit_axioms"
+        and node.args
+        and isinstance(node.args[0], ast.Call)
+    }
+    held: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name in handed:
+            for base in node.bases:
+                if isinstance(base, ast.Subscript) and ast.unparse(base.value) == "AxiomSubject":
+                    unit = base.slice.value if isinstance(base.slice, ast.Subscript) else base.slice
+                    held.append(ast.unparse(unit))
+    return held
+
+
+def test_the_census_reads_what_it_is_shown() -> None:
+    source = (
+        "class Cache[K, V](StateUnit):\n    pass\n"
+        "class Probe(StateUnit, Given):\n    pass\n"
+        "class Other(Thing):\n    pass\n"
+        "# a StateUnit for nothing\n"
+    )
+    assert state_units(source) == ["Cache", "Probe"]
+    tests = (
+        "class Caches(AxiomSubject[Cache[str, int]]):\n    pass\n"
+        "class Idle(AxiomSubject[Probe]):\n    pass\n"
+        "def test_it() -> None:\n    assert_state_unit_axioms(Caches())\n"
+    )
+    assert units_held_to_the_axioms(tests) == ["Cache"]
+
+
+def test_every_state_unit_has_a_test_that_runs_the_axioms_against_it() -> None:
+    testing = PACKAGE / "src/semiont/testing"
+    units = [
+        (unit, path.relative_to(PACKAGE))
+        for path in SOURCES
+        if path.is_relative_to(PACKAGE / "src") and not path.is_relative_to(testing)
+        for unit in state_units(path.read_text(encoding="utf-8"))
+    ]
+    assert any(unit == "Cache" for unit, _ in units), f"the census found no cache among the package's state units: {units}"
+    # This file shows the census a subject of its own, which holds nothing.
+    held = {
+        unit
+        for path in SOURCES
+        if path.is_relative_to(PACKAGE / "tests") and path.name != "test_census.py"
+        for unit in units_held_to_the_axioms(path.read_text(encoding="utf-8"))
+    }
+    unheld = [f"{unit} ({path})" for unit, path in units if unit not in held]
+    assert unheld == [], f"state units with no test that runs assert_state_unit_axioms against them: {unheld}"
+
+
+def statics(source: str) -> list[str]:
+    """The statements of `source`, at its top and in a top-level `if`, that keep state.
+
+    That is anything but a constant marked `Final`, a type alias, `__all__`, an import or a definition.
+    """
+
+    def kept(body: list[ast.stmt]) -> list[str]:
+        found: list[str] = []
+        for node in body:
+            match node:
+                case ast.Import() | ast.ImportFrom() | ast.FunctionDef() | ast.AsyncFunctionDef() | ast.ClassDef() | ast.TypeAlias():
+                    continue
+                case ast.Expr(value=ast.Constant()):
+                    continue
+                case ast.AnnAssign(annotation=annotation) if ast.unparse(annotation).startswith(("Final", "TypeAlias")):
+                    continue
+                case ast.Assign(targets=[ast.Name(id="__all__")]):
+                    continue
+                case ast.If(body=then, orelse=otherwise):
+                    found.extend(kept(then) + kept(otherwise))
+                case _:
+                    found.append(ast.unparse(node).splitlines()[0])
+        return found
+
+    return kept(ast.parse(source).body)
+
+
+def test_the_static_gate_reads_what_it_is_shown() -> None:
+    source = (
+        '"""A module."""\nimport sys\n__all__ = ["x"]\nLIMIT: Final = 3\ntype Name = str\n_seen: dict[str, int] = {}\n'
+        "if sys.platform == 'win32':\n    import ctypes\n    _handles = []\ncount = 0\n"
+    )
+    assert statics(source) == ["_seen: dict[str, int] = {}", "_handles = []", "count = 0"]
+
+
+def test_nothing_in_the_package_holds_state_outside_an_instance() -> None:
+    found = [
+        f"{path.relative_to(PACKAGE)}: {line}"
+        for path in SOURCES
+        if path.is_relative_to(PACKAGE / "src")
+        for line in statics(path.read_text(encoding="utf-8"))
+    ]
+    assert found == [], f"state outside any instance (X3): {found}"
