@@ -274,6 +274,8 @@ for (const [index, c] of (table.cases ?? []).entries()) {
   if (checks === 0) fail(`${where} checks nothing: it drives its units and states nothing they did`);
 }
 
+// A fixture may be made of another.
+for (const [name, value] of Object.entries(table.fixtures ?? {})) fixtures(value, `${TABLE}: fixtures.${name}`);
 for (const name of Object.keys(table.fixtures ?? {})) {
   if (!used.has(name)) fail(`${TABLE}: the fixture ${name} is used by no case`);
 }

@@ -14,7 +14,7 @@ import asyncio
 import copy
 import re
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
-from typing import Final, Protocol, TypedDict, final
+from typing import Final, Protocol, TypedDict, final, get_type_hints
 
 import pytest
 from aio import pass_time, run, turns
@@ -28,7 +28,7 @@ from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel, written
-from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit, SearchPipeline, SearchState
+from semiont.state import BeckonStateUnit, GatherStateUnit, HoverDwell, MatchStateUnit, SearchPipeline, SearchState, YieldStateUnit
 from semiont.state_unit import StateUnit
 from semiont.testing import Delay, DropReply, FaultAction, FaultyTransport, create_test_client, refuse_unscripted_operation
 from semiont.transport import Frame, Transport
@@ -91,6 +91,7 @@ MAKERS: Final[Mapping[str, Make]] = {
     "hoverDwell": lambda client, searches, made: HoverDwell(client.beckon.hover, round(duration_ms(made["delayMs"]))),
     "gather": lambda client, searches, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
     "search": lambda client, searches, made: search_pipeline(searches, made),
+    "yield": lambda client, searches, made: YieldStateUnit(client, text(made["locale"], "a locale")),
 }
 """How this SDK makes each unit it has, from the client and what the case makes it from."""
 
@@ -254,7 +255,15 @@ def holds(expected: JsonValue, held: object) -> bool:
 class Method(Protocol):
     """A unit's method, as a case calls it: by its parameters' names."""
 
-    def __call__(self, **args: JsonValue) -> object: ...
+    def __call__(self, **args: object) -> object: ...
+
+
+def argument(method: Method, name: str, value: JsonValue) -> object:
+    """An argument as the method takes it: one it types as a wire model is read as that model, any other is given as the case states it."""
+    stated: object = get_type_hints(method).get(name)
+    if isinstance(stated, type) and issubclass(stated, WireModel):
+        return stated.model_validate(resolved(value))
+    return resolved(value)
 
 
 def state_of(units: Mapping[str, StateUnit], name: str, member: str) -> Watched[object]:
@@ -369,7 +378,7 @@ async def perform(
         args = step["args"]
         assert isinstance(args, dict)
         method: Method = getattr(units[text(step["of"], "a unit")], snake(text(step["invoke"], "a member")))
-        method(**{snake(name): resolved(value) for name, value in args.items()})
+        method(**{snake(name): argument(method, snake(name), value) for name, value in args.items()})
     elif "pass" in step:
         # What is ready runs at the time it became ready, before the clock moves.
         await turns()
@@ -381,8 +390,8 @@ async def perform(
         assert isinstance(nth, int)
         searches.answer(nth, None if results is None else strings(results, "an answer's results"))
     elif "searched" in step:
-        asked = [query for query, _ in searches.asked]
-        assert asked == strings(step["searched"], "searched"), f"the search was asked {asked!r}"
+        queries = [query for query, _ in searches.asked]
+        assert queries == strings(step["searched"], "searched"), f"the search was asked {queries!r}"
     elif "expect" in step:
         expected = step["expect"]
         assert isinstance(expected, dict)

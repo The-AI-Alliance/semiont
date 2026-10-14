@@ -19,5 +19,6 @@ from semiont.state.gather import GatherStateUnit
 from semiont.state.hover import HoverDwell
 from semiont.state.match import MatchStateUnit
 from semiont.state.search import SearchPipeline, SearchState
+from semiont.state.yield_ import YieldStateUnit
 
-__all__ = ["BeckonStateUnit", "GatherStateUnit", "HoverDwell", "MatchStateUnit", "SearchPipeline", "SearchState"]
+__all__ = ["BeckonStateUnit", "GatherStateUnit", "HoverDwell", "MatchStateUnit", "SearchPipeline", "SearchState", "YieldStateUnit"]

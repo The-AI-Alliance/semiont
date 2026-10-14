@@ -8,7 +8,8 @@
       },
       "graph": { "nodes": [], "edges": [] },
       "metadata": {}
-    }
+    },
+    "generation": { "title": "A title", "storageUri": "file://generated.md", "context": { "$fixture": "context" } }
   },
   "cases": [
     {
@@ -520,6 +521,246 @@
         { "ended": { "unit": ["query", "state"] } },
         { "expect": { "unit": { "query": "paris" } } },
         { "searched": [] }
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "begins idle, and generates in its locale unless a language is stated",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "fr" } },
+      "steps": [
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": "de", "maxTokens": 900}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": ""}}},
+        "settle",
+        {"sent": "job:create", "payloads": [{"$has": {"jobType": "yield", "params": {"$has": {"language": "fr"}}}}, {"$has": {"jobType": "yield", "params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": "de", "maxTokens": 900}}}, {"$has": {"jobType": "yield", "params": {"$has": {"language": "fr"}}}}]}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "shows a run's progress, and keeps it with the outcome when the run ends",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 95}, "outcome": null}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": true}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 95}, "outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": true}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "holds its job's id from the queue's answer to the job's end",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"expect": {"unit": {"jobId": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}},
+        {"answer": "job:create", "nth": 0, "reply": "job:created", "payload": {"response": {"jobId": "job-1"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1", "isGenerating": false}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "forgets the id of a job that fails, and of the last run when another begins",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"jobId": null}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "has no outcome from a completion that carries no generation",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield"}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 5}, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "clears the progress of a run that fails, and holds why it ended",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"expect": {"unit": {"failure": null}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.failed", "message": "the model refused"}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "keeps a cancelled run's progress and says it was cancelled, until it is dismissed",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"queueReply": "job:status-requested", "response": {"jobId": "job-1", "type": "yield", "status": "cancelled", "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}},
+        {"pass": {"timing": "jobSilenceMs", "times": 2}},
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 40}, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.cancelled"}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "begins each run without the last one's progress",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"queueReply": "job:status-requested", "response": {"jobId": "job-1", "type": "yield", "status": "cancelled", "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}},
+        {"pass": {"timing": "jobSilenceMs", "times": 2}},
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 40}, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "keeps generating through an attempt that will be tried again",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "busy", "willRetry": true}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "stops generating when a run stalls, and holds that it stalled",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}, "stallDeadlineMs": 5000}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"pass": 6000},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.stalled"}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "holds why a run failed until it is dismissed or another begins, and a retried attempt is no failure",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"failure": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"failure": null}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "busy", "willRetry": true}},
+        "settle",
+        {"expect": {"unit": {"failure": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "dismissed, or begun again, clears what the last run left",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 95}, "outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "disposed, is inert, and leaves the client's bus alone",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"dispose": "unit"},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        "settle",
+        {"ended": {"unit": ["isGenerating", "progress"]}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null}}},
+        {"sent": "job:create", "count": 1},
+        {"busDestroyed": false}
       ]
     }
   ]

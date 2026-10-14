@@ -805,10 +805,7 @@
         { "member": "jobId" },
         { "member": "generate" },
         { "member": "dismissProgress" }
-      ],
-      "absent": {
-        "python": "The Python SDK has no yield unit yet: it is being added, unit by unit, after match."
-      }
+      ]
     },
     {
       "unit": "gather",
