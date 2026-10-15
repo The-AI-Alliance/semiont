@@ -168,8 +168,8 @@ verbs compose:
 ```ts
 import { SemiontSession } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({ kb, storage, onCode });
-const { client } = session;
+const opened = await SemiontSession.signInDevice({ kb, storage, onCode });
+const { client } = opened.session;
 
 // 1. Persist the question as a document in its own right.
 const { resourceId: questionId } = await client.yield.resource({

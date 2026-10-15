@@ -28,8 +28,8 @@ export {
 export {
   createBeckonStateUnit,
   type BeckonStateUnit,
-  createHoverHandlers,
-  type HoverHandlers,
+  createHoverDwell,
+  type HoverDwell,
 } from './flows/beckon-state-unit';
 export { HOVER_DELAY_MS } from '@semiont/core';
 export {

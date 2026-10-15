@@ -45,17 +45,22 @@ not hours — so anything that outlives one token needs a session to renew it.
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'my-watcher', label: 'My Watcher',
                host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
-const { resources } = await session.client.browse.resources({ limit: 10 }).fresh();
+const { resources } = await opened.session.client.browse.resources({ limit: 10 }).fresh();
+opened.dispose(); // the session, then the client it was built with
 ```
 
+The sign-in gives an `OpenedSession`: the session, and the client it was built with. The session
+only uses its client, so the two end together.
+
 Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
-`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it.
+`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it. Each
+gives an `OpenedSession` too.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 
@@ -114,7 +119,7 @@ if (done.result && 'resourceId' in done.result) {
   console.log('The summary is', done.result.resourceId);
 }
 
-await session.dispose();
+opened.dispose(); // what the sign-in gave (Connect): the session, then its client
 ```
 
 Both resources, and every annotation the model made, are in the knowledge base

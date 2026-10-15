@@ -57,6 +57,20 @@ def test_setting_the_value_it_has_is_no_change() -> None:
     assert run(scenario())
 
 
+def test_a_value_raised_is_told_even_when_it_equals_the_present_one() -> None:
+    async def scenario() -> list[str]:
+        value = Variable("a")
+        changes = aiter(value)
+        told = [await anext(changes)]
+        value.raise_("a")
+        told.append(await soon(anext(changes)))
+        value.end()
+        value.raise_("b")
+        return told + [now async for now in changes]
+
+    assert run(scenario()) == ["a", "a"]
+
+
 def test_a_value_that_has_ended_ends_its_readers_and_changes_no_more() -> None:
     async def scenario() -> tuple[list[str], str]:
         value = Variable("a")

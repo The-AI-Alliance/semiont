@@ -21,13 +21,13 @@ The test: does the vocabulary come from a published framework whose categories m
 
 ## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. It gives the session with the client it was built with, which end together. Sign in once, use `opened.session.client` for every call, and `opened.dispose()` when done: that ends the session, then closes its client.
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-tag', label: 'Semiont',
     host: url.hostname, port: Number(url.port || 4000),
@@ -39,7 +39,7 @@ const session = await SemiontSession.signInDevice({
     if (!verificationUriComplete) console.error(`Code: ${userCode}`);
   },
 });
-const semiont = session.client;
+const semiont = opened.session.client;
 ```
 
 ## Tag against a schema
@@ -77,7 +77,7 @@ if (result && 'found' in result) {
   console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
 }
 
-await session.dispose();
+opened.dispose();
 ```
 
 Awaiting `mark.delegate` resolves to the job's completion, the `job:complete` the job ended with. Its `result` is a `mark` job's, one of two: the counts of a job that did its work, or a decline, `{ declined: true, reason }`, for a resource whose text could not be read. The counts are the same for every motivation: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A tagging job adds `byCategory`, the tags written for each category.
@@ -170,7 +170,7 @@ const LEGAL_IRAC_SCHEMA: TagSchema = {
 
 async function tagIRAC(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInDevice({
+  const opened = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-tag', label: 'Semiont',
       host: url.hostname, port: Number(url.port || 4000),
@@ -182,7 +182,7 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
       if (!verificationUriComplete) console.error(`Code: ${userCode}`);
     },
   });
-  const semiont = session.client;
+  const semiont = opened.session.client;
 
   try {
     await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
@@ -200,7 +200,7 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
       console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
     }
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 }
 

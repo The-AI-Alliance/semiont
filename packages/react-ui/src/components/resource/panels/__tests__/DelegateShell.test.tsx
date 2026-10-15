@@ -38,7 +38,10 @@ describe('DelegateShell', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    for (const session of sessions.splice(0)) session.dispose();
+    for (const session of sessions.splice(0)) {
+      session.dispose();
+      session.client.dispose();
+    }
   });
 
   it('renders the form when there is no progress, the progress when there is', () => {

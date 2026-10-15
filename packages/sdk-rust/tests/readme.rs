@@ -192,7 +192,7 @@ async fn an_application(
     // being composed on a resource.
     if let Some(session) = session {
         let marking = MarkStateUnit::new(session.client().clone(), &resource_id);
-        let mut pending = marking.pending();
+        let mut pending = marking.pending_annotation();
         while pending.changed().await.is_ok() {
             render(pending.borrow_and_update().as_ref());
         }

@@ -12,7 +12,7 @@ import { annotationId, resourceId } from '@semiont/core';
 // BrowseView takes its `session` + `sparkleAnnotationIds` as props — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
 // wraps the fake client so browse:click / beckon:hover land on the bus the
-// trackers listen on, and session.subscribe registers beckon:* on that bus.
+// trackers listen on, the bus BrowseView's event hooks read beckon:* on.
 
 // Mock @semiont/core utilities. The media-type registry (`capabilitiesOf`)
 // is NOT mocked — BrowseView dispatches on the real registry's render mode,
@@ -113,15 +113,9 @@ function createEventTracker() {
 
 // BrowseView takes its session as a prop. Wrap the fake client so
 // browse:click / beckon:hover emit on the SAME bus the trackers listen on, and
-// session.subscribe registers beckon:* there (mirrors test-utils' fake session).
+// BrowseView's event hooks read beckon:* there (mirrors test-utils' fake session).
 function makeSession(client: SemiontClient): SemiontSession {
-  return {
-    client,
-    subscribe: (channel: string, handler: (p: never) => void) => {
-      const sub = (client.bus.on(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
-  } as unknown as SemiontSession;
+  return { client } as unknown as SemiontSession;
 }
 
 // Under translations, as a host mounts a view: the image canvas shows a

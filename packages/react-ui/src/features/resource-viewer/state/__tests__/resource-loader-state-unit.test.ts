@@ -5,7 +5,7 @@ import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
-import { createResourceLoaderStateUnit } from '../resource-loader-state-unit';
+import { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from '../resource-loader-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const RID = makeResourceId('res-1');
@@ -151,7 +151,7 @@ describe('ResourceLoaderStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     // Owns resource$/error$ and a live subscription to client.browse, so
     // dispose completes them and detaches; invalidate is inert afterwards.
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<ResourceLoaderStateUnit>({
       setup: () => createResourceLoaderStateUnit(sessionOf(mockClient()), RID),
       invocations: (u) => [() => u.invalidate()],
     });

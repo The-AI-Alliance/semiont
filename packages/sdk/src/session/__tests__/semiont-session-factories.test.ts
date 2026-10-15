@@ -2,8 +2,9 @@
  * Tests for the `SemiontSession` factories: `fromHttp` (structural — brand
  * the inputs, build the transport stack, thread the shared `token$`),
  * `fromIssuedSession` (tokens an issuer already issued: persist, wire the
- * refresh grant, return the ready session), and `signInDevice` (the device
- * grant end to end). They construct a real `SemiontClient` over a real
+ * refresh grant, give the ready session), and `signInDevice` (the device
+ * grant end to end). Each gives an `OpenedSession`: the session and the
+ * client it was built with, ended together. They construct a real `SemiontClient` over a real
  * `HttpTransport`, so the wire is kept quiet by spying on the transport and
  * stubbing `fetch` for the issuer.
  */
@@ -44,33 +45,48 @@ afterEach(() => {
 });
 
 describe('SemiontSession.fromHttp', () => {
+  test('what it gives ends the session, then closes the client it was built with', async () => {
+    const opened = SemiontSession.fromHttp({ kb: KB, storage, baseUrl: 'http://test.local' });
+    await opened.session.ready;
+    const closed = vi.spyOn(opened.session.client, 'dispose');
+    let ended = false;
+    opened.session.token$.subscribe({ complete: () => { ended = true; } });
+
+    opened.dispose();
+
+    expect(ended).toBe(true);
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
   test('returns a SemiontSession with no token when none provided', async () => {
-    const session = SemiontSession.fromHttp({
+    const opened = SemiontSession.fromHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
     });
+    const { session } = opened;
     try {
       await session.ready;
       expect(session.token$.getValue()).toBeNull();
       expect(session.user$.getValue()).toBeNull();
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
   test('seeds token$ when a string token is supplied (and brands it)', async () => {
-    const session = SemiontSession.fromHttp({
+    const opened = SemiontSession.fromHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       token: 'header.payload.sig',
     });
+    const { session } = opened;
     try {
       await session.ready;
       expect(session.token$.getValue()).toBe('header.payload.sig');
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -78,13 +94,15 @@ describe('SemiontSession.fromHttp', () => {
     const refresh = vi.fn(async () => null);
     const onAuthFailed = vi.fn();
 
-    const session = SemiontSession.fromHttp({
+    const opened = SemiontSession.fromHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       refresh,
       onAuthFailed,
     });
+
+    const { session } = opened;
     try {
       await session.ready;
 
@@ -94,7 +112,7 @@ describe('SemiontSession.fromHttp', () => {
       expect(result).toBeNull();
       expect(refresh).toHaveBeenCalled();
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });
@@ -111,19 +129,21 @@ describe('SemiontSession.fromIssuedSession', () => {
   test('persists the issued session, seeds token$, and is ready', async () => {
     const accessJwt = freshJwt();
 
-    const session = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       session: testSession(accessJwt, 'refresh-tok'),
     });
 
+    const { session } = opened;
+
     try {
       expect(session.token$.getValue()).toBe(accessJwt);
       const parsed = JSON.parse(storage.get(storageKey(KB.id))!);
       expect(parsed).toMatchObject({ access: accessJwt, refresh: 'refresh-tok', tokenEndpoint: TEST_TOKEN_ENDPOINT });
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -132,12 +152,14 @@ describe('SemiontSession.fromIssuedSession', () => {
     const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const session = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       session: testSession(freshJwt(), 'refresh-tok'),
     });
+
+    const { session } = opened;
 
     try {
       expect(await session.refresh()).toBe(newAccess);
@@ -151,7 +173,7 @@ describe('SemiontSession.fromIssuedSession', () => {
       // The rotation is persisted: the next refresh starts from the new token.
       expect(JSON.parse(storage.get(storageKey(KB.id))!).refresh).toBe('refresh-2');
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -160,12 +182,14 @@ describe('SemiontSession.fromIssuedSession', () => {
     const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const session = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       session: testSession(freshJwt(), 'refresh-tok'),
     });
+
+    const { session } = opened;
 
     try {
       // A stream refused and a request refused at the same moment each ask.
@@ -174,24 +198,26 @@ describe('SemiontSession.fromIssuedSession', () => {
       expect(renewed).toEqual([newAccess, newAccess]);
       expect(fetchMock.mock.calls.filter(([url]) => url === TEST_TOKEN_ENDPOINT)).toHaveLength(1);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
   test('a refused refresh returns null', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400)));
 
-    const session = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
       session: testSession(freshJwt(), 'refresh-tok'),
     });
 
+    const { session } = opened;
+
     try {
       expect(await session.refresh()).toBeNull();
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });
@@ -226,7 +252,8 @@ describe('SemiontSession.signInDevice', () => {
 
     const pending = SemiontSession.signInDevice({ kb: KB, storage, onCode });
     await vi.advanceTimersByTimeAsync(1500);
-    const session = await pending;
+    const opened = await pending;
+    const { session } = opened;
 
     try {
       expect(onCode).toHaveBeenCalledWith(expect.objectContaining({ userCode: 'ABCD-EFGH' }));
@@ -236,7 +263,7 @@ describe('SemiontSession.signInDevice', () => {
         tokenEndpoint: `${ISSUER}/token`, revocationEndpoint: `${ISSUER}/revoke`,
       });
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -246,7 +273,7 @@ describe('SemiontSession.signInDevice', () => {
 
     const onAuthFailed = vi.fn();
     const onError = vi.fn();
-    const session = await SemiontSession.fromIssuedSession({
+    const opened = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
@@ -254,6 +281,7 @@ describe('SemiontSession.signInDevice', () => {
       onAuthFailed,
       onError,
     });
+    const { session } = opened;
 
     try {
       // Sanity: the session was constructed with our callbacks (test the
@@ -262,7 +290,7 @@ describe('SemiontSession.signInDevice', () => {
       // without choking and the session is functional.
       expect(session).toBeInstanceOf(SemiontSession);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });

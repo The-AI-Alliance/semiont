@@ -10,7 +10,7 @@
  * embedding it resolves against the HOST app's origin rather than the
  * gateway's.
  */
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -58,13 +58,13 @@ function sessionWithoutAuth(): SemiontSession {
 function fakeSession(clientExtras: Record<string, unknown>): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       baseUrl: GATEWAY,
       mark: { request: vi.fn() },
       browse: { click: vi.fn() },
       beckon: { hover: vi.fn() },
       ...clientExtras,
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

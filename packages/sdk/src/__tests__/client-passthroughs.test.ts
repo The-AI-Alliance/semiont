@@ -20,12 +20,9 @@ import {
   baseUrl,
   resourceId,
   annotationId,
-  type AccessToken,
 } from '@semiont/core';
 
 import { SemiontClient } from '../client';
-import { SemiontSession } from '../session/semiont-session';
-import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 import { inMemoryTransport, gatewayOperationSpies, contentTransportSpies } from './helpers/in-memory-transport';
 
@@ -91,9 +88,8 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   // A7-owned rule — same shape as BrowseNamespace's caches, B16). A bus
   // that outlives its client keeps every subscriber attached forever,
   // silently receiving nothing (the L1 silence class), and a KB-reconnect
-  // loop leaks one bus per session cycle. Bus lifetime ==
-  // client lifetime == session lifetime — no mid-session client swap exists
-  // (`SemiontSession.client` is set only at construction).
+  // loop leaks one bus per session cycle. Bus lifetime == client lifetime;
+  // whoever made the client ends it, after the session that used it.
   describe('bus disposal (A7-owned)', () => {
     test('dispose completes client.bus subscribers', () => {
       const events: string[] = [];
@@ -121,31 +117,6 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       // into a leaked bus.
       expect(() => client.bus.on('mark:submit')).toThrow(/destroyed bus/);
       expect(() => client.mark.cancelPending()).toThrow(/destroyed bus/);
-    });
-
-    test('session.dispose() reaches the same completion through session.subscribe', async () => {
-      const session = new SemiontSession({
-        kb: {
-          id: 'kb-test',
-          label: 'Test',
-          endpoint: { kind: 'http', host: 'test.local', port: 80, protocol: 'http' },
-        },
-        storage: new TestStorage(),
-        client,
-        token$: new BehaviorSubject<AccessToken | null>(null),
-      });
-
-      const seen: unknown[] = [];
-      const unsubscribe = session.subscribe('mark:submit', (p) => seen.push(p));
-
-      await session.dispose();
-
-      // The session's client bus is destroyed — late subscribe attempts are
-      // loud, the handler's subscription completed, and the returned
-      // unsubscribe closure is a safe no-op.
-      expect(() => session.client.bus.on('mark:submit')).toThrow(/destroyed bus/);
-      expect(() => unsubscribe()).not.toThrow();
-      expect(seen).toEqual([]);
     });
   });
 

@@ -11,7 +11,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter } from 'rxjs';
-import { createCache, isReady, type CacheState } from '../cache';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
+import { createCache, isReady, type Cache, type CacheState } from '../cache';
 
 /**
  * Collector projection for sequence assertions: pending → undefined,
@@ -728,6 +729,21 @@ describe('Cache<K, V>', () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v'));
       cache.dispose();
       expect(() => cache.dispose()).not.toThrow();
+    });
+  });
+});
+
+describe('Cache — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms: every observer ends on dispose, and a disposed cache fetches nothing', () => {
+    assertStateUnitAxioms<Cache<string, string>>({
+      setup: () => createCache<string, string>(async (key) => `value of ${key}`),
+      surfaces: (cache) => [cache.observe('a'), cache.observe('b')],
+      invocations: (cache) => [
+        () => cache.set('a', 'set'),
+        () => cache.invalidate('a'),
+        () => cache.invalidateAll(),
+        () => cache.remove('b', new Error('gone')),
+      ],
     });
   });
 });

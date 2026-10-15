@@ -28,6 +28,7 @@ from typing import Final, Literal, NoReturn, final, override
 
 from pydantic import JsonValue, TypeAdapter
 
+from semiont._reading import Reading
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -148,7 +149,10 @@ class FaultyTransport(Transport):
     schedule every reply is delivered. `make_response` answers every request
     no queued response does: with none, such a request is refused by name.
     `channels` are the channels its stream delivers with no scope held: every
-    channel, unless a test names them.
+    channel, unless a test names them. A frame it is sent comes back to it, as a
+    gateway gives a frame to every client whose stream names its channel, only
+    on a channel its stream names: a client's stream carries the replies and the
+    broadcasts, and not the requests.
     """
 
     def __init__(
@@ -252,7 +256,7 @@ class FaultyTransport(Transport):
         self._emitted.append(request)
         operation = OPERATIONS.get(channel)
         if operation is None:
-            self.deliver(request)
+            self._echo(request)
             return 1
 
         action: FaultAction = self._schedule[len(self._log) % len(self._schedule)] if self._schedule else Deliver()
@@ -282,7 +286,7 @@ class FaultyTransport(Transport):
             if response is not None:
                 answered["response"] = response
             reply = Frame(channel=operation.result.name, payload=answered, correlation_id=correlation_id)
-        self.deliver(request)
+        self._echo(request)
 
         # The reply comes after the emit has been accepted, as a wire's does. One on its way when the transport closes is dropped.
         loop = asyncio.get_running_loop()
@@ -296,6 +300,11 @@ class FaultyTransport(Transport):
             case DropReply():
                 pass
         return 1
+
+    def _echo(self, sent: Frame) -> None:
+        """A frame this transport sent, given back to it when its stream names the frame's channel."""
+        if self.is_subscribed(sent.channel):
+            self.deliver(sent)
 
     def _arrive(self, reply: Frame, copies: int) -> None:
         for _ in range(copies):
@@ -328,7 +337,7 @@ class FaultyTransport(Transport):
     @property
     @override
     def state(self) -> Watched[ConnectionState]:
-        return self._state
+        return Reading(self._state)
 
     @override
     def failures(self) -> Events[SemiontError]:

@@ -29,6 +29,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
+import { watched, type StateUnit, type Watched } from '@semiont/core';
 
 /**
  * Why a session ended: its token could not be renewed (`expired`), or the
@@ -62,60 +63,44 @@ export interface KbIdentityConflict {
 }
 
 /**
- * Each signal is ONE subject of one value: null while nothing is raised, the
- * notice while something is. A second occurrence is a new emission, so an
- * observer sees it even when the notice is equal to the last.
+ * Each signal is one value: null while nothing is raised, the notice while
+ * something is. A second occurrence is a new emission, so an observer sees it
+ * even when the notice is equal to the last. Each is handed out read-only:
+ * only `notify*` and `acknowledge*` move it.
  */
-export class SessionSignals {
+export interface SessionSignals extends StateUnit {
   /** The session ended: it expired, or its credential was refused. */
-  readonly sessionEnded$: BehaviorSubject<SessionEnded | null>;
+  readonly sessionEnded$: Watched<SessionEnded | null>;
   /** A request was refused for lack of permission. */
-  readonly permissionDenied$: BehaviorSubject<PermissionDenied | null>;
-  /**
-   * The KB at this entry's address reported a did other than the one the
-   * entry stores — a different knowledge base is answering. Checked when
-   * the entry is activated. Carries both dids so the UI can name what was
-   * expected and what answered.
-   *
-   * A signal, not a decision: the local state that claimed to be about the
-   * old KB is already voided by the time this fires, and re-registering under
-   * the new identity is a deliberate act the panel already has a flow for.
-   */
-  readonly kbIdentityConflict$: BehaviorSubject<KbIdentityConflict | null>;
+  readonly permissionDenied$: Watched<PermissionDenied | null>;
+  /** A different knowledge base is answering at the entry's address. */
+  readonly kbIdentityConflict$: Watched<KbIdentityConflict | null>;
+  notifySessionEnded(reason: SessionEndReason): void;
+  notifyPermissionDenied(detail: string | null): void;
+  notifyKbIdentityConflict(conflict: KbIdentityConflict): void;
+  acknowledgeSessionEnded(): void;
+  acknowledgePermissionDenied(): void;
+  acknowledgeKbIdentityConflict(): void;
+}
 
-  constructor() {
-    this.sessionEnded$ = new BehaviorSubject<SessionEnded | null>(null);
-    this.permissionDenied$ = new BehaviorSubject<PermissionDenied | null>(null);
-    this.kbIdentityConflict$ = new BehaviorSubject<KbIdentityConflict | null>(null);
-  }
-
-  notifySessionEnded(reason: SessionEndReason): void {
-    this.sessionEnded$.next({ reason });
-  }
-
-  notifyPermissionDenied(detail: string | null): void {
-    this.permissionDenied$.next({ detail });
-  }
-
-  notifyKbIdentityConflict(conflict: KbIdentityConflict): void {
-    this.kbIdentityConflict$.next(conflict);
-  }
-
-  acknowledgeSessionEnded(): void {
-    this.sessionEnded$.next(null);
-  }
-
-  acknowledgePermissionDenied(): void {
-    this.permissionDenied$.next(null);
-  }
-
-  acknowledgeKbIdentityConflict(): void {
-    this.kbIdentityConflict$.next(null);
-  }
-
-  dispose(): void {
-    this.sessionEnded$.complete();
-    this.permissionDenied$.complete();
-    this.kbIdentityConflict$.complete();
-  }
+export function createSessionSignals(): SessionSignals {
+  const sessionEnded$ = new BehaviorSubject<SessionEnded | null>(null);
+  const permissionDenied$ = new BehaviorSubject<PermissionDenied | null>(null);
+  const kbIdentityConflict$ = new BehaviorSubject<KbIdentityConflict | null>(null);
+  return {
+    sessionEnded$: watched(sessionEnded$),
+    permissionDenied$: watched(permissionDenied$),
+    kbIdentityConflict$: watched(kbIdentityConflict$),
+    notifySessionEnded: (reason) => sessionEnded$.next({ reason }),
+    notifyPermissionDenied: (detail) => permissionDenied$.next({ detail }),
+    notifyKbIdentityConflict: (conflict) => kbIdentityConflict$.next(conflict),
+    acknowledgeSessionEnded: () => sessionEnded$.next(null),
+    acknowledgePermissionDenied: () => permissionDenied$.next(null),
+    acknowledgeKbIdentityConflict: () => kbIdentityConflict$.next(null),
+    dispose() {
+      sessionEnded$.complete();
+      permissionDenied$.complete();
+      kbIdentityConflict$.complete();
+    },
+  };
 }

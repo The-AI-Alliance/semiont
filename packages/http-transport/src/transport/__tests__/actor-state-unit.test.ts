@@ -2,7 +2,7 @@ import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { EMIT_RETRY, annotationId, resourceId } from '@semiont/core';
-import { createActorStateUnit } from '../actor-state-unit';
+import { createActorStateUnit, type ActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
 // liveness property suite). Importing it stubs the global fetch.
@@ -1396,7 +1396,7 @@ describe('ActorStateUnit — StateUnit axioms', () => {
     // Constructed but never start()ed — the SSE/timer/reconnect machinery is
     // exercised by the suite above. Here we pin the lifecycle contract on the owned
     // `state$` (A5/A6/inert). `events$` is internal (reached via stream()), not a field.
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<ActorStateUnit>({
       setup: () => createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: ['gather:requested'] }),
       surfaces: (u) => [u.state$],
     });

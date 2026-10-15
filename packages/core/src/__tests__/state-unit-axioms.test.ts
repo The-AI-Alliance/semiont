@@ -52,13 +52,6 @@ describe('assertStateUnitAxioms — the harness has teeth', () => {
     ).not.toThrow();
   });
 
-  it('A1: rejects a class instance (not a plain object)', () => {
-    class NotPlain implements StateUnit {
-      dispose(): void { /* noop */ }
-    }
-    expect(() => assertStateUnitAxioms({ setup: () => new NotPlain() })).toThrow(/A1/);
-  });
-
   it('X1: rejects a raw origin Subject on the public surface', () => {
     expect(() =>
       assertStateUnitAxioms({

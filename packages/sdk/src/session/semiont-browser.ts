@@ -62,7 +62,7 @@ import {
   type TabCheck,
 } from './open-resource';
 import { SemiontSession } from './semiont-session';
-import { SessionSignals } from './session-signals';
+import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
@@ -412,8 +412,8 @@ export class SemiontBrowser {
    * Switch the active KB. Follows this disposal contract:
    *   1. Synchronously announce the new id on `activeKbId$` and null out
    *      `activeSession$` so views see a safe empty state first.
-   *   2. Begin disposing the session that was live. It is disposed whether or
-   *      not this call goes on to activate: one that is overtaken while it
+   *   2. End the session that was live, and its client. It is ended whether
+   *      or not this call goes on to activate: one that is overtaken while it
    *      waits its turn returns early, and the session it hid is still its
    *      to end.
    *   3. Serialize overlapping calls — if an activation is in flight, wait
@@ -438,16 +438,15 @@ export class SemiontBrowser {
     // consumers never see a stale signals instance paired with a null
     // session during the activation gap.
     if (prevId !== id) this.activeKbId$.next(id);
-    let ending: Promise<void> | null = null;
     if (prevSession) {
       const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
       this.activeSignals$.next(null);
       // Hiding a session is not ending it. Once it is out of `activeSession$`
-      // nothing else can reach it, so it is disposed here, by the call that
-      // hid it: its stream, its refresh timer and its storage subscription
-      // otherwise run on for as long as the page does.
-      ending = prevSession.dispose().then(() => prevSignals?.dispose());
+      // nothing else can reach it, so it is ended here, by the call that hid
+      // it: its client's stream, its refresh timer and its storage
+      // subscription otherwise run on for as long as the page does.
+      this.endSession(prevSession, prevSignals);
     }
 
     // Wait for any in-flight activation. If we were superseded while
@@ -460,15 +459,13 @@ export class SemiontBrowser {
     }
 
     const activation = (async () => {
-      if (ending) await ending;
-      // Dispose whatever a superseded activation left live.
+      // End whatever a superseded activation left live.
       const toDispose = this.activeSession$.getValue();
       const signalsToDispose = this.activeSignals$.getValue();
       if (toDispose) {
         this.activeSession$.next(null);
         this.activeSignals$.next(null);
-        await toDispose.dispose();
-        signalsToDispose?.dispose();
+        this.endSession(toDispose, signalsToDispose);
       }
 
       if (!id) return;
@@ -479,7 +476,7 @@ export class SemiontBrowser {
       // Construct the modal signals up front; the session's
       // onAuthFailed callback writes into them, so they must exist
       // before the session's ctor does its startup validation.
-      const signals = new SessionSignals();
+      const signals = createSessionSignals();
 
       let session: SemiontSession;
       try {
@@ -535,14 +532,12 @@ export class SemiontBrowser {
             id,
           ),
         );
-        await session.dispose();
-        signals.dispose();
+        this.endSession(session, signals);
         return;
       }
 
       if (this.disposed || this.activeKbId$.getValue() !== id) {
-        await session.dispose();
-        signals.dispose();
+        this.endSession(session, signals);
         return;
       }
 
@@ -585,8 +580,7 @@ export class SemiontBrowser {
       const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
       this.activeSignals$.next(null);
-      if (prevSession) await prevSession.dispose();
-      prevSignals?.dispose();
+      this.endSession(prevSession, prevSignals);
       await this.setActiveKb(id);
       return;
     }
@@ -617,8 +611,7 @@ export class SemiontBrowser {
       const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
       this.activeSignals$.next(null);
-      if (prevSession) await prevSession.dispose();
-      prevSignals?.dispose();
+      this.endSession(prevSession, prevSignals);
     }
   }
 
@@ -917,6 +910,16 @@ export class SemiontBrowser {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
+  /**
+   * End a session the registry's factory made, the client it was made with
+   * (the session only used it), and the signals made beside it.
+   */
+  private endSession(session: SemiontSession | null, signals: SessionSignals | null): void {
+    session?.dispose();
+    session?.client.dispose();
+    signals?.dispose();
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -930,8 +933,7 @@ export class SemiontBrowser {
     const prevSignals = this.activeSignals$.getValue();
     this.activeSession$.next(null);
     this.activeSignals$.next(null);
-    if (prevSession) await prevSession.dispose();
-    prevSignals?.dispose();
+    this.endSession(prevSession, prevSignals);
 
     this.kbs$.complete();
     this.activeKbId$.complete();

@@ -3,7 +3,7 @@
  *
  * BrowseView takes its `session` + `sparkleAnnotationIds` as props (not
  * `useSemiont()` / `useResourceAnnotations()`), and subscribes to session-scoped
- * beckon events via `session.subscribe`. `AnnotateToolbar` is mocked here — its
+ * beckon events on `session.client`. `AnnotateToolbar` is mocked here — its
  * own provider-freedom is pinned in AnnotateView.embeddable.test.tsx — so this
  * spec isolates BrowseView's body.
  */
@@ -12,7 +12,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 // AnnotateToolbar is stubbed out so this spec exercises only BrowseView's own
 // provider-freedom.
@@ -25,10 +25,10 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       browse: { click: vi.fn() },
       beckon: { hover: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

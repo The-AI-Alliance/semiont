@@ -562,8 +562,11 @@ struct Ended {
 }
 
 impl Ended {
+    /// The session ends, then the client it was built with, which it only
+    /// used: the factory built both for this browser.
     async fn close(self) {
-        self.session.close().await;
+        crate::state_unit::StateUnit::dispose(self.session.as_ref());
+        self.session.client().close().await;
         if let Some(signals) = self.signals {
             crate::state_unit::StateUnit::dispose(signals.as_ref());
         }

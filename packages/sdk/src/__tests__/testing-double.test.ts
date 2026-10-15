@@ -112,6 +112,7 @@ describe('createTestSession', () => {
     await session.ready;
     expect(storage.get(`semiont.session.${session.kb.id}`)).toBeNull();
 
-    await session.dispose();
+    session.dispose();
+    client.dispose();
   });
 });

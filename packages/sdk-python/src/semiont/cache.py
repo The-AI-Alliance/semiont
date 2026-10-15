@@ -32,9 +32,10 @@ missed: a state is what is true now.
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Hashable, Mapping
 from dataclasses import dataclass, field
-from typing import Final, Literal, Protocol, final
+from typing import Final, Literal, Protocol, final, override
 
 from semiont.errors import BusRequestError, SemiontError
+from semiont.state_unit import StateUnit
 from semiont.watched import Variable
 
 __all__ = ["SAVE_DEBOUNCE_MS", "Cache", "CachePersister", "CacheState", "Failed", "Pending", "Ready", "Runs", "closed"]
@@ -136,7 +137,7 @@ class _Nothing[T]:
 
 
 @final
-class Cache[K: Hashable, V]:
+class Cache[K: Hashable, V](StateUnit):
     """See the module's documentation.
 
     `fetch` asks the service for a key's value. `tasks` runs the fetches.
@@ -330,6 +331,7 @@ class Cache[K: Hashable, V]:
         self._held(key).state.set(Ready(value))
         self._owe_a_save()
 
+    @override
     def dispose(self) -> None:
         """End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after.
 

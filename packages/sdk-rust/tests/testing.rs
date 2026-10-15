@@ -12,6 +12,7 @@ use semiont::session::{
     KbEndpoint, KbTarget, KnowledgeBase, Protocol, SessionFactory, SessionFactoryOptions,
     SessionSignals, StoredSession, store_session,
 };
+use semiont::state_unit::StateUnit;
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::as_id;
 use semiont::testing::{
@@ -225,7 +226,9 @@ async fn a_test_session_holds_the_token_its_storage_held_and_then_the_one_the_te
     test.token.send_replace(Some("another".to_owned()));
     assert_eq!(test.session.token().borrow().as_deref(), Some("another"));
 
-    test.session.close().await;
+    // The session only uses the client: the test, which built both, closes it.
+    test.session.dispose();
+    test.client.close().await;
     assert_eq!(*test.transport.state().borrow(), ConnectionState::Closed);
 }
 

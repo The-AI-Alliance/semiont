@@ -3,6 +3,7 @@
 //! hovers nothing on its way.
 
 use crate::locked;
+use crate::state_unit::StateUnit;
 use crate::types::AnnotationId;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -16,6 +17,8 @@ struct Dwell {
     resting: Option<AbortHandle>,
     /// Which rest is the current one: one that was overtaken says nothing.
     rest: u64,
+    /// Once disposed, the pointer is followed no more.
+    disposed: bool,
 }
 
 impl Dwell {
@@ -31,7 +34,8 @@ type Say = dyn Fn(Option<&AnnotationId>) + Send + Sync;
 
 /// See the module's documentation. `say` is told each change: the
 /// annotation hovered, or none. `client.beckon.hover` is what it is usually
-/// given. Dropping it forgets a rest that has not run its time.
+/// given. Disposing it forgets a rest that has not run its time, and it says
+/// nothing more; dropping it disposes it.
 pub struct HoverDwell {
     dwell: Arc<Mutex<Dwell>>,
     say: Arc<Say>,
@@ -56,7 +60,7 @@ impl HoverDwell {
     /// stayed for the delay; one already hovered is not said again.
     pub fn enter(&self, annotation_id: &AnnotationId) {
         let mut dwell = locked(&self.dwell);
-        if dwell.hovering.as_ref() == Some(annotation_id) {
+        if dwell.disposed || dwell.hovering.as_ref() == Some(annotation_id) {
             return;
         }
         dwell.interrupt();
@@ -82,6 +86,9 @@ impl HoverDwell {
     pub fn leave(&self) {
         let was_hovering = {
             let mut dwell = locked(&self.dwell);
+            if dwell.disposed {
+                return;
+            }
             dwell.interrupt();
             dwell.hovering.take().is_some()
         };
@@ -91,8 +98,16 @@ impl HoverDwell {
     }
 }
 
+impl StateUnit for HoverDwell {
+    fn dispose(&self) {
+        let mut dwell = locked(&self.dwell);
+        dwell.interrupt();
+        dwell.disposed = true;
+    }
+}
+
 impl Drop for HoverDwell {
     fn drop(&mut self) {
-        locked(&self.dwell).interrupt();
+        self.dispose();
     }
 }

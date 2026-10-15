@@ -70,13 +70,13 @@ The eight verbs are also the eight namespaces of a client in every SDK: `yield`,
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUriComplete, verificationUri }) =>
     console.error(`Approve at ${verificationUriComplete ?? verificationUri}`),
 });
-const semiont = session.client;
+const semiont = opened.session.client;
 
 await semiont.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Person'] });  // write
 const { response: context } = await semiont.gather.annotation(resourceId, annotationId);   // read

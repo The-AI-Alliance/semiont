@@ -15,7 +15,7 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
-import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession, type SessionEndReason } from '@semiont/sdk';
+import { SemiontBrowser, createSessionSignals, type SemiontClient, type SemiontSession, type SessionEndReason } from '@semiont/sdk';
 import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
@@ -71,7 +71,7 @@ function createTestBrowser(): SemiontBrowser {
   // connected shape from the first render. Both values are real objects, so
   // seeding them states a fact rather than faking one.
   browser.activeSession$.next(session);
-  browser.activeSignals$.next(new SessionSignals());
+  browser.activeSignals$.next(createSessionSignals());
   return browser;
 }
 
@@ -125,8 +125,8 @@ export interface TestProvidersOptions {
 
 /**
  * Test access to the client's local bus. Production code uses typed
- * namespace methods or `session.subscribe(channel, handler)` — never
- * direct bus access. Tests need the bus itself to drive
+ * namespace methods, and the event hooks read a channel by name through
+ * `session/channel-subscription.ts` — never direct bus access. Tests need the bus itself to drive
  * `bus.emit(channel, payload)` / `bus.on(channel).subscribe(...)` against the
  * live client wiring; `client.bus` is read-only public for that.
  */

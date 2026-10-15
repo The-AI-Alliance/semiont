@@ -1,4 +1,9 @@
-"""A session with one knowledge base: its client, the token the client's transport sends, and who is signed in.
+"""A session with one knowledge base: the token its client's transport sends, and who is signed in.
+
+A session is a state unit. It writes its token and who is signed in, so
+`dispose` ends them, and stops its renewal. It only uses its client, so it
+never closes it: whoever made the client and the session closes the client
+after ending the session (`semiont.http.session_from_kept` does both).
 
 Headless: it runs in an application, a script, a daemon and a test alike, and
 shows nobody anything. What it needs of its surroundings it is given:
@@ -39,6 +44,7 @@ import asyncio
 import base64
 import binascii
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from types import TracebackType
@@ -46,10 +52,13 @@ from typing import Final, Literal, Protocol, Self, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
+from semiont.events import Events
+from semiont.state_unit import StateUnit
 from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
-from semiont.transport import Transport
+from semiont.transport import ConnectionState, Transport
 from semiont.types import UserResponse
 from semiont.watched import Variable, Watched
 
@@ -261,13 +270,14 @@ _JUST_ISSUED_AND_REFUSED: Final = "The gateway refused a token its issuer had ju
 
 
 @final
-class SemiontSession[T: Transport]:
+class SemiontSession[T: Transport](StateUnit):
     """See the module's documentation.
 
     Held with `async with`: it starts inside, and `ready` says when it has
-    done what it does at its start. `client` is the one whose transport sends
-    its token, typed by the kind of transport that is; the session does not
-    open or close either.
+    done what it does at its start. Leaving it ends the session, as `dispose`
+    does, and waits for what the session was running to stop. `client` is the
+    one whose transport sends its token, typed by the kind of transport that
+    is; the session does not open or close either.
     """
 
     def __init__(
@@ -282,6 +292,8 @@ class SemiontSession[T: Transport]:
         on_auth_failed: Callable[[SessionEndReason], None] | None = None,
         on_error: Callable[[SessionError], None] | None = None,
     ) -> None:
+        self.id: Final = f"session-{uuid.uuid4()}"
+        """Which live session this is: a new one for the same knowledge base has another."""
         self.kb_id: Final = kb_id
         self.client: Final[SemiontClient[T]] = client
         self._token: Final = token
@@ -300,12 +312,24 @@ class SemiontSession[T: Transport]:
     @property
     def token(self) -> Watched[str | None]:
         """The token the transport sends: the present one, and each after it."""
-        return self._token
+        return Reading(self._token)
 
     @property
     def user(self) -> Watched[UserResponse | None]:
         """Who is signed in, once the gateway has said."""
-        return self._user
+        return Reading(self._user)
+
+    @property
+    def stream_state(self) -> Watched[ConnectionState]:
+        """The state of the client's connection."""
+        return self.client.transport.state
+
+    def errors(self) -> Events[SemiontError]:
+        """The failures the client's transport meets, from now on.
+
+        A host routes them: a refusal for want of a valid token is a reason to `refresh`.
+        """
+        return self.client.transport.failures()
 
     def expires_at(self) -> float | None:
         """When the token the session holds expires, in seconds since the epoch."""
@@ -327,23 +351,28 @@ class SemiontSession[T: Transport]:
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
-        await self.close()
+        self.dispose()
+        running = self._running
+        if running is None:
+            return
+        await asyncio.gather(running, return_exceptions=True)
+        # Whatever ended the session's task that was not its ending is raised here.
+        if not running.cancelled():
+            await running
 
-    async def close(self) -> None:
-        """End the session: it renews nothing more. Closing twice is closing once."""
+    @override
+    def dispose(self) -> None:
+        """End the session: it renews nothing more, and its token and who is signed in change no more. Ending twice is ending once.
+
+        Its client is left to whoever made it.
+        """
         self._closing.set()
         self._ready.set()
         # The token and who is signed in change no more: whoever reads them is told so.
         self._token.end()
         self._user.end()
-        running = self._running
-        if running is None:
-            return
-        running.cancel()
-        await asyncio.gather(running, return_exceptions=True)
-        # Whatever ended the session's task that was not its closing is raised here.
-        if not running.cancelled():
-            await running
+        if self._running is not None:
+            self._running.cancel()
 
     async def _run(self, kept: HeldSignIn | None) -> None:
         async with asyncio.TaskGroup() as tasks:

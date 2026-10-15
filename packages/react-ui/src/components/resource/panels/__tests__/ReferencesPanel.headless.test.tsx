@@ -16,17 +16,17 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import type { RouteBuilder, LinkComponentProps } from '../../../../contexts/RoutingContext';
 import { ReferencesPanel } from '../ReferencesPanel';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 function fakeSession() {
   const client = {
+    bus: new EventBus(),
     browse: { click: vi.fn(), tagSchemas: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }) },
     beckon: { hover: vi.fn(), sparkle: vi.fn() },
     mark: { requestDelegate: vi.fn(), delete: vi.fn() },
   };
   const session = {
     client,
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
   return { session, client };
 }

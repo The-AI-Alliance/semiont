@@ -1,0 +1,1269 @@
+{
+  "$comment": "AUTHORITY for what a client's state units do: each case builds units over a scripted transport, drives them, and states what they hold and what they said. Every SDK runs these cases against its own units, so a unit means one thing in TypeScript, Rust and Python; specs/src/client/surface.json's `stateUnits` names the units and their members, and this table holds what they do. A case names its `unit` (a row of `stateUnits`) and what it is (`case`); an SDK the names table says lacks the unit (`absent`) does not run its cases. `transport` is what answers the client's requests: `answers` is `refuses` (every request is refused at once), `never` (every request reaches the gateway and is answered only by an `answer` step) or `jobs` (`job:create` is answered `{\"jobId\": \"job-1\"}`, `job:status-requested` with job-1 running, and anything else is refused at once); `replies` queues responses by operation, each given before the rule; `delayMs` holds every reply that long. The client's stream carries the replies and the broadcasts, never the requests it sent. `made` names each unit the case builds, with what it is built from: a gather or mark unit its `resourceId`, a yield unit its `locale`, a hover dwell its `delayMs`, saying what is hovered through the client's `beckon.hover`, and a search pipeline its `debounceMs` and `initialQuery`, each the pipeline's own when the case states none, searching with the case's search, which records each query it is asked and gives its answers when a step says. The session's signals are made from nothing. `listen` names channels of the client's bus read from the moment the units are made. `steps` run in order. Driving: `say` publishes on the client's own bus, as a signal or a job event is; `deliver` gives the client a frame from the wire, as another participant's is; `answer` replies to the `nth` request sent on a channel, on `reply`, under that request's correlation id; `queueReply` queues the next response to an operation; `invoke` calls a method of the unit `of` names, with `args` by the method's parameter names; `\"settle\"` lets what is ready run, and what that makes ready, until nothing more is, and moves no time; `pass` settles, then moves the clock, letting what falls due run to its end as it does; `dispose` disposes the named unit; `answerSearch` gives the `nth` query the case's search was asked an answer: its `results`, or null for one still on its way (a query that was abandoned has nobody to give it to). Checking: `expect` states, for each named unit, what members hold now (it lets nothing run first); `sent` lists every request sent on a channel so far, or gives their `count`; `nothingSent` says no request was sent; `heard` lists exactly what the `listen` channels carried since the units were made or since the last `heard`, once what is ready has run; `ended` names members whose readers have ended; `busDestroyed` says whether the client's bus has ended; `searched` lists every query the case's search has been asked so far. A duration is milliseconds, or `{\"timing\": <a name of specs/src/client/timing.json>}` with `times` and `plusMs` to scale and move it. Values are as the wire writes them, compared exactly: a state holding a wire model is written as the wire writes it, ids are strings, none is null, and a search pipeline's state is `{\"results\": […], \"isSearching\": …}`. Two forms compare less: `{\"$has\": {…}}` matches an object holding at least those members, and a state holding an error is written `{\"code\": …}`, `{\"message\": …}` or both, and compared on those; a case states a message only where the wire wrote it, never one an SDK or its test double writes. `{\"$fixture\": name}` is the table's fixture of that name. A `heard` entry gives the frame's `channel`, its `payload` and its `correlationId`, which is absent when the frame carries none, or `{\"sent\": <channel>, \"nth\": <n>}` for the id a request carried. What a case cannot state stays a test of the SDK's own: the axioms, which each SDK's harness checks, and how often a state wakes its readers, which differs by language. scripts/lint/check-state-unit-cases.mjs holds this table to the names table, the bus registry and the timing table.",
+  "fixtures": {
+    "context": {
+      "focus": {
+        "kind": "resource",
+        "resource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "text/plain" }] }
+      },
+      "graph": { "nodes": [], "edges": [] },
+      "metadata": {}
+    },
+    "generation": { "title": "A title", "storageUri": "file://generated.md", "context": { "$fixture": "context" } }
+  },
+  "cases": [
+    {
+      "unit": "match",
+      "case": "runs the search it is asked for, and answers under the asker's id after the wire's reply",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-results"],
+      "steps": [
+        "settle",
+        { "nothingSent": true },
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "sent": "match:search-requested", "payloads": [{ "$has": { "referenceId": "ref-1", "resourceId": "res-1" } }] },
+        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-results", "payload": { "referenceId": "ref-1", "response": [] } },
+        { "heard": [
+          { "channel": "match:search-results", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "response": [] } },
+          { "channel": "match:search-results", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "response": [] } }
+        ] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "says a search that failed, with its reference and the reason, under the asker's id",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-failed"],
+      "steps": [
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "answer": "match:search-requested", "nth": 0, "reply": "match:search-failed", "payload": { "referenceId": "ref-1", "error": "the index is down" } },
+        { "heard": [
+          { "channel": "match:search-failed", "correlationId": { "sent": "match:search-requested", "nth": 0 }, "payload": { "referenceId": "ref-1", "error": "the index is down" } },
+          { "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "referenceId": "ref-1", "error": "the index is down" } }
+        ] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "says a search never answered as failed, at the request's deadline",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "listen": ["match:search-failed"],
+      "steps": [
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        { "pass": { "timing": "busRequestTimeoutMs", "plusMs": -1000 } },
+        { "heard": [] },
+        { "pass": 2000 },
+        { "heard": [{ "channel": "match:search-failed", "correlationId": "asked-1", "payload": { "$has": { "referenceId": "ref-1" } } }] }
+      ]
+    },
+    {
+      "unit": "match",
+      "case": "disposed, runs nothing, and leaves the client's bus alone",
+      "transport": { "answers": "never" },
+      "made": { "unit": {} },
+      "steps": [
+        { "dispose": "unit" },
+        { "say": "match:search-requested", "correlationId": "asked-1", "payload": { "resourceId": "res-1", "referenceId": "ref-1", "context": { "$fixture": "context" } } },
+        "settle",
+        { "nothingSent": true },
+        { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "holds what is hovered, and a hover of none clears it",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "expect": { "unit": { "hoveredAnnotationId": null } } },
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        "settle",
+        { "expect": { "unit": { "hoveredAnnotationId": "ann-1" } } },
+        { "say": "beckon:hover", "payload": { "annotationId": null } },
+        "settle",
+        { "expect": { "unit": { "hoveredAnnotationId": null } } }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "sparkles what is hovered, and nothing when nothing is",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:sparkle"],
+      "steps": [
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        { "say": "beckon:hover", "payload": { "annotationId": null } },
+        { "heard": [{ "channel": "beckon:sparkle", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "turns the focus to an annotation that is opened, here or by another participant",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:focus"],
+      "steps": [
+        { "say": "browse:click", "payload": { "annotationId": "ann-1" } },
+        { "deliver": "browse:click", "payload": { "annotationId": "ann-2" } },
+        { "heard": [
+          { "channel": "beckon:focus", "payload": { "annotationId": "ann-1" } },
+          { "channel": "beckon:focus", "payload": { "annotationId": "ann-2" } }
+        ] },
+        { "expect": { "unit": { "hoveredAnnotationId": null } } }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "focus says the focus",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:focus"],
+      "steps": [
+        { "invoke": "focus", "of": "unit", "args": { "annotationId": "ann-7" } },
+        { "heard": [{ "channel": "beckon:focus", "payload": { "annotationId": "ann-7" } }] }
+      ]
+    },
+    {
+      "unit": "beckon",
+      "case": "disposed, hears nothing and says nothing, and leaves the client's bus alone",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "listen": ["beckon:sparkle", "beckon:focus"],
+      "steps": [
+        { "dispose": "unit" },
+        { "say": "beckon:hover", "payload": { "annotationId": "ann-1" } },
+        { "say": "browse:click", "payload": { "annotationId": "ann-1" } },
+        { "invoke": "focus", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "heard": [] },
+        { "ended": { "unit": ["hoveredAnnotationId"] } },
+        { "expect": { "unit": { "hoveredAnnotationId": null } } },
+        { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that rests hovers, and one that leaves stops at once",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "plusMs": -2 } },
+        { "heard": [] },
+        { "pass": 4 },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": null } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that passes over hovers nothing",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 0.5 } },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "a pointer that moves on hovers only where it rests",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 0.5 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-2" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-2" } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "an annotation already hovered is not said again",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "disposed, forgets the rest it was waiting out",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "dispose": "unit" },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [] }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "case": "disposed, says nothing more, not even the pointer leaving what it hovered",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "delayMs": { "timing": "hoverDelayMs" } } },
+      "listen": ["beckon:hover"],
+      "steps": [
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-1" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-2" } },
+        { "dispose": "unit" },
+        { "invoke": "leave", "of": "unit", "args": {} },
+        { "invoke": "enter", "of": "unit", "args": { "annotationId": "ann-3" } },
+        { "pass": { "timing": "hoverDelayMs", "times": 2 } },
+        { "heard": [{ "channel": "beckon:hover", "payload": { "annotationId": "ann-1" } }] }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "begins with nothing, and asks for nothing",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "nothingSent": true }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "asks for an annotation's context of its own resource, and holds it",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "sent": "gather:requested", "payloads": [{ "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 2000 } }] },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": { "$fixture": "context" }, "loading": false, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "takes the window it is asked for",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere", "options": { "contextWindow": 500 } } },
+        "settle",
+        { "sent": "gather:requested", "payloads": [{ "$has": { "options": { "contextWindow": 500 } } }] }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "holds the failure of a gather, and the next one clears it and the context the last one left",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        "settle",
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:failed", "payload": { "annotationId": "ann-1", "message": "no such annotation" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": { "message": "no such annotation" }, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-2", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
+        { "answer": "gather:requested", "nth": 1, "reply": "gather:complete", "payload": { "annotationId": "ann-2", "response": { "$fixture": "context" } } },
+        "settle",
+        { "say": "gather:requested", "payload": { "annotationId": "ann-3", "resourceId": "elsewhere" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-3", "resourceContext": null, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "fails a gather never answered, at the request's deadline",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "pass": { "timing": "busRequestTimeoutMs", "plusMs": -1000 } },
+        { "expect": { "unit": { "loading": true } } },
+        { "pass": 2000 },
+        { "expect": { "unit": { "loading": false, "error": { "code": "bus.timeout" } } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "a resource's gather is loading when the call returns, and then holds the context",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": true, "resourceError": null } } },
+        "settle",
+        { "sent": "gather:resource-requested", "payloads": [{ "$has": { "resourceId": "res-9" } }] },
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-complete", "payload": { "resourceId": "res-9", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": { "$fixture": "context" }, "resourceLoading": false, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "a resource's gather holds its failure, and the next one clears it",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-failed", "payload": { "resourceId": "res-9", "message": "no such resource" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        { "expect": { "unit": { "context": null, "loading": false, "error": null, "annotationId": null, "resourceContext": null, "resourceLoading": true, "resourceError": null } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "keeps an annotation's gather and a resource's apart",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-failed", "payload": { "resourceId": "res-9", "message": "no such resource" } },
+        "settle",
+        { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        "settle",
+        { "expect": { "unit": { "context": { "$fixture": "context" }, "loading": false, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": { "message": "no such resource" } } } }
+      ]
+    },
+    {
+      "unit": "gather",
+      "case": "disposed, is inert, an answer that comes later lands nowhere, and it leaves the client's bus alone",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "dispose": "unit" },
+        { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
+        { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-complete", "payload": { "resourceId": "res-9", "response": { "$fixture": "context" } } },
+        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
+        "settle",
+        { "ended": { "unit": ["context", "resourceContext"] } },
+        { "expect": { "unit": { "context": null, "resourceContext": null } } },
+        { "sent": "gather:requested", "count": 1 },
+        { "sent": "gather:resource-requested", "count": 1 },
+        { "busDestroyed": false }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "begins idle, and a query of nothing but spaces searches for nothing",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "expect": { "unit": { "query": "", "state": { "results": [], "isSearching": false } } } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "   " } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": [] },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "waits for the query to stay the same, and holds the query as it is typed",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "p" } },
+        { "expect": { "unit": { "query": "p" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pa" } },
+        { "expect": { "unit": { "query": "pa" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "par" } },
+        { "expect": { "unit": { "query": "par" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pari" } },
+        { "expect": { "unit": { "query": "pari" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "expect": { "unit": { "query": "paris" } } },
+        { "pass": { "timing": "searchDebounceMs", "times": 0.5 } },
+        { "searched": [] },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "waits as long as it was told",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "debounceMs": 2000 } },
+      "steps": [
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "pass": 1900 },
+        { "searched": [] },
+        { "pass": 200 },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "begun with a query, searches for it without the spaces around it once it has settled",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": " paris " } },
+      "steps": [
+        { "expect": { "unit": { "query": " paris " } } },
+        { "searched": [] },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "is searching until its results are known, and follows them after",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": null },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": ["Paris", "Paris, Texas"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Paris", "Paris, Texas"], "isSearching": false } } } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Paris"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a new query abandons the search before it",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "rome" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris", "rome"] },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": true } } } },
+        { "answerSearch": 1, "results": ["Rome"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": ["Rome"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a query already searched for is not searched for again",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "pari" } },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "paris" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "searched": ["paris"] },
+        { "expect": { "unit": { "state": { "results": ["Paris"], "isSearching": false } } } }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "a query that is cleared has no results, and abandons its search",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "answerSearch": 0, "results": ["Paris"] },
+        "settle",
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } },
+        { "answerSearch": 0, "results": ["Paris", "Paris, Texas"] },
+        "settle",
+        { "expect": { "unit": { "state": { "results": [], "isSearching": false } } } },
+        { "searched": ["paris"] }
+      ]
+    },
+    {
+      "unit": "search",
+      "case": "disposed, is inert",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": { "initialQuery": "paris" } },
+      "steps": [
+        { "dispose": "unit" },
+        { "invoke": "setQuery", "of": "unit", "args": { "value": "rome" } },
+        { "pass": { "timing": "searchDebounceMs", "plusMs": 2 } },
+        { "ended": { "unit": ["query", "state"] } },
+        { "expect": { "unit": { "query": "paris" } } },
+        { "searched": [] }
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "begins idle, and generates in its locale unless a language is stated",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "fr" } },
+      "steps": [
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": "de", "maxTokens": 900}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": ""}}},
+        "settle",
+        {"sent": "job:create", "payloads": [{"$has": {"jobType": "yield", "params": {"$has": {"language": "fr"}}}}, {"$has": {"jobType": "yield", "params": {"title": "A title", "storageUri": "file://generated.md", "context": {"$fixture": "context"}, "language": "de", "maxTokens": 900}}}, {"$has": {"jobType": "yield", "params": {"$has": {"language": "fr"}}}}]}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "shows a run's progress, and keeps it with the outcome when the run ends",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 95}, "outcome": null}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": true}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 95}, "outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": true}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "holds its job's id from the queue's answer to the job's end",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"expect": {"unit": {"jobId": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}},
+        {"answer": "job:create", "nth": 0, "reply": "job:created", "payload": {"response": {"jobId": "job-1"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1", "isGenerating": false}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "forgets the id of a job that fails, and of the last run when another begins",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"jobId": null}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "has no outcome from a completion that carries no generation",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield"}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 5}, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "clears the progress of a run that fails, and holds why it ended",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"expect": {"unit": {"failure": null}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.failed", "message": "the model refused"}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "keeps a cancelled run's progress and says it was cancelled, until it is dismissed",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"queueReply": "job:status-requested", "response": {"jobId": "job-1", "type": "yield", "status": "cancelled", "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}},
+        {"pass": {"timing": "jobSilenceMs", "times": 2}},
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 40}, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.cancelled"}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "begins each run without the last one's progress",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"queueReply": "job:status-requested", "response": {"jobId": "job-1", "type": "yield", "status": "cancelled", "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}},
+        {"pass": {"timing": "jobSilenceMs", "times": 2}},
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 40}, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "keeps generating through an attempt that will be tried again",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "busy", "willRetry": true}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "stops generating when a run stalls, and holds that it stalled",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}, "stallDeadlineMs": 5000}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": true, "progress": {"percentage": 5}, "outcome": null}}},
+        {"pass": 6000},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"expect": {"unit": {"failure": {"code": "job.stalled"}}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "holds why a run failed until it is dismissed or another begins, and a retried attempt is no failure",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"failure": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"failure": null}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "busy", "willRetry": true}},
+        "settle",
+        {"expect": {"unit": {"failure": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "dismissed, or begun again, clears what the last run left",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"isGenerating": false, "progress": {"percentage": 95}, "outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null, "outcome": null}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 95, "progress": {"percentage": 95}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "result": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}},
+        "settle",
+        {"expect": {"unit": {"outcome": {"resourceId": "res-new", "resourceName": "New", "truncated": false}}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"expect": {"unit": {"outcome": null}}}
+      ]
+    },
+    {
+      "unit": "yield",
+      "case": "disposed, is inert, and leaves the client's bus alone",
+      "transport": { "answers": "jobs" },
+      "made": { "unit": { "locale": "en" } },
+      "steps": [
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        "settle",
+        {"dispose": "unit"},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 5, "progress": {"percentage": 5}}},
+        {"invoke": "generate", "of": "unit", "args": {"params": {"$fixture": "generation"}}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
+        "settle",
+        {"ended": {"unit": ["isGenerating", "progress"]}},
+        {"expect": {"unit": {"isGenerating": false, "progress": null}}},
+        {"sent": "job:create", "count": 1},
+        {"busDestroyed": false}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "holds the annotation a selection asks for, until it is cancelled",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"expect": {"unit": {"pendingAnnotation": null, "delegatingMotivation": null, "progress": null}}},
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}}}},
+        {"say": "mark:cancel-pending", "payload": {}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "carries a selector of several as it was given",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": [{"type": "TextPositionSelector", "start": 3, "end": 8}, {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there"}, {"type": "SvgSelector", "value": "<svg/>"}, {"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}], "motivation": "linking"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "TextPositionSelector", "start": 3, "end": 8}, {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there"}, {"type": "SvgSelector", "value": "<svg/>"}, {"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}], "motivation": "linking"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "reads a quick selection as the selector it states",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:select-comment", "payload": {"exact": "hello", "start": 0, "end": 5, "prefix": "oh ", "suffix": ""}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh "}, "motivation": "commenting"}}}},
+        {"say": "mark:select-tag", "payload": {"exact": "hello", "start": 0, "end": 5, "svgSelector": "<svg/>", "fragmentSelector": "page=2"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "SvgSelector", "value": "<svg/>"}, "motivation": "tagging"}}}},
+        {"say": "mark:select-assessment", "payload": {"exact": "hello", "start": 0, "end": 5, "fragmentSelector": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}, {"type": "TextQuoteSelector", "exact": "hello"}], "motivation": "assessing"}}}},
+        {"say": "mark:select-reference", "payload": {"exact": "", "start": 0, "end": 0, "fragmentSelector": "page=2"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "FragmentSelector", "value": "page=2"}], "motivation": "linking"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "creates what is submitted, and it stops being pending once recorded",
+      "transport": {"answers": "refuses", "replies": {"mark:create-request": [{"annotationId": "ann-new"}]}, "delayMs": 1000},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}},
+        {"say": "mark:submit", "payload": {"source": "res-1", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
+        "settle",
+        {"sent": "mark:create-request", "payloads": [{"resourceId": "res-1", "request": {"motivation": "commenting", "target": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}}]},
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}}}},
+        {"pass": 1002},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "keeps its pending annotation when another creation is recorded",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}},
+        "settle",
+        {"deliver": "mark:create-ok", "correlationId": "somebody-else", "payload": {"response": {"annotationId": "ann-other"}}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "says a creation that failed, and keeps the annotation pending",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:create-error"],
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}},
+        {"say": "mark:submit", "payload": {"source": "res-1", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
+        {"heard": [{"channel": "mark:create-error", "payload": {"$has": {"resourceId": "res-1"}}}]},
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates the job it is asked for, on its own resource, and shows its progress",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting", "instructions": "the dates", "tone": "scholarly", "density": 3, "language": "fr"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "commenting", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"jobType": "mark", "resourceId": "res-1", "params": {"motivation": "commenting", "instructions": "the dates", "tone": "scholarly", "density": 3, "language": "fr"}}]},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "commenting", "progress": {"percentage": 40}}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 40}}}},
+        {"say": "mark:progress-dismiss", "payload": {}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "holds its delegated job's id from the queue's answer to the job's end",
+      "transport": {"answers": "never"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"expect": {"unit": {"jobId": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}},
+        {"answer": "job:create", "nth": 0, "reply": "job:created", "payload": {"response": {"jobId": "job-1"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "forgets the id of a delegated job that fails, and of the last job when another is asked for",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}},
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"jobId": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"jobId": "job-1"}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "begins each delegated job without the last one's progress",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 40}}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "clears a delegated job that fails, and says no silence of it",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 2}},
+        {"heard": []}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "keeps a cancelled job's progress and its motivation, and says it was cancelled",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 60, "progress": {"percentage": 60}}},
+        "settle",
+        {"queueReply": "job:status-requested", "response": {"jobId": "job-1", "type": "mark", "status": "cancelled", "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}},
+        {"pass": {"timing": "jobSilenceMs", "times": 2}},
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 60}}}},
+        {"expect": {"unit": {"progressMotivation": "highlighting", "failure": {"code": "job.cancelled"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "clears the motivation of a failed job's progress, and says why it ended",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 30, "progress": {"percentage": 30}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}},
+        {"expect": {"unit": {"progressMotivation": null, "failure": {"code": "job.failed"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "holds the motivation its progress is of until the progress is dismissed",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"expect": {"unit": {"progressMotivation": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"progressMotivation": "highlighting"}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 100, "progress": {"percentage": 100}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 100}}}},
+        {"expect": {"unit": {"progressMotivation": "highlighting"}}},
+        {"say": "mark:progress-dismiss", "payload": {}},
+        "settle",
+        {"expect": {"unit": {"progressMotivation": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting"}}},
+        "settle",
+        {"expect": {"unit": {"progressMotivation": "commenting"}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "holds why a job ended until it is dismissed or another begins, and a completion is no failure",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"expect": {"unit": {"failure": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"say": "mark:progress-dismiss", "payload": {}},
+        "settle",
+        {"expect": {"unit": {"failure": null}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
+        "settle",
+        {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"failure": null}}},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"failure": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates a highlighting job, holds its motivation, and says that motivation has gone quiet",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "highlighting"}}}]},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "highlighting"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates a commenting job, holds its motivation, and says that motivation has gone quiet",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting", "tone": "scholarly"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "commenting", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "commenting", "tone": "scholarly"}}}]},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "commenting"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates a assessing job, holds its motivation, and says that motivation has gone quiet",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "assessing", "tone": "critical"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "assessing", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "assessing", "tone": "critical"}}}]},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "assessing"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates a linking job, holds its motivation, and says that motivation has gone quiet",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "linking", "entityTypes": ["Person"]}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "linking", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "linking", "entityTypes": ["Person"]}}}]},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "linking"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "delegates a tagging job, holds its motivation, and says that motivation has gone quiet",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": "tagging", "progress": null}}},
+        {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}}}]},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "tagging"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "clears a delegated job that could not be started",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "says once that a delegated job has gone quiet, and keeps following it",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": -1000}},
+        {"heard": []},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}},
+        {"pass": 2000},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "highlighting"}}]},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": {"percentage": 0}}}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 3}},
+        {"heard": []},
+        {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
+        "settle",
+        {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 0}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "counts a delegated job's silence from the last thing it said",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": -10000}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 10, "progress": {"percentage": 10}}},
+        "settle",
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": -10000}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 20, "progress": {"percentage": 20}}},
+        "settle",
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": -10000}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 30, "progress": {"percentage": 30}}},
+        "settle",
+        {"heard": []},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": {"percentage": 30}}}},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "highlighting"}}]},
+        {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": {"percentage": 30}}}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 50, "progress": {"percentage": 50}}},
+        {"pass": {"timing": "delegateSilenceMs", "plusMs": 1000}},
+        {"heard": [{"channel": "mark:delegate-timeout", "payload": {"resourceId": "res-1", "motivation": "highlighting"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "units of two resources on one client each answer for their own",
+      "transport": {"answers": "refuses", "replies": {"mark:create-request": [{"annotationId": "ann-new"}]}},
+      "made": {"first": {"resourceId": "res-a"}, "second": {"resourceId": "res-b"}},
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-a", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}},
+        "settle",
+        {"expect": {"first": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}}}},
+        {"expect": {"second": {"pendingAnnotation": null}}},
+        {"say": "mark:submit", "payload": {"source": "res-a", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
+        "settle",
+        {"sent": "mark:create-request", "payloads": [{"$has": {"resourceId": "res-a"}}]}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "acts on what it hears in the order it was said",
+      "transport": {"answers": "refuses"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "steps": [
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "first"}, "motivation": "highlighting"}},
+        {"say": "mark:cancel-pending", "payload": {}},
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "last"}, "motivation": "commenting"}},
+        "settle",
+        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "last"}, "motivation": "commenting"}}}}
+      ]
+    },
+    {
+      "unit": "mark",
+      "case": "disposed, is inert, and leaves the client's bus alone",
+      "transport": {"answers": "jobs"},
+      "made": {"unit": {"resourceId": "res-1"}},
+      "listen": ["mark:delegate-timeout", "mark:create-error"],
+      "steps": [
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"dispose": "unit"},
+        {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}},
+        {"say": "mark:submit", "payload": {"source": "res-1", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
+        {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
+        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"pass": {"timing": "delegateSilenceMs", "times": 2}},
+        {"ended": {"unit": ["pendingAnnotation", "delegatingMotivation", "progress"]}},
+        {"expect": {"unit": {"pendingAnnotation": null, "progress": null}}},
+        {"heard": []},
+        {"sent": "job:create", "count": 1},
+        {"sent": "mark:create-request", "count": 0},
+        {"busDestroyed": false}
+      ]
+    },
+    {
+      "unit": "sessionSignals",
+      "case": "begins with nothing raised",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        {"expect": {"unit": {"sessionEnded": null, "permissionDenied": null, "kbIdentityConflict": null}}}
+      ]
+    },
+    {
+      "unit": "sessionSignals",
+      "case": "raises each notice, and acknowledging one clears it alone",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        {"invoke": "notifySessionEnded", "of": "unit", "args": {"reason": "expired"}},
+        {"expect": {"unit": {"sessionEnded": {"reason": "expired"}, "permissionDenied": null, "kbIdentityConflict": null}}},
+        {"invoke": "notifyPermissionDenied", "of": "unit", "args": {"detail": "only an admin may do that"}},
+        {"invoke": "notifyKbIdentityConflict", "of": "unit", "args": {"conflict": {"expectedDid": "did:web:kb.example.org", "observedDid": "did:web:other.example.org"}}},
+        {"expect": {"unit": {"sessionEnded": {"reason": "expired"}, "permissionDenied": {"detail": "only an admin may do that"}, "kbIdentityConflict": {"expectedDid": "did:web:kb.example.org", "observedDid": "did:web:other.example.org"}}}},
+        {"invoke": "acknowledgeSessionEnded", "of": "unit", "args": {}},
+        {"expect": {"unit": {"sessionEnded": null, "permissionDenied": {"detail": "only an admin may do that"}, "kbIdentityConflict": {"expectedDid": "did:web:kb.example.org", "observedDid": "did:web:other.example.org"}}}},
+        {"invoke": "acknowledgePermissionDenied", "of": "unit", "args": {}},
+        {"invoke": "acknowledgeKbIdentityConflict", "of": "unit", "args": {}},
+        {"expect": {"unit": {"sessionEnded": null, "permissionDenied": null, "kbIdentityConflict": null}}}
+      ]
+    },
+    {
+      "unit": "sessionSignals",
+      "case": "says a session ended for its credential being refused, and a permission refused with no detail",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        {"invoke": "notifySessionEnded", "of": "unit", "args": {"reason": "refused"}},
+        {"invoke": "notifyPermissionDenied", "of": "unit", "args": {"detail": null}},
+        {"expect": {"unit": {"sessionEnded": {"reason": "refused"}, "permissionDenied": {"detail": null}}}}
+      ]
+    },
+    {
+      "unit": "sessionSignals",
+      "case": "disposed, ends every notice and raises nothing more",
+      "transport": { "answers": "refuses" },
+      "made": { "unit": {} },
+      "steps": [
+        {"dispose": "unit"},
+        {"invoke": "notifySessionEnded", "of": "unit", "args": {"reason": "expired"}},
+        {"invoke": "notifyPermissionDenied", "of": "unit", "args": {"detail": "no"}},
+        {"invoke": "notifyKbIdentityConflict", "of": "unit", "args": {"conflict": {"expectedDid": "did:web:kb.example.org", "observedDid": "did:web:other.example.org"}}},
+        {"ended": {"unit": ["sessionEnded", "permissionDenied", "kbIdentityConflict"]}},
+        {"expect": {"unit": {"sessionEnded": null, "permissionDenied": null, "kbIdentityConflict": null}}}
+      ]
+    }
+  ]
+}

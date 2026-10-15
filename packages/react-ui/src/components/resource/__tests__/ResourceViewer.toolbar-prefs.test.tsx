@@ -16,6 +16,7 @@ import { fireEvent, within, waitFor } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { ResourceViewer } from '../ResourceViewer';
 
@@ -49,7 +50,8 @@ function sessionDouble() {
     beckon: { hover: vi.fn() },
     mark: { delete: vi.fn(), request: vi.fn() },
   };
-  const session = { client, subscribe: () => () => {} } as unknown as SemiontSession;
+  // The bus its event hooks read rides beside the spies, out of `emitted`'s sight.
+  const session = { client: { ...client, bus: new EventBus() } } as unknown as SemiontSession;
   const emitted = (): string[] =>
     Object.entries(client).flatMap(([namespace, methods]) =>
       Object.entries(methods)

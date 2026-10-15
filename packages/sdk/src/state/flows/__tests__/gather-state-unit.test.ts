@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import type { GatheredContext } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { createGatherStateUnit } from '../gather-state-unit';
+import { createGatherStateUnit, type GatherStateUnit } from '../gather-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { resourceContextFor } from '../../../__tests__/fixtures/gathered-context';
@@ -341,7 +341,7 @@ describe('GatherStateUnit — resource gather', () => {
 
 describe('GatherStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<GatherStateUnit>({
       setup: () => {
         const tc = withBothGathers(vi.fn(), vi.fn());
         return { unit: createGatherStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };

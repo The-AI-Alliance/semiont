@@ -13,9 +13,13 @@ use semiont::session::{
     SessionEndReason, SessionEnded, SessionSignals, StoredSession, session_key, store_session,
     stored_session,
 };
+use semiont::state_unit::StateUnit;
 use semiont::storage::SessionStorage;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
-use semiont::testing::{FaultyTransport, SharedStorage, TestClientOptions, create_test_client};
+use semiont::testing::{
+    FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
+    create_test_session,
+};
 use semiont::types::UserResponse;
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -451,7 +455,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
                 "{why}: what was asked once the session was over"
             );
         }
-        session.close().await;
+        session.dispose();
     }
 }
 
@@ -563,7 +567,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
                 "{why}: what was asked once the session was over"
             );
         }
-        session.close().await;
+        session.dispose();
     }
 }
 
@@ -941,14 +945,14 @@ async fn each_session_has_an_id_of_its_own_even_for_one_knowledge_base() {
     assert_ne!(first.id(), second.id());
     assert_eq!(first.kb().id, second.kb().id);
     let id = first.id().to_owned();
-    first.close().await;
+    first.dispose();
     assert_eq!(first.id(), id);
 }
 
 // ── How it ends ─────────────────────────────────────────────────────────
 
 #[tokio::test(start_paused = true)]
-async fn closing_a_session_ends_what_it_holds_and_closes_its_client() {
+async fn ending_a_session_ends_what_it_holds_and_leaves_its_client_open() {
     let world = World::new()
         .storing(&token(300, 1))
         .renewing([Ok(Some(token(300, 2)))]);
@@ -956,11 +960,11 @@ async fn closing_a_session_ends_what_it_holds_and_closes_its_client() {
     ready(&session).await;
     let (mut held, mut user) = (session.token(), session.user());
 
-    session.close().await;
-    session.close().await;
+    session.dispose();
+    session.dispose();
 
     assert!(held.ended() && user.ended());
-    assert!(world.client.bus().destroyed());
+    assert!(!world.client.bus().destroyed());
     // Nothing it had scheduled runs, and nothing it is told does anything.
     tokio::time::sleep(Duration::from_secs(600)).await;
     assert_eq!(world.renewed(), 0);
@@ -1036,12 +1040,12 @@ async fn what_another_context_writes_elsewhere_or_unreadably_changes_nothing() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_closed_session_hears_nothing_of_the_storage() {
+async fn an_ended_session_hears_nothing_of_the_storage() {
     let access = token(3600, 1);
     let world = World::new().storing(&access);
     let session = world.session();
     ready(&session).await;
-    session.close().await;
+    session.dispose();
 
     world
         .elsewhere
@@ -1164,4 +1168,25 @@ impl AxiomSubject for Signals {
 #[test]
 fn the_signals_keep_the_state_unit_axioms() {
     assert_eq!(assert_state_unit_axioms(&Signals), Ok(()));
+}
+
+struct Sessions;
+
+impl AxiomSubject for Sessions {
+    type Unit = SemiontSession;
+
+    fn setup(&self) -> Fresh<SemiontSession> {
+        let test = create_test_session(TestSessionOptions::default());
+        Fresh::of(test.session).given(test.client)
+    }
+
+    // Its stream state and its errors are its client's, and end with it.
+    fn surfaces(&self, unit: &SemiontSession) -> Vec<Box<dyn Surface>> {
+        vec![Box::new(unit.token()), Box::new(unit.user())]
+    }
+}
+
+#[test]
+fn a_session_keeps_the_state_unit_axioms_and_never_closes_its_client() {
+    assert_eq!(assert_state_unit_axioms(&Sessions), Ok(()));
 }

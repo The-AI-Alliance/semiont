@@ -26,7 +26,7 @@ use semiont::errors::{
 };
 use semiont::identity::agent_name;
 use semiont::session::{
-    HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
+    HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, OpenedSession, Protocol, SemiontBrowser,
     SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
     session_key, store_session, stored_session,
 };
@@ -1206,7 +1206,8 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
 
-    let session = session_from_issued(issued(&world, storage.clone(), &access)).await;
+    let opened = session_from_issued(issued(&world, storage.clone(), &access)).await;
+    let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(
@@ -1222,7 +1223,7 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
             .map(|user| user.email.clone()),
         Some("alice@example.org".to_owned())
     );
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test]
@@ -1231,7 +1232,7 @@ async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
 
-    let session = session_from_issued(issued(&world, storage, &access)).await;
+    let opened = session_from_issued(issued(&world, storage, &access)).await;
     until("the session's stream is open", || {
         !world.staged.subscriptions.lock().unwrap().is_empty()
     })
@@ -1242,7 +1243,7 @@ async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     // token is by one request.
     assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
     assert_eq!(world.staged.subscriptions.lock().unwrap().len(), 1);
-    session.close().await;
+    opened.close().await;
 }
 
 /// An issuer that goes on renewing a credential the gateway goes on
@@ -1258,7 +1259,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
 
-    let session = ends(session_from_issued(IssuedSession {
+    let opened = ends(session_from_issued(IssuedSession {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
         })),
@@ -1268,6 +1269,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
         ..issued(&world, storage.clone(), &jwt(3600, 1))
     }))
     .await;
+    let session = opened.session();
 
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
     assert_eq!(*told.lock().unwrap(), [SessionEndReason::Refused]);
@@ -1290,7 +1292,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     );
     let renewals = world.token_forms().len();
     assert!(renewals <= 2, "the issuer was asked {renewals} times");
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -1306,7 +1308,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
-    let session = ends(session_from_issued(IssuedSession {
+    let opened = ends(session_from_issued(IssuedSession {
         on_auth_failed: Some(Arc::new(move |reason| {
             telling.lock().unwrap().push(reason);
         })),
@@ -1316,6 +1318,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         ..issued(&world, storage.clone(), &first)
     }))
     .await;
+    let session = opened.session();
     assert_eq!(
         *world.staged.asked_who.lock().unwrap(),
         std::slice::from_ref(&first)
@@ -1352,7 +1355,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     assert_eq!(world.token_forms().len(), 1);
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 4);
     assert_eq!(reported.lock().unwrap().len(), 1);
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test]
@@ -1360,7 +1363,8 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
     let (first, second) = (jwt(3600, 1), jwt(3600, 2));
-    let session = session_from_issued(issued(&world, storage.clone(), &first)).await;
+    let opened = session_from_issued(issued(&world, storage.clone(), &first)).await;
+    let session = opened.session();
     world.answers([granted(&second, Some("r2"))]);
 
     assert_eq!(session.refresh().await, Some(second.clone()));
@@ -1376,7 +1380,7 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     assert_eq!(session.refresh().await, None);
     assert_eq!(*session.token().borrow(), None);
     assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test]
@@ -1384,11 +1388,12 @@ async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
     let (first, second) = (jwt(3600, 1), jwt(3600, 2));
-    let session = session_from_issued(IssuedSession {
+    let opened = session_from_issued(IssuedSession {
         validate: false,
         ..issued(&world, storage, &first)
     })
     .await;
+    let session = opened.session();
     world.staged.refused.lock().unwrap().push(first.clone());
     world.answers([granted(&second, Some("r2"))]);
 
@@ -1407,7 +1412,7 @@ async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
         [first, second.clone()]
     );
     assert_eq!(session.token().borrow().as_deref(), Some(second.as_str()));
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -1417,7 +1422,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);
 
-    let session: SemiontSession = sign_in_device(
+    let opened: OpenedSession = sign_in_device(
         SignInDevice {
             kb: world.kb("a-script"),
             storage: storage.clone(),
@@ -1430,6 +1435,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
     )
     .await
     .expect("a session");
+    let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(
@@ -2066,7 +2072,7 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
     let saying = said.clone();
     let started = tokio::time::Instant::now();
 
-    let session = ends(session_from_stored(StoredSignIn {
+    let opened = ends(session_from_stored(StoredSignIn {
         kb: world.kb("a-script"),
         storage,
         base_url: world.origin.clone(),
@@ -2079,6 +2085,7 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
     }))
     .await
     .expect("a sign-in is stored");
+    let session = opened.session();
 
     assert!(
         took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
@@ -2093,7 +2100,7 @@ async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_a
         said[0].contains("GET /api/users/me got no answer within 30s"),
         "{said:?}"
     );
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -2380,7 +2387,7 @@ async fn a_script(
         Arc::new(InMemorySessionStorage::new()),
         Arc::new(|why| eprintln!("{why}")),
     );
-    let session = session_from_stored(StoredSignIn {
+    let opened = session_from_stored(StoredSignIn {
         kb: KbTarget::http(
             "local",
             "Local",
@@ -2398,8 +2405,9 @@ async fn a_script(
     .await
     .ok_or("Not signed in. Run `semiont login`.")?;
 
-    let about = session.client().browse.kb().await?;
-    session.close().await;
+    let about = opened.session().client().browse.kb().await?;
+    // The session, then the client it was built with.
+    opened.close().await;
     // </readme:script>
     Ok(about.name)
 }
@@ -2408,11 +2416,11 @@ async fn a_first_sign_in(
     kb: KbTarget,
     storage: Arc<dyn SessionStorage>,
     http: reqwest::Client,
-) -> Result<SemiontSession, SignInError> {
+) -> Result<OpenedSession, SignInError> {
     // <readme:device>
     // The issuer mints a code, and the person approves it wherever they
     // have a browser. No password passes through this process.
-    let session = sign_in_device(
+    let opened = sign_in_device(
         SignInDevice {
             kb,
             storage,
@@ -2430,7 +2438,7 @@ async fn a_first_sign_in(
     )
     .await?;
     // </readme:device>
-    Ok(session)
+    Ok(opened)
 }
 
 async fn a_daemon(
@@ -2693,7 +2701,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
     let renewed = jwt(3600, 2);
     world.answers([granted(&renewed, Some("r2"))]);
 
-    let session = session_from_stored(StoredSignIn {
+    let opened = session_from_stored(StoredSignIn {
         kb: world.kb("a-script"),
         storage: storage.clone(),
         base_url: world.origin.clone(),
@@ -2704,6 +2712,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
     })
     .await
     .expect("a sign-in is stored");
+    let session = opened.session();
 
     assert_eq!(session.refresh().await, Some(renewed.clone()));
     assert_eq!(
@@ -2713,7 +2722,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
     assert_eq!(world.token_forms().len(), 1);
     // It was not asked who it is: nobody said to.
     assert!(world.staged.asked_who.lock().unwrap().is_empty());
-    session.close().await;
+    opened.close().await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -2723,14 +2732,15 @@ async fn a_first_sign_in_shows_the_code_and_gives_a_session_that_knows_who_it_is
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);
 
-    let session = a_first_sign_in(world.kb("a-script"), storage.clone(), world.http.clone())
+    let opened = a_first_sign_in(world.kb("a-script"), storage.clone(), world.http.clone())
         .await
         .expect("a session");
+    let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
     assert!(stored_session(storage.as_ref(), "a-script").is_some());
-    session.close().await;
+    opened.close().await;
 }
 
 // The DID is minted by the gateway, under the knowledge base's own domain, and

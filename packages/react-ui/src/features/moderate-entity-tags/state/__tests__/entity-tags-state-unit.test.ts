@@ -5,7 +5,7 @@ import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
-import { createEntityTagsStateUnit } from '../entity-tags-state-unit';
+import { createEntityTagsStateUnit, type EntityTagsStateUnit } from '../entity-tags-state-unit';
 import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
 function mockBrowse(): ShellStateUnit {
@@ -106,7 +106,7 @@ describe('createEntityTagsStateUnit', () => {
 
 describe('EntityTagsStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms (incl. A7-passed: never disposes the injected browse)', () => {
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<EntityTagsStateUnit>({
       setup: () => {
         const browse = disposeProbe();
         return { unit: createEntityTagsStateUnit(sessionOf(mockClient()), browse as unknown as ShellStateUnit), passedIn: [browse] };

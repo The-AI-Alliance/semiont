@@ -28,8 +28,8 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
  *
  * Bring-your-own-session: the `session` (SemiontSession) and the host's
  * navigation / panel callbacks come in as props — no SemiontProvider required.
- * Every event it subscribes to is session-scoped and reaches it via
- * `session.subscribe`. Translations come from the nearest TranslationProvider,
+ * Every event it subscribes to is session-scoped and reaches it on
+ * `session.client`. Translations come from the nearest TranslationProvider,
  * which is required; caching flows through `session.client.browse.*`.
  *
  * Event flow:

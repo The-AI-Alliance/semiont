@@ -150,7 +150,7 @@ fn gathered() -> GatheredContext {
 async fn beckon_holds_what_is_hovered_and_none_clears_it() {
     let (client, _transport) = world();
     let unit = BeckonStateUnit::new(client.clone());
-    let hovered = unit.hovered();
+    let hovered = unit.hovered_annotation_id();
     assert_eq!(*hovered.borrow(), None);
 
     client.beckon.hover(Some(&as_id("ann-1")));
@@ -203,7 +203,7 @@ async fn beckon_turns_the_focus_to_an_annotation_that_is_opened() {
             json!({ "annotationId": "ann-2" })
         ]
     );
-    assert_eq!(*unit.hovered().borrow(), None);
+    assert_eq!(*unit.hovered_annotation_id().borrow(), None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -224,7 +224,7 @@ async fn beckon_focus_says_the_focus() {
 async fn beckon_disposed_hears_nothing_and_says_nothing() {
     let (client, _transport) = world();
     let unit = BeckonStateUnit::new(client.clone());
-    let mut hovered = unit.hovered();
+    let mut hovered = unit.hovered_annotation_id();
     let mut said = client
         .bus()
         .frames_among(&["beckon:sparkle", "beckon:focus"]);
@@ -246,7 +246,7 @@ async fn beckon_disposed_hears_nothing_and_says_nothing() {
 async fn a_state_set_to_what_it_already_is_wakes_nobody() {
     let (client, _transport) = world();
     let unit = BeckonStateUnit::new(client.clone());
-    let mut hovered = unit.hovered();
+    let mut hovered = unit.hovered_annotation_id();
 
     client.beckon.hover(Some(&as_id("ann-1")));
     settle().await;
@@ -268,7 +268,7 @@ impl AxiomSubject for Beckons {
     }
 
     fn surfaces(&self, unit: &BeckonStateUnit) -> Vec<Box<dyn Surface>> {
-        vec![Box::new(unit.hovered())]
+        vec![Box::new(unit.hovered_annotation_id())]
     }
 
     fn invocations<'a>(&self, unit: &'a BeckonStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
@@ -364,6 +364,45 @@ async fn a_dwell_that_is_dropped_forgets_the_rest_it_was_waiting_out() {
     tokio::time::sleep(HOVER_DELAY * 2).await;
 
     assert!(said(&hovers).is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_dwell_that_is_disposed_says_nothing_more() {
+    let (dwell, hovers) = dwell(HOVER_DELAY);
+
+    dwell.enter(&as_id("ann-1"));
+    tokio::time::sleep(HOVER_DELAY * 2).await;
+    dwell.enter(&as_id("ann-2"));
+    dwell.dispose();
+    dwell.leave();
+    dwell.enter(&as_id("ann-3"));
+    tokio::time::sleep(HOVER_DELAY * 2).await;
+
+    // The rest it was waiting out is forgotten, and what it is told afterwards
+    // is not followed: not even the pointer leaving what it hovered.
+    assert_eq!(said(&hovers), [Some("ann-1".to_owned())]);
+}
+
+struct Dwells;
+
+impl AxiomSubject for Dwells {
+    type Unit = HoverDwell;
+
+    fn setup(&self) -> Fresh<HoverDwell> {
+        Fresh::of(dwell(HOVER_DELAY).0)
+    }
+
+    fn invocations<'a>(&self, unit: &'a HoverDwell) -> Vec<Box<dyn Fn() + 'a>> {
+        vec![
+            Box::new(|| unit.enter(&as_id("ann-1"))),
+            Box::new(|| unit.leave()),
+        ]
+    }
+}
+
+#[test]
+fn the_dwell_keeps_the_state_unit_axioms() {
+    assert_eq!(assert_state_unit_axioms(&Dwells), Ok(()));
 }
 
 // ── Match ───────────────────────────────────────────────────────────────
@@ -1310,8 +1349,8 @@ fn submit(client: &SemiontClient, source: &str, exact: &str) {
 async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() {
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    assert_eq!(*unit.pending().borrow(), None);
-    assert_eq!(*unit.delegating().borrow(), None);
+    assert_eq!(*unit.pending_annotation().borrow(), None);
+    assert_eq!(*unit.delegating_motivation().borrow(), None);
     assert_eq!(*unit.progress().borrow(), None);
 
     client.mark.request(
@@ -1321,13 +1360,13 @@ async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() 
     );
     settle().await;
     assert_eq!(
-        *unit.pending().borrow(),
+        *unit.pending_annotation().borrow(),
         pending_of(quote("hello"), Motivation::Highlighting)
     );
 
     client.mark.cancel_pending();
     settle().await;
-    assert_eq!(*unit.pending().borrow(), None);
+    assert_eq!(*unit.pending_annotation().borrow(), None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -1349,7 +1388,7 @@ async fn mark_carries_a_selector_of_several_as_it_was_given() {
     settle().await;
 
     assert_eq!(
-        *unit.pending().borrow(),
+        *unit.pending_annotation().borrow(),
         pending_of(several, Motivation::Linking)
     );
 }
@@ -1392,7 +1431,7 @@ async fn mark_reads_a_quick_selection_as_the_selector_it_states() {
         say(&client, channel, selection);
         settle().await;
         assert_eq!(
-            *unit.pending().borrow(),
+            *unit.pending_annotation().borrow(),
             pending_of(selector, motivation),
             "{channel}"
         );
@@ -1430,11 +1469,11 @@ async fn mark_creates_what_is_submitted_and_it_stops_being_pending_once_recorded
         })
     );
     // Still pending: the knowledge base has not said it is recorded.
-    assert!(unit.pending().borrow().is_some());
+    assert!(unit.pending_annotation().borrow().is_some());
 
     tokio::time::sleep(Duration::from_secs(1)).await;
     settle().await;
-    assert_eq!(*unit.pending().borrow(), None);
+    assert_eq!(*unit.pending_annotation().borrow(), None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -1458,7 +1497,7 @@ async fn mark_keeps_its_pending_annotation_when_another_creation_is_recorded() {
     });
     settle().await;
 
-    assert!(unit.pending().borrow().is_some());
+    assert!(unit.pending_annotation().borrow().is_some());
 }
 
 #[tokio::test(start_paused = true)]
@@ -1478,7 +1517,7 @@ async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
         payloads(heard(&mut errors).await),
         [json!({ "resourceId": RES, "message": "mark:create-request is refused here" })]
     );
-    assert!(unit.pending().borrow().is_some());
+    assert!(unit.pending_annotation().borrow().is_some());
 }
 
 fn ask_to_delegate(client: &SemiontClient) {
@@ -1489,7 +1528,7 @@ fn ask_to_delegate(client: &SemiontClient) {
 /// it shows.
 fn delegating(unit: &MarkStateUnit) -> (Option<Motivation>, Option<f64>) {
     (
-        *unit.delegating().borrow(),
+        *unit.delegating_motivation().borrow(),
         unit.progress().borrow().as_ref().map(|p| p.percentage),
     )
 }
@@ -1907,8 +1946,8 @@ async fn mark_units_of_two_resources_on_one_client_each_answer_for_their_own() {
         Motivation::Highlighting,
     );
     settle().await;
-    assert!(first.pending().borrow().is_some());
-    assert_eq!(*second.pending().borrow(), None);
+    assert!(first.pending_annotation().borrow().is_some());
+    assert_eq!(*second.pending_annotation().borrow(), None);
 
     submit(&client, "res-a", "hello");
     settle().await;
@@ -1921,7 +1960,7 @@ async fn mark_units_of_two_resources_on_one_client_each_answer_for_their_own() {
 async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let mut pending = unit.pending();
+    let mut pending = unit.pending_annotation();
 
     for round in 0..150 {
         let last = format!("round-{round}");
@@ -1957,8 +1996,8 @@ async fn mark_disposed_is_inert() {
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     ask_to_delegate(&client);
     settle().await;
-    let mut pending = unit.pending();
-    let mut motivation = unit.delegating();
+    let mut pending = unit.pending_annotation();
+    let mut motivation = unit.delegating_motivation();
     let mut shown = unit.progress();
     let mut said = client
         .bus()
@@ -1996,8 +2035,8 @@ impl AxiomSubject for Marks {
 
     fn surfaces(&self, unit: &MarkStateUnit) -> Vec<Box<dyn Surface>> {
         vec![
-            Box::new(unit.pending()),
-            Box::new(unit.delegating()),
+            Box::new(unit.pending_annotation()),
+            Box::new(unit.delegating_motivation()),
             Box::new(unit.progress()),
             Box::new(unit.progress_motivation()),
             Box::new(unit.failure()),

@@ -1,7 +1,9 @@
 /**
- * SemiontSession — per-gateway session lifetime object. Owns the
- * SemiontClient, the access token BehaviorSubject, and optionally
- * an authenticated user. One SemiontSession exists per active gateway
+ * SemiontSession — a state unit: one gateway connection's token and who is
+ * signed in. It writes the access token and the user, so it owns and ends
+ * them; it uses the SemiontClient it is given, and never ends it. Whoever
+ * made the client and the session ends both (`SemiontBrowser` for an
+ * application's sessions). One SemiontSession exists per active gateway
  * connection; lifetime is decoupled from React mount lifetime.
  *
  * Headless by design. Runs in browsers, CLIs, workers, and tests.
@@ -34,17 +36,17 @@
  * directly.
  */
 
-import { BehaviorSubject, filter, type Observable } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
   type AccessToken,
   type BaseUrl,
 } from '@semiont/core';
-import { isResourceScopedChannel } from '@semiont/core';
-import type { components, EventMap, ResourceId, ResourceScopedChannel, UnscopedChannel } from '@semiont/core';
+import type { components, StateUnit } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
 import type { SemiontError } from '@semiont/core';
+import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KbTarget } from './knowledge-base';
 import {
@@ -110,6 +112,18 @@ export interface SemiontSessionConfig {
 }
 
 /**
+ * A session and the client it was built with, which whoever holds this ends
+ * together: what a script's sign-in gives (`SemiontSession.signInDevice`,
+ * `fromIssuedSession`, `fromHttp`). The session only uses its client, so
+ * ending the session alone would leave the client's stream open.
+ */
+export interface OpenedSession {
+  readonly session: SemiontSession;
+  /** End the session, then close its client. Ending twice is ending once. */
+  dispose(): void;
+}
+
+/**
  * Instance counter behind `SemiontSession.id`. Deliberately not a UUID: the
  * id is an in-memory discriminator, never persisted and never sent over the
  * wire, so it needs no entropy — and a counter has no secure-context
@@ -118,7 +132,7 @@ export interface SemiontSessionConfig {
  */
 let sessionSeq = 0;
 
-export class SemiontSession {
+export class SemiontSession implements StateUnit {
   /**
    * Identity of THIS LIVE SESSION, distinct from `kb.id` (which knowledge
    * base) — successive sessions for the same KB get different ids.
@@ -131,8 +145,10 @@ export class SemiontSession {
   readonly id: string;
   readonly kb: KbTarget;
   readonly client: SemiontClient;
-  readonly token$: BehaviorSubject<AccessToken | null>;
-  readonly user$: BehaviorSubject<UserInfo | null>;
+  /** The token the transport sends: the present one, and each after it. Only the session writes it. */
+  readonly token$: Watched<AccessToken | null>;
+  /** Who is signed in, once the gateway has said. Only the session writes it. */
+  readonly user$: Watched<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
   /**
    * Stream of `SemiontError` instances surfaced by the underlying transport
@@ -150,6 +166,8 @@ export class SemiontSession {
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
 
+  readonly #heldToken$: BehaviorSubject<AccessToken | null>;
+  readonly #heldUser$: BehaviorSubject<UserInfo | null>;
   private readonly storage: SessionStorage;
   private readonly doRefresh?: () => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
@@ -172,18 +190,20 @@ export class SemiontSession {
     this.onAuthFailed = config.onAuthFailed ?? (() => {});
     this.onError = config.onError ?? (() => {});
     this.client = config.client;
-    this.token$ = config.token$;
-    this.user$ = new BehaviorSubject<UserInfo | null>(null);
+    this.#heldToken$ = config.token$;
+    this.token$ = watched(this.#heldToken$);
+    this.#heldUser$ = new BehaviorSubject<UserInfo | null>(null);
+    this.user$ = watched(this.#heldUser$);
     this.errors$ = this.client.transport.errors$;
 
     // Reconcile stored token: if there's a fresh stored access token
     // and `token$` hasn't been seeded yet, push the stored value so the
     // transport (which shares this token$) sees it on first auth.
     const stored = getStoredSession(this.storage, this.kb.id);
-    if (stored && !isJwtExpired(stored.access) && this.token$.getValue() === null) {
-      this.token$.next(accessToken(stored.access));
+    if (stored && !isJwtExpired(stored.access) && this.#heldToken$.getValue() === null) {
+      this.#heldToken$.next(accessToken(stored.access));
     }
-    const initialToken = this.token$.getValue();
+    const initialToken = this.#heldToken$.getValue();
 
     this.streamState$ = this.client.state$;
 
@@ -225,7 +245,7 @@ export class SemiontSession {
     }
 
     if (startToken !== stored.access) {
-      this.token$.next(accessToken(startToken));
+      this.#heldToken$.next(accessToken(startToken));
       this.scheduleProactiveRefresh(startToken);
     }
 
@@ -248,7 +268,7 @@ export class SemiontSession {
       try {
         const data = await validate(accessToken(token));
         if (this.disposed) return;
-        this.user$.next(data);
+        this.#heldUser$.next(data);
         return;
       } catch (err) {
         if (this.disposed) return;
@@ -269,7 +289,7 @@ export class SemiontSession {
         // The session's token has changed since the ask: the stream
         // was refused with it too, and `refresh` has renewed it meanwhile.
         // That token is the just-issued one, and is not renewed again.
-        const current = this.token$.getValue();
+        const current = this.#heldToken$.getValue();
         if (current !== token) {
           if (current === null) return;
           token = current;
@@ -282,7 +302,7 @@ export class SemiontSession {
           this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
           return;
         }
-        this.token$.next(accessToken(renewed));
+        this.#heldToken$.next(accessToken(renewed));
         this.scheduleProactiveRefresh(renewed);
         token = renewed;
         justIssued = true;
@@ -297,7 +317,7 @@ export class SemiontSession {
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
-    this.token$.next(null);
+    this.#heldToken$.next(null);
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed(told);
     this.onError(new SemiontSessionError(code, why, this.kb.id));
@@ -366,11 +386,11 @@ export class SemiontSession {
       // Only a token the session still holds ends it: one replaced while
       // the gateway was being asked (another context signed in, or renewed)
       // is not the session's to be refused.
-      if (refused && this.token$.getValue() === renewed) {
+      if (refused && this.#heldToken$.getValue() === renewed) {
         this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
       }
     }
-    return this.disposed ? null : this.token$.getValue();
+    return this.disposed ? null : this.#heldToken$.getValue();
   }
 
   /**
@@ -384,7 +404,7 @@ export class SemiontSession {
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
-      this.token$.next(tok);
+      this.#heldToken$.next(tok);
       this.scheduleProactiveRefresh(newAccess);
       return tok;
     }
@@ -398,7 +418,7 @@ export class SemiontSession {
     // (This also makes the REAL teardown below fire once: it clears the
     // stored session, so any follow-up 401s take this quiet path.)
     if (!getStoredSession(this.storage, this.kb.id)) {
-      this.token$.next(null);
+      this.#heldToken$.next(null);
       return null;
     }
     this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
@@ -434,15 +454,15 @@ export class SemiontSession {
     if (this.disposed) return;
     if (key !== sessionKey(this.kb.id)) return;
     if (!newValue) {
-      this.token$.next(null);
-      this.user$.next(null);
+      this.#heldToken$.next(null);
+      this.#heldUser$.next(null);
       this.clearRefreshTimer();
       return;
     }
     try {
       const parsed = JSON.parse(newValue) as StoredSession;
       if (typeof parsed.access === 'string') {
-        this.token$.next(accessToken(parsed.access));
+        this.#heldToken$.next(accessToken(parsed.access));
         this.scheduleProactiveRefresh(parsed.access);
       }
     } catch {
@@ -451,67 +471,15 @@ export class SemiontSession {
   }
 
   get expiresAt(): Date | null {
-    const token = this.token$.getValue();
+    const token = this.#heldToken$.getValue();
     return token ? parseJwtExpiry(token) : null;
   }
 
   /**
-   * Subscribe to a session-bus channel. The single sanctioned escape hatch
-   * for generic-channel subscription (the case `useEventSubscription` needs
-   * — channel name is a hook parameter, not known statically). All other
-   * consumers must call typed namespace methods (e.g. `session.client.mark.archive(...)`).
-   *
-   * A channel of a resource's scope (`RESOURCE_SCOPED_CHANNELS`: `mark:added`
-   * and the other events of the record) reaches only a connection that holds
-   * that resource's scope. So its subscription names the resource: it holds
-   * the scope for as long as it lives, and its handler is given that
-   * resource's events and no other's. Named with no resource, such a channel
-   * does not compile, and is refused when called; so is any other channel
-   * named with one.
-   *
-   * @returns disposer that unsubscribes the handler, and lets go of the scope.
+   * End the session: its renewal stops, it stops following storage, and its
+   * token and user complete. The client is left to whoever made it.
    */
-  subscribe<K extends UnscopedChannel>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
-  subscribe<K extends ResourceScopedChannel>(
-    channel: K,
-    resourceId: ResourceId,
-    handler: (payload: EventMap[K]) => void,
-  ): () => void;
-  subscribe<G extends UnscopedChannel, S extends ResourceScopedChannel>(
-    ...args:
-      | [channel: G, handler: (payload: EventMap[G]) => void]
-      | [channel: S, resourceId: ResourceId, handler: (payload: EventMap[S]) => void]
-  ): () => void {
-    if (args.length === 2) {
-      const [channel, handler] = args;
-      if (isResourceScopedChannel(channel)) {
-        throw new Error(
-          `${channel} is delivered on a resource's scope, so a subscription with no resource would hear nothing: subscribe(channel, resourceId, handler)`,
-        );
-      }
-      const sub = this.client.bus.on(channel).subscribe(handler);
-      return () => sub.unsubscribe();
-    }
-    const [channel, resourceId, handler] = args;
-    if (!isResourceScopedChannel(channel)) {
-      throw new Error(
-        `${channel} is no resource's channel, so a subscription for a resource would hold a scope and hear nothing: subscribe(channel, handler)`,
-      );
-    }
-    const leave = this.client.transport.subscribeToResource(resourceId);
-    // A stream delivers every scope it holds on the one channel, and another
-    // reader may hold another resource's.
-    const sub = this.client.bus
-      .on(channel)
-      .pipe(filter((event) => event.resourceId === resourceId))
-      .subscribe(handler);
-    return () => {
-      sub.unsubscribe();
-      leave();
-    };
-  }
-
-  async dispose(): Promise<void> {
+  dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
 
@@ -521,10 +489,8 @@ export class SemiontSession {
       this.unsubscribeStorage = null;
     }
 
-    this.client.dispose();
-
-    this.token$.complete();
-    this.user$.complete();
+    this.#heldToken$.complete();
+    this.#heldUser$.complete();
   }
 
   /**
@@ -532,7 +498,8 @@ export class SemiontSession {
    * shared `BehaviorSubject<AccessToken | null>`, an `HttpTransport`,
    * an `HttpContentTransport`, and a `SemiontClient`, then wires
    * the session over them. Removes the load-bearing
-   * "same-token$-instance" invariant from the caller's hands.
+   * "same-token$-instance" invariant from the caller's hands. Gives the
+   * session with the client it built, for the caller to end together.
    *
    * Strings are accepted for `baseUrl` and `token`; they are branded
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
@@ -549,7 +516,7 @@ export class SemiontSession {
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
-  }): SemiontSession {
+  }): OpenedSession {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null
@@ -563,14 +530,22 @@ export class SemiontSession {
     if (opts.validate) config.validate = opts.validate;
     if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
     if (opts.onError) config.onError = opts.onError;
-    return new SemiontSession(config);
+    const session = new SemiontSession(config);
+    return {
+      session,
+      dispose: () => {
+        session.dispose();
+        client.dispose();
+      },
+    };
   }
 
   /**
    * A session over tokens an issuer already issued — a Browser's completed
    * sign-in, a script's device grant, a test harness's minted pair. Persists
    * the session under the KB's id and wires the refresh grant against the
-   * issuer the session names; `ready` has resolved when this returns.
+   * issuer the session names; the session's `ready` has resolved when this
+   * returns. Gives it with the client it was built with, as `fromHttp` does.
    *
    * `kb.id` is the storage key: distinct scripts sharing one
    * `SessionStorage` must use distinct ids or they trample each other's
@@ -584,13 +559,13 @@ export class SemiontSession {
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
-  }): Promise<SemiontSession> {
+  }): Promise<OpenedSession> {
     setStoredSession(opts.storage, opts.kb.id, opts.session);
     // One renewal at a time. A stream refused and a request refused at the
     // same moment each ask for one, and an issuer that rotates refresh tokens
     // refuses the second grant, which would end a session that was fine.
     let renewing: Promise<string | null> | null = null;
-    const session = SemiontSession.fromHttp({
+    const opened = SemiontSession.fromHttp({
       kb: opts.kb,
       storage: opts.storage,
       baseUrl: opts.baseUrl,
@@ -603,8 +578,8 @@ export class SemiontSession {
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
       ...(opts.onError ? { onError: opts.onError } : {}),
     });
-    await session.ready;
-    return session;
+    await opened.session.ready;
+    return opened;
   }
 
   /**
@@ -613,6 +588,7 @@ export class SemiontSession {
    * shows the person where to approve it, and the tokens come back here —
    * no password ever passes through the process. Throws a `SignInError`
    * when the KB trusts no issuer, the person denies, or the code expires.
+   * Gives the session with the client it was built with, as `fromHttp` does.
    */
   static async signInDevice(opts: {
     kb: KbTarget;
@@ -622,7 +598,7 @@ export class SemiontSession {
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
-  }): Promise<SemiontSession> {
+  }): Promise<OpenedSession> {
     if (opts.kb.endpoint.kind !== 'http') {
       throw new Error(`The device grant needs an HTTP endpoint; this knowledge base's is "${opts.kb.endpoint.kind}"`);
     }

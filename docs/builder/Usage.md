@@ -43,7 +43,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 
 Streams, delegations and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
-**Collaboration primitives.** The last row above, the wire drives (`beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`), is the SDK's contribution to multi-participant coordination: each reaches every other participant's viewer. The `void` signals in the fifth row (`beckon.hover`, `bind.initiate`, `browse.click`) stay on the client's own bus. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
+**Collaboration primitives.** The last row above, the wire drives (`beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`), is the SDK's contribution to multi-participant coordination: each reaches every other participant's viewer. The `void` signals in the fifth row (`beckon.hover`, `bind.initiate`, `browse.click`) stay on the client's own bus. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Two paths to the bus](./REACTIVE-MODEL.md#two-paths-to-the-bus).
 
 ## Setup
 
@@ -65,16 +65,20 @@ const kb: KnowledgeBase = {
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb,
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
 
-// session.client is the same SemiontClient surface; the session manages
-// the access-token lifecycle around it (proactive refresh, validation,
-// storage-adapter wiring).
+// opened.session.client is the same SemiontClient surface; the session
+// manages the access-token lifecycle around it (proactive refresh,
+// validation, storage-adapter wiring).
+
+opened.dispose(); // when done: the session, then the client it was built with
 ```
+
+`signInDevice` gives an `OpenedSession`: the session and the client it was built with. A session only uses its client, so the two end together, and `opened.dispose()` is what ends them. `opened.session.dispose()` alone would leave the client's event stream open.
 
 `KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for a transport with no wire). Code that doesn't construct transports never inspects `endpoint`.
 
@@ -95,8 +99,8 @@ const semiont = SemiontClient.fromHttp({
   token: 'your-jwt',
 });
 
-// Long-running — supply your own refresh callback
-const session = SemiontSession.fromHttp({
+// Long-running — supply your own refresh callback. Gives an OpenedSession.
+const opened = SemiontSession.fromHttp({
   kb: {
     id: 'local',
     label: 'Local Gateway',
@@ -107,7 +111,7 @@ const session = SemiontSession.fromHttp({
   token: 'your-jwt',
   refresh: async () => /* return new access token, or null */ null,
 });
-await session.ready;
+await opened.session.ready;
 ```
 
 The session factory owns the load-bearing "same `BehaviorSubject` instance flows into both transport and session" invariant for you — there is no separate `token$` to thread.
@@ -150,7 +154,7 @@ function opened(href: string) {
 
 ### Public bus access
 
-The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The single sanctioned escape hatch for arbitrary-channel subscription is `session.subscribe(channel, handler)`, available when you go through `SemiontSession`.
+The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The sanctioned escape hatch for arbitrary-channel subscription is the client's own bus, `semiont.bus.on(channel)`; a channel of a resource's scope is heard only while that scope is held (`semiont.transport.subscribeToResource(resourceId)`). See [`REACTIVE-MODEL.md` § Two paths to the bus](./REACTIVE-MODEL.md#two-paths-to-the-bus).
 
 ## Yield
 

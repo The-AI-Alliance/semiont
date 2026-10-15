@@ -23,8 +23,8 @@ export type PendingCreation = EventMap['mark:requested'];
  *
  * Headless by contract: no creation call, no UI, no toast in here — resolution
  * (chooser flows, body forms, `mark.annotation`) is host policy. Session-first
- * like every subscribing primitive (`session.subscribe` is the sanctioned
- * generic-channel path); `null` → inert.
+ * like every subscribing primitive (it reads its channel on the session's
+ * client, through `useSessionEventSubscriptions`); `null` → inert.
  *
  * @param session  Session whose bus carries this viewer's events; null → inert.
  * @param resourceId  Claim only events whose `source` is this resource.

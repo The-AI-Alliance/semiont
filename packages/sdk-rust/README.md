@@ -66,8 +66,9 @@ is the transport crate's:
 
 Each is shown, compiled and run, in
 [the transport's README](../http-transport-rust/README.md#signing-in).
-A person's sign-in gives a `SemiontSession`, and `session.client()` is the
-`SemiontClient` the examples below start from. A daemon builds its client
+A script's sign-in gives an `OpenedSession`: `opened.session()` is its
+`SemiontSession`, and `session.client()` is the `SemiontClient` the examples
+below start from. A daemon builds its client
 directly, with `client(config, options)`.
 
 ## Eight verbs
@@ -228,7 +229,7 @@ let session = live.wait_for(Option::is_some).await?.clone();
 // being composed on a resource.
 if let Some(session) = session {
     let marking = MarkStateUnit::new(session.client().clone(), &resource_id);
-    let mut pending = marking.pending();
+    let mut pending = marking.pending_annotation();
     while pending.changed().await.is_ok() {
         render(pending.borrow_and_update().as_ref());
     }
@@ -420,11 +421,14 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
 
 ## Sessions
 
-- **`SemiontSession`** is one session with one knowledge base: a client, the
-  token its transport sends, and who is signed in. It renews its token
+- **`SemiontSession`** is one session with one knowledge base: the token its
+  client's transport sends, and who is signed in. It renews its token
   before the token expires, and again when the gateway refuses it. A session
   that cannot be renewed clears its token and what it stored, and says so
-  once.
+  once. It is a state unit: it only uses its client, so `dispose` ends the
+  session and leaves the client to whoever built it.
+- **`OpenedSession`** is a session and the client it was built with, which
+  end together: what a script's sign-in gives.
 - **`SemiontBrowser`** is what an application holds: the knowledge bases a
   person has registered, which one is active, the active one's session, and
   what the person has open in each. One session is live at a time.
@@ -457,6 +461,7 @@ so does dropping it.
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
 | `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
 | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
+| `HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `enter`, `leave` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 
 The ideas behind them are in [State Units](../../docs/builder/STATE-UNITS.md).
@@ -469,8 +474,9 @@ dropping cannot do: wait.
 | | `close().await` | dropped |
 |---|---|---|
 | `SemiontClient` | Its queries end, its transport closes so that every request still pending fails as closed, and its own bus ends. | Its queries and its own bus end. The transport is left to whoever else holds it. |
-| `SemiontSession` | The same, and its client is closed. | It stops renewing and what it holds ends. Its client is left open. |
-| `SemiontBrowser` | The active session is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, not closed. |
+| `SemiontSession` | It is a state unit: `dispose()`, which is not async, stops its renewal and ends what it holds. Its client is left open. | The same. |
+| `OpenedSession` | Its session ends, then its client is closed. | Its session ends. The client is dropped with it, not closed. |
+| `SemiontBrowser` | The active session ends, then its client is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, and its client with it, not closed. |
 | a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
 | `Running<T>`, `Delegation<C>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
 | a watcher of a query | | The resource's scope it held is let go. |

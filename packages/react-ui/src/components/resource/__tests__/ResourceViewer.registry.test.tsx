@@ -15,6 +15,7 @@ import { screen } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { EventBus } from '@semiont/core';
 import { ResourceViewer } from '../ResourceViewer';
 import type { MediaRendererProps } from '../browse-renderers';
 import type { AnnotateMediaRendererProps } from '../annotate-renderers';
@@ -28,11 +29,11 @@ vi.mock('../../CodeMirrorRenderer', () => ({
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       browse: { click: vi.fn() },
       beckon: { hover: vi.fn() },
       mark: { request: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

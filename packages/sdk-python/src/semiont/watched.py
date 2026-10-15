@@ -71,6 +71,14 @@ class Variable[T]:
         self._version += 1
         self._wake()
 
+    def raise_(self, value: T) -> None:
+        """Change the value as a new occurrence: every reader is told it, even when it equals the present one. After `end`, nothing is."""
+        if self._ended:
+            return
+        self._value = value
+        self._version += 1
+        self._wake()
+
     def end(self) -> None:
         """Say the value will not change again: each reader's iteration ends once it has been given this one."""
         self._ended = True

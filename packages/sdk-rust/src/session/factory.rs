@@ -24,8 +24,9 @@ pub struct SessionFactoryOptions {
 }
 
 pub trait SessionFactory: Send + Sync + 'static {
-    /// Build the session of a knowledge base. Refused, with why, for a
-    /// knowledge base this factory cannot reach.
+    /// Build the session of a knowledge base, and the client it uses.
+    /// Refused, with why, for a knowledge base this factory cannot reach.
+    /// The caller owns both: it ends the session, then closes its client.
     fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError>;
 
     /// A stored session has been forgotten: tell whoever issued it, so its

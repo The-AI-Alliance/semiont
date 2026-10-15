@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { annotationId } from '@semiont/core';
-import { createBeckonStateUnit, createHoverHandlers } from '../beckon-state-unit';
+import { createBeckonStateUnit, createHoverDwell, type BeckonStateUnit, type HoverDwell } from '../beckon-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -106,68 +106,90 @@ describe('createBeckonStateUnit', () => {
   });
 });
 
-describe('createHoverHandlers', () => {
+describe('createHoverDwell', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('emits hover after delay', () => {
     const emit = vi.fn();
-    const { handleMouseEnter } = createHoverHandlers(emit, 100);
-    handleMouseEnter(annotationId('ann-1'));
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
     expect(emit).not.toHaveBeenCalled();
     vi.advanceTimersByTime(100);
     expect(emit).toHaveBeenCalledWith('ann-1');
   });
 
-  it('emits null immediately on mouse leave', () => {
+  it('emits null immediately on leave', () => {
     const emit = vi.fn();
-    const { handleMouseEnter, handleMouseLeave } = createHoverHandlers(emit, 100);
-    handleMouseEnter(annotationId('ann-1'));
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
-    handleMouseLeave();
+    dwell.leave();
     expect(emit).toHaveBeenCalledWith(null);
   });
 
-  it('cancels pending timer on mouse leave', () => {
+  it('cancels pending timer on leave', () => {
     const emit = vi.fn();
-    const { handleMouseEnter, handleMouseLeave } = createHoverHandlers(emit, 100);
-    handleMouseEnter(annotationId('ann-1'));
-    handleMouseLeave();
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
+    dwell.leave();
     vi.advanceTimersByTime(100);
     expect(emit).not.toHaveBeenCalled();
   });
 
   it('suppresses redundant enters for the same annotation', () => {
     const emit = vi.fn();
-    const { handleMouseEnter } = createHoverHandlers(emit, 100);
-    handleMouseEnter(annotationId('ann-1'));
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
-    handleMouseEnter(annotationId('ann-1'));
+    dwell.enter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
     expect(emit).toHaveBeenCalledTimes(1);
   });
 
-  it('cleanup cancels the pending timer', () => {
+  it('dispose cancels the pending timer', () => {
     const emit = vi.fn();
-    const { handleMouseEnter, cleanup } = createHoverHandlers(emit, 100);
-    handleMouseEnter(annotationId('ann-1'));
-    cleanup();
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
+    dwell.dispose();
     vi.advanceTimersByTime(100);
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it('says nothing more once disposed, not even the pointer leaving what it hovered', () => {
+    const emit = vi.fn();
+    const dwell = createHoverDwell(emit, 100);
+    dwell.enter(annotationId('ann-1'));
+    vi.advanceTimersByTime(100);
+    dwell.dispose();
+    dwell.leave();
+    dwell.enter(annotationId('ann-2'));
+    vi.advanceTimersByTime(100);
+    expect(emit.mock.calls).toEqual([['ann-1']]);
+  });
+
   it('does not emit null on leave when nothing is hovering', () => {
     const emit = vi.fn();
-    const { handleMouseLeave } = createHoverHandlers(emit, 100);
-    handleMouseLeave();
+    const dwell = createHoverDwell(emit, 100);
+    dwell.leave();
     expect(emit).not.toHaveBeenCalled();
+  });
+});
+
+describe('HoverDwell — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms', () => {
+    const aid = annotationId('ann-ax');
+    assertStateUnitAxioms<HoverDwell>({
+      setup: () => createHoverDwell(() => {}, 100),
+      invocations: (u) => [() => u.enter(aid), () => u.leave()],
+    });
   });
 });
 
 describe('BeckonStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const aid = annotationId('ann-ax');
-    assertStateUnitAxioms({
+    assertStateUnitAxioms<BeckonStateUnit>({
       setup: () => {
         const tc = makeTestClient();
         return { unit: createBeckonStateUnit(tc.client), teardown: () => tc.bus.destroy() };

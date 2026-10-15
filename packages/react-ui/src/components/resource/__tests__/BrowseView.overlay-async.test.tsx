@@ -13,7 +13,7 @@
  * mocked to identity, so the source→rendered offset map is 1:1 and spans
  * paint in jsdom via the actual overlay path.
  */
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -29,8 +29,7 @@ const CONTENT = 'hello world selectme end';
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

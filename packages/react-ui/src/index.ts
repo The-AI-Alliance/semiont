@@ -212,7 +212,7 @@ export * from './hooks/useHoverEmitter';
 // any consumer — web, terminal, mobile, daemon — can reach for).
 // React-ui re-exports them so consumers of this package don't need a
 // second import line.
-export { createBeckonStateUnit, type BeckonStateUnit, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
+export { createBeckonStateUnit, type BeckonStateUnit, createHoverDwell, type HoverDwell, HOVER_DELAY_MS } from '@semiont/sdk';
 export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from '@semiont/sdk';
 export { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';

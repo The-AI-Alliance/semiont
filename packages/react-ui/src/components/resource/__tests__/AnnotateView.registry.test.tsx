@@ -15,7 +15,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
 import { AnnotateView } from '../AnnotateView';
 import type { AnnotateMediaRendererProps } from '../annotate-renderers';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('../../CodeMirrorRenderer', () => ({
@@ -37,9 +37,9 @@ const uiState: AnnotationUIState = {
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       mark: { request: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

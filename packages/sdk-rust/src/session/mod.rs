@@ -1,8 +1,10 @@
 //! A client's sessions with knowledge bases.
 //!
-//! - `SemiontSession` is one session: a client, the token its transport
+//! - `SemiontSession` is one session: the token its client's transport
 //!   sends, and who is signed in. It runs anywhere and shows nobody
-//!   anything.
+//!   anything. It only uses its client: `OpenedSession` is a session and
+//!   the client it was built with, ended together, as a script's sign-in
+//!   gives them.
 //! - `SemiontBrowser` is what an application holds: the knowledge bases it
 //!   has registered, which of them is active, the active one's session, and
 //!   what a person has open in each. It builds sessions through the
@@ -41,8 +43,8 @@ pub use knowledge_base::{
 };
 pub use open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
 pub use semiont_session::{
-    OnAuthFailed, OnSessionError, Refresh, SemiontSession, SemiontSessionConfig, SessionRenewer,
-    Validate,
+    OnAuthFailed, OnSessionError, OpenedSession, Refresh, SemiontSession, SemiontSessionConfig,
+    SessionRenewer, Validate,
 };
 pub use signals::{
     KbIdentityConflict, PermissionDenied, SessionEndReason, SessionEnded, SessionSignals,

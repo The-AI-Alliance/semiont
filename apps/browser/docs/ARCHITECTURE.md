@@ -299,7 +299,7 @@ The table of what each event does to which cache is `specs/src/client/refresh.js
 
 ```typescript
 // SemiontBrowser, when a session activates (packages/sdk/src/session/semiont-browser.ts)
-const signals = new SessionSignals(); // handed to the session factory, then published as activeSignals$
+const signals = createSessionSignals(); // handed to the session factory, then published as activeSignals$
 session.errors$.subscribe((err) => {
   if (err.code === 'unauthorized') void session.refresh();
   else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
@@ -312,7 +312,7 @@ refuses, ends. The session's own `onAuthFailed` then raises `notifySessionEnded`
 with why: `expired` or `refused`. A `403` raises `notifyPermissionDenied` with
 the refusal's message as its detail.
 
-`SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionEnded$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised. A notice says what happened, never a sentence: `SessionEndedModal` and `PermissionDeniedModal` write what a person reads, in their language, and render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
+`SessionSignals` holds the modal state, one read-only state per signal (`sessionEnded$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised and moved only by its `notify` and `acknowledge` methods. A notice says what happened, never a sentence: `SessionEndedModal` and `PermissionDeniedModal` write what a person reads, in their language, and render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
 **Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceContent` return an explicit `{ content, loading, error }` shape, where `content` is `undefined` until the text has loaded and a zero-byte document loads as `''`:
 

@@ -156,7 +156,8 @@ state for the query — `pipeline.query$` is the source of truth, surfaced via
 `useObservable`.
 
 **Why a helper instead of `useMemo` + inline RxJS?** The pipeline is a
-stateful long-lived object (a Subject + an Observable graph). Inlining it and
+stateful long-lived object: it holds the query and the state, and keeps one
+search running for every reader. Inlining it and
 stabilizing with `useMemo` is defensive plumbing against React re-runs, and
 it's easy to break — a fresh object returned on each render busts the deps and
 restarts the pipeline on every keystroke. The helper lives outside the render
@@ -165,7 +166,7 @@ lifecycle entirely.
 **For non-trivial result mapping** (e.g. adapting `ResourceDescriptor` to a
 modal-specific shape), put the mapping inside the fetch closure with `map()`.
 The closure can return `undefined` to signal "still loading" — see
-`SearchModal.tsx` and `ResourceSearchModal.tsx` for working examples.
+`SearchModal.tsx` for a working example.
 
 `createSearchPipeline` is unit-testable without React: pass a stub fetch
 function, push values into `setQuery`, assert on emissions from `state$`. See
@@ -234,8 +235,8 @@ The ref-wrapped handler means your handler can change every render without
 re-subscribing; the hook re-subscribes only when the channel set changes.
 
 For lower-level access you can reach the buses directly:
-`semiont.emit/on/stream` on the browser, and `session.subscribe(channel,
-handler)` or `session.client.bus` on a session. Most components should
+`semiont.emit/on/stream` on the browser, and `session.client.bus` on a
+session. Most components should
 prefer the hooks.
 
 Note: with this model you do **not** wire gateway events to manual cache

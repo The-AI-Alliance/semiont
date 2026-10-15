@@ -8,9 +8,8 @@
  * whether each method goes over the wire or stays local.
  *
  * No public `emit`/`on`/`stream` shortcuts: consumers call typed
- * namespace methods. The single sanctioned channel-by-name escape hatch
- * is `SemiontSession.subscribe(channel, handler)`, which reads from
- * `client.bus`.
+ * namespace methods. A channel read by name, where no namespace names it,
+ * is read from `client.bus`.
  */
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
@@ -80,9 +79,8 @@ export class SemiontClient {
   private readonly content: IContentTransport;
   /**
    * Per-client local EventBus. Wire events flow in via the transport
-   * bridge. Read-only public so `SemiontSession.subscribe(channel, …)`
-   * can wire arbitrary-channel subscriptions; everything else uses
-   * typed namespace methods.
+   * bridge. Read-only public so a channel can be read by name where no
+   * namespace names it; everything else uses typed namespace methods.
    */
   readonly bus: EventBus;
   readonly baseUrl: BaseUrl;
@@ -210,7 +208,7 @@ export class SemiontClient {
     // Bus last (A7-owned: this client constructed it): everything upstream
     // is already quiet — the live queries detached their handlers, the transport's SSE
     // fan-in is down — so destroying it completes every remaining
-    // subscriber cleanly (session.subscribe closures, host code holding
+    // subscriber cleanly (react-ui's event hooks, host code holding
     // client.bus). Without this, the bus outlives the client and every
     // subscriber stays attached forever, silently receiving nothing — one
     // leaked bus per session cycle under a reconnect loop. Post-dispose

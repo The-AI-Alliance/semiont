@@ -328,6 +328,7 @@ export { uuidV4 } from './id-generation';
 // State-unit pattern — the disposable contract shared by every layer (sdk,
 // http-transport, react-ui, …). The axiom harness lives in `@semiont/core/testing`.
 export type { StateUnit } from './state-unit';
+export { watched, type Watched } from './watched';
 
 // Utility functions
 export * from './storage-uri';

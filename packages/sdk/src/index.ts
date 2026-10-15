@@ -180,7 +180,7 @@ export type { AnchorMethod, MatchQuality, QuotedText, ReconciledSpan, SpanRefusa
 
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, modal signals.
-export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
+export { SemiontSession, type OpenedSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 // A software agent's sign-in: a worker's, or one of the knowledge base's own services'.
 export { startAgentSession, type AgentSession, type AgentSessionOptions } from './session/agent-session';
 export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
@@ -204,7 +204,8 @@ export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection 
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export {
-  SessionSignals,
+  createSessionSignals,
+  type SessionSignals,
   type SessionEndReason,
   type SessionEnded,
   type PermissionDenied,

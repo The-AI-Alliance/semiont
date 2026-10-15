@@ -100,7 +100,7 @@ describe('startAgentSession', () => {
     expect(init?.method).toBe('POST');
     expect(new Headers(init?.headers).get('authorization')).toBe('Bearer issuer-token');
     expect(init?.body).toBe(JSON.stringify({ provider: 'semiont', model: 'dispatcher' }));
-    expect(session.token$.value).toBe(agentToken);
+    expect(session.token$.getValue()).toBe(agentToken);
     // The DID is the gateway's, verbatim, and never re-derived from the URL dialled.
     expect(session.did).toBe('did:web:kb.test:agents:semiont:dispatcher');
     expect(logger.info).toHaveBeenCalledWith('Authenticated', {
@@ -129,7 +129,7 @@ describe('startAgentSession', () => {
     session = await starting;
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(session.token$.value).toBe(agentToken);
+    expect(session.token$.getValue()).toBe(agentToken);
     expect(logger.warn).toHaveBeenCalledWith(
       'Gateway unreachable, retrying authentication',
       // Which request got no answer, and the code the runtime gave the failed connection.
@@ -174,7 +174,7 @@ describe('startAgentSession', () => {
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(session.token$.value).toBe(second);
+    expect(session.token$.getValue()).toBe(second);
 
     // The second token has 600 s of life left from here, so the next refresh
     // is scheduled from IT — the gateway changed the lifetime and this process
@@ -183,7 +183,7 @@ describe('startAgentSession', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(session.token$.value).toBe(third);
+    expect(session.token$.getValue()).toBe(third);
   });
 
   it('a failed proactive refresh only logs, keeps the token in hand, and tries again', async () => {
@@ -203,7 +203,7 @@ describe('startAgentSession', () => {
     expect(logger.error).toHaveBeenCalledWith('Proactive re-authentication failed', {
       error: 'The gateway refused the agent token of semiont:dispatcher: HTTP 500 Internal Server Error',
     });
-    expect(session.token$.value, 'a still-valid token is not thrown away over one bad round trip').toBe(first);
+    expect(session.token$.getValue(), 'a still-valid token is not thrown away over one bad round trip').toBe(first);
 
     // Re-armed from the token still in hand. It has 200 s left, so the retry
     // is 100 s out — not the floor. Each failure re-derives from what remains,
@@ -211,7 +211,7 @@ describe('startAgentSession', () => {
     // `MIN_REFRESH_DELAY_MS`: more urgent when it matters, never a spin.
     await vi.advanceTimersByTimeAsync(100_000);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(session.token$.value).toBe(second);
+    expect(session.token$.getValue()).toBe(second);
   });
 
   // ── Refresh failure: an outage re-arms, a refusal stops ──────────────

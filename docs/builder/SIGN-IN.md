@@ -31,7 +31,7 @@ import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'my-script', label: 'My script',
     host: url.hostname, port: Number(url.port || 4000),
@@ -45,6 +45,7 @@ const session = await SemiontSession.signInDevice({
 });
 ```
 
+- **It gives an `OpenedSession`**: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` ends the session, then closes the client.
 - **It needs a person each time the script starts**, unless the script keeps its tokens. A pipeline of several scripts asks once per script.
 - **To keep the tokens between runs**, give the session a `SessionStorage` that writes to a file: [`semiont-session`](./skills/semiont-session/SKILL.md#keeping-tokens-across-restarts) has one. The file holds tokens. Keep it where only you can read it, and outside the knowledge base's working tree, which is a git repository.
 - **`kb.id` is the key the tokens are stored under.** Two scripts that share one storage use different ids.
@@ -75,4 +76,6 @@ A web or a desktop application sends the person to the identity provider and fin
 
 - **An access token and its refresh token**, from either grant: `SemiontSession.fromIssuedSession`. The session renews them as if it had signed in itself.
 - **An access token and your own way to renew it**: `SemiontSession.fromHttp`, with the `refresh` you supply.
+
+Each gives an `OpenedSession`, as the device grant does.
 - **An access token alone**: `SemiontClient.fromHttp`. Nothing renews it, so this suits a program that finishes within the token's life.

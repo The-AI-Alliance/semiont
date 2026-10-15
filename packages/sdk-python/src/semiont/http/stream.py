@@ -37,6 +37,7 @@ from pydantic import JsonValue, ValidationError
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
 from semiont._lacks import lacks
+from semiont._reading import Reading
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -304,7 +305,7 @@ class Stream:
     @property
     def state(self) -> Watched[ConnectionState]:
         """The connection's state."""
-        return self._state
+        return Reading(self._state)
 
     def take_scope(self, resource: ResourceId) -> None:
         """A resource's scope got its first hold."""
