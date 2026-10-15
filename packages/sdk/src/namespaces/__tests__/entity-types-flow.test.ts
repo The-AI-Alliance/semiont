@@ -114,7 +114,7 @@ interface Harness {
 }
 
 // Real client over the scriptable transport: the replies below ride the
-// REAL cache, the REAL busRequest, and the client's own bus.
+// REAL cache, the REAL Bus.request, and the client's own bus.
 function createHarness(): Harness {
   const { client } = createTestClient({
     transport: {

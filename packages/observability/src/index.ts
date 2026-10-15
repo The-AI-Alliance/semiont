@@ -21,8 +21,8 @@
  *   - `getActiveTraceparent()` — read the active span's traceparent, for
  *     an outbound request's `traceparent` header.
  *   - `recordBusSent(channel, scope?)` — count an emit a client sent.
- *   - `TraceCarrier`, the type of the `_trace` field; and `SpanKind`,
- *     re-exported from `@opentelemetry/api`.
+ *   - `SpanKind`, re-exported from `@opentelemetry/api`. The type of the
+ *     `_trace` field, `TraceCarrier`, is `@semiont/core`'s.
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
  * tracer and meter are no-ops, so `withSpan` and the recorder are
@@ -42,7 +42,7 @@ import {
   type Counter,
   type Span,
 } from '@opentelemetry/api';
-import { setBusLogTraceIdProvider } from '@semiont/core';
+import { setBusLogTraceIdProvider, type TraceCarrier } from '@semiont/core';
 
 // Wire `busLog`'s trace-id provider once at module load. When an OTel
 // SDK is initialized (and a span is active when `busLog` fires), the
@@ -93,19 +93,6 @@ export async function withSpan<T>(
 // ── Traceparent on bus payloads ────────────────────────────────────────
 
 const TRACE_FIELD = '_trace';
-
-/**
- * The `_trace` field of a bus payload. Lives on the SSE event body
- * because SSE has no header trailer; the SDK strips it before delivering
- * the payload to subscribers. Additive — payloads without `_trace` parse
- * unchanged.
- */
-export interface TraceCarrier {
-  /** W3C `traceparent` header value (`00-<traceId>-<spanId>-<flags>`). */
-  traceparent: string;
-  /** W3C `tracestate` header value (vendor-specific extensions). */
-  tracestate?: string;
-}
 
 /**
  * Read the active span's W3C traceparent (and tracestate). Returns

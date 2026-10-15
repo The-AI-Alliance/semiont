@@ -7,7 +7,7 @@ import type {
 import { cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest, isReportedJobResult, isYieldJobResult } from '@semiont/core';
+import { Bus, isReportedJobResult, isYieldJobResult } from '@semiont/core';
 import { UploadObservable, type DelegationObservable, type YieldJobCompletion } from '../awaitable';
 import { delegated, type DelegatedVerb } from './delegation';
 import { deriveStallDeadlineMs } from './generation-stall';
@@ -37,12 +37,16 @@ const YIELD: DelegatedVerb<YieldJobCompletion> = {
 };
 
 export class YieldNamespace implements IYieldNamespace {
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
     private readonly timing: JobFollowTiming = {},
-  ) {}
+  ) {
+    this.wire = new Bus(transport);
+  }
 
   resource(data: CreateResourceInput): UploadObservable {
     // `Buffer` is a Node global; referencing it bare in the browser throws
@@ -163,16 +167,14 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   async cloneToken(resourceId: ResourceId): Promise<CloneResourceWithTokenResponse> {
-    return busRequest(
-      this.transport,
+    return this.wire.request(
       'yield:clone-token-requested',
       { resourceId },
     );
   }
 
   async fromToken(token: string): Promise<ResourceDescriptor> {
-    const result = await busRequest(
-      this.transport,
+    const result = await this.wire.request(
       'yield:clone-resource-requested',
       { token },
     );

@@ -1,12 +1,17 @@
+import { Bus } from '@semiont/core';
 import type { AnnotationId, EventBus, ResourceId } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import type { BeckonNamespace as IBeckonNamespace } from './types';
 
 export class BeckonNamespace implements IBeckonNamespace {
+  private readonly wire: Bus;
+
   constructor(
-    private readonly transport: ITransport,
+    transport: ITransport,
     private readonly bus: EventBus,
-  ) {}
+  ) {
+    this.wire = new Bus(transport);
+  }
 
   // ── Wire drives — beckon OTHER participants (the guided-tour moves) ────
   //
@@ -16,7 +21,7 @@ export class BeckonNamespace implements IBeckonNamespace {
   // these methods never loop back onto the local bus.
 
   attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number | undefined> {
-    return this.transport.emit('beckon:focus', { annotationId, resourceId });
+    return this.wire.emit('beckon:focus', { annotationId, resourceId });
   }
 
   /**
@@ -25,7 +30,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * counterpart is `browse.openResource()`: this viewer's own panels.
    */
   openResource(resourceId: ResourceId): Promise<number | undefined> {
-    return this.transport.emit('browse:resource-open', { resourceId });
+    return this.wire.emit('browse:resource-open', { resourceId });
   }
 
   /**
@@ -39,7 +44,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * does.
    */
   click(annotationId: AnnotationId): Promise<number | undefined> {
-    return this.transport.emit('browse:click', { annotationId });
+    return this.wire.emit('browse:click', { annotationId });
   }
 
   /**
@@ -50,7 +55,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * the room).
    */
   sparkleAll(annotationId: AnnotationId): Promise<number | undefined> {
-    return this.transport.emit('beckon:sparkle', { annotationId });
+    return this.wire.emit('beckon:sparkle', { annotationId });
   }
 
   // ── Local signals — this viewer's own fan-out ──────────────────────────

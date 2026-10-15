@@ -1,35 +1,14 @@
 /**
- * subscribeChannel, subscribeResourceChannel — a channel read by name.
- *
- * A channel of a resource's scope reaches only a connection that holds that
- * scope, so its subscription names the resource: it holds the scope for as
- * long as it lives, and is given that resource's events and no other's.
- * Subscribing to one with no resource is refused, by the types and by the
- * call.
+ * subscribeChannel — a channel of no scope read by name, on the client's own
+ * bus, which carries the client's in-process signals and the wire's events
+ * alike. A channel of a resource's scope is read on the client's wire, for
+ * one resource (`Bus.frames(channel, resourceId)`, in @semiont/core); read
+ * here, it is refused, by the types and by the call.
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId, userId } from '@semiont/core';
-import type { EventMetadata, EventOfType, ResourceId, StoredEvent } from '@semiont/core';
 import { createTestClient } from '@semiont/sdk/testing';
-import { subscribeChannel, subscribeResourceChannel } from '../channel-subscription';
-
-const RID = resourceId('res-1');
-const OTHER = resourceId('res-2');
-const META: EventMetadata = { sequenceNumber: 1 };
-
-function archived(of: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
-  return {
-    id: `evt-${of}`,
-    type: 'mark:archived',
-    resourceId: of,
-    userId: userId('did:web:example.org:users:alice'),
-    version: 1,
-    timestamp: '2026-01-01T00:00:00Z',
-    payload: {},
-    metadata: META,
-  };
-}
+import { subscribeChannel } from '../channel-subscription';
 
 describe('a channel read by name', () => {
   it('reads a channel of no scope as it comes, and holds no scope for it', () => {
@@ -46,43 +25,12 @@ describe('a channel read by name', () => {
     expect(held).not.toHaveBeenCalled();
   });
 
-  it("holds the resource's scope for as long as a scoped channel's subscription lives, and gives it that resource's events only", () => {
-    const { client, transport } = createTestClient();
-    const leave = vi.fn();
-    const held = vi.spyOn(transport, 'subscribeToResource').mockReturnValue(leave);
-    const seen: string[] = [];
-
-    const stop = subscribeResourceChannel(client, 'mark:archived', RID, (event) => seen.push(event.id));
-    expect(held).toHaveBeenCalledExactlyOnceWith(RID);
-
-    // What a stream delivers for the scopes it holds reaches the client's bus
-    // on one channel: another resource's events are there too.
-    client.bus.emit('mark:archived', archived(RID));
-    client.bus.emit('mark:archived', archived(OTHER));
-    expect(seen).toEqual(['evt-res-1']);
-    expect(leave).not.toHaveBeenCalled();
-
-    stop();
-    expect(leave).toHaveBeenCalledOnce();
-    client.bus.emit('mark:archived', archived(RID));
-    expect(seen).toEqual(['evt-res-1']);
-  });
-
-  it('refuses a scoped channel named with no resource: such a subscription would hear nothing', () => {
+  it('refuses a scoped channel: it is read on the wire, for its resource', () => {
     const { client, transport } = createTestClient();
     const held = vi.spyOn(transport, 'subscribeToResource');
 
-    // @ts-expect-error — mark:archived is delivered on its resource's scope, so its subscription names the resource
-    expect(() => subscribeChannel(client, 'mark:archived', () => {})).toThrow(/mark:archived.*resource/);
-    expect(held).not.toHaveBeenCalled();
-  });
-
-  it('refuses a channel of no scope named with a resource: it would hold a scope and hear nothing', () => {
-    const { client, transport } = createTestClient();
-    const held = vi.spyOn(transport, 'subscribeToResource');
-
-    // @ts-expect-error — beckon:hover is no resource's channel
-    expect(() => subscribeResourceChannel(client, 'beckon:hover', RID, () => {})).toThrow(/beckon:hover is no resource's channel/);
+    // @ts-expect-error — mark:archived is delivered on its resource's scope, so it is read on the wire for its resource
+    expect(() => subscribeChannel(client, 'mark:archived', () => {})).toThrow(/mark:archived.*wire\.frames/);
     expect(held).not.toHaveBeenCalled();
   });
 });

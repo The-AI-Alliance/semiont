@@ -121,7 +121,7 @@ export function createMarkStateUnit(
       pendingAnnotation$.next(null);
     } catch (error) {
       // Client-local, resource-stamped UI notification — the wire reply
-      // (mark:create-failed) is busRequest plumbing, not for UI consumption.
+      // (mark:create-failed) is Bus.request plumbing, not for UI consumption.
       client.bus.emit('mark:create-error', { resourceId, message: error instanceof Error ? error.message : String(error) });
     }
   }));

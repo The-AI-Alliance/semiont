@@ -1,7 +1,7 @@
 /**
  * Tests for `gather.resource()` — whole-resource LLM context, a request/reply
  * over `gather:resource-requested` → `gather:resource-complete`/`-failed`
- * (no progress events, so a Promise via busRequest, not a StreamObservable).
+ * (no progress events, so a Promise via Bus.request, not a StreamObservable).
  *
  * The gateway route (`gatherer.ts` handleResourceGather) answers on the wire contract
  * (GatherResourceRequest/Complete, carrying a unified GatheredContext);
@@ -58,7 +58,7 @@ describe('gather.resource', () => {
     const rid = makeResourceId('r1');
 
     const promise = gather.resource(rid);
-    await Promise.resolve(); // let busRequest subscribe + emit
+    await Promise.resolve(); // let Bus.request subscribe + emit
 
     expect(getLastChannel()).toBe('gather:resource-requested');
     const payload = getLastPayload()!;

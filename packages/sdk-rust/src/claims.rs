@@ -61,7 +61,7 @@ use crate::errors::{BusRequestErrorCode, SemiontError, TransportError, Transport
 use crate::job_filter::job_matches_filter;
 use crate::locked;
 use crate::timing::{HELD_JOB_STALL, HELD_JOB_STALL_CHECK, JOB_CLAIM_TIMEOUT, MARK_COMMIT_TIMEOUT};
-use crate::transport::{ConnectionState, Envelope, TraceCarrier};
+use crate::transport::{ConnectionState, Envelope, TraceCarrier, Transport};
 use crate::types::{
     Annotation, AnnotationId, BrowseAnnotationRequest, DurabilityEvidence, FailureClass,
     JobCancelCommand, JobCheckpointCommand, JobClaimCommand, JobCompleteCommand, JobFailCommand,
@@ -344,6 +344,7 @@ struct State {
 }
 
 struct Inner {
+    transport: Arc<dyn Transport>,
     wire: Bus,
     accepts: Vec<JobFilter>,
     timing: ClaimTiming,
@@ -1121,7 +1122,7 @@ type Handed = Result<HeldJob, ClaimRefusal>;
 /// One worker's claiming, from the first read of its claims until it stops,
 /// its reader is gone, or its stream has ended.
 async fn run(inner: Arc<Inner>, out: mpsc::Sender<Handed>, mut stop: watch::Receiver<bool>) {
-    let transport = inner.wire.transport().clone();
+    let transport = inner.transport.clone();
     // A worker on a stream that does not name these would never be answered,
     // woken or told of a cancellation, with nothing to show for it.
     let unnamed: Vec<&str> = JOB_CLAIM_CHANNELS
@@ -1275,11 +1276,12 @@ pub struct Claims {
 }
 
 impl Claims {
-    pub(crate) fn new(wire: Bus, options: ClaimOptions) -> Claims {
+    pub(crate) fn new(transport: Arc<dyn Transport>, options: ClaimOptions) -> Claims {
         let (out, handed) = mpsc::channel(1);
         Claims {
             inner: Arc::new(Inner {
-                wire,
+                wire: Bus::new(transport.clone()),
+                transport,
                 accepts: options.accepts,
                 timing: options.timing,
                 state: Mutex::new(State::default()),

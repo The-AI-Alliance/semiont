@@ -64,11 +64,11 @@ export interface HttpTransportConfig {
   /**
    * The global SSE channel set this transport subscribes. Absent means the
    * full `BRIDGED_CHANNELS` — a full client must receive every operation's
-   * reply channel, or its `busRequest`s time out. A narrow-profile process
+   * reply channel, or its `Bus.request`s time out. A narrow-profile process
    * (the worker) passes exactly the reply channels for the operations it
    * awaits, and is sent no frame on any other global channel.
-   * A `busRequest` on an operation whose replies are outside this set
-   * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
+   * A `Bus.request` on an operation whose replies are outside this set
+   * fails fast with `bus.unsubscribed` (see `BusPrimitive`).
    */
   channels?: readonly (keyof EventMap)[];
   /**
@@ -487,7 +487,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   /**
    * Correlated-reply retention, client side (see
-   * `docs/protocol/TRANSPORT-HTTP.md`): `busRequest` registers its cid
+   * `docs/protocol/TRANSPORT-HTTP.md`): `Bus.request` registers its cid
    * here before emitting; the actor carries the tracked set as
    * `pendingReplies` on every subscribe body, so a reply published while
    * the connection was down replays from the server's retention buffer on
@@ -498,7 +498,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   /**
-   * `busRequest`'s fail-fast probe (`BusRequestPrimitive.isSubscribed`):
+   * `Bus.request`'s fail-fast probe (`BusPrimitive.isSubscribed`):
    * whether the actor's global subscription set delivers `channel`. On a
    * full client (no `channels` config) every bridged reply channel is
    * subscribed and this never gates; on a narrowed transport it turns a

@@ -81,4 +81,4 @@ class GatherNamespace:
 
     def referenced_by(self, resource_id: ResourceId) -> Cached[list[GetReferencedByResponseReferencedByItem]]:
         """The annotations elsewhere that refer to a resource. Watching it holds the resource's scope."""
-        return self._live.query(Keyed(self._live.referenced_by, resource_id, itself, scope=(self._links.wire.transport, resource_id)))
+        return self._live.query(Keyed(self._live.referenced_by, resource_id, itself, scope=(self._links.transport, resource_id)))

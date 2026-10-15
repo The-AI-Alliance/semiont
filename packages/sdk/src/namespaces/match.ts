@@ -1,7 +1,7 @@
 import { filter, map} from 'rxjs/operators';
 import type { AnnotationId, CacheQuery, ResourceDescriptor, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest, uuidV4 } from '@semiont/core';
+import { Bus, uuidV4 } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
 import { createCache, type Cache } from '../cache';
 import { CacheRefresher } from '../cache-refresh';
@@ -21,21 +21,23 @@ export class MatchNamespace implements IMatchNamespace {
   private readonly resourcesAsked = new Map<string, { search: string; filters: ResourceSearchFilters }>();
   private readonly refresher: CacheRefresher<MatchQuery>;
 
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     options?: {
-      /** Timeout of the requests the live query issues; absent, `busRequest`'s own. */
+      /** Timeout of the requests the live query issues; absent, `Bus.request`'s own. */
       busTimeoutMs?: number;
       /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
       invalidationWindowMs?: number;
     },
   ) {
+    this.wire = new Bus(transport);
     this.resourcesCache = createCache<string, MatchedResources>(async (key) => {
       const asked = this.resourcesAsked.get(key);
       if (!asked) throw new Error(`Cannot search resources for ${key}: nothing asked it`);
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'match:resources-requested',
         {
           search: asked.search,
@@ -114,7 +116,7 @@ export class MatchNamespace implements IMatchNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      this.transport.emit('match:search-requested', { resourceId,
+      this.wire.emit('match:search-requested', { resourceId,
         referenceId,
         context,
         limit: options?.limit ?? 10,

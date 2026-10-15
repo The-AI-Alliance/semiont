@@ -20,7 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import { Observable, Subject } from 'rxjs';
-import { busRequest } from '../bus-request';
+import { Bus } from '../bus';
 import { resourceId } from '../identifiers';
 import { FaultyTransport } from '../faulty-transport';
 import {
@@ -46,7 +46,7 @@ function compliantQuery(transport: FaultyTransport, rid: string): Observable<unk
   return new Observable((subscriber) => {
     transport.subscribeToResource(resourceId(rid));
     const attempt = (retriesLeft: number): void => {
-      busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
+      new Bus(transport).request(OP, { resourceId: rid }, TIMEOUT_MS)
         .then((v) => subscriber.next(v))
         .catch((err: unknown) => {
           if (retriesLeft > 0) attempt(retriesLeft - 1);
@@ -60,7 +60,7 @@ function compliantQuery(transport: FaultyTransport, rid: string): Observable<unk
 /** (a) Violates B14: the rejection is swallowed — no retry, no surfaced signal. */
 function swallowingQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
   return new Observable((subscriber) => {
-    busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
+    new Bus(transport).request(OP, { resourceId: rid }, TIMEOUT_MS)
       .then((v) => subscriber.next(v))
       .catch(() => { /* swallowed */ });
   });
@@ -70,7 +70,7 @@ function swallowingQuery(transport: FaultyTransport, rid: string): Observable<un
 function stormingQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
   return new Observable((subscriber) => {
     const attempt = (issued: number): void => {
-      busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
+      new Bus(transport).request(OP, { resourceId: rid }, TIMEOUT_MS)
         .then((v) => subscriber.next(v))
         .catch((err: unknown) => {
           if (issued < 6) attempt(issued + 1);
@@ -94,7 +94,7 @@ function makeContentionStarvedQueries(transport: FaultyTransport, rids: readonly
         return; // contention swallowed; no request is ever issued
       }
       activeScope = rid;
-      busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
+      new Bus(transport).request(OP, { resourceId: rid }, TIMEOUT_MS)
         .then((v) => subscriber.next(v))
         .catch((err: unknown) => subscriber.error(err));
     }),
@@ -143,7 +143,7 @@ describe('liveness axioms — the harness has teeth', () => {
           outputs: ['res-a', 'res-b'].map((rid) => compliantQuery(transport, rid)),
           // The await path: a caller that surfaces the rejection always settles.
           settlements: [
-            busRequest(transport, OP, { resourceId: 'res-c' }, TIMEOUT_MS).catch(() => 'surfaced'),
+            new Bus(transport).request(OP, { resourceId: 'res-c' }, TIMEOUT_MS).catch(() => 'surfaced'),
           ],
         }),
         timeoutMs: TIMEOUT_MS,
@@ -180,7 +180,7 @@ describe('liveness axioms — the harness has teeth', () => {
         setup: (transport) => ({
           outputs: [],
           settlements: [
-            busRequest(transport, OP, { resourceId: 'res-a' }, TIMEOUT_MS)
+            new Bus(transport).request(OP, { resourceId: 'res-a' }, TIMEOUT_MS)
               // The forbidden fourth state: the rejection is converted into
               // a promise that never settles.
               .catch(() => new Promise(() => {})),

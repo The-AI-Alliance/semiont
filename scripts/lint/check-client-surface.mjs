@@ -90,6 +90,22 @@
  * packages/sdk-python/src/semiont, its members its public methods,
  * properties and attributes, a unit being one that names `StateUnit` as a
  * base. A `StateUnit` that no row makes is looked for in the same places.
+ *
+ * THE BUS OVER THE WIRE. The table's `wire` entry is the typed bus over a
+ * client's transport, which every client hands out as `wire`: what each SDK
+ * makes it as (`made`), and its members by name. Each SDK is held to it as
+ * to a state unit, both ways:
+ *
+ * - a bus an SDK does not declare, or a client that does not hand it out;
+ * - a member the table lists that an SDK's bus lacks;
+ * - a public member an SDK's bus has that the table does not list;
+ * - a member the table says an SDK's bus lacks (`absent`) that it has.
+ *
+ * A bus hands out no transport: a client's transport is the client's
+ * `transport`, and only there, so a `transport` row is refused. TypeScript's
+ * bus is the class of packages/core/src, Rust's the `pub fn`s that take it of
+ * its inherent `impl`s in packages/sdk-rust/src, Python's the public methods,
+ * properties and attributes of its class in packages/sdk-python/src/semiont.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -105,6 +121,7 @@ const TS_CLAIMS = 'packages/sdk/src/claims.ts';
 const RUST_CLAIMS = 'packages/sdk-rust/src/claims.rs';
 const PYTHON_CLAIMS = 'packages/sdk-python/src/semiont/claims.py';
 const TS_SDK = 'packages/sdk/src';
+const TS_CORE = 'packages/core/src';
 const RUST_SDK = 'packages/sdk-rust/src';
 const PYTHON_SDK = 'packages/sdk-python/src/semiont';
 const SCHEMAS = 'specs/src/components/schemas';
@@ -837,8 +854,8 @@ function sources(directory, extension) {
 const interfaceHeader = (name) => new RegExp(`\\bexport interface ${name}(?:<[^>{]*>)?\\s*(?:extends\\s+([^{]+?))?\\s*\\{`, 'g');
 const classHeader = (name) => new RegExp(`\\bexport class ${name}(?:<[^>{]*>)?\\s*(?:extends\\s+[^{]+?\\s+)?(?:implements\\s+([^{]+?))?\\s*\\{`, 'g');
 
-function typescriptUnit(made) {
-  const found = sources(TS_SDK, '.ts').flatMap((file) => {
+function typescriptUnit(made, directory) {
+  const found = sources(directory, '.ts').flatMap((file) => {
     const source = typescriptCode(read(file));
     return [
       ...[...source.matchAll(interfaceHeader(made))].map((header) => ({ file, source, header, kind: 'interface' })),
@@ -876,8 +893,8 @@ function typescriptUnit(made) {
   return { where: `${kind} ${made} in ${file}`, isUnit: stated.includes('StateUnit'), members };
 }
 
-function rustUnit(made) {
-  const files = sources(RUST_SDK, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') }));
+function rustUnit(made, directory) {
+  const files = sources(directory, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') }));
   const struct = new RegExp(`^pub struct ${made}\\b`, 'm');
   const declared = files.filter(({ source }) => struct.test(source));
   if (declared.length === 0) return undefined;
@@ -898,8 +915,8 @@ function rustUnit(made) {
   return { where: `${made} in ${file}`, isUnit, members };
 }
 
-function pythonUnit(made) {
-  const found = sources(PYTHON_SDK, '.py').flatMap((file) => {
+function pythonUnit(made, directory) {
+  const found = sources(directory, '.py').flatMap((file) => {
     const source = withoutPythonComments(read(file));
     const header = new RegExp(`^class ${made}(?:\\[[^\\]]*\\])?(?:\\(([^)]*)\\))?:\\n`, 'm').exec(source);
     return header ? [{ file, source, header }] : [];
@@ -955,12 +972,14 @@ for (const sdk of SDKS) {
 }
 
 const readers = { typescript: typescriptUnit, rust: rustUnit, python: pythonUnit };
+/** Where each SDK's units are declared. */
+const UNIT_SOURCES = { typescript: TS_SDK, rust: RUST_SDK, python: PYTHON_SDK };
 for (const [name, unit] of units) {
   const row = `the \`${name}\` row of \`stateUnits\` in ${TABLE}`;
   for (const sdk of SDKS) {
     const made = unit.made?.[sdk];
     if (typeof made !== 'string') continue;
-    const declared = readers[sdk](made);
+    const declared = readers[sdk](made, UNIT_SOURCES[sdk]);
     if (unit.absent?.[sdk] !== undefined) {
       if (declared) fail(`${sdk} has ${declared.where}, and ${row} says ${sdk} has no ${name} unit: the row's \`absent\` is stale, so take ${sdk} out of it`);
       continue;
@@ -984,6 +1003,74 @@ for (const [name, unit] of units) {
   }
 }
 
+// ── The bus over the wire ───────────────────────────────────────────────
+
+/** Where each SDK declares its bus: TypeScript's is @semiont/core's. */
+const WIRE_SOURCES = { typescript: TS_CORE, rust: RUST_SDK, python: PYTHON_SDK };
+
+/**
+ * Where each SDK's client hands its bus out as `wire`, and what says it does,
+ * given the name the SDK makes the bus as.
+ */
+const HANDED_OUT = {
+  typescript: { file: `${TS_SDK}/client.ts`, says: (made) => new RegExp(`^\\s+readonly wire: ${made};$`, 'm') },
+  rust: { file: `${RUST_SDK}/client.rs`, says: (made) => new RegExp(`^\\s+pub fn wire\\(&self\\) -> &${made} \\{$`, 'm') },
+  python: { file: `${PYTHON_SDK}/client.py`, says: (made) => new RegExp(`^\\s+self\\.wire: Final = ${made}\\(transport\\)$`, 'm') },
+};
+
+/** member → row */
+const wireMembers = new Map();
+const wire = table.wire;
+const wireRow = `\`wire\` in ${TABLE}`;
+if (typeof wire !== 'object' || wire === null || Array.isArray(wire)) fail(`${TABLE}: \`wire\` does not state the bus over a client's transport`);
+else {
+  const strays = Object.keys(wire).filter((key) => !['docs', 'made', 'members'].includes(key));
+  if (strays.length > 0) fail(`${wireRow} states ${strays.join(', ')}, which it does not: what the bus does is its SDKs' tests' to hold`);
+  if (typeof wire.docs !== 'string' || wire.docs === '') fail(`${wireRow} does not say what it is (\`docs\`)`);
+  for (const sdk of SDKS) {
+    if (typeof wire.made?.[sdk] !== 'string' || !/^\w+$/.test(wire.made[sdk])) fail(`${wireRow} does not say what ${sdk} makes the bus as (\`made\`)`);
+  }
+  for (const sdk of Object.keys(wire.made ?? {})) {
+    if (!SDKS.includes(sdk)) fail(`${wireRow}: \`made\` names "${sdk}", which is no SDK this lint reads`);
+  }
+  if (!Array.isArray(wire.members) || wire.members.length === 0) fail(`${wireRow} lists no member`);
+  for (const row of wire.members ?? []) {
+    const name = `${wireRow}, member ${row.member}`;
+    if (wireMembers.has(row.member)) fail(`${name} is listed twice`);
+    wireMembers.set(row.member, row);
+    const others = Object.keys(row).filter((key) => !['member', 'absent'].includes(key));
+    if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a member of the bus is its name, with an \`absent\` for each SDK that has none`);
+    if (row.member === 'transport') fail(`${name}: a bus hands out no transport; a client's transport is the client's \`transport\`, and only there`);
+    for (const [sdk, why] of Object.entries(row.absent ?? {})) {
+      if (!SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+      if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
+    }
+    if (SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+  }
+  for (const sdk of SDKS) {
+    const made = wire.made?.[sdk];
+    if (typeof made !== 'string') continue;
+    const declared = readers[sdk](made, WIRE_SOURCES[sdk]);
+    if (!declared) {
+      fail(`${sdk} declares no ${made} in ${WIRE_SOURCES[sdk]}, which ${wireRow} says it makes the bus over a client's transport as`);
+      continue;
+    }
+    const handedOut = HANDED_OUT[sdk];
+    if (!handedOut.says(made).test(read(handedOut.file))) fail(`${handedOut.file}: ${sdk}'s client does not hand out its ${made} as \`wire\`, which ${wireRow} says every client does`);
+    const its = `${sdk}'s bus (${declared.where})`;
+    for (const [member, stated] of wireMembers) {
+      if (stated.absent?.[sdk] !== undefined) {
+        if (declared.members.has(member)) fail(`${its} has ${member}, and ${wireRow} says ${sdk}'s has none: the member's \`absent\` is stale, so take ${sdk} out of it`);
+        continue;
+      }
+      if (!declared.members.has(member)) fail(`${its} has no ${member}, which ${wireRow} lists: add it to the SDK, under that name, or say in the member's \`absent\` why ${sdk}'s has none`);
+    }
+    for (const member of declared.members) {
+      if (!wireMembers.has(member)) fail(`${its} has ${member}, which ${wireRow} does not list: rename it to the row's name for it, or add a row for it there before any SDK has it`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`✗ lint:client-surface — ${failures.length} problem${failures.length === 1 ? '' : 's'}`);
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -992,4 +1079,4 @@ if (failures.length > 0) {
 const count = [...rows.values()].reduce((total, methods) => total + methods.size, 0);
 const membersCount = [...handed.values()].reduce((total, members) => total + members.size, 0);
 const unitMembers = [...units.values()].reduce((total, unit) => total + unit.members.size, 0);
-console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${membersCount} members of what a worker is handed, and ${unitMembers} members of ${units.size} state units, held by TypeScript, Rust and Python`);
+console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${membersCount} members of what a worker is handed, ${unitMembers} members of ${units.size} state units, and ${wireMembers.size} members of the bus over the wire, held by TypeScript, Rust and Python`);

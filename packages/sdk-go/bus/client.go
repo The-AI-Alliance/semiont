@@ -317,7 +317,7 @@ func (e *RequestError) Error() string {
 
 // RequestOptions tunes one request.
 type RequestOptions struct {
-	Timeout time.Duration // default 30s, matching the TypeScript busRequest
+	Timeout time.Duration // default 30s, matching the TypeScript Bus.request
 	Scope   string        // resource scope, for scoped operations
 }
 

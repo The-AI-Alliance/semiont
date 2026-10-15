@@ -476,7 +476,7 @@ with more than one tenant.
 - `packages/http-transport/src/transport/actor-state-unit.ts` — its
   stream: the reader, the reconnect and handoff logic, the subscription
   matrix.
-- `packages/core/src/bus-request.ts` — `busRequest`.
+- `packages/core/src/bus.ts` — `Bus.request`.
 - `packages/http-transport-rust/src/transport.rs` — the Rust client's
   `Transport`, and `actor.rs`, its stream.
 - `packages/sdk-rust/src/bus.rs` — its bus request.

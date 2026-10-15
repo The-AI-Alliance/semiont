@@ -2,7 +2,7 @@ import { filter, map } from 'rxjs/operators';
 import type { AnnotationId, CacheQuery, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
-import { busRequest, uuidV4 } from '@semiont/core';
+import { Bus, uuidV4 } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
 import { CacheRefresher, ScopedSources } from '../cache-refresh';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete, ReferencedByEntry } from './types';
@@ -20,21 +20,23 @@ export class GatherNamespace implements IGatherNamespace {
   private readonly scoped: ScopedSources;
   private readonly refresher: CacheRefresher<GatherQuery>;
 
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     options?: {
-      /** Timeout of the requests the live query issues; absent, `busRequest`'s own. */
+      /** Timeout of the requests the live query issues; absent, `Bus.request`'s own. */
       busTimeoutMs?: number;
       /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
       invalidationWindowMs?: number;
     },
   ) {
+    this.wire = new Bus(transport);
     this.scoped = new ScopedSources(this.transport);
 
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'gather:referenced-by-requested',
         { resourceId },
         options?.busTimeoutMs,
@@ -102,7 +104,7 @@ export class GatherNamespace implements IGatherNamespace {
         subscriber.error(new Error(e.message));
       });
 
-      this.transport.emit('gather:requested', {
+      this.wire.emit('gather:requested', {
         annotationId,
         resourceId,
         options: { contextWindow: options?.contextWindow ?? 2000 },
@@ -143,8 +145,7 @@ export class GatherNamespace implements IGatherNamespace {
       excludeEntityTypes?: string[];
     },
   ): Promise<GatheredContext> {
-    return busRequest(
-      this.transport,
+    return this.wire.request(
       'gather:resource-requested',
       {
         resourceId,

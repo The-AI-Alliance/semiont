@@ -3,7 +3,7 @@
  *
  * Absent, the transport subscribes the full `BRIDGED_CHANNELS`. A
  * narrow-profile process (the worker) passes exactly the reply channels
- * it awaits; `isSubscribed` is the probe `busRequest` uses to fail fast
+ * it awaits; `isSubscribed` is the probe `Bus.request` uses to fail fast
  * on anything outside the set.
  */
 

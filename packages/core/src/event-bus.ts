@@ -33,10 +33,27 @@ export interface BusFrame<T> {
   /** The resource scope this frame was emitted into. Absent means global. */
   readonly scope?: ResourceId;
   readonly payload: T;
+  /**
+   * The trace the frame was sent under, as a wire transport received it.
+   * Absent on a frame of this process, and on one that carried none.
+   */
+  readonly trace?: TraceCarrier;
 }
 
-/** The envelope half, for `emit`. */
-export type BusEnvelope = Omit<BusFrame<never>, 'payload'>;
+/**
+ * A W3C trace context: what a frame from the wire was sent under, so its
+ * reader's work can be recorded in the same trace. A wire transport lifts it
+ * off the payload's `_trace`, where the gateway's stream puts it.
+ */
+export interface TraceCarrier {
+  /** W3C `traceparent` header value (`00-<traceId>-<spanId>-<flags>`). */
+  readonly traceparent: string;
+  /** W3C `tracestate` header value (vendor-specific extensions). */
+  readonly tracestate?: string;
+}
+
+/** The envelope half, for `emit`: the routing facts, none of which belong in a channel's domain type. */
+export type BusEnvelope = Omit<BusFrame<never>, 'payload' | 'trace'>;
 
 /**
  * RxJS-based event bus.

@@ -3,7 +3,7 @@
  * consumers already look.
  *
  * One scriptable, REAL-pathway test client: `createTestClient` wires a real
- * `SemiontClient` — real `createCache`, real `busRequest`, real namespaces —
+ * `SemiontClient` — real `createCache`, real `Bus.request`, real namespaces —
  * over a `FaultyTransport` (re-exported below; its home stays
  * `@semiont/core/testing`). Script the transport, observe through the
  * client. `createTestSession` wraps the same stack in a real
@@ -125,7 +125,7 @@ export interface TestClientOptions {
    */
   gateway?: IGatewayOperations;
   /**
-   * `busRequest` timeout for the browse caches — the deterministic-time
+   * `Bus.request` timeout for the browse caches — the deterministic-time
    * knob. Pass something small (e.g. 40) when a test drives B14/B15
    * through timeouts; irrelevant for `reject-emit` faults.
    */

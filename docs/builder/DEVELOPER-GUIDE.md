@@ -634,7 +634,7 @@ Full behavioral contract: [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) *
 
 Test consumer behavior against the **real SDK pathway**, not a hand-rolled mock of it.
 The SDK ships a contract double: a real `SemiontClient` (real caches, real
-`busRequest`, real namespaces) over a scriptable transport.
+`Bus.request`, real namespaces) over a scriptable transport.
 
 ```ts
 import { createTestClient } from '@semiont/sdk/testing';

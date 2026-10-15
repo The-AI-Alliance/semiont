@@ -1,7 +1,7 @@
 /**
  * A stream outside the subscription set throws at the call, not never.
  *
- * `busRequest` refuses an unsubscribed REPLY channel (`bus.unsubscribed`,
+ * `Bus.request` refuses an unsubscribed REPLY channel (`bus.unsubscribed`,
  * core `bus-request.ts`) rather than let the reply time out. A plain
  * `stream()` has the same guard: without it a worker's
  * `stream('job:queued')` returns a healthy-looking observable that can

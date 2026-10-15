@@ -5,7 +5,7 @@
  * `frame:add-entity-type` (vocabulary) and `frame:add-tag-schema`
  * (structural-analysis schemas — runtime-registered per KB).
  *
- * Writes are **confirmed**: each method goes through `busRequest`, emitting the
+ * Writes are **confirmed**: each method goes through `Bus.request`, emitting the
  * command (with a generated `correlationId`) and awaiting the gateway's
  * correlation-keyed `*-add-ok` / `*-add-failed` reply. These tests pin the wire
  * shape of each write, the sequential batch behavior of `addEntityTypes`, and —
@@ -27,7 +27,7 @@ const REPLY_FOR: Record<string, { ok: string; failed: string }> = {
 
 /**
  * Mock transport that auto-replies to each command on its reply channel,
- * echoing the `correlationId` busRequest generated — so a `busRequest` write
+ * echoing the `correlationId` Bus.request generated — so a `Bus.request` write
  * resolves (or, with `{ fail: true }`, rejects) deterministically.
  */
 function createMockTransport(opts: { fail?: boolean } = {}): {
@@ -45,7 +45,7 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
     const reply = REPLY_FOR[channel];
     if (reply) {
       const target = (opts.fail ? reply.failed : reply.ok) as keyof EventMap;
-      // The subscription is already live (busRequest subscribes before emitting),
+      // The subscription is already live (Bus.request subscribes before emitting),
       // so a synchronous push is delivered to the awaiting take(1).
       bus.emit(
         target,
@@ -132,7 +132,7 @@ describe('FrameNamespace', () => {
       const before = JSON.stringify(TEST_SCHEMA);
       await frame.addTagSchema(TEST_SCHEMA);
       expect(JSON.stringify(TEST_SCHEMA)).toBe(before);
-      // Same reference reaches the transport — busRequest spreads the payload
+      // Same reference reaches the transport — Bus.request spreads the payload
       // shallowly, so `schema` is not cloned.
       const [, payload] = emitSpy.mock.calls[0];
       expect((payload as { schema: TagSchema }).schema).toBe(TEST_SCHEMA);

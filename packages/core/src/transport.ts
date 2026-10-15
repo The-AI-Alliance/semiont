@@ -162,16 +162,15 @@ export interface ITransport {
    * connection's health; for a transport with no wire, typically `'open'`
    * from construction onward (no connection to lose).
    *
-   * Load-bearing beyond UI: `busRequest` gates its emit on this
-   * (`BusRequestPrimitive.state$`) — no
-   * correlated emit before the reply path exists. Implementers back it
+   * Load-bearing beyond UI: `Bus.request` gates its emit on this
+   * (`BusPrimitive.state$`) — no correlated emit before the reply path exists. Implementers back it
    * with a `BehaviorSubject` so the current state arrives synchronously
    * on subscribe.
    */
   readonly state$: Observable<ConnectionState>;
 
   /**
-   * Correlated-reply retention, client side. `busRequest` registers its
+   * Correlated-reply retention, client side. `Bus.request` registers its
    * correlationId here before emitting and releases on settle; a wire
    * transport includes the tracked set as `pendingReplies` on each subscribe
    * body so a reply published while the connection was down replays from the
@@ -183,15 +182,15 @@ export interface ITransport {
 
   /**
    * Whether this transport's receive path delivers `channel`
-   * (`BusRequestPrimitive.isSubscribed` — every `ITransport` is passed to
-   * `busRequest`, so it answers the same question). REQUIRED: a transport
+   * (`BusPrimitive.isSubscribed` — every `ITransport` is a `Bus`'s
+   * transport, so it answers the same question). REQUIRED: a transport
    * with no wire answers `true` for every channel because it delivers every
    * emit, which is the true answer and not a stub.
    */
   isSubscribed(channel: keyof EventMap): boolean;
 
   /**
-   * The ENVELOPE view (`BusRequestPrimitive.frames`). `busRequest` matches a
+   * The ENVELOPE view (`BusPrimitive.frames`). `Bus.request` matches a
    * reply on `frame.correlationId`, so the key never enters a channel's
    * domain type. Required: every transport can answer it.
    */
@@ -205,7 +204,7 @@ export interface ITransport {
    * appropriate). Consumers can subscribe for global error handling
    * (e.g. surfacing 401/403 as modals, logging) without wrapping every
    * call site in try/catch. Distinct from bus-level errors, which are
-   * surfaced via the channel-correlation pattern in `busRequest`.
+   * surfaced via the channel-correlation pattern in `Bus.request`.
    */
   readonly errors$: Observable<SemiontError>;
 

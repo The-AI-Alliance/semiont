@@ -3,12 +3,12 @@
  * handler: **does the frame's envelope survive the hop?**
  *
  * This exists because the hole it closes is invisible to the compiler.
- * `BusRequestPrimitive.emit` and `ITransport.emit` both declare a third
+ * `BusPrimitive.emit` and `ITransport.emit` both declare a third
  * `envelope` parameter, and TypeScript accepts an implementation that declares
  * only two — a function of fewer parameters is assignable to one of more. Three
  * separate in-process implementations were written that way. Each typechecked,
  * each delivered every payload, and each silently dropped the correlation key
- * that `busRequest` matches its reply on, so every request behind them hung
+ * that `Bus.request` matches its reply on, so every request behind them hung
  * until its timeout with no error anywhere. The gate is a runtime one because
  * the defect is a runtime one.
  *
@@ -18,7 +18,7 @@
 import type { EventMap } from './bus-protocol';
 import type { BusEnvelope } from './event-bus';
 
-/** The narrow shape this check needs — satisfied by `BusRequestPrimitive`,
+/** The narrow shape this check needs — satisfied by `BusPrimitive`,
  *  `ITransport`, and anything else that relays frames. */
 export interface EnvelopeRelay {
   emit(channel: never, payload: never, envelope?: BusEnvelope): unknown;

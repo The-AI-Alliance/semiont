@@ -111,7 +111,7 @@ const progress = session.client.bus.on('job:report-progress').subscribe((event) 
 });
 ```
 
-**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. So a script that listens to one of these channels holds that resource's scope while it listens: `session.client.transport.subscribeToResource(rId)` joins the scope and gives back what leaves it. The channel carries the events of every scope the connection holds, so the script keeps its resource's by `resourceId`.
+**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. So a script reads one of these channels on the client's wire, for its resource: `session.client.wire.frames(channel, rId)` holds that resource's scope for as long as it is read, and gives that resource's events and no other's.
 
 Subscribing to a live query joins its resource's scope and leaves it on unsubscribe. This is the simple way to follow one resource:
 
@@ -124,24 +124,19 @@ const following = semiont.browse.annotations(rId).subscribe((state) => {
 following.unsubscribe();
 ```
 
-To handle the events themselves, hold the resource's scope and listen to the channel. `mark:added` carries the annotation as it stands, and `isReference` (from `@semiont/sdk`, with the other annotation readers) says what kind it is:
+To handle the events themselves, read the channel on the wire for the resource. `mark:added` carries the annotation as it stands, and `isReference` (from `@semiont/sdk`, with the other annotation readers) says what kind it is:
 
 ```typescript
-import { filter } from 'rxjs';
-
-const leave = session.client.transport.subscribeToResource(rId);
-const added = session.client.bus
-  .on('mark:added')
-  .pipe(filter((event) => event.resourceId === rId))
-  .subscribe((event) => {
+const added = session.client.wire
+  .frames('mark:added', rId)
+  .subscribe(({ payload: event }) => {
     if (event.annotation && isReference(event.annotation)) {
       console.log(`new reference ${event.annotation.id}`);
     }
   });
 
-// later: stop listening, then leave the scope
+// later: stop reading, which leaves the scope
 added.unsubscribe();
-leave();
 ```
 
 Scopes compose on the one connection, so a script can join many resources.
@@ -214,7 +209,7 @@ main().catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is heard only while the script holds that resource's scope: `session.client.transport.subscribeToResource(rId)` before listening on `session.client.bus`, and a filter on the event's `resourceId`. A listener with no scope held hears nothing of it.
+- **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is read on the wire for its resource, `session.client.wire.frames(channel, rId)`, which holds the scope while it is read. `session.client.bus.on(channel)` does not compile for such a channel, and is refused when called.
 - **End what you opened.** `opened.dispose()` ends the session and then its client. `session.dispose()` ends only the session.
 - **A watcher hears its own writes.** A daemon that creates resources in response to `yield:created` hears those too. Decide what stops the loop: an entity type it skips, or a check on who created the resource.
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.

@@ -521,7 +521,7 @@ describe('createActorStateUnit', () => {
   it('emit REJECTS on a non-2xx response — a refused emit must not read as success', async () => {
     // The gateway 400s an emit that fails request validation (e.g. a
     // MatchSearchRequest whose embedded annotations are malformed).
-    // Resolving "no count" here swallows the refusal: the busRequest caller keeps
+    // Resolving "no count" here swallows the refusal: the Bus.request caller keeps
     // waiting for a reply that can never come. bus-request.ts's contract
     // ("An emit rejection (e.g. /bus/emit 4xx) propagates to the caller")
     // requires the transport to reject.
@@ -632,7 +632,7 @@ describe('createActorStateUnit', () => {
 
   it('never reports `open` while the subscribe fetch is pending — open means the response is streaming', async () => {
     // The negative direction of the pin above, and the attach signal the
-    // busRequest gate trusts: if the
+    // Bus.request gate trusts: if the
     // actor ever claimed `open` before the subscribe response's reader
     // started, the gate would emit into a stream nobody is reading — the
     // exact loss it exists to prevent.

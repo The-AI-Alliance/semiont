@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap, ResourceId, ResourceScopedChannel, UnscopedChannel } from '@semiont/core';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from '../hooks/useObservable';
-import { subscribeChannel, subscribeResourceChannel } from '../session/channel-subscription';
+import { subscribeChannel } from '../session/channel-subscription';
 
 /**
  * Subscribe to a bus event with automatic cleanup.
@@ -136,15 +136,15 @@ export function useResourceEventSubscriptions(
 
   useEffect(() => {
     if (!session) return;
-    const unsubs: Array<() => void> = [];
-    for (const eventName of eventNames) {
+    // Read on the wire, which holds the resource's scope for as long as the
+    // read lives and gives it that resource's frames alone.
+    const reads = eventNames.map((eventName) => {
       const channel = eventName as ResourceScopedChannel;
-      const fan = (payload: EventMap[ResourceScopedChannel]) => {
+      return session.client.wire.frames(channel, resourceId).subscribe(({ payload }) => {
         const current = handlersRef.current[channel];
         if (current) (current as (p: EventMap[ResourceScopedChannel]) => void)(payload);
-      };
-      unsubs.push(subscribeResourceChannel(session.client, channel, resourceId, fan));
-    }
-    return () => { for (const unsub of unsubs) unsub(); };
+      });
+    });
+    return () => { for (const read of reads) read.unsubscribe(); };
   }, [eventNames, resourceId, session]);
 }

@@ -32,11 +32,11 @@ pub trait Channel: 'static {
 
 /// A channel a resource's scope carries: an event of the record, delivered to
 /// the clients that hold its resource's scope. A read of one names its
-/// resource, whose scope the read holds (`crate::bus::Bus::stream_of`).
+/// resource, whose scope the read holds (`crate::bus::Bus::frames_of`).
 pub trait Scoped: Channel {}
 
 /// A channel of no resource's scope: delivered to every client whose stream
-/// names it, or never sent at all. Read with `crate::bus::Bus::stream`.
+/// names it, or never sent at all. Read with `crate::bus::Bus::frames`.
 pub trait Unscoped: Channel {}
 
 /// The request channel of an operation, with the channels that answer it.

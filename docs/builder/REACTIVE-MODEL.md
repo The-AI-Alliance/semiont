@@ -250,7 +250,7 @@ These are the guided-tour moves: they drive *other* participants' viewers, and t
 - `session.user$` — current authenticated user
 - `session.streamState$` — connection state at session scope
 - `session.errors$` — re-publishes `client.transport.errors$` for session consumers
-- `client.bus.on(channel)` — raw bus subscription (the channel-by-name escape hatch — see "Two paths to the bus" below)
+- `client.bus.on(channel)` and `client.wire.frames(channel)` — a channel read by name (the escape hatch — see "Two paths to the bus" below)
 
 These stay reactive without a thenable for two reasons. First, `BehaviorSubject` has `.value` for synchronous snapshots; `firstValueFrom` is the explicit wait when you want one. Awaiting a BehaviorSubject directly is ambiguous — current value? next emit? next non-undefined emit? — and rarely what consumers want. Second, lifecycle observables and bus subscriptions are *meant* to be observed continuously; the consumer of `state$` or `mark:added` always wants the stream, never one snapshot.
 
@@ -270,15 +270,17 @@ The verb namespace knows the channel name, the payload schema, and (where applic
 
 This is the right path **when a namespace method exists** for what you want. It covers all the canonical operations — every flow's commands, every CRUD operation, every collaboration signal that's been canonicalized as part of the protocol.
 
-#### 2. The client's bus: `client.bus.on(channel)` / `client.transport.emit(channel, ...)`
+#### 2. A channel by name: `client.bus` and `client.wire`
 
 ```ts
 const created = client.bus.on('yield:created').subscribe((event) => {
   console.log('Resource created:', event.payload.name);
 });
-await client.transport.emit('beckon:hover', { annotationId: null });
+await client.wire.emit('beckon:sparkle', { annotationId });
 // later: created.unsubscribe();
 ```
+
+`client.bus` is the client's own bus. What the transport delivers is put on it, and so are the client's in-process signals (`beckon:hover`, `mark:requested`, the selections), which never leave it. `client.wire` is the typed bus over the client's transport, as Rust's `client.wire()` and Python's `client.wire` are: what it emits goes over the wire, and what it reads is what the wire delivers. Its verbs are `emit`, `frames` and `request`.
 
 The channel-by-name path. Reach for it when:
 
@@ -290,20 +292,16 @@ The channel-by-name path. Reach for it when:
 
 It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned.
 
-**A channel of a resource's scope is heard only while that resource's scope is held.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope, and the client's bus holds none for its readers. So a TypeScript reader holds it with `client.transport.subscribeToResource(rId)`, which gives back what lets it go, and keeps its resource's events by `resourceId`: the channel carries every scope the connection holds.
+**A channel of a resource's scope is read on the wire, for its resource.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope. `client.wire.frames(channel, resourceId)` holds that scope for as long as it is read, and gives that resource's frames and no other's. Read with no resource, such a channel does not compile, and is refused when called; so is any other channel read for a resource.
 
 ```ts
-import { filter } from 'rxjs';
-
-const leave = client.transport.subscribeToResource(rId);
-const added = client.bus
-  .on('mark:added')
-  .pipe(filter((event) => event.resourceId === rId))
-  .subscribe((event) => log(event.payload.annotation));
-// later: added.unsubscribe(); leave();
+const added = client.wire
+  .frames('mark:added', rId)
+  .subscribe(({ payload: event }) => log(event.payload.annotation));
+// later: added.unsubscribe();
 ```
 
-Rust and Python read such a channel through a typed bus over the client's transport, whose read holds the scope itself. In Rust it is `semiont::bus::Bus`, built over `client.transport()`: `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile. In Python it is `client.wire`: `client.wire.frames(MARK_ADDED, resource)`, and a type checker refuses `client.wire.frames(MARK_ADDED)`.
+Each frame comes with its envelope, who emitted it (`userId`, as the gateway stamped it) and the trace it was sent under. Rust and Python read such a channel the same way. In Rust it is `client.wire().frames_of::<MarkAdded>(&resource)`, where `client.wire().frames::<MarkAdded>()` does not compile. In Python it is `client.wire.frames(MARK_ADDED, resource)`, and a type checker refuses `client.wire.frames(MARK_ADDED)`.
 
 `on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:
 
@@ -313,7 +311,7 @@ client.bus.frames('mark:added').subscribe((frame) => log(frame.correlationId, fr
 
 Both are read-only observables, and publishing goes through `emit`, whose third argument is that same envelope. (The bus never hands out a channel's `Subject`: every reader would also hold a write path back into it.)
 
-If you find yourself reaching for `transport.emit` from application code repeatedly, the right move is usually to add a namespace method. The bus exposure is *not* `@internal` — it's a real surface for advanced use — but the typed namespaces are the canonical entry point for everything else.
+If you find yourself reaching for `client.wire.emit` from application code repeatedly, the right move is usually to add a namespace method. The bus exposure is *not* `@internal` — it's a real surface for advanced use — but the typed namespaces are the canonical entry point for everything else.
 
 ### Bridging back to RxJS
 

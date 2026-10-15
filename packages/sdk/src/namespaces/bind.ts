@@ -1,22 +1,25 @@
 import type { ResourceId, AnnotationId, BodyOperation, EventBus, EventMap } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
+import { Bus } from '@semiont/core';
 import type { BindNamespace as IBindNamespace } from './types';
 
 export class BindNamespace implements IBindNamespace {
+  private readonly wire: Bus;
+
   constructor(
-    private readonly transport: ITransport,
+    transport: ITransport,
     private readonly bus: EventBus,
-  ) {}
+  ) {
+    this.wire = new Bus(transport);
+  }
 
   async body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void> {
     // Confirmed write: the bind handler forwards to mark:update-body, matches the
     // persisted outcome by correlationId, and replies on bind:body-updated /
-    // bind:body-update-failed. busRequest awaits that real outcome and REJECTS
-    // on failure — it is not an optimistic fire-and-forget ack. busRequest
+    // bind:body-update-failed. Bus.request awaits that real outcome and REJECTS
+    // on failure — it is not an optimistic fire-and-forget ack. Bus.request
     // mints the correlationId.
-    await busRequest(
-      this.transport,
+    await this.wire.request(
       'bind:update-body',
       { annotationId, resourceId, operations },
     );
@@ -31,7 +34,7 @@ export class BindNamespace implements IBindNamespace {
     // Local emit: the client-local, resource-stamped UI notification for a
     // bind failure caught by a caller with no toast surface (ReferenceEntry's
     // unlink); useOutcomeToasts subscribes and surfaces it. Distinct from the
-    // bind:body-update-failed wire reply, which is busRequest plumbing.
+    // bind:body-update-failed wire reply, which is Bus.request plumbing.
     this.bus.emit('bind:body-error', input);
   }
 }

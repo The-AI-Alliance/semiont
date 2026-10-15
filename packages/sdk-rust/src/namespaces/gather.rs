@@ -86,7 +86,7 @@ impl GatherNamespace {
             cache: self.referenced_by.clone(),
             key: resource_id.clone(),
             view: |value| value,
-            scope: Some((self.links.wire.transport().clone(), resource_id.clone())),
+            scope: Some((self.links.transport.clone(), resource_id.clone())),
         })
     }
 

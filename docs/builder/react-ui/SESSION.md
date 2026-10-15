@@ -317,7 +317,7 @@ without depending on jsdom's `localStorage`. See
 the test harness pattern.
 
 StateUnit factory tests drive a real `SemiontClient` from `createTestClient()`
-(`@semiont/sdk/testing`) — real caches, real `busRequest`, real namespaces
+(`@semiont/sdk/testing`) — real caches, real `Bus.request`, real namespaces
 over a scriptable `FaultyTransport`:
 
 ```ts

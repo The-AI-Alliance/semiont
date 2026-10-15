@@ -151,8 +151,8 @@ result channel and a failure channel (`browse:resource-requested` → `browse:re
 `browse:resource-failed`). The reply is matched to its request by `correlationId`, which rides
 the frame's **envelope**, not the payload.
 
-Nothing in a component writes that loop. `busRequest(transport, operation, payload)` in
-`@semiont/core` (`packages/core/src/bus-request.ts`) sends the request, waits for the frame
+Nothing in a component writes that loop. `Bus.request(operation, payload)` in
+`@semiont/core` (`packages/core/src/bus.ts`), which a client hands out as `client.wire`, sends the request, waits for the frame
 carrying its `correlationId`, and resolves with the reply or rejects with a `BusRequestError`.
 The SDK's namespace methods call it:
 

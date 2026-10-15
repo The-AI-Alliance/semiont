@@ -69,8 +69,9 @@ export {
 // how a two-state consumer of a three-outcome cache shipped twice.
 export { createCache, isReady, readyValue, type CacheState, type Cache } from './cache';
 
-// `busRequest` / `BusRequestPrimitive` live in @semiont/core (next to the bus
-// protocol they're coupled to) — import those from there. `BusRequestError` (and
+// `Bus` / `BusPrimitive` live in @semiont/core (next to the bus protocol
+// they're coupled to); a client hands its out as `client.wire`.
+// `BusRequestError` (and
 // its `BusRequestErrorCode`) are re-exported below for catch-convenience, so
 // consumers catch every SDK error from one package.
 
@@ -140,7 +141,7 @@ export {
   // Unified error base — every Semiont-thrown error extends this.
   SemiontError,
   // Bus-mediated command error — re-exported for catch-convenience (defined in
-  // @semiont/core next to busRequest; busRequest itself stays core-only).
+  // @semiont/core next to `Bus`).
   BusRequestError,
 } from '@semiont/core';
 

@@ -68,7 +68,7 @@ function inMemoryTransport(
     // is what keeps this literal cast-free: the interface contextually types
     // `channel` and `payload`, and each test still asserts on its own spy.
     emit: async (channel, payload, envelope) => {
-      // The envelope reaches the responder: `busRequest` matches its reply on
+      // The envelope reaches the responder: `Bus.request` matches its reply on
       // `frame.correlationId`, so a double that swallowed it would strand
       // every request behind this transport.
       onEmit(channel, payload as Record<string, unknown>, envelope);

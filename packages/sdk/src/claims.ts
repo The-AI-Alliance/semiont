@@ -59,14 +59,14 @@ import {
   JOB_CLAIM_TIMEOUT_MS,
   MARK_COMMIT_TIMEOUT_MS,
   annotationId as makeAnnotationId,
-  busRequest,
+  Bus,
   isObject,
   isString,
   jobMatchesFilter,
   replyChannelsFor,
 } from '@semiont/core';
-import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusRequestPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor, components } from '@semiont/core';
-import { getActiveTraceparent, withTraceparent, withoutTrace, type TraceCarrier } from '@semiont/observability';
+import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, TraceCarrier, UnitCursor, components } from '@semiont/core';
+import { getActiveTraceparent, withTraceparent, withoutTrace } from '@semiont/observability';
 
 /** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -309,7 +309,7 @@ interface Named<T extends JobType> {
 /** What a held job asks of the loop that claimed it. */
 interface Holder {
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<unknown>;
-  /** One of a commit's requests, awaited for `markCommitTimeoutMs`. It fails as `busRequest` fails. */
+  /** One of a commit's requests, awaited for `markCommitTimeoutMs`. It fails as `Bus.request` fails. */
   request<Op extends CommitOperation>(operation: Op, payload: EventMap[Op]): Promise<unknown>;
   /** The work showed it is alive. */
   active(): void;
@@ -610,7 +610,10 @@ class ClaimLoop implements Holder {
   private readonly heldJobStallCheckMs: number;
   private readonly markCommitTimeoutMs: number;
 
-  constructor(private readonly bus: BusRequestPrimitive, options: ClaimOptions) {
+  private readonly wire: Bus;
+
+  constructor(private readonly bus: BusPrimitive, options: ClaimOptions) {
+    this.wire = new Bus(bus);
     this.accepts = options.accepts;
     this.jobClaimTimeoutMs = options.jobClaimTimeoutMs ?? JOB_CLAIM_TIMEOUT_MS;
     this.heldJobStallMs = options.heldJobStallMs ?? HELD_JOB_STALL_MS;
@@ -621,11 +624,11 @@ class ClaimLoop implements Holder {
   // ── what a held job asks ─────────────────────────────────────────────────
 
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<unknown> {
-    return this.bus.emit(channel, payload);
+    return this.wire.emit(channel, payload);
   }
 
   request<Op extends CommitOperation>(operation: Op, payload: EventMap[Op]): Promise<unknown> {
-    return busRequest(this.bus, operation, payload, this.markCommitTimeoutMs);
+    return this.wire.request(operation, payload, this.markCommitTimeoutMs);
   }
 
   active(): void {
@@ -666,18 +669,18 @@ class ClaimLoop implements Holder {
     this.reader = reader;
 
     this.subscriptions.push(
-      this.bus.stream('job:queued').subscribe((announced) => {
+      this.wire.frames('job:queued').subscribe(({ payload: announced }) => {
         // Every announcement received is stamped, before any filtering.
         this.lastQueuedEventAt = Date.now();
         if (this.accepts.some((filter) => jobMatchesFilter(filter, announced))) this.pull();
       }),
       // A cancellation is the held job's only when it names it.
-      this.bus.stream('job:cancel-requested').subscribe((request) => {
+      this.wire.frames('job:cancel-requested').subscribe(({ payload: request }) => {
         if (this.held !== null && request.jobId === this.held.jobId) this.held.signalCancellation();
       }),
       // Read as it comes, and not as its channel types it: a reply that names
       // no job is refused where the claim's answer is read (C9).
-      this.bus.stream('job:claimed').subscribe((reply) => {
+      this.wire.frames('job:claimed').subscribe(({ payload: reply }) => {
         const response: unknown = reply.response;
         const metadata = isObject(response) ? response['metadata'] : undefined;
         if (this.claimInFlight && isObject(metadata) && isString(metadata['id'])) this.arrivedIn.set(metadata['id'], getActiveTraceparent());
@@ -753,7 +756,7 @@ class ClaimLoop implements Holder {
     // What is checked is only that the reply names a job.
     let claimed: ClaimedJob;
     try {
-      claimed = await busRequest(this.bus, 'job:claim', { accepts: this.accepts }, this.jobClaimTimeoutMs);
+      claimed = await this.wire.request('job:claim', { accepts: this.accepts }, this.jobClaimTimeoutMs);
     } catch (error) {
       if (error instanceof BusRequestError) {
         if (error.code === 'bus.none-pending') return { declined: true };
@@ -827,7 +830,7 @@ class ClaimLoop implements Holder {
 export class ClaimsObservable extends Observable<HeldJob> {
   private readonly loop: ClaimLoop;
 
-  constructor(bus: BusRequestPrimitive, options: ClaimOptions) {
+  constructor(bus: BusPrimitive, options: ClaimOptions) {
     const loop = new ClaimLoop(bus, options);
     super((reader) => loop.read(reader));
     this.loop = loop;

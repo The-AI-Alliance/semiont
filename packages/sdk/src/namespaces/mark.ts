@@ -8,7 +8,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest, isMarkJobResult, isReportedJobResult } from '@semiont/core';
+import { Bus, isMarkJobResult, isReportedJobResult } from '@semiont/core';
 import type { DelegationObservable, MarkJobCompletion } from '../awaitable';
 import { delegated, type DelegatedVerb } from './delegation';
 import type { JobFollowTiming } from './job-status-poll';
@@ -32,19 +32,22 @@ const MARK: DelegatedVerb<MarkJobCompletion> = {
 };
 
 export class MarkNamespace implements IMarkNamespace {
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly timing: JobFollowTiming = {},
-  ) {}
+  ) {
+    this.wire = new Bus(transport);
+  }
 
   async annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
     // The wire schema (`MarkCreateRequest`) carries `resourceId` separately
     // for routing — we derive it from `input.target.source`, which is the
     // same value semantically.
     const resourceId = input.target.source;
-    const result = await busRequest(
-      this.transport,
+    const result = await this.wire.request(
       'mark:create-request',
       { resourceId, request: input },
     );
@@ -55,8 +58,7 @@ export class MarkNamespace implements IMarkNamespace {
     // Confirmed write (matches `annotation()` above): await the
     // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
     // an emit whose mark:delete-failed nobody awaits.
-    await busRequest(
-      this.transport,
+    await this.wire.request(
       'mark:delete',
       { annotationId, resourceId },
     );
@@ -65,16 +67,14 @@ export class MarkNamespace implements IMarkNamespace {
   async archive(resourceId: ResourceId): Promise<void> {
     // Confirmed write: await the correlation-keyed reply and REJECT on failure,
     // rather than fire-and-forget an emit whose failure has nowhere to go.
-    await busRequest(
-      this.transport,
+    await this.wire.request(
       'mark:archive',
       { resourceId },
     );
   }
 
   async unarchive(resourceId: ResourceId): Promise<void> {
-    await busRequest(
-      this.transport,
+    await this.wire.request(
       'mark:unarchive',
       { resourceId },
     );
@@ -93,8 +93,7 @@ export class MarkNamespace implements IMarkNamespace {
    * failure has nowhere to go.
    */
   async updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void> {
-    await busRequest(
-      this.transport,
+    await this.wire.request(
       'mark:update-entity-types',
       { resourceId, currentEntityTypes: current, updatedEntityTypes: updated },
     );
@@ -135,7 +134,7 @@ export class MarkNamespace implements IMarkNamespace {
     // that failed at the caller that awaited it (the viewer, which may be
     // embedded with no state unit mounted); useOutcomeToasts subscribes and
     // surfaces it. Distinct from the mark:delete-failed wire reply, which is
-    // busRequest plumbing.
+    // Bus.request plumbing.
     this.bus.emit('mark:delete-error', input);
   }
 }

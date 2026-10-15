@@ -148,7 +148,7 @@ export function busLog(
  *
  * On in Node (a process on an SDK session), where a dropped reply is a real
  * delivery bug; off in the browser, where a 0-observer bridged reply just
- * means the awaiting `busRequest` already resolved/timed out (benign).
+ * means the awaiting `Bus.request` already resolved/timed out (benign).
  *
  * Always-on (no env flag) by design: the failure it catches is rare and
  * high-signal, and the whole point is that it fires with zero setup — a
@@ -187,9 +187,9 @@ export function warnIfUnobservedReply(
   // A 0-observer emit on a *bridged* channel is a redundant copy (a global +
   // resource-scoped dual-emit, or an SSE reconnect replay), not a missing
   // forwarder — the first copy already reached the awaiting `take(1)`
-  // subscriber. Only a NOT-bridged channel is a genuine drop. (A `busRequest`
+  // subscriber. Only a NOT-bridged channel is a genuine drop. (A `Bus.request`
   // reply channel comes from the registry, and every registry reply derives
-  // into `BRIDGED_CHANNELS`; this runtime check covers non-`busRequest`
+  // into `BRIDGED_CHANNELS`; this runtime check covers non-`Bus.request`
   // correlation emits.)
   if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
   if (unobservedReplyWarned.has(channel)) return;

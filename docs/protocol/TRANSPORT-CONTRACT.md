@@ -67,7 +67,7 @@ language's SDK offers the same operations in its own idiom.
 | `bridgeInto(bus)` | Delivers what the transport receives onto a client's bus |
 | `dispose()` | Ends the transport |
 
-`busRequest(transport, operation, payload, timeoutMs?, signal?)` is a request and its reply, over any transport.
+`Bus` (`@semiont/core`) is the typed bus over any transport, and a client hands its own out as `client.wire`. Its `request(operation, payload, timeoutMs?, signal?)` is a request and its reply.
 
 **`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph`, `getAnchoredText` and `dispose`.
 
@@ -287,8 +287,8 @@ resource's scope while it is observed: freshness follows observation.
 
 ## Requests
 
-`busRequest(transport, operation, payload, timeoutMs?, signal?)` is an emit
-that expects a correlated reply. The operation is its request channel; its
+`Bus.request(operation, payload, timeoutMs?, signal?)` is an emit that
+expects a correlated reply. The operation is its request channel; its
 result and failure channels are the registry's.
 
 - **One emit, one id.** The request carries a correlation id of the client's

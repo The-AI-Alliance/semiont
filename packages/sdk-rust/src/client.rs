@@ -79,6 +79,8 @@ pub struct ClientOptions {
 /// What every namespace reaches the knowledge base through.
 #[derive(Clone)]
 pub(crate) struct Links {
+    /// The client's transport.
+    pub transport: Arc<dyn Transport>,
     /// The bus over the transport.
     pub wire: Bus,
     /// The client's own bus.
@@ -129,6 +131,8 @@ impl Links {
 /// See the module's documentation.
 pub struct SemiontClient {
     transport: Arc<dyn Transport>,
+    /// The bus over the transport.
+    wire: Bus,
     own: EventBus,
     /// What keeps the queries of `browse`, `gather` and `match_` true.
     refresher: Arc<Refresher>,
@@ -170,8 +174,10 @@ impl SemiontClient {
     ) -> SemiontClient {
         let own = EventBus::new();
         transport.bridge_into(Arc::new(own.clone()));
+        let wire = Bus::new(transport.clone());
         let links = Links {
-            wire: Bus::new(transport.clone()),
+            transport: transport.clone(),
+            wire: wire.clone(),
             own: own.clone(),
             timing: options.timing,
         };
@@ -184,6 +190,7 @@ impl SemiontClient {
         let match_ = MatchNamespace::new(links.clone());
         SemiontClient {
             transport,
+            wire,
             own,
             refresher: Refresher::new(&links, &browse, &gather, &match_),
             frame: FrameNamespace::new(links.clone()),
@@ -200,8 +207,8 @@ impl SemiontClient {
         }
     }
 
-    /// The transport, for what the namespaces do not cover: a frame on a
-    /// channel by name, a hold on a resource's scope.
+    /// The transport the client is over: its connection, and what it
+    /// fails with.
     pub fn transport(&self) -> &Arc<dyn Transport> {
         &self.transport
     }
@@ -210,6 +217,15 @@ impl SemiontClient {
     /// signal the client's parts gave each other.
     pub fn bus(&self) -> &EventBus {
         &self.own
+    }
+
+    /// The client's typed bus over its transport: what it emits goes over
+    /// the wire, and what it reads is what the wire delivers. A channel of no
+    /// scope is read with `frames`; a resource's channel with `frames_of`,
+    /// which holds that resource's scope while it is read. The client's own
+    /// in-process signals are on `bus()`, not here.
+    pub fn wire(&self) -> &Bus {
+        &self.wire
     }
 
     /// What the transport speaks to.

@@ -93,7 +93,7 @@ from semiont.job_filter import job_matches_filter
 from semiont.model import WireModel, written
 from semiont.operations import BROWSE_ANNOTATION_REQUESTED, JOB_CLAIM, MARK_COMMIT
 from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
-from semiont.transport import Frame, TraceContext
+from semiont.transport import Frame, TraceContext, Transport
 from semiont.types import (
     Annotation,
     BrowseAnnotationRequest,
@@ -295,6 +295,7 @@ def _anchor_of(job_type: JobType, params: Mapping[str, JsonValue]) -> Annotation
 class _Holder:
     """What a held job asks of the claiming that handed it out."""
 
+    transport: Transport
     wire: Bus
     mark_commit_timeout_ms: int
     """How long each of a commit's requests waits to be answered."""
@@ -495,7 +496,7 @@ class _Held:
         question, that this SDK cannot type is the answer it is all the same.
         """
         await request(
-            self._holder.wire.transport,
+            self._holder.transport,
             operation,
             operation.request.encode(payload),
             timeout_ms=self._holder.mark_commit_timeout_ms,
@@ -685,7 +686,7 @@ class Claims:
 
     def __init__(
         self,
-        wire: Bus,
+        transport: Transport,
         run: Callable[[Coroutine[object, object, None]], asyncio.Task[None]],
         accepts: Sequence[JobFilter],
         *,
@@ -694,7 +695,7 @@ class Claims:
         held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS,
         mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS,
     ) -> None:
-        self._wire: Final = wire
+        self._transport: Final = transport
         self._spawn: Final = run
         """Runs a task as the client's: one that has ended by the time the client has closed."""
         self._accepts: Final = tuple(accepts)
@@ -704,7 +705,11 @@ class Claims:
         self._held_job_stall_ms: Final = held_job_stall_ms
         self._held_job_stall_check_ms: Final = held_job_stall_check_ms
         self._holder: Final = _Holder(
-            wire=wire, mark_commit_timeout_ms=mark_commit_timeout_ms, active=self._active, released=self._released
+            transport=transport,
+            wire=Bus(transport),
+            mark_commit_timeout_ms=mark_commit_timeout_ms,
+            active=self._active,
+            released=self._released,
         )
         self._handed: Final[asyncio.Queue[HeldJob | ClaimRefusal | _Ended]] = asyncio.Queue()
         self._tasks: Final[set[asyncio.Task[None]]] = set()
@@ -762,7 +767,7 @@ class Claims:
         return task
 
     def _begin(self) -> None:
-        transport = self._wire.transport
+        transport = self._transport
         unnamed = [channel for channel in JOB_CLAIM_CHANNELS if not transport.is_subscribed(channel)]
         if unnamed:
             raise BusRequestError(
@@ -803,7 +808,7 @@ class Claims:
         # observation. The first observation decides whether the first claim
         # is made now or waits for the stream to open: a claim on a closed
         # stream would only be refused here.
-        state = self._wire.transport.state
+        state = self._transport.state
         was_open = state.value == "open"
         if was_open:
             self._pull()
@@ -885,9 +890,7 @@ class Claims:
         parameters.
         """
         try:
-            answer = await answer_of(
-                self._wire.transport, JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), self._job_claim_timeout_ms
-            )
+            answer = await answer_of(self._transport, JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), self._job_claim_timeout_ms)
         except BusRequestError as refused:
             if refused.code == "bus.none-pending":
                 return None

@@ -55,7 +55,7 @@ async fn a_typed_emit_sends_the_channels_name_and_its_payload_as_an_object() {
 #[tokio::test]
 async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_of_it() {
     let (bus, transport) = bus();
-    let mut focus = bus.stream::<BeckonFocus>().expect("a stream");
+    let mut focus = bus.frames::<BeckonFocus>().expect("a stream");
     let deliver = |payload: Value| {
         transport.deliver(Frame {
             channel: BeckonFocus::NAME.to_owned(),
@@ -166,7 +166,7 @@ async fn a_resources_channel_is_read_for_a_resource_whose_scope_the_read_holds()
     let (mine, theirs): (ResourceId, ResourceId) = (as_id("res-1"), as_id("res-2"));
     assert_eq!(transport.holds(&mine), 0);
 
-    let mut archived = bus.stream_of::<MarkArchived>(&mine).expect("a stream");
+    let mut archived = bus.frames_of::<MarkArchived>(&mine).expect("a stream");
     // Its scope is held from the call, with nothing else holding it: no query
     // of the resource is watched.
     assert_eq!((transport.holds(&mine), transport.holds(&theirs)), (1, 0));
@@ -197,7 +197,7 @@ async fn a_resources_channel_is_read_for_a_resource_whose_scope_the_read_holds()
 
     // Two reads of one resource are two holds, and each lets go when it is
     // dropped.
-    let second = bus.stream_of::<MarkArchived>(&mine).expect("a stream");
+    let second = bus.frames_of::<MarkArchived>(&mine).expect("a stream");
     assert_eq!(transport.holds(&mine), 2);
     drop(archived);
     assert_eq!(transport.holds(&mine), 1);

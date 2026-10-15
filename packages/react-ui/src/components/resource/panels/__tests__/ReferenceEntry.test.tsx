@@ -358,7 +358,7 @@ describe('ReferenceEntry', () => {
     it('emits bind:body-error (resource-stamped, client-local) when unlink fails', async () => {
       // This component has no toast surface — its catch emits the client-local
       // bind error and useOutcomeToasts surfaces it. The raw
-      // bind:body-update-failed wire reply is busRequest plumbing, not UI.
+      // bind:body-update-failed wire reply is Bus.request plumbing, not UI.
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 

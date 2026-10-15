@@ -18,7 +18,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
+import { Bus, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
 import type { CacheQuery, CacheRefresh } from '@semiont/core';
 import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
@@ -124,8 +124,8 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly scoped: ScopedSources;
 
   /**
-   * Timeout passed to every `busRequest` this namespace issues. `undefined`
-   * means `busRequest`'s default (30 s). Injectable so the liveness
+   * Timeout passed to every `Bus.request` this namespace issues. `undefined`
+   * means `Bus.request`'s default (30 s). Injectable so the liveness
    * properties can run the real composition on
    * deterministic virtual time — the same knob `HttpTransportConfig.timeout`
    * provides at the HTTP layer.
@@ -157,6 +157,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly persistedCaches: Array<{ persistencePending(): boolean }> = [];
 
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
@@ -177,6 +179,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
     },
   ) {
+    this.wire = new Bus(transport);
     this.busTimeoutMs = options?.busTimeoutMs;
     this.scoped = new ScopedSources(this.transport);
 
@@ -202,8 +205,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     };
 
     this.resourceCache = track(createCache<ResourceId, ResourceDescriptor>(async (id) => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:resource-requested',
         { resourceId: id },
         this.busTimeoutMs,
@@ -213,8 +215,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.resourceListCache = createCache<string, ResourceList>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:resources-requested',
         {
           archived: filters.archived,
@@ -230,8 +231,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.annotationListCache = track(createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
-      return busRequest(
-        this.transport,
+      return this.wire.request(
         'browse:annotations-requested',
         { resourceId },
         this.busTimeoutMs,
@@ -243,8 +243,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       if (!resourceId) {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
       }
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:annotation-requested',
         { resourceId, annotationId },
         this.busTimeoutMs,
@@ -253,8 +252,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     }, persisted<AnnotationId, Annotation>('annotation-detail')));
 
     this.entityTypesCache = track(createCache<string, string[]>(async () => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:entity-types-requested',
         {},
         this.busTimeoutMs,
@@ -263,8 +261,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     }, persisted<string, string[]>('entity-types')));
 
     this.tagSchemasCache = track(createCache<string, TagSchema[]>(async () => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:tag-schemas-requested',
         {},
         this.busTimeoutMs,
@@ -273,8 +270,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     }, persisted<string, TagSchema[]>('tag-schemas')));
 
     this.agentsCache = createCache<string, CollaboratorEntry[]>(async () => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:agents-requested',
         {},
         this.busTimeoutMs,
@@ -289,7 +285,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // reports nothing, so its models show no limits, and it delays only its
     // own report, never the directory.
     this.limitsCache = createCache<LimitsOperation, InferencePairLimits[]>(async (operation) =>
-      busRequest(this.transport, operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
+      this.wire.request(operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
 
     this.collaborators$ = combineLatest([
       this.agentsCache.observe(AGENTS_KEY),
@@ -300,8 +296,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         : directory));
 
     this.resourceEventsCache = createCache<ResourceId, AttributedEvent[]>(async (resourceId) => {
-      const result = await busRequest(
-        this.transport,
+      const result = await this.wire.request(
         'browse:events-requested',
         { resourceId },
         this.busTimeoutMs,
@@ -433,8 +428,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<AttributedEvent[]> {
-    const result = await busRequest(
-      this.transport,
+    const result = await this.wire.request(
       'browse:events-requested',
       { resourceId },
       this.busTimeoutMs,
@@ -443,8 +437,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse> {
-    return busRequest(
-      this.transport,
+    return this.wire.request(
       'browse:annotation-history-requested',
       { resourceId, annotationId },
       this.busTimeoutMs,
@@ -455,8 +448,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     dirPath?: string,
     sort?: 'name' | 'mtime' | 'annotationCount',
   ): Promise<components['schemas']['BrowseFilesResponse']> {
-    return busRequest(
-      this.transport,
+    return this.wire.request(
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
       this.busTimeoutMs,
@@ -464,7 +456,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async kb(): Promise<KbDescription> {
-    return busRequest(this.transport, 'browse:kb-requested', {}, this.busTimeoutMs);
+    return this.wire.request('browse:kb-requested', {}, this.busTimeoutMs);
   }
 
   // ── UI signals (local bus fan-out) ────────────────────────────────────
@@ -494,7 +486,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // own navigation cannot drive another's page.
     // Best-effort: a refused/failed emit (transport rejects on non-2xx and on
     // network failure) must not surface as an unhandled rejection.
-    this.transport.emit('browse:resource-viewed', { resourceId }).catch(() => {});
+    this.wire.emit('browse:resource-viewed', { resourceId }).catch(() => {});
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by

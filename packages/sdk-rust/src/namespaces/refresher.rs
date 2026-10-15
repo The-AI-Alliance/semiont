@@ -165,7 +165,7 @@ impl Refresher {
         let stored = |event: StoredEventResponse| Subject::of(event.resource_id);
         for trigger in RefreshTrigger::ALL {
             match trigger {
-                RefreshTrigger::Reopened => self.on_reopening(links.wire.transport().state()),
+                RefreshTrigger::Reopened => self.on_reopening(links.transport.state()),
                 RefreshTrigger::BusResumeGap => {
                     self.on::<channels::BusResumeGap>(links, *trigger, |gap| {
                         Subject::of(ResourceId::new(gap.scope).ok())

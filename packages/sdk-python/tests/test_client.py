@@ -119,7 +119,6 @@ def test_a_client_is_its_namespaces_over_one_transport_and_a_bus_of_its_own() ->
         assert client.transport is transport
         assert isinstance(client.bus, EventBus)
         assert isinstance(client.wire, Bus)
-        assert client.wire.transport is transport
         assert client.timing == ClientTiming()
         # Every frame the transport delivers is on the client's own bus.
         queued = client.job.queued()

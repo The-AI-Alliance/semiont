@@ -192,7 +192,7 @@ function UserBadge() {
 Every domain operation (commands and queries) flows through a single
 SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 
-- **Request-response queries** — `busRequest` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
+- **Request-response queries** — `Bus.request` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
 - **Fire-and-forget commands** — `actor.emit(channel, payload)` POSTs to `/bus/emit`; results arrive as separate events.
 - **Live domain events** — `mark:added`, `mark:body-updated`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` — and drops them when the last subscriber unsubscribes.
 - **Resumption** — when the stream reopens after a drop, the gateway replays each resource scope's persisted events from the last one the client received, or emits `bus:resume-gap` when it cannot; `BrowseNamespace` refetches only what replay does not cover. See [`docs/protocol/CACHE-SEMANTICS.md`](../../../docs/protocol/CACHE-SEMANTICS.md) (B13).
@@ -349,7 +349,7 @@ try {
 
 Bus command errors surface as `BusRequestError` (from failure channels
 like `browse:resources-failed`), raised from the promise returned by
-`busRequest`.
+`Bus.request`.
 
 ### Automatic Recovery
 

@@ -9,13 +9,13 @@
  * body twice, the way a duplicated wire frame carries one gateway response.
  *
  * Replies are distinguished by `total` — a real field of the registry-typed
- * reply, so the assertions stay cast-free (`busRequest`'s return type is
+ * reply, so the assertions stay cast-free (`Bus.request`'s return type is
  * inferred from the registry; a made-up shape would need a conversion the
  * type system rightly rejects).
  */
 
 import { describe, it, expect } from 'vitest';
-import { busRequest } from '../bus-request';
+import { Bus } from '../bus';
 import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
 import { FaultyTransport } from '../faulty-transport';
 
@@ -29,9 +29,9 @@ describe('FaultyTransport.queueReply', () => {
     transport.queueReply(OP, { resources: [], total: 1, offset: 0 });
     transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
 
-    const r1 = await busRequest(transport, OP, {});
-    const r2 = await busRequest(transport, OP, {});
-    const r3 = await busRequest(transport, OP, {});
+    const r1 = await new Bus(transport).request(OP, {});
+    const r2 = await new Bus(transport).request(OP, {});
+    const r3 = await new Bus(transport).request(OP, {});
 
     expect(r1.total).toBe(1);
     expect(r2.total).toBe(2);
@@ -48,10 +48,10 @@ describe('FaultyTransport.queueReply', () => {
     transport.queueReply(OP, { resources: [], total: 1, offset: 0 });
     transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
 
-    // busRequest takes the first matching reply; the duplicate is ignored by
+    // Bus.request takes the first matching reply; the duplicate is ignored by
     // correlation machinery, but it must NOT have consumed a second entry.
-    const r1 = await busRequest(transport, OP, {});
-    const r2 = await busRequest(transport, OP, {});
+    const r1 = await new Bus(transport).request(OP, {});
+    const r2 = await new Bus(transport).request(OP, {});
 
     expect(r1.total).toBe(1);
     expect(r2.total).toBe(2);
@@ -68,11 +68,11 @@ describe('FaultyTransport.queueReply', () => {
     transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
 
     // First request: reply dropped → bus.timeout at the small budget.
-    await expect(busRequest(transport, OP, {}, 40)).rejects.toMatchObject({
+    await expect(new Bus(transport).request(OP, {}, 40)).rejects.toMatchObject({
       code: 'bus.timeout',
     });
     // Second request (a B14-shaped retry) sees the NEXT page, not a replay.
-    const r2 = await busRequest(transport, OP, {}, 1_000);
+    const r2 = await new Bus(transport).request(OP, {}, 1_000);
     expect(r2.total).toBe(2);
 
     transport.dispose();
@@ -84,7 +84,7 @@ describe('FaultyTransport.queueReply', () => {
     });
     transport.state$.next('connecting');
 
-    const promise = busRequest(transport, OP, {}, 5_000);
+    const promise = new Bus(transport).request(OP, {}, 5_000);
     await new Promise((r) => setTimeout(r, 20));
     // The gate held the emit: the gateway saw nothing.
     expect(transport.requestLog).toHaveLength(0);
@@ -114,7 +114,7 @@ describe('a reply that names what it answers for', () => {
   ): Promise<unknown[]> {
     const replies: unknown[] = [];
     const heard = transport.frames(BUS_OPERATIONS[op].result).subscribe((frame) => replies.push(frame.payload));
-    await busRequest(transport, op, request, 1_000);
+    await new Bus(transport).request(op, request, 1_000);
     heard.unsubscribe();
     return replies;
   }
@@ -173,7 +173,7 @@ describe('a reply that names what it answers for', () => {
     const transport = new FaultyTransport();
     transport.queueReply('gather:resource-requested', 'scripted');
 
-    await expect(busRequest(transport, 'gather:resource-requested', { options: {} }, 1_000)).rejects.toThrow(
+    await expect(new Bus(transport).request('gather:resource-requested', { options: {} }, 1_000)).rejects.toThrow(
       'FaultyTransport: the reply to gather:resource-requested names "resourceId", which this request does not state',
     );
 
@@ -192,8 +192,8 @@ describe('requestLog payloads', () => {
   it('carries the emitted payload on each entry, in arrival order', async () => {
     const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
 
-    await busRequest(transport, OP, { limit: 10, entityType: 'Concept' }, 5_000);
-    await busRequest(transport, OP, { limit: 25 }, 5_000);
+    await new Bus(transport).request(OP, { limit: 10, entityType: 'Concept' }, 5_000);
+    await new Bus(transport).request(OP, { limit: 25 }, 5_000);
 
     expect(transport.requestLog).toHaveLength(2);
     expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 10, entityType: 'Concept' });
@@ -211,7 +211,7 @@ describe('requestLog payloads', () => {
     const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
 
     const payload: Record<string, unknown> = { limit: 10 };
-    await busRequest(transport, OP, payload, 5_000);
+    await new Bus(transport).request(OP, payload, 5_000);
     payload.limit = 999;
 
     expect(transport.requestLog[0]!.payload.limit).toBe(10);
@@ -225,7 +225,7 @@ describe('requestLog payloads', () => {
       makeResponse: () => ({ resources: [], total: 0, offset: 0 }),
     });
 
-    await expect(busRequest(transport, OP, { limit: 3 }, 50)).rejects.toThrow();
+    await expect(new Bus(transport).request(OP, { limit: 3 }, 50)).rejects.toThrow();
 
     // reject-emit never reached the gateway, but the ATTEMPT is what a
     // consumer asserting "did we send it?" needs to see.

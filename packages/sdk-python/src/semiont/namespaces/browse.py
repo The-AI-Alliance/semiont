@@ -193,7 +193,7 @@ class BrowseNamespace:
 
     def _of[K: Hashable, V, T](self, resource_id: ResourceId, cache: Cache[K, V], key: K, view: Callable[[V], T]) -> Cached[T]:
         """A query of one resource: watching it holds the resource's scope."""
-        return self._live.query(Keyed(cache, key, view, scope=(self._links.wire.transport, resource_id)))
+        return self._live.query(Keyed(cache, key, view, scope=(self._links.transport, resource_id)))
 
     def resource(self, resource_id: ResourceId) -> Cached[ResourceDescriptor]:
         """A resource's description."""

@@ -20,7 +20,7 @@ Every other TypeScript package, the Browser, and the conformance and end-to-end 
 |---|---|---|
 | The protocol's types | `components`, `paths`, `operations`: every request, response and schema | `src/types.ts`, generated when the package is built and not committed |
 | Ids | `ResourceId`, `AnnotationId`, `JobId`, `UserId`, each with a constructor that holds text to its rule and a guard that asks without throwing | `src/generated/identifiers.ts`, generated |
-| The bus | `EventBus`, the `EventMap` of every channel and its payload, and `busRequest` for a request and its reply | [src/event-bus.ts](src/event-bus.ts), [src/bus-protocol.ts](src/bus-protocol.ts), [src/bus-request.ts](src/bus-request.ts) |
+| The bus | `EventBus`, the `EventMap` of every channel and its payload, and `Bus`, the typed bus over a transport, whose `request` is a request and its reply | [src/event-bus.ts](src/event-bus.ts), [src/bus-protocol.ts](src/bus-protocol.ts), [src/bus.ts](src/bus.ts), [src/bus-request.ts](src/bus-request.ts) |
 | The record's events | `PersistedEvent`, `StoredEvent`, and the list of every event type a knowledge base records | [src/persisted-events.ts](src/persisted-events.ts), [src/event-base.ts](src/event-base.ts) |
 | The transport contract | `ITransport`, `IContentTransport`, `IGatewayOperations`: what a client needs of the wire | [src/transport.ts](src/transport.ts) |
 | Annotations | Building one (`reconcile`, `annotationOfSpan`, `annotationOfResource`), and reading its target, its selectors and its links | [src/annotation-builders.ts](src/annotation-builders.ts), [src/web-annotation-utils.ts](src/web-annotation-utils.ts) |

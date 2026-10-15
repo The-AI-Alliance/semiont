@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Observable } from 'rxjs';
-import type { EventMap, BusRequestPrimitive } from '../index';
+import type { EventMap, BusPrimitive } from '../index';
 
 /**
  * Equality, not assignability: `Observable<Record<string, unknown>>` satisfies
@@ -27,7 +27,7 @@ type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 
 /** Payloads are INFERRED from the channel argument — no type argument given. */
-function inferenceProbe(bus: BusRequestPrimitive) {
+function inferenceProbe(bus: BusPrimitive) {
   const added = bus.stream('mark:added');
   const exact: Equals<typeof added, Observable<EventMap['mark:added']>> = true;
 
@@ -40,7 +40,7 @@ function inferenceProbe(bus: BusRequestPrimitive) {
 }
 
 /** Everything the loose signature allows. */
-function rejectionProbe(bus: BusRequestPrimitive) {
+function rejectionProbe(bus: BusPrimitive) {
   // @ts-expect-error — the caller does not choose the payload type
   bus.stream<{ wrong: true }>('mark:added');
   // @ts-expect-error — not a channel the registry declares
@@ -49,7 +49,7 @@ function rejectionProbe(bus: BusRequestPrimitive) {
   bus.isSubscribed('no-such-channel');
 }
 
-describe('BusRequestPrimitive.stream is typed by its channel', () => {
+describe('BusPrimitive.stream is typed by its channel', () => {
   it('infers the payload from the channel name, and differs per channel', () => {
     expect(typeof inferenceProbe).toBe('function');
   });
@@ -62,7 +62,7 @@ describe('BusRequestPrimitive.stream is typed by its channel', () => {
   });
 });
 
-describe('BusRequestPrimitive.stream refuses what a loose signature allows', () => {
+describe('BusPrimitive.stream refuses what a loose signature allows', () => {
   it('takes no caller-supplied type, and no channel off the registry', () => {
     expect(typeof rejectionProbe).toBe('function');
   });

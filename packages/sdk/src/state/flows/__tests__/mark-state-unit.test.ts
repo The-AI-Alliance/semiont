@@ -162,7 +162,7 @@ describe('createMarkStateUnit', () => {
     } as any);
 
     // The call-through IS the bridge. `mark:create-ok` is deliberately NOT
-    // asserted here: it is the wire reply to this call's own busRequest, and
+    // asserted here: it is the wire reply to this call's own Bus.request, and
     // `transport.bridgeInto` delivers it — this harness has no transport, so
     // asserting it here could only ever be observing a local echo. What the UI
     // actually depends on is covered by "does NOT clear pendingAnnotation when
@@ -180,7 +180,7 @@ describe('createMarkStateUnit', () => {
   it('emits mark:create-error (resource-stamped, client-local) when submit errors', async () => {
     // The awaiting catch is the one place that knows whose command failed on
     // which resource — it emits the UI notification. The wire reply channel
-    // (mark:create-failed, CommandError) stays busRequest plumbing.
+    // (mark:create-failed, CommandError) stays Bus.request plumbing.
     const annotationFn = vi.fn().mockRejectedValue(new Error('Network error'));
     tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);

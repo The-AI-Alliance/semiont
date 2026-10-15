@@ -1,14 +1,14 @@
 /**
- * Unit tests for `busRequest` and `BusRequestError`.
+ * Unit tests for `Bus.request` and `BusRequestError`.
  *
- * Covers the three result paths the helper produces:
+ * Covers the three result paths a request has:
  *   - success: result event with matching `correlationId` resolves with `response`
  *   - rejection: failure event resolves into a `BusRequestError` with code
  *     `bus.rejected` and structured `details`
  *   - timeout: an rxjs `TimeoutError` from the operator is wrapped in a
  *     `BusRequestError` with code `bus.timeout` and structured `details`
  *
- * Plus correlation hygiene: the helper writes a fresh `correlationId` onto
+ * Plus correlation hygiene: a request writes a fresh `correlationId` onto
  * the emitted envelope, ignores result/failure events on the same channels
  * whose `correlationId` doesn't match, and resolves on the first matching
  * one.
@@ -20,13 +20,10 @@ import { SemiontError } from '../errors';
 import type { EventMap } from '../bus-protocol';
 import type { ConnectionState } from '../transport';
 
-import {
-  busRequest,
-  BusRequestError,
-  type BusRequestPrimitive,
-} from '../bus-request';
+import { BusRequestError } from '../bus-request';
+import { Bus, type BusPrimitive } from '../bus';
 
-interface MockBus extends BusRequestPrimitive {
+interface MockBus extends BusPrimitive {
   emitChannel: string | null;
   emitPayload: Record<string, unknown> | null;
   /** The envelope the request rode out on — where the key lives. */
@@ -64,7 +61,7 @@ function makeBus(
       bus.emitPayload = payload as Record<string, unknown>;
       bus.emitEnvelope = envelope ?? null;
       return 1;
-    }) as BusRequestPrimitive['emit'],
+    }) as BusPrimitive['emit'],
     stream: vi.fn((channel: keyof EventMap) => {
       if ((channel as string) === resultChannel) {
         return resultSubject.asObservable() as unknown as Observable<EventMap[keyof EventMap]>;
@@ -73,11 +70,13 @@ function makeBus(
         return failureSubject.asObservable() as unknown as Observable<EventMap[keyof EventMap]>;
       }
       return new Subject<unknown>().asObservable() as unknown as Observable<EventMap[keyof EventMap]>;
-    }) as BusRequestPrimitive['stream'],
+    }) as BusPrimitive['stream'],
     // The default every real transport that delivers everything gives. Tests
     // that exercise a NARROWED set override it per case below.
     isSubscribed: () => true,
     trackReply: () => () => {},
+    // A request holds no resource's scope: its replies ride global channels.
+    subscribeToResource: () => () => {},
     // The envelope view this double answers from its own scripted subjects.
     frames: vi.fn((channel: keyof EventMap) => {
       const subject =
@@ -85,13 +84,13 @@ function makeBus(
         : (channel as string) === failureChannel ? failureSubject
         : new Subject<unknown>();
       return subject.asObservable();
-    }) as BusRequestPrimitive['frames'],
+    }) as BusPrimitive['frames'],
   };
   return bus;
 }
 
-describe('busRequest', () => {
-  // A real registered operation: `busRequest` takes the operation key (the
+describe('Bus.request', () => {
+  // A real registered operation: `Bus.request` takes the operation key (the
   // request channel) and looks up result/failure from `BUS_OPERATIONS`. The mock
   // bus is keyed on the derived channel names, so the fixtures keep them as
   // constants for the stream wiring.
@@ -101,7 +100,7 @@ describe('busRequest', () => {
 
   it('emits the request with a generated correlationId and resolves on the matching result', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, { foo: 'bar' });
+    const promise = new Bus(bus).request(EMIT, { foo: 'bar' });
 
     // Let the synchronous emit run.
     await Promise.resolve();
@@ -118,7 +117,7 @@ describe('busRequest', () => {
 
   it('ignores result events with a non-matching correlationId', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -131,7 +130,7 @@ describe('busRequest', () => {
 
   it('rejects with BusRequestError(bus.rejected) when a failure event arrives', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -159,7 +158,7 @@ describe('busRequest', () => {
     // instead, every consumer would reach through the nesting and there would be
     // two ways to ask the same question.
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -186,7 +185,7 @@ describe('busRequest', () => {
     // strings they are indistinguishable except by matching the prose; as
     // promoted codes the loop branches on `err.code` like every other consumer.
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -205,7 +204,7 @@ describe('busRequest', () => {
     // keeps it on everything else, so collapsing it to 'bus.rejected' here
     // would make the two decisions the same one.
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -220,7 +219,7 @@ describe('busRequest', () => {
     // `code` is optional on the wire; a failure without one is a plain
     // rejection.
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -233,7 +232,7 @@ describe('busRequest', () => {
     // build. An unknown value must not become a `BusRequestErrorCode` nobody can
     // handle — it degrades to 'bus.rejected', which is what it would have been.
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -243,7 +242,7 @@ describe('busRequest', () => {
 
   it('attaches structured details on bus.rejected', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -261,7 +260,7 @@ describe('busRequest', () => {
 
   it('falls back to a default message when the failure event has no `message`', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    const captured = new Bus(bus).request(EMIT, {}).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -281,7 +280,7 @@ describe('busRequest', () => {
       // Attach the catch handler synchronously so the rejection is never
       // unhandled — chained `await expect(...).rejects` triggers an
       // unhandled-rejection window that vitest reports as a failure.
-      const captured = busRequest(bus, EMIT, {}, 100).catch((e) => e);
+      const captured = new Bus(bus).request(EMIT, {}, 100).catch((e) => e);
 
       await vi.advanceTimersByTimeAsync(101);
 
@@ -300,7 +299,7 @@ describe('busRequest', () => {
     vi.useFakeTimers();
     try {
       const bus = makeBus(RESULT, FAILURE);
-      const captured = busRequest(bus, EMIT, {}, 50).catch((e) => e);
+      const captured = new Bus(bus).request(EMIT, {}, 50).catch((e) => e);
       await Promise.resolve();
       const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -324,7 +323,7 @@ describe('busRequest', () => {
 
   it('uses the first matching result and ignores any after', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -335,15 +334,15 @@ describe('busRequest', () => {
   });
 
   it("re-throws emit's rejection without leaving the result subscription as an unhandled rejection", async () => {
-    // busRequest's `firstValueFrom(result$)` subscribes BEFORE awaiting
-    // `bus.emit()`. If emit throws, control leaves busRequest without
+    // Bus.request's `firstValueFrom(result$)` subscribes BEFORE awaiting
+    // `bus.emit()`. If emit throws, control leaves Bus.request without
     // ever awaiting the result promise. Its subscription stays open
     // until the underlying stream completes (in production: during
     // `semiont.dispose()`), at which point an unguarded firstValueFrom
     // throws EmptyError with no consumer — an uncaught rejection that
     // surfaces after the caller has finished.
     //
-    // Pin the behavior: emit rejects → busRequest rethrows; the
+    // Pin the behavior: emit rejects → Bus.request rethrows; the
     // resultSubject is then completed (mimicking bus disposal); no
     // unhandled rejection escapes.
 
@@ -353,10 +352,10 @@ describe('busRequest', () => {
 
     try {
       const bus = makeBus(RESULT, FAILURE);
-      bus.emit = vi.fn(async () => { throw new Error('emit failed'); }) as BusRequestPrimitive['emit'];
+      bus.emit = vi.fn(async () => { throw new Error('emit failed'); }) as BusPrimitive['emit'];
 
       await expect(
-        busRequest(bus, EMIT, {}),
+        new Bus(bus).request(EMIT, {}),
       ).rejects.toThrow('emit failed');
 
       // Now complete the result stream, as `semiont.dispose()` would —
@@ -374,7 +373,7 @@ describe('busRequest', () => {
   });
 
   it('does not leak an unhandled rejection when the bus is disposed while a fire-and-forget request is in flight', async () => {
-    // A busRequest whose `emit` is still pending — so its internal
+    // A Bus.request whose `emit` is still pending — so its internal
     // `firstValueFrom` promise has no awaiter yet — and whose returned
     // promise nobody awaits. When the bus completes (dispose), an unguarded
     // `firstValueFrom` rejects `EmptyError` with no handler →
@@ -385,12 +384,12 @@ describe('busRequest', () => {
 
     try {
       const bus = makeBus(RESULT, FAILURE);
-      // emit never resolves → busRequest parks at `await bus.emit()`, so its
+      // emit never resolves → Bus.request parks at `await bus.emit()`, so its
       // `await resultPromise` is never reached (resultPromise has no awaiter).
-      bus.emit = vi.fn(() => new Promise<number>(() => {})) as BusRequestPrimitive['emit'];
+      bus.emit = vi.fn(() => new Promise<number>(() => {})) as BusPrimitive['emit'];
 
       // Fire-and-forget: do NOT await the returned promise.
-      void busRequest(bus, EMIT, {});
+      void new Bus(bus).request(EMIT, {});
       await Promise.resolve();
 
       // Dispose: complete the underlying subjects, as `semiont.dispose()` does.
@@ -406,8 +405,8 @@ describe('busRequest', () => {
 
   it('rejects an awaited request with BusRequestError(bus.closed) when the bus is disposed before a reply', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {});
-    await Promise.resolve(); // let emit resolve; busRequest now awaits the reply
+    const promise = new Bus(bus).request(EMIT, {});
+    await Promise.resolve(); // let emit resolve; Bus.request now awaits the reply
 
     // Dispose before any reply arrives.
     bus.resultSubject.complete();
@@ -417,8 +416,8 @@ describe('busRequest', () => {
   });
 });
 
-describe('busRequest attach gate', () => {
-  // No correlated emit before the reply path exists: busRequest waits — inside
+describe('Bus.request attach gate', () => {
+  // No correlated emit before the reply path exists: Bus.request waits — inside
   // its existing timeout budget — for `state$` to report the one deliverable
   // state, `'open'` (`degraded` is a dropped stream by definition and waits
   // like the rest).
@@ -428,7 +427,7 @@ describe('busRequest attach gate', () => {
 
   it('does not emit while connecting; flip to open → exactly one emit, and the reply resolves', async () => {
     const bus = makeBus(RESULT, FAILURE, 'connecting');
-    const promise = busRequest(bus, EMIT, { foo: 'bar' });
+    const promise = new Bus(bus).request(EMIT, { foo: 'bar' });
 
     // Give a premature emit every chance to surface.
     await new Promise((r) => setTimeout(r, 10));
@@ -444,7 +443,7 @@ describe('busRequest attach gate', () => {
 
   it('degraded waits — recovery via connecting → open releases the gate', async () => {
     const bus = makeBus(RESULT, FAILURE, 'degraded');
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
 
     await new Promise((r) => setTimeout(r, 10));
     expect(bus.emit).not.toHaveBeenCalled();
@@ -477,7 +476,7 @@ describe('busRequest attach gate', () => {
       // 30s budget: if the gate "waited out" the timeout instead of failing
       // fast, this test would blow vitest's own deadline, and the elapsed
       // check pins the intent explicitly.
-      await expect(busRequest(bus, EMIT, {}, 30_000)).rejects.toMatchObject({
+      await expect(new Bus(bus).request(EMIT, {}, 30_000)).rejects.toMatchObject({
         code: 'bus.closed',
       });
       expect(Date.now() - started).toBeLessThan(1_000);
@@ -500,7 +499,7 @@ describe('busRequest attach gate', () => {
     try {
       const bus = makeBus(RESULT, FAILURE, 'connecting');
       const started = Date.now();
-      const promise = busRequest(bus, EMIT, {}, 30_000);
+      const promise = new Bus(bus).request(EMIT, {}, 30_000);
 
       await new Promise((r) => setTimeout(r, 10));
       bus.stateSubject.next('closed');
@@ -521,7 +520,7 @@ describe('busRequest attach gate', () => {
     // event, no reply-stream completion — only state$ completing. The gate
     // must not hang on a vanished state machine.
     const bus = makeBus(RESULT, FAILURE, 'connecting');
-    const promise = busRequest(bus, EMIT, {}, 30_000);
+    const promise = new Bus(bus).request(EMIT, {}, 30_000);
 
     await new Promise((r) => setTimeout(r, 10));
     bus.stateSubject.complete();
@@ -534,7 +533,7 @@ describe('busRequest attach gate', () => {
     const bus = makeBus(RESULT, FAILURE, 'connecting');
     const started = Date.now();
 
-    await expect(busRequest(bus, EMIT, {}, 80)).rejects.toMatchObject({
+    await expect(new Bus(bus).request(EMIT, {}, 80)).rejects.toMatchObject({
       code: 'bus.timeout',
     });
 
@@ -547,7 +546,7 @@ describe('busRequest attach gate', () => {
 
   it('a state flap after emission does not re-emit', async () => {
     const bus = makeBus(RESULT, FAILURE, 'open');
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
 
     await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
 
@@ -584,7 +583,7 @@ describe('BusRequestError', () => {
 
 // ── Reply tracking: a reply lost in a connection drop is asked for again ──
 
-describe('busRequest reply tracking (correlated-reply retention, client side)', () => {
+describe('Bus.request reply tracking (correlated-reply retention, client side)', () => {
   const EMIT = 'gather:resource-requested';
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
@@ -601,7 +600,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
       // loses the correlation key — the same way any production decorator that
       // forgets the third argument would.
       return originalEmit(channel, payload, envelope);
-    }) as BusRequestPrimitive['emit'];
+    }) as BusPrimitive['emit'];
     const trackingBus = Object.assign(bus, {
       trackReply: vi.fn((cid: string) => {
         order.push('track');
@@ -616,7 +615,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
 
   it('tracks the cid BEFORE the emit and releases on the success reply', async () => {
     const { bus, order, tracked, released } = makeTrackingBus();
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
 
     const cid = bus.emitEnvelope!.correlationId as string;
@@ -633,7 +632,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
 
   it('releases on a failure reply', async () => {
     const { bus, tracked, released } = makeTrackingBus();
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -645,7 +644,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
 
   it('releases on timeout', async () => {
     const { bus, released } = makeTrackingBus();
-    const promise = busRequest(bus, EMIT, {}, 20);
+    const promise = new Bus(bus).request(EMIT, {}, 20);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -655,7 +654,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
 
   it('releases when the bus closes before a reply (streams complete)', async () => {
     const { bus, released } = makeTrackingBus();
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -669,29 +668,29 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const { bus, released, tracked } = makeTrackingBus();
     bus.emit = vi.fn(async () => {
       throw new Error('emit refused');
-    }) as BusRequestPrimitive['emit'];
+    }) as BusPrimitive['emit'];
 
-    await expect(busRequest(bus, EMIT, {})).rejects.toThrow('emit refused');
+    await expect(new Bus(bus).request(EMIT, {})).rejects.toThrow('emit refused');
     expect(tracked).toHaveLength(1);
     expect(released).toEqual(tracked);
   });
 
   it('never tracks when the bus is closed before emit (gate fast-fail)', async () => {
     const { bus, tracked } = makeTrackingBus('closed');
-    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({ code: 'bus.closed' });
+    await expect(new Bus(bus).request(EMIT, {})).rejects.toMatchObject({ code: 'bus.closed' });
     expect(tracked).toEqual([]);
   });
 
   it("never tracks when the reply machinery settles before the gate opens (the 'settled' race arm)", async () => {
     const { bus, tracked } = makeTrackingBus('connecting');
     // Never opens: the reply timeout settles first, the emit is skipped.
-    await expect(busRequest(bus, EMIT, {}, 20)).rejects.toMatchObject({ code: 'bus.timeout' });
+    await expect(new Bus(bus).request(EMIT, {}, 20)).rejects.toMatchObject({ code: 'bus.timeout' });
     expect(bus.emit).not.toHaveBeenCalled();
     expect(tracked).toEqual([]);
   });
 });
 
-describe('busRequest subscription fail-fast gate', () => {
+describe('Bus.request subscription fail-fast gate', () => {
   const EMIT = 'gather:resource-requested';
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
@@ -699,7 +698,7 @@ describe('busRequest subscription fail-fast gate', () => {
   it('rejects bus.unsubscribed without emitting when the result channel is outside the subscription set', async () => {
     const bus = makeBus(RESULT, FAILURE);
     bus.isSubscribed = (channel) => channel !== RESULT;
-    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({
+    await expect(new Bus(bus).request(EMIT, {})).rejects.toMatchObject({
       code: 'bus.unsubscribed',
       details: { channel: EMIT, resultChannel: RESULT },
     });
@@ -709,13 +708,13 @@ describe('busRequest subscription fail-fast gate', () => {
   it('gates the failure channel too — a lost rejection hangs the caller as surely as a lost result', async () => {
     const bus = makeBus(RESULT, FAILURE);
     bus.isSubscribed = (channel) => channel !== FAILURE;
-    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({ code: 'bus.unsubscribed' });
+    await expect(new Bus(bus).request(EMIT, {})).rejects.toMatchObject({ code: 'bus.unsubscribed' });
     expect(bus.emit).not.toHaveBeenCalled();
   });
 
   it('does not gate when both reply channels are subscribed', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {});
+    const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
     bus.resultSubject.next({ correlationId: cid, payload: { response: { ok: 1 } } });
@@ -723,7 +722,7 @@ describe('busRequest subscription fail-fast gate', () => {
   });
 });
 
-describe('busRequest abandoned by its caller', () => {
+describe('Bus.request abandoned by its caller', () => {
   const EMIT = 'gather:resource-requested';
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
@@ -743,7 +742,7 @@ describe('busRequest abandoned by its caller', () => {
   it('rejects with the signal\'s reason, keeps what it sent, and stops tracking the reply', async () => {
     const { bus, tracked, released } = tracking();
     const caller = new AbortController();
-    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+    const promise = new Bus(bus).request(EMIT, {}, 5_000, caller.signal);
     await Promise.resolve();
     expect(bus.emit).toHaveBeenCalledTimes(1);
 
@@ -757,7 +756,7 @@ describe('busRequest abandoned by its caller', () => {
   it('reports nothing for a reply that arrives afterwards: nothing is left listening for it', async () => {
     const { bus } = tracking();
     const caller = new AbortController();
-    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+    const promise = new Bus(bus).request(EMIT, {}, 5_000, caller.signal);
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
@@ -771,7 +770,7 @@ describe('busRequest abandoned by its caller', () => {
   it('sends nothing when abandoned while it waits for the stream to open', async () => {
     const { bus, tracked } = tracking('connecting');
     const caller = new AbortController();
-    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+    const promise = new Bus(bus).request(EMIT, {}, 5_000, caller.signal);
 
     caller.abort();
     await expect(promise).rejects.toBe(caller.signal.reason);
@@ -786,7 +785,7 @@ describe('busRequest abandoned by its caller', () => {
     const caller = new AbortController();
     caller.abort();
 
-    await expect(busRequest(bus, EMIT, {}, 5_000, caller.signal)).rejects.toBe(caller.signal.reason);
+    await expect(new Bus(bus).request(EMIT, {}, 5_000, caller.signal)).rejects.toBe(caller.signal.reason);
     expect(bus.emit).not.toHaveBeenCalled();
     expect(bus.frames).not.toHaveBeenCalled();
     expect(tracked).toEqual([]);
@@ -794,13 +793,13 @@ describe('busRequest abandoned by its caller', () => {
 
   it('a signal that is never used changes nothing: a reply resolves, and a bus that closes still fails as closed', async () => {
     const answered = tracking();
-    const first = busRequest(answered.bus, EMIT, {}, 5_000, new AbortController().signal);
+    const first = new Bus(answered.bus).request(EMIT, {}, 5_000, new AbortController().signal);
     await Promise.resolve();
     answered.bus.resultSubject.next({ correlationId: answered.bus.emitEnvelope!.correlationId, payload: { response: { ok: 1 } } });
     expect(await first).toEqual({ ok: 1 });
 
     const closed = tracking();
-    const second = busRequest(closed.bus, EMIT, {}, 5_000, new AbortController().signal);
+    const second = new Bus(closed.bus).request(EMIT, {}, 5_000, new AbortController().signal);
     await Promise.resolve();
     closed.bus.resultSubject.complete();
     closed.bus.failureSubject.complete();

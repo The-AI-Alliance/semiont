@@ -105,7 +105,7 @@ class JobNamespace:
         caller that must not wait them out states others.
         """
         return Claims(
-            self._links.wire,
+            self._links.transport,
             self._links.run,
             accepts,
             job_claim_timeout_ms=job_claim_timeout_ms,
