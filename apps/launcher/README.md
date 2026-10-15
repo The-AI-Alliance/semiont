@@ -706,8 +706,11 @@ appear is not evidence the cue failed.
 Every container the launcher runs carries an explicit `--memory` ceiling, from
 one table in the launcher (no silent runtime defaults — Apple container would
 quietly size each per-container VM at 1G, where a JVM graph or a loaded model
-dies; docker would leave it unlimited inside its shared VM). The ceilings are
-visible in every `--dry-run` line.
+dies; docker would leave it unlimited inside its shared VM). An environment's
+`[memory]` gives any of the stack's own services another
+([Configuration](../../docs/operator/administration/CONFIGURATION.md#memory)),
+and the gateway's capacity and the Smelter's PDFs at once follow the ceiling
+each runs with. The ceilings are visible in every `--dry-run` line.
 
 On Apple container specifically, ceilings approximate commitments — each one
 sizes a VM whose kernel and page cache grow into it — so a live start sums

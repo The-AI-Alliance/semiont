@@ -100,13 +100,13 @@ func TestNoTopologyTravelsInAnEnvironment(t *testing.T) {
 		t.Fatal("topologyVars resolves nothing: this test would pass for the wrong reason")
 	}
 	builders := map[string][]string{
-		"gateway":    gatewayArgs("/stage", "docker", "192.168.64.1", "secret", "jwt", "latest", 4000, nil, nil),
-		"worker":     workerArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"smelter":    smelterArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"weaver":     weaverArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"archivist":  archivistArgs("/kb", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"librarian":  librarianArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"dispatcher": dispatcherArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"gateway":    gatewayArgs("/stage", "docker", "192.168.64.1", "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
+		"worker":     workerArgs("/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("worker").mem, nil, nil),
+		"smelter":    smelterArgs("/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
+		"weaver":     weaverArgs("/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
+		"archivist":  archivistArgs("/kb", "/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
+		"librarian":  librarianArgs("/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
+		"dispatcher": dispatcherArgs("/stage", "docker", "192.168.64.1", "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
 	}
 	set := map[string]bool{}
 	for svc, args := range builders {

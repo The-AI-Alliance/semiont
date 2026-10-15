@@ -144,8 +144,39 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("smelter").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
+	if doc.PdfsAtOnce != 1 {
+		t.Errorf("pdfsAtOnce = %d, want the one PDF the table's ceiling holds", doc.PdfsAtOnce)
+	}
 	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
+	}
+}
+
+// The Smelter works on a PDF at once for each 2G of the ceiling it runs with,
+// and on one however small the ceiling is: the table's 2G holds one, and an
+// environment's [memory] that gives it more lets it take more at once.
+func TestSmelterDocumentWorksOnAPdfAtOnceForEachTwoGigabytesOfItsCeiling(t *testing.T) {
+	for _, c := range []struct {
+		why, memory string
+		want        int
+	}{
+		{"the table's ceiling", "", 1},
+		{"eight gigabytes", "smelter = \"8G\"\n", 4},
+		{"five gigabytes, which hold two", "smelter = \"5G\"\n", 2},
+		{"less than two gigabytes", "smelter = \"1536M\"\n", 1},
+		{"another service's ceiling", "worker = \"8G\"\n", 1},
+	} {
+		config := smelterDocFixture
+		if c.memory != "" {
+			config = withSection(config, "memory", c.memory)
+		}
+		b, err := smelterDocument(envFrom(t, config), "container", "192.168.64.1", 8080, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", c.why, err)
+		}
+		if got := smelterDocumentFrom(t, b).PdfsAtOnce; got != c.want {
+			t.Errorf("%s: pdfsAtOnce = %d, want %d", c.why, got, c.want)
+		}
 	}
 }
 
@@ -291,7 +322,7 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := smelterDocumentFrom(t, b)
 
-	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", []string{"--env", "VOYAGE_API_KEY"}, nil,
+	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil,
 		"-v", "/state/anchored-text:"+stateStores["anchored-text"].mounts[0].target), " ")
 	if want := "/stage/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's document is not mounted onto %s:\n%s", smelterDocumentTarget, args)

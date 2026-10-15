@@ -65,6 +65,43 @@ func TestAGeneratedConfigDeclaresTheGateway(t *testing.T) {
 	}
 }
 
+// An environment's [memory] names stack services and states ceilings. Anything
+// else is refused by name: a misspelt service would size nothing, and a shape
+// --memory does not take would fail the start at the runtime. One that is both
+// is the plan's, and sizes that service alone.
+func TestLoadConfigRefusesAMemoryThatIsNoStackServicesCeiling(t *testing.T) {
+	load := func(lines string) (*envConfig, error) {
+		path := filepath.Join(t.TempDir(), "memory.toml")
+		body := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nport = 4000\n\n[environments.local.memory]\n" + lines
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		env, _, _, err := loadConfig(path)
+		return env, err
+	}
+	for _, c := range []struct{ line, says string }{
+		{"smeltr = \"8G\"\n", "names smeltr, which is none of the stack's services"},
+		{"browser = \"2G\"\n", "names browser, which is none of the stack's services"},
+		{"smelter = \"8GB\"\n", `smelter = "8GB"`},
+		{"smelter = \"0G\"\n", `smelter = "0G"`},
+		{"smelter = \"1.5G\"\n", `smelter = "1.5G"`},
+	} {
+		if _, err := load(c.line); err == nil || !strings.Contains(err.Error(), "[environments.local.memory]") || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("%q: want a refusal naming [environments.local.memory] and saying %q, got %v", c.line, c.says, err)
+		}
+	}
+	env, err := load("smelter = \"8G\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := memoryFor(env.Memory, "smelter"); got != "8G" {
+		t.Errorf("the smelter's ceiling = %q, want the environment's 8G", got)
+	}
+	if got := memoryFor(env.Memory, "worker"); got != semiontDescriptor("worker").mem {
+		t.Errorf("the worker's ceiling = %q, want the table's %s", got, semiontDescriptor("worker").mem)
+	}
+}
+
 func TestLoadConfigRefusesAnEnvironmentSite(t *testing.T) {
 	// In every environment, selected or not: a knowledge base declares [site]
 	// once, and the launcher refuses the section wherever else it is.

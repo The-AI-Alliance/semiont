@@ -39,6 +39,14 @@ const voyageEmbeddingsEndpoint = "https://" + voyageHost + "/v1/embeddings"
 // nothing.
 var unstatedChunking = struct{ chunkSize, overlap int }{chunkSize: 512, overlap: 64}
 
+// gigabytesForEachPdf: how much of the Smelter's memory one PDF under way is
+// given. ONE statement: the Smelter's document says it works on as many PDFs
+// at once as its ceiling holds of these (memoryFor), and on one however small
+// the ceiling is. A reading, not a measurement: a PDF holds its bytes, a page
+// of a scan in pixels beside the tesseract process reading it, and its text
+// and vectors, and eight of them at once overflowed the 2G one fits in.
+const gigabytesForEachPdf = 2
+
 // smelterNamedVars: the variables the Smelter's document names rather than
 // resolves — Voyage's key, where Voyage makes the vectors — and so the ones
 // the Smelter is handed. An Ollama is asked without a key. A key that is not
@@ -169,6 +177,7 @@ func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []
 		}
 	}
 	doc.AnchoredTextDir = anchoredTextTarget
+	doc.PdfsAtOnce = max(1, int(memCeilingGB(memoryFor(env.Memory, "smelter"))/gigabytesForEachPdf))
 	doc.Port = semiontDescriptor("smelter").ports[0].port
 
 	doc.LogLevel = "info"

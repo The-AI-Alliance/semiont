@@ -220,7 +220,7 @@ func TestAWorkerSectionMayHoldMoreThanItsBinding(t *testing.T) {
 // and hands the Archivist no address by environment: the document carries
 // them.
 func TestArchivistDocumentIsMountedAndNoHostVariableIsPassed(t *testing.T) {
-	args := strings.Join(archivistArgs("/host/kb", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil), " ")
+	args := strings.Join(archivistArgs("/host/kb", "/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil), " ")
 	if want := "/stage/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Archivist's document is not mounted (%s):\n%s", want, args)
 	}

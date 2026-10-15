@@ -147,7 +147,7 @@ func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(dispatcherArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil), " ")
+	args := strings.Join(dispatcherArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("dispatcher").mem, nil, nil), " ")
 	if want := "/stage/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the dispatcher's document is not mounted onto %s:\n%s", dispatcherDocumentTarget, args)
 	}

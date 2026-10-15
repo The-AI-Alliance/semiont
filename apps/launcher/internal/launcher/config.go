@@ -127,6 +127,10 @@ type envConfig struct {
 	// LogLevel is the environment's log level, written into the gateway's
 	// configuration document (gatewaydoc.go).
 	LogLevel string `toml:"logLevel"`
+	// Memory: the --memory ceiling of each stack service it names, in place
+	// of the table's (memoryFor). loadConfig refuses a key that is no stack
+	// service and a value that is no ceiling (refuseMemory).
+	Memory map[string]string `toml:"memory"`
 }
 
 // declaresRole answers whether this config declares a role — the section
@@ -353,6 +357,9 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 		return nil, "", configRefs{}, fmt.Errorf("%s: environment %q selected by [defaults] is not defined", path, envName)
 	}
 	if err := resolveWorkersSection(&env, path, envName); err != nil {
+		return nil, "", configRefs{}, err
+	}
+	if err := refuseMemory(&env, path, envName); err != nil {
 		return nil, "", configRefs{}, err
 	}
 	envSection := environmentSection(doc, envName)

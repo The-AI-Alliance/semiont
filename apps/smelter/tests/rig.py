@@ -384,6 +384,7 @@ class Rig:
         chunking: Chunking | None = None,
         after: "Rig | None" = None,
         index: MemoryVectorStore | None = None,
+        pdfs_at_once: int = 1,
     ) -> None:
         self.world: Final[World] = World() if after is None else after.world
         fresh = MemoryVectorStore() if after is None else after.index
@@ -406,6 +407,7 @@ class Rig:
             anchored=self.store,
             transport=self.transport,
             chunking=chunking or Chunking(chunk_size=512, overlap=64),
+            pdfs_at_once=pdfs_at_once,
         )
 
     async def __aenter__(self) -> Self:

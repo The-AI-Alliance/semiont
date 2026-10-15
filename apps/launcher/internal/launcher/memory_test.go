@@ -67,6 +67,14 @@ func TestStartCeilingsGB(t *testing.T) {
 	}
 }
 
+// A ceiling an environment states for a stack service is the one the sum counts.
+func TestStartCeilingsCountTheCeilingsTheEnvironmentStates(t *testing.T) {
+	plan := &launchPlan{Roles: map[string]rolePlan{}, Memory: map[string]string{"smelter": "8G"}}
+	if got := startCeilingsGB(plan, startOptions{}); got != 22 {
+		t.Fatalf("ceilings with an 8G smelter = %vG, want 22G: the base 16G with the smelter's 2G made 8G", got)
+	}
+}
+
 // A stack without a worker requests no memory for one.
 func TestStartCeilingsLeaveOutAnAbsentWorker(t *testing.T) {
 	plan := &launchPlan{Roles: map[string]rolePlan{

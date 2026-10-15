@@ -254,7 +254,20 @@ overlap = 64
 
 An Ollama embedding is served by the same Ollama that serves inference. On a config whose inference is all remote, Ollama runs for the embeddings alone.
 
-The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, one PDF at a time: a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`baseUrl`, `endpoint`) is no part of it.
+The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, a few PDFs at a time ([Memory](#memory)): a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`baseUrl`, `endpoint`) is no part of it.
+
+### Memory
+
+Each of the stack's services runs in a container with a memory ceiling: 2G for each, unless the environment says otherwise. `[memory]` gives a service another, as `--memory` takes it:
+
+```toml
+[environments.local.memory]
+smelter = "8G"
+```
+
+It names the gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian, and no other. The ceilings of the daemons the launcher runs (Neo4j, Qdrant, Ollama, and the rest) are its own, and so is the browser's.
+
+Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on one PDF at once for each 2G of its ceiling, and on one however little it has: deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one. A knowledge base of large scans is derived sooner with a larger ceiling, and `--dry-run` shows the ceiling each container is given.
 
 ### Graph and vectors
 
@@ -367,6 +380,7 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | A job is bound to a provider the environment has no section for, or to an Ollama with no address | Add `[environments.<env>.inference.<provider>]`, with a `baseURL` for an Ollama the launcher does not run |
 | The environment binds no model to the matcher or the gatherer | Add the binding under `[environments.<env>.actors.<actor>.inference]`, with a `type` and a `model`. The librarian cannot start without both |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
+| `[memory]` names something that is none of the stack's services, or a ceiling that is not like `"8G"` or `"512M"` | Name a service of the stack, with a ceiling as `--memory` takes it ([Memory](#memory)) |
 
 ## Related
 

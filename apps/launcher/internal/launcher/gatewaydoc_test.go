@@ -188,6 +188,15 @@ func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
 	if doc.Capacity.QueuedBytes != 1<<30 || doc.Capacity.Connections != 52428 {
 		t.Errorf("capacity = %+v, want 1 GiB queued and 52428 connections", doc.Capacity)
 	}
+
+	// An environment's [memory] that gives the gateway 4G gives it twice the capacity.
+	b, err = gatewayDocument(envFrom(t, gatewayDocFixture+"\n[environments.local.memory]\ngateway = \"4G\"\n"), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc = documentFrom(t, b); doc.Capacity.QueuedBytes != 2<<30 || doc.Capacity.Connections != 104857 {
+		t.Errorf("capacity at 4G = %+v, want 2 GiB queued and 104857 connections", doc.Capacity)
+	}
 }
 
 // A KB that declares no identity gets no fabricated one: the launcher refuses

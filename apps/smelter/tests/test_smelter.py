@@ -1857,6 +1857,36 @@ def test_a_reconcile_works_on_one_pdf_at_a_time_and_indexes_a_text_beside_it(tmp
     assert all(isinstance(said["residentBytes"], int) == stated for said in indexed)
 
 
+def test_a_smelter_told_to_work_on_two_pdfs_at_once_works_on_two_and_a_third_waits(tmp_path: Path) -> None:
+    third = b"%PDF the bytes of a third document"
+
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN, third: WRITTEN}, pdfs_at_once=2) as rig:
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(
+                rig.world.put("pdf-1", PDF, "application/pdf"),
+                rig.world.put("pdf-2", OTHER_PDF, "application/pdf"),
+                rig.world.put("pdf-3", third, "application/pdf"),
+            )
+
+            await until(lambda: len(rig.provider.asked) == 2)
+            await a_while()
+
+            # Two are in the provider's hands, and the third has not had its bytes read.
+            assert len(rig.provider.asked) == 2
+            assert len(rig.reader.opened) == 2
+            assert len(rig.world.read_of) == 2
+
+            let_go.set()
+            await rig.settled()
+
+            assert set((await rig.held()).stamps) == {"pdf-1", "pdf-2", "pdf-3"}
+            assert sorted(rig.reader.opened) == sorted([PDF, OTHER_PDF, third])
+
+    run(scenario())
+
+
 def test_pdfs_that_arrive_together_are_indexed_one_at_a_time_and_a_text_beside_them(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:

@@ -42,6 +42,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "vectors": QDRANT,
     "chunking": {"chunkSize": 512, "overlap": 64},
     "anchoredTextDir": "/tmp/semiont/anchored-text",
+    "pdfsAtOnce": 1,
     "port": 24101,
     "logLevel": "warn",
     "logFormat": "simple",

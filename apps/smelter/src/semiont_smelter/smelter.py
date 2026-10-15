@@ -22,14 +22,15 @@ turn, so that the texts they quote are embedded in one batch. Nothing waits
 for more of them to arrive. The work a start plans, and a rebuild's, takes
 its turn in the same lanes.
 
-**One PDF at a time.** A PDF's text is read or derived, and the PDF is
-indexed or its anchored text derived, in the PDF turn, which one PDF holds at
-a time, whatever asked for it: an event, a start's planned work or a rebuild.
-Deriving a scanned document's text holds a page's pixels and an OCR process
-for each document under way, and eight documents at once outgrew the memory
-the Smelter is given. A PDF waiting for the turn holds nothing of itself:
-whether a resource is a PDF is asked of its description, and its bytes are
-read when its turn comes. Everything else is done beside it.
+**As many PDFs at a time as it is told.** A PDF's text is read or derived,
+and the PDF is indexed or its anchored text derived, in a PDF turn, of which
+there are as many as the Smelter's document states (`pdfsAtOnce`), whatever
+asked for it: an event, a start's planned work or a rebuild. Deriving a
+scanned document's text holds a page's pixels and an OCR process for each
+document under way, and eight documents at once outgrew the 2 GB a Smelter
+is given by default, which holds one. A PDF waiting for a turn holds nothing
+of itself: whether a resource is a PDF is asked of its description, and its
+bytes are read when its turn comes. Everything else is done beside them.
 
 **What a start plans is looked at again where the record has moved.** A
 reconcile plans from what it read, and does the work afterwards. A piece of
@@ -117,8 +118,8 @@ __all__ = ["ReconcileState", "Smelter"]
 _WAVE: Final = 8
 """How many pieces of planned work are under way at once: a start that finds an empty index must not ask everything of the provider at once.
 
-A PDF is one of them however many are: one PDF is worked on at a time
-(`Smelter._pdf_turn`), and the rest of a wave goes on beside it.
+The PDFs among them take PDF turns (`Smelter._pdf_turns`), as many at once
+as the Smelter is told, and the rest of a wave goes on beside them.
 """
 
 _EMBED: Final = "embed"
@@ -177,14 +178,14 @@ class _Unread:
 
 @final
 class _OutsideTurn:
-    """Bytes that are a PDF's, read outside the PDF turn: the description said they were not, and they were replaced since."""
+    """Bytes that are a PDF's, read outside a PDF turn: the description said they were not, and they were replaced since."""
 
 
 _OUTSIDE_TURN: Final = _OutsideTurn()
 
 
 def _a_pdf(described: ResourceDescriptor) -> bool:
-    """Whether a resource's description says its bytes are a PDF's: whether it is indexed in the PDF turn."""
+    """Whether a resource's description says its bytes are a PDF's: whether it is indexed in a PDF turn."""
     representation = primary_representation(described)
     return representation is not None and text_source_of(representation.media_type) == "pdf-text-layer"
 
@@ -255,7 +256,8 @@ class Smelter:
     """A Smelter over `index`, asking `provider` for vectors and `content` for bytes, and reaching the knowledge base through `transport`.
 
     The index is connected and the transport's stream names what a Smelter
-    reads before it is entered. Nothing it was handed is closed on the way
+    reads before it is entered. `pdfs_at_once` is how many PDFs it works on
+    at once. Nothing it was handed is closed on the way
     out: each is whoever made it's to close. The way out ends what it follows
     and what its lanes are doing. It does not end a reconcile: whoever began
     one cancels it first.
@@ -271,6 +273,7 @@ class Smelter:
         anchored: AnchoredTextStore,
         transport: Transport,
         chunking: Chunking,
+        pdfs_at_once: int,
     ) -> None:
         self._index: Final = index
         self._provider: Final = provider
@@ -286,8 +289,8 @@ class Smelter:
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
         self._draining: Final = asyncio.Lock()
         """Held while planned work is done: a reconcile's and a rebuild's are never done at once."""
-        self._pdf_turn: Final = asyncio.Lock()
-        """Held by the one PDF that is worked on: from reading its bytes until its points or its anchored text are written."""
+        self._pdf_turns: Final = asyncio.Semaphore(pdfs_at_once)
+        """One held by each PDF that is worked on: from reading its bytes until its points or its anchored text are written."""
         self._doing: Final[list[asyncio.Task[None]]] = []
         self._gathering: Final[dict[str, list[StoredEventResponse]]] = {}
         """By lane, the `mark:added` events that are waiting for one turn: one that arrives while they wait joins them."""
@@ -482,22 +485,22 @@ class Smelter:
 
         Every chunk is embedded before any point is written, so a resource
         whose chunks could not all be embedded keeps the points it had. A
-        PDF is indexed in the PDF turn, from reading its bytes to writing its
+        PDF is indexed in a PDF turn, from reading its bytes to writing its
         points. A read of its description that fails is raised: points
         written with no entity types would be found by a search that was to
         leave the resource out.
         """
         described = await self._record.described(resource)
         if _a_pdf(described):
-            async with self._pdf_turn:
+            async with self._pdf_turns:
                 return await self._indexed(resource, described, in_turn=True)
         return await self._indexed(resource, described, in_turn=False)
 
     async def _indexed(self, resource: ResourceId, described: ResourceDescriptor, *, in_turn: bool) -> _Concluded | None:
-        """Index a resource whose description is `described`, holding the PDF turn or not. See `_index_resource`."""
+        """Index a resource whose description is `described`, holding a PDF turn or not. See `_index_resource`."""
         read = await self._text_of(resource, in_turn=in_turn)
         if isinstance(read, _OutsideTurn):
-            async with self._pdf_turn:
+            async with self._pdf_turns:
                 return await self._indexed(resource, described, in_turn=True)
         if not isinstance(read, _Text):
             return await self._conclude(resource, read)
@@ -549,7 +552,7 @@ class Smelter:
         The bytes are read and their checksum taken before anything is
         decided, so whatever is decided is said of those bytes. The content
         type says where the text comes from: decoded from the bytes, derived
-        from a PDF, or nowhere. A PDF's bytes read outside the PDF turn are
+        from a PDF, or nowhere. A PDF's bytes read outside a PDF turn are
         let go of, and that is answered: they are read again in the turn.
         """
         try:
@@ -645,11 +648,11 @@ class Smelter:
 
         Raises where the bytes cannot be read and where the entry cannot be
         written: here the entry is the work, so a rebuild that could not
-        store one says so. It is done in the PDF turn: what is re-anchored is
+        store one says so. It is done in a PDF turn: what is re-anchored is
         a PDF as the catalog states it, or a resource a rebuild named, which
         holds the turn for as long as it takes to find it has no PDF.
         """
-        async with self._pdf_turn:
+        async with self._pdf_turns:
             content = await self._content.read(resource)
             if not yields_geometry_of(content.content_type):
                 # Planned from what the catalog said, which the bytes no longer are: there is nothing to derive.

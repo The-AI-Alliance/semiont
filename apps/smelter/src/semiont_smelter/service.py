@@ -165,6 +165,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                     anchored=anchored,
                     transport=transport,
                     chunking=Chunking(chunk_size=config.chunking.chunk_size, overlap=config.chunking.overlap),
+                    pdfs_at_once=config.pdfs_at_once,
                 ) as smelter,
             ):
                 LOG.info("Following the record")

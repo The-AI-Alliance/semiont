@@ -5866,6 +5866,14 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
+    pdfs_at_once: Annotated[
+        int,
+        Field(
+            alias="pdfsAtOnce",
+            description="How many PDFs the Smelter works on at once. Each one under way holds its bytes, a page of a scan in pixels beside the OCR process reading it, and its text and vectors, so whoever starts a Smelter sizes this with the memory it gives it. Every other resource is indexed beside them.",
+            ge=1,
+        ),
+    ]
     port: Annotated[
         int,
         Field(description="The port the Smelter answers `/health` on.", ge=1, le=65535),

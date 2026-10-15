@@ -281,6 +281,7 @@ export class LibrarianWorld {
           chunking: { chunkSize: 512, overlap: 64 },
           // The store's directory is the one the Archivist is configured to read.
           anchoredTextDir: kb.dirs.anchoredTextDir,
+          pdfsAtOnce: 1,
         },
         env: { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.smelter },
         home: mkdtempSync(join(tmpdir(), 'conformance-librarian-smelter-')),

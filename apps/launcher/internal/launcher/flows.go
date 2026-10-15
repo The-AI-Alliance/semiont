@@ -751,7 +751,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.envFor("gateway"), otel, extra...)
+	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, memoryFor(fc.plan.Memory, "gateway"), port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -811,11 +811,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	var args []string
 	switch sc.svc {
 	case "worker":
-		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
+		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
 	case "smelter":
-		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
+		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel, extra...)
 	case "weaver":
-		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
+		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)
 	if !ok {
@@ -855,7 +855,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "archivist"), fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -886,7 +886,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor("librarian"), otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "librarian"), fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -916,7 +916,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "dispatcher"), fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")

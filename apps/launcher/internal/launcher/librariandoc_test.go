@@ -412,7 +412,7 @@ func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := librarianDocumentFrom(t, b)
 
-	args := strings.Join(librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil,
+	args := strings.Join(librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil,
 		"-v", "/state/state:"+stateStores["state"].mounts[0].target), " ")
 	if want := "/stage/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Librarian's document is not mounted onto %s:\n%s", librarianDocumentTarget, args)
