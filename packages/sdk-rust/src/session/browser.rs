@@ -52,7 +52,9 @@ use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{Events, STREAM_BACKLOG};
-use crate::types::{KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId};
+use crate::types::{
+    KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId,
+};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};

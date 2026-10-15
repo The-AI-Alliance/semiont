@@ -33,7 +33,8 @@ use semiont::resume::CoupledBookmarks;
 use semiont::session::{
     BROWSER_CLIENT_ID, OnAuthFailed, OnSessionError, OpenedSession, Refresh, SCRIPT_CLIENT_ID,
     SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions,
-    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, store_session, stored_session,
+    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, store_session,
+    stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;

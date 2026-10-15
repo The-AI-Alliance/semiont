@@ -36,9 +36,9 @@ use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
 use semiont::types::{
-    AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol, JobCompleteCommand,
-    JobDetectionResult, JobProgress, KbEndpoint, KbTarget, KnowledgeBase, LocalEndpoint,
-    MarkJobFilter, MarkJobFilterParams, Motivation,
+    AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
+    JobCompleteCommand, JobDetectionResult, JobProgress, KbEndpoint, KbTarget, KnowledgeBase,
+    LocalEndpoint, MarkJobFilter, MarkJobFilterParams, Motivation,
 };
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
@@ -1648,7 +1648,10 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
 
     assert_eq!(outcome.kb.did, DID_A);
     assert_eq!(outcome.kb.label, "KB A");
-    assert_eq!(outcome.kb.endpoint, KbEndpoint::HttpEndpoint(world.target()));
+    assert_eq!(
+        outcome.kb.endpoint,
+        KbEndpoint::HttpEndpoint(world.target())
+    );
     assert_eq!(
         outcome
             .kb

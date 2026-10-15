@@ -24,7 +24,8 @@ use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
     Agent, GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, HttpEndpoint,
     HttpEndpointProtocol, InvalidIdentifier, JobCompleteCommand, JobDetectionResult, KbEndpoint,
-    KnowledgeBase, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId, YieldJobResult,
+    KnowledgeBase, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId,
+    YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
