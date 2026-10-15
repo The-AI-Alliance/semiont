@@ -18,21 +18,21 @@ import { screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
-import { annotationId, resourceId } from '@semiont/core';
+import { annotationId, resourceId, EventBus } from '@semiont/core';
 import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 // Minimal bring-your-own-session double: just the surface ResourceViewer + its
-// subtree touch — `client.browse` / `client.mark` and generic-channel `subscribe`.
+// subtree touch — `client.browse` / `client.mark` and the bus its event hooks read.
 function fakeSession(): SemiontSession {
   const client = {
+    bus: new EventBus(),
     baseUrl: 'http://localhost:4000',
     browse: { invalidateAnnotationList: vi.fn(), click: vi.fn() },
     mark: { delete: vi.fn() },
   };
   return {
     client,
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

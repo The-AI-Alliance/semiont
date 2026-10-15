@@ -3,7 +3,8 @@
  * refresh/validate callback contract.
  *
  * `SemiontClient` is mocked at the module level (of it, these tests
- * need only its state and error streams and `dispose`; the test harness
+ * need only its state and error streams, and `dispose` to see that the
+ * session never calls it; the test harness
  * doesn't exercise any real HTTP or SSE). Auth is parameterized
  * entirely through callbacks, so tests provide `refresh` and
  * optional `validate` directly.
@@ -11,6 +12,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
+import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
 const mockDispose = vi.fn();
 const mockStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
@@ -96,7 +98,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(session.token$.getValue()).toBe('tok-1');
 
     await session.ready;
-    await session.dispose();
+    session.dispose();
   });
 
   it('starts with null token when no stored session', async () => {
@@ -104,7 +106,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
     await session.ready;
-    await session.dispose();
+    session.dispose();
   });
 
   it('starts with stored token when unexpired, then populates user$ via the validate callback', async () => {
@@ -118,7 +120,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(validate).toHaveBeenCalled();
     expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('skips user validation when no validate callback is provided (service principal)', async () => {
@@ -133,7 +135,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(session.user$.getValue()).toBeNull();
     expect(validate).not.toHaveBeenCalled();
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('survives a THROWN refresh during startup — `ready` resolves, it does not reject', async () => {
@@ -151,7 +153,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(session.user$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('stays with null user$ if stored token is expired and refresh returns null', async () => {
@@ -164,7 +166,7 @@ describe('SemiontSession — construction & initial token', () => {
     expect(session.user$.getValue()).toBeNull();
     expect(storage.get(storageKey(KB.id))).toBeNull();
 
-    await session.dispose();
+    session.dispose();
   });
 });
 
@@ -182,7 +184,7 @@ describe('SemiontSession — refresh', () => {
     expect(tok).toBe(newJwt);
     expect(session.token$.getValue()).toBe(newJwt);
 
-    await session.dispose();
+    session.dispose();
   });
 
   // ── A refresh margin equal to the token lifetime ────────────────────
@@ -225,7 +227,7 @@ describe('SemiontSession — refresh', () => {
       await vi.advanceTimersByTimeAsync(10 * 60_000);
       expect(refresh.mock.calls.length, 'refresh count over ten minutes').toBeLessThanOrEqual(6);
 
-      await session.dispose();
+      session.dispose();
     } finally {
       vi.useRealTimers();
     }
@@ -244,7 +246,7 @@ describe('SemiontSession — refresh', () => {
     expect(onAuthFailed).toHaveBeenCalledWith('expired');
     expect(session.token$.getValue()).toBeNull();
 
-    await session.dispose();
+    session.dispose();
   });
 
   // ── A thrown refresh is a failed refresh ────────────────────────────
@@ -277,7 +279,7 @@ describe('SemiontSession — refresh', () => {
       expect.objectContaining({ code: 'session.refresh-exhausted' }),
     );
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('names the cause when a refresh throws — a network failure must not read as a revoked session', async () => {
@@ -294,7 +296,7 @@ describe('SemiontSession — refresh', () => {
       expect.objectContaining({ message: expect.stringContaining('ECONNREFUSED') }),
     );
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('a revoked refresh (refresh→null) clears the stored session so the dead token is not reused', async () => {
@@ -317,7 +319,7 @@ describe('SemiontSession — refresh', () => {
     expect(getStoredSession(storage, KB.id)).toBeNull();
     expect(onAuthFailed).toHaveBeenCalledWith('expired');
 
-    await session.dispose();
+    session.dispose();
   });
 });
 
@@ -359,7 +361,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     expect(onAuthFailed).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
     expect(session.token$.getValue()).toBeNull();
-    await session.dispose();
+    session.dispose();
   });
 
   it('leaves the asking to the start when the start and the stream are both waiting on one renewal', async () => {
@@ -397,7 +399,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     expect(asked).toEqual([stored, renewed]);
     expect(onAuthFailed).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
-    await session.dispose();
+    session.dispose();
   });
 
   it('takes up a token renewed meanwhile as the just-issued one, and does not renew again', async () => {
@@ -431,7 +433,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     expect(session.token$.getValue()).toBe(renewed);
     expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
     expect(onAuthFailed).not.toHaveBeenCalled();
-    await session.dispose();
+    session.dispose();
   });
 });
 
@@ -461,7 +463,7 @@ describe('SemiontSession — a refusal of a running session', () => {
     // A refusal after that is a new one.
     await session.refresh();
     expect(refresh).toHaveBeenCalledTimes(2);
-    await session.dispose();
+    session.dispose();
   });
 
   it('is not ended by the refusal of a token it no longer holds', async () => {
@@ -491,7 +493,7 @@ describe('SemiontSession — a refusal of a running session', () => {
     expect(await refreshing).toBe(elsewhere);
     expect(session.token$.getValue()).toBe(elsewhere);
     expect(onAuthFailed).not.toHaveBeenCalled();
-    await session.dispose();
+    session.dispose();
   });
 });
 
@@ -512,8 +514,8 @@ describe('SemiontSession — instance identity', () => {
     expect(first.id).not.toBe('');
     expect(first.id).not.toBe(second.id);
 
-    await first.dispose();
-    await second.dispose();
+    first.dispose();
+    second.dispose();
   });
 
   it('id is stable across the session lifetime, including after dispose', async () => {
@@ -521,30 +523,45 @@ describe('SemiontSession — instance identity', () => {
     await session.ready;
     const atStart = session.id;
 
-    await session.dispose();
+    session.dispose();
     expect(session.id).toBe(atStart);
   });
 });
 
 describe('SemiontSession — dispose', () => {
-  it('completes subjects and calls client.dispose on dispose', async () => {
+  it('completes its token and its user, and leaves the client to whoever made it', async () => {
     const session = newSession();
     await session.ready;
 
-    let completed = false;
-    session.token$.subscribe({ complete: () => { completed = true; } });
+    const completed: string[] = [];
+    session.token$.subscribe({ complete: () => completed.push('token') });
+    session.user$.subscribe({ complete: () => completed.push('user') });
 
-    await session.dispose();
-    expect(completed).toBe(true);
-    expect(mockDispose).toHaveBeenCalled();
+    session.dispose();
+    expect(completed).toEqual(['token', 'user']);
+    expect(mockDispose).not.toHaveBeenCalled();
   });
 
-  it('dispose is idempotent', async () => {
+  it('stops renewing: a refusal after the end renews nothing', async () => {
     const session = newSession();
     await session.ready;
-    await session.dispose();
-    await session.dispose();
-    expect(mockDispose).toHaveBeenCalledTimes(1);
+    session.dispose();
+
+    await expect(session.refresh()).resolves.toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('SemiontSession — StateUnit axioms', () => {
+  it('satisfies the StateUnit axioms, and hands out no state that a reader could write', () => {
+    assertStateUnitAxioms<SemiontSession>({
+      // No `refresh` or `validate`: a session of nobody, so nothing it is
+      // driven with reaches past it.
+      setup: () => newSession({ refresh: undefined, validate: undefined }),
+      // `streamState$` and `errors$` are the client's, and end with it.
+      surfaces: (u) => [u.token$, u.user$],
+      invocations: (u) => [() => void u.refresh()],
+    });
   });
 });
 
@@ -558,7 +575,7 @@ describe('SemiontSession — cross-context storage sync', () => {
     storage.dispatch(storageKey(KB.id), JSON.stringify({ access: newJwt, refresh: 'r2' }));
     await expect(nextToken).resolves.toBe(newJwt);
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('responds to a storage change that clears this KB\'s session', async () => {
@@ -574,7 +591,7 @@ describe('SemiontSession — cross-context storage sync', () => {
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
 
-    await session.dispose();
+    session.dispose();
   });
 
   it('ignores storage changes for other keys', async () => {
@@ -587,7 +604,7 @@ describe('SemiontSession — cross-context storage sync', () => {
     storage.dispatch('semiont.session.OTHER_KB', JSON.stringify({ access: 'xyz', refresh: 'q' }));
     expect(session.token$.getValue()).toBe(jwt);
 
-    await session.dispose();
+    session.dispose();
   });
 });
 

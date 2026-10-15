@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: no `class` declarations in state-unit files (A1-static).
+# Audit: no `class` declarations in state-unit files.
 #
-# State units are plain-object factories: `createXStateUnit(...)` returns a
-# closure-backed plain object with a `dispose()` method — never a class instance.
-# The runtime A1 axiom enforces this per-unit at test time
-# (`Object.getPrototypeOf(unit) === Object.prototype`); this is the static
-# complement, catching an intentional `class` declaration even if it returns a
-# plain object.
+# TypeScript's convention: a state unit in a `*-state-unit.ts` file is made by a
+# factory, `createXStateUnit(...)`, which returns a closure-backed plain object
+# with a `dispose()` method. It is a convention of how TypeScript writes its
+# units, not one of the axioms, which say how a unit behaves and are the same in
+# every SDK: a unit elsewhere may be a class (`SemiontSession`).
 #
 # Scope: `*-state-unit.ts` factories + the core `state-unit.ts` interface file.
 # Allowlist: empty (no class declarations expected in any state-unit file).
@@ -25,7 +24,7 @@ VIOLATIONS=$(grep -rnE "^[[:space:]]*(export[[:space:]]+)?(default[[:space:]]+)?
   || true)
 
 if [ -n "$VIOLATIONS" ]; then
-  echo "❌ A1-static: class declaration(s) in state-unit file(s) — use a factory returning a plain object:"
+  echo "❌ class declaration(s) in state-unit file(s) — TypeScript makes its units by a factory returning a plain object:"
   echo ""
   echo "$VIOLATIONS"
   echo ""
@@ -34,5 +33,5 @@ if [ -n "$VIOLATIONS" ]; then
   exit 1
 fi
 
-echo "✅ A1-static: no class declarations in state-unit files"
+echo "✅ no class declarations in state-unit files"
 exit 0

@@ -24,26 +24,30 @@ Throughout, the eight verb namespaces hang off `session.client` — `session.cli
 For anything longer than a one-shot script, use **`SemiontSession`**: it refreshes the
 bearer token in the background, so long-running work doesn't die at the token TTL (a raw
 `SemiontClient` does). Supply a `SessionStorage` — `InMemorySessionStorage` for Node/scripts,
-a `localStorage`-backed one for the browser — and `dispose()` when done.
+a `localStorage`-backed one for the browser. A script's sign-in gives the session with the
+client it was built with (an `OpenedSession`), and `dispose()` on it ends both when done.
 
 ```typescript
 import { SemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
+const { session } = opened;
 
 // … use session.client.{browse,gather,yield,mark,bind,match,frame,beckon} …
 
-await session.dispose();
+opened.dispose();   // the session, then the client it was built with
 ```
 
 Sign-in happens at the knowledge base's identity provider, never at the gateway:
 `SemiontSession.signInDevice(...)` for a script (the device grant — it prints a URL, the person
 approves in any browser) and `SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app
-(authorization code with PKCE). Both come back as a session that refreshes at the issuer.
+(authorization code with PKCE). Both give a session that refreshes at the issuer: a script's
+comes with the client it was built with, to end together, and a browser app's is the
+`SemiontBrowser`'s to end.
 `SemiontClient` has no sign-in of its own: a bare token lives as long as the issuer says —
 minutes — with nothing to renew it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
 JWT? The `fromHttp(...)` variants.
@@ -414,15 +418,14 @@ const result = await session.client.match.search(resourceId, referenceId, contex
 ## 11. React to live collaboration
 
 Subscribing to `browse.*` live queries is the primary way to keep a UI current (recipe 3). For
-arbitrary bus channels — presence, attention, custom signals — `session.subscribe(channel,
-handler)` is the sanctioned escape hatch; `beckon.*` emits attention signals other participants
-observe.
+arbitrary bus channels — presence, attention, custom signals — `session.client.bus.on(channel)`
+is the sanctioned escape hatch; `beckon.*` emits attention signals other participants observe.
 
 ```typescript
 const sub = session.client.browse.annotations(rId).subscribe(render);  // live updates
-session.subscribe('beckon:focus', (e) => highlight(e));                // observe a raw channel
+const focus = session.client.bus.on('beckon:focus').subscribe(highlight); // observe a raw channel
 session.client.beckon.attention(resourceId, annotationId);             // emit an attention signal
-// teardown: sub.unsubscribe();
+// teardown: sub.unsubscribe(); focus.unsubscribe();
 ```
 
 ## 12. Drive a long-running job
@@ -479,13 +482,13 @@ try {
 
 ## 14. Tear down cleanly
 
-Unsubscribe live queries and `dispose()` the session when its work is done. **Don't
+Unsubscribe live queries and end what the sign-in gave when the work is done. **Don't
 fire-and-forget SDK promises** — an unawaited call left in flight can reject with `bus.closed`
 when the session is disposed. `await` or `.catch` every call you start.
 
 ```typescript
 sub.unsubscribe();
-await session.dispose();   // tears down the SSE connection, refresh timer, and bus
+opened.dispose();   // the session (its refresh timer), then its client (the SSE connection and the bus)
 ```
 
 Disposal is terminal, in both directions:
@@ -494,8 +497,8 @@ Disposal is terminal, in both directions:
   and a request still in flight at teardown dies quietly (no late error notification, no
   retry). Unsubscribe-before-dispose isn't needed for correctness; do it anyway for
   tidiness.
-- **The disposed session is unusable, loudly.** Any SDK call after `dispose()` — a
-  namespace method, `session.subscribe` — **throws** (`destroyed bus`) rather than
+- **The ended client is unusable, loudly.** Any SDK call after `opened.dispose()` — a
+  namespace method, a read of `session.client.bus` — **throws** (`destroyed bus`) rather than
   silently doing nothing. That throw is a lifecycle bug in the caller made visible: keep
   UI handlers and timers from outliving the session they capture.
 

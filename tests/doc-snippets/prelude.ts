@@ -9,6 +9,7 @@
 // prelude instead.
 import type {
   SemiontSession as _SemiontSession,
+  OpenedSession as _OpenedSession,
   SemiontClient as _SemiontClient,
   ResourceId as _ResourceId,
   AnnotationId as _AnnotationId,
@@ -54,6 +55,8 @@ declare global {
   // ── the signed-in world most snippets assume ─────────────────────────
   /** A signed-in session (long-running consumers). */
   const session: _SemiontSession;
+  /** What a script's sign-in gives: the session and the client it was built with, ended together. */
+  const opened: _OpenedSession;
   /** A wired-up client — one-shot scripts call it `semiont`, sessions `client`. */
   const semiont: _SemiontClient;
   const client: _SemiontClient;

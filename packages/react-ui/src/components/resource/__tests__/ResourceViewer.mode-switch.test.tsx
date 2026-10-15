@@ -16,22 +16,20 @@ import { ResourceViewer } from '../ResourceViewer';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
+import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 
 // ResourceViewer takes its session as a prop; ResourceAnnotationsContext
 // resolves the client via useSemiont(). Mock useSemiont to emit a minimal
-// session carrying a stub client with the methods it touches. The session
-// also exposes `on` and `emit` stubs so useEventSubscription(s) don't explode.
+// session carrying a stub client with the methods it touches, and the bus
+// its event hooks read.
 const stubClient = {
+  bus: new EventBus(),
   browse: { invalidateAnnotationList: vi.fn() },
   markAnnotation: vi.fn(),
-  on: vi.fn(() => () => {}),
-  emit: vi.fn(),
-  stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
 };
 const stubSession = {
   client: stubClient,
-  subscribe: vi.fn(() => () => {}),
 };
 const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
 const stubBrowser = {

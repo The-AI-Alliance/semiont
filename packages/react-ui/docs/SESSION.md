@@ -47,8 +47,8 @@ browser-backed `SessionStorage` implementation).
    `localStorage` references. Storage goes through `SessionStorage`.
 3. **The browser's bus is private; the client's is read-only.** Shell
    traffic goes through `browser.emit` / `.on` / `.stream`; session
-   traffic through the client's typed namespace methods, `client.bus`,
-   or `session.subscribe`.
+   traffic through the client's typed namespace methods, or `client.bus`
+   (the event hooks read it).
 4. **State-unit factories never construct an `EventBus`.** They take the
    client or browser that owns one.
 5. **Every channel belongs to exactly one bus.** `EventMap` in

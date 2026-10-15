@@ -17,15 +17,14 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { LinkComponentProps, RouteBuilder } from '../../../../contexts/RoutingContext';
 import { UnifiedAnnotationsPanel } from '../UnifiedAnnotationsPanel';
 import { ANNOTATORS } from '../../../../lib/annotation-registry';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 const TestLink = ({ href, children, ...rest }: LinkComponentProps) => <a href={href} {...rest}>{children}</a>;
 const testRoutes: RouteBuilder = { resourceDetail: (id) => `/r/${id}` };
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

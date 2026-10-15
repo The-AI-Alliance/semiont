@@ -29,8 +29,7 @@ signed-in user.
 The shell bus is reached through `SemiontBrowser`'s `.emit(channel, payload)`,
 `.on(channel, handler)` and `.stream(channel)`; its `EventBus` is private.
 The session bus is reached through the client's typed namespace methods,
-with `session.subscribe(channel, handler)` as the one generic
-subscription. Every channel lives on exactly **one** bus; emitting to
+with the event hooks below as the one generic subscription. Every channel lives on exactly **one** bus; emitting to
 the wrong bus is a silent no-op.
 
 ## Subscribing

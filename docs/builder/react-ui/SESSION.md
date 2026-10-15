@@ -31,11 +31,13 @@ factories take `client` and listen through `client.bus.on(...)`.
 
 ### `SemiontSession`
 
-Per-KB lifetime object. Owns:
+Per-KB lifetime object, and a state unit. Holds:
 
 - `client: SemiontClient` — public `readonly`; components say things through
-  its typed namespace methods and listen with `session.subscribe(channel,
-  handler)`, which returns its own unsubscribe.
+  its typed namespace methods and listen through react-ui's event hooks
+  (`useEventSubscription` and its kin), which read `client.bus`. The session
+  only uses its client: the `SemiontBrowser` that had both built ends the
+  session, then the client.
 - `token$`, `user$` — observable auth state.
 - `errors$` — the transport's errors, republished.
 - `refresh()` — token refresh entrypoint.
@@ -92,7 +94,7 @@ with a distinct scope and lifetime:
 
 The browser exposes its bus as `emit` / `on` / `stream`; the client exposes
 `client.bus` (`emit` / `on`), and components listen on it through
-`session.subscribe(channel, handler)`. The split
+react-ui's event hooks. The split
 exists because the shell bus must keep working when there is no
 active session: panels can toggle, sidebar can collapse, tabs can
 close, and the settings panel is reachable, even on a signed-out KB

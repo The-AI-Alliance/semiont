@@ -15,11 +15,10 @@ set -euo pipefail
 # only public API surface. Direct bus access is reserved for the SDK
 # implementation (`@semiont/sdk`) and HTTP adapters (`@semiont/http-transport`).
 #
-# Generic-channel subscription (the case `useEventSubscription` needs —
+# Generic-channel subscription (the case react-ui's event hooks need —
 # channel name is a hook parameter, not known statically) goes through
-# the explicit `session.subscribe(channel, handler)` carve-out. That is
-# the only sanctioned bridge between arbitrary channel names and
-# component lifetimes.
+# react-ui's unexported `session/channel-subscription.ts`. That is the only
+# sanctioned bridge between arbitrary channel names and component lifetimes.
 #
 # Allowlist:
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
@@ -50,8 +49,8 @@ set -euo pipefail
 #                                          explicitly "not @internal"), so auditing those
 #                                          extracts flags the documentation of a legal
 #                                          escape hatch. Same class as /dist/ above.
-#   - packages/react-ui/src/contexts/useEventSubscription.ts — generic hook
-#                                          (uses session.subscribe internally)
+#   - packages/react-ui/src/session/channel-subscription.ts — a channel read
+#                                          by name, for the generic event hooks
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -69,7 +68,7 @@ filter_allowlist() {
     | grep -v "^packages/core/src/faulty-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \
     | grep -v "^packages/react-ui/src/features/[^/]*/state/" \
-    | grep -v "^packages/react-ui/src/contexts/useEventSubscription\.ts:"
+    | grep -v "^packages/react-ui/src/session/channel-subscription\.ts:"
 }
 
 cd "$REPO_ROOT"

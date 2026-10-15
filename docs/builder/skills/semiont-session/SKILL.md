@@ -14,7 +14,7 @@ A watcher listens to the bus and reacts. A daemon that claims queued jobs and re
 
 - **Keeps the token fresh.** An access token is short-lived (five minutes from the Keycloak a launcher stack runs). The session renews it before it expires, half its lifetime ahead and never more than five minutes, and writes the new token where the transport reads it. A request the gateway refuses is answered with one renewal as well. Your calls never see the change.
 - **Stores the tokens.** The access and refresh tokens are kept through a `SessionStorage` you supply. `InMemorySessionStorage` ships in `@semiont/sdk`.
-- **Subscribes to the bus.** `session.subscribe(channel, handler)` listens to one channel and returns a function that stops listening. Channels are typed: the handler's argument is that channel's payload. A channel of one resource's events takes the resource too: `session.subscribe(channel, resourceId, handler)`.
+- **Reads the bus through its client.** `session.client.bus.on(channel)` is an `Observable` of one channel's payloads: subscribe to listen, unsubscribe to stop. Channels are typed: each value is that channel's payload. A channel of one resource's events reaches the script only while it holds that resource's scope (below).
 - **Reports its own state.** `session.token$`, `session.user$`, `session.streamState$` (the event stream's connection: `connecting`, `open`, `reconnecting`, `degraded`, `unauthenticated`, `closed`) and `session.errors$` (each transport error, just before it is thrown to its caller).
 
 A script that already holds an access token and finishes before it expires can use `SemiontClient.fromHttp({ baseUrl, token })` with no session at all.
@@ -30,7 +30,7 @@ import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'watcher', label: 'Long-running watcher',
     host: url.hostname, port: Number(url.port || 4000),
@@ -44,16 +44,19 @@ const session = await SemiontSession.signInDevice({
   onAuthFailed: (reason) => console.error(`The session ended: ${reason}`),
   onError: (err) => console.error('session error:', err.code, err.message),
 });
+const { session } = opened;
 
 const me = await session.client.auth?.me();
 console.error(`Signed in as ${me?.email}`);
 ```
 
+`signInDevice` gives an `OpenedSession`: the session, and the client it was built with. The session only uses its client, so the two end together: `opened.dispose()` ends the session, then closes the client.
+
 `onAuthFailed` is called once, when the session ends: `expired` when the issuer would not renew it, `refused` when the gateway would not accept a token the issuer had just issued. Neither is a prompt to retry, because the session already did. Signing in again is what is left.
 
 Every verb is on `session.client`: `session.client.mark.delegate(...)`, `session.client.gather.annotation(...)` and so on.
 
-A script that gets its token some other way, such as a service account's client-credentials grant, builds the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })` and supplies `refresh` itself.
+A script that gets its token some other way, such as a service account's client-credentials grant, opens the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })`, which gives an `OpenedSession` too, and supplies `refresh` itself.
 
 ## Keeping tokens across restarts
 
@@ -99,16 +102,16 @@ A channel's audience decides who hears it.
 **Delivered to everyone.** Any signed-in connection hears these: a resource was created (`yield:created`), a job's progress and end (`job:report-progress`, `job:complete`, `job:fail`), who is watching (`session:joined`, `session:left`), where a participant arrived (`browse:resource-viewed`).
 
 ```typescript
-const stopCreated = session.subscribe('yield:created', (event) => {
+const created = session.client.bus.on('yield:created').subscribe((event) => {
   console.log(`new resource ${event.resourceId}: ${event.payload.name}`);
 });
 
-const stopProgress = session.subscribe('job:report-progress', (event) => {
+const progress = session.client.bus.on('job:report-progress').subscribe((event) => {
   console.log(`job ${event.jobId}: ${event.percentage}%`);
 });
 ```
 
-**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. So a subscription to one of these channels names its resource: it joins that resource's scope, hears that resource's events and no other's, and leaves the scope when it is stopped. Subscribing to `mark:added` with no resource does not compile.
+**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. So a script that listens to one of these channels holds that resource's scope while it listens: `session.client.transport.subscribeToResource(rId)` joins the scope and gives back what leaves it. The channel carries the events of every scope the connection holds, so the script keeps its resource's by `resourceId`.
 
 Subscribing to a live query joins its resource's scope and leaves it on unsubscribe. This is the simple way to follow one resource:
 
@@ -121,17 +124,24 @@ const following = semiont.browse.annotations(rId).subscribe((state) => {
 following.unsubscribe();
 ```
 
-To handle the events themselves, subscribe to the channel for the resource. `mark:added` carries the annotation as it stands, and `isReference` (from `@semiont/sdk`, with the other annotation readers) says what kind it is:
+To handle the events themselves, hold the resource's scope and listen to the channel. `mark:added` carries the annotation as it stands, and `isReference` (from `@semiont/sdk`, with the other annotation readers) says what kind it is:
 
 ```typescript
-const stopAdded = session.subscribe('mark:added', rId, (event) => {
-  if (event.annotation && isReference(event.annotation)) {
-    console.log(`new reference ${event.annotation.id}`);
-  }
-});
+import { filter } from 'rxjs';
 
-// later: stops listening, and leaves the scope
-stopAdded();
+const leave = session.client.transport.subscribeToResource(rId);
+const added = session.client.bus
+  .on('mark:added')
+  .pipe(filter((event) => event.resourceId === rId))
+  .subscribe((event) => {
+    if (event.annotation && isReference(event.annotation)) {
+      console.log(`new reference ${event.annotation.id}`);
+    }
+  });
+
+// later: stop listening, then leave the scope
+added.unsubscribe();
+leave();
 ```
 
 Scopes compose on the one connection, so a script can join many resources.
@@ -151,7 +161,7 @@ const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Person').split(',').map((t) =
 
 async function main(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInDevice({
+  const opened = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'watcher', label: 'Long-running watcher',
       host: url.hostname, port: Number(url.port || 4000),
@@ -168,6 +178,7 @@ async function main(): Promise<void> {
     },
     onError: (err) => console.error('session error:', err.code, err.message),
   });
+  const { session } = opened;
 
   async function detect(rId: ResourceId): Promise<void> {
     const done = await session.client.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
@@ -176,15 +187,15 @@ async function main(): Promise<void> {
     }
   }
 
-  const stopCreated = session.subscribe('yield:created', (event) => {
+  const created = session.client.bus.on('yield:created').subscribe((event) => {
     if (!event.resourceId) return;
     // Start the work and return, with a catch: nothing awaits a handler.
     detect(event.resourceId).catch((err) => console.error(`detection failed for ${event.resourceId}:`, err));
   });
 
   async function shutdown(): Promise<void> {
-    stopCreated();
-    await session.dispose();
+    created.unsubscribe();
+    opened.dispose();
     process.exit(0);
   }
   process.on('SIGINT', shutdown);
@@ -199,14 +210,15 @@ main().catch((e) => {
 });
 ```
 
-`session.dispose()` cancels the renewal timer and closes the event stream. Without it the open stream keeps the process alive.
+`opened.dispose()` ends the session, which stops its renewal, then closes its client, which closes the event stream. Without it the open stream keeps the process alive. `session.dispose()` alone ends the session and leaves its client, and the stream, open.
 
 ## Guidance for the AI assistant
 
-- **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is subscribed to with its resource, `session.subscribe(channel, resourceId, handler)`, and the compiler refuses it without one. Do not reach for `session.client.bus` to get around that: a listener there joins no scope and hears nothing.
+- **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is heard only while the script holds that resource's scope: `session.client.transport.subscribeToResource(rId)` before listening on `session.client.bus`, and a filter on the event's `resourceId`. A listener with no scope held hears nothing of it.
+- **End what you opened.** `opened.dispose()` ends the session and then its client. `session.dispose()` ends only the session.
 - **A watcher hears its own writes.** A daemon that creates resources in response to `yield:created` hears those too. Decide what stops the loop: an entity type it skips, or a check on who created the resource.
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.
-- **`signInDevice` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than the device grant, and then build the session with `fromHttp`.
+- **`signInDevice` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than the device grant, and then open the session with `fromHttp`.
 - **Choose storage by what a restart should do.** In memory, the script signs in again at every start. On disk, it resumes.
 - **Prefer a namespace method to a channel.** `mark.delegate`, `yield.delegate` and the others follow their own jobs and replies. Subscribe to a channel only for what no method covers.
 - **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`) arrives at `onError` as a `SemiontSessionError`, and the session's end at `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).

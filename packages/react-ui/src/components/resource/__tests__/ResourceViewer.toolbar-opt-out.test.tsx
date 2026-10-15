@@ -11,6 +11,7 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { ResourceViewer } from '../ResourceViewer';
 
@@ -46,7 +47,7 @@ function fakeSession() {
     beckon: { hover: vi.fn() },
     mark: { request: vi.fn(), delete: vi.fn() },
   };
-  return { session: { client, subscribe: () => () => {} } as unknown as SemiontSession, client };
+  return { session: { client: { ...client, bus: new EventBus() } } as unknown as SemiontSession, client };
 }
 
 const bars = (c: HTMLElement) => c.querySelectorAll('.semiont-annotate-toolbar').length;

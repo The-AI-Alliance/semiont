@@ -7,16 +7,16 @@
  * (enabled && source === resourceId), replace-on-reselect, no creation/UI/toast
  * inside. Resolution chrome stays host-side.
  *
- * Session-first, not a `client:` param: the sanctioned generic-channel
- * subscription is `session.subscribe` (client.bus is audit-forbidden outside
- * the SDK), and chat's reference hook is session-first.
+ * Session-first, not a `client:` param: like react-ui's other event hooks it
+ * reads its channel on the session's client, and chat's reference hook is
+ * session-first.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, fireEvent, within, act } from '@testing-library/react';
 import { renderInEnglish } from '../../test-utils';
 import '@testing-library/jest-dom';
-import { resourceId } from '@semiont/core';
-import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
+import type { EventMap, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { usePendingCreation } from '../usePendingCreation';
 import { ResourceViewer } from '../../components/resource/ResourceViewer';
@@ -27,37 +27,31 @@ vi.mock('../../components/CodeMirrorRenderer', () => ({
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
 vi.mock('remark-gfm', () => ({ default: () => ({}) }));
 
+type MarkRequested = EventMap['mark:requested'];
+
 /**
- * Session double with a live subscribe registry. `client.mark.request` is wired
- * to FEED the registry — a faithful mini-bus, so the integration case can run
- * viewer capture → hook claim end to end.
+ * Session double over a real bus. `client.mark.request` is wired to emit on
+ * it, so the integration case can run viewer capture → hook claim end to end.
  */
 function liveSession() {
-  const handlers = new Map<string, Set<(p: unknown) => void>>();
-  const fire = (channel: string, payload?: unknown) =>
-    handlers.get(channel)?.forEach((h) => h(payload));
+  const bus = new EventBus();
+  const fire = (channel: 'mark:requested', payload: MarkRequested) => bus.emit(channel, payload);
   const client = {
+    bus,
     browse: { click: vi.fn(), invalidateAnnotationList: vi.fn() },
     beckon: { hover: vi.fn() },
     mark: {
       delete: vi.fn(),
-      request: vi.fn((source: unknown, selector: unknown, motivation: unknown) =>
-        fire('mark:requested', { source: String(source), selector, motivation })),
+      request: vi.fn((source: ResourceId, selector: MarkRequested['selector'], motivation: MarkRequested['motivation']) =>
+        fire('mark:requested', { source, selector, motivation })),
     },
   };
-  const session = {
-    client,
-    subscribe: (channel: string, handler: (p: unknown) => void) => {
-      if (!handlers.has(channel)) handlers.set(channel, new Set());
-      handlers.get(channel)!.add(handler);
-      return () => { handlers.get(channel)!.delete(handler); };
-    },
-  } as unknown as SemiontSession;
+  const session = { client } as unknown as SemiontSession;
   return { session, client, fire };
 }
 
-const REQ_A = { source: 'res-a', selector: { type: 'TextPositionSelector', start: 0, end: 5 }, motivation: 'highlighting' };
-const REQ_A2 = { source: 'res-a', selector: { type: 'TextPositionSelector', start: 9, end: 12 }, motivation: 'commenting' };
+const REQ_A: MarkRequested = { source: resourceId('res-a'), selector: { type: 'TextPositionSelector', start: 0, end: 5 }, motivation: 'highlighting' };
+const REQ_A2: MarkRequested = { source: resourceId('res-a'), selector: { type: 'TextPositionSelector', start: 9, end: 12 }, motivation: 'commenting' };
 
 describe('usePendingCreation — the exported creation seam', () => {
   beforeEach(() => vi.clearAllMocks());

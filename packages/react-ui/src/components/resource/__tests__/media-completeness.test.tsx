@@ -13,6 +13,7 @@ import { screen } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { ResourceViewer } from '../ResourceViewer';
 
@@ -28,11 +29,11 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       // The image canvas asks for the resource's text, in browse mode too.
       browse: { click: vi.fn(), resourceAnchoredText: vi.fn().mockResolvedValue({ kind: 'no-map' }) },
       beckon: { hover: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

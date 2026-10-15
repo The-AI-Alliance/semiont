@@ -19,7 +19,7 @@ import { BehaviorSubject } from 'rxjs';
 import type { Annotation, AnnotationId, ResourceDescriptor } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
@@ -57,10 +57,10 @@ function setup(onReferenceHover?: (h: unknown) => void) {
   const browseResource = vi.fn(() => asStates(referent$));
   const session = {
     client: {
+      bus: new EventBus(),
       browse: { click: vi.fn(), resource: browseResource },
       beckon: { hover: beckonHover },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 
   const { container } = render(

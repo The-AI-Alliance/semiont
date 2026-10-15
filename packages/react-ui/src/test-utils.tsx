@@ -125,8 +125,8 @@ export interface TestProvidersOptions {
 
 /**
  * Test access to the client's local bus. Production code uses typed
- * namespace methods or `session.subscribe(channel, handler)` — never
- * direct bus access. Tests need the bus itself to drive
+ * namespace methods, and the event hooks read a channel by name through
+ * `session/channel-subscription.ts` — never direct bus access. Tests need the bus itself to drive
  * `bus.emit(channel, payload)` / `bus.on(channel).subscribe(...)` against the
  * live client wiring; `client.bus` is read-only public for that.
  */

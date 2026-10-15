@@ -18,7 +18,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { BrowseView } from '../BrowseView';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 const captured = vi.hoisted(() => ({
   svg: [] as Record<string, unknown>[],
@@ -43,8 +43,7 @@ vi.mock('remark-gfm', () => ({ default: () => ({}) }));
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

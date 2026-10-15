@@ -235,8 +235,8 @@ The ref-wrapped handler means your handler can change every render without
 re-subscribing; the hook re-subscribes only when the channel set changes.
 
 For lower-level access you can reach the buses directly:
-`semiont.emit/on/stream` on the browser, and `session.subscribe(channel,
-handler)` or `session.client.bus` on a session. Most components should
+`semiont.emit/on/stream` on the browser, and `session.client.bus` on a
+session. Most components should
 prefer the hooks.
 
 Note: with this model you do **not** wire gateway events to manual cache

@@ -174,7 +174,7 @@ describe('session — the SDK agrees with the shared table', () => {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
-    await session.dispose();
+    session.dispose();
   });
 
   it.each(refusal)('refusal: $why', async (c) => {
@@ -245,7 +245,7 @@ describe('session — the SDK agrees with the shared table', () => {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
-    await session.dispose();
+    session.dispose();
   });
 
   it('a renewal on the session\'s own schedule follows no refusal, and asks nobody', async () => {
@@ -282,7 +282,7 @@ describe('session — the SDK agrees with the shared table', () => {
     await vi.advanceTimersByTimeAsync(3300 * 1000);
 
     expect({ asks, renewals }).toEqual({ asks: 1, renewals: 1 });
-    await session.dispose();
+    session.dispose();
   });
 });
 

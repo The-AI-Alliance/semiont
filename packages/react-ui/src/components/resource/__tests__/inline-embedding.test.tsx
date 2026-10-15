@@ -9,7 +9,7 @@
  * overrides (height:auto / overflow:visible / padding drop). The visual
  * auto-height check is a manual, live smoke-test.
  */
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
@@ -28,8 +28,7 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

@@ -59,10 +59,15 @@ program, a script, a daemon or an application, as in the SDK's
 
 | Who | Signs in with | Gives |
 |---|---|---|
-| A script, after `semiont login` | `session_from_stored` | a `SemiontSession` |
-| A script on its own | `sign_in_device` | a `SemiontSession` |
+| A script, after `semiont login` | `session_from_stored` | an `OpenedSession` |
+| A script on its own | `sign_in_device` | an `OpenedSession` |
 | A daemon | `AgentToken::sign_in`, then `client` | a `SemiontClient` |
 | An application | `begin_sign_in`, `complete_sign_in` | a session in its `SemiontBrowser` |
+
+An `OpenedSession` is a session and the client it was built with. A session
+only uses its client, so the two end together: `session()` is the session,
+and `close().await` ends it and then closes the client. An application's
+`SemiontBrowser` does the same for the sessions it holds.
 
 In the examples:
 
@@ -90,7 +95,7 @@ let store = SignInStore::at(
     Arc::new(InMemorySessionStorage::new()),
     Arc::new(|why| eprintln!("{why}")),
 );
-let session = session_from_stored(StoredSignIn {
+let opened = session_from_stored(StoredSignIn {
     kb: KbTarget::http(
         "local",
         "Local",
@@ -108,8 +113,9 @@ let session = session_from_stored(StoredSignIn {
 .await
 .ok_or("Not signed in. Run `semiont login`.")?;
 
-let about = session.client().browse.kb().await?;
-session.close().await;
+let about = opened.session().client().browse.kb().await?;
+// The session, then the client it was built with.
+opened.close().await;
 ```
 
 ### A script on its own
@@ -120,7 +126,7 @@ and keeps the tokens in the storage it is given.
 ```rust
 // The issuer mints a code, and the person approves it wherever they
 // have a browser. No password passes through this process.
-let session = sign_in_device(
+let opened = sign_in_device(
     SignInDevice {
         kb,
         storage,

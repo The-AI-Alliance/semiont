@@ -10,6 +10,7 @@ import { fireEvent, within, waitFor } from '@testing-library/react';
 import { renderInEnglish } from '../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { ResourceViewer } from '../../components/resource/ResourceViewer';
 import { useToolbarPrefs } from '../useToolbarPrefs';
@@ -33,11 +34,11 @@ const annotations = { highlights: [], references: [], assessments: [], comments:
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       browse: { click: vi.fn(), invalidateAnnotationList: vi.fn() },
       beckon: { hover: vi.fn() },
       mark: { delete: vi.fn(), request: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

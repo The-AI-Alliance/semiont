@@ -12,7 +12,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
 import { AnnotateView } from '../AnnotateView';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 vi.mock('../../CodeMirrorRenderer', () => ({ CodeMirrorRenderer: () => <div>cm-mock</div> }));
 
@@ -28,9 +28,9 @@ const uiState: AnnotationUIState = {
 function fakeSession(): SemiontSession {
   return {
     client: {
+      bus: new EventBus(),
       mark: { request: vi.fn() },
     },
-    subscribe: () => () => {},
   } as unknown as SemiontSession;
 }
 

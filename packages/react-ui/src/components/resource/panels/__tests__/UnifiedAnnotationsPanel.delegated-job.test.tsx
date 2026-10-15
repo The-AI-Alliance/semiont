@@ -25,7 +25,10 @@ const sessions: SemiontSession[] = [];
 
 afterEach(() => {
   vi.restoreAllMocks();
-  for (const session of sessions.splice(0)) session.dispose();
+  for (const session of sessions.splice(0)) {
+    session.dispose();
+    session.client.dispose();
+  }
   // The panel restores a resource's last tab from storage, over `initialTab`.
   localStorage.clear();
 });

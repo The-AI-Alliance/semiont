@@ -17,7 +17,6 @@
  *   A6        every pre-dispose subscriber (k ∈ [1,10]) sees `complete` on dispose
  *   X3-runtime instance isolation — driving one instance never moves another's surfaces
  * Structural assertions (single-shot):
- *   A1        plain-object identity (no class instance)
  *   X1        no raw Subject on the public surface
  *   A7-passed disposing the unit must NOT dispose an injected dependency
  *   A7-owned  disposing the unit MUST dispose its internally-constructed children
@@ -105,17 +104,6 @@ export function assertStateUnitAxioms<T extends StateUnit>(spec: StateUnitAxiomS
       throw new Error(`${axiom}: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
-
-  // A1 — plain-object identity (no class instance).
-  {
-    const { unit, teardown } = fresh();
-    const proto = Object.getPrototypeOf(unit);
-    if (proto !== Object.prototype && proto !== null) {
-      throw new Error('A1: state unit is not a plain object (has a class prototype)');
-    }
-    unit.dispose();
-    teardown();
-  }
 
   // X1 — no raw *origin* Subject on the public surface (expose `.asObservable()`).
   // Flag only origin Subjects — `new Subject` / `new BehaviorSubject`, the unit's own

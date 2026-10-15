@@ -3,13 +3,14 @@
 import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap, UnscopedChannel } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
+import { subscribeChannel } from '../session/channel-subscription';
 
 /**
  * Subscribe to session-scoped bus events on an explicit `SemiontSession` — the
  * provider-free counterpart to `useEventSubscriptions`. The embeddable viewer
  * path takes its session as a prop (bring-your-own-session), so it can't reach
  * the app-scoped `SemiontBrowser` bus; every channel it needs (`mark:*`,
- * `browse:click`) is session-scoped anyway and reaches it via `session.subscribe`.
+ * `browse:click`) is session-scoped anyway and reaches it on the session's client.
  * The channels of a resource's scope are not among them: those are read for
  * one resource.
  *
@@ -44,7 +45,7 @@ export function useSessionEventSubscriptions(
         const current = handlersRef.current[channel];
         if (current) (current as (p: EventMap[UnscopedChannel]) => void)(payload);
       };
-      unsubs.push(session.subscribe(channel, fan));
+      unsubs.push(subscribeChannel(session.client, channel, fan));
     }
     return () => { for (const unsub of unsubs) unsub(); };
   }, [eventNames, session]);

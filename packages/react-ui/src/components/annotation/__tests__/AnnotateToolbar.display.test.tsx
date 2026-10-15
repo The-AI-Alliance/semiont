@@ -8,7 +8,7 @@
  * (semiont-* classes + CSS vars) and labels (i18n) have their own mechanisms —
  * `compact` adds no API for those.
  */
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
@@ -27,8 +27,7 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

@@ -48,9 +48,9 @@ Everything reactive in the SDK is an RxJS Observable:
 
 - **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, `match.resources`, `gather.referencedBy`, etc.) — values that re-emit when bus events fire (including events from other participants).
 - **Bounded streams** (`mark.delegate`, `gather.annotation`, `match.search`, `yield.delegate`, `yield.resource`) — progress events plus a final result.
-- **Collaboration signals on the bus** — `mark.request`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
+- **Collaboration signals on the bus** — `mark.request`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)`. Fire-and-forget at the call site, fan-out across participants on the bus.
 - **Lifecycle state** (`client.transport.state$`, `client.transport.errors$`, `session.token$`, `session.user$`, `session.errors$`) — synchronous-snapshot `BehaviorSubject`s and the transport's error stream.
-- **Bus subscriptions** (`session.subscribe(channel, handler)`, `client.bus.on(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
+- **Bus subscriptions** (`client.bus.on(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
 
 Observable is the right primitive for all of these. Promise has no "second value." The cache primitive behind Browse — multicast, per-key dedup, stale-while-revalidate — composes cleanly only because the substrate supports the operators that make it possible. Forcing Promise here would require parallel `observe()` / `get()` methods on every namespace and would lose the collaboration story entirely.
 
@@ -143,12 +143,12 @@ Plain `Observable<T>` does not appear on the public verb-namespace surface. (It 
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb, isReady, readyValue } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
-const semiont = session.client;
+const semiont = opened.session.client;
 
 // 1. Just want a value once? Streams await; live queries spell it .fresh().
 const result   = await semiont.match.search(rId, refId, ctx);   // stream: awaitable
@@ -250,14 +250,13 @@ These are the guided-tour moves: they drive *other* participants' viewers, and t
 - `session.user$` — current authenticated user
 - `session.streamState$` — connection state at session scope
 - `session.errors$` — re-publishes `client.transport.errors$` for session consumers
-- `client.bus.on(channel)` — raw bus subscription (the channel-by-name escape hatch — see "Three paths to the bus" below)
-- `session.subscribe(channel, handler)` — typed-channel subscription via `SemiontSession`
+- `client.bus.on(channel)` — raw bus subscription (the channel-by-name escape hatch — see "Two paths to the bus" below)
 
 These stay reactive without a thenable for two reasons. First, `BehaviorSubject` has `.value` for synchronous snapshots; `firstValueFrom` is the explicit wait when you want one. Awaiting a BehaviorSubject directly is ambiguous — current value? next emit? next non-undefined emit? — and rarely what consumers want. Second, lifecycle observables and bus subscriptions are *meant* to be observed continuously; the consumer of `state$` or `mark:added` always wants the stream, never one snapshot.
 
-### Three paths to the bus
+### Two paths to the bus
 
-The bus is the SDK's substrate for cross-participant coordination. Three legitimate paths reach it; each serves a distinct case. Picking the right one keeps the call site honest.
+The bus is the SDK's substrate for cross-participant coordination. Two legitimate paths reach it; each serves a distinct case. Picking the right one keeps the call site honest.
 
 #### 1. Typed namespace method — preferred
 
@@ -271,42 +270,40 @@ The verb namespace knows the channel name, the payload schema, and (where applic
 
 This is the right path **when a namespace method exists** for what you want. It covers all the canonical operations — every flow's commands, every CRUD operation, every collaboration signal that's been canonicalized as part of the protocol.
 
-#### 2. `session.subscribe(channel, handler)` — channel-by-name observation
+#### 2. The client's bus: `client.bus.on(channel)` / `client.transport.emit(channel, ...)`
 
 ```ts
-const unsub = session.subscribe('yield:created', (event) => {
+const created = client.bus.on('yield:created').subscribe((event) => {
   console.log('Resource created:', event.payload.name);
 });
-// One resource's events: the subscription names the resource, and holds its scope.
-const unsubAdded = session.subscribe('mark:added', rId, (event) => {
-  console.log('Annotation added:', event.payload.annotation);
-});
-// later: unsub(); unsubAdded();
-```
-
-The escape hatch for **observing a channel that doesn't have a typed namespace getter**. Common cases:
-
-- React hooks like `useEventSubscription` that take a channel name as a prop.
-- Daemons reacting to domain events (`mark:added`, `yield:created`, etc.) that no namespace exposes a typed listener for.
-- Agentic code subscribing to collaboration signals from other participants (`beckon:hover`, `beckon:sparkle`) to drive its own behavior.
-
-This path is sanctioned. It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. The disposer cleans up on call.
-
-**A channel of a resource's scope is subscribed to with its resource.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope. So `session.subscribe(channel, resourceId, handler)` holds that scope for as long as the subscription lives, and gives the handler that resource's events and no other's. With no resource such a channel does not compile: the subscription would hear nothing, and say nothing of it. Every SDK has this rule. In Rust the read is `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile; in Python it is `bus.frames(MARK_ADDED, resource)`, and a type checker refuses `bus.frames(MARK_ADDED)`.
-
-#### 3. Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)` — advanced
-
-```ts
-client.bus.on('mark:added').subscribe((event) => log(event.payload.annotation));
 await client.transport.emit('beckon:hover', { annotationId: null });
+// later: created.unsubscribe();
 ```
 
-The lowest-level path. Reach for it when:
+The channel-by-name path. Reach for it when:
 
+- You're observing a channel no namespace exposes a typed listener for: a daemon reacting to `yield:created` or `mark:added`, agentic code following other participants' `beckon:hover` and `beckon:sparkle`.
+- The channel's name is a parameter, as in react-ui's `useEventSubscription`.
 - You're building a worker or actor that handles channels directly (it *is* the handler; namespaces wrap callers, not handlers).
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
-- The client's own bus holds no scope for its readers: `client.bus.on('mark:added')` hears a resource's events only while something else holds that resource's scope.
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.
+
+It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned.
+
+**A channel of a resource's scope is heard only while that resource's scope is held.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope, and the client's bus holds none for its readers. So a TypeScript reader holds it with `client.transport.subscribeToResource(rId)`, which gives back what lets it go, and keeps its resource's events by `resourceId`: the channel carries every scope the connection holds.
+
+```ts
+import { filter } from 'rxjs';
+
+const leave = client.transport.subscribeToResource(rId);
+const added = client.bus
+  .on('mark:added')
+  .pipe(filter((event) => event.resourceId === rId))
+  .subscribe((event) => log(event.payload.annotation));
+// later: added.unsubscribe(); leave();
+```
+
+Rust and Python read such a channel through the client's typed bus over its transport (`client.wire`), whose read holds the scope itself: in Rust `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile; in Python `bus.frames(MARK_ADDED, resource)`, and a type checker refuses `bus.frames(MARK_ADDED)`.
 
 `on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:
 

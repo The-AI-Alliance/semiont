@@ -10,8 +10,8 @@ How a token is held, the table's other half, is `test_session_tables.py`'s.
 import asyncio
 import time
 from collections import deque
-from collections.abc import Sequence
-from typing import final
+from collections.abc import AsyncIterable, Sequence
+from typing import final, override
 
 import pytest
 from aio import pass_time, run, soon, turns
@@ -21,6 +21,7 @@ from tokens import expired, jwt, token
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
 from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
 from semiont.testing import FaultyTransport, create_test_client
+from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 from semiont.types import UserResponse
 from semiont.watched import Variable
 
@@ -541,14 +542,15 @@ def test_a_session_given_no_way_to_renew_asks_nothing_and_ends_nothing() -> None
 # ── How it ends ─────────────────────────────────────────────────────────
 
 
-def test_closing_a_session_ends_what_it_holds() -> None:
+def test_ending_a_session_ends_what_it_holds_and_leaves_its_client_open() -> None:
     world = World(kept=token(300, 1), renewals=[token(300, 2)])
 
     async def scenario() -> None:
         session = world.its_session()
         async with session:
             await soon(session.ready())
-        await session.close()
+        session.dispose()
+        assert not session.client.bus.destroyed
 
         # Its token and who is signed in change no more: whoever reads them is told so.
         async def tokens() -> list[str | None]:
@@ -571,7 +573,7 @@ def test_closing_a_session_ends_what_it_holds() -> None:
     run(scenario())
 
 
-def test_a_session_closed_while_it_starts_is_ready_and_says_nothing() -> None:
+def test_a_session_ended_while_it_starts_is_ready_and_says_nothing() -> None:
     access = token(3600, 1)
     world = World(kept=access)
     gateway = Slowly(access, alice())
@@ -584,3 +586,25 @@ def test_a_session_closed_while_it_starts_is_ready_and_says_nothing() -> None:
         assert (world.renewed, world.told, world.errors) == (0, [], [])
 
     run(scenario())
+
+
+class Sessions(AxiomSubject[SemiontSession[FaultyTransport]]):
+    """How the axioms reach a session: its token and who is signed in, over a client it was given.
+
+    Built and not started: starting is `async with`, which the harness does not
+    enter. What a started session's end stops is held by the tests above.
+    """
+
+    @override
+    def setup(self) -> Fresh[SemiontSession[FaultyTransport]]:
+        client = create_test_client().client
+        return Fresh(SemiontSession(kb_id=KB, client=client, token=Variable[str | None](None), kept=MemorySignIn())).given(client)
+
+    @override
+    def surfaces(self, unit: SemiontSession[FaultyTransport]) -> Sequence[AsyncIterable[object]]:
+        # Its stream state and its errors are its client's, and end with it.
+        return (unit.token, unit.user)
+
+
+def test_a_session_keeps_the_state_unit_axioms_and_never_closes_its_client() -> None:
+    assert_state_unit_axioms(Sessions())

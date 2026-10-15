@@ -23,10 +23,11 @@
 //! client keeps (`super::refresh_delay`). What another context writes under
 //! this knowledge base's key is taken up: a token it renewed, or a sign-out.
 //!
-//! `close` is the graceful end: the client is closed, and the token and the
-//! user end. A session that is only dropped ends the same things, and leaves
-//! its client to whoever else holds it. A session is built inside a Tokio
-//! runtime.
+//! A session is a state unit: it writes its token and its user, so `dispose`
+//! ends them, and stops its renewal. It only uses its client, so it never
+//! closes it: whoever built the client and the session closes the client
+//! after ending the session. A session that is only dropped ends the same
+//! things. A session is built inside a Tokio runtime.
 
 use super::knowledge_base::KbTarget;
 use super::signals::SessionEndReason;
@@ -38,6 +39,7 @@ use crate::client::SemiontClient;
 use crate::errors::{SemiontError, SessionError, SessionErrorCode, TransportErrorCode};
 use crate::locked;
 use crate::state::{Held, Tasks};
+use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{BoxFuture, ConnectionState, Failures};
 use crate::types::UserResponse;
@@ -232,11 +234,39 @@ impl SemiontSession {
         }
     }
 
-    /// End the session and close its client. Closing twice is closing once.
+}
+
+impl StateUnit for SemiontSession {
+    /// End the session: its renewal stops, it follows its storage no more,
+    /// and its token, its user and its readiness end. Its client is left to
+    /// whoever built it. Ending twice is ending once.
+    fn dispose(&self) {
+        self.shared.end();
+    }
+}
+
+/// A session and the client it was built with, which whoever holds this
+/// ends together: what a script's sign-in gives. The session only uses its
+/// client, so ending the session alone would leave the client open.
+pub struct OpenedSession {
+    session: SemiontSession,
+}
+
+impl OpenedSession {
+    /// The session, over the client it was built with.
+    pub fn new(session: SemiontSession) -> OpenedSession {
+        OpenedSession { session }
+    }
+
+    pub fn session(&self) -> &SemiontSession {
+        &self.session
+    }
+
+    /// End the session, then close its client. Closing twice is closing
+    /// once.
     pub async fn close(&self) {
-        if self.shared.end() {
-            self.shared.client.close().await;
-        }
+        self.session.dispose();
+        self.session.client().close().await;
     }
 }
 
@@ -268,18 +298,16 @@ impl Shared {
         self.closed.load(Ordering::SeqCst)
     }
 
-    /// Stop everything the session runs and end what it holds. Whether this
-    /// call was the one that ended it.
-    fn end(&self) -> bool {
+    /// Stop everything the session runs and end what it holds.
+    fn end(&self) {
         if self.closed.swap(true, Ordering::SeqCst) {
-            return false;
+            return;
         }
         self.tasks.stop();
         *locked(&self.storage_changes) = None;
         self.token.end();
         self.user.end();
         self.ready.end();
-        true
     }
 
     /// Ask `refresh`, with a failure to ask read as there being no token:

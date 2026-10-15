@@ -1,5 +1,5 @@
 /**
- * SemiontSession.subscribe — a channel read by name.
+ * subscribeChannel, subscribeResourceChannel — a channel read by name.
  *
  * A channel of a resource's scope reaches only a connection that holds that
  * scope, so its subscription names the resource: it holds the scope for as
@@ -11,7 +11,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
 import type { EventMetadata, EventOfType, ResourceId, StoredEvent } from '@semiont/core';
-import { createTestSession } from '../../testing';
+import { createTestClient } from '@semiont/sdk/testing';
+import { subscribeChannel, subscribeResourceChannel } from '../channel-subscription';
 
 const RID = resourceId('res-1');
 const OTHER = resourceId('res-2');
@@ -30,13 +31,13 @@ function archived(of: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
   };
 }
 
-describe('SemiontSession.subscribe', () => {
+describe('a channel read by name', () => {
   it('reads a channel of no scope as it comes, and holds no scope for it', () => {
-    const { session, client, transport } = createTestSession();
+    const { client, transport } = createTestClient();
     const held = vi.spyOn(transport, 'subscribeToResource');
     const seen: string[] = [];
 
-    const stop = session.subscribe('beckon:hover', (hover) => seen.push(String(hover.annotationId)));
+    const stop = subscribeChannel(client, 'beckon:hover', (hover) => seen.push(String(hover.annotationId)));
     client.bus.emit('beckon:hover', { annotationId: null });
     stop();
     client.bus.emit('beckon:hover', { annotationId: null });
@@ -46,12 +47,12 @@ describe('SemiontSession.subscribe', () => {
   });
 
   it("holds the resource's scope for as long as a scoped channel's subscription lives, and gives it that resource's events only", () => {
-    const { session, client, transport } = createTestSession();
+    const { client, transport } = createTestClient();
     const leave = vi.fn();
     const held = vi.spyOn(transport, 'subscribeToResource').mockReturnValue(leave);
     const seen: string[] = [];
 
-    const stop = session.subscribe('mark:archived', RID, (event) => seen.push(event.id));
+    const stop = subscribeResourceChannel(client, 'mark:archived', RID, (event) => seen.push(event.id));
     expect(held).toHaveBeenCalledExactlyOnceWith(RID);
 
     // What a stream delivers for the scopes it holds reaches the client's bus
@@ -68,20 +69,20 @@ describe('SemiontSession.subscribe', () => {
   });
 
   it('refuses a scoped channel named with no resource: such a subscription would hear nothing', () => {
-    const { session, transport } = createTestSession();
+    const { client, transport } = createTestClient();
     const held = vi.spyOn(transport, 'subscribeToResource');
 
     // @ts-expect-error — mark:archived is delivered on its resource's scope, so its subscription names the resource
-    expect(() => session.subscribe('mark:archived', () => {})).toThrow(/mark:archived.*resource/);
+    expect(() => subscribeChannel(client, 'mark:archived', () => {})).toThrow(/mark:archived.*resource/);
     expect(held).not.toHaveBeenCalled();
   });
 
   it('refuses a channel of no scope named with a resource: it would hold a scope and hear nothing', () => {
-    const { session, transport } = createTestSession();
+    const { client, transport } = createTestClient();
     const held = vi.spyOn(transport, 'subscribeToResource');
 
     // @ts-expect-error — beckon:hover is no resource's channel
-    expect(() => session.subscribe('beckon:hover', RID, () => {})).toThrow(/beckon:hover is no resource's channel/);
+    expect(() => subscribeResourceChannel(client, 'beckon:hover', RID, () => {})).toThrow(/beckon:hover is no resource's channel/);
     expect(held).not.toHaveBeenCalled();
   });
 });

@@ -19,13 +19,13 @@ Declaring an entity type that is already declared changes nothing. Uploading is 
 
 ## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs) and an ingest can run longer, so use a session, not a bare client. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs) and an ingest can run longer, so use a session, not a bare client. It gives the session with the client it was built with, which end together. Sign in once, use `opened.session.client` for every call, and `opened.dispose()` when done: that ends the session, then closes its client.
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInDevice({
+const opened = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-ingest', label: 'Semiont',
     host: url.hostname, port: Number(url.port || 4000),
@@ -37,7 +37,7 @@ const session = await SemiontSession.signInDevice({
     if (!verificationUriComplete) console.error(`Code: ${userCode}`);
   },
 });
-const semiont = session.client;
+const semiont = opened.session.client;
 ```
 
 ## Step 1: declare the entity types
@@ -108,7 +108,7 @@ const FORMATS: Record<string, string> = { '.md': 'text/markdown', '.txt': 'text/
 
 async function ingest(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInDevice({
+  const opened = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-ingest', label: 'Semiont',
       host: url.hostname, port: Number(url.port || 4000),
@@ -120,7 +120,7 @@ async function ingest(): Promise<void> {
       if (!verificationUriComplete) console.error(`Code: ${userCode}`);
     },
   });
-  const semiont = session.client;
+  const semiont = opened.session.client;
 
   try {
     // Step 1: declare the vocabulary
@@ -156,7 +156,7 @@ async function ingest(): Promise<void> {
 
     console.log(`Done. ${created} resources created, ${failed} failed.`);
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 }
 

@@ -14,7 +14,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
-import { resourceId } from '@semiont/core';
+import { resourceId, EventBus } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 
@@ -22,8 +22,7 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
-    subscribe: () => () => {},
+    client: { bus: new EventBus(), browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
   } as unknown as SemiontSession;
 }
 

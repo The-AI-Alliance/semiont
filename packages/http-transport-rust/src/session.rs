@@ -1,7 +1,9 @@
 //! Sessions with a knowledge base over its gateway: what builds one
-//! (`HttpSessionFactory`, for a registry of knowledge bases, and the three
-//! functions a script uses directly), what a completed sign-in learns of the
-//! knowledge base it reached, and a registry's sign-in through the issuer.
+//! (`HttpSessionFactory`, for a registry of knowledge bases, and the
+//! functions a script uses directly, each of which gives an `OpenedSession`:
+//! the session and the client it was built with, which the script closes
+//! together), what a completed sign-in learns of the knowledge base it
+//! reached, and a registry's sign-in through the issuer.
 //!
 //! A session built here renews its token at the issuer its stored session
 //! names. Renewals of one knowledge base that are asked for together are one
@@ -29,10 +31,10 @@ use semiont::errors::{
 };
 use semiont::resume::CoupledBookmarks;
 use semiont::session::{
-    BROWSER_CLIENT_ID, HttpEndpoint, KbEndpoint, KbTarget, OnAuthFailed, OnSessionError, Refresh,
-    SCRIPT_CLIENT_ID, SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory,
-    SessionFactoryOptions, SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate,
-    store_session, stored_session,
+    BROWSER_CLIENT_ID, HttpEndpoint, KbEndpoint, KbTarget, OnAuthFailed, OnSessionError,
+    OpenedSession, Refresh, SCRIPT_CLIENT_ID, SemiontBrowser, SemiontSession, SemiontSessionConfig,
+    SessionFactory, SessionFactoryOptions, SessionRenewer, SignInOutcome, SignedIn, StoredSession,
+    Validate, store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
@@ -77,10 +79,17 @@ impl TokenRefresher for Renews {
     }
 }
 
+/// A session over the gateway at `base_url`, with the client it was built
+/// with, for the caller to close together. A token the gateway refuses is
+/// renewed through the session, so the transport and the session never hold
+/// different ones.
+pub fn session_over_http(options: HttpSession) -> OpenedSession {
+    OpenedSession::new(built_over_http(options))
+}
+
 /// A session over the gateway at `base_url`: its transport, its client and
-/// the token they share. A token the gateway refuses is renewed through the
-/// session, so the transport and the session never hold different ones.
-pub fn session_over_http(options: HttpSession) -> SemiontSession {
+/// the token they share. Whoever this is built for owns the client too.
+fn built_over_http(options: HttpSession) -> SemiontSession {
     let (token, sent) = watch::channel(options.token);
     let renewer = Arc::new(OnceLock::new());
     let transport = Arc::new(HttpTransport::new(HttpTransportConfig {
@@ -188,7 +197,7 @@ pub struct IssuedSession {
 /// a device grant, a pair minted for a test. They are kept under the
 /// knowledge base's id, the session renews at the issuer they name, and it
 /// is ready when this returns.
-pub async fn session_from_issued(issued: IssuedSession) -> SemiontSession {
+pub async fn session_from_issued(issued: IssuedSession) -> OpenedSession {
     store_session(issued.storage.as_ref(), &issued.kb.id, &issued.session);
     over_stored(
         StoredSignIn {
@@ -223,15 +232,15 @@ pub struct StoredSignIn {
 /// this application kept earlier. It renews at the issuer the sign-in
 /// names, and is ready when this returns. `None` when the storage holds no
 /// sign-in for the knowledge base.
-pub async fn session_from_stored(stored: StoredSignIn) -> Option<SemiontSession> {
+pub async fn session_from_stored(stored: StoredSignIn) -> Option<OpenedSession> {
     let held = stored_session(stored.storage.as_ref(), &stored.kb.id)?;
     Some(over_stored(stored, held.access).await)
 }
 
 /// A ready session that starts with `access` and renews from what is
 /// stored.
-async fn over_stored(stored: StoredSignIn, access: String) -> SemiontSession {
-    let session = session_over_http(HttpSession {
+async fn over_stored(stored: StoredSignIn, access: String) -> OpenedSession {
+    let opened = session_over_http(HttpSession {
         refresh: Some(renewing_stored(
             stored.storage.clone(),
             stored.kb.id.clone(),
@@ -251,8 +260,8 @@ async fn over_stored(stored: StoredSignIn, access: String) -> SemiontSession {
         client: ClientOptions::default(),
         bookmarks: None,
     });
-    session.ready().await;
-    session
+    opened.session().ready().await;
+    opened
 }
 
 /// A sign-in by the device grant.
@@ -265,14 +274,15 @@ pub struct SignInDevice {
     pub http: reqwest::Client,
 }
 
-/// Sign in as a person from a process with no browser, and give the session.
+/// Sign in as a person from a process with no browser, and give the session
+/// with the client it was built with.
 /// The issuer the knowledge base trusts mints a code, `on_code` shows the
 /// person where to approve it, and the tokens come back here: no password
 /// passes through this process.
 pub async fn sign_in_device(
     options: SignInDevice,
     on_code: impl FnOnce(DeviceCode),
-) -> Result<SemiontSession, SignInError> {
+) -> Result<OpenedSession, SignInError> {
     let Some(target) = options.kb.endpoint.http().cloned() else {
         return Err(SignInError::new(
             SignInErrorCode::Discovery,
@@ -367,7 +377,7 @@ impl SessionFactory for HttpSessionFactory {
             &format!("semiont.lastEventId.{kb_id}"),
         );
         let signals = options.signals;
-        let session = session_over_http(HttpSession {
+        let session = built_over_http(HttpSession {
             kb: options.kb.target(),
             base_url: base_url.clone(),
             token: None,

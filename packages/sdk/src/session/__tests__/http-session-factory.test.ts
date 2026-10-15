@@ -98,7 +98,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toEqual([stored]);
     // Asking who the token is opened no stream of its own.
     expect(asked.streams).toEqual([stored]);
-    await session.dispose();
+    session.dispose();
+    session.client.dispose();
   });
 
   it('asks a gateway that refuses what its issuer issues twice, and then leaves it alone', async () => {
@@ -127,7 +128,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toHaveLength(2);
     expect(asked.streams.length).toBeLessThanOrEqual(2);
     expect(asked.renewals).toBeLessThanOrEqual(2);
-    await session.dispose();
+    session.dispose();
+    session.client.dispose();
   });
 
   it('ends a running session whose gateway starts refusing what its issuer issues, on the first refusal', async () => {
@@ -164,7 +166,8 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.renewals).toBe(1);
     expect(asked.who).toHaveLength(4);
     expect(errors).toHaveLength(1);
-    await session.dispose();
+    session.dispose();
+    session.client.dispose();
   });
 });
 

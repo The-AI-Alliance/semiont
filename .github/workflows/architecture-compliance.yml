@@ -75,7 +75,7 @@ jobs:
       - name: Run StateUnit Compliance Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget / A5 gathered context is SDK state / session-bound units built under a session)"
+          echo "::group::StateUnit Compliance Audit (no class in a state-unit file / X3-static no-module-state / X5 fire-and-forget / A5 gathered context is SDK state / session-bound units built under a session)"
           fail=0
           ./scripts/compliance/audit-state-unit-no-class.sh || fail=1
           ./scripts/compliance/audit-state-unit-module-state.sh || fail=1

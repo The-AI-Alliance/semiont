@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap, ResourceId, ResourceScopedChannel, UnscopedChannel } from '@semiont/core';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from '../hooks/useObservable';
+import { subscribeChannel, subscribeResourceChannel } from '../session/channel-subscription';
 
 /**
  * Subscribe to a bus event with automatic cleanup.
@@ -42,7 +43,7 @@ export function useEventSubscription<K extends UnscopedChannel>(
     const unsubs: Array<() => void> = [];
     unsubs.push(semiont.on(eventName, (payload) => handlerRef.current(payload)));
     if (session) {
-      unsubs.push(session.subscribe(eventName, (payload) => handlerRef.current(payload)));
+      unsubs.push(subscribeChannel(session.client, eventName, (payload) => handlerRef.current(payload)));
     }
     return () => { for (const u of unsubs) u(); };
   }, [eventName, semiont, session]);
@@ -91,7 +92,7 @@ export function useEventSubscriptions(
       };
       unsubs.push(semiont.on(channel, fan));
       if (session) {
-        unsubs.push(session.subscribe(channel, fan));
+        unsubs.push(subscribeChannel(session.client, channel, fan));
       }
     }
     return () => { for (const unsub of unsubs) unsub(); };
@@ -142,7 +143,7 @@ export function useResourceEventSubscriptions(
         const current = handlersRef.current[channel];
         if (current) (current as (p: EventMap[ResourceScopedChannel]) => void)(payload);
       };
-      unsubs.push(session.subscribe(channel, resourceId, fan));
+      unsubs.push(subscribeResourceChannel(session.client, channel, resourceId, fan));
     }
     return () => { for (const unsub of unsubs) unsub(); };
   }, [eventNames, resourceId, session]);
