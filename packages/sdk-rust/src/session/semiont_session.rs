@@ -233,7 +233,6 @@ impl SemiontSession {
             shared: Arc::downgrade(&self.shared),
         }
     }
-
 }
 
 impl StateUnit for SemiontSession {

@@ -26,9 +26,9 @@ use semiont::errors::{
 };
 use semiont::identity::agent_name;
 use semiont::session::{
-    HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
-    OpenedSession, SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession,
-    save_knowledge_bases, session_key, store_session, stored_session,
+    HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, OpenedSession, Protocol, SemiontBrowser,
+    SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
+    session_key, store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
