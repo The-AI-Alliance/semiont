@@ -19,8 +19,8 @@ export async function generatedDescriptor(
   name: string,
   timeout = 60_000,
 ): Promise<ResourceDescriptor> {
-  const session = await signInSession();
-  const client = session.client;
+  const opened = await signInSession();
+  const client = opened.session.client;
   try {
     let hit: ResourceDescriptor | undefined;
     await expect
@@ -36,7 +36,7 @@ export async function generatedDescriptor(
     if (!hit) throw new Error(`unreachable: poll resolved without a descriptor for "${name}"`);
     return hit;
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 }
 

@@ -39,9 +39,9 @@ test.beforeAll(async () => {
   expect(CONTENT.substring(STALE_START, STALE_END)).not.toBe(EXACT);
   expect(CONTENT.substring(TRUE_START, TRUE_END)).toBe(EXACT);
 
-  const session = await signInSession();
+  const opened = await signInSession();
 
-  const client = session.client;
+  const client = opened.session.client;
   try {
     const storageUri = `file://e2e/stale-offset-${Date.now()}.txt`;
     const { resourceId: rid } = await client.yield.resource({
@@ -66,7 +66,7 @@ test.beforeAll(async () => {
       },
     } as Parameters<typeof client.mark.annotation>[0]);
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 });
 

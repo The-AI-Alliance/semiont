@@ -11,13 +11,14 @@
 
 import { sessionFor } from '../lib/session';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
-import type { SemiontSession } from '@semiont/sdk';
+import type { OpenedSession } from '@semiont/sdk';
 
 /**
- * Sign in over HTTP and return a live session. Callers reach the verbs through
- * `session.client` and MUST `await session.dispose()` when done — a session
- * owns a refresh timer, so leaking one keeps a worker alive.
+ * Sign in over HTTP and return a live session with its client. Callers reach
+ * the verbs through `opened.session.client` and MUST call `opened.dispose()`
+ * when done: it ends the session, whose refresh timer would keep a worker
+ * alive, and closes the client's stream.
  */
-export async function signInSession(id = 'e2e'): Promise<SemiontSession> {
+export async function signInSession(id = 'e2e'): Promise<OpenedSession> {
   return sessionFor({ baseUrl: GATEWAY_URL, email: E2E_EMAIL, password: E2E_PASSWORD, id });
 }

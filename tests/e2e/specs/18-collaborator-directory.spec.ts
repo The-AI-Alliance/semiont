@@ -62,9 +62,9 @@ test.describe('collaborator directory (browse.agents)', () => {
   test('directory lists the TOML software roster and attribution DIDs are members', async () => {
     test.setTimeout(120_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
 
-    const client = session.client;
+    const client = opened.session.client;
 
     try {
       // ── 1. Freshness gate: the channel must exist on the running stack ──
@@ -172,7 +172,7 @@ test.describe('collaborator directory (browse.agents)', () => {
         }
       }
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });

@@ -34,9 +34,9 @@ test.describe('cancelling a delegated job', () => {
   test('the control cancels a running mark job, and the display ends cancelled', { tag: ['@slow'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(900_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
     try {
-      await session.client.yield.resource({
+      await opened.session.client.yield.resource({
         name: RESOURCE_NAME,
         storageUri: `file://e2e/cancel-doc-${STAMP}.txt`,
         file: Buffer.from(buildLargeDocument(400_000), 'utf-8'),
@@ -44,7 +44,7 @@ test.describe('cancelling a delegated job', () => {
         language: 'en',
       });
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
 
     await openResourceByName(page, RESOURCE_NAME);

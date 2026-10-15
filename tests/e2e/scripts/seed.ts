@@ -583,12 +583,12 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
   const log = opts.log ?? ((m: string) => { console.log(m); });
   log(`[seed] gateway=${opts.gatewayUrl} user=${opts.email}`);
 
-  const session = await sessionFor({
+  const opened = await sessionFor({
     baseUrl: opts.gatewayUrl,
     email: opts.email,
     password: opts.password,
   });
-  const client = session.client;
+  const client = opened.session.client;
 
   let created = 0;
   let existed = 0;
@@ -644,7 +644,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
       }
     }
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 
   log(`[seed] done — ${created} created, ${existed} already present`);

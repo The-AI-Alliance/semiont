@@ -76,8 +76,8 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
     await page.waitForTimeout(2_000);
 
     // ── Trigger exactly one frame:tag-schema-added from a parallel client ──
-    const session = await signInSession();
-    const client = session.client;
+    const opened = await signInSession();
+    const client = opened.session.client;
     try {
       bus.clear();
       await client.frame.addTagSchema(DEDUP_SCHEMA);
@@ -99,7 +99,7 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
           `(global + scoped dual-forward). delivery scopes=${JSON.stringify(deliveries.map((d) => d.scope))}`,
       ).toBe(1);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });
