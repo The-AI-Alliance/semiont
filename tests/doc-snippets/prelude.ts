@@ -24,6 +24,7 @@ import type {
   Logger as _Logger,
   CreateAnnotationInput as _CreateAnnotationInput,
   StateUnit as _StateUnit,
+  Watched as _Watched,
   JobId as _JobId,
   UserId as _UserId,
   DeviceCode as _DeviceCode,
@@ -38,6 +39,8 @@ declare global {
   type SemiontSession = _SemiontSession;
   type SemiontClient = _SemiontClient;
   type StateUnit = _StateUnit;
+  type Watched<T> = _Watched<T>;
+  const watched: typeof import('@semiont/sdk').watched;
   type CacheState<T> = _CacheState<T>;
   type AccessToken = _AccessToken;
   type ShellStateUnit = _ShellStateUnit;

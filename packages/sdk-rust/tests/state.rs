@@ -14,9 +14,8 @@ use semiont::state::{
 };
 use semiont::testing::as_id;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
-use semiont::testing::{FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client};
+use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::HOVER_DELAY;
-use semiont::transport::Frame;
 use semiont::types::{
     AnnotationSelector, GatherResourceRequestOptions, GenerationJobParams, Motivation,
 };
@@ -50,29 +49,6 @@ fn world() -> (Arc<SemiontClient>, FaultyTransport) {
 /// already delivered are read.
 async fn settle() {
     tokio::time::sleep(Duration::from_millis(1)).await;
-}
-
-fn requests(transport: &FaultyTransport, channel: &str) -> Vec<RequestLogEntry> {
-    transport
-        .request_log()
-        .into_iter()
-        .filter(|entry| entry.channel == channel)
-        .collect()
-}
-
-/// Answer the `nth` request sent on `request` with a frame on `reply`.
-fn answer(transport: &FaultyTransport, request: &str, nth: usize, reply: &str, payload: Value) {
-    let asked = requests(transport, request)
-        .into_iter()
-        .nth(nth)
-        .unwrap_or_else(|| panic!("request #{nth} on {request} was not sent"));
-    transport.deliver(Frame {
-        channel: reply.to_owned(),
-        payload: object(payload),
-        correlation_id: asked.correlation_id,
-        scope: None,
-        trace: None,
-    });
 }
 
 fn context() -> Value {
@@ -364,22 +340,6 @@ impl Searches {
             },
             options,
         )
-    }
-
-    fn queries(&self) -> Vec<String> {
-        self.asked
-            .lock()
-            .expect("asked")
-            .iter()
-            .map(|(query, _)| query.clone())
-            .collect()
-    }
-
-    /// Answer the `nth` search.
-    fn answer(&self, nth: usize, results: Option<&[&str]>) {
-        let answer = results.map(|found| found.iter().map(|one| (*one).to_owned()).collect());
-        // A search that was abandoned has nobody to answer.
-        let _ = self.asked.lock().expect("asked")[nth].1.send(answer);
     }
 }
 

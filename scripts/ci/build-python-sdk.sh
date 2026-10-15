@@ -12,17 +12,14 @@
 # The wheel is built from the source distribution, as an installer builds one.
 # It is then installed in an environment of its own, and every module of it is
 # imported there: a module that needs what the package does not declare fails
-# here, not in whoever installs it. A module that needs what an extra declares
-# is named below with its extra: it must fail to import without the extra, and
-# is imported again with the extra installed, so an entry cannot outlive the
-# need it records.
+# here, not in whoever installs it. An extra's libraries are not among what it
+# declares: a module that uses one imports it when it is called, so every module
+# imports where the package is installed without its extras, as in a service's
+# image.
 #
 # Needs `uv` and `jq`.
 
 set -euo pipefail
-
-# Each module that needs an extra, as `<module>=<extra>`.
-EXTRA_MODULES=("semiont.testing.axioms=axioms")
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PACKAGE="$ROOT/packages/sdk-python"
@@ -59,14 +56,13 @@ fi
 elsewhere=$(mktemp -d)
 trap 'rm -rf "$elsewhere"' EXIT
 cd "$elsewhere"
-uv run --no-project --isolated --with "$PACKAGE/dist/$WHEEL" python - "$NAME" "$VERSION" "$ROOT" "${EXTRA_MODULES[@]}" <<'PY'
+uv run --no-project --isolated --with "$PACKAGE/dist/$WHEEL" python - "$NAME" "$VERSION" "$ROOT" <<'PY'
 import importlib
 import importlib.metadata
 import pkgutil
 import sys
 
-name, version, checkout, *needing = sys.argv[1:]
-extras = dict(entry.split("=") for entry in needing)
+name, version, checkout = sys.argv[1:]
 
 installed = importlib.metadata.version(name)
 if installed != version:
@@ -78,17 +74,7 @@ if package.__file__ is None or package.__file__.startswith(checkout):
 
 modules = sorted(module.name for module in pkgutil.walk_packages(package.__path__, f"{name}."))
 for module in modules:
-    if module not in extras:
-        importlib.import_module(module)
-        continue
-    try:
-        importlib.import_module(module)
-    except ModuleNotFoundError:
-        continue
-    sys.exit(f"{module} imports without the extra {extras[module]}: take it out of EXTRA_MODULES")
-missing = sorted(set(extras) - set(modules))
-if missing:
-    sys.exit(f"EXTRA_MODULES names modules the wheel does not hold: {missing}")
+    importlib.import_module(module)
 
 files = [str(file) for file in importlib.metadata.files(name) or []]
 if f"{name}/py.typed" not in files:
@@ -97,12 +83,5 @@ strays = sorted({file.split("/")[0] for file in files} - {name, f"{name}-{versio
 if strays:
     sys.exit(f"the wheel holds more than the package: {strays}")
 
-print(f"{name} {installed}: {len(modules) + 1} modules, each imported with what the package declares and nothing else, {len(extras)} of them only with an extra")
+print(f"{name} {installed}: {len(modules) + 1} modules, each imported with what the package declares and nothing else")
 PY
-
-for entry in "${EXTRA_MODULES[@]}"; do
-  module=${entry%%=*}
-  extra=${entry#*=}
-  uv run --no-project --isolated --with "$NAME[$extra] @ file://$PACKAGE/dist/$WHEEL" python -c 'import importlib, sys; importlib.import_module(sys.argv[1])' "$module"
-  echo "$module imports with the extra $extra"
-done

@@ -22,25 +22,25 @@ inside it, as a unit is built inside a running loop. Before the harness looks,
 the loop runs a bounded number of turns, so a unit that acts in a task of its
 own has acted on what the harness did. No axiom waits on a timer.
 
-The cases are drawn by Hypothesis, which is this module's alone:
-`semiont.testing` imports nothing of it, and it is installed with the extra
-`semiont[axioms]`. Call the harness from a test that is not itself running an
-event loop.
+The cases are drawn by Hypothesis, which is installed with the extra
+`semiont[axioms]` and imported when the harness runs: every module of the
+package, this one among them, imports without it, as a service's image has the
+package. Call the harness from a test that is not itself running an event loop.
 """
 
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator, Callable, Coroutine, Sequence
 from dataclasses import dataclass
-from typing import Final, Protocol, final, override
-
-from hypothesis import given, settings
-from hypothesis import strategies as st
+from typing import TYPE_CHECKING, Final, Protocol, final, override
 
 from semiont.client import SemiontClient
 from semiont.state_unit import StateUnit
 from semiont.transport import Transport
 from semiont.watched import Variable
+
+if TYPE_CHECKING:
+    from hypothesis.strategies import SearchStrategy
 
 __all__ = ["AxiomSubject", "DisposeProbe", "Fresh", "Given", "assert_state_unit_axioms"]
 
@@ -199,7 +199,9 @@ def _once(axiom: str, case: Callable[[], Coroutine[object, object, str | None]])
         raise AssertionError(f"{axiom}: {violation}")
 
 
-def _property[T](axiom: str, values: st.SearchStrategy[T], case: Callable[[T], Coroutine[object, object, str | None]]) -> None:
+def _property[T](axiom: str, values: "SearchStrategy[T]", case: Callable[[T], Coroutine[object, object, str | None]]) -> None:
+    from hypothesis import given, settings
+
     @settings(max_examples=_CASES, database=None, deadline=None, derandomize=True)
     @given(values)
     def holds(value: T) -> None:
@@ -230,6 +232,7 @@ def _drive(invocations: Sequence[Callable[[], object]], calls: Sequence[int]) ->
 
 def assert_state_unit_axioms[U: StateUnit](subject: AxiomSubject[U]) -> None:
     """Run every axiom the subject gives the means to check. Raises `AssertionError` naming the first axiom broken, and how."""
+    from hypothesis import strategies as st
 
     async def a7_passed() -> str | None:
         fresh = subject.setup()
