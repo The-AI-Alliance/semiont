@@ -11,7 +11,7 @@
 //! by dropping its future: what was sent stays sent, the reply stops being
 //! tracked, and one that comes anyway reaches nobody.
 //!
-//! Every method comes twice. By type (`emit`, `stream`, `request`), the
+//! Every method comes twice. By type (`emit`, `frames`, `request`), the
 //! channel is a type of `crate::channels` and the payload is that channel's
 //! own, so a wrong payload for a channel does not compile:
 //!
@@ -131,10 +131,6 @@ pub struct Bus {
 impl Bus {
     pub fn new(transport: Arc<dyn Transport>) -> Bus {
         Bus { transport }
-    }
-
-    pub fn transport(&self) -> &Arc<dyn Transport> {
-        &self.transport
     }
 
     /// Send one frame on the channel named `channel`.
@@ -394,7 +390,7 @@ impl Bus {
     /// The frames delivered on the channel `C` from now on.
     ///
     /// `C` is a channel of no resource's scope. One a resource's scope
-    /// carries is read for a resource (`stream_of`), and does not compile
+    /// carries is read for a resource (`frames_of`), and does not compile
     /// here, where nothing would ever be delivered to it:
     ///
     /// ```compile_fail,E0277
@@ -402,10 +398,10 @@ impl Bus {
     /// use semiont::channels::MarkAdded;
     ///
     /// fn read(bus: &Bus) {
-    ///     let _ = bus.stream::<MarkAdded>();
+    ///     let _ = bus.frames::<MarkAdded>();
     /// }
     /// ```
-    pub fn stream<C: Unscoped>(&self) -> Result<Typed<C>, BusRequestError> {
+    pub fn frames<C: Unscoped>(&self) -> Result<Typed<C>, BusRequestError> {
         Ok(Typed::of(self.frames_on(C::NAME)?))
     }
 
@@ -422,7 +418,7 @@ impl Bus {
     /// use semiont::types::ResourceId;
     ///
     /// async fn follow(bus: &Bus, resource: &ResourceId) {
-    ///     let Ok(mut added) = bus.stream_of::<MarkAdded>(resource) else {
+    ///     let Ok(mut added) = bus.frames_of::<MarkAdded>(resource) else {
     ///         return;
     ///     };
     ///     while let Some(Ok(frame)) = added.next().await {
@@ -430,7 +426,7 @@ impl Bus {
     ///     }
     /// }
     /// ```
-    pub fn stream_of<C: Scoped>(
+    pub fn frames_of<C: Scoped>(
         &self,
         resource: &ResourceId,
     ) -> Result<Typed<C, ScopedFrames>, BusRequestError> {

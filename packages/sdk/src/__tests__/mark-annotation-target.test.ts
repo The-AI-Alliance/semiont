@@ -67,7 +67,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     };
 
     const promise = mark.annotation(input);
-    await Promise.resolve(); // let busRequest subscribe + emit
+    await Promise.resolve(); // let Bus.request subscribe + emit
 
     expect(getLastChannel()).toBe('mark:create-request');
     const payload = getLastPayload()!;

@@ -3,13 +3,16 @@ set -euo pipefail
 
 # Audit Raw Bus Access Compliance
 #
-# Flags two forms of direct bus access outside the allowlist:
+# Flags three forms of direct bus access outside the allowlist:
 #
 # 1. `.transport.emit(`, `.transport.on(`, `.transport.stream(` — the raw
 #    transport primitives (`ITransport`), reached as `client.transport`.
 # 2. Any call through a `.bus.` receiver — `.bus.emit(`, `.bus.on(`,
 #    `.bus.frames(`, `.bus.scope(` — which goes through the bridged
 #    `client.bus` (`EventBus`) directly.
+# 3. Any call through a `.wire.` receiver — `.wire.emit(`, `.wire.frames(`,
+#    `.wire.request(` — which goes through the client's typed bus over its
+#    transport (`client.wire`) directly.
 #
 # The typed namespace methods (session.client.mark.delegate etc.) are the
 # only public API surface. Direct bus access is reserved for the SDK
@@ -17,8 +20,11 @@ set -euo pipefail
 #
 # Generic-channel subscription (the case react-ui's event hooks need —
 # channel name is a hook parameter, not known statically) goes through
-# react-ui's unexported `session/channel-subscription.ts`. That is the only
-# sanctioned bridge between arbitrary channel names and component lifetimes.
+# react-ui's unexported `session/channel-subscription.ts` for a channel of no
+# scope, and through `client.wire.frames(channel, resourceId)` in
+# `useResourceEventSubscriptions` for a channel of a resource's scope. Those
+# are the only sanctioned bridges between arbitrary channel names and
+# component lifetimes.
 #
 # Allowlist:
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
@@ -44,13 +50,17 @@ set -euo pipefail
 #                                          tests/doc-snippets/.generated/*.ts
 #                                          to type-check it; REACTIVE-MODEL.md documents
 #                                          `client.bus.on(...)` and
-#                                          `client.transport.emit(...)` as the *sanctioned*
-#                                          advanced surface (client.bus is public API,
-#                                          explicitly "not @internal"), so auditing those
+#                                          `client.wire.emit(...)` as the *sanctioned*
+#                                          advanced surface (client.bus and client.wire are
+#                                          public API, explicitly "not @internal"), so auditing those
 #                                          extracts flags the documentation of a legal
 #                                          escape hatch. Same class as /dist/ above.
 #   - packages/react-ui/src/session/channel-subscription.ts — a channel read
 #                                          by name, for the generic event hooks
+#   - packages/react-ui/src/contexts/useEventSubscription.ts, for pattern 3
+#                                          only — `useResourceEventSubscriptions`
+#                                          reads a resource's channel on the wire,
+#                                          by name, for one resource
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -97,6 +107,17 @@ BUS_VIOLATIONS=$(grep -rnE "\.bus\.[A-Za-z_][A-Za-z0-9_]*\(" \
   | filter_allowlist \
   || true)
 
+# Pattern 3: any call through a `.wire.` receiver
+# Matches `<anything>.wire.emit(...)`, `.wire.frames(...)` and
+# `.wire.request(...)`, the verb not enumerated, for the reason above.
+WIRE_VIOLATIONS=$(grep -rnE "\.wire\.[A-Za-z_][A-Za-z0-9_]*\(" \
+  packages apps \
+  --include='*.ts' --include='*.tsx' \
+  2>/dev/null \
+  | filter_allowlist \
+  | grep -v "^packages/react-ui/src/contexts/useEventSubscription\.ts:" \
+  || true)
+
 VIOLATIONS=""
 if [ -n "$TRANSPORT_VIOLATIONS" ]; then
   VIOLATIONS+="${TRANSPORT_VIOLATIONS}"$'\n'
@@ -104,13 +125,17 @@ fi
 if [ -n "$BUS_VIOLATIONS" ]; then
   VIOLATIONS+="${BUS_VIOLATIONS}"$'\n'
 fi
+if [ -n "$WIRE_VIOLATIONS" ]; then
+  VIOLATIONS+="${WIRE_VIOLATIONS}"$'\n'
+fi
 
 if [ -n "$VIOLATIONS" ]; then
   echo "❌ Raw bus access violations found (use namespace methods instead):"
   echo ""
   echo "$VIOLATIONS"
   echo "Use typed namespace methods (e.g. session.client.mark.delete(rid, aid))"
-  echo "instead of session.client.transport.emit('mark:delete', ...) or"
+  echo "instead of session.client.transport.emit('mark:delete', ...),"
+  echo "session.client.wire.request('mark:delete', ...) or"
   echo "session.client.bus.emit('mark:delete', ...)."
   exit 1
 fi

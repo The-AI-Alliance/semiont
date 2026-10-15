@@ -43,7 +43,7 @@ Every failure a server states is reported on `HttpTransport.errors$` before its 
 
 ## After `dispose()`
 
-A disposed transport is a closed bus: `state$` has completed, and a `busRequest` made of it fails at once as `bus.closed` without sending anything.
+A disposed transport is a closed bus: `state$` has completed, and a `Bus.request` made of it fails at once as `bus.closed` without sending anything.
 
 ## Composing with `SemiontClient`
 

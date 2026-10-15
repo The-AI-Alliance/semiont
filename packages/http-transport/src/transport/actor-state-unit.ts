@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -63,12 +63,17 @@ export interface ActorStateUnitOptions {
   saveLastEventId?: (scope: ResourceId, id: string) => void;
 }
 
+/** A frame as the stream delivered it, with the trace lifted off its payload. */
+type Received = components['schemas']['BusFrame'] & { readonly trace?: TraceCarrier };
+
 /**
- * `BusRequestPrimitive` over one SSE connection and `/bus/emit`, plus what
- * only a wire connection has: refused connects, a subscription matrix that
- * changes while it runs, and a start/stop lifecycle.
+ * A bus's primitive (`BusPrimitive`) over one SSE connection and
+ * `/bus/emit`, but for the holding of a resource's scope, which the transport
+ * does through this subscription matrix (`addChannels` with a scope); plus
+ * what only a wire connection has: refused connects, a subscription matrix
+ * that changes while it runs, and a start/stop lifecycle.
  */
-export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
+export interface ActorStateUnit extends StateUnit, Omit<BusPrimitive, 'subscribeToResource'> {
   /**
    * Refused connects. One `APIError` per non-2xx
    * `/bus/subscribe` answer, carrying the HTTP status and the code it maps
@@ -113,7 +118,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * in between. Ephemeral ids never touch this map.
    */
   const scopeWatermarks = new Map<ResourceId, string>(options.loadLastEventIds?.() ?? []);
-  /** Outstanding busRequest correlationIds — ride every connect body, so a
+  /** Outstanding Bus.request correlationIds — ride every connect body, so a
    *  reply lost in a connection drop is asked for again. */
   const pendingReplies = new Set<string>();
   /**
@@ -131,7 +136,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    */
   const clientId = uuidV4();
 
-  const events$ = new Subject<components['schemas']['BusFrame']>();
+  const events$ = new Subject<Received>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
   const errors$ = new Subject<APIError>();
   let currentState: ConnectionState = 'initial';
@@ -542,7 +547,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                 await withTraceparent(carrier, () =>
                   withSpan(
                     `bus.recv:${parsed.channel}`,
-                    () => { events$.next(parsed); },
+                    () => { events$.next(carrier ? { ...parsed, trace: carrier } : parsed); },
                     {
                       kind: SpanKind.CONSUMER,
                       attrs: {
@@ -715,6 +720,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           correlationId: e.correlationId,
           scope: e.scope,
           payload: e.payload as EventMap[K],
+          trace: e.trace,
         })),
       );
     },
@@ -728,7 +734,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       //
       // The question is wider than `isSubscribed`, which answers for the
       // global set alone — correlated replies ride global channels, so that
-      // is the right question for `busRequest` and the wrong one here.
+      // is the right question for `Bus.request` and the wrong one here.
       //
       // A SCOPABLE channel passes even with no scope joined yet: `bridgeInto`
       // wires every scoped channel up front so frames flow the moment a scope
@@ -792,7 +798,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
         });
-        // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
+        // A refused emit (validation 400, auth 401…) must REJECT — Bus.request's
         // contract detaches its doomed reply and propagates this to the caller.
         // Resolving a sentinel here instead leaves that caller waiting for a
         // reply the gateway will never send.

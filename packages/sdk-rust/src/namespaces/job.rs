@@ -108,6 +108,6 @@ impl JobNamespace {
     /// stream must name `claims::JOB_CLAIM_CHANNELS`, and
     /// `claims::JOB_COMMIT_CHANNELS` for a worker that commits.
     pub fn claim(&self, options: ClaimOptions) -> Claims {
-        Claims::new(self.links.wire.clone(), options)
+        Claims::new(self.links.transport.clone(), options)
     }
 }

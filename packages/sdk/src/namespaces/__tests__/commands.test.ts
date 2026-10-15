@@ -33,7 +33,7 @@ type Reply = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => voi
 /**
  * Mock transport whose `emit(channel, payload, envelope)` looks up a handler
  * and lets it reply on the transport's internal bus, in a frame whose envelope
- * carries the request's `correlationId`. busRequest reads replies via
+ * carries the request's `correlationId`. Bus.request reads replies via
  * `frames(resultChannel)` and matches on that envelope; this lets tests script
  * per-call request/response round-trips without faking SSE. A reply is typed
  * by the channel it goes out on, so a scripted payload the spec does not
@@ -1038,17 +1038,15 @@ describe('YieldNamespace', () => {
 
 // ── Late-rejection guards ──────────────────────────────────────────────────
 //
-// Four namespaces guard their `.catch` handlers against firing
+// Three namespaces guard their `.catch` handlers against firing
 // `subscriber.error` on an already-closed subscriber:
 //
-//   gather.ts  — `transport.emit('gather:requested', …).catch(...)` checks
+//   gather.ts  — `wire.emit('gather:requested', …).catch(...)` checks
 //                `subscriber.closed`
-//   match.ts   — `transport.emit('match:search-requested', …).catch(...)`
+//   match.ts   — `wire.emit('match:search-requested', …).catch(...)`
 //                checks `subscriber.closed`
 //   delegation.ts — the `job:create` request's `.catch(...)` checks the local `done`
 //                flag set by cleanup()
-//   yield.ts   — `busRequest('job:create', …).catch(...)` checks the local
-//                `done` flag set by cleanup()
 //
 // Without the guards, a rejection that arrived after consumer disposal
 // (e.g. `semiont.dispose()` completing the actor's `events$` Subject
@@ -1151,7 +1149,7 @@ describe('late-rejection guards', () => {
     bus.destroy();
   });
 
-  it('yield.delegate does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
+  it('yield.delegate does NOT propagate a late Bus.request rejection after the consumer unsubscribes', async () => {
     const { promise, reject } = makeDeferred<void>();
     const { transport, bus } = makeDeferredEmitTransport(promise);
     const yld = new YieldNamespace(transport, new EventBus(), makeMockContent());

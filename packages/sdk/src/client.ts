@@ -13,7 +13,7 @@
  */
 
 import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
-import { EventBus, accessToken, baseUrl } from '@semiont/core';
+import { Bus, EventBus, accessToken, baseUrl } from '@semiont/core';
 import type { SessionStorage } from './session/session-storage';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
@@ -70,19 +70,29 @@ export const liveQueryCensus: [LiveQueryCensusDrift] extends [never] ? 'in-censu
 export class SemiontClient {
   /**
    * The wire-facing transport: the bus primitives, resource scopes, and the
-   * connection's state and errors. Exposed for advanced consumers (workers,
-   * custom job adapters) that need raw `transport.emit(channel, payload,
-   * envelope)` access. Ordinary consumers go through typed namespace methods.
+   * connection's state and errors. What is sent and read over it goes
+   * through `wire`; ordinary consumers go through typed namespace methods.
    */
   readonly transport: ITransport;
   /** Binary I/O transport. */
   private readonly content: IContentTransport;
   /**
-   * Per-client local EventBus. Wire events flow in via the transport
-   * bridge. Read-only public so a channel can be read by name where no
-   * namespace names it; everything else uses typed namespace methods.
+   * Per-client local EventBus: the client's own in-process signals, and the
+   * wire's events, which the transport bridges in. Read-only public so a
+   * channel of no scope can be read by name where no namespace names it;
+   * everything else uses typed namespace methods.
    */
   readonly bus: EventBus;
+  /**
+   * The client's typed bus over its transport, as Rust's `client.wire()` and
+   * Python's `client.wire` are: what it emits goes over the wire, and what it
+   * reads is what the wire delivers. A channel of no scope is read with
+   * `wire.frames(channel)`; a resource's channel with
+   * `wire.frames(channel, resourceId)`, which holds that resource's scope
+   * while it is read. The client's own in-process signals are on `bus`, not
+   * here.
+   */
+  readonly wire: Bus;
   readonly baseUrl: BaseUrl;
 
   // ── Verb-oriented namespace API ──────────────────────────────────────────
@@ -136,7 +146,7 @@ export class SemiontClient {
        */
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
       /**
-       * `busRequest` timeout for the browse caches — threads through to
+       * `Bus.request` timeout for the browse caches — threads through to
        * `BrowseNamespace`'s deterministic-time knob, there so the liveness
        * property suite can control time. Production omits it (30 s
        * default); `@semiont/sdk/testing` passes small values so B14/B15
@@ -164,6 +174,7 @@ export class SemiontClient {
 
     this.bus = new EventBus();
     this.transport.bridgeInto(this.bus);
+    this.wire = new Bus(this.transport);
 
     this.frame  = new FrameNamespace(this.transport);
     // What every namespace holding live queries takes.

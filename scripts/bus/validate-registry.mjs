@@ -87,7 +87,7 @@ export function validateRegistry(reg) {
     if (req && !req.validate) {
       problems.push(
         `operations[${op.request}].request is not emittable (no schema in channels[]) — ` +
-          `busRequest could never send it`,
+          `Bus.request could never send it`,
       );
     }
 

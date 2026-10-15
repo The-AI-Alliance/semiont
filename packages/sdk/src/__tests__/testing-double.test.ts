@@ -3,7 +3,7 @@
  *
  * The acceptance scenario is the one a hand-rolled mock gets wrong: a
  * two-state model of a three-outcome contract. Here it runs
- * on the REAL cache and REAL busRequest over the scriptable transport —
+ * on the REAL cache and REAL Bus.request over the scriptable transport —
  * no hand-rolled mock anywhere in this file. The cache's own breadcrumbs
  * ([cache RETRY] / [cache IDLE]) are asserted as proof the real path ran.
  */

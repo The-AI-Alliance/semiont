@@ -18,7 +18,8 @@ import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontError, accessToken, baseUrl, resourceId, type AccessToken, type JobFilter } from '@semiont/core';
 import { formatErrors, validators } from '@semiont/core/openapi';
-import { SpanKind, getActiveTraceparent, withSpan, withTraceparent, type TraceCarrier } from '@semiont/observability';
+import type { TraceCarrier } from '@semiont/core';
+import { SpanKind, getActiveTraceparent, withSpan, withTraceparent } from '@semiont/observability';
 import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
 import {
   HttpContentTransport,

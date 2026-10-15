@@ -87,7 +87,6 @@ def test_an_emit_by_type_sends_its_channels_name_and_its_payload_as_the_wire_car
     async def scenario() -> None:
         transport = FaultyTransport(channels=())
         bus = Bus(transport)
-        assert bus.transport is transport
         await bus.emit(BECKON_FOCUS, BeckonFocusEvent(annotation_id=ANNOTATION), scope=RESOURCE, correlation_id="cid-1")
         assert transport.emitted == [
             Frame(channel="beckon:focus", payload={"annotationId": "ann-1"}, correlation_id="cid-1", scope=RESOURCE)

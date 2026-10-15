@@ -1,17 +1,21 @@
 import type { Observable } from 'rxjs';
 import type { EventBus, EventMap, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest, BusRequestError } from '@semiont/core';
+import { Bus, BusRequestError } from '@semiont/core';
 import { ClaimsObservable, type ClaimOptions } from '../claims';
 import type { JobNamespace as IJobNamespace } from './types';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
 export class JobNamespace implements IJobNamespace {
+  private readonly wire: Bus;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
-  ) {}
+  ) {
+    this.wire = new Bus(transport);
+  }
 
   /**
    * Live stream of `job:queued` events. Surfaces a typed view onto the
@@ -38,8 +42,7 @@ export class JobNamespace implements IJobNamespace {
   }
 
   async status(jobId: JobId): Promise<JobStatusResponse> {
-    return busRequest(
-      this.transport,
+    return this.wire.request(
       'job:status-requested',
       { jobId },
     );
@@ -75,8 +78,7 @@ export class JobNamespace implements IJobNamespace {
    * failure.
    */
   async cancel(jobId: JobId): Promise<boolean> {
-    const { cancelled } = await busRequest(
-      this.transport,
+    const { cancelled } = await this.wire.request(
       'job:cancel-requested',
       { jobId },
     );

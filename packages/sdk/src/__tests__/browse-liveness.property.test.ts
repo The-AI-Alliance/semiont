@@ -1,7 +1,7 @@
 /**
  * Liveness axioms L1/L2 over the REAL sdk composition.
  *
- * `BrowseNamespace` + `createCache` + `busRequest` run unmodified on
+ * `BrowseNamespace` + `createCache` + `Bus.request` run unmodified on
  * `FaultyTransport` while fast-check draws fault schedules (drop / delay /
  * duplicate / reject-emit). Scopes COMPOSE — one connection holds any
  * number of resource scopes. This generalizes
@@ -45,7 +45,7 @@ import { FaultyTransport } from '@semiont/core/testing';
 import { assertLivenessAxioms } from '@semiont/core/testing/axioms';
 import { BrowseNamespace } from '../namespaces/browse';
 
-/** Small explicit busRequest timeout — deterministic virtual time (no 30 s). */
+/** Small explicit Bus.request timeout — deterministic virtual time (no 30 s). */
 const TIMEOUT_MS = 50;
 
 /** Registry-shaped replies for the ops this composition issues. */

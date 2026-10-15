@@ -1,7 +1,7 @@
 import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import type { EventBus, EventMap, ITransport, ResourceId, TransportErrorCode, components } from '@semiont/core';
-import { busRequest, SemiontError } from '@semiont/core';
+import { Bus, SemiontError } from '@semiont/core';
 import { DelegationObservable, type JobCompletion } from '../awaitable';
 import { GenerationStallError } from './generation-stall';
 import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
@@ -62,6 +62,7 @@ export function delegated<C extends JobCompletion>(
   resourceId: ResourceId,
   stallMs?: number,
 ): DelegationObservable<C> {
+  const wire = new Bus(transport);
   return new DelegationObservable<C>((subscriber) => {
     let done = false;
     // The end: the job's completion, read as the verb's.
@@ -121,7 +122,7 @@ export function delegated<C extends JobCompletion>(
         const stalledJobId = activeJobId;
         cleanup();
         if (stalledJobId !== null) {
-          void busRequest(transport, 'job:cancel-requested', { jobId: stalledJobId }).catch(() => {});
+          void wire.request('job:cancel-requested', { jobId: stalledJobId }).catch(() => {});
         }
         // subscriber.error runs the producer teardown, which unsubscribes
         // the three lifecycle subs — no manual unsubscribe needed here.
@@ -165,7 +166,7 @@ export function delegated<C extends JobCompletion>(
 
     armStall();
 
-    busRequest(transport, 'job:create', job)
+    wire.request('job:create', job)
       .then((created) => {
         const { jobId } = created;
         if (jobId && !done) {

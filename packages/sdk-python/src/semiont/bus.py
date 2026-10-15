@@ -242,13 +242,13 @@ class Bus:
     """The bus over `transport`, typed by channel. See the module's documentation."""
 
     def __init__(self, transport: Transport) -> None:
-        self.transport: Final = transport
+        self._transport: Final = transport
 
     async def emit[P: WireModel](
         self, channel: Channel[P], payload: P, *, scope: ResourceId | None = None, correlation_id: str | None = None
     ) -> int | None:
         """Send one frame on `channel`. How many subscribers the gateway reached, or nothing when it kept no count."""
-        return await self.transport.emit(channel.name, channel.encode(payload), scope=scope, correlation_id=correlation_id)
+        return await self._transport.emit(channel.name, channel.encode(payload), scope=scope, correlation_id=correlation_id)
 
     @overload
     def frames[P: WireModel](self, channel: Channel[P]) -> Typed[P]: ...
@@ -269,11 +269,11 @@ class Bus:
                 raise TypeError(
                     f"{channel.name} is delivered on a resource's scope, so a read of it names the resource: frames(channel, resource)"
                 )
-            frames = self.transport.frames(channel.name)
-            return Typed(channel, frames, resource=resource, hold=self.transport.subscribe_to_resource(resource))
+            frames = self._transport.frames(channel.name)
+            return Typed(channel, frames, resource=resource, hold=self._transport.subscribe_to_resource(resource))
         if resource is not None:
             raise TypeError(f"{channel.name} is no resource's channel: frames(channel)")
-        return Typed(channel, self.transport.frames(channel.name))
+        return Typed(channel, self._transport.frames(channel.name))
 
     async def request[Q: WireModel, R: WireModel, F: WireModel](
         self, operation: Operation[Q, R, F], payload: Q, *, timeout_ms: int = BUS_REQUEST_TIMEOUT_MS
@@ -283,7 +283,7 @@ class Bus:
         Raises as `request` does, and `TransportError` when the result that
         came is not the operation's.
         """
-        return (await answer_of(self.transport, operation, payload, timeout_ms)).payload
+        return (await answer_of(self._transport, operation, payload, timeout_ms)).payload
 
 
 async def answer_of[Q: WireModel, R: WireModel, F: WireModel](

@@ -123,7 +123,7 @@ export type { StoredEventLike } from './event-utils';
 export { getAnnotationIdFromEvent } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
-export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope } from './event-bus';
+export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope, type TraceCarrier } from './event-bus';
 export { relayFrames, type FrameSource, type FrameSink } from './relay-frames';
 
 // Which failures are worth another attempt, per context — one catalog so the
@@ -223,7 +223,8 @@ export {
 } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive.
-export { busRequest, replyChannelsFor, BusRequestError, type BusRequestPrimitive } from './bus-request';
+export { replyChannelsFor, BusRequestError } from './bus-request';
+export { Bus, type BusPrimitive, type Delivered } from './bus';
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';

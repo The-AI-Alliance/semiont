@@ -155,14 +155,14 @@ export type EventMap = {
   'mark:delete-ok': components['schemas']['MarkDeleteOk'];
   'mark:delete-failed': components['schemas']['CommandError'];
   // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
-  // acks the SDK's busRequest awaits. Failure routes the real outcome back;
+  // acks the SDK's Bus.request awaits. Failure routes the real outcome back;
   // a fire-and-forget command would fail in silence.
   'mark:archive-ok': Record<string, never>;
   'mark:archive-failed': components['schemas']['CommandError'];
   'mark:unarchive-ok': Record<string, never>;
   'mark:unarchive-failed': components['schemas']['CommandError'];
   // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack
-  // the SDK's busRequest awaits; failure routes the real outcome back, where a
+  // the SDK's Bus.request awaits; failure routes the real outcome back, where a
   // fire-and-forget command would fail in silence.
   'mark:update-entity-types-ok': Record<string, never>;
   'mark:update-entity-types-failed': components['schemas']['CommandError'];
@@ -186,7 +186,7 @@ export type EventMap = {
   // Client-local UI notifications for annotation command failures, emitted by
   // the awaiting catch (mark-state-unit), which inherently knows whose command
   // failed on which resource. Distinct from the `mark:create-failed` /
-  // `mark:delete-failed` wire replies above: those are busRequest correlation
+  // `mark:delete-failed` wire replies above: those are Bus.request correlation
   // plumbing (CommandError, matched by correlationId, delivered to the
   // requesting client) and are NOT for UI consumption — subscribing to
   // them raw toasts the requester twice.
@@ -211,7 +211,7 @@ export type EventMap = {
   'frame:add-tag-schema': components['schemas']['FrameAddTagSchemaCommand'];
 
   // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies
-  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers
+  // for the SDK's confirmed `Bus.request` writes (both bridged). In-process callers
   // (bootstrap/replay/import) instead race the `frame:*-added` domain event and
   // don't await `*-add-ok`.
   'frame:entity-type-add-ok': Record<string, never>;
@@ -508,10 +508,10 @@ export type { AnchorRect } from './bus-ui-types';
  * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the
  *   only channels a client can SUBSCRIBE to over a concrete transport.
  *
- * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on
+ * Request/reply (`Bus.request`) emits on an `EmittableChannel` and subscribes on
  * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT
  * in `BRIDGED_CHANNELS` is never delivered → the request times out with no
- * compile or runtime error. `busRequest` therefore takes no reply channels:
+ * compile or runtime error. `Bus.request` therefore takes no reply channels:
  * it looks them up in `BUS_OPERATIONS`, from which `BRIDGED_CHANNELS` derives.
  */
 export type EventName = keyof EventMap;

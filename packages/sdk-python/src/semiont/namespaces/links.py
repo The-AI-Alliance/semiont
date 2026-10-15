@@ -9,15 +9,19 @@ from semiont.channel import Channel, Operation
 from semiont.errors import SemiontError
 from semiont.event_bus import EventBus
 from semiont.model import WireModel
+from semiont.transport import Transport
 
 __all__ = ["Links"]
 
 
 @final
 class Links:
-    """The bus over the wire, the client's own bus, the waits the client keeps, and the tasks it runs."""
+    """The client's transport, the bus over it, the client's own bus, the waits the client keeps, and the tasks it runs."""
 
-    def __init__(self, *, wire: Bus, own: EventBus, bus_request_ms: int, job_silence_ms: int, job_status_poll_ms: int) -> None:
+    def __init__(
+        self, *, transport: Transport, wire: Bus, own: EventBus, bus_request_ms: int, job_silence_ms: int, job_status_poll_ms: int
+    ) -> None:
+        self.transport: Final = transport
         self.wire: Final = wire
         self.own: Final = own
         self.bus_request_ms: Final = bus_request_ms

@@ -30,7 +30,7 @@ peers that answer differently.
 | `EMBEDDING_PROVIDER_RETRY`, in `packages/vectors-python/src/semiont_vectors/_retry.py` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
-`EMBED_ROUND_TRIP_SECONDS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s
+`EMBED_ROUND_TRIP_SECONDS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `Bus.request`'s
 30s for a bus request — so a wall-clock ceiling is delays plus attempts × that bound, and the
 embedding provider's worst case is ~300s. Without a per-attempt bound an attempt count means
 nothing: a `fetch` with no signal can sit in TCP retransmit for minutes.
@@ -75,11 +75,11 @@ A request travels four layers, and only two of them retry.
 | layer | retries | why |
 |---|---|---|
 | `/bus/emit` POST | **yes** | transport refusals: the gateway is up and asking us to wait |
-| `busRequest` | **no** | cannot know whether the operation is idempotent |
-| the caller of `busRequest` | **yes** | knows what it asked for |
+| `Bus.request` | **no** | cannot know whether the operation is idempotent |
+| the caller of `Bus.request` | **yes** | knows what it asked for |
 | the boot pass | **no** | a pass retry re-sends every request that already succeeded |
 
-`busRequest`'s operations include both `browse:resource-requested` and
+`Bus.request`'s operations include both `browse:resource-requested` and
 `yield:clone-resource-requested`. A read is idempotent; a create is not, and retrying one whose
 reply timed out double-writes. Only the caller can tell those apart, which is why
 the catalog reader asks again for a page nobody answered, and no write path retries at all.

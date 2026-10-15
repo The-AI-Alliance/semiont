@@ -590,7 +590,7 @@ impl BrowseNamespace {
             cache: cache.clone(),
             key: key.clone(),
             view,
-            scope: Some((self.links.wire.transport().clone(), resource_id.clone())),
+            scope: Some((self.links.transport.clone(), resource_id.clone())),
         })
     }
 

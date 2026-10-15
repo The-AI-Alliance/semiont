@@ -104,7 +104,7 @@ export const BUS_OPERATIONS = {
   'yield:clone-token-requested':         { result: 'yield:clone-token-generated',    failure: 'yield:clone-token-failed' },
 } as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;
 
-/** The request-channel key of a registered operation — what `busRequest` takes. */
+/** The request-channel key of a registered operation — what `Bus.request` takes. */
 export type BusOperationKey = keyof typeof BUS_OPERATIONS;
 
 /**

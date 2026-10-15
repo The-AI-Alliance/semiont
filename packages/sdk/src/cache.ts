@@ -186,7 +186,7 @@ export function createCache<K, V>(
   /**
    * B16 — disposal is terminal and inert. Once set, no path may issue a
    * fetch, retry, or failure push: a B14 chain that straddles teardown
-   * (busRequest resolving `bus.closed` mid-retry) must die quietly instead
+   * (Bus.request resolving `bus.closed` mid-retry) must die quietly instead
    * of erroring observers that dispose() just completed. Checked at every
    * async resumption point in the SWR driver, not just at entry.
    */
@@ -313,7 +313,7 @@ export function createCache<K, V>(
    * once on failure (B14), then go idle — as `failed`, when the key holds no
    * value (B15).
    *
-   * The failure this covers is a lost one-shot reply — a busRequest times
+   * The failure this covers is a lost one-shot reply — a Bus.request times
    * out because its SSE result raced a connection swap. Without a retry,
    * every subscriber of a never-loaded key starves silently until some future
    * observe()/invalidate() happens to act. A key that holds a value keeps

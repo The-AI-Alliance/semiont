@@ -967,7 +967,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
   });
 
   // B16 — disposal is terminal and inert at the namespace level. Without
-  // it, a B14 retry straddling client teardown has busRequest fail with
+  // it, a B14 retry straddling client teardown has Bus.request fail with
   // `bus.closed`, and the key's observers are told `failed` by a client that
   // is going away. The rule is structural: BrowseNamespace owns its caches
   // (A7-owned), so disposing it completes every per-key observable and

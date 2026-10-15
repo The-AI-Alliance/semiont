@@ -3,7 +3,7 @@
  *
  * These mirror the B1–B16 behaviors spec'd in
  * `docs/protocol/CACHE-SEMANTICS.md`, but assert them against
- * the primitive directly (no BrowseNamespace, no busRequest). The
+ * the primitive directly (no BrowseNamespace, no Bus.request). The
  * `cache-semantics.test.ts` suite covers the same behaviors at the
  * integration layer; passing both means the primitive is a correct
  * substrate and `browse.ts` wires it up correctly.
@@ -388,7 +388,7 @@ describe('Cache<K, V>', () => {
   });
 
   describe('B14 — SWR fetch failure retries once (anti-starvation)', () => {
-    // Motivating failure: a one-shot busRequest reply lost on the wire (SSE
+    // Motivating failure: a one-shot Bus.request reply lost on the wire (SSE
     // connection swap) times out and rejects; without a bounded retry, every
     // subscriber of a never-loaded key starves silently until some future
     // observe()/invalidate() happens to act.

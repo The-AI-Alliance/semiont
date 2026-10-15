@@ -30,8 +30,8 @@ import { useTranslations } from '../contexts/TranslationContext';
  *
  * Deliberately NOT subscribed: the `*-failed` wire reply channels
  * (`mark:create-failed`, `mark:delete-failed`, `bind:body-update-failed`).
- * Those carry `CommandError` and are busRequest correlation plumbing: a
- * reply reaches only the client that made the request, where busRequest
+ * Those carry `CommandError` and are Bus.request correlation plumbing: a
+ * reply reaches only the client that made the request, where Bus.request
  * matches it by correlationId — toasting it raw as well would toast the
  * requester twice. The UI-facing counterparts are the client-local `*-error`
  * events above, emitted by the awaiting catch (mark-state-unit;

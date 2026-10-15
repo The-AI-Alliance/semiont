@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { busRequest, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
+import { Bus, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
 import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
@@ -50,11 +50,14 @@ export class JobStatusPoll {
   private readonly silenceMs: number;
   private readonly pollMs: number;
 
+  private readonly wire: Bus;
+
   constructor(
-    private readonly transport: ITransport,
+    transport: ITransport,
     private readonly onStatus: (status: JobStatusResponse) => void,
     timing: JobFollowTiming = {},
   ) {
+    this.wire = new Bus(transport);
     this.silenceMs = timing.jobSilenceMs ?? JOB_SILENCE_MS;
     this.pollMs = timing.jobStatusPollMs ?? JOB_STATUS_POLL_MS;
   }
@@ -75,7 +78,7 @@ export class JobStatusPoll {
 
   private ask(jobId: string): void {
     // A status that cannot be had is asked for again at the next poll.
-    busRequest(this.transport, 'job:status-requested', { jobId }).then(this.onStatus, () => {});
+    this.wire.request('job:status-requested', { jobId }).then(this.onStatus, () => {});
   }
 }
 

@@ -60,7 +60,7 @@ The examples are TypeScript, where the cache is `createCache` in
 | **Key** | A value identifying one logical cache entry. For `resource(id)` the key is `id`; for `resources(filters)` the key is `JSON.stringify(filters)`; for `entityTypes()` the key is the empty tuple. Keys are per-cache, not global. |
 | **Entry** | The current value (or absence) associated with a key. |
 | **Observer** | A caller who holds the `Observable<CacheState<V>>` returned from a live-query method (e.g. `browse.resource(id)`). Observers receive the current state and every subsequent change. |
-| **Fetch** | An async operation (via `busRequest`) that produces a value to store. |
+| **Fetch** | An async operation (via `Bus.request`) that produces a value to store. |
 | **In-flight** | A fetch whose promise has not settled. Each key may have at most one in-flight fetch at a time. |
 | **Invalidate** | A caller-initiated signal that the cache entry is out of date and must be refetched. |
 | **SWR** | Stale-while-revalidate. The entry continues to be served to observers while the refetch is in flight. When the refetch returns, observers see the new value (or keep seeing the stale one if the refetch failed). |
@@ -211,7 +211,7 @@ Rationale: an in-flight fetch may be **orphaned** — its SSE response
 channel has been torn down (e.g. the reconnect that triggered the
 invalidation), so the fetch will never resolve. If invalidate
 coalesced with an orphaned fetch, the cache would be stuck with its
-old value until the busRequest's 30-second timeout fired: a
+old value until the request's 30-second timeout fired: a
 "Loading resource…" that does not resolve. (Correlated-reply
 retention makes orphaned in-flight replies rare; B9 holds
 regardless, because it is about not trusting an in-flight guard.)
@@ -258,7 +258,7 @@ exactly once. If the retry also fails, the key goes idle (B6 state:
 empty or stale-fresh) until the next observe/invalidate acts.
 
 Rationale: the swallowed paths hide failures from subscribers by design
-(B6), so without a retry a lost one-shot reply — e.g. a `busRequest`
+(B6), so without a retry a lost one-shot reply — e.g. a `Bus.request`
 whose SSE result raced a connection swap and timed out — would
 starve every subscriber of a never-loaded key **silently and
 permanently**: no retry, no failure signal, `pending` forever. One
@@ -280,7 +280,7 @@ Boundaries:
 Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
 (`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
-`BrowseNamespace` + cache + `busRequest` composition by the property
+`BrowseNamespace` + cache + `Bus.request` composition by the property
 suite ([browse-liveness.property.test.ts](../../packages/sdk/src/__tests__/browse-liveness.property.test.ts)).
 Changing the retry count is a policy change that must edit L2's budget
 visibly, not drift past it.
@@ -345,7 +345,7 @@ a key's state is computed from), and stuns all later acts:
    invalidation events cannot refetch into disposed caches.
 
 Rationale: a B14 retry straddling client teardown resolves `bus.closed`
-(`busRequest`'s disposed-bus path) — a teardown artifact, not a data
+(`Bus.request`'s disposed-bus path) — a teardown artifact, not a data
 failure. Without B16 the B15 failure would then reach observers at
 shutdown, as disposal noise. B16 makes the push structurally impossible after disposal
 instead of special-casing the `bus.closed` error code, which would

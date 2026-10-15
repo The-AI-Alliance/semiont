@@ -123,9 +123,9 @@ describe('useOutcomeToasts', () => {
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
-  it('raw wire replies (CommandError) do NOT toast — they are busRequest plumbing', () => {
+  it('raw wire replies (CommandError) do NOT toast — they are Bus.request plumbing', () => {
     // A *-failed reply reaches only the client that made the request and is
-    // matched by correlationId in busRequest. Toasting it raw as well would
+    // matched by correlationId in Bus.request. Toasting it raw as well would
     // toast the requester twice.
     const { eventBus } = setup();
     act(() => {

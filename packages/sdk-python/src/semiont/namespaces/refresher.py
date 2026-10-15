@@ -175,7 +175,7 @@ class Refresher:
         """Listen, from now on. A client starts it once: when it is held."""
         # Listening before the task that reads has had its first turn: nothing said meanwhile is missed.
         self._links.run(self._listen(self._links.own.frames_among(tuple(_EVENTS))))
-        self._links.run(self._reopenings(self._links.wire.transport.state))
+        self._links.run(self._reopenings(self._links.transport.state))
 
     async def _listen(self, events: Events[Frame]) -> None:
         async for frame in events:

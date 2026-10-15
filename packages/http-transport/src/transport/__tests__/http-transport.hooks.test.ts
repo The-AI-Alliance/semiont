@@ -353,7 +353,7 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
 // harness; the ky mock above is irrelevant to the SSE path).
 
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, busRequest, type AccessToken } from '@semiont/core';
+import { Bus, accessToken, type AccessToken } from '@semiont/core';
 import { mockFetch } from './helpers/mock-conn';
 
 describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
@@ -409,7 +409,7 @@ describe('HttpTransport errors$ bridge (refused emits)', () => {
 
 describe('HttpTransport after dispose', () => {
   const request = (transport: HttpTransport) =>
-    busRequest(transport, 'browse:resource-requested', { resourceId: 'r' }, 200).catch((error: unknown) => error);
+    new Bus(transport).request('browse:resource-requested', { resourceId: 'r' }, 200).catch((error: unknown) => error);
 
   test('a request fails as closed at once: the transport does not build itself a new, unopened bus to wait on', async () => {
     mockFetch.mockReset();

@@ -283,7 +283,8 @@ is what a worker promises the dispatcher.
   ([`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md)),
   `createSearchPipeline`, branded ids, and the unified error hierarchy (`SemiontError`,
   `BusRequestError`) re-exported so you catch every SDK error from one package. (The
-  request/reply primitive itself, `busRequest`, lives in `@semiont/core`.)
+  typed bus over a transport, `Bus`, lives in `@semiont/core`; a client hands its own out as
+  `client.wire`.)
 
 This is everything a non-web consumer (TUI, mobile, daemon, agent) needs — nothing
 page-shaped. Page-level state machines and components, including the **embeddable
@@ -305,7 +306,7 @@ who the SDK is for, where it goes, and the docs in reading order.
 
 - [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) — the Rust SDK, a full peer of this one, on [crates.io](https://crates.io/crates/semiont)
 - [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python) — the Python SDK, on [PyPI](https://pypi.org/project/semiont/)
-- [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `busRequest`, OpenAPI-derived schemas
+- [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `Bus`, OpenAPI-derived schemas
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
 - [`@semiont/observability`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/observability) — OpenTelemetry tracing the SDK propagates across the bus
 - [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — the embeddable `ResourceViewer` (bring-your-own-session) plus React hooks (`useResourceLoader`, `useMediaToken`, `useObservable`) and the web `SessionStorage`; its docs cross-link the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)

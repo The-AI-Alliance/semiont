@@ -74,7 +74,7 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
       if (channel === 'browse:resource-requested') {
         if (pendingFailure === rid) {
           // One-shot loss: the request never gets a reply (the real failure
-          // is a busRequest timeout; a rejected emit produces the same
+          // is a Bus.request timeout; a rejected emit produces the same
           // fetch rejection without waiting 30s).
           pendingFailure = undefined;
           throw new Error(`simulated lost reply for ${rid}`);

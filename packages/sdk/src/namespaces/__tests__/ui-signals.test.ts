@@ -136,9 +136,10 @@ describe('UI signal wrappers', () => {
 
       browse.resourceViewed(RID);
 
+      // Sent on the wire with no envelope: a report, answered by nobody.
       expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:resource-viewed', {
         resourceId: RID,
-      });
+      }, undefined);
     });
   });
 
@@ -195,7 +196,7 @@ describe('UI signal wrappers', () => {
 
       expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:resource-open', {
         resourceId: RID,
-      });
+      }, undefined);
       // The drive is for OTHER participants; it must not loop back locally
       // (arrivals come in bridged, like any remote emit).
       expect(localSpy).not.toHaveBeenCalled();
@@ -214,7 +215,7 @@ describe('UI signal wrappers', () => {
 
       expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:click', {
         annotationId: AID,
-      });
+      }, undefined);
       // Same cross-namespace rule as openResource: `browse.click()` opens it
       // for me, `beckon.click()` opens it for everyone else. No audience
       // marker — beckon has no local `click` sibling to disambiguate from.
@@ -234,7 +235,7 @@ describe('UI signal wrappers', () => {
 
       expect(transport.emit).toHaveBeenCalledExactlyOnceWith('beckon:sparkle', {
         annotationId: AID,
-      });
+      }, undefined);
       expect(localSpy).not.toHaveBeenCalled();
     });
   });
@@ -251,7 +252,7 @@ describe('UI signal wrappers', () => {
       expect(transport.emit).toHaveBeenCalledExactlyOnceWith('beckon:focus', {
         annotationId: AID,
         resourceId: RID,
-      });
+      }, undefined);
     });
   });
 

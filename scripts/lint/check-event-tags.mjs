@@ -163,7 +163,7 @@ function closing(code, open) {
   return -1;
 }
 
-const SEND = "(?:this\\.(?:bus|transport)\\.emit\\(|\\bbusRequest\\(\\s*(?:this\\.)?transport,)\\s*'([a-z]+:[a-z-]+)'";
+const SEND = "(?:this\\.(?:bus|wire)\\.emit\\(|\\bwire\\.request\\()\\s*'([a-z]+:[a-z-]+)'";
 
 /**
  * The channels each method of the SDK's client sends on, by `<namespace>.<method>`:

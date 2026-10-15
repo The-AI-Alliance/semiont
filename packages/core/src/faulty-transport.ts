@@ -3,7 +3,7 @@
  * liveness axioms. fast-check draws a fault
  * schedule; the transport applies one `FaultAction` per request-channel emit
  * and synthesizes replies from the `BUS_OPERATIONS` registry, so real
- * compositions (`busRequest`, SWR caches, live queries) run unmodified against
+ * compositions (`Bus.request`, SWR caches, live queries) run unmodified against
  * generated wire behavior no hand-written test names.
  *
  * Home is core (not sdk/test-utils) for the same reason as
@@ -14,7 +14,7 @@
  * Deterministic-by-construction: no `Date.now`, no randomness of its own —
  * all variation comes in through the schedule (fast-check owns the seed).
  * Time is real `setTimeout` at millisecond scale; properties pass a small
- * explicit `timeoutMs` to `busRequest`, so nothing waits 30 s.
+ * explicit `timeoutMs` to `Bus.request`, so nothing waits 30 s.
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
@@ -258,8 +258,13 @@ export class FaultyTransport implements ITransport {
     return this.bus.on(channel);
   }
 
+  /**
+   * Every frame on the channel, whatever its scope, as a wire transport
+   * delivers it: a reader of one resource's keeps that scope's
+   * (`Bus.frames(channel, resourceId)`).
+   */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
-    return this.bus.frames(channel);
+    return this.bus.channelStream(channel).asObservable();
   }
 
   /**
@@ -280,7 +285,7 @@ export class FaultyTransport implements ITransport {
   }
 
   /**
-   * Correlated-reply tracking, exposed for assertions: `busRequest` registers
+   * Correlated-reply tracking, exposed for assertions: `Bus.request` registers
    * each cid here before its emit and releases on settle, so a test can pin
    * the tracked set at any point of a request's lifecycle. Delivery in this
    * double is bus-direct (nothing to replay), so tracking has no behavioral

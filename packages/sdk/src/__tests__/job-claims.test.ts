@@ -20,7 +20,7 @@ import { ROOT_CONTEXT, context, propagation, trace as otelTrace } from '@opentel
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
-import type { Annotation, BusRequestPrimitive } from '@semiont/core';
+import type { Annotation, BusPrimitive } from '@semiont/core';
 import { BusRequestError, EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
 
@@ -79,11 +79,12 @@ function fakeBus(initialState: ConnectionState = 'open') {
    */
   const record: { commit: 'acknowledged' | 'refused' | 'unanswered'; question: 'there' | 'not-there' | 'unanswered' } = { commit: 'unanswered', question: 'unanswered' };
 
-  const bus: BusRequestPrimitive = {
+  const bus: BusPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
     frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
     isSubscribed: (channel) => !unnamed.has(channel),
     trackReply: () => () => {},
+    subscribeToResource: () => () => {},
     state$,
     emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // The pair is this call's own two arguments; the assertion is what buys

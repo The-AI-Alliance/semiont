@@ -1100,7 +1100,7 @@
       "docs": {
         "lead": [
           "  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed",
-          "  // acks the SDK's busRequest awaits. Failure routes the real outcome back;",
+          "  // acks the SDK's Bus.request awaits. Failure routes the real outcome back;",
           "  // a fire-and-forget command would fail in silence."
         ],
         "trailing": ""
@@ -1158,7 +1158,7 @@
       "docs": {
         "lead": [
           "  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack",
-          "  // the SDK's busRequest awaits; failure routes the real outcome back, where a",
+          "  // the SDK's Bus.request awaits; failure routes the real outcome back, where a",
           "  // fire-and-forget command would fail in silence."
         ],
         "trailing": ""
@@ -1352,7 +1352,7 @@
           "  // Client-local UI notifications for annotation command failures, emitted by",
           "  // the awaiting catch (mark-state-unit), which inherently knows whose command",
           "  // failed on which resource. Distinct from the `mark:create-failed` /",
-          "  // `mark:delete-failed` wire replies above: those are busRequest correlation",
+          "  // `mark:delete-failed` wire replies above: those are Bus.request correlation",
           "  // plumbing (CommandError, matched by correlationId, delivered to the",
           "  // requesting client) and are NOT for UI consumption — subscribing to",
           "  // them raw toasts the requester twice."
@@ -1475,7 +1475,7 @@
         "lead": [
           "",
           "  // Command results — `*-add-ok` / `*-add-failed` are correlation-keyed replies",
-          "  // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers",
+          "  // for the SDK's confirmed `Bus.request` writes (both bridged). In-process callers",
           "  // (bootstrap/replay/import) instead race the `frame:*-added` domain event and",
           "  // don't await `*-add-ok`."
         ],
@@ -3844,12 +3844,12 @@
     "schemasTail": [],
     "operationsHeader": "import type { EventMap, EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry.\n *\n * Each entry declares ONE operation as a triple, so its three facts are\n * stated together rather than maintained independently across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - and the `failure` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" is not\n * representable.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n}\n\n",
     "operationsInnerTail": [],
-    "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation — what `busRequest` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n",
+    "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation — what `Bus.request` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n",
     "bridgedHeader": "import type { EventName } from './bus-protocol';\nimport { BUS_OPERATIONS } from './bus-operations';\n\n",
     "bridgedDerivation": "// ── Derivation ──────────────────────────────────────────────────────────────\n// Every operation's result + failure channel bridges, by construction. Type and runtime are derived from the same `BUS_OPERATIONS`.\n\ntype OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];\n\n/** The union of every reply channel declared in the registry. */\ntype RegistryReply = OpSpecs['result'] | OpSpecs['failure'];\n\n// Iterate by typed key so each op's literal reply types survive — the element\n// type stays `RegistryReply` (no widening to `EventName`), so the composed\n// array is `BridgedChannel[]` with no narrowing assertion. The runtime proof\n// that this derived set is exactly the intended one is the equality test in\n// __tests__/bus-invariants.test.ts.\nconst REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(\n  (key) => {\n    const op = BUS_OPERATIONS[key];\n    return [op.result, op.failure];\n  },\n);\n\n/**\n * BRIDGED_CHANNELS\n *\n * The set of bus channels that any concrete transport bridges into the\n * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete\n * `ITransport` shares the same set; HTTP delivers them via SSE, in-process\n * transports forward them directly from the local actor bus.\n *\n * This is the *fan-in* set — channels for events the transport receives and\n * pushes onto the client's bus. It is not the same as the channels the client\n * emits (which is open-ended).\n *\n * It is DERIVED, not hand-listed: the request/reply replies come from\n * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be\n * forgotten here. The only hand-maintained part is `BRIDGED_BROADCASTS`: the\n * genuine non-request/reply minority (lifecycle events and UI/infra signals\n * that no single requester owns).\n *\n * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked\n * separately by transports that care about scope (HTTP).\n */\nexport const BRIDGED_CHANNELS: readonly BridgedChannel[] = [\n  ...REGISTRY_REPLIES,\n  ...BRIDGED_BROADCASTS,\n];\n\n/**\n * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive\n * over a concrete transport. See the family note on `EventName` in\n * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).\n */\nexport type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];\n"
   },
   "docs": {
-    "eventName": "/**\n * Any valid channel name on the EventBus — `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered → the request times out with no\n * compile or runtime error. `busRequest` therefore takes no reply channels:\n * it looks them up in `BUS_OPERATIONS`, from which `BRIDGED_CHANNELS` derives.\n */",
+    "eventName": "/**\n * Any valid channel name on the EventBus — `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`Bus.request`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered → the request times out with no\n * compile or runtime error. `Bus.request` therefore takes no reply channels:\n * it looks them up in `BUS_OPERATIONS`, from which `BRIDGED_CHANNELS` derives.\n */",
     "enrichedEvents": "/**\n * Channels whose published event carries the annotation as it stands in the\n * view — the registry's `enriched` flag, generated so the flag and the code\n * that acts on it cannot disagree.\n *\n * The enricher switches on THIS list: a flag with no case fails to compile\n * rather than silently never attaching, which consumers cannot detect because\n * `annotation` is optional and their absent-branch is indistinguishable from\n * a genuine decline.\n *\n * Typed `PersistedEventType`, not `EventName`: the validator already allows\n * the flag only on a stored event, so this makes enriched ⊆ persisted a\n * compile-time fact rather than a convention.\n */",
     "channelSchemas": "/**\n * Authoritative map from bus channel to OpenAPI schema name.\n *\n * Every {@link EventName} must appear. The `satisfies` clause below\n * enforces completeness at compile time — adding a channel to\n * {@link EventMap} without adding an entry here is a build error.\n *\n * Values:\n *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.\n *   - `null`: no single-schema validation. Used for branded\n *     `StoredEvent` wrappers, `void` UI signals, and inline wrapper\n *     types (e.g. `{ response: T }`). These are not validated by\n *     `/bus/emit`.\n *\n * The gateway's `/bus/emit` route validates against the same registry\n * entries. Consumers can use this map for client-side pre-flight\n * validation before emitting.\n */",
     "emittableChannel": "/** Channels where `/bus/emit` validates the payload (non-null schema). */"

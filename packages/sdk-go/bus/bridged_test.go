@@ -53,7 +53,7 @@ func TestBroadcastsAreDisjointFromOperationReplies(t *testing.T) {
 	}
 }
 
-// Every operation must be emittable: busRequest sends on the request channel,
+// Every operation must be emittable: Bus.request sends on the request channel,
 // and /bus/emit validates it against the schema ChannelSchemas names.
 func TestEveryOperationRequestIsEmittable(t *testing.T) {
 	for req := range Operations {

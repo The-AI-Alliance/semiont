@@ -12,10 +12,10 @@
 import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import {
+  Bus,
   SemiontError,
   accessToken,
   baseUrl,
-  busRequest,
   resourceId,
   type AccessToken,
   type BusOperationKey,
@@ -190,7 +190,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     const caller = new AbortController();
     callers.set(id, caller);
     try {
-      const response: unknown = await busRequest(opened(), text(args, 'operation') as BusOperationKey, object(args, 'payload'), count(args, 'timeoutMs'), caller.signal);
+      const response: unknown = await new Bus(opened()).request(text(args, 'operation') as BusOperationKey, object(args, 'payload'), count(args, 'timeoutMs'), caller.signal);
       return response === undefined ? {} : { response };
     } catch (error) {
       if (caller.signal.aborted && error === caller.signal.reason) throw new Abandoned();

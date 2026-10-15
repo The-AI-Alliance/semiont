@@ -9,15 +9,14 @@
 import { describe, test, expect } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus } from '../event-bus';
-import { busRequest } from '../bus-request';
-import type { BusRequestPrimitive } from '../bus-request';
+import { Bus, type BusPrimitive } from '../bus';
 import type { EventMap } from '../bus-protocol';
 
 const OP = 'gather:resource-requested' as const;
 const RESULT = 'gather:resource-complete' as const;
 
 /** A responder that echoes the envelope, as a real handler must. */
-function respondingBus(): { bus: BusRequestPrimitive; seen: Array<{ correlationId?: string; payload: unknown }> } {
+function respondingBus(): { bus: BusPrimitive; seen: Array<{ correlationId?: string; payload: unknown }> } {
   const eventBus = new EventBus();
   const seen: Array<{ correlationId?: string; payload: unknown }> = [];
 
@@ -31,22 +30,23 @@ function respondingBus(): { bus: BusRequestPrimitive; seen: Array<{ correlationI
     );
   });
 
-  const bus: BusRequestPrimitive = {
+  const bus: BusPrimitive = {
     emit: async (channel, payload, envelope) => eventBus.emit(channel, payload, envelope),
     frames: (channel) => eventBus.frames(channel),
     stream: (channel) => eventBus.on(channel),
     state$: new BehaviorSubject<'open'>('open').asObservable(),
     isSubscribed: () => true,
     trackReply: () => () => {},
-  } as BusRequestPrimitive;
+    subscribeToResource: () => () => {},
+  } as BusPrimitive;
   return { bus, seen };
 }
 
 describe('correlation rides the envelope', () => {
-  test('busRequest puts the key on the ENVELOPE, not in the payload', async () => {
+  test('Bus.request puts the key on the ENVELOPE, not in the payload', async () => {
     const { bus, seen } = respondingBus();
 
-    await busRequest(bus, OP, { resourceId: 'res-1' });
+    await new Bus(bus).request(OP, { resourceId: 'res-1' });
 
     expect(seen).toHaveLength(1);
     expect(seen[0]!.correlationId, 'the envelope carries it').toEqual(expect.any(String));
@@ -62,8 +62,8 @@ describe('correlation rides the envelope', () => {
     // Two requests in flight at once: pairing can only come from the envelope,
     // because neither payload carries anything to pair on.
     const [a, b] = await Promise.all([
-      busRequest(bus, OP, { resourceId: 'res-a' }),
-      busRequest(bus, OP, { resourceId: 'res-b' }),
+      new Bus(bus).request(OP, { resourceId: 'res-a' }),
+      new Bus(bus).request(OP, { resourceId: 'res-b' }),
     ]);
 
     expect(a).toEqual({ answered: true });
@@ -72,7 +72,7 @@ describe('correlation rides the envelope', () => {
 
   test('a reply whose envelope carries the WRONG key is not delivered to this requester', async () => {
     const eventBus = new EventBus();
-    const bus: BusRequestPrimitive = {
+    const bus: BusPrimitive = {
       emit: async (channel, payload, envelope) => {
         const observers = eventBus.emit(channel, payload, envelope);
         // Answer with a key nobody is waiting on.
@@ -84,9 +84,10 @@ describe('correlation rides the envelope', () => {
       state$: new BehaviorSubject<'open'>('open').asObservable(),
       isSubscribed: () => true,
       trackReply: () => () => {},
-    } as BusRequestPrimitive;
+      subscribeToResource: () => () => {},
+    } as BusPrimitive;
 
-    await expect(busRequest(bus, OP, { resourceId: 'res-1' }, 120)).rejects.toMatchObject({
+    await expect(new Bus(bus).request(OP, { resourceId: 'res-1' }, 120)).rejects.toMatchObject({
       code: 'bus.timeout',
     });
   });

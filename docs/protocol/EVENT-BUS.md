@@ -151,26 +151,24 @@ The bus is fan-out: every subscriber to a channel sees every event on it. Reques
 2. The handler does its work and emits the response (`match:search-results` or `match:search-failed`) carrying the **same** `correlationId` on its envelope.
 3. The gateway delivers the response only to the connections of the client that made the request (the request's emit *claimed* the id), and the caller matches it by `correlationId`.
 
-`busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* the services share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
+`Bus.request` ([packages/core/src/bus.ts](../../packages/core/src/bus.ts)) implements this pattern uniformly. `Bus` is the typed bus over a transport, and a client hands its own out as `client.wire`. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* the services share one implementation. You call `request` with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
 
 ```ts
-import { busRequest } from '@semiont/core';
-
 // The operation is named by its request channel. The result and failure
 // channels are looked up from BUS_OPERATIONS, and the return type is inferred.
-const resource = await busRequest(semiont.transport, 'browse:resource-requested', { resourceId });
+const resource = await semiont.wire.request('browse:resource-requested', { resourceId });
 ```
 
 Two declarations make this work, and together they rule out a whole bug class (a reply channel that's forgotten from the bridged set, which fails as a silent 30 s timeout):
 
-- **The operations registry.** [`BUS_OPERATIONS`](../../packages/core/src/bus-operations.ts) declares every request/reply operation **once** as a triple — `request → { result, failure, progress? }`. `busRequest` reads the request channel's entry to find its reply channels (so a caller can't pass a mismatched or unbridged pair), and the bridged-reply set is *derived* from it (see [Fan-in](#fan-in-sse-bridging)). The return type is inferred from the result channel — callers never write `<TResult>`.
+- **The operations registry.** [`BUS_OPERATIONS`](../../packages/core/src/bus-operations.ts) declares every request/reply operation **once** as a triple — `request → { result, failure, progress? }`. `request` reads the request channel's entry to find its reply channels (so a caller can't pass a mismatched or unbridged pair), and the bridged-reply set is *derived* from it (see [Fan-in](#fan-in-sse-bridging)). The return type is inferred from the result channel — callers never write `<TResult>`.
 
 - **The reply-shape standard.** Every reply carries the request's `correlationId` on its envelope, and its payload is one of three shapes:
   - `{ response: T }` — success with data → resolves to `T`.
   - `{}` — success, no data → resolves to `void`.
   - `CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../builder/Usage.md#error-handling).
 
-  `busRequest` reads `e.response`, so **every reply handler must carry the request's `correlationId` onto its reply's envelope and put its data under `response`** — a reply without the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
+  `request` reads `e.response`, so **every reply handler must carry the request's `correlationId` onto its reply's envelope and put its data under `response`** — a reply without the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 
   A reply may also state what it answers for beside `response`, by stating a property of its request again: `gather:complete` carries the `annotationId` its request did. [`REPLY_NAMES`](../../packages/core/src/bus-operations.ts), generated beside `BUS_OPERATIONS`, lists those properties for every operation. Each list is what the reply's schema requires, without `response`; the generator refuses one the request's schema does not state.
 
@@ -248,7 +246,7 @@ The Go tests overlap the TypeScript ones on purpose. Both languages generate fro
 
 The HTTP transport wires this once, for the life of its stream: each frame it receives on a bridged or a resource-scoped channel crosses to the client's bus with its envelope, the correlation id carried. See [`http-transport.ts`](../../packages/http-transport/src/transport/http-transport.ts).
 
-This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `transport.emit(channel, payload)` directly.
+This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `client.wire.emit(channel, payload)` directly.
 
 ## Wire format: the bus log
 
@@ -293,18 +291,18 @@ A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → 
 
 The SDK doesn't *replace* the bus — it wraps the channel-call patterns so consumers don't write `correlationId` glue and `bus.stream(...).pipe(filter(...))` for every operation. Three layers of abstraction sit on top:
 
-**1. `ITransport`** ([packages/core/src/transport.ts](../../packages/core/src/transport.ts)) — the contract every transport implements: `emit(channel, payload, scope?)`, `stream(channel)`, `subscribeToResource(id)`, `bridgeInto(bus)`. Transport-neutral; `HttpTransport` (HTTP+SSE) implements it.
+**1. `ITransport`** ([packages/core/src/transport.ts](../../packages/core/src/transport.ts)) — the contract every transport implements: `emit(channel, payload, envelope?)`, `frames(channel)` and `stream(channel)`, `subscribeToResource(id)`, `bridgeInto(bus)`, and the rest [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#the-surface) lists. Transport-neutral; `HttpTransport` (HTTP+SSE) implements it.
 
-**2. `busRequest`** ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) — the request/response abstraction. Called with the **operation** (request channel) and a payload; it mints the `correlationId`, looks the result/failure channels up from `BUS_OPERATIONS`, applies a timeout, infers its return type from the result channel, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into this helper. (It lives in `@semiont/core`, so the services use the same path.)
+**2. `Bus.request`** ([packages/core/src/bus.ts](../../packages/core/src/bus.ts)) — the request/response abstraction. Called with the **operation** (request channel) and a payload; it mints the `correlationId`, looks the result/failure channels up from `BUS_OPERATIONS`, applies a timeout, infers its return type from the result channel, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into it. (It lives in `@semiont/core`, so the services use the same path.)
 
 **3. Verb namespaces** (`semiont.mark.*`, `semiont.match.*`, `semiont.browse.*`, etc.) — the typed entry points. Each method picks the right channels for its operation, brands ID inputs, and returns the right shape (`Promise`, `StreamObservable`, `CacheObservable`). The channel choice is hidden behind the method name — `semiont.match.search(...)` knows it emits `match:search-requested` and resolves on `match:search-results` / `match:search-failed`.
 
 Two legitimate paths to the bus, each suited to a distinct case:
 
 - **Typed namespace method** (preferred) — `client.mark.annotation(...)`, `client.beckon.hover(...)`. Types catch mistakes; channel names and correlation IDs are internal. The right path whenever a namespace covers the operation.
-- **The client's bus: `client.bus.on(channel)` / `client.transport.emit(channel, ...)`** — channel-by-name observation and the lowest-level path: when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity), when no namespace exposes a typed listener for the channel you care about, for workers and actors that *are* the handlers (a worker written on the SDK uses this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace. A channel delivered on a resource's scope is heard only while that scope is held: in TypeScript, `client.transport.subscribeToResource(resourceId)`; in Rust and Python, the read that names the resource holds it, on Rust's `semiont::bus::Bus` over the client's transport and on Python's `client.wire`.
+- **A channel by name: `client.bus.on(channel)`, `client.wire.frames(channel)`, `client.wire.emit(channel, ...)`** — channel-by-name observation and the lowest-level path: when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity), when no namespace exposes a typed listener for the channel you care about, for workers and actors that *are* the handlers (a worker written on the SDK uses this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace. `client.bus` is the client's own bus, which also carries its in-process signals; `client.wire` is the typed bus over its transport, as Rust's `client.wire()` and Python's `client.wire` are. A channel delivered on a resource's scope is read on the wire for its resource, `client.wire.frames(channel, resourceId)`, and the read holds the scope while it is read.
 
-The paths are documented end-to-end (with code shapes and call-site examples) in [`docs/builder/REACTIVE-MODEL.md`](../builder/REACTIVE-MODEL.md#two-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
+The paths are documented end-to-end (with code shapes and call-site examples) in [`docs/builder/REACTIVE-MODEL.md`](../builder/REACTIVE-MODEL.md#two-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `client.wire.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 
 ## The registry is the authority; every language is generated
 
@@ -390,7 +388,7 @@ legible.
 |---|---|---|
 | the key | `correlationId` | `jobId`, `resourceId`, `annotationId` |
 | where it rides | the frame's **envelope** | inside the **payload** |
-| who sets it | `busRequest`, per request | the domain, per thing |
+| who sets it | `Bus.request`, per request | the domain, per thing |
 | matched by | the gateway ledger, before delivery | the consumer, after delivery |
 | the `delivery` axis | classifies these | says nothing about these |
 
@@ -440,7 +438,7 @@ Then for the OpenAPI schema:
 
 And for the SDK:
 
-7. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
+7. Add a namespace method that wraps `this.wire.emit(channel, ...)` or `this.wire.request(...)` for the new operation.
 8. Update [docs/builder/Usage.md](../builder/Usage.md) under the right verb.
 
 Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and `validate-registry.mjs` make incomplete additions fail loud and clear.

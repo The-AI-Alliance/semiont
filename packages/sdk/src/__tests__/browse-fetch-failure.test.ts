@@ -8,7 +8,7 @@
  * stay `pending`. That is correct for the subscribe path. But a one-shot read
  * that only waited on the stream for its first value never saw one and never
  * rejected — so it hung indefinitely when the result was lost on the wire,
- * instead of surfacing the `bus.timeout` / `bus.rejected` the busRequest
+ * instead of surfacing the `bus.timeout` / `bus.rejected` the Bus.request
  * already produced.
  *
  * The contract this pins:
@@ -20,7 +20,7 @@
  *      errors. Keys WITH a stale value keep B6 stale-beats-error: never
  *      `failed`.
  *
- * No gateway: a fake transport drives `busRequest` to a deterministic
+ * No gateway: a fake transport drives `Bus.request` to a deterministic
  * failure-channel rejection.
  */
 
@@ -34,10 +34,10 @@ import { inMemoryTransport } from './helpers/in-memory-transport';
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
- * Minimal `ITransport` stand-in exercising only what `busRequest` touches:
+ * Minimal `ITransport` stand-in exercising only what `Bus.request` touches:
  * `emit(channel, payload)` and `stream(channel)`. `onEmit` lets a test react
  * to an outbound request; `push` injects a response onto the SAME subject the
- * transport's `stream(...)` hands back, so busRequest's subscriber receives it.
+ * transport's `stream(...)` hands back, so Bus.request's subscriber receives it.
  */
 function makeFakeTransport() {
   // One typed bus: the transport streams from it and the test pushes into
@@ -87,7 +87,7 @@ describe('browse read — await semantics on fetch failure', () => {
     browse = new BrowseNamespace(fake.transport, bus, noopContent);
 
     // Every annotations request gets an immediate failure response on the
-    // matching correlationId. busRequest subscribes to the failure stream
+    // matching correlationId. Bus.request subscribes to the failure stream
     // before emitting, so a synchronous push during emit is delivered.
     setOnEmit((channel, correlationId) => {
       if (channel === 'browse:annotations-requested') {

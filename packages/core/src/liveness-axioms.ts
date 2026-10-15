@@ -20,7 +20,7 @@
  * Framework-agnostic on purpose — only `rxjs` + `fast-check`, no `vitest` — so
  * it ships through `@semiont/core/testing` and any package's test runner can
  * invoke it. Deterministic virtual time: properties pass a small explicit
- * `timeoutMs` to `busRequest`; no `Date.now`, no 30 s real waits.
+ * `timeoutMs` to `Bus.request`; no `Date.now`, no 30 s real waits.
  */
 
 import * as fc from 'fast-check';
@@ -48,7 +48,7 @@ export interface LivenessAxiomSpec {
   /** Build a FRESH composition wired to the given transport. Called per run. */
   setup: (transport: FaultyTransport) => LivenessScenario | Promise<LivenessScenario>;
   /**
-   * The timeoutMs the scenario passes to `busRequest` — the bound is derived
+   * The timeoutMs the scenario passes to `Bus.request` — the bound is derived
    * from it: (timeoutMs × (1 + retryBudget) + Σdelays) × slackFactor.
    */
   timeoutMs: number;

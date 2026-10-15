@@ -5,7 +5,7 @@ import { test, expect } from '../fixtures/auth';
  * entity-types cache.
  *
  * Regression target: the entity-types-missing bug caused by the SSE
- * reconnect storm eating the busRequest response. If entity types are
+ * reconnect storm eating the Bus.request response. If entity types are
  * observable in the UI, the full chain is working: frontend fetch →
  * /bus/emit → gateway handler → response → SSE → actor.on$ → BehaviorSubject → UI.
  */

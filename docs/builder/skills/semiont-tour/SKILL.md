@@ -224,9 +224,9 @@ room, which is the drive-versus-report loop the split exists to prevent.
 
 For anything long-running, build on [`semiont-session`](../semiont-session/SKILL.md) rather
 than a bare client: a tour that outlives its access token needs the refresh machinery, and
-`session.client.bus.on(channel)` is the SDK equivalent of `semiont listen`, and the same
-with the resource's scope held (`session.client.transport.subscribeToResource(resourceId)`)
-of `semiont listen --scope`.
+`session.client.bus.on(channel)` is the SDK equivalent of `semiont listen`, and
+`session.client.wire.frames(channel, resourceId)`, which holds the resource's scope while it
+is read, of `semiont listen --scope`.
 
 **Either surface drives a tour.** The launcher's moves are one command each with no
 token lifecycle to own; the SDK path is the same wire with a programmable driver around it.

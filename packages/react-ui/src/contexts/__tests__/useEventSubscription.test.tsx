@@ -257,7 +257,7 @@ describe('useResourceEventSubscriptions', () => {
   }
 
   it("holds the resource's scope while mounted, and is given that resource's events only", () => {
-    const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+    const { SemiontWrapper, client } = createTestSemiontWrapper();
     const leave = vi.fn();
     const held = vi.spyOn(client.transport, 'subscribeToResource').mockReturnValue(leave);
     const seen: string[] = [];
@@ -268,9 +268,11 @@ describe('useResourceEventSubscriptions', () => {
     );
     expect(held).toHaveBeenCalledExactlyOnceWith(RID);
 
+    // Each delivered from the wire on its own resource's scope, as the
+    // gateway delivers a resource's events.
     act(() => {
-      eventBus.emit('mark:archived', archived(RID));
-      eventBus.emit('mark:archived', archived(OTHER));
+      void client.transport.emit('mark:archived', archived(RID), { scope: RID });
+      void client.transport.emit('mark:archived', archived(OTHER), { scope: OTHER });
     });
     expect(seen).toEqual(['evt-res-1']);
 

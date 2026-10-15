@@ -26,7 +26,7 @@
  *
  * NOT checked here: "every reply channel is bridged." A channel must be bridged
  * iff it has a *remote* (SSE/HttpTransport) consumer, which is encoded only in
- * `busRequest` calls — and those already constrain their result/failure channels
+ * `Bus.request` calls — and those already constrain their result/failure channels
  * to `BridgedChannel` at compile time. A reply-*named* channel that is no
  * operation's reply is correctly unbridged (e.g. `mark:body-update-failed`:
  * `mark:update-body` is a command with no reply pair, and its failure reaches
@@ -134,7 +134,7 @@ describe('bus channel-classification invariants', () => {
   it('mark:update-entity-types is a registered operation with correlated -ok/-failed replies', () => {
     // A resource's own entity-type classification is a confirmed gateway write —
     // registered like its sibling metadata mutations (mark:delete/archive) so the
-    // SDK's busRequest awaits the correlation-keyed reply and rejects on failure,
+    // SDK's Bus.request awaits the correlation-keyed reply and rejects on failure,
     // NOT a fire-and-forget local emit whose failure has nowhere to go.
     // Widened to a plain Record so this reads as a runtime registry assertion
     // rather than a compile error on a missing `as const` key.

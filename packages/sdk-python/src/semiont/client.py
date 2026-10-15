@@ -92,6 +92,7 @@ class SemiontClient[T: Transport]:
         """The bus over the transport, typed by channel: an emit, a channel's frames, a request."""
         transport.bridge_into(self.bus)
         self._links: Final = Links(
+            transport=transport,
             wire=self.wire,
             own=self.bus,
             bus_request_ms=kept.bus_request_ms,

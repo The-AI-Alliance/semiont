@@ -154,7 +154,7 @@ function opened(href: string) {
 
 ### Public bus access
 
-The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The sanctioned escape hatch for arbitrary-channel subscription is the client's own bus, `semiont.bus.on(channel)`; a channel of a resource's scope is heard only while that scope is held (`semiont.transport.subscribeToResource(resourceId)`). See [`REACTIVE-MODEL.md` § Two paths to the bus](./REACTIVE-MODEL.md#two-paths-to-the-bus).
+The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The sanctioned escape hatch for a channel read by name is the client's own bus, `semiont.bus.on(channel)`, or the typed bus over its transport, `semiont.wire` (`emit`, `frames`, `request`). A channel of a resource's scope is read on the wire for its resource, `semiont.wire.frames(channel, resourceId)`, which holds the scope while it is read. See [`REACTIVE-MODEL.md` § Two paths to the bus](./REACTIVE-MODEL.md#two-paths-to-the-bus).
 
 ## Yield
 
@@ -631,7 +631,7 @@ changed subscription is handed to a new stream make-before-break, with the
 state `open` throughout and nothing missed. After a drop the client resumes
 each scope from its persisted-event watermark, the server replays only what
 was missed (or signals `bus:resume-gap`, and the scope's caches are asked for
-again), outstanding `busRequest` replies are re-requested from the server's
+again), outstanding requests' replies are re-requested from the server's
 retention buffer (`pendingReplies`), and the caches fed by events with no
 watermark — lists of resources, resources, entity types, tag schemas, the
 collaborator directory — are asked for again. See
@@ -640,7 +640,7 @@ contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. A worker's claiming is the SDK's own: `client.job.claim`, which runs over the client's transport. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. Every `ITransport` is one, and so is the HTTP `ActorStateUnit` from `@semiont/http-transport`. A worker claims jobs like this:
+Worker-side adapters consume `BusPrimitive`, the transport-neutral bus interface that `@semiont/core` exports, and what a `Bus` is built over. A worker's claiming is the SDK's own: `client.job.claim`, which runs over the client's transport. The primitive has seven members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; `isSubscribed(channel)`; and `subscribeToResource(resourceId)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. Every `ITransport` is one. The HTTP `ActorStateUnit` from `@semiont/http-transport` has all of it but `subscribeToResource`, which its transport owns. A worker claims jobs like this:
 
 ```typescript sketch
 const claims = client.job.claim({
