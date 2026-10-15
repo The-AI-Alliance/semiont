@@ -359,6 +359,47 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].
 
+## State units
+
+A state unit holds one flow as state, for an application to read and watch:
+a terminal, a daemon and an agent read one alike. It is built over a client it
+never closes, inside a running event loop, and it hears the client's own bus
+from the moment it exists. Each thing it holds is a `Watched[T]`: its value
+now is `.value`, and `async for` gives that value and then each change, until
+the unit ends. A new session has a new client, so a unit lasts as long as the
+session it was built from. `dispose()` ends a unit, and so does leaving
+`async with`, by which time what it had running has ended.
+
+| Unit | holds | hears, or is told |
+|---|---|---|
+| `MarkStateUnit` (one resource) | the annotation being composed; the motivation, id and progress of the delegated job running, the motivation that progress is of, and why the last job ended without completing | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
+| `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
+| `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match.request_search` |
+| `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
+| `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
+| `HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `enter`, `leave` |
+| `SearchPipeline[T]` | a query and the results of the query it settled on | `set_query` |
+
+This shows what is hovered as it changes:
+
+```python
+from semiont.state import BeckonStateUnit
+
+
+async def show_hover(beckon: BeckonStateUnit) -> None:
+    # What it holds now, then each change, until the unit is disposed.
+    async for hovered in beckon.hovered_annotation_id:
+        match hovered:
+            case None:
+                print("nothing hovered")
+            case annotation:
+                print("hovering", annotation)
+```
+
+What every SDK's units do is one table,
+[`specs/src/client/state-units.json`][state-units-cases], which this
+package's tests run. The ideas behind them are in [State Units][state-units].
+
 ## A worker
 
 A worker claims jobs from a knowledge base's queue, does each one, and says
@@ -860,6 +901,7 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `semiont.errors`, `semiont.timing`, `semiont.retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
 | `semiont.watched`, `semiont.events` | A value that changes and a sequence of events: what a state and a channel's frames are read as |
+| `semiont.state`, `semiont.state_unit`, `semiont.session_signals` | The state units, what every unit commits to, and the session's signals: that it ended, that a request was refused for lack of permission, that another knowledge base answers at a registered address |
 | `semiont.media_types` | The media types a knowledge base admits, with where the text of each comes from and whether it can be authored or generated, and the rules read from them: the format a clone takes and the name content is stored under; and, of any media type, where its text comes from (`text_source_of`), whether that text comes with where each run of it is on a page (`yields_geometry_of`), and whether it is derived from the bytes and not decoded from them (`derives_text_of`) |
 | `semiont.resources` | The readers of a resource, whether its representations are one or a list: `primary_representation`, `primary_media_type` and `resource_entity_types`. And `decode_representation`, which makes a text of the bytes of a resource whose bytes are its text, and refuses any other |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
@@ -916,4 +958,6 @@ Apache-2.0. See [LICENSE][license].
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
 [testing]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/TESTING.md
+[state-units]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md
+[state-units-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/state-units.json
 [license]: https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE

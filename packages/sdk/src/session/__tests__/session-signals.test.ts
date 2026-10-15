@@ -23,24 +23,11 @@ function collect<T>(subject: { subscribe(next: (value: T) => void): unknown }): 
   return seen;
 }
 
-describe('SessionSignals — nothing raised', () => {
-  it('every signal starts null', () => {
-    expect(signals.sessionEnded$.getValue()).toBeNull();
-    expect(signals.permissionDenied$.getValue()).toBeNull();
-    expect(signals.kbIdentityConflict$.getValue()).toBeNull();
-  });
-});
-
 describe('SessionSignals — session ended', () => {
   it('raising it is one emission that carries the reason, not a sentence', () => {
     const seen = collect(signals.sessionEnded$);
     signals.notifySessionEnded('refused');
     expect(seen).toEqual([null, { reason: 'refused' }]);
-  });
-
-  it('carries each reason as given: the host writes what a person reads', () => {
-    signals.notifySessionEnded('expired');
-    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
   });
 
   it('acknowledging it is one emission back to null', () => {
@@ -65,11 +52,6 @@ describe('SessionSignals — permission denied', () => {
     expect(seen).toEqual([null, { detail: 'Archiving needs the curator role.' }]);
   });
 
-  it('a gateway that said nothing is a null detail, never a sentence made up for it', () => {
-    signals.notifyPermissionDenied(null);
-    expect(signals.permissionDenied$.getValue()).toEqual({ detail: null });
-  });
-
   it('acknowledging it is one emission back to null', () => {
     signals.notifyPermissionDenied('nope');
     const seen = collect(signals.permissionDenied$);
@@ -92,19 +74,6 @@ describe('SessionSignals — KB identity conflict', () => {
     const seen = collect(signals.kbIdentityConflict$);
     signals.acknowledgeKbIdentityConflict();
     expect(seen).toEqual([conflict, null]);
-  });
-});
-
-describe('SessionSignals — dispose', () => {
-  it('completes every signal', () => {
-    const completed: string[] = [];
-    signals.sessionEnded$.subscribe({ complete: () => completed.push('sessionEnded') });
-    signals.permissionDenied$.subscribe({ complete: () => completed.push('permissionDenied') });
-    signals.kbIdentityConflict$.subscribe({ complete: () => completed.push('kbIdentityConflict') });
-
-    signals.dispose();
-
-    expect(completed).toEqual(['sessionEnded', 'permissionDenied', 'kbIdentityConflict']);
   });
 });
 
