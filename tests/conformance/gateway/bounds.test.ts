@@ -16,7 +16,7 @@ import { eachPlane } from '../harness/world';
 
 /** Unvalidated, so its payload can be any size. */
 const CHANNEL = 'mark:added';
-/** Under the NATS default max_payload (1 MiB) with room for the envelope. */
+/** Well under the largest emit the gateway and the broker take. */
 const FRAME_BYTES = 512 * 1024;
 
 eachPlane('connection bounds', (world) => {

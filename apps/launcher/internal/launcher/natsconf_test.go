@@ -1,6 +1,9 @@
 package launcher
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"testing"
@@ -47,8 +50,42 @@ func TestBrokerReadsItsKeptPairAsText(t *testing.T) {
 	}
 }
 
-// The parser the test above reads with is the launched broker's: the module's
-// version is the image's. A broker moved alone would leave that test proving
+// The broker takes a message twice as large as the largest emit the gateway
+// takes, read from the spec the gateway reads it from. A broker that takes less
+// refuses the publish of an emit the gateway accepted, and the emitter is told
+// the plane is down: a reply too large for the broker is never sent.
+func TestBrokerTakesTwiceTheLargestEmit(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "paths", "bus_emit.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var emit struct {
+		Post struct {
+			Limits struct {
+				MaxBodyBytes int64 `json:"maxBodyBytes"`
+			} `json:"x-semiont-limits"`
+		} `json:"post"`
+	}
+	if err := json.Unmarshal(b, &emit); err != nil {
+		t.Fatal(err)
+	}
+	largest := emit.Post.Limits.MaxBodyBytes
+	if largest <= 0 {
+		t.Fatalf("POST /bus/emit states no x-semiont-limits.maxBodyBytes")
+	}
+	t.Setenv("NATS_USER", natsConfString(brokerUser))
+	t.Setenv("NATS_PASSWORD", natsConfString("a-password"))
+	doc, err := conf.Parse(string(natsConf()))
+	if err != nil {
+		t.Fatalf("nats-server refuses the staged config: %v", err)
+	}
+	if got, want := doc["max_payload"], 2*largest; got != want {
+		t.Errorf("the broker takes messages of %#v bytes, want %d: twice the largest emit, %d", got, want, largest)
+	}
+}
+
+// The parser the tests above read with is the launched broker's: the module's
+// version is the image's. A broker moved alone would leave those tests proving
 // a lexer nothing runs.
 func TestBrokerPairIsReadByTheLaunchedBrokersParser(t *testing.T) {
 	const module = "github.com/nats-io/nats-server/v2"

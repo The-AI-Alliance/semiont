@@ -196,7 +196,7 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 // can name it without knowing where the launcher staged the file.
 const natsConfPath = "/etc/nats/semiont.conf"
 
-// natsConf: the broker's authorization block.
+// natsConf: the broker's authorization block, and the largest message it takes.
 //
 // It carries NO credential — only the two variable NAMES, which nats-server
 // interpolates from its own environment. That is what lets the values travel
@@ -206,6 +206,12 @@ const natsConfPath = "/etc/nats/semiont.conf"
 //
 // nats-server reads no credential from the environment by itself, which is why
 // this file has to exist at all.
+//
+// max_payload is 16 MiB, twice the largest emit the gateway takes
+// (`x-semiont-limits.maxBodyBytes` of POST /bus/emit), so a frame and the
+// envelope it is published in always fit. The broker's default is 1 MiB, and a
+// broker that takes less than the gateway refuses the publish of an emit the
+// gateway accepted.
 func natsConf() []byte {
 	return []byte(`# Rendered by the Semiont launcher. Contains no secret: the values are
 # interpolated from this daemon's own environment at startup.
@@ -213,6 +219,7 @@ authorization {
   user: $NATS_USER
   password: $NATS_PASSWORD
 }
+max_payload: 16777216
 `)
 }
 
