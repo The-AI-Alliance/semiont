@@ -303,7 +303,7 @@ const added = client.bus
 // later: added.unsubscribe(); leave();
 ```
 
-Rust and Python read such a channel through the client's typed bus over its transport (`client.wire`), whose read holds the scope itself: in Rust `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile; in Python `bus.frames(MARK_ADDED, resource)`, and a type checker refuses `bus.frames(MARK_ADDED)`.
+Rust and Python read such a channel through a typed bus over the client's transport, whose read holds the scope itself. In Rust it is `semiont::bus::Bus`, built over `client.transport()`: `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile. In Python it is `client.wire`: `client.wire.frames(MARK_ADDED, resource)`, and a type checker refuses `client.wire.frames(MARK_ADDED)`.
 
 `on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:
 
