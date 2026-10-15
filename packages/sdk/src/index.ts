@@ -122,7 +122,9 @@ export type {
   ITransport,
   // The state-unit contract — the pattern every layer's factories implement
   // (docs/builder/STATE-UNITS.md); it lives in core so layers below the sdk share it.
+  // A unit's state is a `Watched`.
   StateUnit,
+  Watched,
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,
   BusRequestErrorCode,
@@ -143,6 +145,8 @@ export {
   // Bus-mediated command error — re-exported for catch-convenience (defined in
   // @semiont/core next to `Bus`).
   BusRequestError,
+  // The read-only view a state unit hands out of a state it holds.
+  watched,
 } from '@semiont/core';
 
 // The annotation readers. An annotation's target is an id or an object, its

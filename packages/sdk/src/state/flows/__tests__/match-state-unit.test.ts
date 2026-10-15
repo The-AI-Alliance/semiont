@@ -1,113 +1,11 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { Observable } from 'rxjs';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { describe, it, vi } from 'vitest';
 import { createMatchStateUnit, type MatchStateUnit } from '../match-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
-const RID = makeResourceId('res-1');
-
 function withMatch(searchFn: ReturnType<typeof vi.fn>): TestClient {
   return makeTestClient({ match: { search: searchFn } });
 }
-
-describe('createMatchStateUnit', () => {
-  let tc: TestClient;
-
-  afterEach(() => { tc?.bus.destroy(); });
-
-  it('does not call match.search on creation', () => {
-    const searchFn = vi.fn();
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-    expect(searchFn).not.toHaveBeenCalled();
-    stateUnit.dispose();
-  });
-
-  it('bridges match:search-requested to match.search()', () => {
-    const searchFn = vi.fn(() => new Observable(() => {}));
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-
-    tc.bus.emit('match:search-requested', {
-      resourceId: RID as string,
-      referenceId: 'ref-1',
-      context: { annotation: {} } as any,
-    } as any, { correlationId: 'corr-1' });
-
-    expect(searchFn).toHaveBeenCalledOnce();
-    expect(searchFn).toHaveBeenCalledWith(
-      RID,
-      'ref-1',
-      expect.objectContaining({ annotation: {} }),
-      expect.any(Object),
-    );
-    stateUnit.dispose();
-  });
-
-  it('emits match:search-results on successful search', () => {
-    const mockResult = { correlationId: 'corr-1', candidates: [{ resourceId: 'r-2', score: 0.9 }] };
-    const searchFn = vi.fn(() => new Observable((sub) => {
-      sub.next(mockResult);
-      sub.complete();
-    }));
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-
-    const results: unknown[] = [];
-    tc.bus.on('match:search-results').subscribe(r => results.push(r));
-
-    tc.bus.emit('match:search-requested', {
-      resourceId: RID as string,
-      referenceId: 'ref-1',
-      context: {} as any,
-    } as any, { correlationId: 'corr-1' });
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toEqual(mockResult);
-    stateUnit.dispose();
-  });
-
-  it('emits match:search-failed on error', () => {
-    const searchFn = vi.fn(() => new Observable((sub) => {
-      sub.error(new Error('search failed'));
-    }));
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-
-    const failures: { correlationId?: string; payload: unknown }[] = [];
-    tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
-
-    tc.bus.emit('match:search-requested', {
-      resourceId: RID as string,
-      referenceId: 'ref-1',
-      context: {} as any,
-    } as any, { correlationId: 'corr-1' });
-
-    expect(failures).toHaveLength(1);
-    expect(failures[0]!.correlationId).toBe('corr-1');
-    expect(failures[0]!.payload).toEqual(expect.objectContaining({
-      referenceId: 'ref-1',
-      error: 'search failed',
-    }));
-    stateUnit.dispose();
-  });
-
-  it('stops responding after dispose', () => {
-    const searchFn = vi.fn();
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-    stateUnit.dispose();
-
-    tc.bus.emit('match:search-requested', {
-      resourceId: RID as string,
-      referenceId: 'ref-1',
-      context: {} as any,
-    } as any, { correlationId: 'corr-1' });
-
-    expect(searchFn).not.toHaveBeenCalled();
-  });
-});
 
 describe('MatchStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {

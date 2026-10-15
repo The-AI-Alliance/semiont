@@ -24,6 +24,7 @@ from readme import (
     building_annotations,
     content,
     live_queries,
+    state_units,
     testing,
     the_bus,
     the_client,
@@ -39,6 +40,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.identity import agent_did
 from semiont.operations import JOB_CLAIM
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
+from semiont.state import BeckonStateUnit
 from semiont.testing import FaultyTransport, PutBinary, create_test_client
 from semiont.transport import Content, Frame
 from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, PdfTextItem
@@ -327,6 +329,27 @@ def test_live_queries_shows_each_state_of_a_watched_query_until_its_client_close
     run(watched(refused))
     # A failure is a state: the watcher lived through it, to the client's end.
     assert capsys.readouterr().out.splitlines() == ["asking", "failed: bus.rejected"]
+
+
+def test_state_units_shows_what_is_hovered_as_it_changes_until_the_unit_is_disposed(capsys: pytest.CaptureFixture[str]) -> None:
+    async def watched() -> None:
+        made = create_test_client()
+        async with made.client as client:
+            beckon = BeckonStateUnit(client)
+            watching = asyncio.ensure_future(state_units.show_hover(beckon))
+            await settle()
+            client.beckon.hover(ANNOTATION)
+            await settle()
+            client.beckon.hover(None)
+            await settle()
+            assert not watching.done()
+            beckon.dispose()
+            # Its states ended, and so did the watching.
+            await soon(watching)
+        await made.transport.close()
+
+    run(watched())
+    assert capsys.readouterr().out.splitlines() == ["nothing hovered", "hovering ann-1", "nothing hovered"]
 
 
 def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchanged_for(capsys: pytest.CaptureFixture[str]) -> None:

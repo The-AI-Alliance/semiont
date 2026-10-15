@@ -73,7 +73,7 @@ The guides' examples are TypeScript. The namespaces, methods and behaviour are t
 
 - **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
-- **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries and sessions, and no state units and no registry of several knowledge bases.
+- **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions and the state units, and no registry of several knowledge bases.
 
 ## Agent skills
 
