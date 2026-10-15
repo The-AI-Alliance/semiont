@@ -9,8 +9,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::client::SemiontClient;
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
-    KbIdentityConflict, PermissionDenied, SemiontSession, SemiontSessionConfig, SessionEndReason,
-    SessionEnded, SessionSignals, StoredSession, session_key, store_session, stored_session,
+    SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, StoredSession,
+    session_key, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
 use semiont::storage::SessionStorage;
@@ -1057,46 +1057,6 @@ async fn an_ended_session_hears_nothing_of_the_storage() {
 
 // ── What a host shows about a session ───────────────────────────────────
 
-fn ended(reason: SessionEndReason) -> Option<SessionEnded> {
-    Some(SessionEnded { reason })
-}
-
-fn denied(detail: Option<&str>) -> Option<PermissionDenied> {
-    Some(PermissionDenied {
-        detail: detail.map(str::to_owned),
-    })
-}
-
-#[test]
-fn nothing_is_raised_until_something_is() {
-    let signals = SessionSignals::new();
-    assert_eq!(*signals.session_ended().borrow(), None);
-    assert_eq!(*signals.permission_denied().borrow(), None);
-    assert_eq!(*signals.kb_identity_conflict().borrow(), None);
-}
-
-#[test]
-fn a_notice_carries_what_happened_not_a_sentence() {
-    let signals = SessionSignals::new();
-    signals.notify_session_ended(SessionEndReason::Refused);
-    signals.notify_permission_denied(Some("Archiving needs the curator role."));
-    assert_eq!(
-        *signals.session_ended().borrow(),
-        ended(SessionEndReason::Refused)
-    );
-    assert_eq!(
-        *signals.permission_denied().borrow(),
-        denied(Some("Archiving needs the curator role."))
-    );
-}
-
-#[test]
-fn a_gateway_that_said_nothing_is_no_detail_never_a_sentence_made_up_for_it() {
-    let signals = SessionSignals::new();
-    signals.notify_permission_denied(None);
-    assert_eq!(*signals.permission_denied().borrow(), denied(None));
-}
-
 #[test]
 fn a_reason_is_named_as_the_table_names_it() {
     assert_eq!(SessionEndReason::Expired.as_str(), "expired");
@@ -1115,26 +1075,6 @@ fn a_second_occurrence_is_told_even_when_it_says_the_same() {
     signals.notify_session_ended(SessionEndReason::Expired);
     signals.notify_permission_denied(None);
     assert!(ended.moved() && denied.moved());
-}
-
-#[test]
-fn acknowledging_a_signal_lowers_it() {
-    let signals = SessionSignals::new();
-    let conflict = KbIdentityConflict {
-        expected_did: "did:web:example.org:kb-a".to_owned(),
-        observed_did: "did:web:example.org:kb-b".to_owned(),
-    };
-    signals.notify_session_ended(SessionEndReason::Expired);
-    signals.notify_permission_denied(None);
-    signals.notify_kb_identity_conflict(conflict.clone());
-    assert_eq!(*signals.kb_identity_conflict().borrow(), Some(conflict));
-
-    signals.acknowledge_session_ended();
-    signals.acknowledge_permission_denied();
-    signals.acknowledge_kb_identity_conflict();
-    assert_eq!(*signals.session_ended().borrow(), None);
-    assert_eq!(*signals.permission_denied().borrow(), None);
-    assert_eq!(*signals.kb_identity_conflict().borrow(), None);
 }
 
 struct Signals;

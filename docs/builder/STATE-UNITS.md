@@ -1,8 +1,8 @@
 # State units
 
-A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Both SDKs are built from them, and both hold their units to the same axioms.
+A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Every SDK is built from them, holds its units to the same axioms, and runs one table of what each of the SDK's units does.
 
-The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust. This doc states the pattern first, then each language's form of it.
+The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python. This doc states the pattern first, then each language's form of it.
 
 ## What state units do
 
@@ -46,7 +46,7 @@ These hold in every SDK. The ids are the axioms' names in both test harnesses.
 
 `@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor `@semiont/http-transport` keeps inside each transport, and the per-feature page state units in `@semiont/react-ui` are all instances of it.
 
-A unit's surface is RxJS: state and events are `Observable` fields, and what writes them is a `Subject` held in the unit's closure.
+A unit's surface is RxJS. Its state is a `Watched<T>` field: an `Observable` that also gives its value now (`getValue()`), a disposed unit's too. Its events are `Observable` fields. What writes either is a `Subject` held in the unit's closure. The SDK's units and the session's signals hand out their state as `Watched`; `@semiont/react-ui`'s page units and the HTTP transport's actor hand out plain `Observable` views.
 
 ### Who consumes them
 
@@ -70,9 +70,9 @@ A canonical factory:
 
 ```ts
 export interface FooStateUnit extends StateUnit {
-  readonly loading$: Observable<boolean>;
-  readonly error$: Observable<Error | null>;
-  readonly result$: Observable<Result | null>;
+  readonly loading$: Watched<boolean>;
+  readonly error$: Watched<Error | null>;
+  readonly result$: Watched<Result | null>;
   trigger(input: Input): void;
 }
 
@@ -101,10 +101,10 @@ export function createFooStateUnit(session: SemiontSession): FooStateUnit {
   };
 
   return {
-    // Public surface — read-only Observable views.
-    loading$: loading$.asObservable(),
-    error$: error$.asObservable(),
-    result$: result$.asObservable(),
+    // Public surface — read-only views: subscribed to, or read for the value now.
+    loading$: watched(loading$),
+    error$: watched(error$),
+    result$: watched(result$),
     trigger,
     dispose: () => {
       subs.forEach((s) => s.unsubscribe());
@@ -128,7 +128,7 @@ Six things in this code recur in every state unit:
    keeps new factories on this signature; the only sanctioned `useStateUnit` consumers
    are browser-lifetime shell units.
 2. **Internal state in Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event streams.
-3. **Public surface is `.asObservable()` views.** Consumers can subscribe but can't push values.
+3. **Public surface is `watched(...)` views.** Consumers subscribe, or read the value now; they can't push values.
 4. **Inputs go through methods.** No direct property assignment; fields are `readonly`.
 5. **Subscriptions tracked.** Anything subscribed gets unsubscribed in `dispose()`.
 6. **`dispose()` is idempotent.** Safe to call twice; the second call is a no-op.
@@ -190,11 +190,11 @@ All state lives in the closure. **No module-scoped mutable state** — no module
 
 #### Reactive surface
 
-Every piece of state a consumer cares about is exposed as `Observable<T>` — not as a getter, not as a snapshot method, not as a callback. Consumers subscribe; they don't poll.
+Every piece of state a consumer cares about is exposed as `Watched<T>`: subscribed to for its value and each change, and read for its value now with `getValue()`. Not as a getter of the unit's own, not as a snapshot method, not as a callback.
 
 ```ts sketch
 // ✅
-loading$: Observable<boolean>;
+loading$: Watched<boolean>;
 
 // ❌ — synchronous getter for state-over-time
 get loading(): boolean { return loading$.value; }
@@ -203,9 +203,9 @@ get loading(): boolean { return loading$.value; }
 onProgress(callback: (e: ProgressEvent) => void): void;
 ```
 
-Public Observables are **read-only views** (`subject$.asObservable()`) over private Subjects held in the closure. The Subject is the authority; the Observable view is the attenuation. Consumers receive exactly the capability they need (subscribe), not the full power (`next`, `error`, `complete`).
+Public state is a **read-only view** (`watched(subject$)`) over a private Subject held in the closure. The Subject is the authority; the view is the attenuation. Consumers receive exactly the capability they need (subscribe, and the value now), not the full power (`next`, `error`, `complete`).
 
-**No raw origin `Subject` on the public surface.** Exposing a `new Subject`/`new BehaviorSubject` directly would let consumers `next()` arbitrary values, bypassing the unit's logic — expose `.asObservable()` instead. (A derived `AnonymousSubject` from `shareReplay().pipe(...)` is an inert sink and fine; the X1 check tells them apart by `.source`.)
+**No raw origin `Subject` on the public surface.** Exposing a `new Subject`/`new BehaviorSubject` directly would let consumers `next()` arbitrary values, bypassing the unit's logic — expose `watched(...)`, or `.asObservable()` for events, instead. (A derived `AnonymousSubject` from `shareReplay().pipe(...)` is an inert sink and fine; the X1 check tells them apart by `.source`.)
 
 #### Inputs
 
@@ -215,13 +215,13 @@ State changes happen through methods or input Subjects, never direct property as
 
 `dispose()` is idempotent and total: completes every owned Subject, unsubscribes every internal subscription, releases all resources. Calling it twice is safe.
 
-Subscribers attached before `dispose()` see a `complete` notification when it fires. After dispose, the unit is inert — methods no-op or throw, no further emissions arrive.
+Subscribers attached before `dispose()` see a `complete` notification when it fires. After dispose, the unit is inert — methods no-op or throw, no further emissions arrive. A completed `BehaviorSubject` still takes a value from `next`, which `getValue()` then gives, so nothing a disposed unit's methods or leftover callbacks do may call it.
 
 If the factory subscribes to something, `dispose()` must unsubscribe. If it starts a timer, `dispose()` must clear it. If it acquires a resource (file handle, abort controller, remote subscription), `dispose()` must release it. Anything the unit allocates during its lifetime ends with its lifetime.
 
 #### Synchronous snapshots
 
-A consumer that needs the current value without subscribing can read `.value` on a `BehaviorSubject` *that the unit chooses to hold in scope they have access to*. The pattern is mostly internal — the public Observable type is `Observable<T>`, not `BehaviorSubject<T>`, so consumer code can't `.value`-poke. Tests sometimes exercise the inside view (constructing the unit and reading `.value` on the underlying Subject) — that's a legitimate one-way capability split between the closure interior and the public surface.
+A consumer that needs the value now, without subscribing, reads `getValue()` on the unit's `Watched` state. A disposed unit's state gives the value it held when the unit ended.
 
 ### Anti-patterns
 
@@ -235,9 +235,9 @@ A few specific shapes are wrong and worth calling out:
 
 ### Writing a new state unit — checklist
 
-1. **Decide the surface.** What state does the consumer need to observe? Each piece becomes an `Observable<T>` field. What inputs does the consumer push? Each becomes a method or an input Subject the unit observes. If the unit touches a session-scoped client, the factory takes `SemiontSession` (destructure `client` inside) — see Anatomy note 1.
+1. **Decide the surface.** What state does the consumer need to observe? Each piece becomes a `Watched<T>` field, and each stream of events an `Observable<T>` one. What inputs does the consumer push? Each becomes a method or an input Subject the unit observes. If the unit touches a session-scoped client, the factory takes `SemiontSession` (destructure `client` inside) — see Anatomy note 1.
 2. **Hold internal state in private Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event-stream semantics.
-3. **Expose `.asObservable()` on the public surface.** Never expose the raw Subject.
+3. **Expose `watched(subject)` on the public surface** (`.asObservable()` for events). Never expose the raw Subject.
 4. **Decide activation timing.** Does the factory return ready-to-subscribe, or does it need an explicit `start()`? Either is fine; `dispose()` must work either way.
 5. **Track every internal subscription.** Use a `Subscription[]` or `createDisposer()`. On `dispose()`, unsubscribe all of them and complete every Subject you own.
 6. **Compose by parameter, not by ownership.** Take collaborators as arguments. Don't dispose passed-in collaborators.
@@ -248,42 +248,50 @@ A few specific shapes are wrong and worth calling out:
 
 A unit is a struct built over an `Arc<SemiontClient>` it never closes. Its state is read through `tokio::sync::watch` receivers, the value now and each value after it, and its events through streams. The senders stay private to the unit. `dispose` ends it, and so does dropping it.
 
-Two of the TypeScript rules have no Rust form. A unit is a struct, not a closure. And a `watch` receiver gives the current value directly, so the rule against a synchronous getter does not apply.
+One TypeScript rule has no Rust form: a unit is a struct, not a closure.
 
 The Rust README lists [the units and what each holds](../../packages/sdk-rust/README.md#state-units), and has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk).
+
+## In Python
+
+A unit is a class built over a client it never closes, inside a running event loop, and it names `StateUnit` (`semiont.state_unit`) as its base. Each thing it holds is a `Watched[T]` (`semiont.watched`): `.value` is the value now, and `async for` gives that value and then each change, until the unit ends; a reader that falls behind is given the latest. What writes it is a `Variable` the unit keeps to itself. A unit hears the client's own bus from the moment it exists, in the order things were said, and acts a turn of the loop later. `dispose()` ends it, and so does leaving `async with`, by which time what it had running has ended.
+
+As in Rust, a unit is a class, not a closure. The Python README lists [the units and what each holds](../../packages/sdk-python/README.md#state-units), with a program that watches one.
 
 ## How these rules are enforced
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
-That is the TypeScript harness. The Rust SDK holds its units with one of its own, `semiont::testing::axioms`, under the same ids; the last column says which rules both SDKs hold.
+That is the TypeScript harness. Rust's (`semiont::testing::axioms`) and Python's (`semiont.testing.axioms`) hold their units under the same ids; the last column says which rules they hold too.
+
+What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/sdk/src/__tests__/state-cases.test.ts`, `packages/sdk-rust/tests/state_cases.rs` and `packages/sdk-python/tests/test_state_cases.py`.
 
 Five enforcement tiers:
 
-| Tier | Mechanism | Rules | Held in Rust too |
+| Tier | Mechanism | Rules | Held in Rust and Python too |
 |---|---|---|---|
-| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3 |
-| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `Bus.request` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs | L1, L2, L3 |
-| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned |
-| **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | no `class` in a `*-state-unit.ts` file (TypeScript's convention: its units are made by factories) · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3, as a test that fails any `static` item |
+| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3: both |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `Bus.request` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs | L1, L2, L3: Rust |
+| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned: both; X1: Python |
+| **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | no `class` in a `*-state-unit.ts` file (TypeScript's convention: its units are made by factories) · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3: Rust, as a test that fails any `static` item; Python, as a test that fails module state not marked `Final` |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test.
+Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test and `packages/sdk-python/tests/test_census.py` a Python one.
 
 ### Rule reference
 
 - **No class in a state-unit file — TypeScript's convention, not an axiom.** TypeScript makes its units by factories returning plain objects, and a static check holds `*-state-unit.ts` files to it. The axioms say how a unit behaves, the same in every SDK; how a unit is represented is each language's (a Rust unit is a struct, a Python unit a class, and TypeScript's `SemiontSession` a class).
-- **X1 — no raw origin Subject on the public surface.** A field that is `instanceof Subject` with `.source === undefined` (a `new Subject`/`new BehaviorSubject` — the unit's own state) lets consumers `next()` past the unit's logic; expose `.asObservable()`. Derived `AnonymousSubject`s from `shareReplay().pipe(...)` carry a `.source` and are inert sinks — excluded. *TypeScript. Rust has it by construction: a unit's senders are private.*
-- **X3 / X3-runtime — instance isolation.** Runtime: driving one instance never moves another's surfaces. Static: no module-scoped `let`/`var` or `const x = new Map/Subject/...`. The two are complementary — the static check catches shapes (e.g. a shared monotonic counter) whose leak doesn't change emission counts, which the runtime check can miss. *Both SDKs.*
-- **A5 / A5b — dispose is idempotent and total; methods are inert afterward.** *Both SDKs.*
-- **A6 — every owned Subject completes on dispose** (pre-dispose subscribers see `complete`; post-dispose subscriptions are inert). *Both SDKs.*
-- **A7-passed / A7-owned — compose by parameter.** Never dispose an injected dependency; always dispose a child you constructed internally. *Both SDKs.*
+- **X1 — no raw origin Subject on the public surface.** A field that is `instanceof Subject` with `.source === undefined` (a `new Subject`/`new BehaviorSubject` — the unit's own state) lets consumers `next()` past the unit's logic; expose `watched(...)`. Derived `AnonymousSubject`s from `shareReplay().pipe(...)` carry a `.source` and are inert sinks — excluded. *TypeScript and Python, whose harness fails a unit that hands out the `Variable` holding a state. Rust has it by construction: a unit's senders are private.*
+- **X3 / X3-runtime — instance isolation.** Runtime: driving one instance never moves another's surfaces. Static: no module-scoped `let`/`var` or `const x = new Map/Subject/...`. The two are complementary — the static check catches shapes (e.g. a shared monotonic counter) whose leak doesn't change emission counts, which the runtime check can miss. *Every SDK.*
+- **A5 / A5b — dispose is idempotent and total; methods are inert afterward.** *Every SDK.*
+- **A6 — every owned Subject completes on dispose** (pre-dispose subscribers see `complete`; post-dispose subscriptions are inert). *Every SDK.*
+- **A7-passed / A7-owned — compose by parameter.** Never dispose an injected dependency; always dispose a child you constructed internally. *Every SDK.*
 - **X5 — fire-and-forget signals return `void`, not `Promise<void>`.** A thin regression speed-bump: the SDK complies, and the script's allowlist holds the genuinely-awaiting acks (`delete`, `logout`, `addEntityType`, …). *TypeScript only: the rule is about `Promise<void>`.*
 - **A3-interior / X2 / X6 — review only.** Internal state held in Subjects, no `Promise<T>` on operations that have progress + a final value, and no exposing the same state on both the bus and a unit field — these resist a cheap static check and are caught in review. *TypeScript.*
 
 ### Deferred enforcement
 
-- **AST static checks (A2-static / A4-static / X1-static)** — that every `$`-suffixed field on a `XxxStateUnit` interface is typed `Observable<T>`, every Observable field is `readonly`, and no `Subject<T>` appears in an interface field position. These need the TypeScript compiler API (or ts-morph), not grep; deferred until review is shown to miss them.
+- **AST static checks (A2-static / A4-static / X1-static)** — that every `$`-suffixed field on a `XxxStateUnit` interface is typed `Watched<T>` or `Observable<T>`, every Observable field is `readonly`, and no `Subject<T>` appears in an interface field position. These need the TypeScript compiler API (or ts-morph), not grep; deferred until review is shown to miss them.
 - **A6-deep** — A6 attaches *k* subscribers then disposes; the deep version would generate random `subscribe / emit / unsubscribe / dispose` sequences and assert completion plus no post-unsubscribe emission. Deferred until a subscribe/unsubscribe-race bug slips past the shallow version.
 
 ## Why "state unit" and not "view-model"
@@ -296,3 +304,4 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 - [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
 - [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
+- [The Python SDK's README](../../packages/sdk-python/README.md#state-units) — the Python units, and a program that watches one.
