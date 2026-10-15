@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "description": "A knowledge base the host process has loaded and reaches through a transport with no wire.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "local"
+      ],
+      "description": "Discriminant: the endpoint is in the host process."
+    },
+    "kbId": {
+      "type": "string",
+      "description": "Which loaded knowledge base, named by an id that means something to the host process alone."
+    }
+  },
+  "required": [
+    "kind",
+    "kbId"
+  ]
+}

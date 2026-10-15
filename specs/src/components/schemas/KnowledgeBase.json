@@ -1,0 +1,11 @@
+{
+  "description": "A registered knowledge base: a target, and what registering it took, the identity the knowledge base reported of itself when it was reached (`did`) among it. What a client's list of knowledge bases holds. A did says which knowledge base, not which running copy: a clone and a codespace of one repository are one knowledge base at two addresses and report one did. So an entry is looked up by its endpoint, and its did is what an answer is verified against; nothing selects by did. Its `label` and `lastRead` are written only from an answer that carried its did.",
+  "allOf": [
+    {
+      "$ref": "./KbTarget.json"
+    },
+    {
+      "$ref": "./NewKnowledgeBase.json"
+    }
+  ]
+}

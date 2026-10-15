@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "Where to connect to a knowledge base: an endpoint, and the labels a client keeps of it. It carries no identity: which knowledge base answers at an address is known only once it has been reached with a token and asked, so a target is what every caller can build before then, and a session's whole input. A client keeps it locally; it is never sent.",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The key the client stores a session's credentials under. Two sessions that share one storage have two ids, or each overwrites the other's tokens. Whoever builds the target chooses it; none is made up."
+    },
+    "label": {
+      "type": "string",
+      "description": "What a person reads the knowledge base as. Once the knowledge base has described itself, its own name."
+    },
+    "endpoint": {
+      "$ref": "./KbEndpoint.json"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "endpoint"
+  ]
+}

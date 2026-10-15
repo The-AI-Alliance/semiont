@@ -37,9 +37,11 @@ use std::path::PathBuf;
 /// the job the queue holds, the parameters a generation job is created with,
 /// an event of the record as the stream carries it, the log settings every
 /// public crate's logging takes, the document a launcher publishes of the
-/// knowledge bases it manages, and a PDF's anchored text, which an annotation
-/// of a span of one is built over.
-const BESIDE: [&str; 8] = [
+/// knowledge bases it manages, a PDF's anchored text, which an annotation of
+/// a span of one is built over, and a knowledge base as a client names it:
+/// where to connect, what registering one takes, and what a registered one
+/// holds.
+const BESIDE: [&str; 11] = [
     "AnchoredText",
     "Job",
     "GenerationJobParams",
@@ -48,6 +50,9 @@ const BESIDE: [&str; 8] = [
     "LogLevel",
     "LogFormat",
     "DiscoveryDocument",
+    "KbTarget",
+    "KnowledgeBase",
+    "NewKnowledgeBase",
 ];
 
 /// A body that is not JSON: an upload is a multipart form, whose fields

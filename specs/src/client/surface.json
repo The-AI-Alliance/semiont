@@ -892,19 +892,7 @@
       "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession" },
       "members": [
         { "member": "id" },
-        {
-          "member": "kb",
-          "absent": {
-            "python": "Python has no type for a knowledge base's target (its id, its label and its endpoint), and no spec owns that shape: TypeScript and Rust each write it by hand, and a third hand-written copy is not made. Until the shape is the spec's, a Python session names its knowledge base by `kbId` alone."
-          }
-        },
-        {
-          "member": "kbId",
-          "absent": {
-            "typescript": "A TypeScript session names its knowledge base by `kb`, whose `id` this is. `kbId` is Python's alone until a knowledge base's target is a shape the spec owns.",
-            "rust": "A Rust session names its knowledge base by `kb`, whose `id` this is. `kbId` is Python's alone until a knowledge base's target is a shape the spec owns."
-          }
-        },
+        { "member": "kb" },
         { "member": "client" },
         { "member": "token" },
         { "member": "user" },

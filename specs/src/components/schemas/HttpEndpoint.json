@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (specs/src/session/gateway-url-cases.json).",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "http"
+      ],
+      "description": "Discriminant: the endpoint is a gateway reached over HTTP."
+    },
+    "host": {
+      "type": "string",
+      "description": "The gateway's host, as a person or a discovery document gave it."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The gateway's port."
+    },
+    "protocol": {
+      "type": "string",
+      "enum": [
+        "http",
+        "https"
+      ],
+      "description": "What the gateway is reached over."
+    }
+  },
+  "required": [
+    "kind",
+    "host",
+    "port",
+    "protocol"
+  ]
+}

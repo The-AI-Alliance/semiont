@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "description": "What registering a knowledge base takes: everything a registered one holds but its id, which the client's list makes. It has a did, because registering follows a sign-in: the knowledge base has already said what it is.",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "What a person reads the knowledge base as. Once the knowledge base has described itself, its own name."
+    },
+    "endpoint": {
+      "$ref": "./KbEndpoint.json"
+    },
+    "did": {
+      "type": "string",
+      "description": "The did the knowledge base reported of itself."
+    },
+    "lastRead": {
+      "allOf": [
+        {
+          "$ref": "./KbRead.json"
+        }
+      ],
+      "description": "The last time the knowledge base described itself. Absent until it has, in an answer that carried this entry's did."
+    }
+  },
+  "required": [
+    "label",
+    "endpoint",
+    "did"
+  ]
+}

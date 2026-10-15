@@ -37,10 +37,7 @@ pub use browser::{
     Expected, KbReadVerdict, SemiontBrowser, SemiontBrowserConfig, SignInOutcome, SignedIn,
 };
 pub use factory::{SessionFactory, SessionFactoryOptions};
-pub use knowledge_base::{
-    HttpEndpoint, KbEndpoint, KbRead, KbSessionStatus, KbTarget, KnowledgeBase, NewKnowledgeBase,
-    Protocol, is_valid_hostname,
-};
+pub use knowledge_base::{KbSessionStatus, is_valid_hostname};
 pub use open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
 pub use semiont_session::{
     OnAuthFailed, OnSessionError, OpenedSession, Refresh, SemiontSession, SemiontSessionConfig,

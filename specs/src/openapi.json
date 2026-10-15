@@ -588,6 +588,27 @@
       "KbDescription": {
         "$ref": "components/schemas/KbDescription.json"
       },
+      "HttpEndpoint": {
+        "$ref": "components/schemas/HttpEndpoint.json"
+      },
+      "KbEndpoint": {
+        "$ref": "components/schemas/KbEndpoint.json"
+      },
+      "KbRead": {
+        "$ref": "components/schemas/KbRead.json"
+      },
+      "KbTarget": {
+        "$ref": "components/schemas/KbTarget.json"
+      },
+      "KnowledgeBase": {
+        "$ref": "components/schemas/KnowledgeBase.json"
+      },
+      "LocalEndpoint": {
+        "$ref": "components/schemas/LocalEndpoint.json"
+      },
+      "NewKnowledgeBase": {
+        "$ref": "components/schemas/NewKnowledgeBase.json"
+      },
       "KnowledgeGraph": {
         "$ref": "components/schemas/KnowledgeGraph.json"
       },

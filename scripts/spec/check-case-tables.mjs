@@ -4,7 +4,8 @@
 // graph holds of an annotation and a resource and what the Weaver's fold does
 // to it, what a point of the vector index is and what the index answers, the
 // work a Smelter's start plans and what each kind of PDF becomes, what the
-// Librarian answers from what it reads, and the runners each must have.
+// Librarian answers from what it reads, the origin of a knowledge base's
+// gateway, and the runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
@@ -12,7 +13,8 @@
 // (what an offset counts, what text a resource's bytes are, the reconciling
 // of a quote, the locating of a span of a PDF, the builders, the id, the
 // readers of an annotation and of a resource) is run by the TypeScript, Rust
-// and Python SDKs, each through its own code. What Semiont's worker alone
+// and Python SDKs, each through its own code, and so is the origin a session
+// makes of its gateway's endpoint. What Semiont's worker alone
 // does is run by that worker, and the cutting of a text by its Smelter too;
 // TypeScript's core, which cuts no text, runs the estimate of a text's tokens
 // that a cut is sized by. What a bus log shows of a payload is run by each
@@ -38,7 +40,7 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but nineteen:
+//     holds its rule to no count. These are every table here but twenty:
 //     what an offset counts, the chunker, the reconciling of a quote, the
 //     locating of a span of a PDF, the builders, the id (whose anchor states a
 //     span's offsets), the chunk plan, the citations, and the reading of a
@@ -47,7 +49,8 @@
 //     readers' tables (an annotation's and a resource's), the table of
 //     failure classes, the bus log's table, the graph codecs' table, the
 //     Weaver's fold table, the two tables of the vector index, the
-//     Smelter's two and the Librarian's other seven count nothing and state no offset, and are held to
+//     Smelter's two, the Librarian's other seven and the gateway's origin
+//     count nothing and state no offset, and are held to
 //     nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
@@ -59,7 +62,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter', 'specs/src/librarian'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter', 'specs/src/librarian', 'specs/src/session'];
 
 /**
  * Each table, and the files that run it.
@@ -68,6 +71,15 @@ const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resou
  * must have a character outside the basic plane.
  */
 const TABLES = [
+  // The origin of a knowledge base's gateway, from its HTTP endpoint.
+  {
+    table: 'specs/src/session/gateway-url-cases.json',
+    runners: [
+      'packages/sdk/src/session/__tests__/gateway-url-cases.test.ts',
+      'packages/sdk-rust/src/session/knowledge_base.rs',
+      'packages/sdk-python/tests/test_gateway_url.py',
+    ],
+  },
   // What a text offset counts.
   {
     table: 'specs/src/text/offset-cases.json',

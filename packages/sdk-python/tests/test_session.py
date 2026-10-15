@@ -22,13 +22,14 @@ from semiont.errors import BusRequestError, SemiontError, SessionError, SignInEr
 from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
-from semiont.types import UserResponse
+from semiont.types import HttpEndpoint, KbTarget, UserResponse
 from semiont.watched import Variable
 
 TABLE = read(SPEC / "session/cases.json")
 STARTUP = objects(TABLE["startup"], "startup")
 REFUSAL = objects(TABLE["refusal"], "refusal")
 KB = "kb-alpha"
+TARGET = KbTarget(id=KB, label="Alpha", endpoint=HttpEndpoint(kind="http", host="localhost", port=4000, protocol="http"))
 
 type Renewal = str | SignInError | None
 type Validation = UserResponse | SemiontError
@@ -80,7 +81,7 @@ class World:
 
     def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[FaultyTransport]:
         return SemiontSession(
-            kb_id=KB,
+            kb=TARGET,
             client=create_test_client().client,
             token=self.token,
             kept=self.kept,
@@ -598,7 +599,7 @@ class Sessions(AxiomSubject[SemiontSession[FaultyTransport]]):
     @override
     def setup(self) -> Fresh[SemiontSession[FaultyTransport]]:
         client = create_test_client().client
-        return Fresh(SemiontSession(kb_id=KB, client=client, token=Variable[str | None](None), kept=MemorySignIn())).given(client)
+        return Fresh(SemiontSession(kb=TARGET, client=client, token=Variable[str | None](None), kept=MemorySignIn())).given(client)
 
     @override
     def surfaces(self, unit: SemiontSession[FaultyTransport]) -> Sequence[AsyncIterable[object]]:

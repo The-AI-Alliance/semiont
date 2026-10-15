@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "When a knowledge base last described itself, and what it said beyond its name. A client shows it as current only while a session to the knowledge base is live, and as of `at` otherwise.",
+  "properties": {
+    "at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the description arrived."
+    },
+    "gitBranch": {
+      "type": "string",
+      "description": "The branch of the knowledge base's working tree then. Absent when the working tree was not a git checkout."
+    }
+  },
+  "required": [
+    "at"
+  ]
+}

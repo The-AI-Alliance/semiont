@@ -23,7 +23,7 @@ import {
   whyUnanswered,
 } from '@semiont/core';
 import type { SignInErrorCode } from '@semiont/core';
-import type { HttpEndpoint } from './knowledge-base';
+import type { HttpEndpoint } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
 import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';

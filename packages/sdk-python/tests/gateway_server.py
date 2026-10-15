@@ -13,6 +13,7 @@ from typing import Final, Self, final
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
+from semiont.types import HttpEndpoint, KbTarget
 from semiont.watched import Variable, reached
 
 _OBJECT = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
@@ -96,11 +97,19 @@ class GatewayServer:
         self._leaving = asyncio.Event()
         self._server: asyncio.Server | None = None
         self.origin = ""
+        self._port = 0
 
     async def __aenter__(self) -> Self:
         self._server = await asyncio.start_server(self._connection, "127.0.0.1", 0)
-        self.origin = f"http://127.0.0.1:{self._server.sockets[0].getsockname()[1]}"
+        self._port = self._server.sockets[0].getsockname()[1]
+        self.origin = f"http://127.0.0.1:{self._port}"
         return self
+
+    def target(self, kb_id: str) -> KbTarget:
+        """This gateway as a knowledge base's target, under `kb_id`: what a session over it is given."""
+        return KbTarget(
+            id=kb_id, label="A knowledge base", endpoint=HttpEndpoint(kind="http", host="127.0.0.1", port=self._port, protocol="http")
+        )
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
         self._leaving.set()

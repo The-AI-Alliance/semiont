@@ -1,0 +1,185 @@
+{
+  "$comment": "The origin of a knowledge base's gateway, made from its HTTP endpoint, as every SDK must make it: what a session sends its requests to and opens its stream at. TypeScript (`kbGatewayUrl`, @semiont/sdk), Rust (`HttpEndpoint::gateway_url`, semiont) and Python (`gateway_url`, semiont.http) each run every case and fail on a difference. A host is a host's name or it is refused, and a refused host is never put into a URL: a host's name is labels of ASCII letters, digits and hyphens with a dot between each two, every label 1 to 63 characters long and none beginning or ending with a hyphen. A dotted address and `localhost` are such names; a host with a slash, a colon, a space, a query, a bracket or a letter outside ASCII is not. The origin is the protocol, `://`, the host in lowercase and nothing else done to it, `:` and the port, written even when it is the protocol's own. READING A CASE. `endpoint` is an HttpEndpoint (components/schemas/HttpEndpoint.json), and `origin` the gateway's origin, or null when the host is refused.",
+  "cases": [
+    {
+      "why": "this machine, over HTTP",
+      "endpoint": {
+        "kind": "http",
+        "host": "localhost",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": "http://localhost:4000"
+    },
+    {
+      "why": "a host's name is put in lowercase, and the port is written even when it is the protocol's own",
+      "endpoint": {
+        "kind": "http",
+        "host": "KB.Example.org",
+        "port": 443,
+        "protocol": "https"
+      },
+      "origin": "https://kb.example.org:443"
+    },
+    {
+      "why": "a dotted address is a host's name, kept as it is written",
+      "endpoint": {
+        "kind": "http",
+        "host": "127.0.0.1",
+        "port": 8080,
+        "protocol": "http"
+      },
+      "origin": "http://127.0.0.1:8080"
+    },
+    {
+      "why": "a host of digits alone is a name like any other: it is kept as it is written, not read as an address",
+      "endpoint": {
+        "kind": "http",
+        "host": "10",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": "http://10:4000"
+    },
+    {
+      "why": "a hyphen inside a label is a name's",
+      "endpoint": {
+        "kind": "http",
+        "host": "a-b.c",
+        "port": 4000,
+        "protocol": "https"
+      },
+      "origin": "https://a-b.c:4000"
+    },
+    {
+      "why": "a label of 63 characters is a label",
+      "endpoint": {
+        "kind": "http",
+        "host": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.org",
+        "port": 4000,
+        "protocol": "https"
+      },
+      "origin": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.org:4000"
+    },
+    {
+      "why": "an empty host is no name",
+      "endpoint": {
+        "kind": "http",
+        "host": "",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a path is no part of a host",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb.example.org/path",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a port is no part of a host",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb:4000",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a query is no part of a host",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb?x=1",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a label does not begin with a hyphen",
+      "endpoint": {
+        "kind": "http",
+        "host": "-kb.org",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a label does not end with a hyphen",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb-.org",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a label is not empty, between two dots",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb..org",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a label is not empty, after a last dot",
+      "endpoint": {
+        "kind": "http",
+        "host": "kb.org.",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a space is no part of a name",
+      "endpoint": {
+        "kind": "http",
+        "host": "a b",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a label of 64 characters is too long",
+      "endpoint": {
+        "kind": "http",
+        "host": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "a letter outside ASCII is no part of a name",
+      "endpoint": {
+        "kind": "http",
+        "host": "über.example.org",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    },
+    {
+      "why": "an address in brackets is no name",
+      "endpoint": {
+        "kind": "http",
+        "host": "[::1]",
+        "port": 4000,
+        "protocol": "http"
+      },
+      "origin": null
+    }
+  ]
+}

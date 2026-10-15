@@ -48,13 +48,8 @@ import {
   type BeginAuthorizationOptions,
 } from './oauth';
 import { describeConnection } from './connect';
-import {
-  kbRead,
-  type KbRead,
-  type KnowledgeBase,
-  type KbSessionStatus,
-  type NewKnowledgeBase,
-} from './knowledge-base';
+import type { KbRead, KnowledgeBase, NewKnowledgeBase } from '@semiont/core';
+import { kbRead, type KbSessionStatus } from './knowledge-base';
 import {
   applyTabChecks,
   sortOpenResources,

@@ -15,7 +15,7 @@
  * The HTTP factory is provided by `createHttpSessionFactory`.
  */
 
-import type { KnowledgeBase } from './knowledge-base';
+import type { KnowledgeBase } from '@semiont/core';
 import type { SessionSignals } from './session-signals';
 import type { SessionStorage } from './session-storage';
 import type { SemiontSession } from './semiont-session';

@@ -109,6 +109,13 @@ export type {
   KbDescription,
   DiscoveryDocument,
   DiscoveredKB,
+  KbTarget,
+  KnowledgeBase,
+  NewKnowledgeBase,
+  KbRead,
+  KbEndpoint,
+  HttpEndpoint,
+  LocalEndpoint,
 } from './payload-types';
 
 // Event utilities

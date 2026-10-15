@@ -67,27 +67,31 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
 sign-in is kept. [`semiont login`][launcher] keeps one for each stack, and a
 session here is built over it; a script on a machine with no launcher makes
 its own by the device grant, which shows a code to approve in any browser. No
-password passes through this process.
+password passes through this process. Both are given the knowledge base's
+target (`semiont.types.KbTarget`: its id, its label and its endpoint), as the
+TypeScript and Rust SDKs' are, and reach the gateway its HTTP endpoint names.
 
 ```python
 from pathlib import Path
 
 from semiont.http import DeviceCode, session_from_kept, sign_in_device
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
+from semiont.types import KbTarget
 
 
 def show(code: DeviceCode) -> None:
     print(f"Open {code.verification_uri} and enter {code.user_code}")
 
 
-async def as_me(gateway: str, home: str) -> None:
+async def as_me(kb: KbTarget, home: str) -> None:
     directory = state_dir(this_system(), home=home, xdg_state_home=None, local_app_data=None)
     if directory is None:
         return
-    kept = SignInStore(Path(directory) / FILE_NAME).entry("local")
+    # The sign-in of the stack `semiont login` keys as the knowledge base's id.
+    kept = SignInStore(Path(directory) / FILE_NAME).entry(kb.id)
     if await kept.held() is None:
-        await sign_in_device(gateway, kept, show)
-    async with session_from_kept(gateway, kb_id="local", kept=kept) as session:
+        await sign_in_device(kb, kept, show)
+    async with session_from_kept(kb, kept=kept) as session:
         print(session.user.value, (await session.client.system.status()).version)
 ```
 
@@ -848,7 +852,7 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
 | `semiont.session` | `SemiontSession`, and `MemorySignIn` |
-| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out` |
+| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out`; a gateway's origin from its endpoint, `gateway_url` |
 | `semiont.sign_in_store` | The sign-ins `semiont login` keeps, and where each system keeps them |
 | `semiont.identifiers`, `semiont.types` | The kinds of id, and every request, response and event |
 | `semiont.channels`, `semiont.operations` | The bus's channels and its operations, each a constant that carries its payload's type |

@@ -23,11 +23,12 @@ use semiont::errors::{SignInError, SignInErrorCode, TransportError};
 use semiont::identity::encode_uri_component;
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::{
-    BROWSER_CLIENT_ID, HttpEndpoint, SCRIPT_CLIENT_ID, SIGN_IN_SCOPE, StoredSession, session_key,
+    BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID, SIGN_IN_SCOPE, StoredSession, session_key,
 };
 use semiont::storage::SessionStorage;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::{GatewayOperations, Transport};
+use semiont::types::HttpEndpoint;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::time::Duration;
@@ -186,7 +187,7 @@ pub fn code_challenge(verifier: &str) -> String {
 /// verifier and the state the response must match, where the person was
 /// connecting, what they believed they were connecting to, and the issuer's
 /// endpoints, so its completion asks nothing twice.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingAuthorization {
     pub state: String,
@@ -202,7 +203,7 @@ pub struct PendingAuthorization {
     pub expected_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BeginAuthorization {
     pub target: HttpEndpoint,
     /// Where the issuer sends the person back to. The issuer accepts only an

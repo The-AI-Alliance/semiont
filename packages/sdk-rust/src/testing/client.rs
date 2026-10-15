@@ -8,9 +8,10 @@
 
 use super::{FaultyTransport, InMemoryContent};
 use crate::client::{ClientOptions, SemiontClient};
-use crate::session::{KbTarget, Protocol, SemiontSession, SemiontSessionConfig};
+use crate::session::{SemiontSession, SemiontSessionConfig};
 use crate::storage::InMemorySessionStorage;
 use crate::transport::GatewayOperations;
+use crate::types::{HttpEndpointProtocol, KbTarget};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -93,7 +94,13 @@ pub fn create_test_session(options: TestSessionOptions) -> TestSession {
     let token = watch::channel(None).0;
     let session = SemiontSession::new(SemiontSessionConfig {
         kb: options.kb.unwrap_or_else(|| {
-            KbTarget::http("test-kb", "Test KB", "localhost", 4000, Protocol::Http)
+            KbTarget::http(
+                "test-kb",
+                "Test KB",
+                "localhost",
+                4000,
+                HttpEndpointProtocol::Http,
+            )
         }),
         storage: storage.clone(),
         client: client.clone(),

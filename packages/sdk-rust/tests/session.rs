@@ -9,9 +9,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::client::SemiontClient;
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
-    KbIdentityConflict, KbTarget, PermissionDenied, Protocol, SemiontSession, SemiontSessionConfig,
-    SessionEndReason, SessionEnded, SessionSignals, StoredSession, session_key, store_session,
-    stored_session,
+    KbIdentityConflict, PermissionDenied, SemiontSession, SemiontSessionConfig, SessionEndReason,
+    SessionEnded, SessionSignals, StoredSession, session_key, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
 use semiont::storage::SessionStorage;
@@ -20,7 +19,7 @@ use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
     create_test_session,
 };
-use semiont::types::UserResponse;
+use semiont::types::{HttpEndpointProtocol, KbTarget, UserResponse};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -144,7 +143,7 @@ impl World {
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
         let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
         SemiontSessionConfig {
-            kb: KbTarget::http(KB, "Alpha", "localhost", 4000, Protocol::Http),
+            kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
             storage: self.storage.clone(),
             client: self.client.clone(),
             token: watch::channel(None).0,

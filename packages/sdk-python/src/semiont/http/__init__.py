@@ -2,6 +2,7 @@
 
 from semiont.http.agent import AgentToken, Credential, ServiceToken
 from semiont.http.content import HttpContentTransport
+from semiont.http.endpoint import gateway_url, is_valid_hostname
 from semiont.http.exchange import TokenRefresher
 from semiont.http.oauth import DeviceCode
 from semiont.http.session import session_from_kept, sign_in_device, sign_out
@@ -18,6 +19,8 @@ __all__ = [
     "ServiceToken",
     "Timing",
     "TokenRefresher",
+    "gateway_url",
+    "is_valid_hostname",
     "session_from_kept",
     "sign_in_device",
     "sign_out",

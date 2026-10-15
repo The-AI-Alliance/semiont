@@ -48,7 +48,7 @@ import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '..
 import type { SemiontError } from '@semiont/core';
 import { watched, type Watched } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import type { KbTarget } from './knowledge-base';
+import type { KbTarget } from '@semiont/core';
 import {
   clearStoredSession,
   getStoredSession,

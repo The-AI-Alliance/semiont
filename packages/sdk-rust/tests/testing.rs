@@ -9,8 +9,7 @@ use semiont::bus::{Bus, operation};
 use semiont::client::{ClientOptions, ClientTiming};
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode};
 use semiont::session::{
-    KbEndpoint, KbTarget, KnowledgeBase, Protocol, SessionFactory, SessionFactoryOptions,
-    SessionSignals, StoredSession, store_session,
+    SessionFactory, SessionFactoryOptions, SessionSignals, StoredSession, store_session,
 };
 use semiont::state_unit::StateUnit;
 use semiont::storage::InMemorySessionStorage;
@@ -20,7 +19,10 @@ use semiont::testing::{
     TestSessionOptions, create_test_client, create_test_session,
 };
 use semiont::transport::{ConnectionState, Content, Transport};
-use semiont::types::{AnchoredTextAnswer, GatherResourceRequestOptions, ResourceId, UserResponse};
+use semiont::types::{
+    AnchoredTextAnswer, GatherResourceRequestOptions, HttpEndpoint, HttpEndpointProtocol,
+    KbEndpoint, KbTarget, KnowledgeBase, ResourceId, UserResponse,
+};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -181,7 +183,13 @@ async fn a_test_session_is_ready_at_once_and_signed_in_as_nobody() {
     assert_eq!(*test.session.user().borrow(), None);
     assert_eq!(
         *test.session.kb(),
-        KbTarget::http("test-kb", "Test KB", "localhost", 4000, Protocol::Http)
+        KbTarget::http(
+            "test-kb",
+            "Test KB",
+            "localhost",
+            4000,
+            HttpEndpointProtocol::Http,
+        )
     );
     // Its client is the one that came back, over the transport that did.
     assert!(Arc::ptr_eq(test.session.client(), &test.client));
@@ -195,7 +203,13 @@ async fn a_test_session_is_ready_at_once_and_signed_in_as_nobody() {
 
 #[tokio::test(start_paused = true)]
 async fn a_test_session_holds_the_token_its_storage_held_and_then_the_one_the_test_sends() {
-    let kb = KbTarget::http("mine", "Mine", "example.org", 443, Protocol::Https);
+    let kb = KbTarget::http(
+        "mine",
+        "Mine",
+        "example.org",
+        443,
+        HttpEndpointProtocol::Https,
+    );
     let storage = Arc::new(InMemorySessionStorage::new());
     let stored = token();
     store_session(
@@ -243,15 +257,12 @@ fn alice() -> UserResponse {
 }
 
 fn kb(id: &str) -> KnowledgeBase {
+    let endpoint = HttpEndpoint::new("localhost", 4000, HttpEndpointProtocol::Http);
     KnowledgeBase {
         id: id.to_owned(),
         label: id.to_owned(),
         did: format!("did:web:example.org:{id}"),
-        endpoint: KbEndpoint::Http(semiont::session::HttpEndpoint {
-            host: "localhost".to_owned(),
-            port: 4000,
-            protocol: Protocol::Http,
-        }),
+        endpoint: KbEndpoint::HttpEndpoint(endpoint),
         last_read: None,
     }
 }

@@ -9,7 +9,7 @@ is spent once.
 import asyncio
 from collections.abc import Sequence
 from pathlib import Path
-from typing import final, override
+from typing import Final, final, override
 from urllib.parse import parse_qs
 
 import pytest
@@ -41,7 +41,7 @@ from tokens import expired, token
 
 from semiont.bus import reply_channels_for
 from semiont.cache import Pending, Ready
-from semiont.errors import SignInError, TransportError
+from semiont.errors import SessionError, SignInError, TransportError
 from semiont.http import AgentToken, DeviceCode, HttpTransport, ServiceToken, session_from_kept, sign_in_device, sign_out
 from semiont.http.oauth import (
     IssuedTokens,
@@ -58,6 +58,7 @@ from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKe
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
 from semiont.timing import MIN_REFRESH_DELAY_MS
+from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint
 from semiont.watched import Watched, reached
 
 _JSON = TypeAdapter[JsonValue](JsonValue)
@@ -847,7 +848,7 @@ def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_
             gateway.scripted[("POST", TOKEN)] = [says({"access_token": second, "refresh_token": "refresh-2"})]
             told: list[SessionEndReason] = []
 
-            async with session_from_kept(gateway.origin, kb_id="local", kept=kept, on_auth_failed=told.append) as session:
+            async with session_from_kept(gateway.target("local"), kept=kept, on_auth_failed=told.append) as session:
                 # Ready inside: the gateway has said who the kept token is, and the stream is opening with it.
                 assert session.token.value == first
                 signed_in = session.user.value
@@ -901,12 +902,69 @@ def test_a_request_the_gateway_refuses_is_made_again_with_the_sessions_renewed_t
             }
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
+            async with session_from_kept(gateway.target("kb"), kept=kept, channels=()) as session:
                 transport = session.client.transport
                 await soon(transport.health_check())
                 assert sent_with(gateway, "GET", "/api/health") == [f"Bearer {first}", f"Bearer {second}"]
                 assert session.token.value == second
                 assert len(gateway.of("POST", TOKEN)) == 1
+
+    run(scenario())
+
+
+HERE: Final = KbTarget(id="here", label="Here", endpoint=LocalEndpoint(kind="local", kb_id="in-process"))
+"""A knowledge base the host process has loaded: reached through no gateway."""
+
+
+def test_a_session_is_with_the_knowledge_base_it_was_given() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            target = gateway.target("kb")
+            async with session_from_kept(target, kept=MemorySignIn(), channels=()) as session:
+                assert session.kb == target
+
+    run(scenario())
+
+
+def test_a_knowledge_base_reached_through_no_gateway_has_no_session_over_http() -> None:
+    async def scenario() -> None:
+        with pytest.raises(SessionError) as refused:
+            async with session_from_kept(HERE, kept=MemorySignIn()):
+                pass
+        assert (refused.value.code, refused.value.message, refused.value.kb_id) == (
+            "session.construct-failed",
+            'A session over HTTP cannot be built for endpoint kind "local"',
+            "here",
+        )
+
+    run(scenario())
+
+
+def test_a_host_that_is_no_hosts_name_is_never_put_into_a_url() -> None:
+    async def scenario() -> None:
+        nowhere = KbTarget(id="kb", label="KB", endpoint=HttpEndpoint(kind="http", host="evil.example/x", port=4000, protocol="https"))
+        with pytest.raises(SessionError) as refused:
+            async with session_from_kept(nowhere, kept=MemorySignIn()):
+                pass
+        assert (refused.value.code, refused.value.message) == ("session.construct-failed", 'Invalid KB hostname: "evil.example/x"')
+        with pytest.raises(SignInError) as not_signed_in:
+            await sign_in_device(nowhere, MemorySignIn(), lambda _: None)
+        assert (not_signed_in.value.code, not_signed_in.value.message) == ("discovery", 'Invalid KB hostname: "evil.example/x"')
+
+    run(scenario())
+
+
+def test_the_device_grant_needs_a_gateway() -> None:
+    async def scenario() -> None:
+        kept = MemorySignIn()
+        with pytest.raises(SignInError) as refused:
+            await sign_in_device(HERE, kept, lambda _: None)
+        assert (refused.value.code, refused.value.message) == (
+            "discovery",
+            'The device grant needs an HTTP endpoint; this knowledge base\'s is "local"',
+        )
+        assert await kept.held() is None
 
     run(scenario())
 
@@ -918,7 +976,7 @@ def test_with_nothing_kept_a_session_is_signed_out_and_its_requests_are_refused(
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
             told: list[SessionEndReason] = []
 
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=MemorySignIn(), on_auth_failed=told.append) as session:
+            async with session_from_kept(gateway.target("kb"), kept=MemorySignIn(), on_auth_failed=told.append) as session:
                 assert (session.token.value, session.user.value) == (None, None)
                 transport = session.client.transport
                 with pytest.raises(TransportError) as refused:
@@ -946,7 +1004,7 @@ def test_a_session_whose_issuer_will_not_renew_it_is_over_and_its_sign_in_is_for
             said: list[str] = []
 
             async with session_from_kept(
-                gateway.origin, kb_id="local", kept=kept, on_auth_failed=told.append, on_error=lambda error: said.append(error.message)
+                gateway.target("local"), kept=kept, on_auth_failed=told.append, on_error=lambda error: said.append(error.message)
             ) as session:
                 # The kept token had expired: it was renewed before anyone was asked.
                 assert session.token.value == renewed
@@ -1005,7 +1063,7 @@ def test_renewals_asked_for_together_spend_one_refresh_token() -> None:
             told: list[SessionEndReason] = []
 
             async def held_open() -> str | None:
-                async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, on_auth_failed=told.append) as session:
+                async with session_from_kept(gateway.target("kb"), kept=kept, on_auth_failed=told.append) as session:
                     await soon(reached(session.client.transport.state, lambda state: state == "open"))
                     return session.token.value
 
@@ -1035,7 +1093,7 @@ def test_a_renewal_runs_to_its_end_when_the_request_that_asked_for_it_stops_wait
             gateway.scripted[("POST", TOKEN)] = [says({"access_token": second, "refresh_token": "refresh-2"})]
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
+            async with session_from_kept(gateway.target("kb"), kept=kept, channels=()) as session:
                 transport = session.client.transport
                 # A caller that gives its request a moment, and no more.
                 with pytest.raises(TimeoutError):
@@ -1059,7 +1117,7 @@ def test_leaving_a_session_ends_a_renewal_nobody_is_left_to_hear_of() -> None:
             kept = Slowly(held(gateway, access(1)))
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
+            async with session_from_kept(gateway.target("kb"), kept=kept, channels=()) as session:
                 transport = session.client.transport
                 with pytest.raises(TimeoutError):
                     async with asyncio.timeout(0.1):
@@ -1084,7 +1142,7 @@ def test_a_person_signs_in_by_the_device_grant_and_the_sign_in_is_kept_as_semion
             gateway.scripted[("POST", TOKEN)] = [PENDING, says({"access_token": issued, "refresh_token": "refresh-1"})]
             shown: list[DeviceCode] = []
 
-            await hurried(sign_in_device(gateway.origin, kept, shown.append))
+            await hurried(sign_in_device(gateway.target("local"), kept, shown.append))
 
             assert [code.user_code for code in shown] == ["WDJB-MJHT"]
             assert await kept.held() == held(gateway, issued)
@@ -1093,7 +1151,7 @@ def test_a_person_signs_in_by_the_device_grant_and_the_sign_in_is_kept_as_semion
             assert (written["email"], written["issuer"]) == ("alice@example.org", issuer_of(gateway))
 
             # And a session over it is that person's.
-            async with session_from_kept(gateway.origin, kb_id="local", kept=kept, channels=()) as session:
+            async with session_from_kept(gateway.target("local"), kept=kept, channels=()) as session:
                 assert session.token.value == issued
                 assert sent_with(gateway, "GET", ME) == [f"Bearer {issued}"]
 
@@ -1109,7 +1167,7 @@ def test_a_device_grant_that_does_not_sign_in_keeps_nothing() -> None:
             gateway.scripted[("POST", TOKEN)] = [says({"error": "access_denied"}, 400)]
 
             with pytest.raises(SignInError) as denied:
-                await hurried(sign_in_device(gateway.origin, kept, lambda _: None))
+                await hurried(sign_in_device(gateway.target("local"), kept, lambda _: None))
             assert denied.value.code == "denied"
             assert await kept.held() is None
 
@@ -1177,7 +1235,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
             gateway.on_emit = answering
             kept = MemorySignIn(held(gateway, access(1)))
 
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, storage=storage) as session:
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
                 client = session.client
                 await soon(reached(client.transport.state, lambda state: state == "open"))
                 async with client.browse.resource(resource) as live, client.browse.entity_types():
@@ -1210,7 +1268,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
             # The next session of the same knowledge base, over the same storage: what was kept is shown at once,
             # and the resource's scope resumes from the place that was kept.
             subscriptions = len(gateway.subscriptions)
-            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, storage=storage) as session:
+            async with session_from_kept(gateway.target("kb"), kept=kept, storage=storage) as session:
                 await soon(reached(session.client.transport.state, lambda state: state == "open"))
                 async with session.client.browse.resource(resource) as live:
                     shown = await soon(anext(live))
@@ -1232,7 +1290,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
                     assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-7")
 
             # A session of another knowledge base, over the same storage, begins with neither.
-            async with session_from_kept(gateway.origin, kb_id="another", kept=kept, storage=storage) as session:
+            async with session_from_kept(gateway.target("another"), kept=kept, storage=storage) as session:
                 await soon(reached(session.client.transport.state, lambda state: state == "open"))
                 async with session.client.browse.resource(resource) as live:
                     assert await soon(anext(live)) == Pending()

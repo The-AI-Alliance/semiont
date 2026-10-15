@@ -11,9 +11,8 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::errors::{SessionErrorCode, TransportError};
 use semiont::session::{
-    ACTIVE_KEY, Expected, HttpEndpoint, KNOWLEDGE_BASES_KEY, KbEndpoint, KbIdentityConflict,
-    KbRead, KbReadVerdict, KbSessionStatus, KnowledgeBase, LAST_VIEWED_RESOURCE_BY_KB_KEY,
-    NewKnowledgeBase, OPEN_RESOURCES_BY_KB_KEY, OpenResource, PermissionDenied, Protocol,
+    ACTIVE_KEY, Expected, KNOWLEDGE_BASES_KEY, KbIdentityConflict, KbReadVerdict, KbSessionStatus,
+    LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, OpenResource, PermissionDenied,
     SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded, SignedIn,
     StoredSession, save_knowledge_bases, session_key, store_session, stored_session,
 };
@@ -21,7 +20,10 @@ use semiont::storage::SessionStorage;
 use semiont::testing::as_id;
 use semiont::testing::{FaultyTransport, ScriptedSessions, SharedStorage};
 use semiont::transport::{ConnectionState, Transport};
-use semiont::types::UserResponse;
+use semiont::types::{
+    HttpEndpoint, HttpEndpointProtocol, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase,
+    UserResponse,
+};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -157,11 +159,8 @@ const DID_A: &str = "did:web:example.org:kb-a";
 const DID_B: &str = "did:web:example.org:kb-b";
 
 fn endpoint(host: &str, port: u16) -> KbEndpoint {
-    KbEndpoint::Http(HttpEndpoint {
-        host: host.to_owned(),
-        port,
-        protocol: Protocol::of_host(host),
-    })
+    let protocol = HttpEndpointProtocol::of_host(host);
+    KbEndpoint::HttpEndpoint(HttpEndpoint::new(host, port, protocol))
 }
 
 fn kb(id: &str, label: &str, did: &str, at: KbEndpoint) -> KnowledgeBase {
@@ -320,7 +319,7 @@ async fn a_knowledge_base_that_is_added_is_kept_signed_in_and_made_active() {
     assert_eq!(*browser.active_kb_id().borrow(), None);
 
     let read = KbRead {
-        at: UNIX_EPOCH + Duration::from_millis(1_800_000_000_000),
+        at: "2027-01-15T08:00:00.000Z".to_owned(),
         git_branch: Some("main".to_owned()),
     };
     let added = browser
@@ -406,7 +405,7 @@ async fn an_entry_takes_what_its_knowledge_base_last_said_and_keeps_its_did() {
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = world.browser();
     let read = KbRead {
-        at: SystemTime::now(),
+        at: "2026-10-15T08:00:00.000Z".to_owned(),
         git_branch: None,
     };
 
@@ -816,7 +815,7 @@ async fn a_sign_in_to_a_registered_knowledge_base_takes_what_it_and_the_issuer_n
 async fn a_sign_in_a_different_knowledge_base_answers_leaves_the_entry_and_lands_on_a_new_one() {
     let believed = KnowledgeBase {
         last_read: Some(KbRead {
-            at: UNIX_EPOCH + Duration::from_millis(1_800_000_000_000),
+            at: "2027-01-15T08:00:00.000Z".to_owned(),
             git_branch: Some("main".to_owned()),
         }),
         ..kb_a()

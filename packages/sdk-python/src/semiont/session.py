@@ -59,7 +59,7 @@ from semiont.events import Events
 from semiont.state_unit import StateUnit
 from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import ConnectionState, Transport
-from semiont.types import UserResponse
+from semiont.types import KbTarget, UserResponse
 from semiont.watched import Variable, Watched
 
 __all__ = [
@@ -283,7 +283,7 @@ class SemiontSession[T: Transport](StateUnit):
     def __init__(
         self,
         *,
-        kb_id: str,
+        kb: KbTarget,
         client: SemiontClient[T],
         token: Variable[str | None],
         kept: SignInKept,
@@ -294,7 +294,8 @@ class SemiontSession[T: Transport](StateUnit):
     ) -> None:
         self.id: Final = f"session-{uuid.uuid4()}"
         """Which live session this is: a new one for the same knowledge base has another."""
-        self.kb_id: Final = kb_id
+        self.kb: Final = kb
+        """The knowledge base the session is with: where it is reached, and `id`, the key its credentials are kept under."""
         self.client: Final[SemiontClient[T]] = client
         self._token: Final = token
         self._kept: Final = kept
@@ -417,7 +418,7 @@ class SemiontSession[T: Transport](StateUnit):
                 refused = isinstance(refusal, TransportError) and refusal.code == "unauthorized"
                 if refused and not self._closing.is_set() and self._token.value == renewed:
                     await self._signed_out(
-                        "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb_id)
+                        "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id)
                     )
             return None if self._closing.is_set() else self._token.value
 
@@ -448,7 +449,7 @@ class SemiontSession[T: Transport](StateUnit):
         # out, which is no failure. Ending the session below also forgets the
         # credential, so the refusals that follow it are quiet too.
         if await self._kept.held() is not None:
-            await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb_id))
+            await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
         return None
 
     async def _signed_out(self, told: SessionEndReason, error: SessionError) -> None:
@@ -493,15 +494,15 @@ class SemiontSession[T: Transport](StateUnit):
                 return
             except TransportError as refusal:
                 if refusal.code != "unauthorized":
-                    self._failed(SessionError("session.auth-failed", refusal.message, kb_id=self.kb_id))
+                    self._failed(SessionError("session.auth-failed", refusal.message, kb_id=self.kb.id))
                     return
             except SemiontError as other:
-                self._failed(SessionError("session.auth-failed", other.message, kb_id=self.kb_id))
+                self._failed(SessionError("session.auth-failed", other.message, kb_id=self.kb.id))
                 return
             if self._closing.is_set():
                 return
             if just_issued:
-                await self._signed_out("refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb_id))
+                await self._signed_out("refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id))
                 return
             # The session's token is no longer the one asked about: the stream
             # was refused with it too, and `refresh` has renewed it meanwhile.
@@ -516,7 +517,7 @@ class SemiontSession[T: Transport](StateUnit):
             if self._closing.is_set():
                 return
             if renewed is None:
-                await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb_id))
+                await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
                 return
             self._token.set(renewed)
             token, just_issued = renewed, True
