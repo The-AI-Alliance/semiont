@@ -24,7 +24,7 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Metric, NumberDataPoint
 from telemetry_rows import MetricRow, as_the_table_writes, metrics_named
 
-from semiont_service.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process
+from semiont_service.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process, resident_bytes
 
 
 def exported(environment: Mapping[str, str], lag: Lag) -> dict[str, Metric]:
@@ -178,6 +178,15 @@ def test_memory_is_said_by_kind_as_the_kernel_states_it_and_only_where_it_could_
     for value in read.values():
         assert isinstance(value, int)
         assert value > 0
+
+
+def test_the_resident_memory_is_what_the_kernel_states_and_nothing_where_it_states_nothing() -> None:
+    resident = resident_bytes()
+    if Path("/proc/self/status").exists():
+        assert resident is not None
+        assert 1_000_000 < resident < 2**40
+    else:
+        assert resident is None
 
 
 def test_under_a_supervisor_a_process_reports_the_lives_its_log_records_less_one(tmp_path: Path) -> None:

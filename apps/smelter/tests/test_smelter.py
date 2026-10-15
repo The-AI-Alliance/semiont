@@ -1822,6 +1822,127 @@ def test_the_work_of_a_reconcile_is_done_at_most_eight_pieces_at_a_time(tmp_path
     run(scenario())
 
 
+def test_a_reconcile_works_on_one_pdf_at_a_time_and_indexes_a_text_beside_it(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:
+            rig.world.put("pdf-1", PDF, "application/pdf")
+            rig.world.put("pdf-2", OTHER_PDF, "application/pdf")
+            rig.world.put("res-1", TEXT)
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+
+            await until(lambda: len(rig.provider.asked) == 2)
+            await a_while()
+
+            # One PDF's text and the text's are in the provider's hands. The other PDF waits for its turn, and holds
+            # nothing of itself while it waits: its bytes have not been read.
+            assert len(rig.provider.asked) == 2
+            assert len(rig.reader.opened) == 1
+            assert len(rig.world.read_of) == 2
+            assert "res-1" in rig.world.read_of
+
+            let_go.set()
+
+            assert await reconciling == came_to(embedded=3, eligible=3, indexed=3)
+            assert sorted(rig.reader.opened) == sorted([PDF, OTHER_PDF])
+            assert sorted(rig.world.read_of) == ["pdf-1", "pdf-2", "res-1"]
+
+    with caplog.at_level(logging.INFO, logger="semiont_smelter"):
+        run(scenario())
+    indexed = [said for said in lines(caplog, logging.INFO) if said["msg"] == "Indexed resource"]
+    assert len(indexed) == 3
+    # Each line says what the process held as that resource was indexed, where the kernel states it.
+    stated = Path("/proc/self/status").exists()
+    assert all(isinstance(said["residentBytes"], int) == stated for said in indexed)
+
+
+def test_pdfs_that_arrive_together_are_indexed_one_at_a_time_and_a_text_beside_them(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(
+                rig.world.put("pdf-1", PDF, "application/pdf"),
+                rig.world.put("pdf-2", OTHER_PDF, "application/pdf"),
+                rig.world.put("res-1", TEXT),
+            )
+
+            await until(lambda: len(rig.provider.asked) == 2)
+            await a_while()
+
+            assert len(rig.provider.asked) == 2
+            assert len(rig.reader.opened) == 1
+            assert len(rig.world.read_of) == 2
+
+            let_go.set()
+            await rig.settled()
+
+            assert (await rig.held()).stamps == {
+                "pdf-1": stamp(PDF, media_type="application/pdf"),
+                "pdf-2": stamp(OTHER_PDF, media_type="application/pdf"),
+                "res-1": stamp(TEXT),
+            }
+            assert sorted(rig.reader.opened) == sorted([PDF, OTHER_PDF])
+
+    run(scenario())
+
+
+def test_bytes_that_are_a_pdf_where_the_description_said_otherwise_are_read_again_in_the_pdf_turn(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(rig.world.put("pdf-1", PDF, "application/pdf"))
+            await until(lambda: len(rig.provider.asked) == 1)
+
+            # Its description says it is a text, and its bytes are a PDF's: they were replaced between the two reads.
+            created = rig.world.put("res-1", TEXT)
+            rig.world.content["res-1"] = Content(OTHER_PDF, "application/pdf")
+            rig.deliver(created)
+            await a_while()
+
+            # Read once, found to be a PDF's, and let go of: the PDF in the turn is the only one opened.
+            assert rig.world.read_of == ["pdf-1", "res-1"]
+            assert rig.reader.opened == [PDF]
+
+            let_go.set()
+            await rig.settled()
+
+            assert rig.world.read_of == ["pdf-1", "res-1", "res-1"]
+            assert rig.reader.opened == [PDF, OTHER_PDF]
+            assert (await rig.held()).stamps["res-1"] == stamp(OTHER_PDF, media_type="application/pdf")
+
+    run(scenario())
+
+
+def test_a_rebuild_waits_for_the_pdf_an_event_is_indexing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN, OTHER_PDF: WRITTEN}) as rig:
+            rig.world.put("pdf-2", OTHER_PDF, "application/pdf")
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(rig.world.put("pdf-1", PDF, "application/pdf"))
+            await until(lambda: len(rig.provider.asked) == 1)
+
+            rebuild(rig, "c-1", "pdf-2")
+            await a_while()
+
+            # The rebuild's document waits for its turn, and its bytes are read when the turn comes.
+            assert rig.reader.opened == [PDF]
+            assert rig.world.read_of == ["pdf-1"]
+            assert rig.answered("smelt:rebuild-anchors-ok") == []
+
+            let_go.set()
+            await rig.settled()
+
+            assert len(rig.answered("smelt:rebuild-anchors-ok")) == 1
+            assert rig.reader.opened == [PDF, OTHER_PDF]
+            assert sorted(await rig.store.list()) == sorted([checksum_of(PDF), checksum_of(OTHER_PDF)])
+
+    run(scenario())
+
+
 def test_a_reconcile_reports_what_the_resources_it_set_out_to_index_came_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:

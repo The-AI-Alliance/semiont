@@ -35,7 +35,7 @@ from opentelemetry.metrics import CallbackOptions, Meter, Observation
 
 from semiont_service.config import set_in
 
-__all__ = ["Exporting", "Lag", "install", "interval_ms", "lives_less_one", "memory", "report_the_process"]
+__all__ = ["Exporting", "Lag", "install", "interval_ms", "lives_less_one", "memory", "report_the_process", "resident_bytes"]
 
 _METRIC_EXPORT_INTERVAL_MS: Final = 30_000
 """How often metrics are exported, unless the environment states another interval."""
@@ -109,6 +109,16 @@ def _status_bytes(name: str) -> int | None:
     return None
 
 
+def resident_bytes() -> int | None:
+    """How much of the process is resident now, in bytes, as the kernel states it. Nothing where it states nothing.
+
+    What a service writes beside a line of its log, where the line ends a
+    piece of work that holds much: memory that is let go of between two
+    such lines falls back, and memory that is kept climbs, line by line.
+    """
+    return _status_bytes("VmRSS:")
+
+
 def _memory_limit() -> int | None:
     """The memory the process may use before it is killed: its control group's limit. Nothing where none is set."""
     for stated in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
@@ -128,7 +138,7 @@ def memory(_: CallbackOptions) -> Iterable[Observation]:
     much of its heap the interpreter has in use is not among them: Python
     keeps no such count.
     """
-    readings = (("total", _status_bytes("VmData:")), ("limit", _memory_limit()), ("rss", _status_bytes("VmRSS:")))
+    readings = (("total", _status_bytes("VmData:")), ("limit", _memory_limit()), ("rss", resident_bytes()))
     return [Observation(reading, {"heap.stat": kind}) for kind, reading in readings if reading is not None]
 
 

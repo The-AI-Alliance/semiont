@@ -232,6 +232,16 @@ entity types from its description as the Archivist answers it then.
   event changed. Taking out an annotation's point takes its turn among the
   events of the resource the point says the annotation is on.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+- **One PDF is worked on at a time,** whatever asks for it: an event, the
+  work a start plans or a rebuild. Its turn lasts from reading its bytes to
+  writing its points or its anchored text. Deriving a scanned document's text
+  holds a page's pixels and an OCR process, and several documents at once
+  outgrow the memory a Smelter is given. A PDF that waits for its turn holds
+  none of its bytes: whether a resource is a PDF is asked of its description,
+  and its bytes are read when the turn comes. Bytes that turn out to be a
+  PDF's where the description said otherwise are let go of, and read again in
+  the turn. Every other resource is indexed beside it.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 
 ## What it decides
 
@@ -480,7 +490,8 @@ in prose.
   in no stated order.
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
-  its resource's events ([Order](#order)). *Held by `apps/smelter/tests/test_smelter.py`.*
+  its resource's events ([Order](#order)), and one PDF among them however
+  many there are. *Held by `apps/smelter/tests/test_smelter.py`.*
 - **Work planned for a resource that an event has arrived for since the
   reconcile began to read is looked at again when its turn comes.** It asks
   the Archivist what the record holds then, and does what that wants. A
