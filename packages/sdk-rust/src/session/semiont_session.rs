@@ -29,7 +29,6 @@
 //! after ending the session. A session that is only dropped ends the same
 //! things. A session is built inside a Tokio runtime.
 
-use super::knowledge_base::KbTarget;
 use super::signals::SessionEndReason;
 use super::stored::{
     StoredSession, clear_stored_session, is_token_expired, session_key, stored_session,
@@ -42,7 +41,7 @@ use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{BoxFuture, ConnectionState, Failures};
-use crate::types::UserResponse;
+use crate::types::{KbTarget, UserResponse};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::SystemTime;

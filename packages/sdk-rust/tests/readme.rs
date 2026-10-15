@@ -9,8 +9,8 @@ use semiont::claims::{ClaimOptions, Held, HeldJob, Mark};
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::session::{
-    HttpEndpoint, KbEndpoint, KnowledgeBase, Protocol, SemiontBrowser, SemiontBrowserConfig,
-    SemiontSession, SessionFactory, SessionFactoryOptions, StoredSession, save_knowledge_bases,
+    SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionFactory, SessionFactoryOptions,
+    StoredSession, save_knowledge_bases,
 };
 use semiont::state::{MarkStateUnit, PendingAnnotation};
 use semiont::storage::SessionStorage;
@@ -22,9 +22,10 @@ use semiont::testing::{
 };
 use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
-    Agent, GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams,
-    InvalidIdentifier, JobCompleteCommand, JobDetectionResult, LinkingJobParams,
-    MarkJobCompleteCommand, Motivation, ResourceId, YieldJobResult,
+    Agent, GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, HttpEndpoint,
+    HttpEndpointProtocol, InvalidIdentifier, JobCompleteCommand, JobDetectionResult, KbEndpoint,
+    KnowledgeBase, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId,
+    YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -618,17 +619,14 @@ impl SessionFactory for Keeping {
 #[tokio::test(start_paused = true)]
 async fn the_application_renders_the_annotation_being_composed_in_the_active_knowledge_base() {
     let storage = Arc::new(SharedStorage::new());
+    let endpoint = HttpEndpoint::new("localhost", 4000, HttpEndpointProtocol::Http);
     save_knowledge_bases(
         storage.as_ref(),
         &[KnowledgeBase {
             id: "kb".to_owned(),
             label: "A knowledge base".to_owned(),
             did: "did:web:example.org".to_owned(),
-            endpoint: KbEndpoint::Http(HttpEndpoint {
-                host: "localhost".to_owned(),
-                port: 4000,
-                protocol: Protocol::Http,
-            }),
+            endpoint: KbEndpoint::HttpEndpoint(endpoint),
             last_read: None,
         }],
     );

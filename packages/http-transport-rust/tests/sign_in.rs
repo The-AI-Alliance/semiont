@@ -26,9 +26,8 @@ use semiont::errors::{
 };
 use semiont::identity::agent_name;
 use semiont::session::{
-    HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, OpenedSession, Protocol, SemiontBrowser,
-    SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
-    session_key, store_session, stored_session,
+    OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
+    StoredSession, save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
@@ -37,8 +36,9 @@ use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
 use semiont::types::{
-    AgentSoftware, Annotation, FailureClass, JobCompleteCommand, JobDetectionResult, JobProgress,
-    MarkJobFilter, MarkJobFilterParams, Motivation,
+    AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
+    JobCompleteCommand, JobDetectionResult, JobProgress, KbEndpoint, KbTarget, KnowledgeBase,
+    LocalEndpoint, MarkJobFilter, MarkJobFilterParams, Motivation,
 };
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
@@ -525,15 +525,17 @@ impl World {
     }
 
     fn target(&self) -> HttpEndpoint {
-        HttpEndpoint {
-            host: "127.0.0.1".to_owned(),
-            port: self.port,
-            protocol: Protocol::Http,
-        }
+        HttpEndpoint::new("127.0.0.1", self.port, HttpEndpointProtocol::Http)
     }
 
     fn kb(&self, id: &str) -> KbTarget {
-        KbTarget::http(id, "KB A", "127.0.0.1", self.port, Protocol::Http)
+        KbTarget::http(
+            id,
+            "KB A",
+            "127.0.0.1",
+            self.port,
+            HttpEndpointProtocol::Http,
+        )
     }
 
     fn answers(&self, answers: impl IntoIterator<Item = (u16, Value)>) {
@@ -1454,9 +1456,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             kb: KbTarget {
                 id: "in-process".to_owned(),
                 label: "Here".to_owned(),
-                endpoint: KbEndpoint::Local {
-                    kb_id: "here".to_owned(),
-                },
+                endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
             },
             storage,
             validate: false,
@@ -1483,7 +1483,7 @@ fn registered(world: &World, id: &str, did: &str) -> KnowledgeBase {
         id: id.to_owned(),
         label: "KB A".to_owned(),
         did: did.to_owned(),
-        endpoint: KbEndpoint::Http(world.target()),
+        endpoint: KbEndpoint::HttpEndpoint(world.target()),
         last_read: None,
     }
 }
@@ -1567,9 +1567,7 @@ async fn a_registry_over_http_cannot_build_a_session_for_what_is_not_at_a_gatewa
     save_knowledge_bases(
         storage.as_ref(),
         &[KnowledgeBase {
-            endpoint: KbEndpoint::Local {
-                kb_id: "here".to_owned(),
-            },
+            endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
             ..registered(&world, "kb-local", DID_A)
         }],
     );
@@ -1650,7 +1648,10 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
 
     assert_eq!(outcome.kb.did, DID_A);
     assert_eq!(outcome.kb.label, "KB A");
-    assert_eq!(outcome.kb.endpoint, KbEndpoint::Http(world.target()));
+    assert_eq!(
+        outcome.kb.endpoint,
+        KbEndpoint::HttpEndpoint(world.target())
+    );
     assert_eq!(
         outcome
             .kb

@@ -463,13 +463,13 @@ def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then
             gateway.scripted[("POST", TOKEN)] = [PENDING, says({"access_token": issued, "refresh_token": "refresh-1"})]
 
             # Nothing is kept: the code is shown, and the sign-in it brings is kept where `semiont login` keeps one.
-            await hurried(a_person.as_me(gateway.origin, str(tmp_path)))
+            await hurried(a_person.as_me(gateway.target("local"), str(tmp_path)))
             directory = state_dir(this_system(), home=str(tmp_path), xdg_state_home=None, local_app_data=None)
             assert directory is not None
             assert "local" in SignInStore(Path(directory) / FILE_NAME).read()
 
             # Kept: nobody is shown a code again.
-            await soon(a_person.as_me(gateway.origin, str(tmp_path)))
+            await soon(a_person.as_me(gateway.target("local"), str(tmp_path)))
             assert len(gateway.of("POST", "/realms/semiont/device")) == 1
 
     run(scenario())

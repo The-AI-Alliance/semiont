@@ -31,15 +31,14 @@ use semiont::errors::{
 };
 use semiont::resume::CoupledBookmarks;
 use semiont::session::{
-    BROWSER_CLIENT_ID, HttpEndpoint, KbEndpoint, KbTarget, OnAuthFailed, OnSessionError,
-    OpenedSession, Refresh, SCRIPT_CLIENT_ID, SemiontBrowser, SemiontSession, SemiontSessionConfig,
-    SessionFactory, SessionFactoryOptions, SessionRenewer, SignInOutcome, SignedIn, StoredSession,
-    Validate, store_session, stored_session,
+    BROWSER_CLIENT_ID, OnAuthFailed, OnSessionError, OpenedSession, Refresh, SCRIPT_CLIENT_ID,
+    SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory, SessionFactoryOptions,
+    SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate, store_session,
+    stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
-use semiont::types::KbDescription;
-use semiont::types::ResourceId;
+use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -529,7 +528,7 @@ pub async fn complete_sign_in(
         .map_err(CompleteSignInError::Identity)?;
     Ok(browser
         .signed_in(SignedIn {
-            endpoint: KbEndpoint::Http(pending.target),
+            endpoint: KbEndpoint::HttpEndpoint(pending.target),
             description: identity.description,
             session: StoredSession {
                 access: tokens.access,

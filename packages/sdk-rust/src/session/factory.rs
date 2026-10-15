@@ -3,13 +3,13 @@
 //! given a factory, and so manages sessions over any transport without
 //! knowing which.
 
-use super::knowledge_base::KnowledgeBase;
 use super::semiont_session::{OnSessionError, SemiontSession};
 use super::signals::SessionSignals;
 use super::stored::StoredSession;
 use crate::errors::SessionError;
 use crate::storage::SessionStorage;
 use crate::transport::BoxFuture;
+use crate::types::KnowledgeBase;
 use std::sync::Arc;
 
 pub struct SessionFactoryOptions {

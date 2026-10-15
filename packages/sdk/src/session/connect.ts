@@ -8,7 +8,7 @@ import { BehaviorSubject } from 'rxjs';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { accessToken, baseUrl, BusRequestError, kbDid, replyChannelsFor, type AccessToken, type IdentityUnverifiableReason, type KbDescription } from '@semiont/core';
 import { SemiontClient } from '../client';
-import type { HttpEndpoint } from './knowledge-base';
+import type { HttpEndpoint } from '@semiont/core';
 import { kbGatewayUrl } from './storage';
 
 /**

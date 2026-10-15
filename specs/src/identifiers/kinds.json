@@ -325,6 +325,10 @@
       "docs": "What pairs a reply with its request: made by whoever asks, and opaque to everything between."
     },
     {
+      "property": "kbId",
+      "docs": "Which knowledge base a host process has loaded, named as that process names it (`LocalEndpoint`): it means nothing to anyone else, and is no kind of id the protocol holds to a rule."
+    },
+    {
       "property": "lastEventId",
       "docs": "The id of the last event a stream delivered, a PersistedEventId: where a resumed stream begins."
     },

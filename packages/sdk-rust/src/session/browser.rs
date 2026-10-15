@@ -36,7 +36,7 @@
 //! `close` is the graceful end. A browser is built inside a Tokio runtime.
 
 use super::factory::{SessionFactory, SessionFactoryOptions};
-use super::knowledge_base::{KbEndpoint, KbRead, KbSessionStatus, KnowledgeBase, NewKnowledgeBase};
+use super::knowledge_base::KbSessionStatus;
 use super::open_resource::{OpenResource, TabCheck, apply_tab_checks, sort_open_resources};
 use super::semiont_session::SemiontSession;
 use super::signals::{KbIdentityConflict, SessionSignals};
@@ -52,8 +52,9 @@ use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{Events, STREAM_BACKLOG};
-use crate::types::KbDescription;
-use crate::types::ResourceId;
+use crate::types::{
+    KbDescription, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase, ResourceId,
+};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -98,7 +99,7 @@ pub struct Expected {
 /// The entry a sign-in landed on, and what the person believed, so a host
 /// can set the two against each other and say when they differ. The sign-in
 /// stands either way: the knowledge base that answered is the one reached.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SignInOutcome {
     pub kb: KnowledgeBase,
     pub expected: Option<Expected>,
@@ -548,8 +549,10 @@ impl Drop for SemiontBrowser {
 /// Whether two endpoints are one place: for a gateway, its host and port.
 fn same_place(one: &KbEndpoint, other: &KbEndpoint) -> bool {
     match (one, other) {
-        (KbEndpoint::Http(one), KbEndpoint::Http(other)) => one.same_address(other),
-        (KbEndpoint::Local { kb_id: one }, KbEndpoint::Local { kb_id: other }) => one == other,
+        (KbEndpoint::HttpEndpoint(one), KbEndpoint::HttpEndpoint(other)) => one.same_address(other),
+        (KbEndpoint::LocalEndpoint(one), KbEndpoint::LocalEndpoint(other)) => {
+            one.kb_id == other.kb_id
+        }
         _ => false,
     }
 }
@@ -1070,8 +1073,8 @@ mod tests {
 
     use super::*;
     use crate::identity::kb_did;
-    use crate::session::{HttpEndpoint, Protocol};
     use crate::testing::{ScriptedSessions, SharedStorage};
+    use crate::types::{HttpEndpoint, HttpEndpointProtocol};
     use serde_json::{Value, json};
     use std::collections::HashSet;
     use std::time::Duration;
@@ -1149,15 +1152,12 @@ mod tests {
     }
 
     fn entry(id: &str, domain: &str, port: u16) -> KnowledgeBase {
+        let endpoint = HttpEndpoint::new("localhost", port, HttpEndpointProtocol::Http);
         KnowledgeBase {
             id: id.to_owned(),
             label: id.to_owned(),
             did: kb_did(domain),
-            endpoint: KbEndpoint::Http(HttpEndpoint {
-                host: "localhost".to_owned(),
-                port,
-                protocol: Protocol::Http,
-            }),
+            endpoint: KbEndpoint::HttpEndpoint(endpoint),
             last_read: None,
         }
     }

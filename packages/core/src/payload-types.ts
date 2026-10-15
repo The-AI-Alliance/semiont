@@ -83,3 +83,17 @@ export type KbDescription = components['schemas']['KbDescription'];
  */
 export type DiscoveryDocument = components['schemas']['DiscoveryDocument'];
 export type DiscoveredKB = components['schemas']['DiscoveredKB'];
+
+/**
+ * A knowledge base as a client names it, kept locally and never sent: where to
+ * connect (`KbTarget`, reached by its `KbEndpoint`), what registering one
+ * takes (`NewKnowledgeBase`), and a registered one, which has said what it is
+ * (`KnowledgeBase`, with its `KbRead`).
+ */
+export type KbTarget = components['schemas']['KbTarget'];
+export type KnowledgeBase = components['schemas']['KnowledgeBase'];
+export type NewKnowledgeBase = components['schemas']['NewKnowledgeBase'];
+export type KbRead = components['schemas']['KbRead'];
+export type KbEndpoint = components['schemas']['KbEndpoint'];
+export type HttpEndpoint = components['schemas']['HttpEndpoint'];
+export type LocalEndpoint = components['schemas']['LocalEndpoint'];

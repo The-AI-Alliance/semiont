@@ -1,0 +1,18 @@
+{
+  "description": "How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.",
+  "oneOf": [
+    {
+      "$ref": "./HttpEndpoint.json"
+    },
+    {
+      "$ref": "./LocalEndpoint.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "kind",
+    "mapping": {
+      "http": "./HttpEndpoint.json",
+      "local": "./LocalEndpoint.json"
+    }
+  }
+}

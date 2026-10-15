@@ -205,6 +205,8 @@ __all__ = [
     "GraphResourceNode",
     "HealthResponse",
     "HighlightingJobParams",
+    "HttpEndpoint",
+    "HttpEndpointProtocol",
     "InferenceLimits",
     "InferenceLimitsRequest",
     "InferenceLimitsResult",
@@ -273,6 +275,10 @@ __all__ = [
     "JobStoredResultEmpty",
     "JobType",
     "KbDescription",
+    "KbEndpoint",
+    "KbRead",
+    "KbTarget",
+    "KnowledgeBase",
     "KnowledgeGraph",
     "KnowledgeGraphEdgesItem",
     "KnowledgeGraphNodesItem",
@@ -286,6 +292,7 @@ __all__ = [
     "LimitRefusalCode",
     "LinkingJobParams",
     "ListResourcesResponse",
+    "LocalEndpoint",
     "LogFormat",
     "LogLevel",
     "MarkArchiveCommand",
@@ -327,6 +334,7 @@ __all__ = [
     "Motivation",
     "Neo4jGraphConfig",
     "NeptuneGraphConfig",
+    "NewKnowledgeBase",
     "OllamaEmbeddingConfig",
     "PdfTextItem",
     "PeopleProjection",
@@ -1406,6 +1414,39 @@ class KbDescription(WireModel, frozen=True):
             description="The working tree's current git branch. Absent when the knowledge base does not sync git (`[git] sync` in its committed config), and when its tree is not a git checkout.",
         ),
     ] = None
+
+
+class KbRead(WireModel, frozen=True):
+    """
+    When a knowledge base last described itself, and what it said beyond its name. A client shows it as current only while a session to the knowledge base is live, and as of `at` otherwise.
+    """
+
+    at: Annotated[str, Field(description="When the description arrived.")]
+    git_branch: Annotated[
+        str | None,
+        Field(
+            alias="gitBranch",
+            description="The branch of the knowledge base's working tree then. Absent when the working tree was not a git checkout.",
+        ),
+    ] = None
+
+
+class LocalEndpoint(WireModel, frozen=True):
+    """
+    A knowledge base the host process has loaded and reaches through a transport with no wire.
+    """
+
+    kind: Annotated[
+        Literal["local"],
+        Field(description="Discriminant: the endpoint is in the host process."),
+    ]
+    kb_id: Annotated[
+        str,
+        Field(
+            alias="kbId",
+            description="Which loaded knowledge base, named by an id that means something to the host process alone.",
+        ),
+    ]
 
 
 class MarkArchiveCommand(WireModel, frozen=True):
@@ -3094,6 +3135,9 @@ type JobProgressRequestParamsItemLabel = Annotated[
 type JobStatusResponseStatus = Literal["pending", "running", "complete", "failed", "cancelled"]
 
 
+type HttpEndpointProtocol = Annotated[Literal["http", "https"], Field(description="What the gateway is reached over.")]
+
+
 class KnowledgeGraphEdgesItem(WireModel, frozen=True):
     source: str
     target: str
@@ -4347,6 +4391,70 @@ class JobAssignedPayload(WireModel, frozen=True):
     ]
 
 
+class HttpEndpoint(WireModel, frozen=True):
+    """
+    A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (specs/src/session/gateway-url-cases.json).
+    """
+
+    kind: Annotated[
+        Literal["http"],
+        Field(description="Discriminant: the endpoint is a gateway reached over HTTP."),
+    ]
+    host: Annotated[
+        str,
+        Field(description="The gateway's host, as a person or a discovery document gave it."),
+    ]
+    port: Annotated[int, Field(description="The gateway's port.", ge=1, le=65535)]
+    protocol: HttpEndpointProtocol
+
+
+type KbEndpoint = Annotated[
+    HttpEndpoint | LocalEndpoint,
+    Field(
+        description="How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.",
+        discriminator="kind",
+    ),
+]
+
+
+class KbTarget(WireModel, frozen=True):
+    """
+    Where to connect to a knowledge base: an endpoint, and the labels a client keeps of it. It carries no identity: which knowledge base answers at an address is known only once it has been reached with a token and asked, so a target is what every caller can build before then, and a session's whole input. A client keeps it locally; it is never sent.
+    """
+
+    id: Annotated[
+        str,
+        Field(
+            description="The key the client stores a session's credentials under. Two sessions that share one storage have two ids, or each overwrites the other's tokens. Whoever builds the target chooses it; none is made up."
+        ),
+    ]
+    label: Annotated[
+        str,
+        Field(description="What a person reads the knowledge base as. Once the knowledge base has described itself, its own name."),
+    ]
+    endpoint: KbEndpoint
+
+
+class NewKnowledgeBase(WireModel, frozen=True):
+    """
+    What registering a knowledge base takes: everything a registered one holds but its id, which the client's list makes. It has a did, because registering follows a sign-in: the knowledge base has already said what it is.
+    """
+
+    label: Annotated[
+        str,
+        Field(description="What a person reads the knowledge base as. Once the knowledge base has described itself, its own name."),
+    ]
+    endpoint: KbEndpoint
+    did: Annotated[str, Field(description="The did the knowledge base reported of itself.")]
+    last_read: Annotated[
+        KbRead | None,
+        Field(
+            alias="lastRead",
+            description="The last time the knowledge base described itself. Absent until it has, in an answer that carried this entry's did.",
+        ),
+    ] = None
+
+
 class MarkCreateOk(WireModel, frozen=True):
     """
     Success reply after creating an annotation, matched to the originating command by correlationId.
@@ -5445,6 +5553,12 @@ type JobProgressMessage = Annotated[
         discriminator="code",
     ),
 ]
+
+
+class KnowledgeBase(KbTarget, NewKnowledgeBase, frozen=True):
+    """
+    A registered knowledge base: a target, and what registering it took, the identity the knowledge base reported of itself when it was reached (`did`) among it. What a client's list of knowledge bases holds. A did says which knowledge base, not which running copy: a clone and a codespace of one repository are one knowledge base at two addresses and report one did. So an entry is looked up by its endpoint, and its did is what an answer is verified against; nothing selects by did. Its `label` and `lastRead` are written only from an answer that carried its did.
+    """
 
 
 class ListResourcesResponse(WireModel, frozen=True):

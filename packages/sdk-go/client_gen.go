@@ -1023,6 +1023,39 @@ func (e HighlightingJobParamsMotivation) Valid() bool {
 	}
 }
 
+// Defines values for HttpEndpointKind.
+const (
+	HttpEndpointKindHttp HttpEndpointKind = "http"
+)
+
+// Valid indicates whether the value is a known member of the HttpEndpointKind enum.
+func (e HttpEndpointKind) Valid() bool {
+	switch e {
+	case HttpEndpointKindHttp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HttpEndpointProtocol.
+const (
+	HttpEndpointProtocolHttp  HttpEndpointProtocol = "http"
+	HttpEndpointProtocolHttps HttpEndpointProtocol = "https"
+)
+
+// Valid indicates whether the value is a known member of the HttpEndpointProtocol enum.
+func (e HttpEndpointProtocol) Valid() bool {
+	switch e {
+	case HttpEndpointProtocolHttp:
+		return true
+	case HttpEndpointProtocolHttps:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JanusGraphConfigType.
 const (
 	JanusGraphConfigTypeJanusgraph JanusGraphConfigType = "janusgraph"
@@ -1425,6 +1458,21 @@ const (
 func (e LinkingJobParamsMotivation) Valid() bool {
 	switch e {
 	case LinkingJobParamsMotivationLinking:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LocalEndpointKind.
+const (
+	LocalEndpointKindLocal LocalEndpointKind = "local"
+)
+
+// Valid indicates whether the value is a known member of the LocalEndpointKind enum.
+func (e LocalEndpointKind) Valid() bool {
+	switch e {
+	case LocalEndpointKindLocal:
 		return true
 	default:
 		return false
@@ -4063,6 +4111,27 @@ type HighlightingJobParams struct {
 // HighlightingJobParamsMotivation defines model for HighlightingJobParams.Motivation.
 type HighlightingJobParamsMotivation string
 
+// HttpEndpoint A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (specs/src/session/gateway-url-cases.json).
+type HttpEndpoint struct {
+	// Host The gateway's host, as a person or a discovery document gave it.
+	Host string `json:"host"`
+
+	// Kind Discriminant: the endpoint is a gateway reached over HTTP.
+	Kind HttpEndpointKind `json:"kind"`
+
+	// Port The gateway's port.
+	Port int `json:"port"`
+
+	// Protocol What the gateway is reached over.
+	Protocol HttpEndpointProtocol `json:"protocol"`
+}
+
+// HttpEndpointKind Discriminant: the endpoint is a gateway reached over HTTP.
+type HttpEndpointKind string
+
+// HttpEndpointProtocol What the gateway is reached over.
+type HttpEndpointProtocol string
+
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
 type InferenceLimits struct {
 	// AcceptsTemperature Whether this agent's model accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.
@@ -4842,6 +4911,50 @@ type KbDescription struct {
 	Name string `json:"name"`
 }
 
+// KbEndpoint How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.
+type KbEndpoint struct {
+	union json.RawMessage
+}
+
+// KbRead When a knowledge base last described itself, and what it said beyond its name. A client shows it as current only while a session to the knowledge base is live, and as of `at` otherwise.
+type KbRead struct {
+	// At When the description arrived.
+	At time.Time `json:"at"`
+
+	// GitBranch The branch of the knowledge base's working tree then. Absent when the working tree was not a git checkout.
+	GitBranch *string `json:"gitBranch,omitempty"`
+}
+
+// KbTarget Where to connect to a knowledge base: an endpoint, and the labels a client keeps of it. It carries no identity: which knowledge base answers at an address is known only once it has been reached with a token and asked, so a target is what every caller can build before then, and a session's whole input. A client keeps it locally; it is never sent.
+type KbTarget struct {
+	// Endpoint How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.
+	Endpoint KbEndpoint `json:"endpoint"`
+
+	// Id The key the client stores a session's credentials under. Two sessions that share one storage have two ids, or each overwrites the other's tokens. Whoever builds the target chooses it; none is made up.
+	Id string `json:"id"`
+
+	// Label What a person reads the knowledge base as. Once the knowledge base has described itself, its own name.
+	Label string `json:"label"`
+}
+
+// KnowledgeBase defines model for KnowledgeBase.
+type KnowledgeBase struct {
+	// Did The did the knowledge base reported of itself.
+	Did string `json:"did"`
+
+	// Endpoint How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.
+	Endpoint KbEndpoint `json:"endpoint"`
+
+	// Id The key the client stores a session's credentials under. Two sessions that share one storage have two ids, or each overwrites the other's tokens. Whoever builds the target chooses it; none is made up.
+	Id string `json:"id"`
+
+	// Label What a person reads the knowledge base as. Once the knowledge base has described itself, its own name.
+	Label string `json:"label"`
+
+	// LastRead The last time the knowledge base described itself. Absent until it has, in an answer that carried this entry's did.
+	LastRead *KbRead `json:"lastRead,omitempty"`
+}
+
 // KnowledgeGraph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
 type KnowledgeGraph struct {
 	Edges []struct {
@@ -4982,6 +5095,18 @@ type ListResourcesResponse struct {
 	Resources []ResourceDescriptor `json:"resources"`
 	Total     float32              `json:"total"`
 }
+
+// LocalEndpoint A knowledge base the host process has loaded and reaches through a transport with no wire.
+type LocalEndpoint struct {
+	// KbId Which loaded knowledge base, named by an id that means something to the host process alone.
+	KbId string `json:"kbId"`
+
+	// Kind Discriminant: the endpoint is in the host process.
+	Kind LocalEndpointKind `json:"kind"`
+}
+
+// LocalEndpointKind Discriminant: the endpoint is in the host process.
+type LocalEndpointKind string
 
 // LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 type LogFormat string
@@ -5375,6 +5500,21 @@ type NeptuneGraphConfig struct {
 
 // NeptuneGraphConfigType defines model for NeptuneGraphConfig.Type.
 type NeptuneGraphConfigType string
+
+// NewKnowledgeBase What registering a knowledge base takes: everything a registered one holds but its id, which the client's list makes. It has a did, because registering follows a sign-in: the knowledge base has already said what it is.
+type NewKnowledgeBase struct {
+	// Did The did the knowledge base reported of itself.
+	Did string `json:"did"`
+
+	// Endpoint How a knowledge base is reached: a gateway over HTTP, or a knowledge base the host process has loaded. Told apart by `kind`. Only what builds a transport, or signs in at an issuer, reads it.
+	Endpoint KbEndpoint `json:"endpoint"`
+
+	// Label What a person reads the knowledge base as. Once the knowledge base has described itself, its own name.
+	Label string `json:"label"`
+
+	// LastRead The last time the knowledge base described itself. Absent until it has, in an answer that carried this entry's did.
+	LastRead *KbRead `json:"lastRead,omitempty"`
+}
 
 // OllamaEmbeddingConfig An embedding model served by an Ollama.
 type OllamaEmbeddingConfig struct {
@@ -11486,6 +11626,95 @@ func (t JobStoredResult) MarshalJSON() ([]byte, error) {
 }
 
 func (t *JobStoredResult) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsHttpEndpoint returns the union data inside the KbEndpoint as a HttpEndpoint
+func (t KbEndpoint) AsHttpEndpoint() (HttpEndpoint, error) {
+	var body HttpEndpoint
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHttpEndpoint overwrites any union data inside the KbEndpoint as the provided HttpEndpoint
+func (t *KbEndpoint) FromHttpEndpoint(v HttpEndpoint) error {
+	v.Kind = "http"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHttpEndpoint performs a merge with any union data inside the KbEndpoint, using the provided HttpEndpoint
+func (t *KbEndpoint) MergeHttpEndpoint(v HttpEndpoint) error {
+	v.Kind = "http"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLocalEndpoint returns the union data inside the KbEndpoint as a LocalEndpoint
+func (t KbEndpoint) AsLocalEndpoint() (LocalEndpoint, error) {
+	var body LocalEndpoint
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLocalEndpoint overwrites any union data inside the KbEndpoint as the provided LocalEndpoint
+func (t *KbEndpoint) FromLocalEndpoint(v LocalEndpoint) error {
+	v.Kind = "local"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLocalEndpoint performs a merge with any union data inside the KbEndpoint, using the provided LocalEndpoint
+func (t *KbEndpoint) MergeLocalEndpoint(v LocalEndpoint) error {
+	v.Kind = "local"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t KbEndpoint) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t KbEndpoint) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "http":
+		return t.AsHttpEndpoint()
+	case "local":
+		return t.AsLocalEndpoint()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t KbEndpoint) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *KbEndpoint) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

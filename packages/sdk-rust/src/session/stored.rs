@@ -6,9 +6,9 @@
 //! An entry that does not read as what it should be is not there: a store
 //! written by another release is dropped entry by entry, never half-read.
 
-use super::knowledge_base::KnowledgeBase;
 use super::token_expiry;
 use crate::storage::SessionStorage;
+use crate::types::KnowledgeBase;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 

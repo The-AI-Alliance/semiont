@@ -3,7 +3,9 @@
 `session_from_kept` builds one over a sign-in that is kept somewhere: the one
 `semiont login` made, when it is kept in a `semiont.sign_in_store.SignInStore`,
 or one this application kept earlier. `sign_in_device` makes a sign-in to
-keep, from a process with no browser. `sign_out` ends one.
+keep, from a process with no browser. `sign_out` ends one. Each that reaches
+a knowledge base is given its `KbTarget`, and reaches the gateway its HTTP
+endpoint names; a target reached any other way is refused.
 
 A session built here renews its token at the issuer its kept sign-in names.
 Renewals that are asked for together are one request: a stream refused and a
@@ -24,13 +26,14 @@ from typing import Final, final
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
 from semiont.errors import SessionError, SignInError
+from semiont.http.endpoint import gateway_url
 from semiont.http.oauth import DeviceCode, issuer_client, renew_kept, revoke_at_issuer, sign_in_with_device_grant
 from semiont.http.transport import HttpTransport
 from semiont.oauth_clients import SCRIPT_CLIENT_ID
 from semiont.resume import CoupledBookmarks
 from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
 from semiont.storage import SessionStorage
-from semiont.types import UserResponse
+from semiont.types import KbTarget, LocalEndpoint, UserResponse
 from semiont.watched import Variable
 
 __all__ = ["session_from_kept", "sign_in_device", "sign_out"]
@@ -89,11 +92,27 @@ def _asking(base_url: str) -> Validate:
     return ask
 
 
+def _gateway_of(kb: KbTarget) -> str:
+    """The origin of the gateway `kb` is reached at, for a session.
+
+    Raises `SessionError` (`session.construct-failed`) for a knowledge base
+    reached any other way than over HTTP, and for a host that is no host's
+    name.
+    """
+    endpoint = kb.endpoint
+    if isinstance(endpoint, LocalEndpoint):
+        kind = endpoint.kind
+        raise SessionError("session.construct-failed", f'A session over HTTP cannot be built for endpoint kind "{kind}"', kb_id=kb.id)
+    try:
+        return gateway_url(endpoint)
+    except ValueError as invalid:
+        raise SessionError("session.construct-failed", str(invalid), kb_id=kb.id) from None
+
+
 @asynccontextmanager
 async def session_from_kept(
-    base_url: str,
+    kb: KbTarget,
     *,
-    kb_id: str,
     kept: SignInKept,
     validate: bool = True,
     channels: Sequence[str] = BRIDGED_CHANNELS,
@@ -101,7 +120,7 @@ async def session_from_kept(
     on_auth_failed: Callable[[SessionEndReason], None] | None = None,
     on_error: Callable[[SessionError], None] | None = None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
-    """A session with the knowledge base whose gateway is at `base_url`, over the sign-in `kept` holds.
+    """A session with the knowledge base `kb`, at the gateway its endpoint names, over the sign-in `kept` holds.
 
     Held with `async with`, and ready inside it: the session, its client and
     the client's transport are open, and each is closed on the way out. A
@@ -117,24 +136,29 @@ async def session_from_kept(
     under the knowledge base's id, and the stream's place in each scope with
     it: the next session over the same storage shows what was kept at once,
     and is sent what was recorded since.
+
+    Raises `SessionError` (`session.construct-failed`), before anything is
+    asked, for a knowledge base that is not reached over HTTP or whose host is
+    no host's name.
     """
+    base_url = _gateway_of(kb)
     token = Variable[str | None](None)
     renewing = _Renewing(kept)
     # The stream's place rides the caches' writes, and only when every cache is
     # at rest: a place kept ahead of a cache still taking in the event it names
     # would have the next session skip that event.
-    places = None if storage is None else CoupledBookmarks(storage, f"semiont.lastEventId.{kb_id}")
+    places = None if storage is None else CoupledBookmarks(storage, f"semiont.lastEventId.{kb.id}")
     transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels, bookmarks=places)
     client = SemiontClient(
         transport,
         transport.content,
         transport,
-        persistence=None if places is None else CachePersistence(storage=places.storage, key_prefix=kb_id),
+        persistence=None if places is None else CachePersistence(storage=places.storage, key_prefix=kb.id),
     )
     if places is not None:
         places.set_flush_gate(lambda: client.persistence_settled)
     session: SemiontSession[HttpTransport] = SemiontSession(
-        kb_id=kb_id,
+        kb=kb,
         client=client,
         token=token,
         kept=kept,
@@ -151,14 +175,22 @@ async def session_from_kept(
         await renewing.close()
 
 
-async def sign_in_device(base_url: str, kept: SignInKept, on_code: Callable[[DeviceCode], None]) -> None:
+async def sign_in_device(kb: KbTarget, kept: SignInKept, on_code: Callable[[DeviceCode], None]) -> None:
     """Sign in as a person from a process with no browser, and keep the sign-in in `kept`.
 
-    The issuer the knowledge base at `base_url` trusts mints a code, `on_code`
-    shows the person where to approve it, and the tokens come back here: no
-    password passes through this process. Raises `SignInError` when the
-    person is not signed in.
+    The issuer the knowledge base `kb` trusts mints a code, `on_code` shows
+    the person where to approve it, and the tokens come back here: no password
+    passes through this process. Raises `SignInError` when the person is not
+    signed in, and (`discovery`) for a knowledge base that is not reached
+    over HTTP or whose host is no host's name.
     """
+    endpoint = kb.endpoint
+    if isinstance(endpoint, LocalEndpoint):
+        raise SignInError("discovery", f'The device grant needs an HTTP endpoint; this knowledge base\'s is "{endpoint.kind}"')
+    try:
+        base_url = gateway_url(endpoint)
+    except ValueError as invalid:
+        raise SignInError("discovery", str(invalid)) from None
     issuer, tokens = await sign_in_with_device_grant(base_url, on_code)
     await kept.keep(
         HeldSignIn(

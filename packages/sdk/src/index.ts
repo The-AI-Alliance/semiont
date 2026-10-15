@@ -216,14 +216,17 @@ export {
   type SessionStorage,
   InMemorySessionStorage,
 } from './session/session-storage';
+// A knowledge base as a client names it: the spec's shapes, from core.
+export type {
+  KnowledgeBase,
+  NewKnowledgeBase,
+  KbRead,
+  KbTarget,
+  KbEndpoint,
+  HttpEndpoint,
+  LocalEndpoint,
+} from '@semiont/core';
 export {
-  type KnowledgeBase,
-  type KbRead,
-  type KbTarget,
-  type KbEndpoint,
-  type HttpEndpoint,
-  type LocalEndpoint,
-  type NewKnowledgeBase,
   type KbSessionStatus,
   httpKb,
 } from './session/knowledge-base';

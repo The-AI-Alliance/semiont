@@ -33,7 +33,8 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import { FaultyTransport, type FaultyTransportConfig } from '@semiont/core/testing';
 import { SemiontClient } from './client';
 import { SemiontSession } from './session/semiont-session';
-import { httpKb, type KbTarget } from './session/knowledge-base';
+import type { KbTarget } from '@semiont/core';
+import { httpKb } from './session/knowledge-base';
 import { InMemorySessionStorage } from './session/session-storage';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
