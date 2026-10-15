@@ -1233,7 +1233,6 @@ async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     let access = jwt(3600, 1);
 
     let opened = session_from_issued(issued(&world, storage, &access)).await;
-    let session = opened.session();
     until("the session's stream is open", || {
         !world.staged.subscriptions.lock().unwrap().is_empty()
     })
