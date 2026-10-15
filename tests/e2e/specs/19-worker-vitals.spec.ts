@@ -165,8 +165,8 @@ test.describe('worker vitals (/health)', () => {
     const baseByDid = new Map(baseline.workers.map((w) => [w.did, w.jobsCompleted]));
 
     // ── 4. One real delegated job (self-seeded, spec-18 pattern) ──
-    const session = await signInSession();
-    const client = session.client;
+    const opened = await signInSession();
+    const client = opened.session.client;
     try {
       const rid = (
         await client.yield.resource({
@@ -188,7 +188,7 @@ test.describe('worker vitals (/health)', () => {
       // result is its counts or a decline; the counts say it did its work.
       expect(done.result !== undefined && 'found' in done.result, 'the highlighting job reports its counts').toBe(true);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
 
     // ── 5. The vitals advanced. Poll: job:complete on the bus and the

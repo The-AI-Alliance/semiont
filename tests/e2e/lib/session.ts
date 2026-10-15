@@ -17,7 +17,8 @@
  * A session rather than a bare client: the access token lives minutes, and a
  * seed run or a long spec outlives that; the session renews it at the issuer.
  * `InMemorySessionStorage` because these processes want no persistence: each
- * run signs in fresh and takes nothing with it.
+ * run signs in fresh and takes nothing with it. What comes back is the session
+ * with the client it was built with, which `dispose()` ends together.
  */
 
 import { chromium } from '@playwright/test';
@@ -25,6 +26,7 @@ import {
   BROWSER_CLIENT_ID,
   InMemorySessionStorage,
   SemiontSession,
+  type OpenedSession,
   beginAuthorization,
   completeAuthorization,
   httpKb,
@@ -39,7 +41,7 @@ export async function sessionFor(opts: {
   password: string;
   /** KB id — only distinguishes storage keys, and storage is in-memory here. */
   id?: string;
-}): Promise<SemiontSession> {
+}): Promise<OpenedSession> {
   const url = new URL(opts.baseUrl);
   const endpoint = {
     kind: 'http' as const,

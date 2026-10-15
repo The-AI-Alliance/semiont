@@ -27,9 +27,9 @@ test.describe('resource-level anchor', () => {
   test('a source-only (whole-resource) annotation is created, served, and its edge resolves', async () => {
     test.setTimeout(60_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
 
-    const client = session.client;
+    const client = opened.session.client;
 
     try {
       // Two resources: "claim" A (the annotation target) and "source" B (the edge target).
@@ -83,7 +83,7 @@ test.describe('resource-level anchor', () => {
       // The SpecificResource body edge resolves to B.
       expect(getBodySource(created!.body)).toBe(b);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });

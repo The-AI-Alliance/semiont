@@ -52,12 +52,12 @@ const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?'
  *  client, so a pass proves the quote persisted rather than that the browser
  *  still holds it. */
 async function storedAnnotations(resourceId: string) {
-  const session = await signInSession();
-  const client = session.client;
+  const opened = await signInSession();
+  const client = opened.session.client;
   try {
     return await client.browse.annotations(ridBrand(resourceId)).fresh();
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 }
 
