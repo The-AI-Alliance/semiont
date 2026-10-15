@@ -93,27 +93,6 @@ describe('createMatchStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emits match:search-failed on timeout when Observable does not complete within 60s', () => {
-    vi.useFakeTimers();
-    const searchFn = vi.fn(() => new Observable(() => {}));
-    tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client);
-    const failures: { correlationId?: string; payload: unknown }[] = [];
-    tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
-
-    tc.bus.emit('match:search-requested', {
-      resourceId: RID as string,
-      referenceId: 'ref-1',
-      context: {} as any,
-    } as any, { correlationId: 'corr-1' });
-
-    vi.advanceTimersByTime(60_000);
-    expect(failures).toHaveLength(1);
-
-    stateUnit.dispose();
-    vi.useRealTimers();
-  });
-
   it('stops responding after dispose', () => {
     const searchFn = vi.fn();
     tc = withMatch(searchFn);

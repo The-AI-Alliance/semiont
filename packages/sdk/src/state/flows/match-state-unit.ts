@@ -1,5 +1,4 @@
 import type { Subscription } from 'rxjs';
-import { timeout } from 'rxjs/operators';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
@@ -14,8 +13,6 @@ export function createMatchStateUnit(client: SemiontClient): MatchStateUnit {
       event.referenceId,
       event.context,
       { limit: event.limit, useSemanticScoring: event.useSemanticScoring },
-    ).pipe(
-      timeout(60_000),
     ).subscribe({
       next: (result) => client.bus.emit('match:search-results', result, { correlationId }),
       error: (err) => client.bus.emit('match:search-failed', { referenceId: event.referenceId,

@@ -16,6 +16,7 @@
 
 use crate::state::Held;
 use crate::state_unit::StateUnit;
+use serde::{Serialize, Serializer};
 use tokio::sync::watch;
 
 /// Why a session ended: its token could not be renewed (`Expired`), or the
@@ -37,15 +38,23 @@ impl SessionEndReason {
     }
 }
 
+impl Serialize for SessionEndReason {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 /// A session ended, and why.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionEnded {
     pub reason: SessionEndReason,
 }
 
 /// A request was refused for lack of permission. `detail` is the refusal's
 /// own message, untranslated; none when there is none.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PermissionDenied {
     pub detail: Option<String>,
 }
@@ -53,7 +62,8 @@ pub struct PermissionDenied {
 /// What a registered entry said it was, and what answered. Both, because
 /// neither alone can be acted on: a person has to recognise which knowledge
 /// base they registered and which one is there now.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KbIdentityConflict {
     pub expected_did: String,
     pub observed_did: String,

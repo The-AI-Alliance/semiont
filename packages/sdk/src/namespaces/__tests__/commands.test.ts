@@ -558,40 +558,44 @@ describe('GatherNamespace', () => {
   });
 
   it('annotation() emits gather:requested on bus', () => {
-    gather.annotation(RID, AID, { contextWindow: 2000 }).subscribe(() => {});
+    const asking = gather.annotation(RID, AID, { contextWindow: 2000 }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('gather:requested', expect.objectContaining({
         annotationId: AID,
         resourceId: RID,
         options: { contextWindow: 2000 },
       }), expect.objectContaining({ correlationId: expect.any(String) }));
+      // Abandons the request, which nobody answers here.
+      asking.unsubscribe();
       resolve();
     }, 20));
   });
 
   it('annotation() completes on gather:complete', async () => {
-    const completed = new Promise<void>((resolve) => {
-      gather.annotation(RID, AID).subscribe({ next: () => {}, complete: () => resolve() });
+    const answered = new GatherNamespace(
+      createMockTransport({
+        'gather:requested': (reply) => reply('gather:complete', { annotationId: AID, response: CTX_ANN }),
+      }).transport,
+      eventBus,
+    );
+    const gathered: unknown[] = [];
+    await new Promise<void>((resolve) => {
+      answered.annotation(RID, AID).subscribe({ next: (result) => gathered.push(result), complete: () => resolve() });
     });
-
-    await new Promise((r) => setTimeout(r, 20));
-    const call = emitSpy.mock.calls[0];
-    const cid = call?.[2]?.correlationId;
-    eventBus.emit('gather:complete', { annotationId: AID, response: CTX_ANN }, { correlationId: cid });
-    await completed;
+    expect(gathered).toEqual([{ annotationId: AID, response: CTX_ANN }]);
   });
 
   it('annotation() errors on gather:failed', async () => {
-    const errored = new Promise<Error>((resolve) => {
-      gather.annotation(RID, AID).subscribe({ error: (err) => resolve(err) });
+    const refused = new GatherNamespace(
+      createMockTransport({
+        'gather:requested': (reply) => reply('gather:failed', { annotationId: AID, message: 'boom' }),
+      }).transport,
+      eventBus,
+    );
+    const err = await new Promise<Error>((resolve) => {
+      refused.annotation(RID, AID).subscribe({ error: (error: Error) => resolve(error) });
     });
-
-    await new Promise((r) => setTimeout(r, 20));
-    const call = emitSpy.mock.calls[0];
-    const cid = call?.[2]?.correlationId;
-    eventBus.emit('gather:failed', { annotationId: AID, message: 'boom' }, { correlationId: cid });
-    const err = await errored;
-    expect(err.message).toContain('boom');
+    expect(err.message).toBe('boom');
   });
 });
 
@@ -610,37 +614,43 @@ describe('MatchNamespace', () => {
   });
 
   it('search() emits match:search-requested on bus', () => {
-    match.search(RID, REF, CTX_REF).subscribe(() => {});
+    const asking = match.search(RID, REF, CTX_REF).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('match:search-requested', expect.objectContaining({
         resourceId: RID,
         referenceId: 'ref-1',
       }), expect.objectContaining({ correlationId: expect.any(String) }));
+      // Abandons the request, which nobody answers here.
+      asking.unsubscribe();
       resolve();
     }, 20));
   });
 
   it('search() completes on match:search-results', async () => {
-    const completed = new Promise<void>((resolve) => {
-      match.search(RID, REF, CTX_REF).subscribe({ next: () => {}, complete: () => resolve() });
+    const answered = new MatchNamespace(
+      createMockTransport({
+        'match:search-requested': (reply) => reply('match:search-results', { referenceId: REF, response: [] }),
+      }).transport,
+      eventBus,
+    );
+    const results: unknown[] = [];
+    await new Promise<void>((resolve) => {
+      answered.search(RID, REF, CTX_REF).subscribe({ next: (result) => results.push(result), complete: () => resolve() });
     });
-    await new Promise((r) => setTimeout(r, 20));
-    const call = emitSpy.mock.calls[0];
-    const cid = call?.[2]?.correlationId;
-    eventBus.emit('match:search-results', { referenceId: REF, response: [] }, { correlationId: cid });
-    await completed;
+    expect(results).toEqual([{ referenceId: REF, response: [] }]);
   });
 
-  it('search() errors on match:search-failed', async () => {
-    const errored = new Promise<Error>((resolve) => {
-      match.search(RID, REF, CTX_REF).subscribe({ error: (err) => resolve(err) });
+  it('search() errors on match:search-failed, with what went wrong', async () => {
+    const refused = new MatchNamespace(
+      createMockTransport({
+        'match:search-requested': (reply) => reply('match:search-failed', { referenceId: REF, error: 'no results' }),
+      }).transport,
+      eventBus,
+    );
+    const err = await new Promise<Error>((resolve) => {
+      refused.search(RID, REF, CTX_REF).subscribe({ error: (error: Error) => resolve(error) });
     });
-    await new Promise((r) => setTimeout(r, 20));
-    const call = emitSpy.mock.calls[0];
-    const cid = call?.[2]?.correlationId;
-    eventBus.emit('match:search-failed', { referenceId: REF, error: 'no results' }, { correlationId: cid });
-    const err = await errored;
-    expect(err.message).toContain('no results');
+    expect(err.message).toBe('no results');
   });
 });
 
@@ -1041,10 +1051,10 @@ describe('YieldNamespace', () => {
 // Three namespaces guard their `.catch` handlers against firing
 // `subscriber.error` on an already-closed subscriber:
 //
-//   gather.ts  — `wire.emit('gather:requested', …).catch(...)` checks
-//                `subscriber.closed`
-//   match.ts   — `wire.emit('match:search-requested', …).catch(...)`
-//                checks `subscriber.closed`
+//   gather.ts  — the `gather:requested` request's rejection checks
+//                `subscriber.closed`; unsubscribing abandons the request
+//   match.ts   — the `match:search-requested` request's rejection checks
+//                `subscriber.closed`; unsubscribing abandons the request
 //   delegation.ts — the `job:create` request's `.catch(...)` checks the local `done`
 //                flag set by cleanup()
 //

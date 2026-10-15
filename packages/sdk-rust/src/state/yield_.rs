@@ -15,12 +15,14 @@ use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
 use crate::types::{GenerationJobParams, JobProgress, YieldJobResult};
 use crate::types::{JobId, ResourceId};
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
 
 /// What a finished generation produced.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct YieldOutcome {
     pub resource_id: ResourceId,
     pub resource_name: String,

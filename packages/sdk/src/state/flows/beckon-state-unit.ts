@@ -1,16 +1,16 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { AnnotationId } from '@semiont/core';
+import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '@semiont/core';
+import { watched, type AnnotationId, type StateUnit, type Watched } from '@semiont/core';
 
 export interface BeckonStateUnit extends StateUnit {
-  hoveredAnnotationId$: Observable<AnnotationId | null>;
+  hoveredAnnotationId$: Watched<AnnotationId | null>;
   focus(annotationId: AnnotationId): void;
 }
 
 export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
   const subs: Subscription[] = [];
   const hovered$ = new BehaviorSubject<AnnotationId | null>(null);
+  let disposed = false;
 
   subs.push(client.bus.on('beckon:hover').subscribe(({ annotationId }) => {
     hovered$.next(annotationId as AnnotationId | null);
@@ -24,9 +24,12 @@ export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
   }));
 
   return {
-    hoveredAnnotationId$: hovered$.asObservable(),
-    focus: (annotationId) => client.bus.emit('beckon:focus', { annotationId }),
+    hoveredAnnotationId$: watched(hovered$),
+    focus: (annotationId) => {
+      if (!disposed) client.bus.emit('beckon:focus', { annotationId });
+    },
     dispose() {
+      disposed = true;
       subs.forEach(s => s.unsubscribe());
       hovered$.complete();
     },
