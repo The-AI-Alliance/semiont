@@ -458,8 +458,9 @@ async def perform(
 # ── The tests ───────────────────────────────────────────────────────────
 
 
-def test_this_sdk_makes_each_unit_it_has_and_no_other() -> None:
-    assert set(MAKERS) == HAS
+def test_this_sdk_makes_each_unit_it_has_cases_of_and_no_other() -> None:
+    # A unit the table states no case of (the cache, whose behaviour its own tables hold) needs no maker here.
+    assert set(MAKERS) == {text(case["unit"], "a case's unit") for case in RUN}
 
 
 def test_every_case_is_of_a_unit_the_names_table_has() -> None:
