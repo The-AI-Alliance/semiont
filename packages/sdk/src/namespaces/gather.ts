@@ -1,8 +1,7 @@
-import { filter, map } from 'rxjs/operators';
 import type { AnnotationId, CacheQuery, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
-import { Bus, uuidV4 } from '@semiont/core';
+import { Bus } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
 import { CacheRefresher, ScopedSources } from '../cache-refresh';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete, ReferencedByEntry } from './types';
@@ -84,42 +83,27 @@ export class GatherNamespace implements IGatherNamespace {
     options?: { contextWindow?: number },
   ): StreamObservable<GatherAnnotationComplete> {
     return new StreamObservable<GatherAnnotationComplete>((subscriber) => {
-      const correlationId = uuidV4();
-
-      const complete$ = this.bus.frames('gather:complete').pipe(
-        filter((frame) => frame.correlationId === correlationId),
-        map((frame) => frame.payload),
-      );
-      const failed$ = this.bus.frames('gather:failed').pipe(
-        filter((frame) => frame.correlationId === correlationId),
-        map((frame) => frame.payload),
-      );
-
-      const completeSub = complete$.subscribe((e) => {
-        subscriber.next(e);
-        subscriber.complete();
-      });
-
-      const failedSub = failed$.subscribe((e) => {
-        subscriber.error(new Error(e.message));
-      });
-
-      this.wire.emit('gather:requested', {
-        annotationId,
-        resourceId,
-        options: { contextWindow: options?.contextWindow ?? 2000 },
-      }, { correlationId }).catch((error) => {
-        // Don't propagate if a result or failure event already closed the
-        // subscriber, or if the consumer disposed mid-flight. Otherwise
-        // RxJS hosts the error as an uncaught exception.
-        if (subscriber.closed) return;
-        subscriber.error(error);
-      });
-
-      return () => {
-        completeSub.unsubscribe();
-        failedSub.unsubscribe();
-      };
+      const abandoned = new AbortController();
+      this.wire
+        .request(
+          'gather:requested',
+          { annotationId, resourceId, options: { contextWindow: options?.contextWindow ?? 2000 } },
+          // The request's own deadline: the option above is the live query's.
+          undefined,
+          abandoned.signal,
+        )
+        .then(
+          (response) => {
+            subscriber.next({ annotationId, response });
+            subscriber.complete();
+          },
+          (error: unknown) => {
+            // Abandoned by its reader, who is gone: there is nobody to tell.
+            if (subscriber.closed) return;
+            subscriber.error(error);
+          },
+        );
+      return () => abandoned.abort();
     });
   }
 

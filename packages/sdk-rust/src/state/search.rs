@@ -15,6 +15,7 @@ use super::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::timing::SEARCH_DEBOUNCE;
 use futures_core::Stream;
+use serde::Serialize;
 use std::future::{pending, poll_fn};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -23,7 +24,8 @@ use tokio::sync::watch;
 use tokio::time::Instant;
 
 /// What a search shows: its results, and whether more are on their way.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchState<T> {
     pub results: Vec<T>,
     pub is_searching: bool,

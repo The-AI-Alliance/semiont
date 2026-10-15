@@ -1,7 +1,6 @@
-import { filter, map} from 'rxjs/operators';
 import type { AnnotationId, CacheQuery, ResourceDescriptor, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { Bus, uuidV4 } from '@semiont/core';
+import { Bus, BusRequestError, isObject } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
 import { createCache, type Cache } from '../cache';
 import { CacheRefresher } from '../cache-refresh';
@@ -13,6 +12,15 @@ import type { MatchNamespace as IMatchNamespace, MatchSearchProgress, MatchedRes
  */
 export const MATCH_QUERIES = ['matchedResources'] as const satisfies readonly CacheQuery[];
 type MatchQuery = (typeof MATCH_QUERIES)[number];
+
+/** A search's failure says what went wrong under `error`, where every other operation's says it under `message`. */
+function searchFailure(error: unknown): unknown {
+  if (!(error instanceof BusRequestError)) return error;
+  const failure = error.details?.['payload'];
+  return isObject(failure) && typeof failure['error'] === 'string'
+    ? new BusRequestError(failure['error'], error.code, error.details)
+    : error;
+}
 
 export class MatchNamespace implements IMatchNamespace {
   /** One per search and set of filters asked for. In memory only. */
@@ -96,42 +104,33 @@ export class MatchNamespace implements IMatchNamespace {
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): StreamObservable<MatchSearchProgress> {
     return new StreamObservable<MatchSearchProgress>((subscriber) => {
-      const correlationId = uuidV4();
-
-      const result$ = this.bus.frames('match:search-results').pipe(
-        filter((frame) => frame.correlationId === correlationId),
-        map((frame) => frame.payload),
-      );
-      const failed$ = this.bus.frames('match:search-failed').pipe(
-        filter((frame) => frame.correlationId === correlationId),
-        map((frame) => frame.payload),
-      );
-
-      const resultSub = result$.subscribe((e) => {
-        subscriber.next(e as MatchSearchProgress);
-        subscriber.complete();
-      });
-
-      const failedSub = failed$.subscribe((e) => {
-        subscriber.error(new Error(e.error));
-      });
-
-      this.wire.emit('match:search-requested', { resourceId,
-        referenceId,
-        context,
-        limit: options?.limit ?? 10,
-        useSemanticScoring: options?.useSemanticScoring ?? true, }, { correlationId }).catch((error) => {
-        // Don't propagate if a result or failure event already closed the
-        // subscriber, or if the consumer disposed mid-flight. Otherwise
-        // RxJS hosts the error as an uncaught exception.
-        if (subscriber.closed) return;
-        subscriber.error(error);
-      });
-
-      return () => {
-        resultSub.unsubscribe();
-        failedSub.unsubscribe();
-      };
+      const abandoned = new AbortController();
+      this.wire
+        .request(
+          'match:search-requested',
+          {
+            resourceId,
+            referenceId,
+            context,
+            limit: options?.limit ?? 10,
+            useSemanticScoring: options?.useSemanticScoring ?? true,
+          },
+          // The request's own deadline: the option above is the live query's.
+          undefined,
+          abandoned.signal,
+        )
+        .then(
+          (response) => {
+            subscriber.next({ referenceId, response });
+            subscriber.complete();
+          },
+          (error: unknown) => {
+            // Abandoned by its reader, who is gone: there is nobody to tell.
+            if (subscriber.closed) return;
+            subscriber.error(searchFailure(error));
+          },
+        );
+      return () => abandoned.abort();
     });
   }
 }

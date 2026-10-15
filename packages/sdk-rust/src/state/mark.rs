@@ -47,12 +47,14 @@ use crate::types::{
     TextQuoteSelector, TextQuoteSelectorType,
 };
 use crate::types::{JobId, ResourceId};
+use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::watch;
 
 /// An annotation being composed: where it is, and why it is made. Its
 /// selector is what `client.mark.submit` takes.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PendingAnnotation {
     pub selector: AnnotationSelector,
     pub motivation: Motivation,

@@ -1,7 +1,6 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { GenerationJobParams, JobId, ResourceId, components } from '@semiont/core';
+import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '@semiont/core';
+import { watched, type GenerationJobParams, type JobId, type ResourceId, type StateUnit, type Watched, type components } from '@semiont/core';
 import type { DelegationObservable, YieldJobCompletion } from '../../awaitable';
 import { JobCancelledError } from '../../namespaces/job-status-poll';
 
@@ -26,28 +25,28 @@ export interface YieldOutcome {
 }
 
 export interface YieldStateUnit extends StateUnit {
-  isGenerating$: Observable<boolean>;
-  progress$: Observable<JobProgress | null>;
+  isGenerating$: Watched<boolean>;
+  progress$: Watched<JobProgress | null>;
   /**
    * The finished run's result, once `job:complete` arrives with a generation
    * result; null while running and after dismissal. Lives and dies with the
    * progress display: a new `generate()` clears it, `dismissProgress()` clears
    * both together.
    */
-  outcome$: Observable<YieldOutcome | null>;
+  outcome$: Watched<YieldOutcome | null>;
   /**
    * Why the last run ended without a result: it failed, stalled or was
    * cancelled. A `SemiontError`'s `code` says which. Null while a run is
    * under way, after one that completed, and once dismissed. A stall is said
    * nowhere else.
    */
-  failure$: Observable<Error | null>;
+  failure$: Watched<Error | null>;
   /**
    * The id of the generation job, from the queue's answer to its creation to
    * the job's end: what `client.job.cancel` names. Null before the answer,
    * when there is no id, and after the end, when there is nothing to cancel.
    */
-  jobId$: Observable<JobId | null>;
+  jobId$: Watched<JobId | null>;
   /**
    * Grounded generation — the focus of `params.context` decides the shape
    * (annotation focus auto-binds; resource focus mints provenance) and names
@@ -74,6 +73,9 @@ export function createYieldStateUnit(
   const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
   const failure$ = new BehaviorSubject<Error | null>(null);
   const jobId$ = new BehaviorSubject<JobId | null>(null);
+  // A completed BehaviorSubject still takes a value from `next`, which its
+  // `getValue` then gives: once disposed, nothing here may set one.
+  let disposed = false;
 
   // Generation progress/complete/fail is driven entirely by the delegation
   // `client.yield.delegate` returns — it gives this job's events only, so no
@@ -138,6 +140,7 @@ export function createYieldStateUnit(
   };
 
   const generate = (params: GenerationJobParams, stallDeadlineMs?: number): void => {
+    if (disposed) return;
     // A new run's frame must not carry the previous run's progress, its
     // link, its failure, or its job's id.
     progress$.next(null);
@@ -151,18 +154,20 @@ export function createYieldStateUnit(
   };
 
   return {
-    isGenerating$: isGenerating$.asObservable(),
-    progress$: progress$.asObservable(),
-    outcome$: outcome$.asObservable(),
-    failure$: failure$.asObservable(),
-    jobId$: jobId$.asObservable(),
+    isGenerating$: watched(isGenerating$),
+    progress$: watched(progress$),
+    outcome$: watched(outcome$),
+    failure$: watched(failure$),
+    jobId$: watched(jobId$),
     generate,
     dismissProgress() {
+      if (disposed) return;
       progress$.next(null);
       outcome$.next(null);
       failure$.next(null);
     },
     dispose() {
+      disposed = true;
       subs.forEach(s => s.unsubscribe());
       isGenerating$.complete();
       progress$.complete();

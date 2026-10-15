@@ -2,9 +2,9 @@
  * SemiontClient lifecycle + namespace-routing tests.
  *
  * Covers the wiring on `client.ts` itself: bus bridge construction,
- * `state$` / `dispose` plumbing, and the few
- * namespace flows that resolve via the bridged `client.bus` rather than
- * `transport.stream` directly (match.search, gather.annotation).
+ * `state$` / `dispose` plumbing, and two results that reach a caller with no
+ * resource's scope held: a search's and an annotation's gather, each a
+ * request answered on the wire.
  *
  * Strategy: pass a recording mock `ITransport` (and a mock
  * `IContentTransport`) into `new SemiontClient(...)`. No HTTP, no real
@@ -17,6 +17,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, type Observable } from 'rxjs';
 import {
+  EventBus,
   baseUrl,
   resourceId,
   annotationId,
@@ -28,7 +29,7 @@ import { inMemoryTransport, gatewayOperationSpies, contentTransportSpies } from 
 
 const TEST_BASE = baseUrl('http://test.local');
 
-function makeMockTransport(): ITransport {
+function makeMockTransport(wire: EventBus): ITransport {
   // Built through `inMemoryTransport` and then overridden with the spies these
   // tests assert on. The overrides are typed as the interface's own members
   // (`vi.fn<ITransport['emit']>()`), not bare `vi.fn()` — a bare spy types as
@@ -36,7 +37,7 @@ function makeMockTransport(): ITransport {
   // behind a cast drifts from the contract.
   const state$ = new BehaviorSubject<ConnectionState>('open');
   return {
-    ...inMemoryTransport({ state$ }),
+    ...inMemoryTransport({ state$, bus: wire }),
     baseUrl: TEST_BASE,
     emit: vi.fn<ITransport['emit']>(async () => 1),
     subscribeToResource: vi.fn<ITransport['subscribeToResource']>(() => () => {}),
@@ -52,11 +53,14 @@ function makeMockContent(): IContentTransport {
 
 describe('SemiontClient lifecycle + namespace routing', () => {
   let transport: ITransport;
+  /** What the transport delivers: a reply put here reaches the client as one off the wire does. */
+  let wire: EventBus;
   let content: IContentTransport;
   let client: SemiontClient;
 
   beforeEach(() => {
-    transport = makeMockTransport();
+    wire = new EventBus();
+    transport = makeMockTransport(wire);
     content = makeMockContent();
     client = new SemiontClient(transport, content);
   });
@@ -131,10 +135,9 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   // `subscribeToResource(resourceId)` first.
 
   describe('results without subscribeToResource', () => {
-    // Match/gather Observables read from `client.bus` (the bridged surface),
-    // not from `transport.stream` directly. To simulate a global result
-    // arriving without a resource scope, push onto `client.bus` directly —
-    // this is what the transport bridge would do on a real wire.
+    // A search and an annotation's gather are requests, answered on the
+    // wire: each result is put on what the transport delivers, carrying no
+    // resource's scope.
 
     test('client.match.search() resolves from a global match:search-results event', async () => {
       const { firstValueFrom } = await import('rxjs');
@@ -146,7 +149,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       expect(emitted).toBeTruthy();
       const cid = emitted![2]?.correlationId;
 
-      client.bus.emit('match:search-results', {
+      wire.emit('match:search-results', {
         referenceId: annotationId('ref-1'),
         response: [],
       }, { correlationId: cid });
@@ -167,7 +170,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       expect(emitted).toBeTruthy();
       const cid = emitted![2]?.correlationId;
 
-      client.bus.emit('gather:complete', ({
+      wire.emit('gather:complete', ({
         annotationId: testAnnotationId as unknown as string,
         response: { sourceContext: {} },
       }) as never, { correlationId: cid });
@@ -187,7 +190,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
         .mocked(transport.emit)
         .mock.calls.find((c) => c[0] === 'match:search-requested')![2]?.correlationId;
 
-      client.bus.emit('match:search-failed', ({
+      wire.emit('match:search-failed', ({
         referenceId: 'ref-x',
         error: 'inference provider down',
       }) as never, { correlationId: cid });

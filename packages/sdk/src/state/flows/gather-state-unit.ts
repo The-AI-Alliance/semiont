@@ -1,27 +1,25 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import { timeout } from 'rxjs/operators';
-import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
+import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '@semiont/core';
+import { watched, type AnnotationId, type GatheredContext, type ResourceId, type StateUnit, type Watched } from '@semiont/core';
 import type { GatherNamespace } from '../../namespaces/types';
 
 /** The options `client.gather.resource` takes — one shape, referenced not duplicated. */
 export type ResourceGatherOptions = Parameters<GatherNamespace['resource']>[1];
 
 export interface GatherStateUnit extends StateUnit {
-  context$: Observable<GatheredContext | null>;
-  loading$: Observable<boolean>;
-  error$: Observable<Error | null>;
-  annotationId$: Observable<AnnotationId | null>;
+  context$: Watched<GatheredContext | null>;
+  loading$: Watched<boolean>;
+  error$: Watched<Error | null>;
+  annotationId$: Watched<AnnotationId | null>;
   /**
    * Resource-gather state: SEPARATE slots from the annotation trio above —
    * the two gathers can be live at once (wizard closed mid-load, Generate
    * open), and one BehaviorSubject cannot represent both. One fact per
    * observable.
    */
-  resourceContext$: Observable<GatheredContext | null>;
-  resourceLoading$: Observable<boolean>;
-  resourceError$: Observable<Error | null>;
+  resourceContext$: Watched<GatheredContext | null>;
+  resourceLoading$: Watched<boolean>;
+  resourceError$: Watched<Error | null>;
   /**
    * Gather a resource-focus context. A METHOD, not a bus channel: the
    * annotation path's channel exists because a far-away component triggers
@@ -43,12 +41,14 @@ export function createGatherStateUnit(
   const resourceContext$ = new BehaviorSubject<GatheredContext | null>(null);
   const resourceLoading$ = new BehaviorSubject<boolean>(false);
   const resourceError$ = new BehaviorSubject<Error | null>(null);
-  // `gather.resource` is a Promise, not a stream — a resolution arriving
-  // after dispose must be inert (A5b), and a completed BehaviorSubject's
-  // `next` is technically a no-op but the flag states the intent.
+  // A completed BehaviorSubject still takes a value from `next`, which its
+  // `getValue` then gives: once disposed, nothing here may set one. And
+  // `gather.resource` is a Promise, not a stream, so a resolution arriving
+  // after dispose is dropped here (A5b).
   let disposed = false;
 
   const gatherResource = (rid: ResourceId, options?: ResourceGatherOptions): void => {
+    if (disposed) return;
     resourceLoading$.next(true);
     resourceError$.next(null);
     resourceContext$.next(null);
@@ -75,8 +75,6 @@ export function createGatherStateUnit(
       resourceId,
       event.annotationId,
       { contextWindow: event.options?.contextWindow ?? 2000 },
-    ).pipe(
-      timeout(60_000),
     ).subscribe({
       next: (progress) => {
         if ('response' in progress && progress.response) {
@@ -98,13 +96,13 @@ export function createGatherStateUnit(
   }));
 
   return {
-    context$: context$.asObservable(),
-    loading$: loading$.asObservable(),
-    error$: error$.asObservable(),
-    annotationId$: annotationId$.asObservable(),
-    resourceContext$: resourceContext$.asObservable(),
-    resourceLoading$: resourceLoading$.asObservable(),
-    resourceError$: resourceError$.asObservable(),
+    context$: watched(context$),
+    loading$: watched(loading$),
+    error$: watched(error$),
+    annotationId$: watched(annotationId$),
+    resourceContext$: watched(resourceContext$),
+    resourceLoading$: watched(resourceLoading$),
+    resourceError$: watched(resourceError$),
     gatherResource,
     dispose() {
       disposed = true;

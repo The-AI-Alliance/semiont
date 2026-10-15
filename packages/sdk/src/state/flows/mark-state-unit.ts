@@ -1,8 +1,6 @@
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import { DELEGATE_SILENCE_MS } from '@semiont/core';
-import type { JobId, ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
+import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import type { StateUnit } from '@semiont/core';
+import { DELEGATE_SILENCE_MS, watched, type EventMap, type JobId, type Motivation, type ResourceId, type Selector, type StateUnit, type Watched, type components } from '@semiont/core';
 import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -13,9 +11,9 @@ export interface PendingAnnotation {
 }
 
 export interface MarkStateUnit extends StateUnit {
-  pendingAnnotation$: Observable<PendingAnnotation | null>;
-  delegatingMotivation$: Observable<Motivation | null>;
-  progress$: Observable<JobProgress | null>;
+  pendingAnnotation$: Watched<PendingAnnotation | null>;
+  delegatingMotivation$: Watched<Motivation | null>;
+  progress$: Watched<JobProgress | null>;
   /**
    * The motivation of the run whose progress `progress$` holds: set when a
    * job is delegated, kept through its end so its display stays its
@@ -23,19 +21,19 @@ export interface MarkStateUnit extends StateUnit {
    * failure. `delegatingMotivation$` says what is running; this says whose
    * display the progress is.
    */
-  progressMotivation$: Observable<Motivation | null>;
+  progressMotivation$: Watched<Motivation | null>;
   /**
    * Why the last delegated job ended without completing: it failed or was
    * cancelled. A `SemiontError`'s `code` says which. Null while a job is
    * under way, after one that completed, and once dismissed.
    */
-  failure$: Observable<Error | null>;
+  failure$: Watched<Error | null>;
   /**
    * The id of the delegated job, from the queue's answer to its creation to
    * the job's end: what `client.job.cancel` names. Null before the answer,
    * when there is no id, and after the end, when there is nothing to cancel.
    */
-  jobId$: Observable<JobId | null>;
+  jobId$: Watched<JobId | null>;
 }
 
 type SelectionData = EventMap['mark:select-comment'];
@@ -61,6 +59,9 @@ export function createMarkStateUnit(
   const progressMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const failure$ = new BehaviorSubject<Error | null>(null);
   const jobId$ = new BehaviorSubject<JobId | null>(null);
+  // A completed BehaviorSubject still takes a value from `next`, which its
+  // `getValue` then gives: once disposed, nothing here may set one.
+  let disposed = false;
 
   // A finished run STAYS on screen, and so does a cancelled one. There is no
   // dismissal timer: the result line — "Created 7 references" — is the one
@@ -107,6 +108,7 @@ export function createMarkStateUnit(
         target: { source: resourceId, selector: event.selector as Selector },
         body: event.body,
       });
+      if (disposed) return;
       // The composer closes HERE, not on `mark:create-ok`.
       //
       // Every other signal in this state machine is `direction: 'in-process'`
@@ -120,6 +122,7 @@ export function createMarkStateUnit(
       // `mark:cancel-pending`, which is what that channel is for.
       pendingAnnotation$.next(null);
     } catch (error) {
+      if (disposed) return;
       // Client-local, resource-stamped UI notification — the wire reply
       // (mark:create-failed) is Bus.request plumbing, not for UI consumption.
       client.bus.emit('mark:create-error', { resourceId, message: error instanceof Error ? error.message : String(error) });
@@ -218,6 +221,8 @@ export function createMarkStateUnit(
         forgetJob();
       },
     });
+    // Disposing stops the silence detector with the job's subscription.
+    delegationSub.add(clearStale);
     subs.push(delegationSub);
   }));
 
@@ -228,13 +233,14 @@ export function createMarkStateUnit(
   }));
 
   return {
-    pendingAnnotation$: pendingAnnotation$.asObservable(),
-    delegatingMotivation$: delegatingMotivation$.asObservable(),
-    progress$: progress$.asObservable(),
-    progressMotivation$: progressMotivation$.asObservable(),
-    failure$: failure$.asObservable(),
-    jobId$: jobId$.asObservable(),
+    pendingAnnotation$: watched(pendingAnnotation$),
+    delegatingMotivation$: watched(delegatingMotivation$),
+    progress$: watched(progress$),
+    progressMotivation$: watched(progressMotivation$),
+    failure$: watched(failure$),
+    jobId$: watched(jobId$),
     dispose() {
+      disposed = true;
       subs.forEach(s => s.unsubscribe());
       pendingAnnotation$.complete();
       delegatingMotivation$.complete();

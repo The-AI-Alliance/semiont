@@ -23,7 +23,7 @@
  * `undefined`.
  */
 
-import { SEARCH_DEBOUNCE_MS, type StateUnit } from '@semiont/core';
+import { SEARCH_DEBOUNCE_MS, watched, type StateUnit, type Watched } from '@semiont/core';
 import { BehaviorSubject, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
 
@@ -34,9 +34,9 @@ export interface SearchState<T> {
 
 export interface SearchPipeline<T> extends StateUnit {
   /** The query as it was last set. Bind to a controlled input. */
-  query$: Observable<string>;
+  query$: Watched<string>;
   /** Latest search state — results plus a loading flag. */
-  state$: Observable<SearchState<T>>;
+  state$: Watched<SearchState<T>>;
   /** Set the query. A query it already has changes nothing. */
   setQuery(value: string): void;
 }
@@ -55,6 +55,7 @@ export function createSearchPipeline<T>(
   const debounceMs = options.debounceMs ?? SEARCH_DEBOUNCE_MS;
   const query$ = new BehaviorSubject<string>(options.initialQuery ?? '');
   const state$ = new BehaviorSubject<SearchState<T>>({ results: [], isSearching: false });
+  let disposed = false;
 
   const searching = query$.pipe(
     debounceTime(debounceMs),
@@ -75,12 +76,14 @@ export function createSearchPipeline<T>(
   ).subscribe((state) => state$.next(state));
 
   return {
-    query$: query$.asObservable(),
-    state$: state$.asObservable(),
+    query$: watched(query$),
+    state$: watched(state$),
     setQuery: (value) => {
-      if (value !== query$.value) query$.next(value);
+      // A completed BehaviorSubject still takes a value from `next`: once disposed, the query is what it was.
+      if (!disposed && value !== query$.value) query$.next(value);
     },
     dispose: () => {
+      disposed = true;
       // Stopped before the query ends: an ending query would flush the debounce and search.
       searching.unsubscribe();
       query$.complete();
