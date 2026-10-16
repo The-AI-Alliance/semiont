@@ -710,7 +710,7 @@ dies; docker would leave it unlimited inside its shared VM). An environment's
 `[memory]` gives any of the stack's own services another
 ([Configuration](../../docs/operator/administration/CONFIGURATION.md#memory)),
 and the gateway's capacity and the Smelter's PDFs at once follow the ceiling
-each runs with. The ceilings are visible in every `--dry-run` line.
+each runs with, unless `[smelter] pdfsAtOnce` states the Smelter's number. The ceilings are visible in every `--dry-run` line.
 
 On Apple container specifically, ceilings approximate commitments — each one
 sizes a VM whose kernel and page cache grow into it — so a live start sums

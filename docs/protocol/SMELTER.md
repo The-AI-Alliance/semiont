@@ -238,7 +238,8 @@ entity types from its description as the Archivist answers it then.
   a rebuild. A PDF's turn lasts from reading its bytes to writing its points
   or its anchored text. Deriving a scanned document's text holds a page's
   pixels and an OCR process, so how many fit at once is a matter of the
-  memory a Smelter is given: the launcher writes one for each 2 GB of the
+  memory a Smelter is given: the launcher writes the number its knowledge
+  base's environment states, and otherwise one for each 2 GB of the
   Smelter's container, and one however little it has. A PDF that waits for
   its turn holds none of its bytes: whether a resource is a PDF is asked of
   its description, and its bytes are read when the turn comes. Bytes that

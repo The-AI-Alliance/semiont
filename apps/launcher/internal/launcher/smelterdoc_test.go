@@ -180,6 +180,30 @@ func TestSmelterDocumentWorksOnAPdfAtOnceForEachTwoGigabytesOfItsCeiling(t *test
 	}
 }
 
+// A number the environment states is the one written, whatever the ceiling
+// would give, and one below one is refused by its key.
+func TestSmelterDocumentWritesThePdfsAtOnceTheEnvironmentStates(t *testing.T) {
+	for _, c := range []struct {
+		why, sections string
+		want          int
+	}{
+		{"three, at the table's ceiling", "[environments.local.smelter]\npdfsAtOnce = 3\n", 3},
+		{"one, at a ceiling that would give four", "[environments.local.memory]\nsmelter = \"8G\"\n\n[environments.local.smelter]\npdfsAtOnce = 1\n", 1},
+	} {
+		b, err := smelterDocument(envFrom(t, smelterDocFixture+"\n"+c.sections), "container", "192.168.64.1", 8080, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", c.why, err)
+		}
+		if got := smelterDocumentFrom(t, b).PdfsAtOnce; got != c.want {
+			t.Errorf("%s: pdfsAtOnce = %d, want %d", c.why, got, c.want)
+		}
+	}
+	_, err := smelterDocument(envFrom(t, smelterDocFixture+"\n[environments.local.smelter]\npdfsAtOnce = 0\n"), "container", "192.168.64.1", 8080, nil)
+	if err == nil || !strings.Contains(err.Error(), "smelter.pdfsAtOnce is 0") {
+		t.Fatalf("want a refusal naming smelter.pdfsAtOnce, got %v", err)
+	}
+}
+
 // The Smelter defaults nothing, so the launcher writes what the KB's config
 // leaves unstated: each chunking number, and the port of Qdrant's REST API.
 // An overlap of 0 is a value the config states, and is written as stated.

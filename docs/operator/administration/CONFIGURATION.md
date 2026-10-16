@@ -269,6 +269,15 @@ It names the gateway, the dispatcher, the archivist, the worker, the weaver, the
 
 Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on one PDF at once for each 2G of its ceiling, and on one however little it has: deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one. A knowledge base of large scans is derived sooner with a larger ceiling, and `--dry-run` shows the ceiling each container is given.
 
+`[smelter]` states the number instead, whatever the ceiling:
+
+```toml
+[environments.local.smelter]
+pdfsAtOnce = 1
+```
+
+One keeps memory free for something else with a large ceiling. More PDFs at once than the ceiling holds at 2G each is a smelter that can run out of memory.
+
 ### Graph and vectors
 
 ```toml
@@ -381,6 +390,7 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | The environment binds no model to the matcher or the gatherer | Add the binding under `[environments.<env>.actors.<actor>.inference]`, with a `type` and a `model`. The librarian cannot start without both |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
 | `[memory]` names something that is none of the stack's services, or a ceiling that is not like `"8G"` or `"512M"` | Name a service of the stack, with a ceiling as `--memory` takes it ([Memory](#memory)) |
+| `smelter.pdfsAtOnce` is below one | State one or more, or leave it out for the number the smelter's ceiling gives ([Memory](#memory)) |
 
 ## Related
 

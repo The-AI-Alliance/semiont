@@ -131,6 +131,10 @@ type envConfig struct {
 	// of the table's (memoryFor). loadConfig refuses a key that is no stack
 	// service and a value that is no ceiling (refuseMemory).
 	Memory map[string]string `toml:"memory"`
+	// Smelter: how many PDFs the Smelter works on at once, written into its
+	// configuration document in place of the number its ceiling gives
+	// (smelterPdfsAtOnce).
+	Smelter *smelterCfg `toml:"smelter"`
 }
 
 // declaresRole answers whether this config declares a role — the section
@@ -170,6 +174,10 @@ type gatewayCfg struct {
 	// PublicURL: where clients reach the gateway — the servers entry of the
 	// OpenAPI document it serves. Written into its configuration document.
 	PublicURL string `toml:"publicURL"`
+}
+
+type smelterCfg struct {
+	PdfsAtOnce *int `toml:"pdfsAtOnce"`
 }
 
 type archivistCfg struct {
