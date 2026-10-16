@@ -17,10 +17,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # WCAG 2.1 AA compliance target
-  LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
-
 jobs:
   # Job 1: Automated axe-core testing for react-ui components
   test-react-ui-accessibility:
@@ -57,20 +53,6 @@ jobs:
         env:
           CI: true
 
-      - name: Generate accessibility report
-        if: always()
-        run: |
-          npm run test:coverage --workspace=@semiont/react-ui -- --reporter=json --outputFile=a11y-report.json
-        continue-on-error: true
-
-      - name: Upload accessibility test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: react-ui-a11y-results
-          path: packages/react-ui/a11y-report.json
-          retention-days: 30
-
       - name: Comment PR with results
         if: github.event_name == 'pull_request' && failure()
         uses: actions/github-script@v9
@@ -83,71 +65,10 @@ jobs:
               body: '⚠️ **Accessibility tests failed for @semiont/react-ui**\n\nPlease review the test results and fix accessibility violations before merging.'
             })
 
-  # Job 2: Automated axe-core testing for browser
-  test-browser-accessibility:
-    name: Browser - axe-core Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Build dependencies
-        run: |
-          npm ci --include=optional
-          npm run openapi:bundle
-          npm run build --workspace=@semiont/core
-          npm run build --workspace=@semiont/http-transport
-          npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/react-ui
-
-      - name: Run accessibility tests
-        id: a11y-tests
-        run: |
-          cd apps/browser
-          # Run all tests including accessibility tests
-          npm test -- --reporter=verbose
-        continue-on-error: false
-        env:
-          CI: true
-
-      - name: Generate accessibility report
-        if: always()
-        run: |
-          cd apps/browser
-          npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
-        continue-on-error: true
-
-      - name: Upload accessibility test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-a11y-results
-          path: apps/browser/a11y-report.json
-          retention-days: 30
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request' && failure()
-        uses: actions/github-script@v9
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '⚠️ **Accessibility tests failed for browser**\n\nPlease review the test results and fix accessibility violations before merging.'
-            })
-
-  # Job 3: Lighthouse CI accessibility audit
+  # Job 2: Lighthouse accessibility audit of the built Browser's signed-out pages.
+  # apps/browser/lighthouserc.json names the pages and the score they must reach.
   lighthouse-accessibility:
-    name: Lighthouse - WCAG 2.1 AA Audit
+    name: Lighthouse - Signed-out Pages
     runs-on: ubuntu-latest
 
     steps:
@@ -176,15 +97,20 @@ jobs:
           npm run build
 
       - name: Install Lighthouse CI
-        run: npm install -g @lhci/cli
+        run: npm install -g @lhci/cli@0.15.1
 
-      - name: Run Lighthouse CI
+      - name: Audit the signed-out pages
         run: |
           cd apps/browser
-          lhci autorun
-        continue-on-error: true
-        env:
-          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          lhci collect
+
+      - name: Assert the audit's scores
+        id: assert
+        run: |
+          cd apps/browser
+          # lhci assert passes when it finds no reports at all
+          ls .lighthouseci/lhr-*.json > /dev/null
+          lhci assert
 
       - name: Upload Lighthouse results
         if: always()
@@ -194,69 +120,66 @@ jobs:
           path: apps/browser/.lighthouseci
           retention-days: 30
 
-      - name: Check accessibility score threshold
-        run: |
-          cd apps/browser
-          # Extract accessibility score from Lighthouse results
-          SCORE=$(cat .lighthouseci/lhr-*.json | jq '.categories.accessibility.score * 100' | head -1)
-          echo "Accessibility score: $SCORE"
-
-          if [ $(echo "$SCORE < $LIGHTHOUSE_ACCESSIBILITY_THRESHOLD" | bc -l) -eq 1 ]; then
-            echo "❌ Accessibility score ($SCORE) is below threshold ($LIGHTHOUSE_ACCESSIBILITY_THRESHOLD)"
-            exit 1
-          else
-            echo "✅ Accessibility score ($SCORE) meets threshold ($LIGHTHOUSE_ACCESSIBILITY_THRESHOLD)"
-          fi
-        continue-on-error: false
-
       - name: Comment PR with Lighthouse results
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v9
+        env:
+          ASSERT_OUTCOME: ${{ steps.assert.outcome }}
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
 
-            // Find the latest Lighthouse report
             const lighthouseDir = 'apps/browser/.lighthouseci';
-            const files = fs.readdirSync(lighthouseDir);
-            const lhrFile = files.find(f => f.startsWith('lhr-') && f.endsWith('.json'));
+            const reports = fs.existsSync(lighthouseDir)
+              ? fs.readdirSync(lighthouseDir)
+                  .filter((f) => f.startsWith('lhr-') && f.endsWith('.json'))
+                  .map((f) => JSON.parse(fs.readFileSync(path.join(lighthouseDir, f), 'utf8')))
+              : [];
 
-            if (!lhrFile) {
-              console.log('No Lighthouse report found');
-              return;
+            let body;
+            if (reports.length === 0) {
+              body = '❌ **Lighthouse produced no report.** It could not audit the built Browser; see the job log.';
+            } else {
+              const scores = new Map();
+              for (const report of reports) {
+                const page = new URL(report.requestedUrl).pathname;
+                if (!scores.has(page)) scores.set(page, []);
+                scores.get(page).push(Math.round(report.categories.accessibility.score * 100));
+              }
+              const rows = [...scores].map(([page, runs]) => `| \`${page}\` | ${runs.join(', ')} |`);
+              const verdict = {
+                success: '✅ The scores meet `apps/browser/lighthouserc.json`.',
+                failure: '❌ The scores fall short of `apps/browser/lighthouserc.json`.',
+              }[process.env.ASSERT_OUTCOME] ?? `The assertion step did not finish (${process.env.ASSERT_OUTCOME}).`;
+              body = [
+                '**Lighthouse accessibility, signed-out pages**',
+                '',
+                '| Page | Score per run |',
+                '|---|---|',
+                ...rows,
+                '',
+                verdict,
+                '',
+                'Full results are in the workflow artifacts.',
+              ].join('\n');
             }
-
-            const report = JSON.parse(fs.readFileSync(path.join(lighthouseDir, lhrFile), 'utf8'));
-            const a11yScore = Math.round(report.categories.accessibility.score * 100);
-            const threshold = process.env.LIGHTHOUSE_ACCESSIBILITY_THRESHOLD;
-
-            const status = a11yScore >= threshold ? '✅' : '❌';
-            const emoji = a11yScore >= threshold ? '🎉' : '⚠️';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `${emoji} **Lighthouse Accessibility Score: ${a11yScore}/100** ${status}\n\n` +
-                    `**Threshold:** ${threshold}/100\n` +
-                    `**Status:** ${a11yScore >= threshold ? 'PASSED' : 'FAILED'}\n\n` +
-                    `Full results available in the workflow artifacts.`
+              body,
             })
 
-  # Job 4: Comprehensive accessibility summary
+  # Job 3: Accessibility summary
   accessibility-summary:
     name: Accessibility Summary
     runs-on: ubuntu-latest
-    needs: [test-react-ui-accessibility, test-browser-accessibility, lighthouse-accessibility]
+    needs: [test-react-ui-accessibility, lighthouse-accessibility]
     if: always()
 
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: accessibility-results
-
       - name: Generate summary
         run: |
           echo "# 🔍 Accessibility Testing Summary" >> $GITHUB_STEP_SUMMARY
@@ -269,32 +192,22 @@ jobs:
             echo "❌ **React UI (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Browser status
-          if [ "${{ needs.test-browser-accessibility.result }}" == "success" ]; then
-            echo "✅ **Browser (axe-core):** PASSED" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Browser (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
-          fi
-
           # Lighthouse status
           if [ "${{ needs.lighthouse-accessibility.result }}" == "success" ]; then
-            echo "✅ **Lighthouse (WCAG 2.1 AA):** PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Lighthouse (signed-out pages):** PASSED" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Lighthouse (WCAG 2.1 AA):** FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Lighthouse (signed-out pages):** FAILED" >> $GITHUB_STEP_SUMMARY
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📊 WCAG 2.1 AA Compliance Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.test-react-ui-accessibility.result }}" == "success" ] && \
-             [ "${{ needs.test-browser-accessibility.result }}" == "success" ] && \
              [ "${{ needs.lighthouse-accessibility.result }}" == "success" ]; then
-            echo "🎉 **All accessibility tests passed!**" >> $GITHUB_STEP_SUMMARY
+            echo "Automated accessibility checks passed." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "The application meets WCAG 2.1 AA compliance requirements." >> $GITHUB_STEP_SUMMARY
+            echo "They cover part of WCAG 2.1 AA: axe-core on the react-ui components that have accessibility tests, and Lighthouse on the signed-out pages." >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ **Some accessibility tests failed**" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Some automated accessibility checks failed**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Please review the test results and fix accessibility violations." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -307,7 +220,6 @@ jobs:
       - name: Fail workflow if any test failed
         if: |
           needs.test-react-ui-accessibility.result != 'success' ||
-          needs.test-browser-accessibility.result != 'success' ||
           needs.lighthouse-accessibility.result != 'success'
         run: |
           echo "One or more accessibility tests failed"

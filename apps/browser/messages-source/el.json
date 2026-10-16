@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Βάσεις Γνώσης",
     "connectTitle": "Σύνδεση με Βάση Γνώσης",
+    "protocol": "Πρωτόκολλο",
     "connect": "Σύνδεση",
     "connecting": "Σύνδεση...",
     "signIn": "Σύνδεση",

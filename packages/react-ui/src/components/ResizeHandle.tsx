@@ -6,14 +6,16 @@ import './layout/ResizeHandle.css';
 interface ResizeHandleProps {
   /** Callback fired when resize occurs */
   onResize: (newWidth: number) => void;
+  /** Current width in pixels of the panel the handle resizes */
+  width: number;
   /** Minimum allowed width in pixels */
   minWidth: number;
   /** Maximum allowed width in pixels */
   maxWidth: number;
   /** Position of handle - left or right edge */
   position?: 'left' | 'right';
-  /** Aria label for accessibility */
-  ariaLabel?: string;
+  /** Accessible name of the handle */
+  ariaLabel: string;
 }
 
 /**
@@ -24,16 +26,18 @@ interface ResizeHandleProps {
  * - Keyboard navigation (Arrow keys: ±10px, Shift+Arrow: ±50px)
  * - Enforces min/max constraints
  * - Visual feedback on hover and drag
- * - Accessible (WCAG compliant)
+ * - A focusable separator whose value is the width, between min and max
  *
  * @example
  * ```tsx
  * <div className="panel" style={{ width: `${width}px` }}>
  *   <ResizeHandle
  *     onResize={setWidth}
+ *     width={width}
  *     minWidth={256}
  *     maxWidth={800}
  *     position="left"
+ *     ariaLabel={t('resizePanel')}
  *   />
  *   <div>Panel content</div>
  * </div>
@@ -41,10 +45,11 @@ interface ResizeHandleProps {
  */
 export function ResizeHandle({
   onResize,
+  width,
   minWidth,
   maxWidth,
   position = 'left',
-  ariaLabel = 'Resize panel'
+  ariaLabel
 }: ResizeHandleProps) {
   const [isDragging, setIsDragging] = useState(false);
   const startXRef = useRef<number>(0);
@@ -60,13 +65,8 @@ export function ResizeHandle({
     e.preventDefault();
     setIsDragging(true);
     startXRef.current = e.clientX;
-
-    // Get current width from parent element
-    const parent = (e.target as HTMLElement).parentElement;
-    if (parent) {
-      startWidthRef.current = parent.offsetWidth;
-    }
-  }, []);
+    startWidthRef.current = width;
+  }, [width]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
@@ -88,40 +88,35 @@ export function ResizeHandle({
 
   // Keyboard navigation for accessibility
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Get current width from parent element
-    const parent = (e.target as HTMLElement).parentElement;
-    if (!parent) return;
-
-    const currentWidth = parent.offsetWidth;
     const step = e.shiftKey ? 50 : 10; // Shift+Arrow for larger steps
-    let newWidth = currentWidth;
+    let newWidth = width;
 
     if (position === 'left') {
       // Left handle: Left arrow = wider, Right arrow = narrower
       if (e.key === 'ArrowLeft') {
-        newWidth = currentWidth + step;
+        newWidth = width + step;
         e.preventDefault();
       } else if (e.key === 'ArrowRight') {
-        newWidth = currentWidth - step;
+        newWidth = width - step;
         e.preventDefault();
       }
     } else {
       // Right handle: Right arrow = wider, Left arrow = narrower
       if (e.key === 'ArrowRight') {
-        newWidth = currentWidth + step;
+        newWidth = width + step;
         e.preventDefault();
       } else if (e.key === 'ArrowLeft') {
-        newWidth = currentWidth - step;
+        newWidth = width - step;
         e.preventDefault();
       }
     }
 
     // Only resize if arrow key was pressed
-    if (newWidth !== currentWidth) {
+    if (newWidth !== width) {
       const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
       onResizeRef.current(constrainedWidth);
     }
-  }, [minWidth, maxWidth, position]);
+  }, [width, minWidth, maxWidth, position]);
 
   // Add/remove global mouse event listeners for dragging
   useEffect(() => {
@@ -151,6 +146,9 @@ export function ResizeHandle({
       aria-label={ariaLabel}
       role="separator"
       aria-orientation="vertical"
+      aria-valuenow={width}
+      aria-valuemin={minWidth}
+      aria-valuemax={maxWidth}
       tabIndex={0}
     />
   );

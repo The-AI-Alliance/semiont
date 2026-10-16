@@ -134,11 +134,18 @@ it('should have no WCAG violations', async () => {
 - name: Run accessibility tests
   run: npm run test:a11y --workspace=@semiont/react-ui
 
-- name: Run Lighthouse CI
-  run: lhci autorun
-  env:
-    LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
+- name: Audit the signed-out pages
+  run: |
+    cd apps/browser
+    lhci collect
+
+- name: Assert the audit's scores
+  run: |
+    cd apps/browser
+    lhci assert
 ```
+
+`apps/browser/lighthouserc.json` names the pages Lighthouse audits and the accessibility score they must reach.
 
 ## Implementation Guidelines
 

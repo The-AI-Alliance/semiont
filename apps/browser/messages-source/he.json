@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "בסיסי ידע",
     "connectTitle": "התחבר לבסיס ידע",
+    "protocol": "פרוטוקול",
     "connect": "התחבר",
     "connecting": "מתחבר...",
     "signIn": "התחברות",

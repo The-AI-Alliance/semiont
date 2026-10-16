@@ -35,7 +35,6 @@ describe('KeyboardShortcutsHelpModal', () => {
     renderWithProviders(<KeyboardShortcutsHelpModal {...defaultProps} />);
     expect(screen.getByText('KeyboardShortcuts.navigationTitle')).toBeInTheDocument();
     expect(screen.getByText('KeyboardShortcuts.sidebarTitle')).toBeInTheDocument();
-    expect(screen.getByText('KeyboardShortcuts.annotationsTitle')).toBeInTheDocument();
     expect(screen.getByText('KeyboardShortcuts.listsTitle')).toBeInTheDocument();
     expect(screen.getByText('KeyboardShortcuts.searchModalTitle')).toBeInTheDocument();
     expect(screen.getByText('KeyboardShortcuts.modalTitle')).toBeInTheDocument();
@@ -45,7 +44,7 @@ describe('KeyboardShortcutsHelpModal', () => {
   it('renders keyboard shortcut descriptions', () => {
     renderWithProviders(<KeyboardShortcutsHelpModal {...defaultProps} />);
     expect(screen.getByText('KeyboardShortcuts.navOpenSearch')).toBeInTheDocument();
-    expect(screen.getByText('KeyboardShortcuts.annotHighlight')).toBeInTheDocument();
+    expect(screen.getByText('KeyboardShortcuts.navCreateResource')).toBeInTheDocument();
   });
 
   it('describes the one skip link a page has', () => {

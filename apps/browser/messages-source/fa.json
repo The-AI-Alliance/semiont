@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "پایگاه‌های دانش",
     "connectTitle": "اتصال به پایگاه دانش",
+    "protocol": "پروتکل",
     "connect": "اتصال",
     "connecting": "در حال اتصال...",
     "signIn": "ورود",

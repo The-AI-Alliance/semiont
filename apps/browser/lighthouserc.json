@@ -1,8 +1,9 @@
 {
   "ci": {
     "collect": {
-      "staticDistDir": "./.next",
-      "url": ["http://localhost:3000"],
+      "staticDistDir": "./dist",
+      "isSinglePageApplication": true,
+      "url": ["http://localhost/en", "http://localhost/en/know/discover"],
       "numberOfRuns": 3
     },
     "assert": {
@@ -16,9 +17,6 @@
         "cumulative-layout-shift": ["warn", {"maxNumericValue": 0.1}],
         "total-blocking-time": ["warn", {"maxNumericValue": 300}]
       }
-    },
-    "upload": {
-      "target": "temporary-public-storage"
     }
   }
 }

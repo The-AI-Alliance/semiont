@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Tietopankit",
     "connectTitle": "Yhdistä tietopankkiin",
+    "protocol": "Protokolla",
     "connect": "Yhdistä",
     "connecting": "Yhdistetään...",
     "signIn": "Kirjaudu sisään",

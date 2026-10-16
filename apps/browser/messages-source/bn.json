@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "জ্ঞান ভাণ্ডার",
     "connectTitle": "জ্ঞান ভাণ্ডারে সংযুক্ত হন",
+    "protocol": "প্রোটোকল",
     "connect": "সংযুক্ত করুন",
     "connecting": "সংযুক্ত হচ্ছে...",
     "signIn": "সাইন ইন",

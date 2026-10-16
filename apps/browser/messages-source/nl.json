@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Kennisbases",
     "connectTitle": "Verbinden met kennisbasis",
+    "protocol": "Protocol",
     "connect": "Verbinden",
     "connecting": "Verbinding maken...",
     "signIn": "Inloggen",

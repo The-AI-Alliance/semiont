@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Cơ sở kiến thức",
     "connectTitle": "Kết nối với cơ sở kiến thức",
+    "protocol": "Giao thức",
     "connect": "Kết nối",
     "connecting": "Đang kết nối...",
     "signIn": "Đăng nhập",

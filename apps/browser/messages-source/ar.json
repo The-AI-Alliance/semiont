@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "قواعد المعرفة",
     "connectTitle": "الاتصال بقاعدة المعرفة",
+    "protocol": "البروتوكول",
     "connect": "اتصال",
     "connecting": "جارٍ الاتصال...",
     "signIn": "تسجيل الدخول",

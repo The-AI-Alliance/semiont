@@ -65,6 +65,7 @@
   "KnowledgeBasePanel": {
     "title": "Knowledge Bases",
     "connectTitle": "Connect to Knowledge Base",
+    "protocol": "Protocol",
     "connect": "Connect",
     "connecting": "Connecting...",
     "signIn": "Sign in",

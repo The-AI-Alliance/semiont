@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Znalostní báze",
     "connectTitle": "Připojit se ke znalostní bázi",
+    "protocol": "Protokol",
     "connect": "Připojit",
     "connecting": "Připojování...",
     "signIn": "Přihlásit se",
