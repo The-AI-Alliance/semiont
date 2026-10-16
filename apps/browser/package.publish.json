@@ -1,6 +1,6 @@
 {
   "name": "@semiont/browser",
-  "version": "0.6.14",
+  "version": "0.6.15",
   "description": "Semiont Browser - pre-built Vite SPA with static file server",
   "main": "server.js",
   "bin": {

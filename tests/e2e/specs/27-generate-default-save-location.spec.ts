@@ -27,15 +27,15 @@ import { signInSession } from '../fixtures/sdk-session';
 const resourceIdFromUrl = (url: string) => url.split('/').pop()!.split('?')[0]!;
 
 async function sourceStorageUri(id: string): Promise<string> {
-  const session = await signInSession();
-  const client = session.client;
+  const opened = await signInSession();
+  const client = opened.session.client;
   try {
     const descriptor = await client.browse.resource(rid(id)).fresh();
     const uri = getStorageUri(descriptor);
     if (!uri) throw new Error(`source ${id} has no storageUri`);
     return uri;
   } finally {
-    await session.dispose();
+    opened.dispose();
   }
 }
 

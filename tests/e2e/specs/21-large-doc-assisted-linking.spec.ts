@@ -72,9 +72,9 @@ test.describe('large-document delegated linking', () => {
     // long silence ending here.
     test.setTimeout(2_700_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
 
-    const client = session.client;
+    const client = opened.session.client;
 
     try {
       const content = buildLargeDocument(TARGET_BYTES);
@@ -157,7 +157,7 @@ test.describe('large-document delegated linking', () => {
         'the persisted annotations include the linking references the delegated job created',
       ).toBe(true);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -178,9 +178,9 @@ test.describe('large-document delegated linking', () => {
   test('a chunk-forcing document exercises the per-chunk loop and still persists annotations', { tag: ['@slow'] }, async () => {
     test.setTimeout(2_700_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
 
-    const client = session.client;
+    const client = opened.session.client;
 
     try {
       // ~400 KB — about twenty times either provider's opening chunk (at most
@@ -234,7 +234,7 @@ test.describe('large-document delegated linking', () => {
       // eslint-disable-next-line no-console
       console.log(`CHUNKED: ${(await client.browse.annotations(rid).fresh()).length} annotations persisted`);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 
@@ -261,9 +261,9 @@ test.describe('large-document delegated linking', () => {
   test('highlight, comment and assessment annotate beyond char 8,000', { tag: ['@slow'] }, async () => {
     test.setTimeout(2_700_000);
 
-    const session = await signInSession();
+    const opened = await signInSession();
 
-    const client = session.client;
+    const client = opened.session.client;
 
     try {
       // ── barren prefix: >10 KB with nothing worth annotating ──
@@ -342,7 +342,7 @@ test.describe('large-document delegated linking', () => {
         ).toBe(true);
       }
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });

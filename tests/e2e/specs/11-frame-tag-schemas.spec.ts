@@ -118,8 +118,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
     // shape every production caller takes (see seed.ts and the demo-KB
     // skills); the test exercises the SDK end-to-end rather than poking
     // bus channels directly.
-    const session = await signInSession();
-    const client = session.client;
+    const opened = await signInSession();
+    const client = opened.session.client;
 
     try {
       // ── Phase 1: registration round-trip ──────────────────────────
@@ -229,7 +229,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
         'tagging body value must be one of the registered category names',
       ).toContain((taggingBody as any).value);
     } finally {
-      await session.dispose();
+      opened.dispose();
     }
   });
 });

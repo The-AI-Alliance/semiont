@@ -112,13 +112,13 @@ async function semanticSearch(
 }
 
 test.describe.serial('semantic fallback answers what lexical search cannot', () => {
-  let session: Awaited<ReturnType<typeof signInSession>>;
+  let opened: Awaited<ReturnType<typeof signInSession>>;
   let client: SemiontClient;
   let rid: ReturnType<typeof ridBrand>;
 
   test.beforeAll(async () => {
-    session = await signInSession();
-    client = session.client;
+    opened = await signInSession();
+    client = opened.session.client;
     rid = ridBrand(
       (
         await client.yield.resource({
@@ -135,7 +135,7 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
   });
 
   test.afterAll(async () => {
-    await session?.dispose();
+    opened?.dispose();
   });
 
   /**
