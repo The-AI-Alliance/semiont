@@ -12,7 +12,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -42,6 +42,7 @@ type ViewerProps = React.ComponentProps<typeof ResourceViewer>;
 const emptyAnnotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
 
 const base = (): ViewerProps => ({
+  translationManager: englishTranslationManager,
   resource: {
     '@id': 'res-1',
     name: 'Doc',
@@ -58,7 +59,7 @@ describe('ResourceViewer — media-renderer registries are reachable', () => {
       <div data-testid="custom-browse">{content}</div>
     );
 
-    renderInEnglish(<ResourceViewer {...base()} annotateMode={false} browseRenderers={{ text: CustomText }} />);
+    renderInEnglish(<ResourceViewer translationManager={englishTranslationManager} {...base()} annotateMode={false} browseRenderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('custom-browse')).toHaveTextContent('the-body');
   });
@@ -68,18 +69,18 @@ describe('ResourceViewer — media-renderer registries are reachable', () => {
       <div data-testid="custom-annotate">{content}</div>
     );
 
-    renderInEnglish(<ResourceViewer {...base()} annotateMode annotateRenderers={{ text: CustomText }} />);
+    renderInEnglish(<ResourceViewer translationManager={englishTranslationManager} {...base()} annotateMode annotateRenderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('custom-annotate')).toHaveTextContent('the-body');
     expect(screen.queryByTestId('default-text')).not.toBeInTheDocument();
   });
 
   it('without overrides the defaults still render, in both modes', () => {
-    const { unmount } = renderInEnglish(<ResourceViewer {...base()} annotateMode />);
+    const { unmount } = renderInEnglish(<ResourceViewer translationManager={englishTranslationManager} {...base()} annotateMode />);
     expect(screen.getByTestId('default-text')).toBeInTheDocument();
     unmount();
 
-    renderInEnglish(<ResourceViewer {...base()} annotateMode={false} />);
+    renderInEnglish(<ResourceViewer translationManager={englishTranslationManager} {...base()} annotateMode={false} />);
     expect(screen.getByText(/the-body/)).toBeInTheDocument();
   });
 });

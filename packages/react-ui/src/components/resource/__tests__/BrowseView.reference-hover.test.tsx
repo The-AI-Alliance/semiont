@@ -20,6 +20,7 @@ import type { Annotation, AnnotationId, ResourceDescriptor } from '@semiont/core
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
 import { resourceId, EventBus } from '@semiont/core';
+import { englishTranslationManager } from '../../../test-utils';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
@@ -65,6 +66,7 @@ function setup(onReferenceHover?: (h: unknown) => void) {
 
   const { container } = render(
     <BrowseView
+      translationManager={englishTranslationManager}
       content="some text"
       mimeType="text/plain"
       resourceUri={resourceId("res-1")}

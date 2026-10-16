@@ -22,7 +22,7 @@ import { act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { ResourceDescriptor as SemiontResource, ResourceId, StoredEvent, EventOfType, UserId, EventMetadata, Annotation } from '@semiont/core';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 const TEST_USER = 'did:web:test:users:test' as UserId;
@@ -73,6 +73,7 @@ function mountTwoViewers() {
   renderInEnglish(
     <>
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={wrapper.session}
         resource={makeResource('res-A')}
         annotations={annotations}
@@ -80,6 +81,7 @@ function mountTwoViewers() {
         onOpenPanel={vi.fn()}
       />
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={wrapper.session}
         resource={makeResource('res-B')}
         annotations={annotations}

@@ -14,7 +14,6 @@ import { render, screen } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { ResourceViewer } from '../ResourceViewer';
 import { createTestSemiontWrapper } from '../../../test-utils';
-import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
 import { EventBus } from '@semiont/core';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -82,13 +81,11 @@ const mockTranslationManager = {
 function TestWrapper({ children }: { children: React.ReactNode }) {
   const { SemiontWrapper } = createTestSemiontWrapper();
   return (
-    <TranslationProvider translationManager={mockTranslationManager}>
-      <SemiontWrapper>
-        <ResourceAnnotationsProvider>
-          {children}
-        </ResourceAnnotationsProvider>
-      </SemiontWrapper>
-    </TranslationProvider>
+    <SemiontWrapper>
+      <ResourceAnnotationsProvider>
+        {children}
+      </ResourceAnnotationsProvider>
+    </SemiontWrapper>
   );
 }
 
@@ -105,6 +102,7 @@ describe('ResourceViewer - Mode Switching', () => {
     render(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -119,6 +117,7 @@ describe('ResourceViewer - Mode Switching', () => {
     const { rerender } = render(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -136,6 +135,7 @@ describe('ResourceViewer - Mode Switching', () => {
     rerender(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -151,6 +151,7 @@ describe('ResourceViewer - Mode Switching', () => {
     const { rerender } = render(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -163,6 +164,7 @@ describe('ResourceViewer - Mode Switching', () => {
     rerender(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -176,6 +178,7 @@ describe('ResourceViewer - Mode Switching', () => {
     rerender(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -189,6 +192,7 @@ describe('ResourceViewer - Mode Switching', () => {
     rerender(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -206,6 +210,7 @@ describe('ResourceViewer - Mode Switching', () => {
     const { rerender } = render(
       <TestWrapper>
         <ResourceViewer
+          translationManager={mockTranslationManager}
           resource={mockResource}
           annotations={mockAnnotations}
           session={null}
@@ -219,6 +224,7 @@ describe('ResourceViewer - Mode Switching', () => {
       rerender(
         <TestWrapper>
           <ResourceViewer
+            translationManager={mockTranslationManager}
             resource={mockResource}
             annotations={mockAnnotations}
             session={null}

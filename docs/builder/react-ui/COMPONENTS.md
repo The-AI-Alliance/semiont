@@ -22,7 +22,8 @@ All components are framework-agnostic. Components that need routing accept a `Li
 
 Displays a resource with its annotation overlay (highlights, references, comments, tags) for
 any media type. **Bring-your-own-session:** it takes your `SemiontSession` directly — no
-`SemiontProvider` or cache/translation context required.
+`SemiontProvider`, cache or translation context. Its language is a required prop, a `locale` of
+react-ui's own or your `translationManager`, and it mounts its own `TranslationProvider` from it.
 
 ```tsx
 import { ResourceViewer, useResourceLoader } from '@semiont/react-ui';
@@ -33,6 +34,7 @@ function ResourcePane({ rId }: { rId: ResourceId }) {
 
   return (
     <ResourceViewer
+      locale="en"
       session={session}
       resource={{ ...resource, content }}    // `content` is the host's to fetch
       annotations={annotations}
@@ -65,7 +67,7 @@ function ResourceRoute({ id }: { id: string }) {
 
 function ResourcePane({ rId }: { rId: ResourceId }) {
   const { resource, annotations } = useResourceLoader(session.client, rId);
-  return resource ? <ResourceViewer session={session} resource={{ ...resource, content }} annotations={annotations} /> : null;
+  return resource ? <ResourceViewer locale="en" session={session} resource={{ ...resource, content }} annotations={annotations} /> : null;
 }
 ```
 
@@ -92,6 +94,7 @@ import { BrowseView, useResourceLoader } from '@semiont/react-ui';
 const { annotations } = useResourceLoader(session.client, resourceId);  // grouped by motivation
 
 <BrowseView
+  locale="en"
   content={content}
   mimeType="text/markdown"
   resourceUri={resource['@id']}
@@ -101,7 +104,7 @@ const { annotations } = useResourceLoader(session.client, resourceId);  // group
 />
 ```
 
-**Key props:** `content`, `mimeType`, `resourceUri` (a `ResourceId`), `annotations`, `annotateMode`, `session` (required); `hoveredAnnotationId?`, `selectedClick?`, `hoverDelayMs?`, `sparkleAnnotationIds?`, `renderers?` (override the read-only media renderers).
+**Key props:** `content`, `mimeType`, `resourceUri` (a `ResourceId`), `annotations`, `annotateMode`, `session`, and the language, `locale` or `translationManager` (required); `hoveredAnnotationId?`, `selectedClick?`, `hoverDelayMs?`, `sparkleAnnotationIds?`, `renderers?` (override the read-only media renderers).
 
 ### AnnotateView
 
@@ -120,6 +123,7 @@ const [uiState, setUiState] = useState<AnnotationUIState>({
 });
 
 <AnnotateView
+  locale="en"
   content={content}
   mimeType="text/markdown"
   resourceUri={resource['@id']}
@@ -131,7 +135,7 @@ const [uiState, setUiState] = useState<AnnotationUIState>({
 />
 ```
 
-**Key props:** `content`, `resourceUri` (a `ResourceId`), `annotations`, `uiState`, `annotateMode`, `session` (required); `mimeType?`, `onUIStateChange?`, `editable?`, `enableWidgets?`, `getTargetResourceName?`, `generatingReferenceId?`, `showLineNumbers?`, `hoverDelayMs?`, `sparkleAnnotationIds?`.
+**Key props:** `content`, `resourceUri` (a `ResourceId`), `annotations`, `uiState`, `annotateMode`, `session`, and the language, `locale` or `translationManager` (required); `mimeType?`, `onUIStateChange?`, `editable?`, `enableWidgets?`, `getTargetResourceName?`, `generatingReferenceId?`, `showLineNumbers?`, `hoverDelayMs?`, `sparkleAnnotationIds?`.
 
 ### AnnotationHistory
 

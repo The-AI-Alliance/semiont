@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -53,6 +53,7 @@ function makeResource(mediaType: string, content: string): SemiontResource & { c
 function mount(mediaType: string, content: string) {
   return renderInEnglish(
     <ResourceViewer
+      translationManager={englishTranslationManager}
       resource={makeResource(mediaType, content)}
       annotations={emptyAnnotations}
       session={fakeSession()}

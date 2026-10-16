@@ -18,6 +18,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
 import { AnnotateView } from '../AnnotateView';
 import { BrowseView } from '../BrowseView';
+import { englishTranslationManager } from '../../../test-utils';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('../../CodeMirrorRenderer', () => ({ CodeMirrorRenderer: () => null }));
@@ -88,8 +89,8 @@ const browseProps = (session: SemiontSession) => ({
 });
 
 const VIEWS = [
-  { name: 'AnnotateView', render: (s: SemiontSession) => render(<AnnotateView {...annotateProps(s)} />) },
-  { name: 'BrowseView', render: (s: SemiontSession) => render(<BrowseView {...browseProps(s)} />) },
+  { name: 'AnnotateView', render: (s: SemiontSession) => render(<AnnotateView translationManager={englishTranslationManager} {...annotateProps(s)} />) },
+  { name: 'BrowseView', render: (s: SemiontSession) => render(<BrowseView translationManager={englishTranslationManager} {...browseProps(s)} />) },
 ] as const;
 
 describe.each(VIEWS)('$name — unsupported-media download link', ({ render: renderView }) => {

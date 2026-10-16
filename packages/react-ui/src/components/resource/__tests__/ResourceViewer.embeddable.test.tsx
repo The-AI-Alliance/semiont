@@ -2,11 +2,11 @@
  * The embeddable resource viewer — keystone acceptance spec.
  *
  * The consumer's (my-chat) actual requirement: render + interact with a resource
- * fed ONLY a `SemiontSession`, with NO SemiontProvider / cache context mounted.
- * Translations are the one thing the host mounts, because react-ui assumes no
- * language: a `TranslationProvider` with its locale or its own manager. This
- * is what provider-free rendering means: an external host can import the
- * pieces.
+ * fed ONLY a `SemiontSession` and a language, with NO provider of any kind
+ * mounted. react-ui assumes no language, so the language is a required prop: a
+ * locale, or the host's own translation manager. The viewer mounts its own
+ * translation provider from it. These tests render the viewer as an embedder
+ * does: with exactly its props, and no wrapper.
  *
  * `ResourceViewer` threads its `session` down: the browse-mode subtree
  * (ResourceViewer → BrowseView → AnnotateToolbar) renders provider-free from a
@@ -14,12 +14,12 @@
  * AnnotateView.embeddable.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { annotationId, resourceId, EventBus } from '@semiont/core';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, englishTranslationManager } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 // Minimal bring-your-own-session double: just the surface ResourceViewer + its
@@ -70,8 +70,9 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
   // The whole browse-mode subtree (ResourceViewer → BrowseView →
   // AnnotateToolbar) renders provider-free from a bare session.
   it('renders content fed only a session, with no session provider mounted', () => {
-    renderInEnglish(
+    render(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={fakeSession()}
         resource={resource}
         annotations={annotations}
@@ -82,6 +83,30 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     expect(screen.getByText('Embeddable content.')).toBeInTheDocument();
   });
 
+  it("renders with a locale of react-ui's own, loading its strings, with nothing above it", async () => {
+    render(
+      <ResourceViewer
+        locale="en"
+        session={fakeSession()}
+        resource={resource}
+        annotations={annotations}
+        onOpenResource={vi.fn()}
+        onOpenPanel={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText('Embeddable content.')).toBeInTheDocument();
+  });
+
+  it('does not compile without a language, or with two', () => {
+    const elements = [
+      // @ts-expect-error no language: react-ui assumes none
+      <ResourceViewer session={fakeSession()} resource={resource} annotations={annotations} />,
+      // @ts-expect-error a locale and a manager both: the language is one or the other
+      <ResourceViewer locale="en" translationManager={englishTranslationManager} session={fakeSession()} resource={resource} annotations={annotations} />,
+    ];
+    expect(elements).toHaveLength(2);
+  });
+
   // The viewer is a pass-through for view geometry — an
   // anchorRect arriving on browse:click reaches the host's onOpenPanel
   // untouched (detail routing, the default click action).
@@ -89,8 +114,9 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     const { session, eventBus } = createTestSemiontWrapper();
     const onOpenPanel = vi.fn();
 
-    renderInEnglish(
+    render(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={session}
         resource={resource}
         annotations={annotationsWithHighlight}
@@ -128,8 +154,9 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     const first = vi.fn();
     const latest = vi.fn();
 
-    const { rerender } = renderInEnglish(
+    const { rerender } = render(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={session}
         resource={resource}
         annotations={annotationsWithHighlight}
@@ -139,6 +166,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     );
     rerender(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={session}
         resource={resource}
         annotations={annotationsWithHighlight}
@@ -162,8 +190,9 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     const { session, eventBus } = createTestSemiontWrapper();
     const onOpenPanel = vi.fn();
 
-    renderInEnglish(
+    render(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={session}
         resource={resource}
         annotations={annotationsWithHighlight}

@@ -554,6 +554,7 @@ function ResourcePane({ session, id, onOpenResource }: {
   if (loading || !resource) return <p>Loading…</p>;
   return (
     <ResourceViewer
+      locale="en"
       session={session}
       resource={{ ...resource, content }}
       annotations={annotations}

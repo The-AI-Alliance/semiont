@@ -454,6 +454,7 @@ it('renders content fed only a session, with no session provider mounted', () =>
 
   renderInEnglish(
     <ResourceViewer
+      locale="en"
       session={session}
       resource={{
         '@context': 'https://www.w3.org/ns/activitystreams',

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
 import type { AnnotationUIState } from '../../../types/annotation-props';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../../../lib/scroll-utils', () => ({
@@ -39,6 +39,7 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
 
     renderInEnglish(
       <AnnotateView
+        translationManager={englishTranslationManager}
         content="hello world"
         mimeType="text/plain"
         resourceUri={resourceId("res-1")}
@@ -71,6 +72,7 @@ describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
     const { session, client } = createTestSemiontWrapper();
     renderInEnglish(
       <AnnotateView
+        translationManager={englishTranslationManager}
         content="hello world"
         mimeType="text/plain"
         resourceUri={resourceId(resourceUri)}

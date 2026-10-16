@@ -20,6 +20,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { BrowseView } from '../BrowseView';
+import { englishTranslationManager } from '../../../test-utils';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
@@ -66,13 +67,13 @@ describe('BrowseView — overlay vs async content arrival', () => {
   it('paints spans when content arrives AFTER annotations (async content)', () => {
     const session = fakeSession();
     const { container, rerender } = render(
-      <BrowseView {...baseProps} content="" annotations={withReference} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content="" annotations={withReference} session={session} />,
     );
     expect(spans(container)).toHaveLength(0); // nothing to anchor on yet
 
     // Content lands (useResourceContent resolved) — annotations unchanged.
     rerender(
-      <BrowseView {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
     );
 
     expect(spans(container)).toHaveLength(1);
@@ -83,12 +84,12 @@ describe('BrowseView — overlay vs async content arrival', () => {
   it('paints spans when annotations arrive AFTER content', () => {
     const session = fakeSession();
     const { container, rerender } = render(
-      <BrowseView {...baseProps} content={CONTENT} annotations={emptyAnnotations} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content={CONTENT} annotations={emptyAnnotations} session={session} />,
     );
     expect(spans(container)).toHaveLength(0);
 
     rerender(
-      <BrowseView {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
     );
 
     expect(spans(container)).toHaveLength(1);
@@ -98,12 +99,12 @@ describe('BrowseView — overlay vs async content arrival', () => {
   it('clears spans when annotations shrink to zero', () => {
     const session = fakeSession();
     const { container, rerender } = render(
-      <BrowseView {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content={CONTENT} annotations={withReference} session={session} />,
     );
     expect(spans(container)).toHaveLength(1);
 
     rerender(
-      <BrowseView {...baseProps} content={CONTENT} annotations={emptyAnnotations} session={session} />,
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content={CONTENT} annotations={emptyAnnotations} session={session} />,
     );
 
     expect(spans(container)).toHaveLength(0);

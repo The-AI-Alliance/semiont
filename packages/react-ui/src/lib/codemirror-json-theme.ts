@@ -1,41 +1,42 @@
 /**
- * Shared CodeMirror JSON theme for light mode
- * Used by both JsonLdView (popups) and JsonLdPanel (sidebar)
+ * The CodeMirror theme of the JSON views, `JsonLdView` (popups) and
+ * `JsonLdPanel` (sidebar), for light and dark alike.
+ *
+ * Every colour is a CSS variable of `styles/variables.css`, so the page's
+ * `data-theme` attribute picks them, as it picks every other colour, and the
+ * views read no theme of their own. The frame takes the page's background,
+ * text and gutter colours; the syntax takes the `--semiont-json-*` ones.
  */
 
 import { EditorView } from '@codemirror/view';
 import { HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 
-// Colorful light theme for JSON with vibrant syntax highlighting
-export const jsonLightTheme = EditorView.theme({
+export const jsonTheme = EditorView.theme({
   '&': {
-    backgroundColor: '#ffffff',
-    color: '#24292e',
+    backgroundColor: 'var(--semiont-bg-primary)',
+    color: 'var(--semiont-text-primary)',
   },
   '.cm-content': {
-    caretColor: '#0550ae',
+    caretColor: 'var(--semiont-text-primary)',
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: '#0550ae',
+    borderLeftColor: 'var(--semiont-text-primary)',
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: '#b3d7ff',
+    backgroundColor: 'var(--semiont-bg-tertiary)',
   },
   '.cm-gutters': {
-    backgroundColor: '#f6f8fa',
-    color: '#57606a',
+    backgroundColor: 'var(--semiont-bg-secondary)',
+    color: 'var(--semiont-text-tertiary)',
     border: 'none',
   },
-}, { dark: false });
+});
 
-export const jsonLightHighlightStyle = HighlightStyle.define([
-  { tag: t.string, color: '#0a3069' },        // Deep blue for strings
-  { tag: t.number, color: '#0550ae' },        // Bright blue for numbers
-  { tag: t.bool, color: '#8250df' },          // Purple for booleans
-  { tag: t.null, color: '#cf222e' },          // Red for null
-  { tag: t.keyword, color: '#cf222e' },       // Red for keywords
-  { tag: t.propertyName, color: '#116329' },  // Green for property names
-  { tag: t.punctuation, color: '#57606a' },   // Gray for punctuation
-  { tag: t.bracket, color: '#6e7781' },       // Darker gray for brackets
+export const jsonHighlightStyle = HighlightStyle.define([
+  { tag: t.string, color: 'var(--semiont-json-string)' },
+  { tag: t.number, color: 'var(--semiont-json-number)' },
+  { tag: [t.bool, t.null, t.keyword], color: 'var(--semiont-json-literal)' },
+  { tag: t.propertyName, color: 'var(--semiont-json-property)' },
+  { tag: [t.punctuation, t.bracket], color: 'var(--semiont-json-punctuation)' },
 ]);

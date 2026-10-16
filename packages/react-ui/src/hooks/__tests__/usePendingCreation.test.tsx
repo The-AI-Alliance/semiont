@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, fireEvent, within, act } from '@testing-library/react';
-import { renderInEnglish } from '../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../test-utils';
 import '@testing-library/jest-dom';
 import { resourceId, EventBus } from '@semiont/core';
 import type { EventMap, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -116,7 +116,7 @@ describe('usePendingCreation — the exported creation seam', () => {
 
     const hook = renderHook(() => usePendingCreation(session, resourceId('res-1'), true));
     const { container } = renderInEnglish(
-      <ResourceViewer session={session} resource={resource} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={resource} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         selectionMotivation="highlighting" onSelectionMotivationChange={vi.fn()}
         showToolbar={false} />,

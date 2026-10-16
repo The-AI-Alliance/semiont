@@ -11,6 +11,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
 import type { MediaRendererProps } from '../browse-renderers';
 import { resourceId, EventBus } from '@semiont/core';
+import { englishTranslationManager } from '../../../test-utils';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 
@@ -27,6 +28,7 @@ describe('BrowseView — media-renderer registry', () => {
     const CustomText = ({ content }: MediaRendererProps) => <div>custom-render: {content}</div>;
     render(
       <BrowseView
+        translationManager={englishTranslationManager}
         content="the-body"
         mimeType="text/plain"
         resourceUri={resourceId("res-1")}

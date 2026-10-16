@@ -9,7 +9,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
@@ -46,6 +46,7 @@ function fakeSession(): SemiontSession {
 type ViewProps = React.ComponentProps<typeof AnnotateView>;
 
 const base = (mimeType: string): ViewProps => ({
+  translationManager: englishTranslationManager,
   resourceUri: resourceId('res-1'),
   content: 'the-body',
   mimeType,
@@ -61,7 +62,7 @@ describe('AnnotateView — media-renderer registry', () => {
       <div data-testid="custom-text">custom: {content}</div>
     );
 
-    renderInEnglish(<AnnotateView {...base('text/plain')} renderers={{ text: CustomText }} />);
+    renderInEnglish(<AnnotateView translationManager={englishTranslationManager} {...base('text/plain')} renderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('custom-text')).toHaveTextContent('custom: the-body');
     expect(screen.queryByTestId('default-text')).not.toBeInTheDocument();
@@ -72,7 +73,7 @@ describe('AnnotateView — media-renderer registry', () => {
       <div data-testid="custom-pdf">{content}</div>
     );
 
-    renderInEnglish(<AnnotateView {...base('application/pdf')} renderers={{ pdf: CustomPdf }} />);
+    renderInEnglish(<AnnotateView translationManager={englishTranslationManager} {...base('application/pdf')} renderers={{ pdf: CustomPdf }} />);
 
     expect(screen.getByTestId('custom-pdf')).toBeInTheDocument();
   });
@@ -80,7 +81,7 @@ describe('AnnotateView — media-renderer registry', () => {
   it('merges over the defaults rather than replacing them: overriding text leaves image alone', () => {
     const CustomText = () => <div data-testid="custom-text" />;
 
-    renderInEnglish(<AnnotateView {...base('image/png')} renderers={{ text: CustomText }} />);
+    renderInEnglish(<AnnotateView translationManager={englishTranslationManager} {...base('image/png')} renderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('default-image')).toBeInTheDocument();
     expect(screen.queryByTestId('custom-text')).not.toBeInTheDocument();
@@ -90,7 +91,7 @@ describe('AnnotateView — media-renderer registry', () => {
     // The browse side gives a type it cannot preview the same kind of answer.
     // Annotating a type nothing here can render is not harmless, so the
     // missing renderer must stay explicit.
-    const { container } = renderInEnglish(<AnnotateView {...base('application/octet-stream')} />);
+    const { container } = renderInEnglish(<AnnotateView translationManager={englishTranslationManager} {...base('application/octet-stream')} />);
 
     expect(container.querySelector('[data-mime-type="unsupported"]')).toBeInTheDocument();
     expect(screen.getByText(/Annotation not supported/)).toBeInTheDocument();
@@ -101,7 +102,7 @@ describe('AnnotateView — media-renderer registry', () => {
     // What the registry buys: the wrapper, the toolbar block and the content
     // div exist once, not once per render-mode branch.
     for (const mimeType of ['text/plain', 'application/pdf', 'image/png']) {
-      const { container, unmount } = renderInEnglish(<AnnotateView {...base(mimeType)} />);
+      const { container, unmount } = renderInEnglish(<AnnotateView translationManager={englishTranslationManager} {...base(mimeType)} />);
       expect(container.querySelectorAll('.semiont-annotate-view')).toHaveLength(1);
       expect(container.querySelectorAll('.semiont-annotate-view__content')).toHaveLength(1);
       unmount();

@@ -21,7 +21,6 @@ vi.mock('@codemirror/state', () => ({
   EditorState: { create: vi.fn(() => ({})), readOnly: { of: vi.fn() } },
 }));
 vi.mock('@codemirror/lang-json', () => ({ json: vi.fn() }));
-vi.mock('@codemirror/theme-one-dark', () => ({ oneDark: {} }));
 vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: vi.fn(),
   HighlightStyle: { define: vi.fn(() => ({})) },
@@ -37,26 +36,14 @@ vi.mock('@/contexts/LineNumbersContext', async () => {
 });
 vi.mock('@/hooks/useResourceGraph');
 import { EditorState } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { useLineNumbers } from '@/contexts/LineNumbersContext';
 import { useResourceGraph } from '@/hooks/useResourceGraph';
-import { ThemeProvider, useTheme } from '../../../../contexts/ThemeContext';
-import { jsonLightTheme } from '../../../../lib/codemirror-json-theme';
+import { jsonTheme } from '../../../../lib/codemirror-json-theme';
 
 const RID = resourceId('test-resource-1');
 
-function DarkThemeButton() {
-  const { setTheme } = useTheme();
-  return <button onClick={() => setTheme('dark')}>Dark theme</button>;
-}
-
-/** JsonLdPanel reads the theme, so it renders under the real ThemeProvider. */
 function renderPanel() {
-  return render(
-    <ThemeProvider>
-      <JsonLdPanel resourceId={RID} />
-    </ThemeProvider>,
-  );
+  return render(<JsonLdPanel resourceId={RID} />);
 }
 
 /** The extensions the most recent editor was built with. */
@@ -95,12 +82,6 @@ describe('JsonLdPanel Component', () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: mockClipboard, writable: true, configurable: true,
     });
-    localStorage.clear();
-    Object.defineProperty(window, 'matchMedia', {
-      value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
-      writable: true, configurable: true,
-    });
-
     vi.mocked(useLineNumbers).mockReturnValue({
       showLineNumbers: true, toggleLineNumbers: vi.fn(),
     });
@@ -200,36 +181,12 @@ describe('JsonLdPanel Component', () => {
   });
 
   describe('Theme', () => {
-    it("builds the editor with the dark theme under ThemeProvider's dark theme", () => {
-      localStorage.setItem('theme', 'dark');
-
+    it('builds the editor with the JSON theme, whose colours follow the page through CSS variables', () => {
+      // No ThemeProvider above it: the theme is the page's `data-theme`
+      // attribute, read by the stylesheet, not by the panel.
       renderPanel();
 
-      expect(editorExtensions()).toContain(oneDark);
-      expect(editorExtensions()).not.toContain(jsonLightTheme);
-    });
-
-    it("builds the editor with the light theme under ThemeProvider's light theme", () => {
-      localStorage.setItem('theme', 'light');
-
-      renderPanel();
-
-      expect(editorExtensions()).toContain(jsonLightTheme);
-      expect(editorExtensions()).not.toContain(oneDark);
-    });
-
-    it('rebuilds the editor when the theme changes', async () => {
-      localStorage.setItem('theme', 'light');
-      render(
-        <ThemeProvider>
-          <DarkThemeButton />
-          <JsonLdPanel resourceId={RID} />
-        </ThemeProvider>,
-      );
-
-      await userEvent.click(screen.getByText('Dark theme'));
-
-      expect(editorExtensions()).toContain(oneDark);
+      expect(editorExtensions()).toContain(jsonTheme);
     });
   });
 

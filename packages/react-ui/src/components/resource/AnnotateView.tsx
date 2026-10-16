@@ -8,6 +8,8 @@ import { documentPositions } from '../../lib/codemirror-logic';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
 import { DownloadFileLink } from './DownloadFileLink';
+import { TranslationProvider, type TranslationSource } from '../../contexts/TranslationContext';
+import { translationSourceOf } from '../../lib/translation-source';
 import { EditorView } from '@codemirror/view';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
@@ -46,13 +48,25 @@ interface Props {
 }
 
 /**
+ * The annotating view, given its language: it mounts the translation provider
+ * its subtree reads. Inside `ResourceViewer` it is handed the viewer's own.
+ */
+export function AnnotateView(props: Props & TranslationSource) {
+  return (
+    <TranslationProvider {...translationSourceOf(props)}>
+      <AnnotateViewBody {...props} />
+    </TranslationProvider>
+  );
+}
+
+/**
  * View component for annotating resources with text selection and drawing
  *
  * @emits mark:requested - User requested to create annotation. Payload: { source: ResourceId, selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
  * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { annotationId: string, resourceId?: string }
  */
-export function AnnotateView({
+function AnnotateViewBody({
   content,
   mimeType = 'text/plain',
   resourceUri,

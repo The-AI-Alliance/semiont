@@ -112,6 +112,7 @@ import { ResourceViewer } from '@semiont/react-ui';
 declare const grouped: AnnotationsCollection; // the resource's annotations, bucketed by motivation
 
 <ResourceViewer
+  locale="en"
   resource={{ ...resource, content }}
   annotations={grouped}
   session={session}

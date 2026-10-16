@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -61,12 +61,12 @@ describe('ResourceViewer — showToolbar opt-out', () => {
   it('by default the bar renders in browse and annotate modes', () => {
     const { session } = fakeSession();
     const browse = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations} />,
     );
     expect(bars(browse.container)).toBe(1);
 
     const annotate = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} />,
     );
     expect(bars(annotate.container)).toBe(1);
@@ -75,7 +75,7 @@ describe('ResourceViewer — showToolbar opt-out', () => {
   it('showToolbar={false}: no bar in browse mode', () => {
     const { session } = fakeSession();
     const { container } = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         showToolbar={false} />,
     );
     expect(bars(container)).toBe(0);
@@ -85,20 +85,20 @@ describe('ResourceViewer — showToolbar opt-out', () => {
   it('showToolbar={false}: no bar in any annotate render mode (text / image / pdf)', async () => {
     const { session } = fakeSession();
     const text = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource('text/plain')} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource('text/plain')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
     expect(bars(text.container)).toBe(0);
 
     const image = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource('image/png')} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource('image/png')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
     expect(within(image.container).getByText('svg-mock')).toBeInTheDocument();
     expect(bars(image.container)).toBe(0);
 
     const pdf = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource('application/pdf')} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource('application/pdf')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
     await within(pdf.container).findByText('pdf-mock'); // flush the lazy canvas
@@ -108,7 +108,7 @@ describe('ResourceViewer — showToolbar opt-out', () => {
   it('keystone: with the bar hidden, annotate-mode selection still emits mark.request', () => {
     const { session, client } = fakeSession();
     const { container } = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource('text/plain')} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource('text/plain')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         selectionMotivation="highlighting" onSelectionMotivationChange={vi.fn()}
         showToolbar={false} />,

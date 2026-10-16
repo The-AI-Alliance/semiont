@@ -15,7 +15,7 @@ import { screen, act, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { Annotation, ResourceDescriptor as SemiontResource } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 const resource: SemiontResource & { content: string } = {
@@ -49,6 +49,7 @@ describe('ResourceViewer — a refused delete', () => {
 
     renderInEnglish(
       <ResourceViewer
+        translationManager={englishTranslationManager}
         session={session}
         resource={resource}
         annotations={annotations}
