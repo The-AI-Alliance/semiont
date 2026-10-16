@@ -207,17 +207,38 @@ async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<Str
             let Some(agent) = agent.upgrade() else {
                 return;
             };
-            let _ = retry_with_backoff(
-                REFRESH_RETRY,
-                || agent.renew(),
-                |error: &AgentSignInError| {
-                    !matches!(error, AgentSignInError::CredentialRefused { .. })
-                        && retry::REFRESH.retryable(&error.retry_facts())
-                },
-                |_| None,
-            )
-            .await;
+            let _ =
+                retry_with_backoff(REFRESH_RETRY, || agent.renew(), worth_another, |_| None).await;
         }
     })
     .await;
+}
+
+/// Whether a renewal that failed this way is tried again inside the budget:
+/// when `retry::REFRESH` calls it transient, and never when the gateway
+/// refused the service account's token, which the same token cannot change.
+fn worth_another(error: &AgentSignInError) -> bool {
+    !matches!(error, AgentSignInError::CredentialRefused { .. })
+        && retry::REFRESH.retryable(&error.retry_facts())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_refused_credential_is_not_renewed_again_whatever_its_status() {
+        assert!(!worth_another(&AgentSignInError::CredentialRefused {
+            status: 429
+        }));
+        assert!(!worth_another(&AgentSignInError::CredentialRefused {
+            status: 401
+        }));
+        // A limit's 429 that refuses no credential is "not now", as before.
+        assert!(worth_another(&AgentSignInError::Refused { status: 429 }));
+        assert!(worth_another(&AgentSignInError::Unreachable(
+            "no answer".to_owned()
+        )));
+        assert!(!worth_another(&AgentSignInError::Refused { status: 403 }));
+    }
 }

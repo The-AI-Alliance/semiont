@@ -111,6 +111,38 @@ describe('agentToken', () => {
     expect(wire.exchanges(), 'the gateway is up and said no').toHaveLength(1);
   });
 
+  it('a service-account token refused by the gateway\'s refusal-rate limit is refused like a 401: not asked again, and unauthorized', async () => {
+    // A 429 says "not now" unless its code says the token was refused: then
+    // the same token gets the same answer, however long the sign-in waits.
+    const wire = stubFetch(() => Response.json(
+      { error: 'The requests this holder has had refused have used their allowance', code: 'refusal-rate' },
+      { status: 429, statusText: 'Too Many Requests', headers: { 'retry-after': '1' } },
+    ));
+
+    const signing = agentToken({ baseUrl: GATEWAY, credential: credential(), provider: 'anthropic', model: 'claude-haiku-4-5' }).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+    const refused = await signing;
+
+    expect(refused).toBeInstanceOf(APIError);
+    expect(refused).toMatchObject({ status: 429, code: 'unauthorized' });
+    expect(wire.exchanges(), 'the token was refused, not the request put off').toHaveLength(1);
+  });
+
+  it('a 429 from any other limit is still "not now", and the sign-in is tried again', async () => {
+    let attempts = 0;
+    const wire = stubFetch(() => {
+      attempts += 1;
+      if (attempts === 1) return Response.json({ error: 'slow down', code: 'emit-rate' }, { status: 429, statusText: 'Too Many Requests', headers: { 'retry-after': '1' } });
+      return minted();
+    });
+
+    const signing = agentToken({ baseUrl: GATEWAY, credential: credential(), provider: 'ollama', model: 'gemma3:4b' });
+    await vi.runAllTimersAsync();
+
+    await expect(signing).resolves.toEqual({ token: 'agent-token', did: DID });
+    expect(wire.exchanges()).toHaveLength(2);
+  });
+
   it('a refused service account is the issuer\'s answer, and the gateway is never asked', async () => {
     const wire = stubFetch(minted, { grant: () => new Response('{}', { status: 401 }) });
     const account = credential();

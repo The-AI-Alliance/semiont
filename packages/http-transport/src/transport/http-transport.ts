@@ -220,23 +220,22 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.token$ = config.token$ ?? watched(new BehaviorSubject<AccessToken | null>(null));
     this.logger = logger;
 
-    // Retry policy: when a refresher is configured, one attempt more, with
-    // the statuses and methods `RETRY_RULES.transport` approves. Otherwise
+    // Retry policy: when a refresher is configured, one attempt more, for the
+    // statuses and methods `RETRY_RULES.transport` approves; the renewal in
+    // the `afterResponse` hook below spends the same one attempt. Otherwise
     // the plain `retry` number, which leaves ky's own defaults in place (they
-    // never retry POST). Either way a refused credential is never retried:
-    // it is renewed (the `afterResponse` hook below), or final.
+    // never retry POST). Either way a refused credential is never retried: it
+    // is renewed, or final.
     //
-    // **`methods`/`statusCodes` are a superset PRE-FILTER, not the decision.**
-    // ky ANDs them independently, so they cannot express "401 on any method,
-    // every other status on idempotent methods only". `shouldRetry` is the
+    // **`statusCodes` is a superset PRE-FILTER, not the decision**, and ky's
+    // default `methods` are the idempotent ones. `shouldRetry` is the
     // authoritative gate and rejects what the lists over-admit; the hooks
-    // suite's census test pins that the lists stay a superset of what
+    // suite's census test pins that `statusCodes` stays a superset of what
     // `RETRY_RULES.transport` can approve, so the two cannot drift apart.
     const retryConfig = tokenRefresher
       ? {
           limit: 1,
-          methods: ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'],
-          statusCodes: [401, 408, 413, 429, 500, 502, 503, 504],
+          statusCodes: [408, 413, 429, 500, 502, 503, 504],
           // A refused credential first: it is never asked of the rule, which
           // would retry a 429 `refusal-rate` after its `Retry-After` with the
           // token refused. Then one rule, stated in core with its reasoning:
@@ -311,8 +310,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                     // status alone
                   }
                   if (!refusesCredential(response.status, refusalBody(said))) return undefined;
-                  const renewed = await renewedToken(tokenRefresher);
-                  if (!renewed || request.headers.get('Authorization') === `Bearer ${renewed}`) return undefined;
+                  const sent = request.headers.get('Authorization');
+                  const renewed = await this.renewal(sent === null ? undefined : sent.replace(/^Bearer /, ''));
+                  if (renewed === null) return undefined;
                   try {
                     request.headers.set('Authorization', `Bearer ${renewed}`);
                   } catch {
@@ -593,6 +593,19 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    */
   getToken(): AccessToken | undefined {
     return this.token$.getValue() ?? undefined;
+  }
+
+  /**
+   * The token to send a request again with once the gateway has refused
+   * `refused`: the refresher's, asked once, when it gives another
+   * (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). None without
+   * a refresher. The `ky` hook renews through it, and so does
+   * `HttpContentTransport`'s `XMLHttpRequest` upload, which `ky` does not send.
+   */
+  async renewal(refused: string | undefined): Promise<string | null> {
+    if (!this.config.tokenRefresher) return null;
+    const renewed = await renewedToken(this.config.tokenRefresher);
+    return renewed !== null && renewed !== refused ? renewed : null;
   }
 }
 

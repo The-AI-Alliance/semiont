@@ -400,8 +400,9 @@ Bytes do not ride the bus.
 - A read or one of the gateway's own operations whose credential is refused
   is renewed, as § A refused credential says.
   *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*
-- So is an upload whose credential is refused.
-  *Held by no case.*
+- So is an upload whose credential is refused, and its progress, sent
+  twice, is never less than it last said.
+  *Held by `sdk/wire/upload-credential-renewed`, `packages/http-transport/src/transport/__tests__/http-content-transport.xhr.test.ts`.*
 
 ## Telemetry
 

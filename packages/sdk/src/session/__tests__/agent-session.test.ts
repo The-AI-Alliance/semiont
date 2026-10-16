@@ -241,6 +241,31 @@ describe('startAgentSession', () => {
     );
   });
 
+  it('STOPS re-arming when the credential is refused by the refusal-rate limit, as it does on a 401', async () => {
+    // A 429 is "not now" to the refresh rule, but one whose code is
+    // `refusal-rate` refuses the credential: re-arming against it is the same
+    // loop as re-arming against a 401.
+    const first = tokenExpiringIn(400_000, 'first');
+    fetchMock
+      .mockResolvedValueOnce(minted(first))
+      .mockResolvedValueOnce(Response.json(
+        { error: 'The requests this holder has had refused have used their allowance', code: 'refusal-rate' },
+        { status: 429, statusText: 'Too Many Requests', headers: { 'retry-after': '1' } },
+      ));
+    const logger = makeLogger();
+    session = await start(logger);
+
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(fetchMock, 'the refusal was received, and not tried again by the sign-in').toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(fetchMock, 'a refusal ends the loop').toHaveBeenCalledTimes(2);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Re-authentication refused; not retrying',
+      expect.objectContaining({ error: expect.stringContaining('used their allowance') }),
+    );
+  });
+
   it('a token with no readable exp schedules nothing', async () => {
     fetchMock.mockResolvedValueOnce(minted(jwt({ sub: 'no-exp' })));
     session = await start();

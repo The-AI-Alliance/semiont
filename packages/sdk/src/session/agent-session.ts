@@ -36,7 +36,8 @@
  *
  * Two recovery paths:
  *   - `refresh` is handed to HttpTransport as its `tokenRefresher`, which
- *     re-authenticates and retries once when any request answers 401.
+ *     re-authenticates once and sends again a request, an emit or the stream
+ *     whose credential is refused (a 401, or a 429 `refusal-rate`).
  *   - the proactive timer covers the listen-only case, where nothing ever
  *     401s because nothing is being requested.
  */

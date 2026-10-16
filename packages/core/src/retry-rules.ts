@@ -40,9 +40,8 @@
  * been processed upstream. Optional, because only the transport rule has an
  * answer for it — and unstated reads as unsafe rather than as permission.
  *
- * Deliberately not a `ReadonlySet<number>`: a status set cannot say *`401` on any
- * method, `5xx` on idempotent methods only*, which is exactly what the transport
- * needs to say.
+ * Deliberately not a `ReadonlySet<number>`: a status set cannot say *`5xx` on
+ * idempotent methods only*, which is exactly what the transport needs to say.
  */
 export interface RetryFacts {
   status?: number;
@@ -98,16 +97,13 @@ const job: RetryRule = {
 const transport: RetryRule = {
   name: 'transport',
   rationale:
-    'An HTTP client with a token refresher. 401 is retried on ANY method: the request was ' +
-    'rejected rather than processed, and a refreshed token makes it valid. Every other ' +
-    'retryable status applies only to idempotent methods, because a POST that got a 502 may ' +
-    'already have been processed — and one of them mints a fresh resource id, so a repeat ' +
-    'writes a second resource the caller never learns about. Method-level is enough: no ' +
-    'per-endpoint registry, because these methods were never retried before a widening that ' +
-    'was meant to add 401 alone.',
+    'An HTTP client\'s request. A retryable status applies only to idempotent methods, ' +
+    'because a POST that got a 502 may already have been processed — and one of them mints a ' +
+    'fresh resource id, so a repeat writes a second resource the caller never learns about. ' +
+    'Method-level is enough: no per-endpoint registry. A 401 is not retried: a refused ' +
+    'credential is renewed before any rule is asked, and the same token gets the same answer.',
   retryable: ({ status, method }) => {
     if (status === undefined) return false;
-    if (status === 401) return true;
     const repeatable = method !== undefined && IDEMPOTENT_METHODS.has(method.toUpperCase());
     if (!repeatable) return false;
     return status === 408 || status === 413 || status === 429 || status === 500

@@ -94,7 +94,7 @@ class FakeXHR {
 
 const testBaseUrl = baseUrl('http://test.example.com');
 
-function makeTransportAndContent() {
+function makeTransportAndContent(tokenRefresher?: () => Promise<string | null>) {
   const mockKy: Partial<KyInstance> = {
     post: vi.fn(),
     get: vi.fn(),
@@ -106,6 +106,7 @@ function makeTransportAndContent() {
   const transport = new HttpTransport({
     baseUrl: testBaseUrl,
     token$: token$ as never,
+    ...(tokenRefresher ? { tokenRefresher } : {}),
   });
   const content = new HttpContentTransport(transport);
   return { transport, content, mockKy, token$ };
@@ -279,6 +280,74 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 
     expect(errors).toHaveLength(1);
     expect(errors[0]).toBeInstanceOf(APIError);
+  });
+
+  test('a refused credential is renewed once and the upload sent again: nothing is reported, and progress never goes back', async () => {
+    const refresher = vi.fn(async () => 'renewed-token');
+    const { content, transport } = makeTransportAndContent(refresher);
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
+    const progress: number[] = [];
+
+    const promise = content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress: ({ bytesUploaded }) => progress.push(bytesUploaded) },
+    );
+    const first = FakeXHR.instances[0]!;
+    first.fireProgress(60, 100);
+    first.fireFailure(401, 'Unauthorized', { error: 'Invalid token' });
+
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+    const second = FakeXHR.instances[1]!;
+    expect(second.setRequestHeaderCalls).toContainEqual({ name: 'Authorization', value: 'Bearer renewed-token' });
+    second.fireProgress(30, 100);
+    second.fireProgress(100, 100);
+    second.fireSuccess(201, { resourceId: 'r-1' });
+
+    await expect(promise).resolves.toEqual({ resourceId: 'r-1' });
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(errors, 'a renewed upload that is accepted reports nothing').toEqual([]);
+    expect(progress, 'the second sending is reported only past the first').toEqual([60, 100]);
+  });
+
+  test('a 429 refusal-rate is renewed as a 401 is; refused again, it fails as unauthorized with its 429, once, and is not sent a third time', async () => {
+    const refresher = vi.fn(async () => 'renewed-token');
+    const { content, transport } = makeTransportAndContent(refresher);
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
+    const refused = { error: 'The requests this holder has had refused have used their allowance', code: 'refusal-rate' };
+
+    const promise = content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress: vi.fn() },
+    );
+    FakeXHR.instances[0]!.fireFailure(429, 'Too Many Requests', refused);
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2));
+    FakeXHR.instances[1]!.fireFailure(429, 'Too Many Requests', refused);
+
+    const err = (await promise.catch((e: unknown) => e)) as APIError;
+    expect(err).toBeInstanceOf(APIError);
+    expect(err).toMatchObject({ code: 'unauthorized', status: 429 });
+    expect(errors).toHaveLength(1);
+    expect(FakeXHR.instances).toHaveLength(2);
+    expect(refresher).toHaveBeenCalledTimes(1);
+  });
+
+  test('with nothing to renew it, a refused credential fails at once as unauthorized, and is reported', async () => {
+    const { content, transport } = makeTransportAndContent();
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
+
+    const promise = content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress: vi.fn() },
+    );
+    FakeXHR.instances[0]!.fireFailure(401, 'Unauthorized', { error: 'Invalid token' });
+
+    const err = (await promise.catch((e: unknown) => e)) as APIError;
+    expect(err).toMatchObject({ code: 'unauthorized', status: 401 });
+    expect(errors).toHaveLength(1);
+    expect(FakeXHR.instances).toHaveLength(1);
   });
 
   test('rejects with APIError on 5xx with classify code "unavailable"', async () => {
