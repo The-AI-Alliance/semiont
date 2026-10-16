@@ -22,7 +22,7 @@ from pydantic import JsonValue
 from semiont.bus import request
 from semiont.errors import SemiontError
 from semiont.events import Events
-from semiont.http import HttpTransport, Timing
+from semiont.http import HttpTransport, Timing, TokenRefresher
 from semiont.identifiers import AnnotationId, InvalidIdentifier, JobId, ResourceId
 from semiont.model import WireModel
 from semiont.operations import OPERATIONS
@@ -128,6 +128,21 @@ class Wire:
         async for error in failures:
             say({"error": failure(error)})
 
+    def _renewing(self, renewals: list[str]) -> TokenRefresher:
+        """A refresher that gives `renewals`, one each time it is asked and nothing once they run out.
+
+        What it gives it makes the client's token, as a session does.
+        """
+        remaining = iter(renewals)
+
+        async def renew() -> str | None:
+            renewed = next(remaining, None)
+            if renewed is not None:
+                self._token.set(renewed)
+            return renewed
+
+        return renew
+
     async def _frames(self, channel: str, frames: Events[Frame]) -> None:
         async for frame in frames:
             line: dict[str, JsonValue] = {"channel": channel, "payload": dict(frame.payload)}
@@ -142,7 +157,10 @@ class Wire:
             raise Misuse("a transport is already open")
         timing = _timing(object_of(args, "timing") if "timing" in args else {})
         self._token.set(text(args, "token"))
-        transport = HttpTransport(text(args, "baseUrl"), token=self._token, channels=texts(args, "channels"), timing=timing)
+        refresher = self._renewing(texts(args, "renewals")) if "renewals" in args else None
+        transport = HttpTransport(
+            text(args, "baseUrl"), token=self._token, refresher=refresher, channels=texts(args, "channels"), timing=timing
+        )
         self._transport = await self._held.enter_async_context(transport)
         self._reporters.create_task(self._states(transport))
         self._reporters.create_task(self._failures(transport.failures()))

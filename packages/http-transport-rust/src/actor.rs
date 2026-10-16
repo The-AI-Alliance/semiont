@@ -22,11 +22,11 @@
 //! this one task in order, so the state machine has no locks and no races.
 
 use crate::sse::SseParser;
-use crate::transport::{Shared, locked};
+use crate::transport::{Shared, locked, refusal};
 use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
 use semiont::channels::RESOURCE_SCOPED_CHANNELS;
-use semiont::errors::TransportError;
+use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
 use semiont::transport::{ConnectionState, Envelope, Frame, TraceCarrier};
@@ -418,10 +418,10 @@ impl Actor {
         // A refused connect is a request the gateway refused, reported as
         // one. A connect that got no answer is not: it is a state.
         let stated_wait = error.retry_after;
-        let status = error.status;
+        let credential_refused = error.code == TransportErrorCode::Unauthorized;
         self.shared.failed(error);
         let superseded = self.superseded.remove(&conn);
-        if status == Some(401) && self.running && !superseded {
+        if credential_refused && self.running && !superseded {
             // Sending this token again gets the same answer, so it is not
             // sent again: the client waits for a different one, and asks its
             // refresher for one once per outage.
@@ -657,8 +657,13 @@ async fn connection(
                 .get(reqwest::header::RETRY_AFTER)
                 .and_then(|value| value.to_str().ok()),
         );
-        let error =
-            TransportError::of_status(format!("SSE connect failed: {status}"), status, stated_wait);
+        let said = response.json::<Value>().await.ok();
+        let error = refusal(
+            format!("SSE connect failed: {status}"),
+            status,
+            stated_wait,
+            said.as_ref(),
+        );
         let _ = events.send(Event::Refused { conn, error }).await;
         return;
     }

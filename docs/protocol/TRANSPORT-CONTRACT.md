@@ -220,10 +220,10 @@ subscriber is given the present state at once.
   dropped stream is a state, never a failure.
   *Held by `sdk/wire/outage`.*
 - **`unauthenticated`** means the transport is not attempting: it has no
-  credential, or the one it has was refused. A refused credential is not
-  sent again. The transport waits, with no request, and opens its stream
-  when it is given another.
-  *Held by `sdk/wire/unauthenticated`.*
+  credential, or the one it has was refused (§ A refused credential). A
+  refused credential is not sent again. The transport waits, with no
+  request, and opens its stream when it is given another.
+  *Held by `sdk/wire/unauthenticated`, `sdk/wire/stream-credential-limit-renewed`.*
 - **`closed`** is terminal: the client was disposed.
   *Held by `sdk/wire/request-closed`.*
 
@@ -237,11 +237,39 @@ is reported on the error stream as it is thrown to its caller, under a code
 from [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json).
 
 - A refused stream is reported, and opened again no sooner than the
-  refusal's `Retry-After`.
+  refusal's `Retry-After`; a stream whose credential was refused waits for
+  another credential instead (§ A refused credential).
   *Held by `sdk/wire/stream-rate-limited`, `sdk/wire/unauthenticated`.*
 - A gateway that cannot be reached fails an emit or a read as `unavailable`
   once its attempts are spent.
   *Held by `sdk/wire/unreachable`.*
+
+### A refused credential
+
+A request's credential is refused when the gateway answers 401, or 429 with
+the `code` `refusal-rate`: a limit that answers only a request whose token
+has already failed verification. Whatever the request (an emit, the stream's
+connect, a read or an upload, one of the gateway's own operations), a client
+that can renew its token does the same:
+
+- **It renews the token once and sends the request again** at once, with
+  the token it is given, when that is not the one refused. A request sent
+  again and accepted settles as if it had never been refused, and the
+  refusal is not reported.
+  *Held by `sdk/wire/emit-credential-renewed`, `sdk/wire/emit-credential-limit-renewed`, `sdk/wire/request-credential-renewed`.*
+- **It fails as `unauthorized`** when it is given no token, or the one it
+  is given is refused too, with the status the gateway answered: a
+  `refusal-rate` refusal is never `rate-limited`. The request is not sent a
+  third time, and the failure is reported on the error stream.
+  *Held by `sdk/wire/emit-credential-refused-twice`, `sdk/wire/request-credential-limit-refused-twice`.*
+- **The stream** reports each refused connect as `unauthorized`, renews once
+  per outage, and opens with the token it is given; until it has one it is
+  `unauthenticated`.
+  *Held by `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`.*
+
+A refused credential is renewed, never retried: no retry rule is asked
+about it, and it never waits out a `Retry-After`. A client that cannot renew
+its token takes the refusal as final at once.
 
 ### Scopes
 
@@ -276,8 +304,12 @@ resource's scope while it is observed: freshness follows observation.
   *Held by no case.*
 - **An emit refused by a limit is sent again**, no sooner than the
   refusal's `Retry-After`, inside the budget `emitRetry`. With the budget
-  spent it fails as `rate-limited`.
+  spent it fails as `rate-limited`. A `refusal-rate` refusal is a refused
+  credential, not this.
   *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`.*
+- **An emit whose credential is refused** is renewed, as
+  § A refused credential says.
+  *Held by `sdk/wire/emit-credential-renewed`, `sdk/wire/emit-credential-refused-twice`.*
 - **An emit refused outright fails** with the refusal's code, is reported
   on the error stream, and is not sent again.
   *Held by `sdk/wire/emit-refused`.*
@@ -365,6 +397,11 @@ Bytes do not ride the bus.
 - Each of the gateway's own operations is one request to its own path,
   carrying the client's token.
   *Held by `sdk/wire/gateway-operations`.*
+- A read or one of the gateway's own operations whose credential is refused
+  is renewed, as § A refused credential says.
+  *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*
+- So is an upload whose credential is refused.
+  *Held by no case.*
 
 ## Telemetry
 

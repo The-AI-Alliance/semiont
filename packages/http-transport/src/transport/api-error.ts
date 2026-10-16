@@ -10,7 +10,36 @@
  * predicate could only agree with one of them.
  */
 
-import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, whyUnanswered, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
+import { SemiontError, isObject, isRetryableRequestError, isString, retryAfterMs, transportErrorCodeForStatus, whyUnanswered, type TransportErrorCode, type HttpStatusError, type components } from '@semiont/core';
+
+/**
+ * The limit that answers only a request whose token has already failed
+ * verification: it says what a 401 says.
+ */
+const REFUSAL_RATE = 'refusal-rate' satisfies components['schemas']['LimitRefusal']['code'];
+
+/**
+ * Whether a refusal refuses the request's credential: a 401, or a 429 whose
+ * body is a `LimitRefusal` naming `refusal-rate`
+ * (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). Such a
+ * request is renewed or fails, and is never retried with the token refused.
+ */
+export function refusesCredential(status: number, body: unknown): boolean {
+  return status === 401 || (status === 429 && isObject(body) && body['code'] === REFUSAL_RATE);
+}
+
+/**
+ * A refused response's body as the gateway wrote it: parsed when it is JSON,
+ * its text when it is not, and none when it is empty.
+ */
+export function refusalBody(text: string): unknown {
+  if (text === '') return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
 
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
@@ -34,7 +63,12 @@ export class APIError extends SemiontError {
     this.retryAfterMs = retryAfterMs;
   }
 
-  /** The server answered, and its status decides the code. */
+  /**
+   * The server answered, and its status decides the code, but for a refused
+   * credential (`refusesCredential`), which is `unauthorized` whatever its
+   * status. So `code === 'unauthorized'` is what says a credential was
+   * refused, and the paths that renew one read it there.
+   */
   static fromStatus(
     message: string,
     status: number,
@@ -42,7 +76,8 @@ export class APIError extends SemiontError {
     body: unknown,
     retryAfterMs: number | undefined,
   ): APIError {
-    return new APIError(message, transportErrorCodeForStatus(status), status, statusText, body, retryAfterMs);
+    const code = refusesCredential(status, body) ? 'unauthorized' : transportErrorCodeForStatus(status);
+    return new APIError(message, code, status, statusText, body, retryAfterMs);
   }
 
   /**
@@ -92,3 +127,12 @@ export class APIError extends SemiontError {
  */
 const _conformsToRetryContract: HttpStatusError = APIError.fromStatus('', 0, '', undefined, undefined);
 void _conformsToRetryContract;
+
+/**
+ * Whether a failed request is worth another attempt by core's rule, with one
+ * exception the rule cannot see: a refused credential, which is renewed or
+ * final and never sent again with the token refused, whatever its status.
+ */
+export function retryableUnlessRefused(error: unknown): boolean {
+  return !(error instanceof APIError && error.code === 'unauthorized') && isRetryableRequestError(error);
+}

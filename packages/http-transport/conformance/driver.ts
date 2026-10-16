@@ -122,11 +122,25 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     for (const name of Object.keys(timing)) {
       if (!['reconnectMs', 'lazyRemoveMs', 'lingerMs', 'emitRetry', 'seenEventIdsCount'].includes(name)) throw new Misuse(`this driver cannot override ${name}`);
     }
-    token$ = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
+    const source = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
+    token$ = source;
+    // The tokens the client's refresher gives, one each time it is asked, and
+    // none once they run out. The token it gives becomes the client's, as a
+    // session pushes a renewed token into its source.
+    const renewals = args['renewals'] === undefined ? undefined : [...texts(args, 'renewals')];
+    const tokenRefresher = renewals === undefined
+      ? undefined
+      : async (): Promise<string | null> => {
+          const renewed = renewals.shift();
+          if (renewed === undefined) return null;
+          source.next(accessToken(renewed));
+          return renewed;
+        };
     transport = new HttpTransport({
       baseUrl: baseUrl(text(args, 'baseUrl')),
-      token$,
+      token$: source,
       channels: texts(args, 'channels') as (keyof EventMap)[],
+      ...(tokenRefresher === undefined ? {} : { tokenRefresher }),
       ...(timing['reconnectMs'] === undefined ? {} : { reconnectMs: count(timing, 'reconnectMs') }),
       ...(timing['lazyRemoveMs'] === undefined ? {} : { lazyRemoveMs: count(timing, 'lazyRemoveMs') }),
       ...(timing['lingerMs'] === undefined ? {} : { lingerMs: count(timing, 'lingerMs') }),

@@ -13,8 +13,9 @@
  *     `signal`: through `XMLHttpRequest`, whose `upload.onprogress` is the
  *     only count of bytes sent every browser has. `fetch` carries a streamed
  *     request body in some browsers and not others, and in none over
- *     HTTP/1.1. This path does not renew a refused token: an upload that
- *     starts with a fresh one completes, and one refused 401 is reported.
+ *     HTTP/1.1. This path does not renew a refused credential: an upload
+ *     that starts with a fresh token completes, and one whose credential is
+ *     refused fails, and is reported, as `unauthorized`.
  *   - **Anywhere else** (Node, as a worker, a script or the CLI runs it),
  *     and a browser page whose caller asked for neither: through ky. Asked
  *     for progress, the body is handed to the connection a piece at a time
@@ -34,7 +35,7 @@ import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, Put
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
-import { APIError } from './api-error';
+import { APIError, refusalBody } from './api-error';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -267,8 +268,8 @@ const UPLOAD_PIECE_BYTES = 64 * 1024;
  * the size as it is for a body that is not streamed. A runtime that keeps
  * that header to itself sends the same bytes chunked.
  *
- * A request sent again after a 401 is ky's copy of this body, which is read
- * once: what the second sending repeats is not reported a second time.
+ * A request sent again with a renewed token is ky's copy of this body, which
+ * is read once: what the second sending repeats is not reported a second time.
  */
 async function inPieces(
   form: FormData,
@@ -366,9 +367,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
         }
         return;
       }
-      let body: unknown = xhr.responseText;
-      try { body = JSON.parse(xhr.responseText); } catch { /* keep as text */ }
-      const err = APIError.refusal(xhr.status, xhr.statusText, body, xhr.getResponseHeader('retry-after'));
+      const err = APIError.refusal(xhr.status, xhr.statusText, refusalBody(xhr.responseText), xhr.getResponseHeader('retry-after'));
       onApiError(err);
       reject(err);
     };

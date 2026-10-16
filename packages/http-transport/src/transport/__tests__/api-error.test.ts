@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { SemiontError, type TransportErrorCode } from '@semiont/core';
 
-import { APIError } from '../api-error';
+import { APIError, refusalBody } from '../api-error';
 
 describe('APIError', () => {
   describe('transportErrorCodeForStatus (via fromStatus)', () => {
@@ -31,6 +31,36 @@ describe('APIError', () => {
     it.each(cases)('status %d maps to %s', (status, expectedCode) => {
       const err = APIError.fromStatus('msg', status, 'Status Text', undefined, undefined);
       expect(err.code).toBe(expectedCode);
+    });
+  });
+
+  describe('a refused credential', () => {
+    // A 401, or a 429 whose body is a `LimitRefusal` naming `refusal-rate`:
+    // both are `unauthorized`, with the status the gateway answered, and a
+    // 429 from any other limit is `rate-limited` still.
+    it.each<[string, number, unknown, TransportErrorCode]>([
+      ['a 401', 401, undefined, 'unauthorized'],
+      ['a 429 refusal-rate', 429, { error: 'refused', code: 'refusal-rate' }, 'unauthorized'],
+      ['a 429 emit-rate', 429, { error: 'slow down', code: 'emit-rate' }, 'rate-limited'],
+      ['a 429 that names no limit', 429, 'Too Many Requests', 'rate-limited'],
+      ['a 503 that names refusal-rate', 503, { error: 'refused', code: 'refusal-rate' }, 'unavailable'],
+    ])('%s is %s', (_what, status, body, expectedCode) => {
+      const err = APIError.fromStatus('msg', status, 'Status Text', body, undefined);
+      expect(err.code).toBe(expectedCode);
+      expect(err.status).toBe(status);
+    });
+
+    it('keeps its 429 and its wait when the gateway states them', () => {
+      const err = APIError.refusal(429, 'Too Many Requests', { error: 'refused', code: 'refusal-rate' }, '1');
+      expect(err).toMatchObject({ code: 'unauthorized', status: 429, retryAfterMs: 1000, message: 'refused' });
+    });
+  });
+
+  describe('refusalBody', () => {
+    it('is the JSON a body carries, its text when it carries none, and none when it is empty', () => {
+      expect(refusalBody('{"error":"refused","code":"refusal-rate"}')).toEqual({ error: 'refused', code: 'refusal-rate' });
+      expect(refusalBody('<html>bad gateway</html>')).toBe('<html>bad gateway</html>');
+      expect(refusalBody('')).toBeUndefined();
     });
   });
 

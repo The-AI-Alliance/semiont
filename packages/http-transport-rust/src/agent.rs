@@ -14,12 +14,13 @@
 //! stop working over one bad round trip.
 
 use crate::service_account::{ServiceToken, SignInError};
-use crate::transport::{TokenRefresher, why_unanswered};
+use crate::transport::{TokenRefresher, refuses_credential, why_unanswered};
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::BoxFuture;
 use semiont::types::{AgentTokenRequest, AgentTokenResponse, UserId};
+use serde_json::Value;
 use std::fmt;
 use std::sync::{Arc, Weak};
 use tokio::sync::watch;
@@ -33,6 +34,11 @@ pub enum AgentSignInError {
     Unreachable(String),
     /// The gateway refused the exchange.
     Refused { status: u16 },
+    /// The gateway refused the service account's token: a 401, or a 429
+    /// `refusal-rate` (docs/protocol/TRANSPORT-CONTRACT.md § A refused
+    /// credential). The same token gets the same answer, so it is not tried
+    /// again.
+    CredentialRefused { status: u16 },
     /// The gateway answered something that is not an agent token.
     Malformed(String),
 }
@@ -44,7 +50,8 @@ impl AgentSignInError {
             status: match self {
                 AgentSignInError::SignIn(error) => return error.retry_facts(),
                 AgentSignInError::Unreachable(_) => None,
-                AgentSignInError::Refused { status } => Some(*status),
+                AgentSignInError::Refused { status }
+                | AgentSignInError::CredentialRefused { status } => Some(*status),
                 AgentSignInError::Malformed(_) => Some(200),
             },
             method: Some("POST"),
@@ -63,6 +70,12 @@ impl fmt::Display for AgentSignInError {
                 write!(
                     f,
                     "the gateway refused the agent token exchange (HTTP {status})"
+                )
+            }
+            AgentSignInError::CredentialRefused { status } => {
+                write!(
+                    f,
+                    "the gateway refused the service account's token for the agent token exchange (HTTP {status})"
                 )
             }
         }
@@ -164,8 +177,12 @@ async fn exchange(
             AgentSignInError::Unreachable(format!("{url} got no answer{}", why_unanswered(&e)))
         })?;
     if !response.status().is_success() {
-        return Err(AgentSignInError::Refused {
-            status: response.status().as_u16(),
+        let status = response.status().as_u16();
+        let said = response.json::<Value>().await.ok();
+        return Err(if refuses_credential(status, said.as_ref()) {
+            AgentSignInError::CredentialRefused { status }
+        } else {
+            AgentSignInError::Refused { status }
         });
     }
     response.json().await.map_err(|e| {
@@ -193,7 +210,10 @@ async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<Str
             let _ = retry_with_backoff(
                 REFRESH_RETRY,
                 || agent.renew(),
-                |error: &AgentSignInError| retry::REFRESH.retryable(&error.retry_facts()),
+                |error: &AgentSignInError| {
+                    !matches!(error, AgentSignInError::CredentialRefused { .. })
+                        && retry::REFRESH.retryable(&error.retry_facts())
+                },
                 |_| None,
             )
             .await;

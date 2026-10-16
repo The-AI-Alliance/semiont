@@ -145,9 +145,12 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
         // 47 attempts in ten minutes, measured. An outage is the other case:
         // the token in hand may still be good, and the loop is how it recovers.
         // The status is read off the error structurally, as core's retry rules
-        // read it: a refusal is whatever carries one.
+        // read it: a refusal is whatever carries one. A refused credential says
+        // so in its code, whatever its status (a 429 `refusal-rate` among them),
+        // and is never retried.
         const status = isObject(error) && typeof error['status'] === 'number' ? error['status'] : undefined;
-        if (!RETRY_RULES.refresh.retryable(status === undefined ? {} : { status })) {
+        const credentialRefused = isObject(error) && error['code'] === 'unauthorized';
+        if (credentialRefused || !RETRY_RULES.refresh.retryable(status === undefined ? {} : { status })) {
           logger.error('Re-authentication refused; not retrying', detail);
           return;
         }

@@ -124,6 +124,10 @@ states a baseline and a coefficient per role, and a role changes the
 coefficient whoever holds it: `semiont-service` and `semiont-worker` are
 unlimited. A refusal by a limit names it in the body's `code` and says in
 `Retry-After` how many seconds to wait; a client waits at least that long.
+One code is not a wait: `refusal-rate` answers only a request whose token
+has already been refused, and a client that can renew its token renews it
+and sends the request again at once
+([TRANSPORT-CONTRACT.md § A refused credential](./TRANSPORT-CONTRACT.md#a-refused-credential)).
 
 *Held by `gateway/spec-derived.test.ts`, `gateway/emit.test.ts`, `gateway/principal-limits.test.ts`, `gateway/capacity.test.ts`, `gateway/bounds.test.ts`, `gateway/replicas.test.ts`, `sdk/wire/emit-rate-limited`, `sdk/wire/stream-rate-limited`.*
 
@@ -339,13 +343,13 @@ sent.
 - A refused connect is reported on the error stream, with its status and
   code. A connection that failed without an answer is not: it is a state.
   *Held by `sdk/wire/stream-rate-limited`, `sdk/wire/outage`.*
-- **A 401 is not retried.** The refused token is remembered and never sent
-  again; the client is `unauthenticated` and checks, every `reconnectMs`
-  and with no request, whether it has been given a different one. A client
-  with a way to renew its token tries it once per outage before it waits.
-  The same rule keeps a client with no token from sending a request at
-  all.
-  *Held by `sdk/wire/unauthenticated`, `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+- **A refused credential is not retried**: a 401, or a 429 whose `code` is
+  `refusal-rate`. The refused token is remembered and never sent again; the
+  client is `unauthenticated` and checks, every `reconnectMs` and with no
+  request, whether it has been given a different one. A client with a way
+  to renew its token tries it once per outage before it waits. The same
+  rule keeps a client with no token from sending a request at all.
+  *Held by `sdk/wire/unauthenticated`, `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`, `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 **A changed subscription** — a scope taken or let go — is a **handoff**:
 
@@ -406,6 +410,11 @@ client delivers a frame only if its id is not among the last
   than a refusal's `Retry-After`; any other refusal is final
   ([`specs/src/retry/cases.json`](../../specs/src/retry/cases.json)).
   *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`, `sdk/wire/emit-refused`, `sdk/wire/unreachable`.*
+- An attempt whose credential is refused (a 401, or a 429 `refusal-rate`)
+  is neither of those: the token is renewed once and the emit sent again
+  with it, outside `emitRetry`
+  ([TRANSPORT-CONTRACT.md § A refused credential](./TRANSPORT-CONTRACT.md#a-refused-credential)).
+  *Held by `sdk/wire/emit-credential-renewed`, `sdk/wire/emit-credential-limit-renewed`, `sdk/wire/emit-credential-refused-twice`.*
 
 ## Wire framing and client parser obligations
 

@@ -8,6 +8,8 @@
  *
  * These tests capture the `hooks` object passed into `ky.create` and invoke the
  * hooks directly, each with the single state-object argument ky 2 hands a hook.
+ * `ky.retry` is mocked to hand back what it was asked for, so a hook that
+ * forces a resend says how.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
@@ -32,7 +34,7 @@ vi.mock('ky', () => {
     override name = 'TimeoutError';
   }
   return {
-    default: { create: vi.fn(), stop: Symbol('ky.stop') },
+    default: { create: vi.fn(), retry: vi.fn((options: unknown) => ({ forced: options })) },
     HTTPError,
     NetworkError,
     TimeoutError,
@@ -198,9 +200,10 @@ describe('HttpTransport ky hooks', () => {
 
 // ── shouldRetry is the retry gate ───────────────────────────────────────
 // ky's `methods`/`statusCodes` are ANDed independently — there is no
-// per-status method list, so "the widened methods apply to 401 only" cannot
-// be said with them. `shouldRetry` says it instead, deriving from
-// `RETRY_RULES.transport` rather than restating a set of numbers.
+// per-status method list, so "every status but one on idempotent methods
+// only" cannot be said with them. `shouldRetry` says it instead, deriving
+// from `RETRY_RULES.transport` rather than restating a set of numbers, and
+// asks the rule nothing about a refused credential, which is renewed or final.
 //
 // The gate is here and not in `beforeRetry` because ky awaits the full
 // backoff before running that hook: a rejection there would sleep first.
@@ -230,9 +233,9 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     shouldRetry = (retryConfig as unknown as { shouldRetry: typeof shouldRetry }).shouldRetry;
   });
 
-  /** Ask the gate about a request of `method` that failed with `status`. */
-  function verdict(method: string, status: number) {
-    const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers() }, undefined), {
+  /** Ask the gate about a request of `method` that failed with `status`, and the body ky read. */
+  function verdict(method: string, status: number, data?: unknown) {
+    const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers() }, data), {
       request: { method },
     });
     return shouldRetry({ error, retryCount: 1 });
@@ -248,10 +251,18 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     expect(verdict('POST', 502)).toBe(false);
   });
 
-  test('a POST that got a 401 is left to ky — token refresh survives', () => {
-    // `undefined`, not `true`: the gate only ever narrows, so ky's own
-    // checks still run and `beforeRetry` still gets to refresh the token.
-    expect(verdict('POST', 401)).toBeUndefined();
+  test('a refused credential is never retried, whatever the method — it is renewed, or final', () => {
+    // The renewal is the `afterResponse` hook's forced resend, which does not
+    // ask this gate; what reaches the gate is a refusal nothing renewed.
+    expect(verdict('POST', 401)).toBe(false);
+    expect(verdict('GET', 401)).toBe(false);
+    // A 429 `refusal-rate` says what a 401 says: the rule would retry it
+    // after its Retry-After, with the token refused.
+    expect(verdict('GET', 429, { error: 'refused', code: 'refusal-rate' })).toBe(false);
+  });
+
+  test('a GET that met a limit is still the rule\'s to retry', () => {
+    expect(verdict('GET', 429, { error: 'slow down', code: 'emit-rate' })).toBeUndefined();
   });
 
   test('a GET that got a 504 is retried — the gate must not over-narrow', () => {
@@ -295,54 +306,70 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
   });
 });
 
-describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed', () => {
-  let hooks: NonNullable<NonNullable<Parameters<typeof ky.create>[0]>['hooks']>;
-
+describe('HttpTransport afterResponse — a refused credential is renewed once, at once', () => {
   function build(refresher: () => Promise<string | null>) {
     vi.mocked(ky.create).mockReturnValue({
       get: vi.fn(),
       post: vi.fn(),
     } as unknown as ReturnType<typeof ky.create>);
     vi.mocked(ky.create).mockClear();
+    vi.mocked(ky.retry).mockClear();
     new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
-    hooks = vi.mocked(ky.create).mock.calls.at(-1)![0]!.hooks!;
-    const beforeRetry = hooks.beforeRetry![0]!;
-    type State = Parameters<typeof beforeRetry>[0];
-    const request = { method: 'POST', headers: new Headers() } as unknown as State['request'];
-    const error = httpError({ status: 401, statusText: 'x', headers: new Headers() }, undefined);
+    const hooks = vi.mocked(ky.create).mock.calls.at(-1)![0]!.hooks!;
+    // [0] is the logging passthrough; [1] renews.
+    const renew = hooks.afterResponse![1]!;
+    type State = Parameters<typeof renew>[0];
+    const request = { method: 'POST', headers: new Headers({ Authorization: 'Bearer refused-token' }) } as unknown as State['request'];
     return {
       request,
-      error,
-      run: () =>
-        beforeRetry({
+      run: (response: Response, retryCount = 0) =>
+        renew({
           request,
           options: {} as unknown as State['options'],
-          error,
-          retryCount: 1,
+          response: response as State['response'],
+          retryCount,
         }),
     };
   }
 
-  test('a 401 gets the refreshed credential on the outgoing request', async () => {
+  const refusedToken = () => new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
+  const refusedByRate = (code: string) => new Response(JSON.stringify({ error: 'refused', code }), { status: 429 });
+
+  test('a 401 is sent again at once with the renewed token', async () => {
     const { request, run } = build(async () => 'fresh-token');
-    await expect(run()).resolves.toBeUndefined();
+    await expect(run(refusedToken())).resolves.toEqual({ forced: { delay: 0, code: 'credential-renewed' } });
     expect(request.headers.get('Authorization')).toBe('Bearer fresh-token');
   });
 
-  test('a refresher that returns null rethrows the original error, never ky.stop', async () => {
-    // `ky.stop` would resolve the caller's promise with `undefined`; the
-    // rethrow keeps ky's request-error path so `beforeError` still runs.
-    const { error, run } = build(async () => null);
-    await expect(run()).rejects.toBe(error);
+  test('a 429 refusal-rate is a refused credential: renewed the same way, not waited out', async () => {
+    const { request, run } = build(async () => 'fresh-token');
+    await expect(run(refusedByRate('refusal-rate'))).resolves.toEqual({ forced: { delay: 0, code: 'credential-renewed' } });
+    expect(request.headers.get('Authorization')).toBe('Bearer fresh-token');
   });
 
-  test('a refresher that throws also rethrows the original error', async () => {
-    const { error, run } = build(async () => {
-      throw new Error('refresh endpoint down');
-    });
-    // The caller learns the request failed with 401 — the reason the refresh
-    // itself failed is the session's problem, not this request's.
-    await expect(run()).rejects.toBe(error);
+  test('a 429 from any other limit is not renewed: the refresher is not asked', async () => {
+    const refresher = vi.fn(async () => 'fresh-token');
+    const { run } = build(refresher);
+    await expect(run(refusedByRate('emit-rate'))).resolves.toBeUndefined();
+    expect(refresher).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['gives no token', async () => null],
+    ['gives the token refused', async () => 'refused-token'],
+    ['throws', async (): Promise<string | null> => { throw new Error('refresh endpoint down'); }],
+  ])('a refresher that %s leaves the refusal to fail, and nothing is sent again', async (_what, refresher) => {
+    const { request, run } = build(refresher);
+    await expect(run(refusedToken())).resolves.toBeUndefined();
+    expect(ky.retry).not.toHaveBeenCalled();
+    expect(request.headers.get('Authorization')).toBe('Bearer refused-token');
+  });
+
+  test('the renewed request refused again is not renewed again: the refresher is asked once', async () => {
+    const refresher = vi.fn(async () => 'another-token');
+    const { run } = build(refresher);
+    await expect(run(refusedToken(), 1)).resolves.toBeUndefined();
+    expect(refresher).not.toHaveBeenCalled();
   });
 });
 

@@ -21,7 +21,6 @@ import {
   STARTUP_FETCH_RETRY,
   UnansweredError,
   isObject,
-  isRetryableRequestError,
   isString,
   jsonOf,
   retryWithBackoff,
@@ -31,7 +30,7 @@ import {
   type ServiceAccountCredential,
   type components,
 } from '@semiont/core';
-import { APIError } from './api-error';
+import { APIError, retryableUnlessRefused } from './api-error';
 
 export interface AgentSignIn {
   /** The gateway, e.g. `http://gateway:4000`: where the process dials, and nothing about who it is. */
@@ -98,8 +97,9 @@ export async function agentToken(opts: AgentSignIn): Promise<components['schemas
     },
     // A request that got no answer, its deadline passing among the ways it
     // gets none, and a status that says "not now": a sign-in against a
-    // gateway that accepts a connection and never answers is tried again.
-    isRetryableRequestError,
+    // gateway that accepts a connection and never answers is tried again. A
+    // refused service-account token is not: the same token gets the same answer.
+    retryableUnlessRefused,
     STARTUP_FETCH_RETRY,
     onRetry,
   );

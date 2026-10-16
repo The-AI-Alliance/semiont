@@ -88,7 +88,8 @@ UNRECOGNIZED_FAILURE_CODE: Final[BusRequestErrorCode] = "bus.rejected"
 # these, so a routing layer matches on the code without knowing the wire kind. Over HTTP the
 # mapping is by status: `status` is an exact status, `statusFrom` every status at or above it.
 type TransportErrorCode = Literal[
-    # Authentication is required: the token is missing or expired.
+    # Authentication is required: the token is missing, expired, or refused. A 429 whose `code`
+    # is `refusal-rate` refuses the token too, and is reported as this code with its own status.
     "unauthorized",
     # Authenticated, and lacking permission.
     "forbidden",

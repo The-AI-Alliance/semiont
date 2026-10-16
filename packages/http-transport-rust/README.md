@@ -193,7 +193,7 @@ while let Some(event) = completed.next().await {
 |---|---|
 | `base_url` | The gateway's origin. |
 | `token` | The token every request carries: the current one, and each one after it. With none, the transport sends nothing and waits for one. |
-| `refresher` | Asked for a new token when the gateway answers 401. |
+| `refresher` | Asked for a new token when the gateway refuses the one a request carries: a 401, or a 429 whose `code` is `refusal-rate`. With none, such a refusal is final. |
 | `channels` | The global channels the stream names. `None` is every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
 | `http` | The application's `reqwest::Client`. |
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
@@ -387,6 +387,11 @@ its `auth` and `system` namespaces are there.
   to, with the replies still awaited. Each event is delivered once.
 - **A refused token closes the stream** until a new one arrives. The
   `refresher` is asked once per outage.
+- **A refused token is renewed, never retried.** An emit or a request the
+  gateway refuses with a 401, or a 429 whose `code` is `refusal-rate`, asks
+  the `refresher` once and is sent again at once with the token it gives.
+  Given no token, the same one, or refused again, it fails as
+  `unauthorized` with the status the gateway answered.
 - **A request has a deadline** (`Timing::http_request`). Unanswered by then,
   it fails as one that got no answer, and is not made again.
 - **Content.** An upload reports its progress and can be cancelled. It has

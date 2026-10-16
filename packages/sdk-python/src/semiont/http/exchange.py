@@ -1,13 +1,15 @@
 """One request of a gateway and its answer: how every request of this transport is made that is neither its stream nor an emit.
 
 A request carries the token the transport has now, and the trace it is made
-in. It is made a second time when that is worth it and safe
-(`semiont.retry.TRANSPORT`): a `401` once a renewed token is in hand, on any
-method; a status that promises recovery, or no answer at all, on a method that
-cannot cause a second effect. A request whose answer has not begun by its
-deadline fails as one that got no answer, and is not made again: the gateway
-has the request, and may yet act on it. Every failure is reported on the
-transport's error stream as it is raised to its caller.
+in. A request whose credential is refused (`refusal`) is made again at once,
+on any method, once its refresher has given a token other than the one
+refused: it was refused, not processed. Otherwise it is made a second time when
+that is worth it and safe (`semiont.retry.TRANSPORT`): a status that promises
+recovery, or no answer at all, on a method that cannot cause a second effect.
+A request whose answer has not begun by its deadline fails as one that got no
+answer, and is not made again: the gateway has the request, and may yet act on
+it. Every failure is reported on the transport's error stream as it is raised
+to its caller.
 
 Once the transport is closing nothing is sent: a request made then fails at
 once, and one in flight, which the closing ends, is not made again.
@@ -27,20 +29,44 @@ from semiont.events import Broadcast
 from semiont.http._withheld import why_unanswered
 from semiont.model import WireModel
 from semiont.retry import TRANSPORT, RetryFacts, retry_after_ms
-from semiont.types import ErrorResponse
+from semiont.types import ErrorResponse, LimitRefusal
 from semiont.watched import Watched
 
-__all__ = ["Exchange", "TokenRefresher"]
+__all__ = ["Exchange", "TokenRefresher", "refusal"]
 
 type TokenRefresher = Callable[[], Awaitable[str | None]]
 """How a transport renews its token when the gateway refuses the one it has:
 renew it at its source, and say what it is now. Nothing when it could not be
 renewed. Whoever gives a transport one also feeds the transport's token, so
-the two never hold different ones. It is asked once per outage when the stream
-is refused `401`, and once per request refused `401`."""
+the two never hold different ones. It is asked once per outage when the stream's
+credential is refused, and once per request or emit whose credential is
+refused."""
 
 # The wait before a request that is safe to repeat is made a second time.
 _RETRY_PAUSE_MS: Final = 300
+
+
+def refusal(message: str, status: int, body: bytes | None, stated_wait_ms: int | None) -> TransportError:
+    """The gateway's refusal of a request, under the code it fails with. `body` is `None` when it could not be read.
+
+    A refused credential (`docs/protocol/TRANSPORT-CONTRACT.md` § A refused
+    credential) is `unauthorized`, which is how the stream, an emit and a
+    request each know one: a `401`, or a `429` whose body is a `LimitRefusal`
+    naming `refusal-rate`. Its token is renewed, never retried, so the wait it
+    states is not waited out. Any other refusal is as its status says.
+    """
+    if status == 401 or (status == 429 and body is not None and _names_refusal_rate(body)):
+        return TransportError("unauthorized", message, status=status, retry_after_ms=stated_wait_ms)
+    return TransportError.of_status(message, status, stated_wait_ms)
+
+
+def _names_refusal_rate(body: bytes) -> bool:
+    """Whether a `429`'s body is a `LimitRefusal` naming `refusal-rate`."""
+    try:
+        return LimitRefusal.model_validate_json(body).code == "refusal-rate"
+    except ValidationError:
+        # Not a limit this build can name: a limit all the same, as its status says.
+        return False
 
 
 @final
@@ -83,14 +109,19 @@ class Exchange:
             headers["Authorization"] = f"Bearer {token}"
         return headers
 
-    async def _renewed(self) -> str | None:
-        """The token the refresher gives in place of one the gateway refused, when there is a refresher and it gives one."""
+    async def renewal(self, refused: str | None) -> str | None:
+        """The token to send again in place of `refused`, the token the gateway refused.
+
+        It is what the refresher gives, when there is a refresher and what it
+        gives is another token: the same one would get the same answer.
+        """
         if self._refresher is None:
             return None
         try:
-            return await self._refresher()
+            renewed = await self._refresher()
         except SemiontError:
             return None
+        return None if renewed == refused else renewed
 
     def run[T](self, work: Coroutine[object, object, T]) -> asyncio.Task[T]:
         """Run `work` as a task of this transport's: one it has seen the end of by the time it has closed."""
@@ -124,6 +155,7 @@ class Exchange:
         repeatable = TRANSPORT.retryable(RetryFacts(status=503, method=method))
         token = self._token.value if authenticated else None
         retried = False
+        renewed = False
         while True:
             if self._closing.is_set():
                 raise self.failed(TransportError("error", f"{method} {path} was not sent: the transport is closed"))
@@ -149,25 +181,32 @@ class Exchange:
 
             status = response.status_code
             stated_wait_ms = retry_after_ms(response.headers.get("retry-after"))
+            body: bytes | None = None
             try:
+                body = await response.aread()
                 # The gateway's refusal, in its own words when its body states them.
-                said = ErrorResponse.model_validate_json(await response.aread()).error
+                said = ErrorResponse.model_validate_json(body).error
             except (ValidationError, httpx.HTTPError):
                 said = f"HTTP {status}: {response.reason_phrase}"
             finally:
                 await response.aclose()
+            refused = refusal(said, status, body, stated_wait_ms)
+            if refused.code == "unauthorized":
+                # Decided before any retry rule is asked. Without another
+                # token the same request gets the same answer, so it is made
+                # again only with one, and only once.
+                if authenticated and not renewed and not self._closing.is_set():
+                    renewed = True
+                    another = await self.renewal(token)
+                    if another is not None:
+                        token = another
+                        continue
+                raise self.failed(refused)
             if not retried and not self._closing.is_set() and TRANSPORT.retryable(RetryFacts(status=status, method=method)):
-                if status != 401:
-                    retried = True
-                    await asyncio.sleep(max(_RETRY_PAUSE_MS, stated_wait_ms or 0) / 1000)
-                    continue
-                # A 401 earns its second attempt only if a renewed token
-                # arrives: without one the same request gets the same answer.
-                renewed = await self._renewed() if authenticated else None
-                if renewed is not None:
-                    token, retried = renewed, True
-                    continue
-            raise self.failed(TransportError.of_status(said, status, stated_wait_ms))
+                retried = True
+                await asyncio.sleep(max(_RETRY_PAUSE_MS, stated_wait_ms or 0) / 1000)
+                continue
+            raise self.failed(refused)
 
     async def answer[M: WireModel](
         self,

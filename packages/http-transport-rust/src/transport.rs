@@ -24,9 +24,10 @@ use semiont::transport::{
 };
 use semiont::types::ResourceId;
 use semiont::types::{
-    BusEmitAccepted, BusEmitRequest, HealthResponse, MediaTokenRequest, MediaTokenResponse,
-    ProtectedResourceMetadata, StatusResponse, UserResponse,
+    BusEmitAccepted, BusEmitRequest, HealthResponse, LimitRefusal, LimitRefusalCode,
+    MediaTokenRequest, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -111,8 +112,9 @@ pub struct HttpTransportConfig {
     /// The token every request carries: the current one, and each one after
     /// it. With none the transport sends nothing and waits for one.
     pub token: watch::Receiver<Option<String>>,
-    /// Asked once per outage when the stream is refused 401, and once per
-    /// request refused 401.
+    /// Asked once per outage when the stream's credential is refused, and
+    /// once per request whose credential is refused: a 401, or a 429
+    /// `refusal-rate`. With none, a refused credential is final at once.
     pub refresher: Option<Arc<dyn TokenRefresher>>,
     /// The global channels the stream names. `None` is every channel a
     /// client hears (`BRIDGED_CHANNELS`); a process that awaits only some
@@ -198,10 +200,23 @@ impl Shared {
         error
     }
 
-    /// One request and its answer, made a second time when that is worth it
-    /// and safe (`retry::TRANSPORT`): a `401` once a renewed token is in
-    /// hand, on any method; a status that promises recovery, or no answer at
-    /// all, on a method that cannot cause a second effect. A failure is
+    /// The token to send a request again with once `refused` was refused:
+    /// the refresher's, asked once. None when there is no refresher, or it
+    /// gives no token or the one refused.
+    async fn renewal(&self, refused: Option<&str>) -> Option<String> {
+        let refresher = self.refresher.as_ref()?;
+        refresher
+            .refresh()
+            .await
+            .filter(|renewed| Some(renewed.as_str()) != refused)
+    }
+
+    /// One request and its answer. A request whose credential is refused is
+    /// sent again once, at once, with a renewed token that is not the one
+    /// refused, on any method; it is never retried. Any other request is
+    /// made a second time when that is worth it and safe
+    /// (`retry::TRANSPORT`): a status that promises recovery, or no answer
+    /// at all, on a method that cannot cause a second effect. A failure is
     /// reported on the error stream as it is returned.
     ///
     /// An attempt whose answer has not begun by the transport's deadline
@@ -241,6 +256,7 @@ impl Shared {
         });
         let mut token = self.current_token();
         let mut retried = false;
+        let mut renewed = false;
         loop {
             let mut request = build(self.http.request(method.clone(), &url));
             if authenticated && let Some(token) = &token {
@@ -282,30 +298,9 @@ impl Shared {
             }
             let status = response.status().as_u16();
             let stated_wait = stated_wait(&response);
-            let worth_another = !retried
-                && retry::TRANSPORT.retryable(&RetryFacts {
-                    status: Some(status),
-                    method: Some(method.as_str()),
-                });
-            if worth_another && status == 401 {
-                // A 401 earns its second attempt only if a renewed token
-                // arrives: without one the same request gets the same answer.
-                if let Some(refresher) = &self.refresher
-                    && let Some(renewed) = refresher.refresh().await
-                {
-                    token = Some(renewed);
-                    retried = true;
-                    continue;
-                }
-            } else if worth_another {
-                retried = true;
-                tokio::time::sleep(RETRY_PAUSE.max(stated_wait.unwrap_or_default())).await;
-                continue;
-            }
-            let message = response
-                .json::<Value>()
-                .await
-                .ok()
+            let body = response.json::<Value>().await.ok();
+            let message = body
+                .as_ref()
                 .and_then(|body| {
                     ["message", "error"]
                         .iter()
@@ -319,7 +314,24 @@ impl Shared {
                         .unwrap_or_default();
                     format!("HTTP {status}: {reason}")
                 });
-            return Err(self.failed(TransportError::of_status(message, status, stated_wait)));
+            let refused = refusal(message, status, stated_wait, body.as_ref());
+            if refused.code == TransportErrorCode::Unauthorized {
+                if !renewed && let Some(fresh) = self.renewal(token.as_deref()).await {
+                    token = Some(fresh);
+                    renewed = true;
+                    continue;
+                }
+            } else if !retried
+                && retry::TRANSPORT.retryable(&RetryFacts {
+                    status: Some(status),
+                    method: Some(method.as_str()),
+                })
+            {
+                retried = true;
+                tokio::time::sleep(RETRY_PAUSE.max(stated_wait.unwrap_or_default())).await;
+                continue;
+            }
+            return Err(self.failed(refused));
         }
     }
 
@@ -386,73 +398,126 @@ impl Shared {
     /// One emit: `POST /bus/emit`, each attempt bounded by `EMIT_TIMEOUT`,
     /// made again inside the emit budget when a limit refused it, the
     /// gateway said it will recover, or nothing answered; no sooner than a
-    /// refusal's `Retry-After`. Any other refusal is final.
+    /// refusal's `Retry-After`. An emit whose credential is refused is never
+    /// retried: it is sent again once, at once, with a renewed token that is
+    /// not the one refused, under a budget of its own. Any other refusal is
+    /// final.
     async fn emit(&self, body: &BusEmitRequest) -> Result<Option<u64>, TransportError> {
         let url = format!("{}/bus/emit", self.base_url);
         let trace = semiont_telemetry::active_trace();
-        let attempt = || async {
-            let mut request = self
-                .http
-                .post(&url)
-                .bearer_auth(self.current_token().unwrap_or_default())
-                .timeout(timing::EMIT_TIMEOUT)
-                .json(body);
-            if let Some(TraceCarrier {
-                traceparent,
-                tracestate,
-            }) = &trace
-            {
-                request = request.header("traceparent", traceparent);
-                if let Some(tracestate) = tracestate {
-                    request = request.header("tracestate", tracestate);
+        let mut token = self.current_token();
+        let mut renewed = false;
+        loop {
+            let sent = token.as_deref();
+            let attempt = || async {
+                let mut request = self
+                    .http
+                    .post(&url)
+                    .bearer_auth(sent.unwrap_or_default())
+                    .timeout(timing::EMIT_TIMEOUT)
+                    .json(body);
+                if let Some(TraceCarrier {
+                    traceparent,
+                    tracestate,
+                }) = &trace
+                {
+                    request = request.header("traceparent", traceparent);
+                    if let Some(tracestate) = tracestate {
+                        request = request.header("tracestate", tracestate);
+                    }
                 }
-            }
-            let response = request.send().await.map_err(|error| {
-                TransportError::without_response(
-                    format!("/bus/emit got no answer: {error}"),
-                    TransportErrorCode::Unavailable,
-                )
-            })?;
-            if !response.status().is_success() {
-                let status = response.status().as_u16();
-                let stated_wait = stated_wait(&response);
-                let detail: String = response
-                    .text()
+                let response = request.send().await.map_err(|error| {
+                    TransportError::without_response(
+                        format!("/bus/emit got no answer: {error}"),
+                        TransportErrorCode::Unavailable,
+                    )
+                })?;
+                if !response.status().is_success() {
+                    let status = response.status().as_u16();
+                    let stated_wait = stated_wait(&response);
+                    let answered = response.text().await.unwrap_or_default();
+                    let detail: String = answered.chars().take(500).collect();
+                    let message = if detail.is_empty() {
+                        format!("/bus/emit {status}")
+                    } else {
+                        format!("/bus/emit {status}: {detail}")
+                    };
+                    let said = serde_json::from_str::<Value>(&answered).ok();
+                    return Err(refusal(message, status, stated_wait, said.as_ref()));
+                }
+                // No count is reported as no count, never as a zero: an absent
+                // `subscribers` is the gateway saying it could not count, and an
+                // unreadable body says nothing at all.
+                Ok(response
+                    .json::<BusEmitAccepted>()
                     .await
-                    .unwrap_or_default()
-                    .chars()
-                    .take(500)
-                    .collect();
-                let message = if detail.is_empty() {
-                    format!("/bus/emit {status}")
-                } else {
-                    format!("/bus/emit {status}: {detail}")
-                };
-                return Err(TransportError::of_status(message, status, stated_wait));
+                    .ok()
+                    .and_then(|accepted| accepted.subscribers))
+            };
+            let emitted = retry_with_backoff(
+                self.timing.emit_retry,
+                attempt,
+                |error: &TransportError| {
+                    error.code != TransportErrorCode::Unauthorized
+                        && match error.status {
+                            Some(status) => retry::BOOT.retryable(&RetryFacts {
+                                status: Some(status),
+                                method: Some("POST"),
+                            }),
+                            None => true,
+                        }
+                },
+                |error| error.retry_after,
+            )
+            .await;
+            match emitted {
+                Err(refused) if refused.code == TransportErrorCode::Unauthorized && !renewed => {
+                    let Some(fresh) = self.renewal(sent).await else {
+                        return Err(self.failed(refused));
+                    };
+                    token = Some(fresh);
+                    renewed = true;
+                }
+                emitted => return emitted.map_err(|error| self.failed(error)),
             }
-            // No count is reported as no count, never as a zero: an absent
-            // `subscribers` is the gateway saying it could not count, and an
-            // unreadable body says nothing at all.
-            Ok(response
-                .json::<BusEmitAccepted>()
-                .await
-                .ok()
-                .and_then(|accepted| accepted.subscribers))
-        };
-        retry_with_backoff(
-            self.timing.emit_retry,
-            attempt,
-            |error: &TransportError| match error.status {
-                Some(status) => retry::BOOT.retryable(&RetryFacts {
-                    status: Some(status),
-                    method: Some("POST"),
-                }),
-                None => true,
-            },
-            |error| error.retry_after,
-        )
-        .await
-        .map_err(|error| self.failed(error))
+        }
+    }
+}
+
+/// A refusal, as the transport reports it. A refused credential
+/// (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential) is
+/// `unauthorized` with the status the gateway answered, whatever that was.
+/// It keeps the wait the gateway stated, which nothing waits out: it is
+/// renewed, never retried. Any other refusal's status decides its code.
+pub(crate) fn refusal(
+    message: String,
+    status: u16,
+    stated_wait: Option<Duration>,
+    body: Option<&Value>,
+) -> TransportError {
+    if refuses_credential(status, body) {
+        TransportError {
+            code: TransportErrorCode::Unauthorized,
+            status: Some(status),
+            message,
+            retry_after: stated_wait,
+        }
+    } else {
+        TransportError::of_status(message, status, stated_wait)
+    }
+}
+
+/// Whether the gateway refused the request's credential: a 401, or a 429
+/// whose body is a LimitRefusal naming `refusal-rate`. A 429 whose body is
+/// not one is a limit's, as its status says.
+pub(crate) fn refuses_credential(status: u16, body: Option<&Value>) -> bool {
+    match status {
+        401 => true,
+        429 => body.is_some_and(|body| {
+            LimitRefusal::deserialize(body)
+                .is_ok_and(|refusal| refusal.code == LimitRefusalCode::RefusalRate)
+        }),
+        _ => false,
     }
 }
 
@@ -663,5 +728,55 @@ impl GatewayOperations for HttpTransport {
                 .shared
                 .answer(reqwest::Method::GET, "/api/status", true, |request| request),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_credential_is_refused_by_a_401_or_a_429_refusal_rate_and_by_nothing_else() {
+        let limit = |code: &str| json!({ "error": "a limit was met", "code": code });
+        let wait = Some(Duration::from_secs(1));
+
+        let refused = refusal(
+            "refused".to_owned(),
+            429,
+            wait,
+            Some(&limit("refusal-rate")),
+        );
+        assert_eq!(
+            (refused.code, refused.status, refused.retry_after),
+            (TransportErrorCode::Unauthorized, Some(429), wait),
+            "a refused credential keeps the wait it was told, and is still unauthorized"
+        );
+        let refused = refusal("refused".to_owned(), 401, None, None);
+        assert_eq!(
+            (refused.code, refused.status),
+            (TransportErrorCode::Unauthorized, Some(401))
+        );
+
+        for body in [
+            Some(limit("emit-rate")),
+            Some(json!({ "error": "a limit with no code" })),
+            Some(limit("a-code-from-the-future")),
+            None,
+        ] {
+            let limited = refusal("limited".to_owned(), 429, wait, body.as_ref());
+            assert_eq!(
+                (limited.code, limited.retry_after),
+                (TransportErrorCode::RateLimited, wait),
+                "{body:?}"
+            );
+        }
+        let forbidden = refusal(
+            "forbidden".to_owned(),
+            403,
+            None,
+            Some(&limit("refusal-rate")),
+        );
+        assert_eq!(forbidden.code, TransportErrorCode::Forbidden);
     }
 }

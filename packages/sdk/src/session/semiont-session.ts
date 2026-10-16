@@ -224,9 +224,10 @@ export class SemiontSession implements StateUnit {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first. On 401 from validate, try refresh once, and ask once
-   * more; a second 401 ends the session. Surfaces auth-failed when the
-   * gateway could not be asked.
+   * refresh first. When validate's token is refused (a 401, or a 429
+   * `refusal-rate`), try refresh once, and ask once more; a second refusal
+   * ends the session. Surfaces auth-failed when the gateway could not be
+   * asked.
    *
    * When no `validate` callback is provided (service principals), this
    * still runs through the refresh-if-expired step so the stored
@@ -272,7 +273,7 @@ export class SemiontSession implements StateUnit {
         return;
       } catch (err) {
         if (this.disposed) return;
-        if (!(err instanceof APIError && err.status === 401)) {
+        if (!(err instanceof APIError && err.code === 'unauthorized')) {
           this.onError(
             new SemiontSessionError(
               'session.auth-failed',
@@ -350,7 +351,8 @@ export class SemiontSession implements StateUnit {
 
   /**
    * The gateway refused the session's token: renew it, and ask the gateway
-   * who the new one is. This is what the session's transport calls on a 401.
+   * who the new one is. This is what the session's transport calls when it
+   * is refused the token.
    *
    * The rule is startup's (specs/src/session/cases.json, `refusal`): a token
    * the issuer has just issued and the gateway refuses is final, and the
@@ -382,7 +384,7 @@ export class SemiontSession implements StateUnit {
       await validate(renewed);
     } catch (err) {
       if (this.disposed) return null;
-      const refused = err instanceof APIError && err.status === 401;
+      const refused = err instanceof APIError && err.code === 'unauthorized';
       // Only a token the session still holds ends it: one replaced while
       // the gateway was being asked (another context signed in, or renewed)
       // is not the session's to be refused.

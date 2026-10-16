@@ -111,7 +111,7 @@ before it. Frames and failures are sequences: every one, in order.
 
 | `op` | Arguments | `ok` |
 |---|---|---|
-| `open` | `baseUrl`, `token`, `channels` (the global channels its stream names), `timing` | `null` |
+| `open` | `baseUrl`, `token`, `channels` (the global channels its stream names), `timing`, and `renewals` when given: the tokens the client's refresher gives, one each time it is asked, in order, and none once they run out. The refresher makes the token it gives the client's token, as a session does. With no `renewals` the client has no refresher | `null` |
 | `close` | | `null` |
 | `set-token` | `token`: the credential the client uses from now on | `null` |
 | `listen` | `channel`: report every frame delivered on it | `null` |
@@ -301,7 +301,7 @@ no other.
 | `description` | `resource`, `graph` | the Archivist holds this description of the resource |
 | `anchored-text` | `resource`, `answer` | the Archivist answers this for the resource's anchored text |
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
-| `refuse` | `wire`, `status`, `retryAfter`, `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |
+| `refuse` | `wire`, `status`, `retryAfter`, `headers` (any other header the refusal declares, such as a 401's `WWW-Authenticate`), `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |
 | `hold` | `wire` | the proxy keeps such requests waiting |
 | `release` | | held requests go through |
 | `rechunk` | `bytes` | streams reach the client this many bytes at a time |
