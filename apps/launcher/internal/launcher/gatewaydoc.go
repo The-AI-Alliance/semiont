@@ -173,7 +173,7 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 	// Its capacity follows from the memory its container is given: half for
 	// the bytes queued to its streams, and the other half at a connection
 	// allowance each.
-	memory := int(memCeilingGB(semiontDescriptor("gateway").mem) * (1 << 30))
+	memory := int(memCeilingGB(memoryFor(env.Memory, "gateway")) * (1 << 30))
 	doc.Capacity.QueuedBytes = memory / 2
 	doc.Capacity.Connections = memory / 2 / connectionAllowance
 	return json.MarshalIndent(doc, "", "  ")

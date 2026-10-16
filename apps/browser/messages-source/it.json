@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Basi di conoscenza",
     "connectTitle": "Connetti alla base di conoscenza",
+    "protocol": "Protocollo",
     "connect": "Connetti",
     "connecting": "Connessione in corso...",
     "signIn": "Accedi",

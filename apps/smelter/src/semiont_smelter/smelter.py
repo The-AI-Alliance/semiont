@@ -22,6 +22,16 @@ turn, so that the texts they quote are embedded in one batch. Nothing waits
 for more of them to arrive. The work a start plans, and a rebuild's, takes
 its turn in the same lanes.
 
+**As many PDFs at a time as it is told.** A PDF's text is read or derived,
+and the PDF is indexed or its anchored text derived, in a PDF turn, of which
+there are as many as the Smelter's document states (`pdfsAtOnce`), whatever
+asked for it: an event, a start's planned work or a rebuild. Deriving a
+scanned document's text holds a page's pixels and an OCR process for each
+document under way, and eight documents at once outgrew the 2 GB a Smelter
+is given by default, which holds one. A PDF waiting for a turn holds nothing
+of itself: whether a resource is a PDF is asked of its description, and its
+bytes are read when its turn comes. Everything else is done beside them.
+
 **What a start plans is looked at again where the record has moved.** A
 reconcile plans from what it read, and does the work afterwards. A piece of
 that work whose resource an event has arrived for since is not done as it
@@ -63,19 +73,21 @@ from semiont.channels import (
 from semiont.errors import SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.media_types import text_source_of, yields_geometry_of
-from semiont.resources import decode_representation
+from semiont.resources import decode_representation, primary_representation, resource_entity_types
 from semiont.transport import Frame, FrameSink, Transport
 from semiont.types import (
     Annotation,
     CommandError,
     ExtractionDeclined,
     ExtractionOutcome,
+    ResourceDescriptor,
     SmeltSettled,
     SmeltSettledReason,
     StoredEventResponse,
 )
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.lanes import Lanes
+from semiont_service.observability import resident_bytes
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import AnnotationPayload, AnnotationStamp, Declined, EmbeddingChunk, VectorStore
@@ -104,7 +116,11 @@ from semiont_smelter.recorded import stored_event
 __all__ = ["ReconcileState", "Smelter"]
 
 _WAVE: Final = 8
-"""How many pieces of planned work are under way at once: a start that finds an empty index must not ask for everything at once."""
+"""How many pieces of planned work are under way at once: a start that finds an empty index must not ask everything of the provider at once.
+
+The PDFs among them take PDF turns (`Smelter._pdf_turns`), as many at once
+as the Smelter is told, and the rest of a wave goes on beside them.
+"""
 
 _EMBED: Final = "embed"
 """The kind of the planned work that indexes a resource: the work whose outcome a reconcile counts."""
@@ -158,6 +174,20 @@ class _Unread:
     """Bytes that could not be read. Nothing is known of them, so nothing is decided."""
 
     failure: ContentUnread
+
+
+@final
+class _OutsideTurn:
+    """Bytes that are a PDF's, read outside a PDF turn: the description said they were not, and they were replaced since."""
+
+
+_OUTSIDE_TURN: Final = _OutsideTurn()
+
+
+def _a_pdf(described: ResourceDescriptor) -> bool:
+    """Whether a resource's description says its bytes are a PDF's: whether it is indexed in a PDF turn."""
+    representation = primary_representation(described)
+    return representation is not None and text_source_of(representation.media_type) == "pdf-text-layer"
 
 
 @final
@@ -226,7 +256,8 @@ class Smelter:
     """A Smelter over `index`, asking `provider` for vectors and `content` for bytes, and reaching the knowledge base through `transport`.
 
     The index is connected and the transport's stream names what a Smelter
-    reads before it is entered. Nothing it was handed is closed on the way
+    reads before it is entered. `pdfs_at_once` is how many PDFs it works on
+    at once. Nothing it was handed is closed on the way
     out: each is whoever made it's to close. The way out ends what it follows
     and what its lanes are doing. It does not end a reconcile: whoever began
     one cancels it first.
@@ -242,6 +273,7 @@ class Smelter:
         anchored: AnchoredTextStore,
         transport: Transport,
         chunking: Chunking,
+        pdfs_at_once: int,
     ) -> None:
         self._index: Final = index
         self._provider: Final = provider
@@ -257,6 +289,8 @@ class Smelter:
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
         self._draining: Final = asyncio.Lock()
         """Held while planned work is done: a reconcile's and a rebuild's are never done at once."""
+        self._pdf_turns: Final = asyncio.Semaphore(pdfs_at_once)
+        """One held by each PDF that is worked on: from reading its bytes until its points or its anchored text are written."""
         self._doing: Final[list[asyncio.Task[None]]] = []
         self._gathering: Final[dict[str, list[StoredEventResponse]]] = {}
         """By lane, the `mark:added` events that are waiting for one turn: one that arrives while they wait joins them."""
@@ -450,13 +484,28 @@ class Smelter:
         """Make a resource's points from its bytes as they are now, and signal the decision. Nothing is answered for one that was indexed.
 
         Every chunk is embedded before any point is written, so a resource
-        whose chunks could not all be embedded keeps the points it had.
+        whose chunks could not all be embedded keeps the points it had. A
+        PDF is indexed in a PDF turn, from reading its bytes to writing its
+        points. A read of its description that fails is raised: points
+        written with no entity types would be found by a search that was to
+        leave the resource out.
         """
-        read = await self._text_of(resource)
+        described = await self._record.described(resource)
+        if _a_pdf(described):
+            async with self._pdf_turns:
+                return await self._indexed(resource, described, in_turn=True)
+        return await self._indexed(resource, described, in_turn=False)
+
+    async def _indexed(self, resource: ResourceId, described: ResourceDescriptor, *, in_turn: bool) -> _Concluded | None:
+        """Index a resource whose description is `described`, holding a PDF turn or not. See `_index_resource`."""
+        read = await self._text_of(resource, in_turn=in_turn)
+        if isinstance(read, _OutsideTurn):
+            async with self._pdf_turns:
+                return await self._indexed(resource, described, in_turn=True)
         if not isinstance(read, _Text):
             return await self._conclude(resource, read)
         chunks = chunk_text(read.text, self._chunking)
-        types = await self._record.entity_types(resource)
+        types = resource_entity_types(described)
         embeddings = await self._provider.embed_documents(chunks)
         points = [
             EmbeddingChunk(chunk_index=index, text=chunk, embedding=embedding)
@@ -466,7 +515,7 @@ class Smelter:
             resource, points, read.checksum, types, machine_read=read.machine_read, media_type=read.content_type
         )
         await self._settle(SmeltSettled(resource_id=resource, content_checksum=read.checksum, outcome="indexed"))
-        LOG.info("Indexed resource", extra={"resourceId": resource, "chunks": len(chunks)})
+        LOG.info("Indexed resource", extra={"resourceId": resource, "chunks": len(chunks), "residentBytes": resident_bytes()})
         return None
 
     async def _conclude(self, resource: ResourceId, read: _Declined | _Unread) -> _Concluded:
@@ -497,13 +546,14 @@ class Smelter:
             LOG.warning("Smelter could not read resource content", extra={"resourceId": resource, "error": words_of(read.failure)})
         return _Concluded(reason=read.reason if isinstance(read, _Declined) else None)
 
-    async def _text_of(self, resource: ResourceId) -> _Text | _Declined | _Unread:
+    async def _text_of(self, resource: ResourceId, *, in_turn: bool) -> _Text | _Declined | _Unread | _OutsideTurn:
         """A resource's text, from its bytes as they are stored now; or why there is none to index.
 
         The bytes are read and their checksum taken before anything is
         decided, so whatever is decided is said of those bytes. The content
         type says where the text comes from: decoded from the bytes, derived
-        from a PDF, or nowhere.
+        from a PDF, or nowhere. A PDF's bytes read outside a PDF turn are
+        let go of, and that is answered: they are read again in the turn.
         """
         try:
             content = await self._content.read(resource)
@@ -517,6 +567,8 @@ class Smelter:
             case "decode":
                 text, machine_read = decode_representation(content.data, content.content_type), False
             case "pdf-text-layer":
+                if not in_turn:
+                    return _OUTSIDE_TURN
                 derived = await self._derived(checksum, content)
                 if isinstance(derived, ExtractionDeclined):
                     return _Declined(checksum, content.content_type, derived.declined)
@@ -596,19 +648,27 @@ class Smelter:
 
         Raises where the bytes cannot be read and where the entry cannot be
         written: here the entry is the work, so a rebuild that could not
-        store one says so.
+        store one says so. It is done in a PDF turn: what is re-anchored is
+        a PDF as the catalog states it, or a resource a rebuild named, which
+        holds the turn for as long as it takes to find it has no PDF.
         """
-        content = await self._content.read(resource)
-        if not yields_geometry_of(content.content_type):
-            # Planned from what the catalog said, which the bytes no longer are: there is nothing to derive.
-            LOG.info("Re-anchor found no text with places on a page", extra={"resourceId": resource, "contentType": content.content_type})
-            return
-        checksum = _checksum(content.data)
-        if await self._anchored.read(checksum) is not None:
-            return
-        outcome = await self._extractor.extract(content.data)
-        await self._anchored.write(checksum, outcome)
-        LOG.info("Re-anchored resource", extra={"resourceId": resource, "contentChecksum": checksum, "outcome": outcome.kind})
+        async with self._pdf_turns:
+            content = await self._content.read(resource)
+            if not yields_geometry_of(content.content_type):
+                # Planned from what the catalog said, which the bytes no longer are: there is nothing to derive.
+                LOG.info(
+                    "Re-anchor found no text with places on a page", extra={"resourceId": resource, "contentType": content.content_type}
+                )
+                return
+            checksum = _checksum(content.data)
+            if await self._anchored.read(checksum) is not None:
+                return
+            outcome = await self._extractor.extract(content.data)
+            await self._anchored.write(checksum, outcome)
+            LOG.info(
+                "Re-anchored resource",
+                extra={"resourceId": resource, "contentChecksum": checksum, "outcome": outcome.kind, "residentBytes": resident_bytes()},
+            )
 
     # ── Indexing an annotation ─────────────────────────────────────────
 

@@ -690,9 +690,9 @@ const kbMountTarget = "/kb"
 // signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
-func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage, rt, addr, clientSecret, jwt, version, mem string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
+		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":" + gatewayDocumentTarget + ":ro"}
 	// The gateway writes nothing to disk; supervise.sh keeps its events log on
 	// the state mount so a death record outlives the container.
@@ -732,9 +732,9 @@ func superviseEnv() []string {
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
 // same fact the gateway's event read from it relies on).
-func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
+		"--memory", mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"}
 	a = append(a, state...)
@@ -762,10 +762,10 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 // own for a Neo4j it runs), which arrive among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
 	port := strconv.Itoa(semiontDescriptor("librarian").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("librarian").mem, "--publish", port + ":" + port,
+		"--memory", mem, "--publish", port + ":" + port,
 		"--volume", stage + "/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
@@ -787,9 +787,9 @@ func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv
 // passes to `--config`, so it is handed no *_HOST variables: the document
 // carries every address already. It keeps the issuer's host entry, because it
 // signs in at the issuer by name.
-func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
+func dispatcherArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
+		"--memory", mem, "--publish", "24105:24105",
 		"--volume", stage + "/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -809,10 +809,10 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEn
 // every address already, and names the variable holding each provider's key
 // (workerNamedVars), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func workerArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
+func workerArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("worker").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("worker").mem, "--publish", port + ":" + port,
+		"--memory", mem, "--publish", port + ":" + port,
 		"--volume", stage + "/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -838,10 +838,10 @@ func workerArgs(stage, rt, addr string, clientSecret, version string, userEnv, o
 // store's directory already, and names the variable holding Voyage's key
 // (smelterNamedVars), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
 	port := strconv.Itoa(semiontDescriptor("smelter").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("smelter").mem, "--publish", port + ":" + port,
+		"--memory", mem, "--publish", port + ":" + port,
 		"--volume", stage + "/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
@@ -865,10 +865,10 @@ func smelterArgs(stage, rt, addr string, clientSecret, version string, userEnv, 
 // holding the graph database's password (weaverNamedVars, and the launcher's
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
-func weaverArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
+func weaverArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("weaver").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("weaver").mem, "--publish", port + ":" + port,
+		"--memory", mem, "--publish", port + ":" + port,
 		"--volume", stage + "/" + weaverDocumentFile + ":" + weaverDocumentTarget + ":ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)

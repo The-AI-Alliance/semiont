@@ -23,6 +23,8 @@ import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { defaultBrowseRenderers, type BrowseMediaRenderers } from './browse-renderers';
 import { DownloadFileLink } from './DownloadFileLink';
+import { TranslationProvider, type TranslationSource } from '../../contexts/TranslationContext';
+import { translationSourceOf } from '../../lib/translation-source';
 
 interface Props {
   content: string;
@@ -64,6 +66,18 @@ export interface ReferenceHover {
 }
 
 /**
+ * The read-only view, given its language: it mounts the translation provider
+ * its subtree reads. Inside `ResourceViewer` it is handed the viewer's own.
+ */
+export const BrowseView = memo(function BrowseView(props: Props & TranslationSource) {
+  return (
+    <TranslationProvider {...translationSourceOf(props)}>
+      <BrowseViewBody {...props} />
+    </TranslationProvider>
+  );
+});
+
+/**
  * View component for browsing annotated resources in read-only mode.
  *
  * Two-layer rendering:
@@ -76,7 +90,7 @@ export interface ReferenceHover {
  * @subscribes beckon:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
  * @subscribes beckon:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
-export const BrowseView = memo(function BrowseView({
+function BrowseViewBody({
   content,
   mimeType,
   resourceUri,
@@ -337,4 +351,4 @@ export const BrowseView = memo(function BrowseView({
       </div>
     </div>
   );
-});
+}

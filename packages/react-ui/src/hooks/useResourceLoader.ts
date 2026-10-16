@@ -19,7 +19,8 @@ const EMPTY: AnnotationsCollection = { highlights: [], references: [], assessmen
 /**
  * Load a resource + its annotations from a bare client — no page, no composite
  * state unit, no providers. The lightweight alternative to `ResourceViewerPage`
- * for a bring-your-own-session host; feed the result straight into `<ResourceViewer>`.
+ * for a bring-your-own-session host; feed the result straight into `<ResourceViewer>`,
+ * beside the language it requires.
  *
  * `loading` is true until BOTH the resource and its annotation list have first
  * emitted; `annotations` is bucketed via the shared `groupAnnotations`. A null

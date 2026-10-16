@@ -116,7 +116,7 @@ function Resource({ rId }: { rId: ResourceId }) {
   if (!resource) return <div>Loading...</div>;
 
   // `content` is the decoded text the host fetched (see useResourceContent)
-  return <ResourceViewer session={session} resource={{ ...resource, content }} annotations={annotations} />;
+  return <ResourceViewer locale="en" session={session} resource={{ ...resource, content }} annotations={annotations} />;
 }
 ```
 
@@ -157,6 +157,29 @@ function CustomApp() {
   );
 }
 ```
+
+### 4. Embed the Viewer With a Bare Session
+
+`ResourceViewer`, `BrowseView` and `AnnotateView` need no provider. Each takes a session and its
+language as props, and mounts its own `TranslationProvider` from the language. The language is
+required: a `locale` of react-ui's own, or the host's `translationManager`. react-ui assumes
+none, so a host that leaves it out does not compile.
+
+```tsx
+import { ResourceViewer, useResourceLoader } from '@semiont/react-ui';
+import type { ResourceId } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+
+function EmbeddedResource({ session, rId, content }: { session: SemiontSession; rId: ResourceId; content: string }) {
+  const { resource, annotations } = useResourceLoader(session.client, rId);
+  if (!resource) return null;
+  return <ResourceViewer locale="en" session={session} resource={{ ...resource, content }} annotations={annotations} />;
+}
+```
+
+A locale's strings load the first time a view of that locale mounts; every view after that renders
+at once. Colours, the JSON-LD view's among them, follow the page's `data-theme` attribute through
+react-ui's stylesheet, so dark mode needs nothing more.
 
 ## Favicon Assets
 

@@ -27,22 +27,29 @@ async function loadTranslations(locale: string): Promise<Messages> {
   return messages;
 }
 
-export type TranslationProviderProps =
+/**
+ * Where a subtree's strings come from: a whole `TranslationManager` the host
+ * built, or one of react-ui's own locales. Exactly one, and no default:
+ * react-ui assumes no language. `TranslationProvider` takes it, and so does
+ * every component a host can mount on its own, which mounts its own provider
+ * from it.
+ */
+export type TranslationSource =
   | {
       /** A complete TranslationManager implementation */
       translationManager: TranslationManager;
       locale?: never;
       loadingComponent?: never;
-      children: ReactNode;
     }
   | {
       /** Built-in translations for this locale */
       locale: LocaleCode;
-      /** Shown while the locale's translations are being loaded */
+      /** Shown while the locale's translations are first being loaded */
       loadingComponent?: ReactNode;
       translationManager?: never;
-      children: ReactNode;
     };
+
+export type TranslationProviderProps = TranslationSource & { children: ReactNode };
 
 /**
  * Provider for translation management
@@ -50,7 +57,8 @@ export type TranslationProviderProps =
  * Two modes of operation, and no language is assumed in either:
  * 1. With translationManager: uses that translation implementation
  * 2. With locale: dynamically loads the built-in translations for that locale.
- *    A locale whose translations cannot be loaded is an error.
+ *    A locale whose translations cannot be loaded is an error. Once a locale's
+ *    strings are loaded, every provider of that locale renders at once.
  */
 export function TranslationProvider(props: TranslationProviderProps) {
   if (props.translationManager) {
@@ -77,10 +85,20 @@ function LocaleTranslations({
   loadingComponent: ReactNode;
   children: ReactNode;
 }) {
-  const [loaded, setLoaded] = useState<LoadedTranslations | null>(null);
+  // A locale already loaded is there at the first render: a page that mounts
+  // a provider per viewer does not see each one start blank.
+  const [loaded, setLoaded] = useState<LoadedTranslations | null>(() => {
+    const messages = translationCache.get(locale);
+    return messages ? { locale, messages } : null;
+  });
   const [failure, setFailure] = useState<Error | null>(null);
 
   useEffect(() => {
+    const cached = translationCache.get(locale);
+    if (cached) {
+      setLoaded((previous) => (previous?.locale === locale ? previous : { locale, messages: cached }));
+      return;
+    }
     let current = true;
     loadTranslations(locale).then(
       messages => {
@@ -131,6 +149,19 @@ export function useTranslations(namespace: string) {
 
   // Return a function that translates keys within this namespace
   return (key: string, params?: Record<string, any>) => manager.t(namespace, key, params);
+}
+
+/**
+ * The nearest TranslationProvider's manager, for a component that hands the
+ * language on to a view that takes it as a prop, as `ResourceViewerPage` hands
+ * it to `ResourceViewer`. Throws when there is none, as `useTranslations` does.
+ */
+export function useTranslationManager(): TranslationManager {
+  const manager = useContext(TranslationContext);
+  if (!manager) {
+    throw new Error('useTranslationManager must be used within a TranslationProvider');
+  }
+  return manager;
 }
 
 /**

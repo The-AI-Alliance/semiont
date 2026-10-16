@@ -557,7 +557,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil), " ")
+	args := strings.Join(workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("worker").mem, nil, nil), " ")
 	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}

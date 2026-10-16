@@ -41,16 +41,6 @@ const shortcutGroups: ShortcutGroup[] = [
     ]
   },
   {
-    titleKey: 'annotationsTitle',
-    shortcuts: [
-      { keys: ['H'], descriptionKey: 'annotHighlight' },
-      { keys: ['R'], descriptionKey: 'annotReference' },
-      { keys: ['Delete'], descriptionKey: 'annotDelete' },
-      { keys: ['Tab'], descriptionKey: 'annotNavigate' },
-      { keys: ['Shift Tab'], descriptionKey: 'annotNavigateBack' },
-    ]
-  },
-  {
     titleKey: 'listsTitle',
     shortcuts: [
       { keys: ['←', '→'], descriptionKey: 'listsFilterNav' },

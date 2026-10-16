@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "지식 베이스",
     "connectTitle": "지식 베이스에 연결",
+    "protocol": "프로토콜",
     "connect": "연결",
     "connecting": "연결 중...",
     "signIn": "로그인",

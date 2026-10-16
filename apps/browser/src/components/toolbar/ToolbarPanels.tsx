@@ -124,6 +124,7 @@ export function ToolbarPanels({
       {/* Resize handle on left edge */}
       <ResizeHandle
         onResize={setWidth}
+        width={width}
         minWidth={minWidth}
         maxWidth={maxWidth}
         position="left"

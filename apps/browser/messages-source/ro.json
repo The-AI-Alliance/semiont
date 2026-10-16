@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Baze de cunoștințe",
     "connectTitle": "Conectare la baza de cunoștințe",
+    "protocol": "Protocol",
     "connect": "Conectare",
     "connecting": "Se conectează...",
     "signIn": "Conectați-vă",

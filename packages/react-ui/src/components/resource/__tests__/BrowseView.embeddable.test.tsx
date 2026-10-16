@@ -11,6 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
+import { englishTranslationManager } from '../../../test-utils';
 import { BrowseView } from '../BrowseView';
 import { resourceId, EventBus } from '@semiont/core';
 
@@ -36,6 +37,7 @@ describe('BrowseView — embeddable (session prop, no providers)', () => {
   it('renders content fed only a session, with NO providers mounted', () => {
     render(
       <BrowseView
+        translationManager={englishTranslationManager}
         content="Embeddable browse content."
         mimeType="text/plain"
         resourceUri={resourceId("res-1")}
@@ -45,5 +47,13 @@ describe('BrowseView — embeddable (session prop, no providers)', () => {
       />,
     );
     expect(screen.getByText('Embeddable browse content.')).toBeInTheDocument();
+  });
+
+  it('does not compile without a language: react-ui assumes none', () => {
+    const elements = [
+      // @ts-expect-error no language
+      <BrowseView content="x" mimeType="text/plain" resourceUri={resourceId('res-1')} annotations={emptyAnnotations} annotateMode={false} session={fakeSession()} />,
+    ];
+    expect(elements).toHaveLength(1);
   });
 });

@@ -91,7 +91,7 @@ The document names the variables that hold the broker's credentials, never the c
 
 With that in place:
 
-- **The broker** is one NATS server with JetStream enabled and a durable `/data`. Its core subjects carry the signal plane. JetStream carries the dispatcher's job queue and the tables where every replica records the replies it is waiting for.
+- **The broker** is one NATS server with JetStream enabled and a durable `/data`. Its core subjects carry the signal plane. JetStream carries the dispatcher's job queue and the tables where every replica records the replies it is waiting for. Its config sets `max_payload: 16777216`, twice the largest emit the gateway takes: at the default of 1 MiB the broker refuses a larger frame, and a reply that large is never sent.
 - **Every replica shares one `JWT_SECRET`**, so an agent or media token minted by one verifies on another.
 - **The load balancer needs no session affinity.** Any replica can answer a reconnecting client, and replay after a dropped stream is read from the archivist.
 - **The dispatcher stays at one instance** per knowledge base, whatever the gateway count. See [Scaling](SCALING.md) for every service.

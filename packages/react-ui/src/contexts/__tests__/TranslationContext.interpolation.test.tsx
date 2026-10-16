@@ -33,6 +33,16 @@ vi.mock('../../../translations/pl.json', () => ({
   },
 }));
 
+// Loaded by the one test that watches a first load, and by no other: a locale
+// already loaded renders at once, so a second load would show no loading.
+vi.mock('../../../translations/de.json', () => ({
+  default: {
+    Plurals: {
+      plain: 'Suche',
+    },
+  },
+}));
+
 vi.mock('../../../translations/ja.json', () => {
   throw new Error('ja.json cannot be loaded');
 });
@@ -150,9 +160,9 @@ describe('the locale manager interpolates', () => {
 });
 
 describe('TranslationProvider with a locale serves that locale and no other', () => {
-  it('shows the loading component, not its children, until the translations are loaded', async () => {
+  it('shows the loading component, not its children, until the translations are first loaded', async () => {
     render(
-      <TranslationProvider locale="pl" loadingComponent={<div data-testid="loading" />}>
+      <TranslationProvider locale="de" loadingComponent={<div data-testid="loading" />}>
         <Message id="plain" />
       </TranslationProvider>,
     );
@@ -160,7 +170,7 @@ describe('TranslationProvider with a locale serves that locale and no other', ()
     expect(screen.getByTestId('loading')).toBeInTheDocument();
     expect(screen.queryByTestId('message')).not.toBeInTheDocument();
 
-    expect(await screen.findByTestId('message')).toHaveTextContent('Szukaj');
+    expect(await screen.findByTestId('message')).toHaveTextContent('Suche');
     expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
   });
 

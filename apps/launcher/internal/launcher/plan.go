@@ -94,6 +94,10 @@ type launchPlan struct {
 	// ServiceVars: the user variables each stack service is handed — only
 	// those its configuration document names.
 	ServiceVars map[string][]string
+	// Memory: the environment's [memory], each stack service it names with
+	// the ceiling it runs with. A service it does not name runs with the
+	// table's (memoryFor).
+	Memory map[string]string
 }
 
 // The two roles a model can be asked to serve. Providers vary (ollama,
@@ -425,7 +429,7 @@ func workerPlan(env *envConfig) rolePlan {
 // keycloakPort is KEYCLOAK_PORT as this launch resolves it (keycloakPort in
 // root.go) — the value an issuer's ${KEYCLOAK_PORT} names.
 func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launchPlan, error) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
+	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env), Memory: env.Memory}
 	if env.Gateway != nil && env.Gateway.Port != 0 {
 		plan.GatewayPort = env.Gateway.Port
 	}

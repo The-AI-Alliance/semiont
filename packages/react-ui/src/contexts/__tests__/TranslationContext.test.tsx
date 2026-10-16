@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TranslationProvider, useTranslations } from '../TranslationContext';
+import { TranslationProvider, useTranslationManager, useTranslations } from '../TranslationContext';
 import type { TranslationManager } from '../../types/TranslationManager';
 
 // Test component that uses the hook
@@ -465,5 +465,43 @@ describe('TranslationContext', () => {
       expect(tMock).toHaveBeenCalledWith('Common', 'save', undefined);
       expect(tMock).toHaveBeenCalledWith('Common', 'cancel', undefined);
     });
+  });
+});
+
+describe('TranslationProvider with a locale', () => {
+  it('renders its children on the first render when the locale is already loaded', async () => {
+    // The first provider loads the strings. A second, mounted once they are
+    // loaded, has nothing to wait for: a page with a viewer per message must
+    // not see each one start blank.
+    render(<TranslationProvider locale="en"><span>first</span></TranslationProvider>);
+    await screen.findByText('first');
+
+    render(<TranslationProvider locale="en"><span>second</span></TranslationProvider>);
+    expect(screen.getByText('second')).toBeInTheDocument();
+  });
+});
+
+describe('useTranslationManager', () => {
+  function ManagerName() {
+    return <span>{useTranslationManager().t('Ns', 'key')}</span>;
+  }
+
+  it('is the nearest provider\'s manager, to hand on to a view that takes the language', () => {
+    const manager: TranslationManager = { t: (namespace, key) => `${namespace}.${key}` };
+    render(
+      <TranslationProvider translationManager={manager}>
+        <ManagerName />
+      </TranslationProvider>,
+    );
+    expect(screen.getByText('Ns.key')).toBeInTheDocument();
+  });
+
+  it('throws when used outside a TranslationProvider', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(() => render(<ManagerName />))
+      .toThrow('useTranslationManager must be used within a TranslationProvider');
+
+    consoleError.mockRestore();
   });
 });

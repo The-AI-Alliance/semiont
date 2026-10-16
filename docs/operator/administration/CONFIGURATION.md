@@ -254,7 +254,29 @@ overlap = 64
 
 An Ollama embedding is served by the same Ollama that serves inference. On a config whose inference is all remote, Ollama runs for the embeddings alone.
 
-The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost. Where the model is served (`baseUrl`, `endpoint`) is no part of it.
+The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, a few PDFs at a time ([Memory](#memory)): a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`baseUrl`, `endpoint`) is no part of it.
+
+### Memory
+
+Each of the stack's services runs in a container with a memory ceiling: 2G for each, unless the environment says otherwise. `[memory]` gives a service another, as `--memory` takes it:
+
+```toml
+[environments.local.memory]
+smelter = "8G"
+```
+
+It names the gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian, and no other. The ceilings of the daemons the launcher runs (Neo4j, Qdrant, Ollama, and the rest) are its own, and so is the browser's.
+
+Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on one PDF at once for each 2G of its ceiling, and on one however little it has: deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one. A knowledge base of large scans is derived sooner with a larger ceiling, and `--dry-run` shows the ceiling each container is given.
+
+`[smelter]` states the number instead, whatever the ceiling:
+
+```toml
+[environments.local.smelter]
+pdfsAtOnce = 1
+```
+
+One keeps memory free for something else with a large ceiling. More PDFs at once than the ceiling holds at 2G each is a smelter that can run out of memory.
 
 ### Graph and vectors
 
@@ -284,7 +306,7 @@ type = "nats"
 
 `[signal]` selects how the gateway fans frames out to subscribers. `nats` carries them on the same broker, which also holds the gateway's record of pending replies, so that record survives a restart and is shared by every gateway replica. `in-process`, which is also what an absent section means, keeps both inside one gateway.
 
-One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue.
+One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue. A broker somebody else runs also needs `max_payload: 16777216` in its config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 8 MiB, and the broker's default of 1 MiB refuses one larger than that.
 
 ### Identity
 
@@ -367,6 +389,8 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | A job is bound to a provider the environment has no section for, or to an Ollama with no address | Add `[environments.<env>.inference.<provider>]`, with a `baseURL` for an Ollama the launcher does not run |
 | The environment binds no model to the matcher or the gatherer | Add the binding under `[environments.<env>.actors.<actor>.inference]`, with a `type` and a `model`. The librarian cannot start without both |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
+| `[memory]` names something that is none of the stack's services, or a ceiling that is not like `"8G"` or `"512M"` | Name a service of the stack, with a ceiling as `--memory` takes it ([Memory](#memory)) |
+| `smelter.pdfsAtOnce` is below one | State one or more, or leave it out for the number the smelter's ceiling gives ([Memory](#memory)) |
 
 ## Related
 

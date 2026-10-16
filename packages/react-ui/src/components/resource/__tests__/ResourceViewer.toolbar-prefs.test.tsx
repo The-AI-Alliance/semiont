@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -99,15 +99,15 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     const { session, emitted } = sessionDouble();
     const onB = vi.fn();
     const a = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} clickAction="follow" onAnnotateModeChange={vi.fn()} onClickActionChange={vi.fn()} />,
     );
     const b = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         annotateMode={false} onAnnotateModeChange={onB} />,
     );
     const c = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations} />,
     );
 
     expect(isAnnotate(a.container)).toBe(true);   // A renders its controlled mode
@@ -131,7 +131,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     getSpy.mockClear(); setSpy.mockClear();
     const { session } = sessionDouble();
     const u = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations} />,
     );
     expect(isBrowse(u.container)).toBe(true);      // plain default, not the stored 'true'
     expect(prefKeyTouched(getSpy)).toBe(false);
@@ -143,7 +143,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         clickAction="follow" onClickActionChange={onChange} />,
     );
     const bar = v.container.querySelector('.semiont-annotate-toolbar') as HTMLElement;
@@ -160,7 +160,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         selectionMotivation="highlighting" onSelectionMotivationChange={onChange} />,
     );
@@ -180,7 +180,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
-      <ResourceViewer session={session} resource={makeResource('image/png')} annotations={annotations}
+      <ResourceViewer translationManager={englishTranslationManager} session={session} resource={makeResource('image/png')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         shape="circle" onShapeChange={onChange} />,
     );

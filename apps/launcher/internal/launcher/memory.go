@@ -21,40 +21,93 @@ package launcher
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
 
-// memCeilingGB parses a descriptor ceiling ("8G", "512M") into GB. Unknown
-// shapes count as zero — the table is ours, so a new suffix is a bug the
-// completeness test catches, not a runtime concern.
+// parseCeilingGB reads a ceiling as the table and an environment's [memory]
+// write it, and as every runtime's --memory takes it: a whole number of
+// gigabytes ("8G") or of megabytes ("512M"). ok is false for any other shape,
+// and for a ceiling that is not above zero.
+func parseCeilingGB(m string) (gb float64, ok bool) {
+	for _, unit := range []struct {
+		suffix string
+		per    float64
+	}{{"G", 1}, {"M", 1024}} {
+		if v, cut := strings.CutSuffix(m, unit.suffix); cut {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				return float64(n) / unit.per, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// memCeilingGB parses a ceiling the launcher holds into GB. A shape
+// parseCeilingGB refuses counts as zero: the table is ours, so a new suffix is
+// a bug the completeness test catches, and loadConfig has refused an
+// environment's value that does not parse.
 func memCeilingGB(m string) float64 {
-	if v, ok := strings.CutSuffix(m, "G"); ok {
-		if n, err := strconv.ParseFloat(v, 64); err == nil {
-			return n
+	gb, _ := parseCeilingGB(m)
+	return gb
+}
+
+// memoryFor: the --memory ceiling one of the stack's services runs with —
+// what the environment's [memory] states for it, or the table's. ONE decider,
+// read by each service's run arguments, the memory preflight, the gateway's
+// capacity and the Smelter's PDFs at once. stated is the environment's
+// [memory] as loadConfig let it through: every key a stack service, every
+// value a ceiling.
+func memoryFor(stated map[string]string, svc string) string {
+	if ceiling, ok := stated[svc]; ok {
+		return ceiling
+	}
+	return semiontDescriptor(svc).mem
+}
+
+// refuseMemory refuses an environment's [memory] that names anything but a
+// stack service, or states a ceiling that does not parse. Left alone, a
+// misspelt service would size nothing and a shape --memory does not take
+// would fail the start at the runtime, without saying which line was wrong.
+func refuseMemory(env *envConfig, path, envName string) error {
+	names := make([]string, 0, len(env.Memory))
+	for name := range env.Memory {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if !contains(stackServices, name) {
+			return fmt.Errorf("%s: [environments.%s.memory] names %s, which is none of the stack's services: it sizes %s",
+				path, envName, name, strings.Join(stackServices, ", "))
+		}
+		if _, ok := parseCeilingGB(env.Memory[name]); !ok {
+			return fmt.Errorf("%s: [environments.%s.memory] %s = %q: write a ceiling as \"8G\" or \"512M\"",
+				path, envName, name, env.Memory[name])
 		}
 	}
-	if v, ok := strings.CutSuffix(m, "M"); ok {
-		if n, err := strconv.ParseFloat(v, 64); err == nil {
-			return n / 1024
-		}
-	}
-	return 0
+	return nil
 }
 
 // startCeilingsGB sums the --memory ceilings THIS start will actually
-// request, from the one table that defines them. The list mirrors the flow:
-// the Semiont services the plan runs, and the Browser; provided infra roles
-// come from the plan; traces rides --observe; one Ollama runs when either the
-// inference or the embedding role provides it as a container.
+// request. The list mirrors the flow: the stack's services the plan runs, at
+// the ceilings its environment gives them (memoryFor), and the Browser;
+// provided infra roles come from the plan, at the table's; traces rides
+// --observe; one Ollama runs when either the inference or the embedding role
+// provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"} {
+	var stated map[string]string
+	if plan != nil {
+		stated = plan.Memory
+	}
+	for _, svc := range stackServices {
 		if plan != nil && !plan.runs(svc) {
 			continue
 		}
-		sum += memCeilingGB(semiontDescriptor(svc).mem)
+		sum += memCeilingGB(memoryFor(stated, svc))
 	}
+	sum += memCeilingGB(semiontDescriptor("browser").mem)
 	// The collector runs on every start too, but it is not one of ours:
 	// --no-observe declines the backends, never the collector.
 	sum += memCeilingGB(descriptorFor("collector", "otel").mem)
@@ -86,6 +139,6 @@ func memoryBudgetWarning(sumGB, hostGB float64) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line; the gateway's %s is the largest fixed one.",
-		sumGB, hostGB, semiontDescriptor("gateway").mem)
+		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line, and an environment's [memory] sets those of the stack's own services.",
+		sumGB, hostGB)
 }

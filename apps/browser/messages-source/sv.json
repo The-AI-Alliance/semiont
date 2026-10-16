@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Kunskapsbaser",
     "connectTitle": "Anslut till kunskapsbas",
+    "protocol": "Protokoll",
     "connect": "Anslut",
     "connecting": "Ansluter...",
     "signIn": "Logga in",

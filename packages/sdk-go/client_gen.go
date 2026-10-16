@@ -6412,6 +6412,9 @@ type SmelterConfig struct {
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
 
+	// PdfsAtOnce How many PDFs the Smelter works on at once. Each one under way holds its bytes, a page of a scan in pixels beside the OCR process reading it, and its text and vectors, so whoever starts a Smelter sizes this with the memory it gives it. Every other resource is indexed beside them.
+	PdfsAtOnce int `json:"pdfsAtOnce"`
+
 	// Port The port the Smelter answers `/health` on.
 	Port int `json:"port"`
 

@@ -316,6 +316,13 @@
   --semiont-panel-icon-size: 1.125rem;
   --semiont-panel-icon-size-sm: 1rem;
   --semiont-panel-icon-size-lg: 1.5rem;
+
+  /* The JSON views' syntax (lib/codemirror-json-theme.ts) */
+  --semiont-json-string: var(--semiont-color-blue-900);
+  --semiont-json-number: var(--semiont-color-blue-700);
+  --semiont-json-literal: var(--semiont-color-purple-600);
+  --semiont-json-property: var(--semiont-color-green-800);
+  --semiont-json-punctuation: var(--semiont-color-neutral-600);
 }
 
 /* Dark Mode Support */
@@ -337,6 +344,13 @@
     --semiont-border-secondary: var(--semiont-color-neutral-800);
     --semiont-bg-hover: var(--semiont-color-neutral-800);
     --semiont-focus-ring: var(--semiont-color-blue-400);
+
+    /* The JSON views' syntax (lib/codemirror-json-theme.ts) */
+    --semiont-json-string: var(--semiont-color-green-400);
+    --semiont-json-number: var(--semiont-color-orange-300);
+    --semiont-json-literal: var(--semiont-color-purple-400);
+    --semiont-json-property: var(--semiont-color-red-400);
+    --semiont-json-punctuation: var(--semiont-color-neutral-400);
   }
 }
 
@@ -360,6 +374,13 @@
   /* Interaction */
   --semiont-bg-hover: var(--semiont-color-neutral-100);
   --semiont-focus-ring: var(--semiont-color-blue-500);
+
+  /* The JSON views' syntax (lib/codemirror-json-theme.ts) */
+  --semiont-json-string: var(--semiont-color-blue-900);
+  --semiont-json-number: var(--semiont-color-blue-700);
+  --semiont-json-literal: var(--semiont-color-purple-600);
+  --semiont-json-property: var(--semiont-color-green-800);
+  --semiont-json-punctuation: var(--semiont-color-neutral-600);
 }
 
 /* Allow manual dark mode override */
@@ -379,4 +400,11 @@
   --semiont-border-secondary: var(--semiont-color-neutral-800);
   --semiont-bg-hover: var(--semiont-color-neutral-800);
   --semiont-focus-ring: var(--semiont-color-blue-400);
+
+  /* The JSON views' syntax (lib/codemirror-json-theme.ts) */
+  --semiont-json-string: var(--semiont-color-green-400);
+  --semiont-json-number: var(--semiont-color-orange-300);
+  --semiont-json-literal: var(--semiont-color-purple-400);
+  --semiont-json-property: var(--semiont-color-red-400);
+  --semiont-json-punctuation: var(--semiont-color-neutral-400);
 }

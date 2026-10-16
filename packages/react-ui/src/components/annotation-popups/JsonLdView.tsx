@@ -4,25 +4,28 @@ import { useEffect, useRef } from 'react';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { clipboard } from '../../lib/clipboard';
-import { jsonLightTheme, jsonLightHighlightStyle } from '../../lib/codemirror-json-theme';
-import { useLineNumbers } from '../../contexts/LineNumbersContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { jsonTheme, jsonHighlightStyle } from '../../lib/codemirror-json-theme';
 
 import type { Annotation } from '@semiont/core';
 
 interface JsonLdViewProps {
   annotation: Annotation;
   onBack: () => void;
+  /** Whether the editor numbers its lines: the viewer's own setting, handed down. */
+  showLineNumbers: boolean;
 }
 
-export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
+/**
+ * An annotation as W3C Web Annotation JSON-LD, read-only. It reads no
+ * provider: its line numbers come from the viewer that opens it, and its
+ * colours from the page's theme, through the CSS variables the JSON theme is
+ * written in.
+ */
+export function JsonLdView({ annotation, onBack, showLineNumbers }: JsonLdViewProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const { showLineNumbers } = useLineNumbers();
-  const { resolvedTheme } = useTheme();
 
   // Store callback in ref to avoid including in dependency arrays
   const onBackRef = useRef(onBack);
@@ -59,13 +62,9 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
       extensions.push(lineNumbers());
     }
 
-    // Add theme based on dark/light mode
-    if (resolvedTheme === 'dark') {
-      extensions.push(oneDark);
-    } else {
-      extensions.push(jsonLightTheme);
-      extensions.push(syntaxHighlighting(jsonLightHighlightStyle));
-    }
+    // One theme for light and dark: its colours are CSS variables the page's theme sets.
+    extensions.push(jsonTheme);
+    extensions.push(syntaxHighlighting(jsonHighlightStyle));
 
     const state = EditorState.create({
       doc: jsonContent,
@@ -83,7 +82,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [annotation, showLineNumbers, resolvedTheme]);
+  }, [annotation, showLineNumbers]);
 
   const copyTo = clipboard();
   const handleCopyToClipboard = async (to: Clipboard) => {

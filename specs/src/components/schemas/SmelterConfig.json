@@ -74,6 +74,11 @@
       "minLength": 1,
       "description": "The anchored-text store the Smelter writes and the Archivist reads."
     },
+    "pdfsAtOnce": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many PDFs the Smelter works on at once. Each one under way holds its bytes, a page of a scan in pixels beside the OCR process reading it, and its text and vectors, so whoever starts a Smelter sizes this with the memory it gives it. Every other resource is indexed beside them."
+    },
     "port": {
       "type": "integer",
       "minimum": 1,
@@ -95,6 +100,7 @@
     "vectors",
     "chunking",
     "anchoredTextDir",
+    "pdfsAtOnce",
     "port",
     "logLevel",
     "logFormat"

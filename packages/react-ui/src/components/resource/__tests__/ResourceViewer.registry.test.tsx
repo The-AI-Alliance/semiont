@@ -12,7 +12,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -42,6 +42,7 @@ type ViewerProps = React.ComponentProps<typeof ResourceViewer>;
 const emptyAnnotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
 
 const base = (): ViewerProps => ({
+  translationManager: englishTranslationManager,
   resource: {
     '@id': 'res-1',
     name: 'Doc',

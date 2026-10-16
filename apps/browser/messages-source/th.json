@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "ฐานความรู้",
     "connectTitle": "เชื่อมต่อกับฐานความรู้",
+    "protocol": "โปรโตคอล",
     "connect": "เชื่อมต่อ",
     "connecting": "กำลังเชื่อมต่อ...",
     "signIn": "เข้าสู่ระบบ",

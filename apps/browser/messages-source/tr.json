@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Bilgi Tabanları",
     "connectTitle": "Bilgi Tabanına Bağlan",
+    "protocol": "Protokol",
     "connect": "Bağlan",
     "connecting": "Bağlanıyor...",
     "signIn": "Giriş Yap",

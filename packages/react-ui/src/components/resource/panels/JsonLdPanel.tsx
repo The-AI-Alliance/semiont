@@ -4,12 +4,10 @@ import { useEffect, useRef } from 'react';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { clipboard } from '../../../lib/clipboard';
-import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
+import { jsonTheme, jsonHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
-import { useTheme } from '../../../contexts/ThemeContext';
 import { useResourceGraph } from '../../../hooks/useResourceGraph';
 import type { ResourceId } from '@semiont/core';
 import './JsonLdPanel.css';
@@ -30,7 +28,6 @@ export function JsonLdPanel({ resourceId }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
-  const { resolvedTheme } = useTheme();
   const { graph, loading, error } = useResourceGraph(resourceId);
 
   const documentText = graph ? JSON.stringify(graph, null, 2) : '';
@@ -49,12 +46,9 @@ export function JsonLdPanel({ resourceId }: Props) {
       extensions.push(lineNumbers());
     }
 
-    if (resolvedTheme === 'dark') {
-      extensions.push(oneDark);
-    } else {
-      extensions.push(jsonLightTheme);
-      extensions.push(syntaxHighlighting(jsonLightHighlightStyle));
-    }
+    // One theme for light and dark: its colours are CSS variables the page's theme sets.
+    extensions.push(jsonTheme);
+    extensions.push(syntaxHighlighting(jsonHighlightStyle));
 
     const state = EditorState.create({
       doc: documentText,
@@ -72,7 +66,7 @@ export function JsonLdPanel({ resourceId }: Props) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [documentText, showLineNumbers, resolvedTheme]);
+  }, [documentText, showLineNumbers]);
 
   const copyTo = clipboard();
   const handleCopyToClipboard = async (to: Clipboard) => {

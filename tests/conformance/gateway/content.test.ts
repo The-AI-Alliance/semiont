@@ -346,8 +346,9 @@ eachPlane('content', (world) => {
   it('an anchored text larger than the largest bus message comes through whole', async () => {
     // No emit may be larger than this, so no reply on the bus could carry the answer below.
     const busMessageBytes = spec().limits('post', '/bus/emit')['maxBodyBytes']!;
-    // Plain ASCII, forty lines to a page and one word to a line: each item's offsets index its word.
-    const words = Array.from({ length: 20_000 }, (_, index) => `word${index}`);
+    // Plain ASCII, forty lines to a page and one word to a line: each item's offsets index its word,
+    // and each word's item is more than sixty bytes of the answer.
+    const words = Array.from({ length: Math.ceil(busMessageBytes / 60) }, (_, index) => `word${index}`);
     let offset = 0;
     const items = words.map((word, index) => {
       const item = { start: offset, end: offset + word.length, page: Math.floor(index / 40) + 1, x: 72, y: 700 - (index % 40) * 14, width: word.length * 6, height: 12 };

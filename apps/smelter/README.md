@@ -137,7 +137,11 @@ takes out the images its pages paint; it arrives inside the `pypdfium2` package.
 `tesseract` program, with its English data, reads those images: a page with no text of its
 own is read from its pixels. Neither reaches the network. The stamp every anchored-text entry
 is written under names the Smelter's version and both engines', so an entry derived by other
-engines is derived again.
+engines is derived again. No more PDFs are worked on at once than its document says
+(`pdfsAtOnce`), however many are waiting: a scanned page held in pixels, beside the `tesseract`
+process reading it, is what fills the Smelter's memory, and the rest of what it does goes on
+beside them. The launcher writes the number the environment states, and otherwise one for each
+2 GB it gives the Smelter's container.
 
 It runs on the oldest Python the repository's Python packages support, on Alpine, as the
 user `semiont`. It carries no installer (`pip`, `uv`) and no Node.

@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { within } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
@@ -81,7 +81,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     const session = fakeSession();
     const annotations = { ...emptyAnnotations, highlights: [shapeAnnotation()] };
     const { container } = renderInEnglish(
-      <BrowseView {...baseProps} content="blob:image-url" mimeType="image/png"
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content="blob:image-url" mimeType="image/png"
         annotations={annotations} session={session} />,
     );
 
@@ -98,7 +98,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     const session = fakeSession();
     const annotations = { ...emptyAnnotations, highlights: [shapeAnnotation()] };
     const { container } = renderInEnglish(
-      <BrowseView {...baseProps} content="blob:pdf-url" mimeType="application/pdf"
+      <BrowseView translationManager={englishTranslationManager} {...baseProps} content="blob:pdf-url" mimeType="application/pdf"
         annotations={annotations} session={session} />,
     );
 
@@ -120,6 +120,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     const { AnnotateView } = await import('../AnnotateView');
     const { container } = renderInEnglish(
       <AnnotateView
+        translationManager={englishTranslationManager}
         content="blob:pdf-url"
         mimeType="application/pdf"
         resourceUri={resourceId("res-1")}

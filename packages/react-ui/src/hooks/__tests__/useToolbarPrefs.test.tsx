@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';
-import { renderInEnglish } from '../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { EventBus } from '@semiont/core';
@@ -57,8 +57,8 @@ function TwoViewers({ session }: { session: SemiontSession }) {
   };
   return (
     <>
-      <div data-testid="v1"><ResourceViewer session={session} resource={resource} annotations={annotations} {...controlled} /></div>
-      <div data-testid="v2"><ResourceViewer session={session} resource={resource} annotations={annotations} {...controlled} /></div>
+      <div data-testid="v1"><ResourceViewer translationManager={englishTranslationManager} session={session} resource={resource} annotations={annotations} {...controlled} /></div>
+      <div data-testid="v2"><ResourceViewer translationManager={englishTranslationManager} session={session} resource={resource} annotations={annotations} {...controlled} /></div>
     </>
   );
 }

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
 import type { EventBus } from '@semiont/core';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
@@ -212,7 +212,7 @@ describe('BrowseView Component', () => {
 
   describe('Rendering', () => {
     it('should render markdown content in text mode', () => {
-      renderWithProviders(<BrowseView {...defaultProps} />);
+      renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />);
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument();
       expect(screen.getByTestId('annotate-toolbar')).toBeInTheDocument();
@@ -221,20 +221,20 @@ describe('BrowseView Component', () => {
     it('should render the read-only annotation canvas for image mime types', () => {
       // A bare ImageViewer would silently drop the annotations prop, so image
       // marks would never paint in browse mode.
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
+      const { container } = renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} mimeType="image/png" />);
 
       expect(container.querySelector('.semiont-svg-drawing-canvas')).toBeInTheDocument();
     });
 
     it('should render unsupported message for unsupported mime types', () => {
-      renderWithProviders(<BrowseView {...defaultProps} mimeType="application/octet-stream" />);
+      renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} mimeType="application/octet-stream" />);
 
       expect(screen.getByText(/Preview not available/)).toBeInTheDocument();
       expect(screen.getByText('Download File')).toBeInTheDocument();
     });
 
     it('should apply correct data-mime-type attribute', () => {
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />);
 
       const browseView = container.querySelector('[data-mime-type="text"]');
       expect(browseView).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe('BrowseView Component', () => {
 
   describe('Event Handling - Clean Enter/Exit Pattern', () => {
     it('should attach single click handler to container on mount', () => {
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
       expect(browseContainer).toBeInTheDocument();
@@ -260,7 +260,7 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -294,7 +294,7 @@ describe('BrowseView Component', () => {
         references: [createMockAnnotation('linking', 'ref-1')],
       };
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -322,7 +322,7 @@ describe('BrowseView Component', () => {
 
     it('should not emit on mouseover when not over annotation', async () => {
       const tracker = createEventTracker();
-      const { container } = renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
+      const { container } = renderWithEventTracking(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />, tracker);
 
       const mockTargetNoAnnotation = {
         closest: vi.fn(() => null),
@@ -351,7 +351,7 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -413,7 +413,7 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -454,7 +454,7 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -495,7 +495,7 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = renderWithEventTracking(
-        <BrowseView {...defaultProps} annotations={annotations} />,
+        <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />,
         tracker
       );
 
@@ -520,14 +520,14 @@ describe('BrowseView Component', () => {
   describe('Event Subscriptions', () => {
     it('should subscribe to beckon:hover event', () => {
       const tracker = createEventTracker();
-      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
+      renderWithEventTracking(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />, tracker);
 
       expect(tracker.subscriptions.has('beckon:hover')).toBe(true);
     });
 
     it('should subscribe to beckon:focus event', () => {
       const tracker = createEventTracker();
-      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
+      renderWithEventTracking(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />, tracker);
 
       expect(tracker.subscriptions.has('beckon:focus')).toBe(true);
     });
@@ -542,7 +542,7 @@ describe('BrowseView Component', () => {
         highlights: [createMockAnnotation('highlighting', 'new-annotation-1')],
       };
 
-      renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />, {
+      renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={annotations} />, {
         sparkleAnnotationIds
       });
 
@@ -578,7 +578,7 @@ describe('BrowseView Component', () => {
 
       const { container } = render(
         <SemiontWrapper>
-          <BrowseView {...defaultProps} annotations={manyAnnotations} session={makeSession(client)} />
+          <BrowseView translationManager={englishTranslationManager} {...defaultProps} annotations={manyAnnotations} session={makeSession(client)} />
         </SemiontWrapper>
       );
 
@@ -624,7 +624,7 @@ describe('BrowseView Component', () => {
 
   describe('Cleanup', () => {
     it('should remove event listeners on unmount', () => {
-      const { unmount, container } = renderWithProviders(<BrowseView {...defaultProps} />);
+      const { unmount, container } = renderWithProviders(<BrowseView translationManager={englishTranslationManager} {...defaultProps} />);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -652,6 +652,7 @@ describe('BrowseView — beckon:focus is guarded by resourceId', () => {
     const { session, client } = createTestSemiontWrapper();
     const { container } = render(
       <BrowseView
+        translationManager={englishTranslationManager}
         content="hello world"
         mimeType="text/plain"
         resourceUri={resourceId("res-1")}

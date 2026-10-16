@@ -304,14 +304,16 @@ withArchivist('browsing', (world) => {
     const reader = world().world.personDid('reader');
     const content = Buffer.from('%PDF-1.4 a long document\n');
     const id = await world().created(reader, { name: 'Long', storageUri: 'file://scans/long.pdf', format: 'application/pdf', content });
-    const words = Array.from({ length: 20_000 }, (_, index) => `word${index}`);
+    const busMessageBytes = spec().limits('post', '/bus/emit')['maxBodyBytes']!;
+    // Each word's item is more than sixty bytes of the answer.
+    const words = Array.from({ length: Math.ceil(busMessageBytes / 60) }, (_, index) => `word${index}`);
     const text = words.join(' ');
     await world().smelt(id, sha256(content), anchoredEntry(text));
 
     const reply = await world().http('GET', `/resources/${id}/anchored-text`, { route: '/resources/{id}/anchored-text' });
     expect(reply.status, reply.text.slice(0, 200)).toBe(200);
     // The gateway takes no emit larger than this, so no reply on the bus could carry this answer.
-    expect(reply.bytes.length).toBeGreaterThan(spec().limits('post', '/bus/emit')['maxBodyBytes']!);
+    expect(reply.bytes.length).toBeGreaterThan(busMessageBytes);
     const answer = reply.json as { kind: string; text: string; items: Array<{ start: number; end: number }> };
     expect(answer.kind).toBe('extracted');
     expect(answer.text).toBe(text);

@@ -46,10 +46,12 @@ Generation from context: semiont yield --delegate --help
 func Yield(args []string) int {
 	u := launcher.NewUI(false)
 	var uploads, positional []string
+	var resourceID, annotationID string
 	name, repo, wantLocal := "", "", false
 	delegate, asJSON := false, false
 	// given: what the job flags gave, by the name of the parameter each gives.
 	given := map[string]any{}
+options:
 	for i := 0; i < len(args); i++ {
 		// --delegate takes its own option set; everything below stays the
 		// upload path's.
@@ -71,6 +73,10 @@ func Yield(args []string) int {
 			}
 			var ok bool
 			switch a {
+			case "--resource":
+				ok = idValue(u, "resource", val, &resourceID)
+			case "--annotation":
+				ok = idValue(u, "annotation", val, &annotationID)
 			case "--repo":
 				repo, ok = val()
 			case "--runtime":
@@ -78,13 +84,16 @@ func Yield(args []string) int {
 				wantLocal = true
 			case "--json":
 				asJSON, ok = true, true
+			case "--":
+				// Every word after it is an id, whatever it begins with.
+				positional = append(positional, args[i+1:]...)
+				break options
 			case "--help", "-h":
 				fmt.Print(delegateUsage)
 				return 0
 			default:
 				if strings.HasPrefix(a, "-") {
-					u.Fail("Unknown argument: %s", a)
-					return 1
+					return unknownArgument(u, a, yieldIDs)
 				}
 				positional = append(positional, a)
 				ok = true
@@ -134,7 +143,10 @@ func Yield(args []string) int {
 		}
 	}
 	if delegate {
-		if len(positional) == 0 || len(positional) > 2 {
+		if !fillIDs(u, yieldIDs, positional, &resourceID, &annotationID) {
+			return 1
+		}
+		if resourceID == "" {
 			fmt.Print(delegateUsage)
 			return 1
 		}
@@ -151,7 +163,7 @@ func Yield(args []string) int {
 		if !ok {
 			return 1
 		}
-		return runYieldDelegate(u, t, positional, request, asJSON)
+		return runYieldDelegate(u, t, resourceID, annotationID, request, asJSON)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -328,12 +340,16 @@ func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.S
 // Unlike the upload above, delegate is not one request and its reply: it
 // gathers context, creates a generation job, and follows it (job.go).
 
+const yieldIDs = "semiont yield --delegate [options] -- <resourceId> [<annotationId>]"
+
 const delegateUsage = `Usage: semiont yield --delegate <resourceId> [<annotationId>] --storage-uri <file://…> [options]
 
 Generate a new resource from gathered context: derived from a whole resource,
 or anchored to one annotation.
 
 Options:
+  --resource <id>      The resource to generate from (bare: first)
+  --annotation <id>    One annotation in it to anchor the result to (bare: second)
   --storage-uri <uri>  Where the generated resource is written (required)
   --title <text>       Title for the generated resource (required)
   --prompt <text>      Instruction guiding the generation
@@ -343,6 +359,11 @@ Options:
   --json               Raw JSON completion event
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + yieldIDs + `
 
 Requires a session:  semiont login
 `
@@ -366,17 +387,16 @@ var yieldJobResults = resultMembers[semiont.YieldJobResult]{
 	declinedResult,
 }
 
-func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, request semiont.GenerationJobRequest, asJSON bool) int {
+func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotationID string, request semiont.GenerationJobRequest, asJSON bool) int {
 	cli := t.Transport()
 	ctx := context.Background()
-	resourceID := positional[0]
 
 	// Gather the grounding context first: a generation job requires it, and
 	// its focus names the resource or annotation the generation is about.
 	var gathered semiont.GatheredContext
-	if len(positional) == 2 {
+	if annotationID != "" {
 		reply, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
-			ResourceId: resourceID, AnnotationId: positional[1],
+			ResourceId: resourceID, AnnotationId: annotationID,
 		}, nil)
 		if err != nil {
 			return busFail(u, "yield --delegate (gather)", err)

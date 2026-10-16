@@ -92,6 +92,7 @@ export function LeftSidebar({
       {!isCollapsed && (
         <ResizeHandle
           onResize={setWidth}
+          width={width}
           minWidth={minWidth}
           maxWidth={maxWidth}
           position="right"

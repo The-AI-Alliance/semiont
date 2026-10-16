@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Kunnskapsbaser",
     "connectTitle": "Koble til kunnskapsbase",
+    "protocol": "Protokoll",
     "connect": "Koble til",
     "connecting": "Kobler til...",
     "signIn": "Logg inn",

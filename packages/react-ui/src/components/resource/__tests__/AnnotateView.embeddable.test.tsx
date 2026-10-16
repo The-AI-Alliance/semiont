@@ -6,8 +6,8 @@
  * no session provider. CodeMirrorRenderer is mocked (heavy; already prop-based).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { render, screen } from '@testing-library/react';
+import { englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
@@ -36,8 +36,9 @@ function fakeSession(): SemiontSession {
 
 describe('AnnotateView — embeddable (session prop, no session provider)', () => {
   it('renders (incl. the real AnnotateToolbar) fed only a session, no session provider', () => {
-    renderInEnglish(
+    render(
       <AnnotateView resourceUri={resourceId("res-1")}
+        translationManager={englishTranslationManager}
         content="hello"
         mimeType="text/plain"
         annotations={emptyAnnotations}
@@ -46,7 +47,15 @@ describe('AnnotateView — embeddable (session prop, no session provider)', () =
         session={fakeSession()}
       />,
     );
-    // The tree (real AnnotateToolbar + mocked CodeMirror) rendered without a session provider.
+    // The tree (real AnnotateToolbar + mocked CodeMirror) rendered with no provider above it.
     expect(screen.getByText('cm-mock')).toBeInTheDocument();
+  });
+
+  it('does not compile without a language: react-ui assumes none', () => {
+    const elements = [
+      // @ts-expect-error no language
+      <AnnotateView resourceUri={resourceId('res-1')} content="hello" mimeType="text/plain" annotations={emptyAnnotations} uiState={uiState} annotateMode={true} session={fakeSession()} />,
+    ];
+    expect(elements).toHaveLength(1);
   });
 });

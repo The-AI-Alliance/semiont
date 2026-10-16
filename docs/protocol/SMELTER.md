@@ -57,7 +57,8 @@ variable that holds its key, for a provider that takes one); the vector index
 ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json): its
 kind, and what that kind needs to be reached); the two numbers a text is cut
 by, a chunk's size and how far one chunk overlaps the next; the directory of
-the anchored-text store; the port its health answers on; and how it logs.
+the anchored-text store; how many PDFs it works on at once; the port its
+health answers on; and how it logs.
 Whoever starts a Smelter writes it: the launcher for the Smelter it starts,
 and anyone else to the same schema.
 
@@ -66,9 +67,9 @@ and anyone else to the same schema.
   names a member of the document and what was expected of it, and never a
   value found there. *Held by `apps/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
-  vector database's host, the embedding provider's kind, model or address, or
-  the directory of the anchored-text store, it refuses to start,** and names
-  the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  vector database's host, the embedding provider's kind, model or address,
+  the directory of the anchored-text store, or how many PDFs it works on at
+  once, it refuses to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An index that lives in one process's memory is refused.** Nothing else
   could search it. *Held by `apps/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
@@ -232,6 +233,19 @@ entity types from its description as the Archivist answers it then.
   event changed. Taking out an annotation's point takes its turn among the
   events of the resource the point says the annotation is on.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+- **No more PDFs are worked on at once than its document states**
+  (`pdfsAtOnce`), whatever asks for them: an event, the work a start plans or
+  a rebuild. A PDF's turn lasts from reading its bytes to writing its points
+  or its anchored text. Deriving a scanned document's text holds a page's
+  pixels and an OCR process, so how many fit at once is a matter of the
+  memory a Smelter is given: the launcher writes the number its knowledge
+  base's environment states, and otherwise one for each 2 GB of the
+  Smelter's container, and one however little it has. A PDF that waits for
+  its turn holds none of its bytes: whether a resource is a PDF is asked of
+  its description, and its bytes are read when the turn comes. Bytes that
+  turn out to be a PDF's where the description said otherwise are let go of,
+  and read again in a turn. Every other resource is indexed beside them.
+  *Held by `apps/smelter/tests/test_smelter.py`, and by `apps/launcher/internal/launcher/smelterdoc_test.go` for what the launcher writes.*
 
 ## What it decides
 
@@ -480,7 +494,8 @@ in prose.
   in no stated order.
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
-  its resource's events ([Order](#order)). *Held by `apps/smelter/tests/test_smelter.py`.*
+  its resource's events ([Order](#order)), and no more PDFs among them than
+  its document states. *Held by `apps/smelter/tests/test_smelter.py`.*
 - **Work planned for a resource that an event has arrived for since the
   reconcile began to read is looked at again when its turn comes.** It asks
   the Archivist what the record holds then, and does what that wants. A

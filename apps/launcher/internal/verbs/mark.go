@@ -21,6 +21,8 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
+const markIDs = "semiont mark [options] -- <resourceId>"
+
 const markUsage = `Usage: semiont mark <resourceId> [selector] [body] [options]
        semiont mark --delete <annotationId> --resource <resourceId>
 
@@ -40,11 +42,17 @@ Body:
 Options:
   --motivation <m>      Override the motivation (default: inferred from the body)
   --delete <id>         Delete an annotation instead (needs --resource)
-  --resource <id>       The resource a deleted annotation belongs to
+  --resource <id>       The resource to annotate, or the one a deleted annotation
+                        is on (bare)
   --json                Raw JSON reply
   --repo <owner/name>   Target a codespace stack (default: the local stack)
   --runtime <rt>        Target the local stack explicitly
   --help                Show this help
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + markIDs + `
 
 Requires a session:  semiont login
 Annotation by the stack: semiont mark --delegate --help
@@ -79,9 +87,15 @@ which it takes):
   --schema <id>            tagging: the tag schema (semiont browse --tag-schemas
                            lists them)
   --category <name>        tagging: a category of that schema (repeatable)
+  --resource <id>          The resource to annotate (bare)
   --json                   Raw JSON completion event
   --repo <owner/name>      Target a codespace stack (default: the local stack)
   --runtime <rt>           Target the local stack explicitly
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + markIDs + `
 
 Requires a session:  semiont login
 `
@@ -148,16 +162,18 @@ func markJob(resourceID string, motivation semiont.Motivation, given map[string]
 
 func Mark(args []string) int {
 	u := launcher.NewUI(false)
-	var resourceID, quote, prefix, suffix, bodyText, link, motivation, deleteID, resourceFlag, repo string
+	var resourceID, quote, prefix, suffix, bodyText, link, motivation, deleteID, repo string
 	start, end := -1, -1
 	asJSON, wantLocal := false, false
 	delegate := false
+	var positional []string
 	// given: what the job flags gave, by the name of the parameter each gives.
 	given := map[string]any{}
 	// The flags that belong to one form of mark only, as they were typed, so
 	// the other form can refuse them by name.
 	var handOnly, delegateOnly []string
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		val := func() (string, bool) {
@@ -191,7 +207,7 @@ func Mark(args []string) int {
 		}
 		var ok bool
 		switch a {
-		case "--quote", "--prefix", "--suffix", "--body-text", "--link", "--delete", "--resource", "--start", "--end":
+		case "--quote", "--prefix", "--suffix", "--body-text", "--link", "--delete", "--start", "--end":
 			handOnly = append(handOnly, a)
 		}
 		switch a {
@@ -212,7 +228,7 @@ func Mark(args []string) int {
 		case "--delete":
 			deleteID, ok = val()
 		case "--resource":
-			resourceFlag, ok = val()
+			ok = idValue(u, "resource", val, &resourceID)
 		case "--repo":
 			repo, ok = val()
 		case "--start":
@@ -224,6 +240,10 @@ func Mark(args []string) int {
 			wantLocal = true
 		case "--json":
 			asJSON, ok = true, true
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			if delegate {
 				fmt.Print(markDelegateUsage)
@@ -233,18 +253,16 @@ func Mark(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, markIDs)
 			}
-			if resourceID != "" {
-				u.Fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
-				return 1
-			}
-			resourceID, ok = a, true
+			positional, ok = append(positional, a), true
 		}
 		if !ok {
 			return 1
 		}
+	}
+	if !fillIDs(u, markIDs, positional, &resourceID) {
+		return 1
 	}
 
 	if delegate {
@@ -282,8 +300,8 @@ func Mark(args []string) int {
 	}
 
 	if deleteID != "" {
-		if resourceFlag == "" {
-			u.Fail("--delete needs --resource <resourceId> (an annotation is addressed within its resource).")
+		if resourceID == "" {
+			u.Fail("--delete needs the resource the annotation is on: --resource <resourceId>, or bare (an annotation is addressed within its resource).")
 			return 1
 		}
 	} else if resourceID == "" {
@@ -308,7 +326,7 @@ func Mark(args []string) int {
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",
-			semiont.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceFlag}, nil)
+			semiont.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceID}, nil)
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}

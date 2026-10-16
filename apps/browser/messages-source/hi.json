@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "ज्ञान आधार",
     "connectTitle": "ज्ञान आधार से जुड़ें",
+    "protocol": "प्रोटोकॉल",
     "connect": "जोड़ें",
     "connecting": "जोड़ा जा रहा है...",
     "signIn": "साइन इन करें",

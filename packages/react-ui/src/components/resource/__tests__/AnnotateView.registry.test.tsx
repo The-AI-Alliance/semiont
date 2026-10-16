@@ -9,7 +9,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderInEnglish } from '../../../test-utils';
+import { renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
@@ -46,6 +46,7 @@ function fakeSession(): SemiontSession {
 type ViewProps = React.ComponentProps<typeof AnnotateView>;
 
 const base = (mimeType: string): ViewProps => ({
+  translationManager: englishTranslationManager,
   resourceUri: resourceId('res-1'),
   content: 'the-body',
   mimeType,

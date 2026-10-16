@@ -269,7 +269,10 @@ func TestMarkDelegateRefusalsInProcess(t *testing.T) {
 		{"no motivation", []string{"--delegate", "res-1"}, "--motivation"},
 		{"an unknown motivation", []string{"--delegate", "res-1", "--motivation", "bookmarking"}, "--delegate --help"},
 		{"no resource", []string{"--delegate", "--motivation", "highlighting"}, "resource"},
-		{"two resources", []string{"--delegate", "res-1", "res-2", "--motivation", "highlighting"}, "one resource"},
+		{"two resources", []string{"--delegate", "res-1", "res-2", "--motivation", "highlighting"}, "Unexpected argument: res-2"},
+		// --resource gives the resource here as in every form of mark: the
+		// refusal is the job's, which is asked only once a resource is given.
+		{"the resource by --resource", []string{"--delegate", "--resource", "res-1", "--motivation", "linking"}, "linking needs --entity-type"},
 		{"linking names no entity type", []string{"--delegate", "res-1", "--motivation", "linking"}, "linking needs --entity-type"},
 		{"tagging names no schema", []string{"--delegate", "res-1", "--motivation", "tagging", "--category", "claim"}, "tagging needs --schema"},
 		{"tagging names an empty schema", []string{"--delegate", "res-1", "--motivation", "tagging", "--schema", "", "--category", "claim"}, "tagging needs --schema"},

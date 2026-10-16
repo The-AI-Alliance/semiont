@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Pangkalan Pengetahuan",
     "connectTitle": "Sambung ke Pangkalan Pengetahuan",
+    "protocol": "Protokol",
     "connect": "Sambung",
     "connecting": "Menyambung...",
     "signIn": "Log masuk",

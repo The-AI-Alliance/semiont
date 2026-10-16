@@ -45,7 +45,7 @@ import { useSemiont } from '../../../session/SemiontProvider';
 import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
 import { useSessionStateUnit } from '../../../hooks/useSessionStateUnit';
 import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
-import { useTranslations } from '../../../contexts/TranslationContext';
+import { useTranslationManager, useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
@@ -165,6 +165,8 @@ export function ResourceViewerPage({
   // Translations
   const tw = useTranslations('ReferenceWizard');
   const tg = useTranslations('ResourceGenerate');
+  // The viewer takes its language as a prop; the page hands it the host's own.
+  const translationManager = useTranslationManager();
 
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
@@ -590,6 +592,7 @@ export function ResourceViewerPage({
                 </div>
               ) : (
                 <ResourceViewer
+                  translationManager={translationManager}
                   resource={resourceWithContent}
                   annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
                   session={session ?? null}

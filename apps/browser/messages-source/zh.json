@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "知识库",
     "connectTitle": "连接到知识库",
+    "protocol": "协议",
     "connect": "连接",
     "connecting": "连接中...",
     "signIn": "登录",

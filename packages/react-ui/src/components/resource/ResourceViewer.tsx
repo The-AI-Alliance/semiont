@@ -2,7 +2,8 @@
 
 import type { ResourceId } from '@semiont/core';
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { useTranslations } from '../../contexts/TranslationContext';
+import { TranslationProvider, useTranslations, type TranslationSource } from '../../contexts/TranslationContext';
+import { translationSourceOf } from '../../lib/translation-source';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import type { AnnotateMediaRenderers } from './annotate-renderers';
 import { BrowseView, type ReferenceHover } from './BrowseView';
@@ -29,8 +30,9 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
  * Bring-your-own-session: the `session` (SemiontSession) and the host's
  * navigation / panel callbacks come in as props — no SemiontProvider required.
  * Every event it subscribes to is session-scoped and reaches it on
- * `session.client`. Translations come from the nearest TranslationProvider,
- * which is required; caching flows through `session.client.browse.*`.
+ * `session.client`. Its language is a required prop, a `locale` or the host's
+ * `translationManager`: react-ui assumes none, and the viewer mounts its own
+ * TranslationProvider from it. Caching flows through `session.client.browse.*`.
  *
  * Event flow:
  *   Archivist → event log → SSE → EventBus → sdk cache invalidation → live queries
@@ -99,6 +101,19 @@ interface Props {
 }
 
 /**
+ * The viewer, given its language: it mounts the translation provider its own
+ * subtree reads, and hands the same language to the view it renders.
+ */
+export function ResourceViewer(props: Props & TranslationSource) {
+  const language = translationSourceOf(props);
+  return (
+    <TranslationProvider {...language}>
+      <ResourceViewerBody {...props} language={language} />
+    </TranslationProvider>
+  );
+}
+
+/**
  * Deletion calls `session.client.mark.delete(...)` directly and reports a
  * refusal through `session.client.mark.reportDeleteError(...)`, since the
  * viewer is the caller that knows which resource the failed delete was on;
@@ -112,7 +127,8 @@ interface Props {
  *   the motivation is derived from the annotation the id names, and an id this
  *   viewer has not loaded is a no-op.
  */
-export function ResourceViewer({
+function ResourceViewerBody({
+  language,
   resource,
   annotations,
   session,
@@ -137,7 +153,7 @@ export function ResourceViewer({
   showToolbar = true,
   browseRenderers,
   annotateRenderers,
-}: Props) {
+}: Props & { language: TranslationSource }) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
@@ -363,6 +379,7 @@ export function ResourceViewer({
       {/* Content */}
       {activeView === 'annotate' ? (
         <AnnotateView
+          {...language}
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
@@ -387,6 +404,7 @@ export function ResourceViewer({
         />
       ) : (
         <BrowseView
+          {...language}
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
@@ -416,6 +434,7 @@ export function ResourceViewer({
         >
           <JsonLdView
             annotation={jsonLdAnnotation}
+            showLineNumbers={showLineNumbers}
             onBack={() => {
               setShowJsonLdView(false);
               setJsonLdAnnotation(null);

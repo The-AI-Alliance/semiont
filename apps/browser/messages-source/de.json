@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Wissensbasen",
     "connectTitle": "Mit Wissensbasis verbinden",
+    "protocol": "Protokoll",
     "connect": "Verbinden",
     "connecting": "Verbinde...",
     "signIn": "Anmelden",

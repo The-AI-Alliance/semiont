@@ -182,6 +182,7 @@
   "KnowledgeBasePanel": {
     "title": "Videnbaser",
     "connectTitle": "Opret forbindelse til videnbase",
+    "protocol": "Protokol",
     "connect": "Opret forbindelse",
     "connecting": "Opretter forbindelse...",
     "signIn": "Log ind",

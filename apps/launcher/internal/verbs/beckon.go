@@ -17,19 +17,27 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
+const beckonIDs = "semiont beckon [options] -- <resourceId> [<annotationId>]"
+
 const beckonUsage = `Usage: semiont beckon --resource <resourceId> [--annotation <id>] [--sparkle]
+       semiont beckon <resourceId> [<annotationId>] [--sparkle]
 
 Draw attention to a resource (or one annotation in it) for anyone watching
 this KB in a Browser.
 
 Options:
-  --resource <id>      The resource to point at (required)
-  --annotation <id>    Narrow the attention to one annotation
+  --resource <id>      The resource to point at (required; bare: first)
+  --annotation <id>    Narrow the attention to one annotation (bare: second)
   --sparkle            Mark the annotation WITHOUT scrolling to it
                        (requires --annotation)
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + beckonIDs + `
 
 Requires a session:  semiont login
 
@@ -69,9 +77,11 @@ func audienceNote(u *launcher.UI, subscribers int, counted bool, channel string)
 func Beckon(args []string) int {
 	u := launcher.NewUI(false)
 	var resource, annotation, repo string
+	var positional []string
 	wantLocal := false
 	sparkle := false
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		val := func() (string, bool) {
@@ -85,9 +95,9 @@ func Beckon(args []string) int {
 		var ok bool
 		switch a {
 		case "--resource":
-			resource, ok = val()
+			ok = idValue(u, "resource", val, &resource)
 		case "--annotation":
-			annotation, ok = val()
+			ok = idValue(u, "annotation", val, &annotation)
 		case "--repo":
 			repo, ok = val()
 		case "--sparkle":
@@ -95,24 +105,25 @@ func Beckon(args []string) int {
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			fmt.Print(beckonUsage)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, beckonIDs)
 			}
-			// A bare id is the resource, matching how people type it.
-			if resource != "" {
-				u.Fail("Unexpected argument: %s", a)
-				return 1
-			}
-			resource, ok = a, true
+			positional, ok = append(positional, a), true
 		}
 		if !ok {
 			return 1
 		}
+	}
+	if !fillIDs(u, beckonIDs, positional, &resource, &annotation) {
+		return 1
 	}
 	if resource == "" {
 		fmt.Print(beckonUsage)

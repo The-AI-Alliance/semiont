@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -31,10 +31,6 @@ vi.mock('@codemirror/lang-json', () => ({
   json: vi.fn(),
 }));
 
-vi.mock('@codemirror/theme-one-dark', () => ({
-  oneDark: {},
-}));
-
 vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: vi.fn(),
   HighlightStyle: {
@@ -43,43 +39,21 @@ vi.mock('@codemirror/language', () => ({
 }));
 
 vi.mock('../../../lib/codemirror-json-theme', () => ({
-  jsonLightTheme: {},
-  jsonLightHighlightStyle: {},
+  jsonTheme: {},
+  jsonHighlightStyle: {},
 }));
 
-vi.mock('@/contexts/LineNumbersContext', async () => {
-  const actual = await vi.importActual('@/contexts/LineNumbersContext');
-  // Mock ONLY the hook: renderWithProviders mounts the real
-  // LineNumbersProvider, which an auto-mock would swallow (rendering
-  // nothing), while these tests want a fixed showLineNumbers value.
-  return { ...actual, useLineNumbers: vi.fn() };
-});
-
-import type { ReactElement } from 'react';
 import { EditorState } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { useLineNumbers } from '@/contexts/LineNumbersContext';
-import { ThemeProvider, useTheme } from '../../../contexts/ThemeContext';
-import { jsonLightTheme } from '../../../lib/codemirror-json-theme';
-import { renderWithProviders } from '../../../test-utils';
+import { lineNumbers } from '@codemirror/view';
+import { jsonTheme } from '../../../lib/codemirror-json-theme';
 import { JsonLdView } from '../JsonLdView';
 import { resourceId } from '@semiont/core';
-
-/** JsonLdView reads the theme, so it renders under the real ThemeProvider. */
-function renderUnderTheme(ui: ReactElement) {
-  return renderWithProviders(<ThemeProvider>{ui}</ThemeProvider>);
-}
 
 /** The extensions the most recent editor was built with. */
 function editorExtensions(): readonly unknown[] {
   const config = vi.mocked(EditorState.create).mock.calls.at(-1)?.[0];
   if (!config) throw new Error('no editor was created');
   return config.extensions as readonly unknown[];
-}
-
-function DarkThemeButton() {
-  const { setTheme } = useTheme();
-  return <button onClick={() => setTheme('dark')}>Dark theme</button>;
 }
 
 const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
@@ -114,18 +88,6 @@ describe('JsonLdView', () => {
       writable: true,
       configurable: true,
     });
-
-    localStorage.clear();
-    Object.defineProperty(window, 'matchMedia', {
-      value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
-      writable: true,
-      configurable: true,
-    });
-
-    vi.mocked(useLineNumbers).mockReturnValue({
-      showLineNumbers: false,
-      toggleLineNumbers: vi.fn(),
-    });
   });
 
   afterEach(() => {
@@ -135,14 +97,14 @@ describe('JsonLdView', () => {
   describe('Rendering', () => {
     it('should render the JSON-LD title', () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       expect(screen.getByText('JSON-LD')).toBeInTheDocument();
     });
 
     it('should render the back button', () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const backButton = screen.getByTitle('Go back (Escape)');
       expect(backButton).toBeInTheDocument();
@@ -150,15 +112,15 @@ describe('JsonLdView', () => {
 
     it('should render the copy button', () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       expect(screen.getByText(/Copy/)).toBeInTheDocument();
     });
 
     it('should render editor container', () => {
       const annotation = createMockAnnotation();
-      const { container } = renderUnderTheme(
-        <JsonLdView annotation={annotation} onBack={vi.fn()} />
+      const { container } = render(
+        <JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />
       );
 
       const editorDiv = container.querySelector('.semiont-jsonld-view__editor');
@@ -170,7 +132,7 @@ describe('JsonLdView', () => {
     it('should call onBack when back button is clicked', async () => {
       const onBack = vi.fn();
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={onBack} />);
+      render(<JsonLdView annotation={annotation} onBack={onBack} showLineNumbers={false} />);
 
       const backButton = screen.getByTitle('Go back (Escape)');
       await userEvent.click(backButton);
@@ -181,7 +143,7 @@ describe('JsonLdView', () => {
     it('should call onBack when Escape key is pressed', () => {
       const onBack = vi.fn();
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={onBack} />);
+      render(<JsonLdView annotation={annotation} onBack={onBack} showLineNumbers={false} />);
 
       fireEvent.keyDown(window, { key: 'Escape' });
 
@@ -191,7 +153,7 @@ describe('JsonLdView', () => {
     it('should not call onBack for non-Escape keys', () => {
       const onBack = vi.fn();
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={onBack} />);
+      render(<JsonLdView annotation={annotation} onBack={onBack} showLineNumbers={false} />);
 
       fireEvent.keyDown(window, { key: 'Enter' });
 
@@ -203,7 +165,7 @@ describe('JsonLdView', () => {
     it('renders no copy control where the page has no Clipboard API, as on an origin that is not a secure context', () => {
       Object.defineProperty(navigator, 'clipboard', { value: undefined, writable: true, configurable: true });
 
-      renderUnderTheme(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} showLineNumbers={false} />);
 
       // A control that would fail silently is worse than none.
       expect(screen.queryByText(/Copy/)).not.toBeInTheDocument();
@@ -212,7 +174,7 @@ describe('JsonLdView', () => {
 
     it('should copy annotation JSON to clipboard when copy button is clicked', async () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const copyButton = screen.getByText(/Copy/);
       await userEvent.click(copyButton);
@@ -224,7 +186,7 @@ describe('JsonLdView', () => {
 
     it('should copy formatted JSON with indentation', async () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const copyButton = screen.getByText(/Copy/);
       await userEvent.click(copyButton);
@@ -240,7 +202,7 @@ describe('JsonLdView', () => {
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'));
 
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const copyButton = screen.getByText(/Copy/);
       await userEvent.click(copyButton);
@@ -256,45 +218,40 @@ describe('JsonLdView', () => {
     });
   });
 
-  describe('Theme', () => {
-    it("should build the editor with the dark theme under ThemeProvider's dark theme", () => {
-      localStorage.setItem('theme', 'dark');
-
-      renderUnderTheme(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} />);
-
-      expect(editorExtensions()).toContain(oneDark);
-      expect(editorExtensions()).not.toContain(jsonLightTheme);
+  describe('The editor', () => {
+    // The viewer renders this view with no provider above it: its line numbers
+    // come from the viewer, and its colours from the page's theme attribute,
+    // through the CSS variables the JSON theme is written in.
+    it('renders with no provider above it', () => {
+      expect(() => render(
+        <JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} showLineNumbers={false} />,
+      )).not.toThrow();
     });
 
-    it("should build the editor with the light theme under ThemeProvider's light theme", () => {
-      localStorage.setItem('theme', 'light');
+    it('is built with the JSON theme, whichever theme the page is in', () => {
+      render(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} showLineNumbers={false} />);
 
-      renderUnderTheme(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} />);
-
-      expect(editorExtensions()).toContain(jsonLightTheme);
-      expect(editorExtensions()).not.toContain(oneDark);
+      expect(editorExtensions()).toContain(jsonTheme);
     });
 
-    it('should rebuild the editor when the theme changes', async () => {
-      localStorage.setItem('theme', 'light');
-      renderUnderTheme(
-        <>
-          <DarkThemeButton />
-          <JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} />
-        </>
+    it('shows line numbers when it is told to, and not otherwise', () => {
+      const { unmount } = render(
+        <JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} showLineNumbers />,
       );
+      expect(lineNumbers).toHaveBeenCalledOnce();
+      unmount();
 
-      await userEvent.click(screen.getByText('Dark theme'));
-
-      expect(editorExtensions()).toContain(oneDark);
+      vi.mocked(lineNumbers).mockClear();
+      render(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} showLineNumbers={false} />);
+      expect(lineNumbers).not.toHaveBeenCalled();
     });
   });
 
   describe('Styling', () => {
     it('should have proper view structure', () => {
       const annotation = createMockAnnotation();
-      const { container } = renderUnderTheme(
-        <JsonLdView annotation={annotation} onBack={vi.fn()} />
+      const { container } = render(
+        <JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />
       );
 
       const view = container.firstChild as HTMLElement;
@@ -303,8 +260,8 @@ describe('JsonLdView', () => {
 
     it('should have proper header class', () => {
       const annotation = createMockAnnotation();
-      const { container } = renderUnderTheme(
-        <JsonLdView annotation={annotation} onBack={vi.fn()} />
+      const { container } = render(
+        <JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />
       );
 
       const header = container.querySelector('.semiont-jsonld-view__header');
@@ -313,7 +270,7 @@ describe('JsonLdView', () => {
 
     it('should have proper back button class', () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const backButton = screen.getByTitle('Go back (Escape)');
       expect(backButton).toHaveClass('semiont-jsonld-view__back-button');
@@ -321,7 +278,7 @@ describe('JsonLdView', () => {
 
     it('should have proper copy button class', () => {
       const annotation = createMockAnnotation();
-      renderUnderTheme(<JsonLdView annotation={annotation} onBack={vi.fn()} />);
+      render(<JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />);
 
       const copyButton = screen.getByTitle('Copy to clipboard');
       expect(copyButton).toHaveClass('semiont-jsonld-view__copy-button');
@@ -332,8 +289,8 @@ describe('JsonLdView', () => {
     it('should remove keydown listener on unmount', () => {
       const onBack = vi.fn();
       const annotation = createMockAnnotation();
-      const { unmount } = renderUnderTheme(
-        <JsonLdView annotation={annotation} onBack={onBack} />
+      const { unmount } = render(
+        <JsonLdView annotation={annotation} onBack={onBack} showLineNumbers={false} />
       );
 
       unmount();
@@ -344,8 +301,8 @@ describe('JsonLdView', () => {
 
     it('should unmount without errors', () => {
       const annotation = createMockAnnotation();
-      const { unmount } = renderUnderTheme(
-        <JsonLdView annotation={annotation} onBack={vi.fn()} />
+      const { unmount } = render(
+        <JsonLdView annotation={annotation} onBack={vi.fn()} showLineNumbers={false} />
       );
 
       expect(() => unmount()).not.toThrow();

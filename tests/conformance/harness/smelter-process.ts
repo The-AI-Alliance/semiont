@@ -40,6 +40,8 @@ export interface SmelterSettings {
   chunking?: { chunkSize: number; overlap: number };
   /** The directory of the anchored-text store. */
   anchoredTextDir?: string;
+  /** How many PDFs it works on at once. */
+  pdfsAtOnce?: number;
 }
 
 export interface SmelterEnvironment {
@@ -130,6 +132,7 @@ function document(settings: SmelterSettings): string {
       vectors: stated({ type: settings.vectors.type, host: settings.vectors.host, port: settings.vectors.port }),
       chunking: settings.chunking,
       anchoredTextDir: settings.anchoredTextDir,
+      pdfsAtOnce: settings.pdfsAtOnce,
       port: SMELTER_HEALTH_PORT,
       logLevel: 'info',
       logFormat: 'simple',

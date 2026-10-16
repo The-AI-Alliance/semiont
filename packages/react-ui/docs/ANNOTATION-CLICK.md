@@ -467,6 +467,7 @@ function ResourceViewerPageExcerpt() {
   return (
     <div className="semiont-document-viewer">
       <ResourceViewer
+        locale="en"
         resource={{ ...resource, content }}
         annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
         session={session}

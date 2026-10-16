@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom';
 import { annotationId, resourceId, type Annotation } from '@semiont/core';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import { BrowseView } from '../BrowseView';
 
 /** A heading, a blank line and a paragraph with bold words. 49 code points; its "words" are at 42 to 47, and at 44 to 49 in the string. */
@@ -40,6 +40,7 @@ function mount(content: string, mimeType: string, highlights: Annotation[]): HTM
   const { session } = createTestSemiontWrapper();
   return renderInEnglish(
     <BrowseView
+      translationManager={englishTranslationManager}
       content={content}
       mimeType={mimeType}
       resourceUri={RESOURCE}

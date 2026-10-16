@@ -18,6 +18,8 @@ const REQUEST = 'browse:resource-requested';
 const BROADCAST = 'beckon:focus';
 /** A channel the registry says writes. */
 const WRITE = 'frame:add-entity-type';
+/** Unvalidated, so its payload can be any size. */
+const UNVALIDATED = 'mark:added';
 
 const pendingMax = () =>
   (spec().schema('BusSubscribeRequest') as { properties: { pendingReplies: { maxItems: number } } }).properties.pendingReplies.maxItems;
@@ -32,6 +34,23 @@ eachPlane('emitting', (world, plane) => {
     if (plane === 'nats') expect(body).toEqual({});
     else expect(typeof body.subscribers).toBe('number');
   });
+
+  it('an emit of exactly maxBodyBytes is taken and reaches its subscriber whole, on either plane', async () => {
+    // A broker that takes less than the gateway does refuses the publish, and the emitter is told the plane is down.
+    const limit = spec().limits('post', '/bus/emit')['maxBodyBytes']!;
+    const reader = await world().subscribe(await world().person('reader'), { clientId: randomUUID(), global: [UNVALIDATED] });
+    const marker = randomUUID();
+    const unfilled = JSON.stringify({ channel: UNVALIDATED, payload: { marker, filler: '' } }).length;
+    const filler = 'x'.repeat(limit - unfilled);
+    const body = { channel: UNVALIDATED, payload: { marker, filler } };
+    expect(JSON.stringify(body).length).toBe(limit);
+
+    const emitter = await world().agent('conformance', 'largest-emit');
+    const reply = await world().emit(emitter.token, body);
+    expect(reply.status, reply.text.slice(0, 200)).toBe(202);
+    const frame = await reader.frame(UNVALIDATED, (f) => f.payload['marker'] === marker, 20_000);
+    expect(frame.payload['filler'] === filler, 'the filler arrived whole').toBe(true);
+  }, 60_000);
 
   it('the gateway stamps the verified emitter as _userId and its token\'s roles as _roles, whoever issued the token, over whatever the caller wrote', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });

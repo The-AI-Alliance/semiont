@@ -124,7 +124,7 @@ function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFo
     >
       <h3 style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>{title ?? t('connectTitle')}</h3>
       <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input">
+        <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input" aria-label={t('protocol')}>
           <option value="http">HTTP</option>
           <option value="https">HTTPS</option>
         </select>
@@ -138,8 +138,8 @@ function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFo
           <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting || !isValidHostname(host)}>
             {isSubmitting ? t('connecting') : t('connect')}
           </button>
-          <button type="button" className="semiont-button" onClick={onCancel}>
-            <XMarkIcon style={{ width: '1rem', height: '1rem' }} />
+          <button type="button" className="semiont-button" onClick={onCancel} aria-label={t('cancel')}>
+            <XMarkIcon style={{ width: '1rem', height: '1rem' }} aria-hidden="true" />
           </button>
         </div>
       </form>

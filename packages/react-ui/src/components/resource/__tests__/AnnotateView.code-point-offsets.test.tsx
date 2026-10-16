@@ -18,7 +18,7 @@ import { fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { annotationId, resourceId, type Annotation } from '@semiont/core';
 import type { AnnotationUIState } from '../../../types/annotation-props';
-import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 import { AnnotateView } from '../AnnotateView';
 
 /** One line. 199 code points and 204 UTF-16 code units: five characters are outside the basic plane. */
@@ -47,6 +47,7 @@ function mount(content: string, highlights: Annotation[] = [], showToolbar = fal
   const request = vi.spyOn(client.mark, 'request');
   const view = renderInEnglish(
     <AnnotateView
+      translationManager={englishTranslationManager}
       content={content}
       mimeType="text/plain"
       resourceUri={RESOURCE}
