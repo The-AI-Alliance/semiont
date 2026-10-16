@@ -94,7 +94,7 @@ options:
 		}
 	}
 
-	if !fillIDs(u, positional, &resourceID, &annotationID, &target) {
+	if !fillIDs(u, bindIDs, positional, &resourceID, &annotationID, &target) {
 		return 1
 	}
 	if resourceID == "" || annotationID == "" || target == "" {

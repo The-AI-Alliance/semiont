@@ -155,7 +155,7 @@ options:
 			positional = append(positional, a)
 		}
 	}
-	if !fillIDs(u, positional, &resourceID) {
+	if !fillIDs(u, browseIDs, positional, &resourceID) {
 		return 1
 	}
 	// --annotation and --annotations are one keystroke apart and mean opposite
@@ -504,8 +504,8 @@ func idValue(u *launcher.UI, name string, val func() (string, bool), place *stri
 }
 
 // fillIDs: the bare ids fill, in order, the places no option filled. A bare
-// word with no place left is refused.
-func fillIDs(u *launcher.UI, bare []string, places ...*string) bool {
+// word with no place left is refused, showing form, the verb's ids in order.
+func fillIDs(u *launcher.UI, form string, bare []string, places ...*string) bool {
 	for _, place := range places {
 		if *place == "" && len(bare) > 0 {
 			*place, bare = bare[0], bare[1:]
@@ -513,6 +513,7 @@ func fillIDs(u *launcher.UI, bare []string, places ...*string) bool {
 	}
 	if len(bare) > 0 {
 		u.Fail("Unexpected argument: %s", bare[0])
+		fmt.Fprintf(os.Stderr, "  It has no place: every id is already given.\n    %s\n", form)
 		return false
 	}
 	return true

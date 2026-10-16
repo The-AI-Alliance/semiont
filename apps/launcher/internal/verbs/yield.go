@@ -143,7 +143,7 @@ options:
 		}
 	}
 	if delegate {
-		if !fillIDs(u, positional, &resourceID, &annotationID) {
+		if !fillIDs(u, yieldIDs, positional, &resourceID, &annotationID) {
 			return 1
 		}
 		if resourceID == "" {

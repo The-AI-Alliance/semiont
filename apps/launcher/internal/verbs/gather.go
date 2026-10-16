@@ -146,7 +146,7 @@ options:
 			positional = append(positional, a)
 		}
 	}
-	if !fillIDs(u, positional, &resourceID, &annotationID) {
+	if !fillIDs(u, gatherIDs, positional, &resourceID, &annotationID) {
 		return 1
 	}
 	if resourceID == "" {

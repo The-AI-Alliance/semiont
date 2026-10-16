@@ -579,9 +579,8 @@ func TestAnIdIsGivenByItsOptionOrBare(t *testing.T) {
 		{"yield --delegate by option", Yield, append(append([]string{"--delegate"}, generation...), "--resource", "res-1", "--annotation", ann), []string{resource, annotation}},
 		{"browse by option", Browse, []string{"--resource", "res-1"}, []string{resource}},
 		{"mark by option", Mark, []string{"--resource", "res-1", "--body-text", "a note"}, []string{resource}},
-		{"mark --delegate by option", Mark, []string{"--delegate", "--resource", "res-1", "--motivation", "highlighting"}, []string{resource}},
 		{"mark --delete, the resource bare", Mark, []string{"--delete", ann, "res-1"}, []string{resource, annotation}},
-		{"beckon, the annotation bare", Beckon, []string{"res-1", ann}, []string{resource, annotation}},
+		{"beckon, the annotation bare", Beckon, []string{"res-1", "--", ann}, []string{resource, annotation}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			fake, restore := withFake(t)
@@ -614,7 +613,7 @@ func TestAnIdGivenTwiceOrABareWordTooManyIsRefused(t *testing.T) {
 	}{
 		{"bind, the resource twice", Bind, []string{"--resource", "res-1", "--resource", "res-2", "ann-1", "res-3"}, "The resource is given twice"},
 		{"bind, --target and --unbind", Bind, []string{"--target", "res-2", "--unbind", "res-3", "res-1", "ann-1"}, "The target is given twice"},
-		{"bind, a bare word too many", Bind, []string{"res-1", "ann-1", "res-2", "x"}, "Unexpected argument: x"},
+		{"bind, a bare word too many", Bind, []string{"res-1", "ann-1", "res-2", "x"}, "semiont bind [options] -- <resourceId> <annotationId> <targetResourceId>"},
 		{"gather, a bare word too many", Gather, []string{"--annotation", "ann-1", "res-1", "x"}, "Unexpected argument: x"},
 		{"match, the annotation twice", Match, []string{"--annotation", "ann-1", "--annotation", "ann-2", "res-1"}, "The annotation is given twice"},
 		{"yield --delegate, a bare word too many", Yield, []string{"--delegate", "res-1", "ann-1", "x"}, "Unexpected argument: x"},

@@ -125,7 +125,7 @@ options:
 			return 1
 		}
 	}
-	if !fillIDs(u, positional, &resourceID, &annotationID) {
+	if !fillIDs(u, matchIDs, positional, &resourceID, &annotationID) {
 		return 1
 	}
 	// The two forms ask different questions of different operations, so an

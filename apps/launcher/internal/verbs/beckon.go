@@ -122,7 +122,7 @@ options:
 			return 1
 		}
 	}
-	if !fillIDs(u, positional, &resource, &annotation) {
+	if !fillIDs(u, beckonIDs, positional, &resource, &annotation) {
 		return 1
 	}
 	if resource == "" {

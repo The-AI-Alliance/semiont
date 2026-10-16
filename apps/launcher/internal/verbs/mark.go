@@ -261,7 +261,7 @@ options:
 			return 1
 		}
 	}
-	if !fillIDs(u, positional, &resourceID) {
+	if !fillIDs(u, markIDs, positional, &resourceID) {
 		return 1
 	}
 
