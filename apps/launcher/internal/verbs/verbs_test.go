@@ -132,7 +132,7 @@ func TestMatchRefusalsInProcess(t *testing.T) {
 		want []string
 	}{
 		{"neither form", nil, []string{"--search <text>", "<resourceId> <annotationId>"}},
-		{"half an annotation", []string{"res-1"}, []string{"--search <text>", "<resourceId> <annotationId>", "got 1"}},
+		{"half an annotation", []string{"res-1"}, []string{"--search <text>", "<resourceId> <annotationId>", "--annotation"}},
 		{"both forms", []string{"res-1", "ann-1", "--search", "clause"}, []string{"--search <text>", "<resourceId> <annotationId>", "Pick one"}},
 		{"search with one positional", []string{"--search", "clause", "res-1"}, []string{"Pick one"}},
 		{"empty text", []string{"--search", ""}, []string{"--search wants the text"}},
@@ -360,6 +360,8 @@ func TestBeckonRefusalsInProcess(t *testing.T) {
 	}{
 		{"no resource", nil, []string{"Usage: semiont beckon"}},
 		{"sparkle without annotation", []string{"--resource", "res-42", "--sparkle"}, []string{"--sparkle", "--annotation"}},
+		{"a bare word too many", []string{"res-1", "ann-1", "x"}, []string{"Unexpected argument: x"}},
+		{"the resource given twice", []string{"--resource", "res-1", "--resource", "res-2"}, []string{"The resource is given twice"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			fake, restore := withFake(t)
@@ -439,4 +441,198 @@ func TestGatherAnnotationUsesTheStreamingOperationInProcess(t *testing.T) {
 	}
 	harness.MustContainAll(t, "request payload", bustest.JSON(fake.Requests[0].Payload),
 		`"annotationId":"ann-7"`, `"resourceId":"res-1"`)
+}
+
+// ── ids that begin with "-" ─────────────────────────────────────────────
+
+// An id may begin with "-", and after "--" every word is an id, a flag's name
+// included.
+// Each verb that takes ids sends one given after "--" as it was given.
+func TestAnIdAfterDoubleDashIsSentAsGiven(t *testing.T) {
+	var generation []string
+	for _, param := range readSpecSchema(t, "GenerationJobRequest.json").Required {
+		generation = append(generation, yieldJobFlags.flagOf(param), "given")
+	}
+	for _, id := range []string{"-BA3nvXTk3ybl1Qmp_3zZ", "--U7e91g4-lXp-zRMg9qr", "--json"} {
+		annotation, resource := `"annotationId":"`+id+`"`, `"resourceId":"`+id+`"`
+		for _, c := range []struct {
+			name string
+			run  func([]string) int
+			args []string
+			sent string
+		}{
+			{"bind", Bind, []string{"--", "res-1", id, "res-2"}, annotation},
+			{"bind --unbind", Bind, []string{"--unbind", "res-2", "--", "res-1", id}, annotation},
+			{"gather", Gather, []string{"--", "res-1", id}, annotation},
+			{"match", Match, []string{"--", "res-1", id}, annotation},
+			{"yield --delegate", Yield, append(append([]string{"--delegate"}, generation...), "--", "res-1", id), annotation},
+			{"browse", Browse, []string{"--", id}, resource},
+			{"mark", Mark, []string{"--body-text", "a note", "--", id}, resource},
+			{"beckon", Beckon, []string{"--annotation", "ann-1", "--", id}, resource},
+		} {
+			t.Run(c.name+" "+id, func(t *testing.T) {
+				fake, restore := withFake(t)
+				defer restore()
+				// Only the first thing sent is this test's: no reply is
+				// scripted, and what a verb makes of one is its own tests'.
+				harness.CaptureOutput(t, func() { c.run(c.args) })
+				var sent string
+				switch {
+				case len(fake.Requests) > 0:
+					sent = bustest.JSON(fake.Requests[0].Payload)
+				case len(fake.Emits) > 0:
+					sent = bustest.JSON(fake.Emits[0].Payload)
+				default:
+					t.Fatalf("%v sent nothing", c.args)
+				}
+				harness.MustContainAll(t, "what was sent", sent, c.sent)
+			})
+		}
+	}
+}
+
+// Before "--", a word that begins with "-" and is none of a verb's options is
+// refused, a mistyped flag and a bare id alike, and the refusal shows the
+// verb's form for an id that begins with "-".
+func TestAWordThatIsNoOptionIsRefusedShowingDoubleDash(t *testing.T) {
+	for _, word := range []string{"--jsno", "-BA3nvXTk3ybl1Qmp_3zZ"} {
+		for _, c := range []struct {
+			name string
+			run  func([]string) int
+			args []string
+			form string
+		}{
+			{"bind", Bind, []string{"res-1", word, "res-2"}, "semiont bind [options] -- <resourceId> <annotationId> <targetResourceId>"},
+			{"gather", Gather, []string{"res-1", word}, "semiont gather [options] -- <resourceId> [<annotationId>]"},
+			{"match", Match, []string{"res-1", word}, "semiont match [options] -- <resourceId> <annotationId>"},
+			{"yield --delegate", Yield, []string{"--delegate", "res-1", word}, "semiont yield --delegate [options] -- <resourceId> [<annotationId>]"},
+			{"browse", Browse, []string{word}, "semiont browse [options] -- <resourceId>"},
+			{"mark", Mark, []string{word}, "semiont mark [options] -- <resourceId>"},
+			{"beckon", Beckon, []string{word}, "semiont beckon [options] -- <resourceId> [<annotationId>]"},
+		} {
+			t.Run(c.name+" "+word, func(t *testing.T) {
+				fake, restore := withFake(t)
+				defer restore()
+				out, errOut := harness.CaptureOutput(t, func() {
+					if code := c.run(c.args); code == 0 {
+						t.Fatal("must refuse")
+					}
+				})
+				harness.MustContainAll(t, "refusal", out+errOut,
+					"Unknown argument: "+word, "Every word after -- is an id", c.form)
+				if len(fake.Requests)+len(fake.Emits) != 0 {
+					t.Errorf("a refused argument still reached the wire: %v %v", fake.Ops(), fake.Emits)
+				}
+			})
+		}
+	}
+}
+
+// Each verb that takes ids shows, in its help, that an id is given by its
+// option or bare, and the form an id that begins with "-" is given in.
+func TestEachVerbsHelpShowsHowIdsAreGiven(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		run  func([]string) int
+		args []string
+	}{
+		{"bind", Bind, []string{"--help"}},
+		{"gather", Gather, []string{"--help"}},
+		{"match", Match, []string{"--help"}},
+		{"yield --delegate", Yield, []string{"--delegate", "--help"}},
+		{"browse", Browse, []string{"--help"}},
+		{"mark", Mark, []string{"--help"}},
+		{"mark --delegate", Mark, []string{"--delegate", "--help"}},
+		{"beckon", Beckon, []string{"--help"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out := harness.CaptureStdout(t, func() { c.run(c.args) })
+			harness.MustContainAll(t, "help", out,
+				"--resource <id>", "Bare ids fill, in order", "Every word after -- is an id", " -- <resourceId>")
+		})
+	}
+}
+
+// Each id a verb takes may be given by its option or bare, the same way in
+// every verb that takes it, and the bare ids fill, in order, the places no
+// option filled.
+func TestAnIdIsGivenByItsOptionOrBare(t *testing.T) {
+	var generation []string
+	for _, param := range readSpecSchema(t, "GenerationJobRequest.json").Required {
+		generation = append(generation, yieldJobFlags.flagOf(param), "given")
+	}
+	ann := "-BA3nvXTk3ybl1Qmp_3zZ"
+	resource, annotation := `"resourceId":"res-1"`, `"annotationId":"`+ann+`"`
+	for _, c := range []struct {
+		name string
+		run  func([]string) int
+		args []string
+		sent []string
+	}{
+		{"bind by option", Bind, []string{"--resource", "res-1", "--annotation", ann, "--target", "res-2"}, []string{resource, annotation, `"source":"res-2"`, `"op":"add"`}},
+		{"bind, options and bare", Bind, []string{"--annotation", ann, "res-1", "res-2"}, []string{resource, annotation, `"source":"res-2"`}},
+		{"bind --unbind, options and bare", Bind, []string{"--unbind", "res-2", "--annotation", ann, "res-1"}, []string{resource, annotation, `"source":"res-2"`, `"op":"remove"`}},
+		{"gather by option", Gather, []string{"--resource", "res-1", "--annotation", ann}, []string{resource, annotation}},
+		{"gather, options and bare", Gather, []string{"--annotation", ann, "res-1"}, []string{resource, annotation}},
+		{"match by option", Match, []string{"--resource", "res-1", "--annotation", ann}, []string{resource, annotation}},
+		{"match, options and bare", Match, []string{"--annotation", ann, "res-1"}, []string{resource, annotation}},
+		{"yield --delegate by option", Yield, append(append([]string{"--delegate"}, generation...), "--resource", "res-1", "--annotation", ann), []string{resource, annotation}},
+		{"browse by option", Browse, []string{"--resource", "res-1"}, []string{resource}},
+		{"mark by option", Mark, []string{"--resource", "res-1", "--body-text", "a note"}, []string{resource}},
+		{"mark --delegate by option", Mark, []string{"--delegate", "--resource", "res-1", "--motivation", "highlighting"}, []string{resource}},
+		{"mark --delete, the resource bare", Mark, []string{"--delete", ann, "res-1"}, []string{resource, annotation}},
+		{"beckon, the annotation bare", Beckon, []string{"res-1", ann}, []string{resource, annotation}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fake, restore := withFake(t)
+			defer restore()
+			// Only the first thing sent is this test's: no reply is
+			// scripted, and what a verb makes of one is its own tests'.
+			harness.CaptureOutput(t, func() { c.run(c.args) })
+			var sent string
+			switch {
+			case len(fake.Requests) > 0:
+				sent = bustest.JSON(fake.Requests[0].Payload)
+			case len(fake.Emits) > 0:
+				sent = bustest.JSON(fake.Emits[0].Payload)
+			default:
+				t.Fatalf("%v sent nothing", c.args)
+			}
+			harness.MustContainAll(t, "what was sent", sent, c.sent...)
+		})
+	}
+}
+
+// An id given twice, by any two of its options, is refused, and so
+// is a bare word with no place left; neither reaches the wire.
+func TestAnIdGivenTwiceOrABareWordTooManyIsRefused(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		run  func([]string) int
+		args []string
+		want string
+	}{
+		{"bind, the resource twice", Bind, []string{"--resource", "res-1", "--resource", "res-2", "ann-1", "res-3"}, "The resource is given twice"},
+		{"bind, --target and --unbind", Bind, []string{"--target", "res-2", "--unbind", "res-3", "res-1", "ann-1"}, "The target is given twice"},
+		{"bind, a bare word too many", Bind, []string{"res-1", "ann-1", "res-2", "x"}, "Unexpected argument: x"},
+		{"gather, a bare word too many", Gather, []string{"--annotation", "ann-1", "res-1", "x"}, "Unexpected argument: x"},
+		{"match, the annotation twice", Match, []string{"--annotation", "ann-1", "--annotation", "ann-2", "res-1"}, "The annotation is given twice"},
+		{"yield --delegate, a bare word too many", Yield, []string{"--delegate", "res-1", "ann-1", "x"}, "Unexpected argument: x"},
+		{"browse, a bare word too many", Browse, []string{"--resource", "res-1", "x"}, "Unexpected argument: x"},
+		{"mark, the resource twice", Mark, []string{"--resource", "res-1", "--resource", "res-2"}, "The resource is given twice"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fake, restore := withFake(t)
+			defer restore()
+			out, errOut := harness.CaptureOutput(t, func() {
+				if code := c.run(c.args); code == 0 {
+					t.Fatal("must refuse")
+				}
+			})
+			harness.MustContainAll(t, "refusal", out+errOut, c.want)
+			if len(fake.Requests)+len(fake.Emits) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", fake.Ops(), fake.Emits)
+			}
+		})
+	}
 }

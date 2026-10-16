@@ -15,17 +15,28 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
+const bindIDs = "semiont bind [options] -- <resourceId> <annotationId> <targetResourceId>"
+
 const bindUsage = `Usage: semiont bind <resourceId> <annotationId> <targetResourceId>
        semiont bind <resourceId> <annotationId> --unbind <targetResourceId>
+       semiont bind --resource <id> --annotation <id> --target <id>
 
 Point a linking annotation at the resource it refers to.
 
 Options:
+  --resource <id>      The resource the annotation is on (bare: first)
+  --annotation <id>    The linking annotation (bare: second)
+  --target <id>        The resource it refers to (bare: third)
   --unbind <id>        Remove that target instead of adding it
   --json               Raw JSON reply
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + bindIDs + `
 
 Requires a session:  semiont login
 `
@@ -33,9 +44,10 @@ Requires a session:  semiont login
 func Bind(args []string) int {
 	u := launcher.NewUI(false)
 	var positional []string
-	var unbind, repo string
-	asJSON, wantLocal := false, false
+	var resourceID, annotationID, target, repo string
+	unbind, asJSON, wantLocal := false, false, false
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		val := func() (string, bool) {
@@ -48,8 +60,14 @@ func Bind(args []string) int {
 		}
 		var ok bool
 		switch a {
+		case "--resource":
+			ok = idValue(u, "resource", val, &resourceID)
+		case "--annotation":
+			ok = idValue(u, "annotation", val, &annotationID)
+		case "--target":
+			ok = idValue(u, "target", val, &target)
 		case "--unbind":
-			unbind, ok = val()
+			unbind, ok = true, idValue(u, "target", val, &target)
 		case "--repo":
 			repo, ok = val()
 		case "--runtime":
@@ -57,13 +75,16 @@ func Bind(args []string) int {
 			wantLocal = true
 		case "--json":
 			asJSON, ok = true, true
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			fmt.Print(bindUsage)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, bindIDs)
 			}
 			positional = append(positional, a)
 			ok = true
@@ -73,20 +94,15 @@ func Bind(args []string) int {
 		}
 	}
 
-	want := 3
-	if unbind != "" {
-		want = 2
+	if !fillIDs(u, positional, &resourceID, &annotationID, &target) {
+		return 1
 	}
-	if len(positional) != want {
+	if resourceID == "" || annotationID == "" || target == "" {
 		fmt.Print(bindUsage)
 		return 1
 	}
-	resourceID, annotationID := positional[0], positional[1]
-	target := unbind
 	op := "add"
-	if unbind == "" {
-		target = positional[2]
-	} else {
+	if unbind {
 		op = "remove"
 	}
 
@@ -122,7 +138,7 @@ func Bind(args []string) int {
 		fmt.Println(string(reply))
 		return 0
 	}
-	if unbind != "" {
+	if unbind {
 		u.Ok("Unbound %s from %s", annotationID, target)
 	} else {
 		u.Ok("Bound %s → %s", annotationID, target)

@@ -593,6 +593,48 @@ bind to: it gathers the annotation's context, then runs the scored search
 (`match:search-requested`). The two forms exclude each other, and `match`
 with neither is refused.
 
+### Giving ids
+
+Each verb that takes ids takes each one by its option or bare, the same way in
+every verb:
+
+| Verb | Bare, in this order | By option |
+|---|---|---|
+| `bind` | `<resourceId> <annotationId> <targetResourceId>` | `--resource`, `--annotation`, `--target`; `--unbind <id>` gives the target to remove |
+| `gather` | `<resourceId> [<annotationId>]` | `--resource`, `--annotation` |
+| `match` | `<resourceId> <annotationId>` | `--resource`, `--annotation` |
+| `yield --delegate` | `<resourceId> [<annotationId>]` | `--resource`, `--annotation` |
+| `browse` | `[<resourceId>]` | `--resource` |
+| `mark` | `<resourceId>` | `--resource`; `--delete <id>` gives the annotation to delete |
+| `beckon` | `<resourceId> [<annotationId>]` | `--resource`, `--annotation` |
+
+The bare ids fill, in order, the places no option filled, so these are one
+command:
+
+```bash
+semiont bind <resourceId> <annotationId> <targetResourceId>
+```
+
+```bash
+semiont bind --annotation <annotationId> <resourceId> <targetResourceId>
+```
+
+An id given twice, by any two of its options, is refused, and so is a bare word
+with no place left.
+
+An id is 1 to 128 letters, digits, `_` and `-`, so it may begin with `-`. An
+option's value is read as given, whatever it begins with, but a bare word that
+begins with `-` reads as an option. So a bare id that begins with `-` goes
+after `--`, which ends the options: every word after it is an id, a flag's name
+included.
+
+```bash
+semiont bind --json -- <resourceId> -BA3nvXTk3ybl1Qmp_3zZ <targetResourceId>
+```
+
+Before `--`, a word that begins with `-` and is none of the verb's options is
+refused, and the refusal shows the verb's form with `--`.
+
 ### Driving a participant's Browser
 
 `semiont browse <resourceId> --browser` opens that resource on the

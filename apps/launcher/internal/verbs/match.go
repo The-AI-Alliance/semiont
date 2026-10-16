@@ -25,6 +25,8 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
+const matchIDs = "semiont match [options] -- <resourceId> <annotationId>"
+
 const matchUsage = `Usage: semiont match --search <text> [options]
        semiont match <resourceId> <annotationId> [options]
 
@@ -37,6 +39,8 @@ Search the knowledge base. Give one of the two forms:
                                 a scored search over the KB
 
 Options:
+  --resource <id>       The resource the annotation is on (bare: first)
+  --annotation <id>     The annotation to find bind targets for (bare: second)
   --entity-type <name>  With --search: only resources of this entity type
   --no-semantic         With an annotation: skip semantic scoring (lexical only)
   --limit <n>           Maximum results (default 20 with --search, 10 with
@@ -46,16 +50,22 @@ Options:
   --runtime <rt>        Target the local stack explicitly
   --help                Show this help
 
+` + idsOrder + `
+
+` + idsNote + `
+  ` + matchIDs + `
+
 Requires a session:  semiont login
 `
 
 func Match(args []string) int {
 	u := launcher.NewUI(false)
 	var positional []string
-	var search, entityType, repo string
+	var search, entityType, resourceID, annotationID, repo string
 	limit := 0
 	searching, noSemantic, asJSON, wantLocal := false, false, false, false
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		val := func() (string, bool) {
@@ -79,6 +89,10 @@ func Match(args []string) int {
 				}
 				limit = n
 			}
+		case "--resource":
+			ok = idValue(u, "resource", val, &resourceID)
+		case "--annotation":
+			ok = idValue(u, "annotation", val, &annotationID)
 		case "--search":
 			search, ok = val()
 			searching = true
@@ -93,13 +107,16 @@ func Match(args []string) int {
 			noSemantic, ok = true, true
 		case "--json":
 			asJSON, ok = true, true
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			fmt.Print(matchUsage)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, matchIDs)
 			}
 			positional = append(positional, a)
 			ok = true
@@ -108,10 +125,13 @@ func Match(args []string) int {
 			return 1
 		}
 	}
+	if !fillIDs(u, positional, &resourceID, &annotationID) {
+		return 1
+	}
 	// The two forms ask different questions of different operations, so an
 	// invocation that states both, or neither, has not said which.
 	switch {
-	case searching && len(positional) > 0:
+	case searching && (resourceID != "" || annotationID != ""):
 		u.Fail("--search <text> searches resources by text; <resourceId> <annotationId> searches for what an annotation could bind to. Pick one.")
 		return 1
 	case searching && search == "":
@@ -123,8 +143,8 @@ func Match(args []string) int {
 	case !searching && entityType != "":
 		u.Fail("--entity-type only applies with --search.")
 		return 1
-	case !searching && len(positional) != 2:
-		u.Fail("match needs --search <text>, or <resourceId> <annotationId> (got %d positional argument(s)).", len(positional))
+	case !searching && (resourceID == "" || annotationID == ""):
+		u.Fail("match needs --search <text>, or <resourceId> <annotationId> (--resource and --annotation, or bare).")
 		fmt.Fprintln(os.Stderr, "  semiont match --help")
 		return 1
 	}
@@ -160,7 +180,6 @@ func Match(args []string) int {
 		return 0
 	}
 
-	resourceID, annotationID := positional[0], positional[1]
 	if limit == 0 {
 		limit = 10
 	}

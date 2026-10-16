@@ -21,6 +21,8 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
+const browseIDs = "semiont browse [options] -- <resourceId>"
+
 const browseUsage = `Usage: semiont browse [<resourceId>] [options]
 
 Read the knowledge base. With no resourceId, lists resources; with one,
@@ -40,6 +42,7 @@ command says so and exits non-zero, so a tour script can stop rather than
 narrate to an empty room.
 
 Options:
+  --resource <id>       The resource to show (bare)
   --browser             Open it in the Browser instead of printing here
   --annotation <id>     With --browser: open ONE annotation (not --annotations)
   --launch              With --browser: start the Browser if none is running
@@ -54,16 +57,23 @@ Options:
   --runtime <rt>        Target the local stack explicitly
   --help                Show this help
 
+` + idsOrder + `
+
+` + idsNote + `
+  ` + browseIDs + `
+
 Requires a session:  semiont login
 `
 
 func Browse(args []string) int {
 	u := launcher.NewUI(false)
 	var resourceID, entityType, repo, browserURL, annotation string
+	var positional []string
 	limit := 20
 	annotations, entityTypes, tagSchemas, asJSON, wantLocal := false, false, false, false, false
 	toBrowser, launch := false, false
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		val := func() (string, bool) {
@@ -75,6 +85,10 @@ func Browse(args []string) int {
 			return args[i], true
 		}
 		switch a {
+		case "--resource":
+			if !idValue(u, "resource", val, &resourceID) {
+				return 1
+			}
 		case "--entity-type":
 			v, ok := val()
 			if !ok {
@@ -127,20 +141,22 @@ func Browse(args []string) int {
 				return 1
 			}
 			browserURL = v
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			fmt.Print(browseUsage)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, browseIDs)
 			}
-			if resourceID != "" {
-				u.Fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
-				return 1
-			}
-			resourceID = a
+			positional = append(positional, a)
 		}
+	}
+	if !fillIDs(u, positional, &resourceID) {
+		return 1
 	}
 	// --annotation and --annotations are one keystroke apart and mean opposite
 	// things: one DRIVES a remote viewer to a single annotation, the other
@@ -465,4 +481,53 @@ func printResources(u *launcher.UI, resources []semiont.ResourceDescriptor, tota
 func rawFallback(payload json.RawMessage) int {
 	fmt.Println(string(payload))
 	return 0
+}
+
+// idsOrder: what each verb that takes ids says of how they are given, above
+// idsNote in its help.
+const idsOrder = "Each id may be given by its option or bare. Bare ids fill, in order,\nthe places no option filled."
+
+// idValue puts the id an option gives into place: a resource, annotation or
+// target, each of which a verb also takes bare. An id given twice, by any two
+// of its options, is refused.
+func idValue(u *launcher.UI, name string, val func() (string, bool), place *string) bool {
+	v, ok := val()
+	if !ok {
+		return false
+	}
+	if *place != "" {
+		u.Fail("The %s is given twice: %q and %q.", name, *place, v)
+		return false
+	}
+	*place = v
+	return true
+}
+
+// fillIDs: the bare ids fill, in order, the places no option filled. A bare
+// word with no place left is refused.
+func fillIDs(u *launcher.UI, bare []string, places ...*string) bool {
+	for _, place := range places {
+		if *place == "" && len(bare) > 0 {
+			*place, bare = bare[0], bare[1:]
+		}
+	}
+	if len(bare) > 0 {
+		u.Fail("Unexpected argument: %s", bare[0])
+		return false
+	}
+	return true
+}
+
+// idsNote: what each verb that takes ids says of one that begins with "-",
+// above the form that takes it. The verb's help says it, and so does its
+// refusal of an unknown argument.
+const idsNote = "An id may begin with -. Every word after -- is an id, never an option:"
+
+// unknownArgument refuses a word that begins with "-" and is none of the
+// verb's options. An id may begin with "-" too, so the refusal shows where one
+// goes: after "--", in form, the verb's form for its ids.
+func unknownArgument(u *launcher.UI, a, form string) int {
+	u.Fail("Unknown argument: %s", a)
+	fmt.Fprintf(os.Stderr, "  %s\n    %s\n", idsNote, form)
+	return 1
 }

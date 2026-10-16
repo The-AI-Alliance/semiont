@@ -16,6 +16,8 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
+const gatherIDs = "semiont gather [options] -- <resourceId> [<annotationId>]"
+
 const gatherUsage = `Usage: semiont gather <resourceId> [options]
        semiont gather <resourceId> <annotationId> [options]
 
@@ -23,6 +25,8 @@ Assemble context for an LLM: the resource with its neighbourhood, or the
 context surrounding one annotation.
 
 Options:
+  --resource <id>      The resource (bare: first)
+  --annotation <id>    One annotation in it, for that annotation's context (bare: second)
   --depth <n>          Links out from the resource the graph reaches, 1 to 3 (default 2)
   --max-resources <n>  Cap on related resources (resource focus; default 10)
   --context-window <n> Text on each side of the annotation, in code points (annotation focus)
@@ -32,6 +36,11 @@ Options:
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + gatherIDs + `
 
 Requires a session:  semiont login
 `
@@ -48,12 +57,21 @@ const (
 func Gather(args []string) int {
 	u := launcher.NewUI(false)
 	var positional []string
-	var repo string
+	var resourceID, annotationID, repo string
 	depth, maxResources, contextWindow := gatherDefaultDepth, gatherDefaultMaxResources, 0
 	noContent, summary, asJSON, wantLocal := false, false, false, false
 
+options:
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		val := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.Fail("Missing value for %s", a)
+				return "", false
+			}
+			i++
+			return args[i], true
+		}
 		num := func() (int, bool) {
 			if i+1 >= len(args) {
 				u.Fail("Missing value for %s", a)
@@ -86,6 +104,14 @@ func Gather(args []string) int {
 				return 1
 			}
 			contextWindow = n
+		case "--resource":
+			if !idValue(u, "resource", val, &resourceID) {
+				return 1
+			}
+		case "--annotation":
+			if !idValue(u, "annotation", val, &annotationID) {
+				return 1
+			}
 		case "--repo":
 			if i+1 >= len(args) {
 				u.Fail("Missing value for --repo")
@@ -106,18 +132,24 @@ func Gather(args []string) int {
 			summary = true
 		case "--json":
 			asJSON = true
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
 		case "--help", "-h":
 			fmt.Print(gatherUsage)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.Fail("Unknown argument: %s", a)
-				return 1
+				return unknownArgument(u, a, gatherIDs)
 			}
 			positional = append(positional, a)
 		}
 	}
-	if len(positional) == 0 || len(positional) > 2 {
+	if !fillIDs(u, positional, &resourceID, &annotationID) {
+		return 1
+	}
+	if resourceID == "" {
 		fmt.Print(gatherUsage)
 		return 1
 	}
@@ -133,11 +165,11 @@ func Gather(args []string) int {
 	// Sending one blob to both would silently feed each the other's fields.
 	var op bus.Channel
 	var payload any
-	if len(positional) == 2 {
+	if annotationID != "" {
 		op = "gather:requested" // annotation focus
 		req := semiont.GatherAnnotationRequest{
-			ResourceId:   positional[0],
-			AnnotationId: positional[1],
+			ResourceId:   resourceID,
+			AnnotationId: annotationID,
 		}
 		if contextWindow > 0 {
 			req.Options = &semiont.GatherAnnotationOptions{ContextWindow: &contextWindow}
@@ -145,7 +177,7 @@ func Gather(args []string) int {
 		payload = req
 	} else {
 		op = "gather:resource-requested"
-		req := semiont.GatherResourceRequest{ResourceId: positional[0]}
+		req := semiont.GatherResourceRequest{ResourceId: resourceID}
 		req.Options.IncludeContent = !noContent
 		req.Options.IncludeSummary = summary
 		req.Options.Depth = depth
@@ -168,7 +200,7 @@ func Gather(args []string) int {
 	// schema never had. Routing keys are not in here: correlationId rides
 	// the envelope, which the bus client consumed before handing this over.
 	var gathered semiont.GatheredContext
-	if len(positional) == 2 {
+	if annotationID != "" {
 		var r semiont.GatherAnnotationComplete
 		if json.Unmarshal(reply, &r) != nil {
 			return rawFallback(reply)
