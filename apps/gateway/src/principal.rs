@@ -29,6 +29,18 @@ fn issuer_of(token: &str) -> Option<String> {
     claims["iss"].as_str().map(str::to_owned)
 }
 
+/// Whom a refused token is counted against, read without verifying it: its
+/// `iss`, and the claim the gateway names a holder by — `subject_claim` for a
+/// token naming the trusted issuer, `did` for any other, as
+/// `principal_from_token` tells the two apart. None when it names neither.
+pub fn holder_of(token: &str, issuer: &str, subject_claim: &str) -> Option<(String, String)> {
+    let claims: Value = jsonwebtoken::dangerous::insecure_decode_claims(token).ok()?;
+    let iss = claims["iss"].as_str()?;
+    let claim = if iss == issuer { subject_claim } else { "did" };
+    let holder = claims[claim].as_str().filter(|h| !h.is_empty())?;
+    Some((iss.to_owned(), holder.to_owned()))
+}
+
 /// The principal behind a bearer token: a token from the trusted issuer is
 /// verified against its keys; any other is one this gateway signed.
 pub async fn principal_from_token(

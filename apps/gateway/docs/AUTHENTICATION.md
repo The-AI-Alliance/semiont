@@ -94,11 +94,20 @@ further: no body, no call to the Archivist, nothing published. It is logged
 signature check against the keys held; a token the gateway signed, one HMAC
 per key of the ring.
 
-Nothing bounds how many such requests one caller sends. Every limit the
-gateway keeps is on a verified principal, a client or a stream, so it applies
-only once a request has authenticated; before that there is the connection cap
-(GatewayConfig `capacity.connections`). Protection per caller before a token is
-read is an ingress's.
+A refused request is counted against the holder its token names, read without
+verifying it: the token's `iss`, and the claim the gateway names a holder by
+(`[identity] subjectClaim` for the trusted issuer's tokens, `did` for its
+own). A request with no token, or with one that names no holder, is counted in
+one count shared by all such requests. Each holder may have
+`refusalBurst` requests refused at once and `refusalsPerSecond` after, per
+process (the bearer scheme's `x-semiont-limits`); past that, a refused request
+is answered 429 `refusal-rate` with a `Retry-After`, in place of its 401, and
+counted in `semiont.gateway.refused`. A token that verifies is never counted or
+limited, so a forged token naming someone else cannot lock them out. The
+gateway counts at most `refusalHolders` holders and drops the one it began
+counting first. A caller that varies the holder its tokens name is bounded by
+the connection cap (GatewayConfig `capacity.connections`) alone; protection
+per address is an ingress's.
 
 ## The tokens the gateway mints
 

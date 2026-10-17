@@ -293,7 +293,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 ### API
 
 - Every route requires a bearer token unless the spec declares it public (`security: []`).
-- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits). Limits per address, before a token is read, are an ingress's to apply.
+- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
 - Every JSON body is validated against its schema in `specs/`.
 
 ## Troubleshooting

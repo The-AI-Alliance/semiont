@@ -114,6 +114,7 @@ The numbers live in the spec, not here:
 | How old the issuer's key set may be | `bearerAuth` `x-semiont-limits.keySetMaxAgeSeconds` | it is fetched again before an issuer token is verified |
 | How soon the key set is fetched again, for a key id it lacks or after a fetch that failed | `bearerAuth` `x-semiont-limits.keyRefetchCooldownSeconds` | until then a token that needs the fetch is refused 401 |
 | How long one fetch of the key set may take, discovery included | `bearerAuth` `x-semiont-limits.keyFetchDeadlineSeconds` | the fetch has failed; the tokens waiting on it are refused 401 |
+| Requests one holder has had refused, per gateway process: the holder a refused token names, unverified, or one count for every request that names none | `bearerAuth` `x-semiont-limits.refusalBurst` at once, `refusalsPerSecond` after; `refusalHolders` holders counted | 429 `refusal-rate`, which a client that can renew its token takes as its 401 |
 
 A closed connection is not an error the client handles: it reopens its
 stream with each scope's position and its `pendingReplies`, and loses
@@ -129,7 +130,7 @@ has already been refused, and a client that can renew its token renews it
 and sends the request again at once
 ([TRANSPORT-CONTRACT.md § A refused credential](./TRANSPORT-CONTRACT.md#a-refused-credential)).
 
-*Held by `gateway/spec-derived.test.ts`, `gateway/emit.test.ts`, `gateway/principal-limits.test.ts`, `gateway/capacity.test.ts`, `gateway/bounds.test.ts`, `gateway/replicas.test.ts`, `sdk/wire/emit-rate-limited`, `sdk/wire/stream-rate-limited`.*
+*Held by `gateway/spec-derived.test.ts`, `gateway/emit.test.ts`, `gateway/principal-limits.test.ts`, `gateway/refusals.test.ts`, `gateway/capacity.test.ts`, `gateway/bounds.test.ts`, `gateway/replicas.test.ts`, `sdk/wire/emit-rate-limited`, `sdk/wire/stream-rate-limited`.*
 
 ## Authentication and authorization
 

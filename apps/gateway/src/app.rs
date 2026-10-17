@@ -7,6 +7,7 @@ use crate::composition::{Composition, compose};
 use crate::config::{SignalConfig, read_gateway_config};
 use crate::limits::limits;
 use crate::rates::EmitRates;
+use crate::refusals::Refusals;
 use crate::signal::SignalPlane;
 use crate::signal::in_process::InProcessPlane;
 use crate::signal::nats::NatsPlane;
@@ -35,6 +36,7 @@ pub struct App {
     pub archivist: Archivist,
     pub bus: Composition,
     pub emit_rates: EmitRates,
+    pub refusals: Refusals,
     /// The bytes queued for every stream this process holds: what `capacity.queuedBytes` bounds.
     pub queued_bytes: AtomicUsize,
 }
@@ -192,6 +194,7 @@ async fn run(
         archivist,
         bus,
         emit_rates: EmitRates::default(),
+        refusals: Refusals::default(),
         queued_bytes: AtomicUsize::new(0),
     });
     let listener = listen(port).map_err(|e| format!("cannot listen on port {port}: {e}"))?;
