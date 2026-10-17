@@ -97,9 +97,9 @@ describe('RETRY_RULES', () => {
   describe('the transport rule keys on method as well as status', () => {
     // The dimension a ReadonlySet<number> cannot express, and the reason the
     // taxonomy is not typed as one. The transport's retry gate consumes this.
-    it('retries a 401 on any method — the request was rejected, not processed', () => {
-      expect(RETRY_RULES.transport.retryable({ status: 401, method: 'POST' })).toBe(true);
-      expect(RETRY_RULES.transport.retryable({ status: 401, method: 'GET' })).toBe(true);
+    it('does not retry a 401 on any method — a refused credential is renewed before the rule is asked', () => {
+      expect(RETRY_RULES.transport.retryable({ status: 401, method: 'POST' })).toBe(false);
+      expect(RETRY_RULES.transport.retryable({ status: 401, method: 'GET' })).toBe(false);
     });
 
     it('retries a 5xx only on methods that are safe to repeat', () => {

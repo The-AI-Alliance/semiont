@@ -10,7 +10,7 @@
  * once at construction.
  */
 
-import ky, { HTTPError, NetworkError, TimeoutError, type KyInstance } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError, type AfterResponseState, type KyInstance } from 'ky';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
@@ -27,8 +27,8 @@ import {
   relayFrames,
 } from '@semiont/core';
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
-import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
-import { APIError } from './api-error';
+import { createActorStateUnit, renewedToken, type ActorStateUnit } from './actor-state-unit';
+import { APIError, refusalBody, refusesCredential } from './api-error';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -52,7 +52,11 @@ export interface HttpTransportConfig {
   timeout?: number;
   retry?: number;
   logger?: Logger;
-  /** Optional 401-recovery hook. See {@link TokenRefresher}. */
+  /**
+   * Renews a refused credential (a 401, or a 429 `refusal-rate`): asked once
+   * for a request, an emit, or an outage of the stream, which is then sent
+   * again with the token it gives. Absent, a refused credential is final.
+   */
   tokenRefresher?: TokenRefresher;
   /**
    * B17 — persistence thunks for the last seen persisted SSE id PER
@@ -135,6 +139,18 @@ function reportedAs(request: Request, error: Error): Error {
   return error;
 }
 
+/** Whether ky's refused request had its credential refused: ky has read the body by the time it asks. */
+const refusedCredential = (error: Error): boolean =>
+  error instanceof HTTPError && refusesCredential(error.response.status, error.data);
+
+/**
+ * ky's `shouldRetry` where nothing renews the token: a refused credential is
+ * final at once, and never sent again after a `Retry-After`. Everything else
+ * is left to ky's own defaults.
+ */
+const finalWhenCredentialRefused = ({ error }: { error: Error }): false | undefined =>
+  refusedCredential(error) ? false : undefined;
+
 const withoutTrailingSlash = (baseUrl: BaseUrl): BaseUrl =>
   (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
 
@@ -151,6 +167,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<Use
     ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
+      retry: { shouldRetry: finalWhenCredentialRefused },
       hooks: {
         beforeError: [
           async ({ request, error }) => {
@@ -203,24 +220,25 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.token$ = config.token$ ?? watched(new BehaviorSubject<AccessToken | null>(null));
     this.logger = logger;
 
-    // Retry policy: when a refresher is configured, a 401 earns one attempt
-    // after refreshing the token — on ANY method, since the request was
-    // rejected rather than processed. Otherwise use the plain `retry` number,
-    // which leaves ky's own defaults in place (they never retry POST).
+    // Retry policy: when a refresher is configured, one attempt more, for the
+    // statuses and methods `RETRY_RULES.transport` approves; the renewal in
+    // the `afterResponse` hook below spends the same one attempt. Otherwise
+    // the plain `retry` number, which leaves ky's own defaults in place (they
+    // never retry POST). Either way a refused credential is never retried: it
+    // is renewed, or final.
     //
-    // **`methods`/`statusCodes` are a superset PRE-FILTER, not the decision.**
-    // ky ANDs them independently, so they cannot express "the widened methods
-    // apply to 401 only" — the widening that lets a POST reach a 401 retry
-    // also admits POST/504. `shouldRetry` is the authoritative gate and
-    // rejects what the lists over-admit; the hooks suite's census test pins
-    // that the lists stay a superset of what `RETRY_RULES.transport` can
-    // approve, so the two cannot drift apart.
+    // **`statusCodes` is a superset PRE-FILTER, not the decision**, and ky's
+    // default `methods` are the idempotent ones. `shouldRetry` is the
+    // authoritative gate and rejects what the lists over-admit; the hooks
+    // suite's census test pins that `statusCodes` stays a superset of what
+    // `RETRY_RULES.transport` can approve, so the two cannot drift apart.
     const retryConfig = tokenRefresher
       ? {
           limit: 1,
-          methods: ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'],
-          statusCodes: [401, 408, 413, 429, 500, 502, 503, 504],
-          // One rule, stated in core with its reasoning: 401 on any method,
+          statusCodes: [408, 413, 429, 500, 502, 503, 504],
+          // A refused credential first: it is never asked of the rule, which
+          // would retry a 429 `refusal-rate` after its `Retry-After` with the
+          // token refused. Then one rule, stated in core with its reasoning:
           // every other status on idempotent methods only. A POST that got a
           // 502 may already have been processed, and one of them mints a
           // fresh resource id, so a repeat writes a second resource the
@@ -230,21 +248,17 @@ export class HttpTransport implements ITransport, IGatewayOperations {
           // here would bypass ky's own remaining checks, including the one
           // that retries `413` only when the response carries a retry-timing
           // header. Deferring keeps that behavior exactly as it is.
-          //
-          // This is the gate rather than `beforeRetry` because ky awaits the
-          // full backoff delay before running that hook: rejecting there
-          // means sleeping ~300ms first, every time, to reach a decision
-          // that never depended on waiting.
           shouldRetry: ({ error }: { error: Error }): false | undefined =>
-            error instanceof HTTPError &&
-            !RETRY_RULES.transport.retryable({
-              status: error.response.status,
-              method: error.request.method,
-            })
+            refusedCredential(error) ||
+            (error instanceof HTTPError &&
+              !RETRY_RULES.transport.retryable({
+                status: error.response.status,
+                method: error.request.method,
+              }))
               ? false
               : undefined,
         }
-      : retry;
+      : { limit: retry, shouldRetry: finalWhenCredentialRefused };
 
     this.http = ky.create({
       timeout,
@@ -263,45 +277,6 @@ export class HttpTransport implements ITransport, IGatewayOperations {
             }
           },
         ],
-        beforeRetry: tokenRefresher
-          ? [
-              // Whether to retry is `shouldRetry`'s decision, above. This
-              // hook runs only once a retry is already confirmed, and does
-              // the one thing it is for: put a fresh credential on the
-              // request before it goes out again.
-              async ({ request, error }) => {
-                if (!(error instanceof HTTPError) || error.response.status !== 401) {
-                  return undefined;
-                }
-
-                // A 401 earns its retry only if a fresh credential arrives.
-                // Without one, repeating the request just gets rejected
-                // again, so the caller should have the 401 at once.
-                //
-                // Stop by RETHROWING, never with `ky.stop`: `stop` resolves
-                // the caller's promise with `undefined`, after which the
-                // `.json()` shortcut dereferences nothing and the caller
-                // catches a TypeError instead of the auth failure. A
-                // rethrown original keeps ky's request-error path, so
-                // `beforeError` runs and callers see the `APIError`.
-                let newToken: string | null;
-                try {
-                  newToken = await tokenRefresher();
-                } catch {
-                  throw error;
-                }
-                if (!newToken) throw error;
-                try {
-                  request.headers.set('Authorization', `Bearer ${newToken}`);
-                } catch {
-                  // A token the runtime will not carry is no fresh credential
-                  // either, and the runtime says the token in refusing it.
-                  throw error;
-                }
-                return undefined;
-              },
-            ]
-          : [],
         afterResponse: [
           ({ request, response }) => {
             if (this.logger) {
@@ -315,6 +290,40 @@ export class HttpTransport implements ITransport, IGatewayOperations {
             }
             return response;
           },
+          ...(tokenRefresher
+            ? [
+                // A refused credential is renewed, never retried
+                // (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential):
+                // the refresher is asked once, and the request sent again at
+                // once with the token it gives. ky's forced retry is what sends
+                // it: it neither waits out a `Retry-After` nor asks
+                // `shouldRetry`. Given no token, or the one refused, the
+                // refusal goes on to `beforeError` as `unauthorized`. So does a
+                // refusal of the renewed token: the forced retry spent the one
+                // attempt `limit` allows, so nothing sends it a third time.
+                async ({ request, response, retryCount }: AfterResponseState) => {
+                  if (response.ok || retryCount > 0) return undefined;
+                  let said = '';
+                  try {
+                    said = await response.text();
+                  } catch {
+                    // status alone
+                  }
+                  if (!refusesCredential(response.status, refusalBody(said))) return undefined;
+                  const sent = request.headers.get('Authorization');
+                  const renewed = await this.renewal(sent === null ? undefined : sent.replace(/^Bearer /, ''));
+                  if (renewed === null) return undefined;
+                  try {
+                    request.headers.set('Authorization', `Bearer ${renewed}`);
+                  } catch {
+                    // A token the runtime will not carry is no renewal either,
+                    // and the runtime says the token in refusing it.
+                    return undefined;
+                  }
+                  return ky.retry({ delay: 0, code: 'credential-renewed' });
+                },
+              ]
+            : []),
         ],
         beforeError: [
           async ({ request, error }) => {
@@ -367,9 +376,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
         ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
-        // The SAME hook the ky beforeRetry path uses — the SSE connect path
-        // refreshes once before parking `unauthenticated`, and no second
-        // refresh mechanism exists.
+        // The SAME hook a refused request is renewed with — the stream asks
+        // it once per outage before parking `unauthenticated`, an emit once
+        // per emit, and no second refresh mechanism exists.
         ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
       // Refused connects surface on the transport's contract stream too —
@@ -584,6 +593,19 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    */
   getToken(): AccessToken | undefined {
     return this.token$.getValue() ?? undefined;
+  }
+
+  /**
+   * The token to send a request again with once the gateway has refused
+   * `refused`: the refresher's, asked once, when it gives another
+   * (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). None without
+   * a refresher. The `ky` hook renews through it, and so does
+   * `HttpContentTransport`'s `XMLHttpRequest` upload, which `ky` does not send.
+   */
+  async renewal(refused: string | undefined): Promise<string | null> {
+    if (!this.config.tokenRefresher) return null;
+    const renewed = await renewedToken(this.config.tokenRefresher);
+    return renewed !== null && renewed !== refused ? renewed : null;
   }
 }
 

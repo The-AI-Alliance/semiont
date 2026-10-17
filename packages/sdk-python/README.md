@@ -771,9 +771,12 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   [`specs/src/errors/codes.json`][codes]. What a server refused is also on
   `transport.failures()`.
 - **The token** is a value the transport watches: when it changes, the next
-  request carries the new one. A stream the gateway refused as unauthorized
-  asks its `refresher` for another token, once per outage, and with none
-  waits, with no request, for a different one.
+  request carries the new one. The gateway refuses a token with a `401`, or
+  with a `429` whose `code` is `refusal-rate`, and either fails as
+  `unauthorized`. A stream refused so asks its `refresher` for another token,
+  once per outage, and with none waits, with no request, for a different one.
+  A request or an emit refused so asks it once and is sent again at once with
+  the token it gives; given no other, or refused again, it fails.
 
 The protocol it keeps to is [the transport contract][transport-contract] and
 [the HTTP transport][transport-http], and the [conformance suite][conformance]

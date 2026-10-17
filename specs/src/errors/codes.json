@@ -49,7 +49,7 @@
       {
         "code": "unauthorized",
         "status": 401,
-        "docs": "Authentication is required: the token is missing or expired."
+        "docs": "Authentication is required: the token is missing, expired, or refused. A 429 whose `code` is `refusal-rate` refuses the token too, and is reported as this code with its own status."
       },
       {
         "code": "forbidden",

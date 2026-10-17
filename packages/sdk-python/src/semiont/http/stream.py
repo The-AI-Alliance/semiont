@@ -41,7 +41,7 @@ from semiont._reading import Reading
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
-from semiont.http.exchange import TokenRefresher
+from semiont.http.exchange import TokenRefresher, refusal
 from semiont.http.sse import SseParser
 from semiont.identifiers import ResourceId
 from semiont.retry import RetryPolicy, equal_jitter, retry_after_ms
@@ -564,10 +564,10 @@ class Stream:
         self._failures.deliver(error)
         superseded = conn in self._superseded
         self._superseded.discard(conn)
-        if error.status == 401 and self._running and not superseded:
-            # Sending this token again gets the same answer, so it is not sent
-            # again: the client waits for a different one, and asks its
-            # refresher for one once per outage.
+        if error.code == "unauthorized" and self._running and not superseded:
+            # Its credential was refused. Sending this token again gets the
+            # same answer, so it is not sent again: the client waits for a
+            # different one, and asks its refresher for one once per outage.
             self._refused_token = connection.token
             self._failed_connects = 0
             if self._live is None:
@@ -692,8 +692,10 @@ class Stream:
 async def _refusal(response: httpx.Response) -> TransportError:
     """The gateway's refusal of a connect: its status, in its own words when its body states them."""
     status = response.status_code
+    body: bytes | None = None
     try:
-        said = f": {ErrorResponse.model_validate_json(await response.aread()).error}"
+        body = await response.aread()
+        said = f": {ErrorResponse.model_validate_json(body).error}"
     except (ValidationError, httpx.HTTPError):
         said = ""
-    return TransportError.of_status(f"SSE connect failed: {status}{said}", status, retry_after_ms(response.headers.get("retry-after")))
+    return refusal(f"SSE connect failed: {status}{said}", status, body, retry_after_ms(response.headers.get("retry-after")))

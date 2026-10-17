@@ -1,9 +1,11 @@
-"""What a transport does when the gateway refuses its token (`401`), with a refresher and without one.
+"""What a transport does when the gateway refuses its token, with a refresher and without one.
 
+A token is refused by a `401`, or by a `429` whose body names `refusal-rate`.
 The stream asks its refresher once per outage, and opens again at once with
-what it is given. A request asks once, and is made a second time with what it
-is given, whatever its method: it was refused, not processed. An upload sent
-twice reports its progress once.
+what it is given. A request or an emit asks once, and is made a second time,
+at once, with what it is given when that is another token, whatever its
+method: it was refused, not processed. Refused again, it fails as
+`unauthorized`. An upload sent twice reports its progress once.
 """
 
 import asyncio
@@ -14,7 +16,8 @@ from aio import run, settle, soon
 from gateway_server import Answer, GatewayServer
 from spec import JsonObject
 
-from semiont.errors import SignInError, TransportError
+from semiont.errors import SemiontError, SignInError, TransportError
+from semiont.events import Events
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
 from semiont.retry import RetryPolicy
@@ -23,6 +26,12 @@ from semiont.watched import Variable, reached
 
 QUICK = Timing(reconnect_ms=20, lazy_remove_ms=10, linger_ms=10, emit_retry=RetryPolicy(attempts=2, initial_delay_ms=1, max_delay_ms=1))
 REFUSED = Answer(status=401, body=b'{"error":"The token is not one this gateway admits"}')
+# Its `Retry-After` is longer than any test here waits: a client that waited it out would fail.
+LIMITED = Answer(
+    status=429,
+    headers={"Retry-After": "600"},
+    body=b'{"error":"The requests this holder has had refused have used their allowance","code":"refusal-rate"}',
+)
 STATUS: JsonObject = {
     "status": "operational",
     "version": "1.0.0",
@@ -58,6 +67,17 @@ def sent_with(gateway: GatewayServer, method: str, path: str) -> list[str | None
 
 async def state_is(transport: HttpTransport, wanted: str) -> None:
     await soon(reached(transport.state, lambda state: state == wanted))
+
+
+async def nothing_reported(failures: Events[SemiontError]) -> bool:
+    """Whether the error stream has carried nothing more, once what was ready has run."""
+    await settle()
+    reported = asyncio.ensure_future(anext(failures))
+    await settle()
+    told = reported.done()
+    reported.cancel()
+    await asyncio.gather(reported, return_exceptions=True)
+    return not told
 
 
 # ── The stream ──────────────────────────────────────────────────────────
@@ -184,12 +204,7 @@ def test_a_request_refused_is_made_once_more_with_the_token_its_refresher_gives(
                 assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale", "Bearer fresh"]
                 assert source.asked == 1
                 # A request that was answered in the end failed nobody.
-                await settle()
-                transport_failures = asyncio.ensure_future(anext(failures))
-                await settle()
-                assert not transport_failures.done()
-                transport_failures.cancel()
-                await asyncio.gather(transport_failures, return_exceptions=True)
+                assert await nothing_reported(failures)
             finally:
                 await transport.close()
 
@@ -257,6 +272,28 @@ def test_a_request_refused_with_nothing_to_renew_with_is_refused_at_once(gives: 
     run(scenario("no refresher"))
 
 
+def test_a_request_refused_by_the_limit_on_refused_credentials_is_not_made_again_with_the_token_it_was_refused() -> None:
+    # The refresher gives back the token the gateway refused, which would get the same answer.
+    source = Source("stale", "stale")
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            gateway.answers["/api/status"] = STATUS
+            gateway.scripted[("GET", "/api/status")] = [LIMITED]
+            transport = HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=())
+            try:
+                with pytest.raises(TransportError) as refused:
+                    await soon(transport.get_status())
+                # It says what a `401` says, with the status it was answered: never `rate-limited`, and not waited out.
+                assert (refused.value.code, refused.value.status) == ("unauthorized", 429)
+                assert sent_with(gateway, "GET", "/api/status") == ["Bearer stale"]
+                assert source.asked == 1
+            finally:
+                await transport.close()
+
+    run(scenario())
+
+
 def test_a_request_that_sends_no_token_asks_nobody_to_renew_one() -> None:
     source = Source("stale", "fresh")
 
@@ -271,6 +308,52 @@ def test_a_request_that_sends_no_token_asks_nobody_to_renew_one() -> None:
                 assert sent_with(gateway, "GET", "/.well-known/oauth-protected-resource") == [None]
             finally:
                 await transport.close()
+
+    run(scenario())
+
+
+# ── An emit ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("refusal", [REFUSED, LIMITED], ids=["401", "429 refusal-rate"])
+def test_an_emit_whose_token_is_refused_is_sent_again_at_once_with_the_token_its_refresher_gives(refusal: Answer) -> None:
+    source = Source("stale", "fresh")
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/bus/emit")] = [refusal]
+            async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=("beckon:focus",)) as transport:
+                await state_is(transport, "open")
+                failures = transport.failures()
+                assert await soon(transport.emit("beckon:focus", {})) == 1
+                assert sent_with(gateway, "POST", "/bus/emit") == ["Bearer stale", "Bearer fresh"]
+                assert source.asked == 1
+                # An emit accepted in the end failed nobody.
+                assert await nothing_reported(failures)
+
+    run(scenario())
+
+
+def test_an_emit_whose_renewed_token_is_refused_too_fails_as_unauthorized_and_is_not_sent_a_third_time() -> None:
+    source = Source("stale", "fresh", "fresher")
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/bus/emit")] = [LIMITED, LIMITED]
+            async with HttpTransport(
+                gateway.origin, token=source.token, refresher=source.refresh, channels=("beckon:focus",), timing=QUICK
+            ) as transport:
+                await state_is(transport, "open")
+                failures = transport.failures()
+                with pytest.raises(TransportError) as refused:
+                    await soon(transport.emit("beckon:focus", {}))
+                # Neither waited out nor made again inside the emit's budget, though the budget allows another attempt.
+                assert (refused.value.code, refused.value.status) == ("unauthorized", 429)
+                assert await soon(anext(failures)) is refused.value
+                assert await nothing_reported(failures)
+                await asyncio.sleep(0.1)
+                assert sent_with(gateway, "POST", "/bus/emit") == ["Bearer stale", "Bearer fresh"]
+                assert source.asked == 1
 
     run(scenario())
 

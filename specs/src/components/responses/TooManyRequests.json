@@ -1,5 +1,5 @@
 {
-  "description": "A limit on the caller was met; the body's `code` names which. `Retry-After` is the number of seconds after which the refusal will have lifted. For `unanswered-requests` that is when the client's oldest unanswered request expires; a reply to any of them frees a slot sooner.",
+  "description": "A limit on the caller was met; the body's `code` names which. `Retry-After` is the number of seconds after which the refusal will have lifted. For `unanswered-requests` that is when the client's oldest unanswered request expires; a reply to any of them frees a slot sooner. A `refusal-rate` refusal answers a refused credential: a client that can renew its token does not wait, it renews and sends again.",
   "headers": {
     "Retry-After": {
       "description": "Seconds to wait before trying again.",

@@ -1429,6 +1429,7 @@ func (e JobType) Valid() bool {
 const (
 	LimitRefusalCodeCapacity           LimitRefusalCode = "capacity"
 	LimitRefusalCodeEmitRate           LimitRefusalCode = "emit-rate"
+	LimitRefusalCodeRefusalRate        LimitRefusalCode = "refusal-rate"
 	LimitRefusalCodeStreams            LimitRefusalCode = "streams"
 	LimitRefusalCodeUnansweredRequests LimitRefusalCode = "unanswered-requests"
 )
@@ -1439,6 +1440,8 @@ func (e LimitRefusalCode) Valid() bool {
 	case LimitRefusalCodeCapacity:
 		return true
 	case LimitRefusalCodeEmitRate:
+		return true
+	case LimitRefusalCodeRefusalRate:
 		return true
 	case LimitRefusalCodeStreams:
 		return true
@@ -5055,7 +5058,7 @@ type LibrarianModelConfig struct {
 
 // LimitRefusal defines model for LimitRefusal.
 type LimitRefusal struct {
-	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
 	Code    LimitRefusalCode `json:"code"`
 	Details interface{}      `json:"details,omitempty"`
 
@@ -5066,7 +5069,7 @@ type LimitRefusal struct {
 	Hint *string `json:"hint,omitempty"`
 }
 
-// LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+// LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can. `refusal-rate`: the request's credential was refused, and the requests its holder has had refused have used their allowance; it answers only a request whose token has already failed verification, so it says what a 401 says, and a client that can renew its token renews it and sends the request again rather than waiting (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
 type LimitRefusalCode string
 
 // LinkingJobParams What a linking job takes: mentions of the named entity types are marked as references, each unresolved until it is bound to a resource.
@@ -15284,6 +15287,7 @@ type GetResourceRepresentationWithMediaTokenResponse struct {
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
 	JSON404      *ErrorResponse
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 	JSON503      *ServiceUnavailable
 }
@@ -15309,6 +15313,7 @@ type GetStatusResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *StatusResponse
 	JSON401      *Unauthorized
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 }
 
@@ -15335,6 +15340,7 @@ type ExchangeAgentTokenResponse struct {
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
 	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 }
 
@@ -15361,6 +15367,7 @@ type CreateMediaTokenResponse struct {
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
 	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 }
 
@@ -15385,6 +15392,7 @@ type GetCurrentUserResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *UserResponse
 	JSON401      *Unauthorized
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 }
 
@@ -15466,6 +15474,7 @@ type UploadResourceResponse struct {
 	JSON202      *CreateResourceResponse
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
+	JSON429      *TooManyRequests
 	JSON500      *ErrorResponse
 	JSON503      *ServiceUnavailable
 }
@@ -15491,6 +15500,7 @@ type GetResourceRepresentationResponse struct {
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
 	JSON404      *ErrorResponse
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 	JSON503      *ServiceUnavailable
 }
@@ -15517,6 +15527,7 @@ type GetResourceAnchoredTextResponse struct {
 	JSON200      *AnchoredTextAnswer
 	JSON401      *Unauthorized
 	JSON404      *ErrorResponse
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 	JSON503      *ServiceUnavailable
 }
@@ -15543,6 +15554,7 @@ type GetResourceJsonLdResponse struct {
 	ApplicationldJSON200 *GetResourceResponse
 	JSON401              *Unauthorized
 	JSON404              *ErrorResponse
+	JSON429              *TooManyRequests
 	JSON500              *InternalError
 	JSON503              *ServiceUnavailable
 }
@@ -15894,6 +15906,13 @@ func ParseGetResourceRepresentationWithMediaTokenResponse(rsp *http.Response) (*
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -15940,6 +15959,13 @@ func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -15995,6 +16021,13 @@ func ParseExchangeAgentTokenResponse(rsp *http.Response) (*ExchangeAgentTokenRes
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16049,6 +16082,13 @@ func ParseCreateMediaTokenResponse(rsp *http.Response) (*CreateMediaTokenRespons
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16088,6 +16128,13 @@ func ParseGetCurrentUserResponse(rsp *http.Response) (*GetCurrentUserResponse, e
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -16272,6 +16319,13 @@ func ParseUploadResourceResponse(rsp *http.Response) (*UploadResourceResponse, e
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16318,6 +16372,13 @@ func ParseGetResourceRepresentationResponse(rsp *http.Response) (*GetResourceRep
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -16373,6 +16434,13 @@ func ParseGetResourceAnchoredTextResponse(rsp *http.Response) (*GetResourceAncho
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16426,6 +16494,13 @@ func ParseGetResourceJsonLdResponse(rsp *http.Response) (*GetResourceJsonLdRespo
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError

@@ -13,8 +13,9 @@
  *     `signal`: through `XMLHttpRequest`, whose `upload.onprogress` is the
  *     only count of bytes sent every browser has. `fetch` carries a streamed
  *     request body in some browsers and not others, and in none over
- *     HTTP/1.1. This path does not renew a refused token: an upload that
- *     starts with a fresh one completes, and one refused 401 is reported.
+ *     HTTP/1.1. An upload whose credential is refused is sent once more with
+ *     the transport's renewed token, as one through ky is; its progress is
+ *     never reported as less than it was before.
  *   - **Anywhere else** (Node, as a worker, a script or the CLI runs it),
  *     and a browser page whose caller asked for neither: through ky. Asked
  *     for progress, the body is handed to the connection a piece at a time
@@ -34,7 +35,7 @@ import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, Put
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
-import { APIError } from './api-error';
+import { APIError, refusalBody } from './api-error';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -57,19 +58,34 @@ export class HttpContentTransport implements IContentTransport {
       'content.put',
       async () => {
         const formData = buildFormData(request);
-        const headers = this.requestHeaders(options?.auth);
+        const token = options?.auth ?? this.transport.getToken();
+        const headers = this.requestHeaders(token);
         const path = '/resources';
         const url = `${this.transport.baseUrl}${path}`;
 
         if (typeof XMLHttpRequest !== 'undefined' && (options?.onProgress || options?.signal)) {
-          return uploadViaXhr({
-            url,
-            formData,
-            headers,
-            onProgress: options.onProgress,
-            signal: options.signal,
-            onApiError: (err) => this.transport.pushError(err),
-          });
+          const onProgress = options.onProgress ? neverLess(options.onProgress) : undefined;
+          const report = (err: APIError): void => this.transport.pushError(err);
+          const send = (sentHeaders: Record<string, string>, onApiError: (err: APIError) => void) =>
+            uploadViaXhr({ url, formData, headers: sentHeaders, onProgress, signal: options.signal, onApiError });
+          // A refused credential is renewed once, and the upload sent again
+          // with the token given (docs/protocol/TRANSPORT-CONTRACT.md § A
+          // refused credential). The first refusal is reported only when
+          // nothing renews it: a renewed upload that is accepted reports
+          // nothing, as one through ky does.
+          try {
+            return await send(headers, (err) => {
+              if (err.code !== 'unauthorized') report(err);
+            });
+          } catch (error) {
+            if (!(error instanceof APIError) || error.code !== 'unauthorized') throw error;
+            const renewed = await this.transport.renewal(token);
+            if (renewed === null) {
+              report(error);
+              throw error;
+            }
+            return send({ ...headers, Authorization: `Bearer ${renewed}` }, report);
+          }
         }
 
         const sent = options?.onProgress
@@ -267,8 +283,8 @@ const UPLOAD_PIECE_BYTES = 64 * 1024;
  * the size as it is for a body that is not streamed. A runtime that keeps
  * that header to itself sends the same bytes chunked.
  *
- * A request sent again after a 401 is ky's copy of this body, which is read
- * once: what the second sending repeats is not reported a second time.
+ * A request sent again with a renewed token is ky's copy of this body, which
+ * is read once: what the second sending repeats is not reported a second time.
  */
 async function inPieces(
   form: FormData,
@@ -294,6 +310,19 @@ async function inPieces(
     { highWaterMark: 0 },
   );
   return { body, headers: { 'Content-Type': contentType, 'Content-Length': String(bytes.byteLength) } };
+}
+
+/**
+ * Progress that never goes back: an upload sent a second time reports again
+ * only once it is past what the first sending reported.
+ */
+function neverLess(onProgress: PutBinaryProgress): PutBinaryProgress {
+  let reported = 0;
+  return (progress) => {
+    if (progress.bytesUploaded < reported) return;
+    reported = progress.bytesUploaded;
+    onProgress(progress);
+  };
 }
 
 interface XhrUploadOptions {
@@ -366,9 +395,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
         }
         return;
       }
-      let body: unknown = xhr.responseText;
-      try { body = JSON.parse(xhr.responseText); } catch { /* keep as text */ }
-      const err = APIError.refusal(xhr.status, xhr.statusText, body, xhr.getResponseHeader('retry-after'));
+      const err = APIError.refusal(xhr.status, xhr.statusText, refusalBody(xhr.responseText), xhr.getResponseHeader('retry-after'));
       onApiError(err);
       reject(err);
     };

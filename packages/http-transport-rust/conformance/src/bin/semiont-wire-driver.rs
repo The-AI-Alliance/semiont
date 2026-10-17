@@ -15,8 +15,8 @@ use semiont::bus::{Bus, operation};
 use semiont::errors::SemiontError;
 use semiont::retry::RetryPolicy;
 use semiont::transport::{
-    ConnectionState, ContentTransport, Envelope, GatewayOperations, PutBinaryRequest, ResourceHold,
-    Transport,
+    BoxFuture, ConnectionState, ContentTransport, Envelope, GatewayOperations, PutBinaryRequest,
+    ResourceHold, Transport,
 };
 use semiont::types::ResourceId;
 use semiont_conformance_drivers::{
@@ -24,19 +24,39 @@ use semiont_conformance_drivers::{
     optional_identifier, optional_text, say, serve, text, texts,
 };
 use semiont_http_transport::content::HttpContentTransport;
-use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
+use semiont_http_transport::transport::{
+    HttpTransport, HttpTransportConfig, Timing, TokenRefresher,
+};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 
 struct Client {
-    token: watch::Sender<Option<String>>,
+    token: Arc<watch::Sender<Option<String>>>,
     transport: HttpTransport,
     bus: Bus,
     content: HttpContentTransport,
+}
+
+/// The refresher a case's `renewals` give the client: each time it is asked,
+/// the next of them, made the client's token as a session makes it; none
+/// once they run out.
+struct Renewals {
+    tokens: Mutex<VecDeque<String>>,
+    token: Arc<watch::Sender<Option<String>>>,
+}
+
+impl TokenRefresher for Renewals {
+    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+        Box::pin(async move {
+            let renewed = locked(&self.tokens).pop_front()?;
+            self.token.send_replace(Some(renewed.clone()));
+            Some(renewed)
+        })
+    }
 }
 
 #[derive(Default)]
@@ -102,10 +122,18 @@ impl Wire {
             }
         }
         let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
+        let token = Arc::new(token);
+        let refresher: Option<Arc<dyn TokenRefresher>> = match args.get("renewals") {
+            None => None,
+            Some(_) => Some(Arc::new(Renewals {
+                tokens: Mutex::new(texts(args, "renewals")?.into()),
+                token: token.clone(),
+            })),
+        };
         let transport = HttpTransport::new(HttpTransportConfig {
             base_url: text(args, "baseUrl")?.to_owned(),
             token: tokens,
-            refresher: None,
+            refresher,
             channels: Some(texts(args, "channels")?),
             http: reqwest::Client::new(),
             timing,

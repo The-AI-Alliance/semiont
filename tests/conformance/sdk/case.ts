@@ -660,11 +660,20 @@ class Run {
         return;
       }
       case 'refuse': {
-        allowed('wire', 'status', 'retryAfter', 'body', 'times');
+        allowed('wire', 'status', 'retryAfter', 'headers', 'body', 'times');
         const wire = text('wire');
         const [method, template] = wire.split(' ');
         const body = JSON.stringify(args['body']);
-        const headers: Record<string, string> = { 'content-type': 'application/json', ...(args['retryAfter'] === undefined ? {} : { 'retry-after': String(number('retryAfter')) }) };
+        // Headers the refusal declares beside these, such as a 401's challenge.
+        const stated: Record<string, string> = {};
+        if (args['headers'] !== undefined) {
+          if (!isObject(args['headers'])) throw new Error('refuse takes headers, an object');
+          for (const [name, value] of Object.entries(args['headers'])) {
+            if (typeof value !== 'string') throw new Error(`refuse's header ${name} is not a string`);
+            stated[name.toLowerCase()] = value;
+          }
+        }
+        const headers: Record<string, string> = { 'content-type': 'application/json', ...(args['retryAfter'] === undefined ? {} : { 'retry-after': String(number('retryAfter')) }), ...stated };
         const reply: Reply = { status: number('status'), headers: new Headers(headers), text: body, json: args['body'], bytes: Buffer.from(body) };
         // The proxy speaks for the gateway here, so what it says is held to what the spec lets a gateway say.
         const off = nonConformance(method!.toLowerCase() as Method, template!, reply);

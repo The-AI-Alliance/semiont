@@ -229,7 +229,7 @@ The launcher says which key it used (`Token-signing key: generated and kept`, `r
 
 `JWT_SECRET` is an **ordered, comma-separated list**: the first key signs, *every* key verifies. A single value is the one-key case and behaves exactly as before.
 
-Replacing the key outright is what causes an outage: every agent and media token stops verifying at once. Sidecars recover on their own, because a 401 sends them back to `/api/tokens/agent`, but every in-flight request fails first and a listen-only feed stays dead until its next scheduled renewal. Rotating through the list avoids that entirely. People are unaffected either way; their tokens are the issuer's and verify against its keys.
+Replacing the key outright is what causes an outage: every agent and media token stops verifying at once. Sidecars recover on their own: a request, an emit or a stream refused 401 renews the sidecar's agent token at `/api/tokens/agent` once and is sent again with the new one ([TRANSPORT-CONTRACT.md § A refused credential](../../protocol/TRANSPORT-CONTRACT.md#a-refused-credential)). Rotating through the list avoids even that refusal. People are unaffected either way; their tokens are the issuer's and verify against its keys.
 
 ```bash
 # 1. Mint a new key and put it FIRST, keeping the old one behind it.

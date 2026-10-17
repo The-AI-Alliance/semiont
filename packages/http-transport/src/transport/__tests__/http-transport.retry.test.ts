@@ -1,19 +1,14 @@
 /**
  * What a stopped retry looks like TO THE CALLER.
  *
- * The sibling hooks suite invokes `beforeRetry` directly against a mocked
- * `ky`, which pins the classification but says nothing about what a caller
- * awaiting `.json()` actually receives. That is the contract the retry gate
- * must not change, so these tests use **real ky** with `fetch` stubbed and
- * drive the transport's public methods end to end.
- *
- * It matters because the two ways to stop a retry are not interchangeable:
- * `ky.stop` resolves the caller's promise with `undefined`, after which the
- * `.json()` shortcut dereferences it (`Ky.js:127`, then `response.text()`);
- * rethrowing the original error preserves the request-error path, which is
- * why ky guards on `hookError !== error` (`Ky.js:845`). Only the rethrow
- * reaches `beforeError`, and `beforeError` is what turns the failure into
- * the `APIError` every caller of this transport is written against.
+ * The sibling hooks suite invokes the retry gate and the renewing
+ * `afterResponse` hook directly against a mocked `ky`, which pins the
+ * classification but says nothing about what a caller awaiting `.json()`
+ * actually receives. That is the contract the retry gate must not change, so
+ * these tests use **real ky** with `fetch` stubbed and drive the
+ * transport's public methods end to end: a failure reaches `beforeError`,
+ * and `beforeError` is what turns it into the `APIError` every caller of
+ * this transport is written against.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
@@ -91,7 +86,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     transport.dispose();
   });
 
-  test('a POST that got a 401 is retried once with the refreshed token', async () => {
+  test('a POST that got a 401 is sent again once with the renewed token', async () => {
     fetchMock.mockResolvedValueOnce(failWith(401));
     fetchMock.mockResolvedValueOnce(okJson({ token: 'media-tok' }));
     const transport = new HttpTransport({
@@ -131,6 +126,8 @@ describe('HttpTransport retry — what the caller receives', () => {
 
     expect(thrown).toBeInstanceOf(APIError);
     expect((thrown as APIError).status).toBe(401);
+    expect((thrown as APIError).code).toBe('unauthorized');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     transport.dispose();
   });
@@ -143,6 +140,83 @@ describe('HttpTransport retry — what the caller receives', () => {
       transport.getMediaToken('res-1' as Parameters<HttpTransport['getMediaToken']>[0]),
     ).rejects.toBeInstanceOf(APIError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    transport.dispose();
+  });
+});
+
+/** A refusal by a limit, as the gateway states one: `LimitRefusal`, naming the limit, with the wait. */
+function refusedByLimit(code: string, retryAfterSeconds: number): Response {
+  return new Response(JSON.stringify({ error: 'refused', code }), {
+    status: 429,
+    statusText: 'Too Many Requests',
+    headers: { 'content-type': 'application/json', 'retry-after': String(retryAfterSeconds) },
+  });
+}
+
+// A refused credential — a 401, or a 429 `refusal-rate` — is renewed once
+// and sent again at once, or final; never retried with the token refused,
+// and never after its Retry-After (docs/protocol/TRANSPORT-CONTRACT.md
+// § A refused credential). The Retry-After here outlasts a test's deadline,
+// so a client that waited it out fails by timing out.
+describe('HttpTransport — a refused credential', () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  test('a GET refused 429 refusal-rate is sent again at once with the renewed token, and nothing is reported', async () => {
+    fetchMock.mockResolvedValueOnce(refusedByLimit('refusal-rate', 30));
+    fetchMock.mockResolvedValueOnce(okJson({ email: 'a@b.c' }));
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: async () => 'fresh-token' });
+    const reported: unknown[] = [];
+    transport.errors$.subscribe((error) => reported.push(error));
+
+    await expect(transport.getCurrentUser()).resolves.toMatchObject({ email: 'a@b.c' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((fetchMock.mock.calls[1]![0] as Request).headers.get('Authorization')).toBe('Bearer fresh-token');
+    expect(reported).toEqual([]);
+
+    transport.dispose();
+  });
+
+  test('refused again, it fails unauthorized with the 429 it was answered, reported once, and is not sent a third time', async () => {
+    fetchMock.mockImplementation(async () => refusedByLimit('refusal-rate', 30));
+    const refresher = vi.fn(async () => 'fresh-token');
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
+    const reported: unknown[] = [];
+    transport.errors$.subscribe((error) => reported.push(error));
+
+    const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
+
+    expect(thrown).toMatchObject({ name: 'APIError', code: 'unauthorized', status: 429 });
+    expect(reported).toEqual([thrown]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(refresher).toHaveBeenCalledTimes(1);
+
+    transport.dispose();
+  });
+
+  test('without a refresher, a GET refused 429 refusal-rate is final at once, where ky alone would wait and send it again', async () => {
+    fetchMock.mockImplementation(async () => refusedByLimit('refusal-rate', 30));
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+
+    const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
+
+    expect(thrown).toMatchObject({ name: 'APIError', code: 'unauthorized', status: 429 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    transport.dispose();
+  });
+
+  test('a GET refused 429 by any other limit is still rate-limited, and not renewed', async () => {
+    fetchMock.mockImplementation(async () => refusedByLimit('streams', 0));
+    const refresher = vi.fn(async () => 'fresh-token');
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: refresher });
+
+    const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
+
+    expect(thrown).toMatchObject({ name: 'APIError', code: 'rate-limited', status: 429 });
+    expect(refresher).not.toHaveBeenCalled();
 
     transport.dispose();
   });
@@ -225,6 +299,15 @@ describe('currentUserOf — one request, and no transport behind it', () => {
     expect(thrown).toBeInstanceOf(APIError);
     expect((thrown as APIError).status).toBe(401);
     expect((thrown as APIError).message).toBe('the token is not one this gateway accepts');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('a 429 refusal-rate is a refused credential: unauthorized at once, not waited out and sent again', async () => {
+    fetchMock.mockImplementation(async () => refusedByLimit('refusal-rate', 30));
+
+    const thrown = await currentUserOf(testBaseUrl, accessToken('tok-1')).then(() => null, (e: unknown) => e);
+
+    expect(thrown).toMatchObject({ name: 'APIError', code: 'unauthorized', status: 429 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

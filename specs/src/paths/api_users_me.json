@@ -25,6 +25,9 @@
       "401": {
         "$ref": "../components/responses/Unauthorized.json"
       },
+      "429": {
+        "$ref": "../components/responses/TooManyRequests.json"
+      },
       "500": {
         "$ref": "../components/responses/InternalError.json"
       }

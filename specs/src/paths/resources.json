@@ -45,6 +45,9 @@
       "401": {
         "$ref": "../components/responses/Unauthorized.json"
       },
+      "429": {
+        "$ref": "../components/responses/TooManyRequests.json"
+      },
       "500": {
         "description": "The knowledge base refused to record the resource; the message says why.",
         "content": {

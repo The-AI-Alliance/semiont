@@ -26,7 +26,7 @@ from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.http._withheld import why_unanswered
 from semiont.http.content import HttpContentTransport
-from semiont.http.exchange import Exchange, TokenRefresher
+from semiont.http.exchange import Exchange, TokenRefresher, refusal
 from semiont.http.stream import Bookmarks, Stream, Timing
 from semiont.identifiers import ResourceId
 from semiont.retry import BOOT, RetryFacts, retry_after_ms, retry_with_backoff
@@ -60,8 +60,11 @@ __all__ = ["HttpTransport"]
 
 
 def _worth_another_emit(error: SemiontError) -> bool:
-    """Whether an emit that failed this way is made again: nothing answered, or the gateway said "not now"."""
-    return error.status is None or BOOT.retryable(RetryFacts(status=error.status, method="POST"))
+    """Whether an emit that failed this way is made again inside its budget: nothing answered, or the gateway said "not now".
+
+    A refused credential is not, whatever its status: it is renewed, never retried.
+    """
+    return error.code != "unauthorized" and (error.status is None or BOOT.retryable(RetryFacts(status=error.status, method="POST")))
 
 
 @final
@@ -239,12 +242,7 @@ class HttpTransport(Transport, GatewayOperations):
         self._quiet.clear()
         try:
             with telemetry.emitting(channel, scope):
-                return await retry_with_backoff(
-                    self._timing.emit_retry,
-                    lambda: self._emit_once(body),
-                    retryable=_worth_another_emit,
-                    give_up=self._closing,
-                )
+                return await self._emitted(body)
         except TransportError as error:
             # A failed emit is reported where every failure is, as its caller hears it.
             self._failures.deliver(error)
@@ -254,8 +252,35 @@ class HttpTransport(Transport, GatewayOperations):
             if self._emitting == 0:
                 self._quiet.set()
 
-    async def _emit_once(self, body: str) -> int | None:
-        """One attempt of an emit: `POST /bus/emit`, answered within `EMIT_TIMEOUT_MS`."""
+    async def _emitted(self, body: str) -> int | None:
+        """An emit, made inside its budget with the token there is now.
+
+        One whose credential is refused is renewed outside the budget: the
+        refresher is asked once, and the emit is made again at once with the
+        token it gives. Refused again, it fails.
+        """
+        token = self._token.value
+        try:
+            return await self._within_budget(body, token)
+        except TransportError as refused:
+            if refused.code != "unauthorized" or self._closing.is_set():
+                raise
+            renewed = await self._exchange.renewal(token)
+            if renewed is None:
+                raise
+        return await self._within_budget(body, renewed)
+
+    async def _within_budget(self, body: str, token: str | None) -> int | None:
+        """An emit's attempts, each with `token`, until one is accepted or `emit_retry` is spent."""
+        return await retry_with_backoff(
+            self._timing.emit_retry,
+            lambda: self._emit_once(body, token),
+            retryable=_worth_another_emit,
+            give_up=self._closing,
+        )
+
+    async def _emit_once(self, body: str, token: str | None) -> int | None:
+        """One attempt of an emit: `POST /bus/emit` with `token`, answered within `EMIT_TIMEOUT_MS`."""
         if self._closing.is_set():
             raise TransportError("error", "/bus/emit was not sent: the transport is closed")
         try:
@@ -265,7 +290,7 @@ class HttpTransport(Transport, GatewayOperations):
                     content=body,
                     headers={
                         **telemetry.trace_headers(),
-                        "Authorization": f"Bearer {self._token.value or ''}",
+                        "Authorization": f"Bearer {token or ''}",
                         "Content-Type": "application/json",
                     },
                 )
@@ -276,9 +301,10 @@ class HttpTransport(Transport, GatewayOperations):
         if not response.is_success:
             status = response.status_code
             detail = response.text[:500]
-            raise TransportError.of_status(
+            raise refusal(
                 f"/bus/emit {status}: {detail}" if detail else f"/bus/emit {status}",
                 status,
+                response.content,
                 retry_after_ms(response.headers.get("retry-after")),
             )
         # No count is reported as no count, never as a zero: an absent

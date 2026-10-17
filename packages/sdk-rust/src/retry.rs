@@ -61,20 +61,16 @@ pub const JOB: RetryRule = RetryRule {
     retryable: |facts| matches!(facts.status, Some(status) if status == 408 || status == 429 || status >= 500),
 };
 
-/// An HTTP client that can renew its token. A `401` is retried on any method:
-/// the request was rejected, not processed, and a renewed token makes it
-/// valid. Every other retryable status applies only to a method that cannot
-/// cause a second effect, because a POST answered `502` may already have been
-/// processed.
+/// An HTTP client's request. A retryable status applies only to a method that
+/// cannot cause a second effect, because a POST answered `502` may already
+/// have been processed. A `401` is not retried: a refused credential is renewed
+/// before any rule is asked, and the same token gets the same answer.
 pub const TRANSPORT: RetryRule = RetryRule {
     name: "transport",
     retryable: |facts| {
         let Some(status) = facts.status else {
             return false;
         };
-        if status == 401 {
-            return true;
-        }
         let repeatable = facts.method.is_some_and(|method| {
             IDEMPOTENT_METHODS
                 .iter()

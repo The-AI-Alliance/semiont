@@ -834,6 +834,40 @@ def test_an_agent_renews_its_token_when_it_is_due_and_keeps_the_one_it_has_when_
     run(scenario())
 
 
+def test_an_agent_whose_token_the_gateway_refuses_by_its_refusal_rate_limit_is_refused_as_by_a_401() -> None:
+    # A 429 says "not now" unless its code is `refusal-rate`: then the service account's token was refused,
+    # and the same token gets the same answer however long the renewal waits.
+    refused_by_limit = Answer(
+        status=429,
+        headers={"Retry-After": "1"},
+        body=b'{"error":"The requests this holder has had refused have used their allowance","code":"refusal-rate"}',
+    )
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[TOKEN] = {"access_token": token(86_400, 0)}
+            service = ServiceToken(account(gateway))
+
+            gateway.scripted[("POST", AGENT)] = [refused_by_limit]
+            with pytest.raises(TransportError, match=r"refused the agent token exchange \(HTTP 429\)") as refused:
+                async with AgentToken(gateway.origin, provider="ollama", model="gemma2:27b", service=service):
+                    pass
+            assert (refused.value.code, refused.value.status) == ("unauthorized", 429)
+
+            gateway.scripted[("POST", AGENT)] = [agent_token(1, 300)]
+            async with AgentToken(gateway.origin, provider="ollama", model="gemma2:27b", service=service) as agent:
+                first = agent.token.value
+                gateway.scripted[("POST", AGENT)] = [refused_by_limit]
+                asked = len(gateway.of("POST", AGENT))
+                # Not tried again inside the renewal's budget, as a 503 would be: the token is left as it is.
+                assert await soon(agent.refresh()) is None
+                assert len(gateway.of("POST", AGENT)) == asked + 1
+                assert agent.token.value == first
+
+    run(scenario())
+
+
 # ── A person's session over a kept sign-in ──────────────────────────────
 
 

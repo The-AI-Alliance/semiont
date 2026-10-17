@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -8,7 +8,7 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { APIError } from './api-error';
+import { APIError, refusalBody, retryableUnlessRefused } from './api-error';
 
 export type { ConnectionState };
 
@@ -24,10 +24,12 @@ export interface ActorStateUnitOptions {
    */
   reconnectMs?: number;
   /**
-   * The SAME hook `HttpTransportConfig.tokenRefresher` wires into the HTTP
-   * beforeRetry path — there is no second refresh mechanism. Consulted
-   * ONCE per outage when a connect is refused 401, before parking
-   * `unauthenticated`; a successful open re-arms it. The refresher's owner
+   * The SAME hook `HttpTransportConfig.tokenRefresher` renews a refused
+   * request's credential with — there is no second refresh mechanism.
+   * Consulted ONCE per outage when a connect's credential is refused (a 401,
+   * or a 429 `refusal-rate`), before parking `unauthenticated`; a successful
+   * open re-arms it. Consulted once per emit whose credential is refused,
+   * which is sent again with the token it gives. The refresher's owner
    * rotates the token SOURCE (sessions push the new token into `token$`);
    * the actor then reconnects through the getter, so the token stays
    * single-sourced. A throwing refresher is treated as `null`.
@@ -65,6 +67,19 @@ export interface ActorStateUnitOptions {
 
 /** A frame as the stream delivered it, with the trace lifted off its payload. */
 type Received = components['schemas']['BusFrame'] & { readonly trace?: TraceCarrier };
+
+/**
+ * The token `tokenRefresher` gives in place of a refused one, or none. A
+ * refresher that throws has given none: the request fails on the refusal it
+ * already has, and why the renewal failed is its owner's to report.
+ */
+export async function renewedToken(tokenRefresher: () => Promise<string | null>): Promise<string | null> {
+  try {
+    return await tokenRefresher();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * A bus's primitive (`BusPrimitive`) over one SSE connection and
@@ -290,9 +305,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   let refusedToken: string | null = null;
   /**
    * One refresher consult per outage. Burned on
-   * the first 401 that consults; re-armed only by a successful open. Without
-   * this, a gateway refusing every token turns refresh-then-401 into a loop
-   * at connect cadence — the storm with extra steps.
+   * the first refused credential that consults; re-armed only by a successful
+   * open. Without this, a gateway refusing every token turns
+   * refresh-then-refusal into a loop at connect cadence — the storm with
+   * extra steps.
    */
   let refreshBurned = false;
   const scheduleRetry = (delayMs: number, keepPrevious = false) => {
@@ -317,19 +333,19 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     // A connect with no bearer CANNOT succeed (`HttpTransport` renders an
     // exhausted session's null `token$` as `''`). A connect re-sending a
     // bearer the gateway just REFUSED cannot succeed either (the same
-    // credential gets the same 401). Both are guaranteed-failing requests
+    // credential is refused again). Both are guaranteed-failing requests
     // generated on a timer, so neither is attempted.
     //
     // Both park in the same place: ONE `unauthenticated` state for
     // "no credential yet" and "credential refused", because they are the
     // same operational fact — not attempting, and only a usable DIFFERENT
-    // credential changes anything. The finer cause (the 401) is on
-    // `errors$`.
+    // credential changes anything. The finer cause (the refusal, with its
+    // status) is on `errors$`.
     //
     // We WAIT rather than give up: the tick polls the GETTER — no network,
     // so there is no load to bound, and the tick stays at the flat base.
     // Recovery is automatic: a re-login or session refresh rotates the
-    // getter's value and the next tick connects. That makes a 401 terminal
+    // getter's value and the next tick connects. That makes a refusal terminal
     // PER-CREDENTIAL, not per-actor — a hard stop here would kill the SPA's
     // bus for good on an out-of-band revocation (a sign-out elsewhere
     // revoking the grant) that the session's next proactive refresh heals.
@@ -400,18 +416,20 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     try {
       const headers: Record<string, string> = {
         // The gate's single read: `token` is what this ATTEMPT sends, and
-        // exactly what `refusedToken` records if the gateway says 401.
+        // exactly what `refusedToken` records if the gateway refuses it.
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
+        // The body says which limit refused it: a 429 `refusal-rate` is a
+        // refused credential, as a 401 is.
         throw APIError.fromStatus(
           `SSE connect failed: ${response.status}`,
           response.status,
           response.statusText,
-          undefined,
+          response.body === null ? undefined : refusalBody(await response.text()),
           retryAfterMs(response.headers.get('retry-after')),
         );
       }
@@ -595,29 +613,26 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (err instanceof APIError) {
         statedWait = err.retryAfterMs;
         errors$.next(err);
-        // 401: re-sending THIS bearer is deterministic, so park instead of
-        // retrying. The gate re-admits the actor the moment the getter
-        // yields a different token; until then, no requests at all. Non-401
-        // refusals (5xx, proxies) are transient in kind and take the
-        // backoff path below.
-        if (err.status === 401 && running && !superseded.has(controller)) {
+        // A refused credential (a 401, or a 429 `refusal-rate`: both are
+        // `unauthorized`): re-sending THIS bearer is deterministic, so park
+        // instead of retrying, and never wait out a `Retry-After`. The gate
+        // re-admits the actor the moment the getter yields a different
+        // token; until then, no requests at all. Other refusals (a limit,
+        // 5xx, proxies) are transient in kind and take the backoff path
+        // below.
+        if (err.code === 'unauthorized' && running && !superseded.has(controller)) {
           refusedToken = token;
           retryAttempt = 0;
           if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
-          // Refresh ONCE before staying parked — the same hook the HTTP
-          // beforeRetry path uses. Parked state is truthful while the
-          // refresh call is in flight. On success the refresher's owner has
-          // rotated the token source, so an immediate tick reconnects
+          // Refresh ONCE before staying parked — the same hook a refused
+          // request or emit is renewed with. Parked state is truthful while
+          // the refresh call is in flight. On success the refresher's owner
+          // has rotated the token source, so an immediate tick reconnects
           // through the gate's getter read; on null/throw (or an unchanged
           // token) the flat waiting tick stands.
           if (tokenRefresher && !refreshBurned) {
             refreshBurned = true;
-            let refreshed: string | null = null;
-            try {
-              refreshed = await tokenRefresher();
-            } catch {
-              // A throwing refresher is a failed refresh, not a crash.
-            }
+            const refreshed = await renewedToken(tokenRefresher);
             if (running && refreshed && refreshed !== refusedToken) {
               scheduleRetry(0, keepPrevious);
               return;
@@ -633,8 +648,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     }
 
     // Reached without an AbortError: the stream ended or the connect failed
-    // (a 401 already diverted above). A SUPERSEDED (lingering) connection
-    // ending is expected teardown and restarts nothing.
+    // (a refused credential already diverted above). A SUPERSEDED (lingering)
+    // connection ending is expected teardown and restarts nothing.
     if (!running || superseded.has(controller)) return;
 
     if (live !== null && live !== controller) {
@@ -767,10 +782,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const body: Record<string, unknown> = { channel, payload, clientId };
       if (envelope?.correlationId !== undefined) body.correlationId = envelope.correlationId;
       if (envelope?.scope) body.scope = envelope?.scope;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getToken()}`,
-      };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const trace = getActiveTraceparent();
       if (trace) {
         headers['traceparent'] = trace.traceparent;
@@ -778,23 +790,28 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
       // Retried per request, so one refusal does not re-run the requests
       // that already succeeded: a 429/503/504 or an expired deadline gets
-      // another attempt; a 400/401/403 rejects on the first, unretried. The
+      // another attempt; a 400/403 rejects on the first, unretried. The
       // predicate is core's, and its statuses are `RETRY_RULES.boot` (the
       // rule for a boot pass or a bus request), so this emit keeps no list
       // of its own.
+      //
+      // A refused credential (a 401, or a 429 `refusal-rate`: both are
+      // `unauthorized`) is never asked of that rule: it is renewed, never
+      // retried, and never waits out a `Retry-After`
+      // (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
       //
       // The whole attempt — POST, status check, and the error it throws — is
       // inside the retried unit, because the refusal IS the failure being
       // classified. Retrying only the fetch would re-run the request and then
       // hand back the same unexamined response.
-      const attempts = retryWithBackoff(async () => {
+      const send = (token: string) => retryWithBackoff(async () => {
         // Bounded: an unresponsive gateway must not hang
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
         // retryable, since a deadline is the definition of "try again".
         const attempt = await fetch(`${baseUrl}/bus/emit`, {
           method: 'POST',
-          headers,
+          headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
         });
@@ -803,31 +820,43 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // Resolving a sentinel here instead leaves that caller waiting for a
         // reply the gateway will never send.
         if (!attempt.ok) {
-          let detail = '';
+          let said = '';
           try {
-            detail = (await attempt.text()).slice(0, 500);
+            said = await attempt.text();
           } catch {
             // status alone
           }
+          const detail = said.slice(0, 500);
           // APIError, not a bare Error: the status rides as a FIELD, which
           // is what makes it classifiable without parsing it back out of prose.
           throw APIError.fromStatus(
             `/bus/emit ${attempt.status}${detail ? `: ${detail}` : ''}`,
             attempt.status,
             attempt.statusText,
-            detail || undefined,
+            refusalBody(said),
             retryAfterMs(attempt.headers.get('retry-after')),
           );
         }
         return attempt;
-      }, isRetryableRequestError, emitRetry);
-      const res = await attempts.catch((error: unknown) => {
-        if (error instanceof APIError) throw error;
-        // The gateway never answered, on any attempt the budget allowed: the
-        // connection failed or the deadline passed. The runtime's own error
-        // for that carries no code, and a caller routing on codes would not
-        // know an unreachable gateway from a bug.
-        throw APIError.unanswered('/bus/emit', error);
+      }, retryableUnlessRefused, emitRetry)
+        .catch((error: unknown) => {
+          if (error instanceof APIError) throw error;
+          // The gateway never answered, on any attempt the budget allowed: the
+          // connection failed or the deadline passed. The runtime's own error
+          // for that carries no code, and a caller routing on codes would not
+          // know an unreachable gateway from a bug.
+          throw APIError.unanswered('/bus/emit', error);
+        });
+      const token = getToken();
+      // A refused credential is renewed once and the emit sent again at once
+      // with the token the refresher gives, outside `emitRetry`. Given none,
+      // or the token refused, or refused again, the emit fails `unauthorized`
+      // and is not sent a third time. Without a refresher the refusal is final.
+      const res = await send(token).catch(async (error: unknown) => {
+        if (!(error instanceof APIError && error.code === 'unauthorized') || !tokenRefresher) throw error;
+        const renewed = await renewedToken(tokenRefresher);
+        if (!renewed || renewed === token) throw error;
+        return send(renewed);
       });
       // No count is reported as no count, never as a zero: an absent
       // `subscribers` is the gateway saying it could not count (a broker

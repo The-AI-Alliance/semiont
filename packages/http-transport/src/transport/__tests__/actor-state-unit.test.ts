@@ -373,8 +373,8 @@ describe('createActorStateUnit', () => {
   });
 
   // ── Refresh once before parking ─────────────────────────────────────
-  // The SSE path consults the SAME `tokenRefresher` hook the HTTP
-  // beforeRetry path uses — no second refresh mechanism. Contract: the
+  // The SSE path consults the SAME `tokenRefresher` hook a refused HTTP
+  // request is renewed with — no second refresh mechanism. Contract: the
   // refresher's owner rotates the token SOURCE (sessions push into token$);
   // the actor then reconnects through the gate's getter read, so the token
   // stays single-sourced. One consult per outage: a successful open re-arms.

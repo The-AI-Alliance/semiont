@@ -35,6 +35,7 @@ from semiont._lacks import lacks
 from semiont._reading import Reading
 from semiont.errors import SemiontError, SignInError, TransportError
 from semiont.http._withheld import why_unanswered
+from semiont.http.exchange import refusal
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
 from semiont.identifiers import UserId
 from semiont.retry import REFRESH, RetryFacts, retry_after_ms, retry_with_backoff
@@ -139,8 +140,11 @@ class ServiceToken:
 
 
 def _transient(error: SemiontError) -> bool:
-    """Whether a renewal that failed this way is worth another attempt."""
-    return REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
+    """Whether a renewal that failed this way is worth another attempt.
+
+    A refused credential is not, whatever its status: the same token gets the same answer.
+    """
+    return error.code != "unauthorized" and REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
 
 
 @final
@@ -247,8 +251,11 @@ class AgentToken:
             raise TransportError.without_response(f"{url} got no answer: {why_unanswered(error)}") from None
         status = response.status_code
         if not response.is_success:
-            raise TransportError.of_status(
-                f"the gateway refused the agent token exchange (HTTP {status})", status, retry_after_ms(response.headers.get("retry-after"))
+            raise refusal(
+                f"the gateway refused the agent token exchange (HTTP {status})",
+                status,
+                response.content,
+                retry_after_ms(response.headers.get("retry-after")),
             )
         try:
             return AgentTokenResponse.model_validate_json(response.content)
