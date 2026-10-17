@@ -361,7 +361,7 @@
       ],
       "instrument": "counter",
       "when": "traffic",
-      "meaning": "Requests a limit refused — a principal's streams or emit bucket, a client's unanswered requests, the process's queued bytes — and connections closed at its connection cap.",
+      "meaning": "Requests a limit refused — a principal's streams or emit bucket, a client's unanswered requests, the process's queued bytes, the requests a holder has had refused — and connections closed at its connection cap.",
       "attributes": [
         {
           "key": "refused.reason",
@@ -370,6 +370,7 @@
             "emit-rate",
             "unanswered-requests",
             "capacity",
+            "refusal-rate",
             "connections"
           ]
         }

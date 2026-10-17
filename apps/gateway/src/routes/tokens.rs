@@ -31,13 +31,19 @@ pub async fn agent(
     body: Body,
 ) -> Result<Response, ApiError> {
     let Some(bearer) = semiont_http_service::bearer_token(&headers) else {
-        return Err(missing_credential(&headers));
+        return Err(missing_credential(&app, &headers));
     };
     let minter = authorize_minter(&bearer, &app.issuer)
         .await
         .map_err(|refusal| {
             logging::warn("Agent token refused", json!({ "reason": refusal.reason }));
-            refused(&headers, Unauthenticated::InvalidToken, &refusal.message)
+            refused(
+                &app,
+                &headers,
+                &bearer,
+                Unauthenticated::InvalidToken,
+                &refusal.message,
+            )
         })?;
     let request: AgentTokenRequest = typed_body(body, "POST /api/tokens/agent").await?;
     let (provider, model) = (request.provider.as_str(), request.model.as_str());

@@ -48,7 +48,9 @@ configured another way).
   - the stream: delivery, reply routing, replay and every gap reason,
     recovery, presence and the heartbeat (`stream.test.ts`);
   - the bounds on one connection (`bounds.test.ts`), on one principal by role
-    (`principal-limits.test.ts`), and on one process (`capacity.test.ts`);
+    (`principal-limits.test.ts`), on the requests one holder has had refused,
+    and on those that name none (`refusals.test.ts`), and on one process
+    (`capacity.test.ts`);
   - replicas sharing a broker (`replicas.test.ts`), a broker outage
     (`outage.test.ts`), and what the gateway leaves on the broker it shares
     with the dispatcher (`broker.test.ts`);

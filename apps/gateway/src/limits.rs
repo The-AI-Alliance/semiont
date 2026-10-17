@@ -32,6 +32,16 @@ pub struct Limits {
     pub scoped_max: usize,
     pub streams_per_principal: PrincipalLimit<u64>,
     pub emits_per_principal: PrincipalLimit<EmitRate>,
+    pub refusals: RefusalLimit,
+}
+
+/// What one holder may have refused (the bearer scheme's `x-semiont-limits`):
+/// `burst` at once, `per_second` after, and how many holders are counted.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RefusalLimit {
+    pub per_second: u64,
+    pub burst: u64,
+    pub holders: usize,
 }
 
 /// A limit on a principal: a baseline, and a coefficient per role (`None`:
@@ -224,6 +234,11 @@ impl Limits {
                     })
                 },
             )?,
+            refusals: RefusalLimit {
+                per_second: key_set("refusalsPerSecond")?,
+                burst: key_set("refusalBurst")?,
+                holders: key_set("refusalHolders")? as usize,
+            },
         })
     }
 }

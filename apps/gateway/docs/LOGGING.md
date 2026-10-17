@@ -52,10 +52,12 @@ One line as a request arrives and one as its response leaves:
 `reason` is `missing_token`, `invalid_token` or `invalid_media_token`. A
 successful authentication is logged at `debug`.
 
-A refused request is three lines: this one between its two request lines. A
-client retrying a refused credential therefore writes three lines a request,
-at whatever rate it retries; `semiont.gateway.unauthenticated` counts the same
-refusals by `reason` without the log.
+A refused request is three lines: this one between its two request lines,
+whether it is answered 401 or, past its holder's allowance, 429 `refusal-rate`
+([AUTHENTICATION.md](AUTHENTICATION.md#what-a-refused-request-costs)). A client
+retrying a refused credential therefore writes three lines a request, at
+whatever rate it retries; `semiont.gateway.unauthenticated` counts the 401s by
+`reason` without the log, and `semiont.gateway.refused` the 429s.
 
 ### Unhandled errors (`error`)
 

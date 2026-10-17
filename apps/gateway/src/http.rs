@@ -2,7 +2,8 @@
 //! ErrorResponse, and who a request's bearer credential names.
 
 use crate::app::App;
-use crate::principal::{Principal, principal_from_token};
+use crate::principal::{Principal, holder_of, principal_from_token};
+use crate::refusals::Holder;
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Path, Request};
 use axum::http::request::Parts;
@@ -305,8 +306,36 @@ impl Unauthenticated {
     }
 }
 
+/// A refusal past its holder's allowance: 429 `refusal-rate`, and when to
+/// return, in place of the 401.
+fn past_the_allowance(wait: std::time::Duration) -> ApiError {
+    ApiError::limited(
+        StatusCode::TOO_MANY_REQUESTS,
+        LimitRefusalCode::RefusalRate,
+        "The credential was refused, and its holder's refused requests have used their allowance",
+        wait,
+    )
+}
+
+/// Whom a refused token is counted against: the holder it names, or the one
+/// count of requests that name none.
+fn holder(app: &App, token: &str) -> Holder {
+    match holder_of(
+        token,
+        app.issuer.issuer(),
+        &app.config.identity.subject_claim,
+    ) {
+        Some((issuer, holder)) => Holder::Named { issuer, holder },
+        None => Holder::Unnamed,
+    }
+}
+
 /// The 401 for no credential: the challenge, and a hint naming the header.
-pub fn missing_credential(headers: &HeaderMap) -> ApiError {
+/// Counted with every other request that names no holder.
+pub fn missing_credential(app: &App, headers: &HeaderMap) -> ApiError {
+    if let Err(wait) = app.refusals.count(Holder::Unnamed) {
+        return past_the_allowance(wait);
+    }
     crate::metrics::record_unauthenticated(Unauthenticated::MissingToken);
     ApiError {
         status: StatusCode::UNAUTHORIZED,
@@ -318,8 +347,17 @@ pub fn missing_credential(headers: &HeaderMap) -> ApiError {
     }
 }
 
-/// The 401 for a credential refused.
-pub fn refused(headers: &HeaderMap, reason: Unauthenticated, message: &str) -> ApiError {
+/// The 401 for `token`, refused. Counted against the holder it names.
+pub fn refused(
+    app: &App,
+    headers: &HeaderMap,
+    token: &str,
+    reason: Unauthenticated,
+    message: &str,
+) -> ApiError {
+    if let Err(wait) = app.refusals.count(holder(app, token)) {
+        return past_the_allowance(wait);
+    }
     crate::metrics::record_unauthenticated(reason);
     ApiError {
         status: StatusCode::UNAUTHORIZED,
@@ -340,7 +378,7 @@ pub async fn authenticate(
             "Authentication failed: No token",
             json!({ "type": "auth_failed", "reason": Unauthenticated::MissingToken.as_str(), "path": path, "method": method.as_str() }),
         );
-        return Err(missing_credential(headers));
+        return Err(missing_credential(app, headers));
     };
     match principal_from_token(
         &token,
@@ -363,7 +401,9 @@ pub async fn authenticate(
                 json!({ "type": "auth_failed", "reason": Unauthenticated::InvalidToken.as_str(), "path": path, "method": method.as_str(), "error": error }),
             );
             Err(refused(
+                app,
                 headers,
+                &token,
                 Unauthenticated::InvalidToken,
                 "Invalid token",
             ))
@@ -425,7 +465,9 @@ impl FromRequestParts<Arc<App>> for MediaOrBearer {
                         json!({ "type": "auth_failed", "reason": Unauthenticated::InvalidMediaToken.as_str(), "path": parts.uri.path(), "error": error }),
                     );
                     Err(refused(
+                        app,
                         &parts.headers,
+                        &token,
                         Unauthenticated::InvalidMediaToken,
                         "Invalid media token",
                     ))
