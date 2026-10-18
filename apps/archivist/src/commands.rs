@@ -53,8 +53,9 @@ fn entity_types(command: &Object) -> Value {
         .unwrap_or_else(|| json!([]))
 }
 
-/// Who a job was assigned for: the record of the resource it was assigned on
-/// must hold the assignment, and its holder must be the writer.
+/// Who a job was done for, read from the record of the resource written on:
+/// either it holds the job's assignment, whose holder must be the writer, or
+/// the job made it, and the writer is the one who made it.
 fn requester_of(
     archivist: &Archivist,
     resource_id: &str,
@@ -65,23 +66,45 @@ fn requester_of(
     let assigned = events.iter().find(|e| {
         e.get("type") == Some(&json!(JobAssigned::NAME)) && e["payload"]["jobId"] == job_id
     });
-    let Some(assigned) = assigned else {
+    if let Some(assigned) = assigned {
+        let holder = assigned["payload"]["holder"].as_str().unwrap_or_default();
+        if holder != writer {
+            return Err(format!(
+                "refused: job {job_id}'s recorded holder is {holder}, not the writer {writer}"
+            )
+            .into());
+        }
+        return Ok(assigned["payload"]["requester"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned());
+    }
+    let made = events.first().filter(|e| {
+        e.get("type") == Some(&json!(YieldCreated::NAME)) && e["payload"]["jobId"] == job_id
+    });
+    let Some(made) = made else {
         return Err(format!(
-            "refused: cites job {job_id}, but this resource's log holds no assignment for it"
+            "refused: cites job {job_id}, but the log of {resource_id} holds no assignment of it, and the job did not make it"
         )
         .into());
     };
-    let holder = assigned["payload"]["holder"].as_str().unwrap_or_default();
-    if holder != writer {
+    let Some(maker) = made["userId"].as_str() else {
+        return Err(format!("refused: the yield:created of {resource_id} names no sender").into());
+    };
+    if maker != writer {
         return Err(format!(
-            "refused: job {job_id}'s recorded holder is {holder}, not the writer {writer}"
+            "refused: job {job_id}'s recorded holder is {maker}, not the writer {writer}"
         )
         .into());
     }
-    Ok(assigned["payload"]["requester"]
+    made["payload"]["creator"]["@id"]
         .as_str()
-        .unwrap_or_default()
-        .to_owned())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            Refusal::from(format!(
+                "refused: the yield:created of {resource_id} names no creator"
+            ))
+        })
 }
 
 /// `yield:create`: record a resource whose content is in the working tree.
@@ -141,12 +164,16 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
                 .unwrap_or(false)
         ),
     );
-    let generated_from = source_resource.zip(source_annotation);
-    if let Some((resource, annotation)) = generated_from {
-        payload.insert(
-            "generatedFrom".into(),
-            json!({ "resourceId": resource, "annotationId": annotation }),
-        );
+    if let Some(job_id) = job_id {
+        payload.insert("jobId".into(), json!(job_id));
+    }
+    if let Some(resource) = source_resource {
+        let mut from = Object::new();
+        from.insert("resourceId".into(), json!(resource));
+        if let Some(annotation) = source_annotation {
+            from.insert("annotationId".into(), json!(annotation));
+        }
+        payload.insert("generatedFrom".into(), Value::Object(from));
     }
     carry(
         &mut payload,
@@ -164,7 +191,7 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
     archivist.append(event(YieldCreated::NAME, Some(&resource_id), user, payload))?;
 
     // The new resource is linked from the annotation it was generated for.
-    if let Some((resource, annotation)) = generated_from {
+    if let Some((resource, annotation)) = source_resource.zip(source_annotation) {
         let mut link = Object::new();
         link.insert("annotationId".into(), json!(annotation));
         link.insert(

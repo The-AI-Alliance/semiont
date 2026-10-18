@@ -5775,10 +5775,12 @@ type ResourceCreatedPayload struct {
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
-	Format        ContentFormat `json:"format"`
+	Format ContentFormat `json:"format"`
+
+	// GeneratedFrom What this resource was generated from: the resource, and the annotation on it when the generation was for one. The resource's descriptor names the resource as `wasDerivedFrom`.
 	GeneratedFrom *struct {
 		// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-		AnnotationId AnnotationId `json:"annotationId"`
+		AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 		// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 		ResourceId ResourceId `json:"resourceId"`
@@ -5786,8 +5788,11 @@ type ResourceCreatedPayload struct {
 	GenerationPrompt *string                           `json:"generationPrompt,omitempty"`
 	Generator        *ResourceCreatedPayload_Generator `json:"generator,omitempty"`
 	IsDraft          *bool                             `json:"isDraft,omitempty"`
-	Language         *string                           `json:"language,omitempty"`
-	Name             string                            `json:"name"`
+
+	// JobId The job this resource was made in fulfilment of, when its create cited one. A write that cites the same job on this resource, by the one who made it, is attributed to that job's requester: the `creator` here.
+	JobId    *JobId  `json:"jobId,omitempty"`
+	Language *string `json:"language,omitempty"`
+	Name     string  `json:"name"`
 
 	// StorageUri The creating instruction's URI, recorded on the event. Append-only, so this value never changes — the LOCATION the projection serves is maintained across moves and lives on the resource's primary Representation, relocated by yield:moved. Optional: a resource may have no bytes. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri *string `json:"storageUri,omitempty"`
