@@ -75,10 +75,12 @@ def descriptor(resource_id: str, name: str) -> Wire:
     return {"@context": "https://schema.org", "@id": resource_id, "name": name, "representations": []}
 
 
-def about_a_resource(asked: Wire, focus: Wire) -> GenerationJobParams:
-    """A job focused on the resource `res-main`, with whatever `focus` says of it beside."""
+def about_a_resource(asked: Wire, focus: Wire, shared: Wire | None = None) -> GenerationJobParams:
+    """A job focused on the resource `res-main`, with whatever `focus` says of it beside, and `shared` beside the focus."""
     return job(
-        {"storageUri": "file://generated/out", **asked}, {"kind": "resource", "resource": descriptor("res-main", "Main Notes"), **focus}, {}
+        {"storageUri": "file://generated/out", **asked},
+        {"kind": "resource", "resource": descriptor("res-main", "Main Notes"), **focus},
+        shared or {},
     )
 
 
@@ -224,7 +226,8 @@ def test_an_annotation_s_comment_its_neighbourhood_and_the_similar_passages_are_
         {**asked, "context": {"focus": commented("commenting", body), "metadata": {}, **NEIGHBOURHOOD}}
     )
 
-    # The three best passages, best first, each cut at 240 code points; a score is said to two places, a half rounded up.
+    # The three best passages, best first, each under its source's name and handle and cut at 240 code points; a score is
+    # said to two places, a half rounded up.
     assert SEMANTIC_MATCH_LIMIT == 3
     assert generation_prompt(params, "text/markdown", None) == (
         'Answer the following question directly and concisely, grounded in the provided context: "When was it published?"\n'
@@ -251,9 +254,9 @@ def test_an_annotation_s_comment_its_neighbourhood_and_the_similar_passages_are_
         "- Relationship summary: Main Notes is cited once.\n"
         "\n"
         "Related passages from the knowledge base:\n"
-        "- [res-ann/ann-9] (0.90) From an annotation.\n"
-        "- [res-scan] (0.88) [OCR] A scanned passage.\n"
-        f"- [res-long] (0.63) {LONG[:SEMANTIC_MATCH_CODE_POINTS]}\n"
+        "- Annotated [res-ann/ann-9] (0.90) From an annotation.\n"
+        "- Scan [res-scan] (0.88) [OCR] A scanned passage.\n"
+        f"- Long [res-long] (0.63) {LONG[:SEMANTIC_MATCH_CODE_POINTS]}\n"
         "Passages marked [OCR] were read from scanned images by character recognition; "
         "treat their exact wording and numbers as uncertain, and say so if you rely on one.\n"
         "\n"
@@ -284,6 +287,16 @@ def test_a_resource_s_summary_its_references_and_the_content_gathered_with_it_ar
             "suggestedReferences": ["Babbage", "Lovelace"],
             "content": {"main": main, "related": {"res-rel-1": "First related.", "res-rel-2": related}},
         },
+        # A related resource is a resource node of the graph, which names it: the gather takes them from there.
+        {
+            "graph": {
+                "nodes": [
+                    {"id": "res-rel-1", "type": "resource", "label": "Rel One"},
+                    {"id": "res-rel-2", "type": "resource", "label": "Rel Two"},
+                ],
+                "edges": [],
+            }
+        },
     )
 
     # A resource's content is cut at 4000 code points, the focus's and each related one's: a character is never cut in two.
@@ -304,10 +317,10 @@ def test_a_resource_s_summary_its_references_and_the_content_gathered_with_it_ar
         "\n"
         "Related resource content:\n"
         "---\n"
-        "[res-rel-1]\n"
+        "Rel One [res-rel-1]\n"
         "First related.\n"
         "\n"
-        "[res-rel-2]\n"
+        "Rel Two [res-rel-2]\n"
         f"{related[:RESOURCE_CONTENT_CAP]}\n"
         "---\n"
         "\n"
@@ -456,6 +469,16 @@ def test_a_language_the_registry_lacks_is_said_by_its_tag() -> None:
     )
 
 
+def test_a_related_resource_the_graph_does_not_name_is_shown_by_its_handle_alone() -> None:
+    # A context may carry related content for a resource its graph has no node for: the schema does not tie the two. The
+    # name is the graph's to give, so where it has none, none is made up: an id is not a name.
+    params = about_a_resource({"title": "The machine"}, {"content": {"related": {"res-rel-9": "Unnamed related."}}})
+
+    said = generation_prompt(params, "text/plain", None)
+
+    assert "Related resource content:\n---\n[res-rel-9]\nUnnamed related.\n---" in said
+
+
 def similar_to(matches: list[JsonValue]) -> str:
     """The prompt of a job whose context found `matches` similar, from where it says so on."""
     params = job(
@@ -468,7 +491,7 @@ def similar_to(matches: list[JsonValue]) -> str:
 
 
 def passage(resource_id: str, score: float) -> JsonValue:
-    return {"text": f"Of {resource_id}.", "resourceId": resource_id, "resourceName": resource_id, "score": score}
+    return {"text": f"Of {resource_id}.", "resourceId": resource_id, "resourceName": f"Source {resource_id[-1].upper()}", "score": score}
 
 
 def test_no_passage_found_similar_says_nothing_of_passages() -> None:
@@ -490,9 +513,9 @@ def test_passages_of_one_score_keep_the_order_the_context_gave_them() -> None:
         "- Resource: Main Notes [res-main]\n"
         "\n"
         "Related passages from the knowledge base:\n"
-        "- [res-b] (0.75) Of res-b.\n"
-        "- [res-a] (0.50) Of res-a.\n"
-        "- [res-c] (0.50) Of res-c.\n"
+        "- Source B [res-b] (0.75) Of res-b.\n"
+        "- Source A [res-a] (0.50) Of res-a.\n"
+        "- Source C [res-c] (0.50) Of res-c.\n"
         "\n"
         "Requirements:"
     )
@@ -505,5 +528,5 @@ def test_passages_of_one_score_keep_the_order_the_context_gave_them() -> None:
 def test_a_score_is_said_to_two_places_and_an_exact_half_is_rounded_up(score: float, said: str) -> None:
     # 0.995 is no exact half: the nearest number a float holds is under it.
     assert similar_to([passage("res-a", score)]).startswith(
-        f"- Resource: Main Notes [res-main]\n\nRelated passages from the knowledge base:\n- [res-a] ({said}) Of res-a.\n"
+        f"- Resource: Main Notes [res-main]\n\nRelated passages from the knowledge base:\n- Source A [res-a] ({said}) Of res-a.\n"
     )
