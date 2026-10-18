@@ -365,6 +365,20 @@ def test_a_pdf_that_cites_is_compiled_again_with_each_claim_s_end_marked_and_tha
     )
 
 
+def test_a_marked_claim_in_a_pdf_has_its_own_end_marked(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The claim the model wrapped is the citation's words, and where they end is no guess: that end is the one marked.
+    answering(monkeypatch, whole("= Answer\nThe theory was [[ctx-9: proposed by Smith]]."))
+    compiler_stood_in(monkeypatch, [PDF])
+    landing = landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[LANDED]))
+
+    artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
+
+    # `= Answer\nThe theory was ` is 24 code points, and the claim 17 more.
+    assert landing == [("= Answer\nThe theory was proposed by Smith.", [41])]
+    assert isinstance(artifact, GeneratedPdf)
+    assert [(citation.resource_id, citation.exact) for citation in artifact.citations] == [("ctx-9", "proposed by Smith")]
+
+
 def test_a_marked_source_the_compiler_refuses_keeps_the_pdf_and_drops_its_citations_saying_so(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

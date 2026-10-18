@@ -59,16 +59,17 @@ eachWorkerService('a yield job', (world) => {
     const agent = w.agents[0]!;
     const job = yieldJob(w, 'yield', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     w.ollama.script({
-      // Two claims cited to the source, one with a space before its mark and one without; and one cited to a resource the context never showed.
+      // Two claims cited to the source, one with a space before its mark and one without; one whose words the mark wraps, in the
+      // middle of its sentence; and one cited to a resource the context never showed.
       response:
-        'Ada Lovelace published the first program in 1843. [[res-ws-yield-source]] Charles Babbage designed the engine in London.[[res-ws-yield-source]] It was never built. [[res-ws-not-in-the-context]]',
+        'Ada Lovelace published the first program in 1843. [[res-ws-yield-source]] Charles Babbage designed the engine in London.[[res-ws-yield-source]] It was [[res-ws-yield-source: never built]]. [[res-ws-not-in-the-context]]',
     });
     const served = await w.start();
     const completion = await settled(served, job);
 
     // One generation, with the job's own temperature and length, and no format: the answer is the document.
     expect(w.ollama.shows).toEqual([{ model: agent.model }]);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 718, temperature: 0.2 })]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 795, temperature: 0.2 })]);
 
     // It reads nothing of the source: what it knows of it is in the job.
     expect(served.sequence()).toEqual(['emit job:claim', 'emit job:start', 'POST /resources', 'emit mark:commit', 'emit mark:commit', 'emit job:complete', 'emit job:claim']);
@@ -113,18 +114,24 @@ eachWorkerService('a yield job', (world) => {
         },
       ],
     });
-    // Then, on what was made: each cited claim, linked to the resource it cites. The claim is the sentence before the mark,
-    // and its annotation is a span's as a detection's is: a position and a quote of its words, with no context.
+    // Then, on what was made: each cited claim, linked to the resource it cites. A mark's claim is the sentence before it, and a
+    // marked claim is the words the mark wrapped, which stay where it stood; its annotation is a span's as a detection's is: a
+    // position and a quote of its words, with no context.
     const cited = { type: 'SpecificResource', source: SOURCE, purpose: 'linking' };
     const citation = (start: number, end: number, exact: string) =>
       textAnnotation(w.generator(), yielded, 'linking', annotationIdOf(yielded, 'linking', `${start}:${end}:${exact}`, cited), { start, end, exact }, cited);
     expect({ ...commits[1], annotations: withoutCreated(commits[1]!['annotations']) }).toEqual({
       resourceId: yielded,
       jobId: job.metadata.id,
-      annotations: [citation(0, 49, 'Ada Lovelace published the first program in 1843.'), citation(50, 96, 'Charles Babbage designed the engine in London.')],
+      annotations: [
+        citation(0, 49, 'Ada Lovelace published the first program in 1843.'),
+        citation(50, 96, 'Charles Babbage designed the engine in London.'),
+        citation(104, 115, 'never built'),
+      ],
     });
     expect(commits).toHaveLength(2);
     expect(content.slice(50, 96)).toBe('Charles Babbage designed the engine in London.');
+    expect(content.slice(104, 115)).toBe('never built');
 
     expectProgress(served, job, [
       report(job, 5, { code: 'generating-resource' }),
@@ -200,15 +207,15 @@ eachWorkerService('a yield job', (world) => {
 
   it('fails as deterministic, having asked for no generation, a job whose prompt and length are together over its model\'s window', async () => {
     const w = world();
-    // The prompt kept as `yield-markdown` is 295 tokens, and the job asks for 300 more: 595, one over this window.
-    w.ollama.show = { contextLength: 594 };
+    // The prompt kept as `yield-markdown` is 359 tokens, and the job asks for 300 more: 659, one over this window.
+    w.ollama.show = { contextLength: 658 };
     const job = yieldJob(w, 'yield-over-the-window', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     const served = await w.start();
     const failure = await settled(served, job, 'job:fail');
 
     const { error, ...rest } = failure;
     expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
-    expect(String(error)).toContain('594');
+    expect(String(error)).toContain('658');
     expect(w.ollama.shows).toEqual([{ model: w.agents[0]!.model }]);
     expect(w.ollama.generations).toEqual([]);
     expect(w.world.archivist.uploads).toEqual([]);
@@ -218,11 +225,11 @@ eachWorkerService('a yield job', (world) => {
   it('asks for the generation of a job whose prompt and length exactly fill its model\'s window', async () => {
     const w = world();
     const agent = w.agents[0]!;
-    w.ollama.show = { contextLength: 595 };
+    w.ollama.show = { contextLength: 659 };
     const job = yieldJob(w, 'yield-fills-the-window', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     w.ollama.script({ response: 'It was never built.' });
     const served = await w.start();
     await settled(served, job);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 595, temperature: 0.2 })]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 659, temperature: 0.2 })]);
   });
 });

@@ -21,6 +21,6 @@ Requirements:
 - Aim for approximately 21333 tokens of content
 - Be factual and informative
 - Write flowing, well-structured paragraphs with no section headings
-- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). Cite only ids that appear in the context.
+- Ground every claim in the provided context. Cite each claim by wrapping its words, where they stand in your sentence, as [[<id>: the claim's words]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], write [[abc: the words that passage supports]]). A claim drawn from several passages lists their ids, separated by commas: [[abc,def: the claim's words]]. Wrap only the words a source supports, cite each source once per claim, and cite only ids that appear in the context.
 - Use markdown formatting
 - Write the response as markdown

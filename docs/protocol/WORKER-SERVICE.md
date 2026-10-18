@@ -779,13 +779,16 @@ focused on a resource or on an annotation.
   `done_reason` `length`, Anthropic's `stop_reason` `max_tokens`) the
   document is kept, and the job says `truncated`.
   *Held by `worker-service/yield`, `worker-service/anthropic`.*
-- **Y4.** With `cite`, the model is asked to mark each claim with the id of
-  its source, `[[<id>]]`. The marks are taken out of the document, each with
-  the spaces and tabs before it. A mark whose id the context showed makes a
-  citation of the claim before it: the sentence that ends at the mark, with
-  its closing marks and without the white space around it, as
+- **Y4.** With `cite`, the model is asked to wrap the words of each claim in
+  a mark naming its source, `[[<id>: <claim>]]`, the ids of several sources
+  separated by commas. A mark is taken out of the document and its claim left
+  where it stood, and each of its ids that the context showed makes a
+  citation of exactly that claim. A mark without a claim, `[[<id>]]`, is
+  taken out with the spaces and tabs before it, and makes a citation of the
+  claim before it: the sentence that ends at the mark, with its closing marks
+  and without the white space around it.
   [`citation-cases.json`](../../specs/src/worker/citation-cases.json) states
-  a claim. A mark whose id the context did not show makes none.
+  both. An id the context did not show makes none.
   *Held by `worker-service/yield`.*
 - **Y5.** The document is uploaded to the gateway, `POST /resources`, as the
   job's `title` in `name`, its media type in `format`, at the job's

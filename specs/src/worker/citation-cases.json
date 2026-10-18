@@ -1,5 +1,5 @@
 {
-  "$comment": "How a worker resolves the citations in a text it generated under `cite`, as every worker must resolve them. The model was asked to follow each claim with a token naming the source it rests on: `[[<resourceId>]]`, or `[[<resourceId>/<annotationId>]]` where the passage it read came from an annotation. A token is transport, never content: every token is taken out of the text, and each that names what the context really showed becomes a citation of the claim before it. THE TOKENS. A token is `[[`, an id, optionally `/` and a second id, then `]]`, where an id is one or more characters none of which is white space, `[`, `]` or `/`; anything else in double brackets is no token and stays in the text. Tokens are taken left to right. For each, the text since the token before it is kept, less the run of spaces and tabs at its very end, and the token itself is left out; a line end is neither, so spaces that stand before a line end are not at the end and are kept with it. The text after the last token is kept as it is. A token makes no citation, and is `dropped`, when its first id is not a ResourceId (specs/src/identifiers/kinds.json) or is not one of `contextResourceIds`; when it has a second id and that id is not an AnnotationId (the same file) or is not one of `contextAnnotationIds`; or when it has no claim. What a model invents is never linked. THE CLAIM is the sentence before the token, with its closing marks, in the text as resolved so far. A character here is a Unicode code point, one outside the Basic Multilingual Plane being one character, and a length is a count of them. The claim ENDS where that text ends, less the white space at its end: a token on a line of its own cites the sentence before it, and the line end between them stays in the text and is no part of the claim. Its CLOSING MARKS are the characters it ends with that are each a sentence mark (`.`, `!` or `?`) or a closer: a closing quotation mark or bracket (`\"`, `'`, U+201D, U+2019, U+00BB, `)`, `]` or `}`), or a mark that closes emphasis or code in Markdown, which a generated text is written in (`*`, `_`, a grave accent or `~`), in any run. An ellipsis of three full stops, `?!`, a full stop inside a closing quotation mark or bracket, and a full stop inside emphasis (`**Bold.**`) are each the claim's own, whole, and a claim may have none. Looking back from the character before them, the nearest line feed or sentence mark closes the sentence before; but a full stop that stands between two of the digits 0 to 9 closes none, being inside a number. A full stop after an abbreviation closes a sentence like any other: a worker knows no abbreviations. The claim STARTS after that character, or at 0 where there is none; where the character is a sentence mark, past any closers that follow it at once, which are the closing marks of the sentence before; and then past any white space. A closer counts there only in the run that follows the sentence mark with nothing between: a `*` after a space closes nothing, and begins the claim (a list item's bullet is one). A claim of no characters is no claim. `start` and `end` are offsets in the resolved text, counting its code points (specs/src/text/offset-cases.json), `exact` is the text between them, and `annotationId` is the token's second id where it had one. `dropped` lists the first id of each dropped token, in order: the worker logs a warning for each. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. `contexts` holds which ids a gathered context makes citable. `resourceIds`, a set: its focus resource (for a focus that is an annotation, the resource the annotation is in), every node of its graph that is a resource, the resource of every semantically similar passage, and every key of a resource focus's related content. `annotationIds`, a set: the annotation of every semantically similar passage that came from one, and no other: not the annotation a focus is, and not an annotation among the graph's nodes. Neither set has an id where there is no context. Semiont's worker runs every case in apps/worker (tests/test_citation_cases.py) against resolve_citation_tokens and collect_citable_ids; a worker in another language runs the same file. Add a case here before changing an implementation.",
+  "$comment": "How a worker resolves the citations in a text it generated under `cite`, as every worker must resolve them. The model was asked to wrap the words of each claim in a token naming the source it rests on: `[[<resourceId>: <claim>]]`, or `[[<resourceId>/<annotationId>: <claim>]]` where the passage it read came from an annotation. A token without a claim, `[[<resourceId>]]`, cites the claim before it. A token is transport, never content: every token is taken out of the text, a marked token leaving its claim where it stood, and each that names what the context really showed becomes a citation. THE TOKENS. A token is bare or marked. A BARE token is `[[`, an id, optionally `/` and a second id, then `]]`, where an id is one or more characters none of which is white space, `[`, `]` or `/`. A MARKED token is `[[`, one or more citations separated by commas, `:`, then its claim up to the first `]]` after the `:`, which ends it; a citation is an id, optionally `/` and a second id, where an id is one or more characters none of which is white space, `[`, `]`, `/`, `,` or `:`, and white space may stand on either side of a comma. Anything else in double brackets is no token and stays in the text. Tokens are taken left to right, and one that can be read as marked is marked. For each bare token, the text since the token before it is kept, less the run of spaces and tabs at its very end, and the token itself is left out; a line end is neither, so spaces that stand before a line end are not at the end and are kept with it. For each marked token, the text since the token before it is kept as it is, and the token is replaced by its CLAIM: what stands between its `:` and its `]]`, less the white space at its ends. Each of its citations cites the claim, in the order the token lists them: `start` is where the claim was put in the resolved text and `end` where it ends, so nothing is guessed. A marked token whose claim is empty is taken as bare tokens are, one for each of its citations, in order. The text after the last token is kept as it is. A citation of a token makes none, and is `dropped`, when its first id is not a ResourceId (specs/src/identifiers/kinds.json) or is not one of `contextResourceIds`; when it has a second id and that id is not an AnnotationId (the same file) or is not one of `contextAnnotationIds`; or, of a bare token, when there is no claim before it. A marked token's claim stays in the text whether any of its citations cites it or none does. What a model invents is never linked. THE CLAIM of a bare token is the sentence before the token, with its closing marks, in the text as resolved so far. A character here is a Unicode code point, one outside the Basic Multilingual Plane being one character, and a length is a count of them. The claim ENDS where that text ends, less the white space at its end: a token on a line of its own cites the sentence before it, and the line end between them stays in the text and is no part of the claim. Its CLOSING MARKS are the characters it ends with that are each a sentence mark (`.`, `!` or `?`) or a closer: a closing quotation mark or bracket (`\"`, `'`, U+201D, U+2019, U+00BB, `)`, `]` or `}`), or a mark that closes emphasis or code in Markdown, which a generated text is written in (`*`, `_`, a grave accent or `~`), in any run. An ellipsis of three full stops, `?!`, a full stop inside a closing quotation mark or bracket, and a full stop inside emphasis (`**Bold.**`) are each the claim's own, whole, and a claim may have none. Looking back from the character before them, the nearest line feed or sentence mark closes the sentence before; but a full stop that stands between two of the digits 0 to 9 closes none, being inside a number. A full stop after an abbreviation closes a sentence like any other: a worker knows no abbreviations. The claim STARTS after that character, or at 0 where there is none; where the character is a sentence mark, past any closers that follow it at once, which are the closing marks of the sentence before; and then past any white space. A closer counts there only in the run that follows the sentence mark with nothing between: a `*` after a space closes nothing, and begins the claim (a list item's bullet is one). A claim of no characters is no claim. `start` and `end` are offsets in the resolved text, counting its code points (specs/src/text/offset-cases.json), `exact` is the text between them, and `annotationId` is the citation's second id where it had one. `dropped` lists the first id of each dropped citation, in order: the worker logs a warning for each. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. `contexts` holds which ids a gathered context makes citable. `resourceIds`, a set: its focus resource (for a focus that is an annotation, the resource the annotation is in), every node of its graph that is a resource, the resource of every semantically similar passage, and every key of a resource focus's related content. `annotationIds`, a set: the annotation of every semantically similar passage that came from one, and no other: not the annotation a focus is, and not an annotation among the graph's nodes. Neither set has an id where there is no context. Semiont's worker runs every case in apps/worker (tests/test_citation_cases.py) against resolve_citation_tokens and collect_citable_ids; a worker in another language runs the same file. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a token after a claim cites it: the token and the space before it are taken out, and what follows is kept",
@@ -493,6 +493,238 @@
         "text": "It has parts.\n* one is brass.",
         "citations": [
           { "resourceId": "r1", "start": 14, "end": 29, "exact": "* one is brass." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked token's claim stays in the text where the token was, with the space before it, and its citation is exactly the claim: nothing is guessed",
+      "text": "The theory was [[r1: proposed by Smith]].",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "The theory was proposed by Smith.",
+        "citations": [
+          { "resourceId": "r1", "start": 15, "end": 32, "exact": "proposed by Smith" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a mark inside a sentence cites what it wraps and nothing more",
+      "text": "Tea is [[r1: hot]], they said.",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Tea is hot, they said.",
+        "citations": [
+          { "resourceId": "r1", "start": 7, "end": 10, "exact": "hot" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked claim with an abbreviation, a file name, a decimal and a full stop of its own is cited whole: no sentence is read in it",
+      "text": "[[r1: Dr. Lovelace edited config.json at 3.14 a.m.]] Then she left.",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Dr. Lovelace edited config.json at 3.14 a.m. Then she left.",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 44, "exact": "Dr. Lovelace edited config.json at 3.14 a.m." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked claim of two sentences is cited whole",
+      "text": "[[r1: It rained. The river rose.]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "It rained. The river rose.",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 26, "exact": "It rained. The river rose." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a token that lists several ids cites its claim once for each, over the one span, in the order it lists them",
+      "text": "Both [[r1,r2: agree on it]].",
+      "contextResourceIds": ["r1", "r2"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Both agree on it.",
+        "citations": [
+          { "resourceId": "r1", "start": 5, "end": 16, "exact": "agree on it" },
+          { "resourceId": "r2", "start": 5, "end": 16, "exact": "agree on it" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "white space may stand on either side of the comma between two ids",
+      "text": "Both [[r1 , r2: agree]].",
+      "contextResourceIds": ["r1", "r2"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Both agree.",
+        "citations": [
+          { "resourceId": "r1", "start": 5, "end": 10, "exact": "agree" },
+          { "resourceId": "r2", "start": 5, "end": 10, "exact": "agree" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "an id of a marked token that the context did not show cites nothing: the claim stays, and the token's other ids cite it",
+      "text": "Seen [[zzz,r1: twice]].",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Seen twice.",
+        "citations": [
+          { "resourceId": "r1", "start": 5, "end": 10, "exact": "twice" }
+        ]
+      },
+      "dropped": ["zzz"]
+    },
+    {
+      "why": "a marked token none of whose ids the context showed leaves its claim in the text, and cites nothing",
+      "text": "Seen [[zzz: once]].",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Seen once.",
+        "citations": []
+      },
+      "dropped": ["zzz"]
+    },
+    {
+      "why": "what is not a resource id is never cited from a marked token either, and its claim stays",
+      "text": "[[doc.1: x]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "x",
+        "citations": []
+      },
+      "dropped": ["doc.1"]
+    },
+    {
+      "why": "a marked token names the annotation a passage came from as a bare one does",
+      "text": "Ice [[r1/ann-7: melts]].",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": ["ann-7"],
+      "resolved": {
+        "text": "Ice melts.",
+        "citations": [
+          { "resourceId": "r1", "annotationId": "ann-7", "start": 4, "end": 9, "exact": "melts" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked token whose claim is empty is taken as bare tokens are, one for each of its ids: each cites the sentence before it",
+      "text": "Tea is hot. [[r1,r2: ]]",
+      "contextResourceIds": ["r1", "r2"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Tea is hot.",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 11, "exact": "Tea is hot." },
+          { "resourceId": "r2", "start": 0, "end": 11, "exact": "Tea is hot." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a claim ends at the first ]] after its colon: what follows stays in the text",
+      "text": "[[r1: one]] two]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "one two]]",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 3, "exact": "one" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "the white space at the ends of a claim is the token's, and leaves the text with it: the claim is its words",
+      "text": "A [[r1:   spaced claim  ]] end.",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "A spaced claim end.",
+        "citations": [
+          { "resourceId": "r1", "start": 2, "end": 14, "exact": "spaced claim" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked claim may run over a line end",
+      "text": "[[r1: line one\nline two]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "line one\nline two",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 17, "exact": "line one\nline two" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked claim's offsets count code points: after an emoji it starts at 2, where a count of UTF-16 code units says 3",
+      "text": "😀 [[r1: ok]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "😀 ok",
+        "citations": [
+          { "resourceId": "r1", "start": 2, "end": 4, "exact": "ok" }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a bare token after a marked one cites the sentence before it, as it always has",
+      "text": "[[r1: Alpha holds.]] Beta holds. [[r2]]",
+      "contextResourceIds": ["r1", "r2"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Alpha holds. Beta holds.",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 12, "exact": "Alpha holds." },
+          { "resourceId": "r2", "start": 13, "end": 24, "exact": "Beta holds." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a marked token with no closing ]] is no token, and stays in the text as it is",
+      "text": "Seen [[r1: no end",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "Seen [[r1: no end",
+        "citations": []
+      },
+      "dropped": []
+    },
+    {
+      "why": "a token inside a claim is no token of its own: the claim ends at the first ]], what was inside it is the claim's, and what follows stays in the text",
+      "text": "[[r1: see [[r2]] here]]",
+      "contextResourceIds": ["r1", "r2"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "see [[r2 here]]",
+        "citations": [
+          { "resourceId": "r1", "start": 0, "end": 8, "exact": "see [[r2" }
         ]
       },
       "dropped": []

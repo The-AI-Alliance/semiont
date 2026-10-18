@@ -305,12 +305,15 @@ def generation_prompt(params: GenerationJobParams, output_media_type: SupportedM
         else ""
     )
     focus_on = f"Focus on these entity types: {', '.join(params.entity_types)}." if params.entity_types else ""
-    # The model is asked to follow each claim with a token naming an id the context shows. The worker
-    # takes the tokens out and makes a citation of each: none reaches what is stored.
+    # The model is asked to wrap the words of each claim in a token naming an id the context shows. The worker takes the
+    # tokens out, leaving each claim where it stood, and cites exactly the words wrapped: none of a token reaches what is
+    # stored, and nothing is guessed. A token with no claim is still read, and not taught.
     cite_requirement = (
-        "\n- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], "
-        "where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). "
-        "Cite only ids that appear in the context."
+        "\n- Ground every claim in the provided context. Cite each claim by wrapping its words, where they stand in your sentence, "
+        "as [[<id>: the claim's words]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], "
+        "write [[abc: the words that passage supports]]). A claim drawn from several passages lists their ids, separated by commas: "
+        "[[abc,def: the claim's words]]. Wrap only the words a source supports, cite each source once per claim, and cite only ids "
+        "that appear in the context."
         if params.cite
         else ""
     )
