@@ -312,9 +312,11 @@ belongs in `task`, not in `prompt`. On completion the worker mints a source→de
 annotation, so provenance is automatic. The generated resource id arrives on the job's
 completion, as `result.resourceId`. The context excerpts embedded in the generation prompt are id-labelled
 (`[<resourceId>]` / `[<resourceId>/<annotationId>]`), and `cite: true` turns that into
-inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
-W3C linking annotations on the generated resource (claim span → cited source) — citations
-arrive as ordinary navigable references, not links in the text.
+inline citations: the model wraps the words each source supports as `[[<id>: <claim>]]`,
+and a bare `[[<id>]]` becomes the source's name. The worker takes the tokens out before
+storage and mints each citation as a W3C linking annotation on the generated resource
+(exactly the cited words → cited source) — citations arrive as ordinary navigable
+references, not links in the text.
 
 ```typescript
 const done = await session.client.yield.delegate({
