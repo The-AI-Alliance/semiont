@@ -31,9 +31,9 @@ from semiont_inference.interface import ElementSchema, InferenceClient, Inferenc
 from standing_in import GENERATOR
 
 from semiont_worker import held_job
-from semiont_worker.generation.citations import GenerationCitation
+from semiont_worker.generation.typst import Landed
 from semiont_worker.held_job import run_job
-from semiont_worker.processors import Cancelled, GeneratedArtifact, OnProgress
+from semiont_worker.processors import Cancelled, GeneratedArtifact, GeneratedPdf, GeneratedText, OnProgress, PdfCitation
 
 HIGHLIGHTING: Final[dict[str, JsonValue]] = {"motivation": "highlighting"}
 ONE_HIGHLIGHT: Final = '[{"exact": "the first program"}]'
@@ -355,8 +355,8 @@ def making(monkeypatch: pytest.MonkeyPatch, artifact: GeneratedArtifact | Cancel
     return asked
 
 
-def markdown(text: str = "A document.") -> GeneratedArtifact:
-    return GeneratedArtifact(content=text.encode("utf-8"), title="Generated", format="text/markdown", citations=[], truncated=False)
+def markdown(text: str = "A document.") -> GeneratedText:
+    return GeneratedText(content=text.encode("utf-8"), title="Generated", format="text/markdown", citations=[], truncated=False)
 
 
 def test_a_yield_job_uploads_what_was_made_links_its_source_to_it_and_completes_with_the_new_resource(
@@ -477,15 +477,20 @@ ASKED: Final = GetAnchoredText(ResourceId(NEW))
 """One ask for the text of the resource the job made."""
 
 
-def cited(exact: str, resource: str = "ctx-9") -> GenerationCitation:
-    # A PDF's citation states offsets into its Typst source, which say nothing of where the claim is in the PDF.
-    return GenerationCitation(resource_id=ResourceId(resource), annotation_id=None, start=1000, end=1000 + len(exact), exact=exact)
+COMPLICATED_LANDED: Final = Landed(page=1, x=272.0, y=680.0)
+"""Where the compiler says `extraordinarily complicated` ended: on the second line, along its item by 20 of its 27 characters."""
+
+SAID_LANDED: Final = Landed(page=1, x=562.0, y=680.0)
+"""Where it says `Nothing else is said.` ended: at the end of the last item."""
 
 
-def pdf(*citations: GenerationCitation) -> GeneratedArtifact:
-    return GeneratedArtifact(
-        content=b"%PDF-1.7 a stand-in", title="Generated", format="application/pdf", citations=list(citations), truncated=False
-    )
+def cited(exact: str, landed: Landed, resource: str = "ctx-9") -> PdfCitation:
+    # A PDF's citation is the claim's words and where the compiler says the claim ended.
+    return PdfCitation(resource_id=ResourceId(resource), annotation_id=None, exact=exact, landed=landed)
+
+
+def pdf(*citations: PdfCitation) -> GeneratedPdf:
+    return GeneratedPdf(content=b"%PDF-1.7 a stand-in", title="Generated", citations=list(citations), truncated=False)
 
 
 def citations_committed(parties: Parties) -> list[JsonValue]:
@@ -510,7 +515,7 @@ def test_a_pdf_s_citation_is_anchored_where_the_claim_is_on_the_page_and_quotes_
 ) -> None:
     parties = Parties()
     pdf_text(parties, EXTRACTED)
-    making(monkeypatch, pdf(cited("extraordinarily complicated")))
+    making(monkeypatch, pdf(cited("extraordinarily complicated", COMPLICATED_LANDED)))
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
     # The text was asked for once, of the new resource, and no bytes were read back.
@@ -543,7 +548,9 @@ def test_a_claim_the_pdf_s_text_does_not_have_is_dropped_and_said_in_the_log_and
 ) -> None:
     parties = Parties()
     pdf_text(parties, EXTRACTED)
-    making(monkeypatch, pdf(cited("a claim that was never rendered"), cited("Nothing else is said.", SOURCE)))
+    making(
+        monkeypatch, pdf(cited("a claim that was never rendered", COMPLICATED_LANDED), cited("Nothing else is said.", SAID_LANDED, SOURCE))
+    )
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
@@ -560,6 +567,61 @@ def test_a_claim_the_pdf_s_text_does_not_have_is_dropped_and_said_in_the_log_and
     assert len(parties.sent("job:complete")) == 1
 
 
+TWICE: Final = "Radiant Matter was read.\nRadiant Matter was cited."
+"""A PDF's text that has one claim twice, a line apart."""
+
+TWICE_ITEMS: Final[list[JsonValue]] = [
+    {"start": 0, "end": 24, "page": 1, "x": 72, "y": 700, "width": 200, "height": 12},
+    {"start": 25, "end": 50, "page": 1, "x": 72, "y": 680, "width": 200, "height": 12},
+]
+
+
+def viewrect_of(fragment: JsonValue) -> list[float]:
+    """The rectangle a fragment selector names: `x`, `y`, `width` and `height`, in PDF points."""
+    assert isinstance(fragment, dict)
+    value = fragment["value"]
+    assert isinstance(value, str)
+    return [float(number) for number in value.split("viewrect=")[1].split(",")]
+
+
+def test_a_claim_the_pdf_has_twice_is_anchored_at_the_place_the_compiler_says_it_ended(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A search would take the first. The compiler says where the cited one is: the second, on the line below.
+    parties = Parties()
+    twice = ExtractedText.model_validate({"kind": "extracted", "method": "pdf-text-layer", "text": TWICE, "items": TWICE_ITEMS})
+    pdf_text(parties, twice)
+    # Along the second item by 14 of its 25 characters: 72 + 200 * 14 / 25.
+    making(monkeypatch, pdf(cited("Radiant Matter", Landed(page=1, x=184.0, y=680.0))))
+    run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
+
+    (citation,) = citations_committed(parties)
+    assert isinstance(citation, dict)
+    target = citation["target"]
+    assert isinstance(target, dict)
+    selectors = target["selector"]
+    assert isinstance(selectors, list)
+    fragment, quote = selectors
+    assert isinstance(quote, dict)
+    assert quote["exact"] == "Radiant Matter"
+    # The rectangle is on the second line, not the first.
+    assert viewrect_of(fragment)[1] == 680
+
+
+def test_a_claim_that_is_in_the_pdf_but_not_where_the_compiler_says_it_ended_is_dropped_and_said_in_the_log(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Never anchored in the wrong place: a citation whose landing is at none of the claim's places is made nowhere.
+    parties = Parties()
+    pdf_text(parties, EXTRACTED)
+    making(monkeypatch, pdf(cited("extraordinarily complicated", Landed(page=2, x=272.0, y=680.0))))
+    caplog.set_level(logging.INFO, logger="semiont_worker")
+    run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
+
+    assert citations_committed(parties) == []
+    (dropped,) = logged(caplog, "PDF citation dropped")
+    assert (vars(dropped)["citedResourceId"], vars(dropped)["landedPage"]) == ("ctx-9", 2)
+    assert len(parties.sent("job:complete")) == 1
+
+
 def test_a_pdf_whose_text_is_not_there_yet_is_asked_for_again_and_each_further_ask_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     parties = Parties()
     pdf_text(parties, NOT_YET)
@@ -572,7 +634,7 @@ def test_a_pdf_whose_text_is_not_there_yet_is_asked_for_again_and_each_further_a
         return await read(resource_id)
 
     monkeypatch.setattr(parties.content, "get_anchored_text", there_at_the_third_ask)
-    making(monkeypatch, pdf(cited("extraordinarily complicated")))
+    making(monkeypatch, pdf(cited("extraordinarily complicated", COMPLICATED_LANDED)))
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
     assert text_asks(parties) == [ASKED] * 3
@@ -591,7 +653,7 @@ def test_a_pdf_whose_text_never_arrives_completes_with_its_resource_and_without_
 ) -> None:
     parties = Parties()
     pdf_text(parties, NOT_YET)
-    making(monkeypatch, pdf(cited("extraordinarily complicated"), cited("Nothing else is said.")))
+    making(monkeypatch, pdf(cited("extraordinarily complicated", COMPLICATED_LANDED), cited("Nothing else is said.", SAID_LANDED)))
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
@@ -623,7 +685,7 @@ def test_a_pdf_whose_text_is_not_to_be_had_is_asked_for_once_and_its_citations_a
 ) -> None:
     parties = Parties()
     pdf_text(parties, answer)
-    making(monkeypatch, pdf(cited("extraordinarily complicated")))
+    making(monkeypatch, pdf(cited("extraordinarily complicated", COMPLICATED_LANDED)))
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 

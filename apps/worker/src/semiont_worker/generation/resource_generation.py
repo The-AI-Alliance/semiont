@@ -5,7 +5,8 @@ compiles to a PDF, as the job's output media type says. The prompt is made of
 what the job asks for and of the context: the annotation or the resource in
 focus, the neighbourhood the knowledge graph shows, and the passages found
 similar. Every passage the prompt shows is labelled with the id of its
-source in square brackets, which is what a model cites by.
+source in square brackets, which is what a model cites by, and with the
+source's name before it wherever the context names the source.
 
 The words of the prompt are this module's own. Four whole prompts are stated
 outside it, by the Worker service's suite; the tests hold the rest to prompts
@@ -22,6 +23,7 @@ from semiont.types import (
     GatheredContextFocusAnnotation,
     GatheredContextFocusResource,
     GenerationJobParams,
+    GraphResourceNode,
     SemanticMatch,
     SupportedMediaType,
     TextualBody,
@@ -128,8 +130,23 @@ def _annotation_sections(focus: GatheredContextFocusAnnotation) -> str:
     return sections
 
 
-def _resource_sections(focus: GatheredContextFocusResource) -> str:
-    """What is said of a resource in focus: its summary, the references suggested for it, and the content gathered with it."""
+def _resource_names(context: GatheredContext) -> dict[str, str]:
+    """The name the context's graph gives each of its resources."""
+    return {node.id: node.label for node in context.graph.nodes if isinstance(node, GraphResourceNode)}
+
+
+def _named_label(resource_id: str, names: dict[str, str]) -> str:
+    """A resource's handle, after its name where `names` has one. An id is no name, so none is made up where it has none."""
+    name = names.get(resource_id)
+    return f"{name} {_id_label(resource_id, None)}" if name else _id_label(resource_id, None)
+
+
+def _resource_sections(focus: GatheredContextFocusResource, names: dict[str, str]) -> str:
+    """What is said of a resource in focus: its summary, the references suggested for it, and the content gathered with it.
+
+    Each related resource's content is shown under its name, which the graph
+    gives: the gather takes related resources from the graph's resource nodes.
+    """
     parts = [f"- Resource: {focus.resource.name} {_id_label(focus.resource.id, None)}"]
     if focus.summary:
         parts.append(f"- Summary: {focus.summary}")
@@ -141,7 +158,9 @@ def _resource_sections(focus: GatheredContextFocusResource) -> str:
     if content is not None and content.main:
         sections += f"\n\nResource content:\n---\n{content.main[:RESOURCE_CONTENT_CAP]}\n---"
     if content is not None and content.related:
-        blocks = "\n\n".join(f"[{resource_id}]\n{text[:RESOURCE_CONTENT_CAP]}" for resource_id, text in content.related.items())
+        blocks = "\n\n".join(
+            f"{_named_label(resource_id, names)}\n{text[:RESOURCE_CONTENT_CAP]}" for resource_id, text in content.related.items()
+        )
         sections += f"\n\nRelated resource content:\n---\n{blocks}\n---"
     return sections
 
@@ -170,13 +189,14 @@ def _graph_section(context: GatheredContext, main_resource_id: ResourceId, focal
 
 
 def _semantic_section(similar: list[SemanticMatch]) -> str:
-    """The passages found similar: the best few by score, each cut short and under its source's handle."""
+    """The passages found similar: the best few by score, each cut short and under its source's name and handle."""
     if not similar:
         return ""
     # The sort keeps passages of one score in the order the context gave them.
     best = sorted(similar, key=lambda match: match.score, reverse=True)[:SEMANTIC_MATCH_LIMIT]
     lines = [
-        f"- {_id_label(match.resource_id, match.annotation_id)} ({_two_places(match.score)}){' [OCR]' if match.machine_read else ''} "
+        f"- {match.resource_name} {_id_label(match.resource_id, match.annotation_id)} ({_two_places(match.score)})"
+        f"{' [OCR]' if match.machine_read else ''} "
         f"{match.text[:SEMANTIC_MATCH_CODE_POINTS]}"
         for match in best
     ]
@@ -270,7 +290,7 @@ def generation_prompt(params: GenerationJobParams, output_media_type: SupportedM
         focus_sections = _annotation_sections(focus)
         graph_section = _graph_section(context, focus.source_resource.id, focus.annotation.id)
     else:
-        focus_sections = _resource_sections(focus)
+        focus_sections = _resource_sections(focus, _resource_names(context))
         graph_section = _graph_section(context, focus.resource.id, None)
     semantic_section = _semantic_section([] if context.semantic_context is None else context.semantic_context.similar)
 
@@ -285,12 +305,17 @@ def generation_prompt(params: GenerationJobParams, output_media_type: SupportedM
         else ""
     )
     focus_on = f"Focus on these entity types: {', '.join(params.entity_types)}." if params.entity_types else ""
-    # The model is asked to follow each claim with a token naming an id the context shows. The worker
-    # takes the tokens out and makes a citation of each: none reaches what is stored.
+    # The model is asked to wrap the words of each claim in a token naming an id the context shows. The worker takes the
+    # tokens out, leaving each claim where it stood, and cites exactly the words wrapped: none of a token reaches what is
+    # stored, and nothing is guessed. A token with no claim becomes its source's name. The model is told so, that it may
+    # put one where a name reads, and is told to prefer wrapping.
     cite_requirement = (
-        "\n- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], "
-        "where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). "
-        "Cite only ids that appear in the context."
+        "\n- Ground every claim in the provided context. Cite each claim by wrapping its words, where they stand in your sentence, "
+        "as [[<id>: the claim's words]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], "
+        "write [[abc: the words that passage supports]]). A claim drawn from several passages lists their ids, separated by commas: "
+        "[[abc,def: the claim's words]]. Wrap only the words a source supports, cite each source once per claim, and cite only ids "
+        "that appear in the context. Prefer wrapping words: a bare [[<id>]] is replaced by that source's name, so write one only "
+        "where the source's name belongs in your sentence."
         if params.cite
         else ""
     )

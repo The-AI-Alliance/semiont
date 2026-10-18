@@ -5,17 +5,30 @@ run with and does as its test says. So these hold the worker's side of the
 call on any machine, with or without the compiler: the arguments and their
 order, the creation time every compile pins, the source as the compiler finds
 it, the bytes answered, what is answered of a refusal, and that nothing is
-left behind. `test_typst_binary.py` runs the compiler itself.
+left behind. `test_typst_binary.py` runs the compiler itself. How a claim's
+words are read as the compiler renders them needs no compiler, and is held
+here too.
 """
 
 import os
+import string
 import tempfile
 from pathlib import Path
 from typing import Final, final
 
 import pytest
 
-from semiont_worker.generation.typst import PINNED_CREATION_TIMESTAMP, Compiled, NotCompiled, compile_typst
+from semiont_worker.generation.typst import (
+    PINNED_CREATION_TIMESTAMP,
+    Compiled,
+    Landed,
+    LandedCompile,
+    NotCompiled,
+    compile_typst,
+    compile_typst_landing,
+    mark_ends,
+    read_escapes,
+)
 
 SOURCE: Final = "= Caf\u00e9 \U0001f600\r\n\r\nBody text.\n"
 
@@ -120,3 +133,97 @@ def test_a_compiler_that_exits_well_and_leaves_no_pdf_fails_loudly(typst: StandI
     with pytest.raises(FileNotFoundError, match=r"doc\.pdf"):
         compile_typst(SOURCE)
     assert list(typst.scratch.iterdir()) == []
+
+
+# ── a compile that says where each cited span landed ───────────────────
+
+MARK_0: Final = (
+    "#context [#metadata((citation: 0, page: here().position().page, x: here().position().x.pt(), y: here().position().y.pt(), "
+    "height: if type(page.height) == length { page.height.pt() } else { none }))<semiont-citation>];"
+)
+"""The mark the first citation's end is given: a point Typst can be asked for after the compile, which draws nothing."""
+
+
+def test_each_end_is_marked_where_it_is_and_the_marks_are_numbered_in_the_order_given() -> None:
+    marked = mark_ends("Paris is old. Rome is older.", [13, 28])
+
+    assert marked == "Paris is old." + MARK_0 + " Rome is older." + MARK_0.replace("citation: 0", "citation: 1")
+
+
+def test_two_citations_that_end_at_one_place_are_two_marks_there() -> None:
+    marked = mark_ends("Tea is hot.", [11, 11])
+
+    assert marked == "Tea is hot." + MARK_0 + MARK_0.replace("citation: 0", "citation: 1")
+
+
+def test_an_end_counts_code_points() -> None:
+    # A character outside the Basic Multilingual Plane before the end is one code point.
+    assert mark_ends("\U0001f600 ok.", [5]) == "\U0001f600 ok." + MARK_0
+
+
+def landing(typst: StandIn, answered: str) -> None:
+    """A stand-in that compiles to a stand-in PDF, keeping the marked source, and answers the query with `answered`."""
+    typst.does(
+        'case "$1" in\n'
+        f"compile) cp \"$4\" '{typst.kept}/marked'; printf '%%PDF-MARKED' > \"$5\";;\n"
+        f"eval) printf '%s\\n' \"$@\" > '{typst.kept}/eval-argv'; printf '%s' '{answered}';;\n"
+        "esac"
+    )
+
+
+def test_a_landing_compile_marks_the_ends_compiles_pinned_and_asks_the_same_source_where_each_mark_landed(typst: StandIn) -> None:
+    landing(typst, '[{"citation":0,"page":1,"x":10.5,"y":20.25,"height":200}]')
+
+    landed = compile_typst_landing("Tea is hot.", [11])
+
+    # Typst measures from the top of the page and the PDF's text from the bottom: the point is turned over with the page's height.
+    assert landed == LandedCompile(pdf=b"%PDF-MARKED", landed=[Landed(page=1, x=10.5, y=179.75)])
+    assert (typst.kept / "marked").read_text(encoding="utf-8") == "Tea is hot." + MARK_0
+    asked = (typst.kept / "eval-argv").read_text(encoding="utf-8").splitlines()
+    assert asked[:3] == ["eval", "query(<semiont-citation>).map(it => it.value)", "--in"]
+    assert Path(asked[3]).name == "doc.typ"
+    assert asked[4:] == ["--format", "json", "--creation-timestamp", str(PINNED_CREATION_TIMESTAMP)]
+
+
+def test_a_mark_on_a_page_whose_height_is_auto_has_no_landing(typst: StandIn) -> None:
+    # Nothing turns a point measured from the top of such a page over: its height is not a length.
+    landing(typst, '[{"citation":0,"page":1,"x":10,"y":20,"height":null}]')
+
+    assert compile_typst_landing("Tea is hot.", [11]) == LandedCompile(pdf=b"%PDF-MARKED", landed=[None])
+
+
+def test_a_mark_the_query_does_not_answer_has_no_landing(typst: StandIn) -> None:
+    landing(typst, '[{"citation":1,"page":2,"x":10,"y":20,"height":200}]')
+
+    assert compile_typst_landing("One. Two.", [4, 9]) == LandedCompile(pdf=b"%PDF-MARKED", landed=[None, Landed(page=2, x=10, y=180)])
+
+
+def test_a_marked_source_the_compiler_refuses_answers_what_it_said(typst: StandIn) -> None:
+    typst.does("echo 'error: marked badly' >&2\nexit 1")
+
+    assert compile_typst_landing("Tea is hot.", [11]) == NotCompiled(error="error: marked badly\n")
+
+
+def test_a_query_that_fails_answers_what_the_compiler_said(typst: StandIn) -> None:
+    typst.does("case \"$1\" in\ncompile) printf '%%PDF-MARKED' > \"$5\";;\neval) echo 'error: no such label' >&2; exit 1;;\nesac")
+
+    assert compile_typst_landing("Tea is hot.", [11]) == NotCompiled(error="error: no such label\n")
+
+
+# ── a claim's words, as the compiler renders them ──────────────────────
+
+
+def test_each_escaped_ascii_punctuation_character_is_read_as_itself() -> None:
+    assert read_escapes("".join("\\" + character for character in string.punctuation)) == string.punctuation
+    assert read_escapes("Notes \\(1879\\) cost \\$5") == "Notes (1879) cost $5"
+
+
+def test_an_escaped_backslash_is_read_first_and_what_follows_it_is_its_own() -> None:
+    # `\\*` is a backslash, and then an asterisk that the escape does not reach.
+    assert read_escapes("a\\\\*b") == "a\\*b"
+
+
+def test_what_the_worker_never_writes_is_left_as_it_is() -> None:
+    # A code point written by its number, a backslash before white space or a letter, and one that ends the words.
+    assert read_escapes("\\u{1F600} a\\ b \\x c\\") == "\\u{1F600} a\\ b \\x c\\"
+    assert read_escapes("No escape here.") == "No escape here."

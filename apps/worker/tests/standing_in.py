@@ -44,7 +44,7 @@ from semiont_worker.detection.chunk_plan import ChunkCursor, UnderReportedPiece
 from semiont_worker.detection.entity_extractor import Mention
 from semiont_worker.detection.parsers import AssessmentMatch, CommentMatch, TagMatch
 from semiont_worker.generation.resource_generation import GeneratedDocument, Repair
-from semiont_worker.generation.typst import Compiled, NotCompiled
+from semiont_worker.generation.typst import Compiled, LandedCompile, NotCompiled
 from semiont_worker.processors import BuildAnnotation, OnChunkComplete, UnitCheckpoint
 
 RESOURCE: Final = ResourceId("res-test")
@@ -424,6 +424,21 @@ def generation_stood_in(monkeypatch: pytest.MonkeyPatch, answer: Callable[[Asked
         return answer(call)
 
     monkeypatch.setattr(processors, "generate_resource_from_topic", generate_resource_from_topic)
+    return asked
+
+
+def landing_stood_in(monkeypatch: pytest.MonkeyPatch, outcome: LandedCompile | NotCompiled) -> list[tuple[str, list[int]]]:
+    """Stand in for `compile_typst_landing`: every landing compile is answered `outcome`.
+
+    Answers each source compiled and the ends marked in it, as they were asked for.
+    """
+    asked: list[tuple[str, list[int]]] = []
+
+    def compile_typst_landing(source: str, ends: Sequence[int]) -> LandedCompile | NotCompiled:
+        asked.append((source, list(ends)))
+        return outcome
+
+    monkeypatch.setattr(processors, "compile_typst_landing", compile_typst_landing)
     return asked
 
 

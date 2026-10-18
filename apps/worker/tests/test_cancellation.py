@@ -70,6 +70,7 @@ from semiont_worker.generation.typst import Compiled, NotCompiled
 from semiont_worker.processors import (
     Cancelled,
     GeneratedArtifact,
+    GeneratedText,
     UnitCheckpoint,
     process_assessment_job,
     process_comment_job,
@@ -973,6 +974,6 @@ def test_a_yield_job_cancelled_once_its_model_has_answered_runs_to_its_end(monke
 
     made = run(process_generation_job(handed.client, yielding({}), on_progress=told, cancelled=handed.cancelled))
 
-    assert isinstance(made, GeneratedArtifact)
+    assert isinstance(made, GeneratedText)
     assert made.content == b"Body."
     assert handed.told.codes() == ["generating-resource", "creating-resource", "complete-generated"]

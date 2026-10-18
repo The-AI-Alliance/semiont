@@ -18,13 +18,22 @@ from pydantic import BaseModel, Field, JsonValue
 from semiont.identifiers import ResourceId
 from semiont.types import GenerationJobParams
 from spec import SPEC
-from standing_in import AskedToGenerate, Handed, compiler_stood_in, generation_stood_in, report
+from standing_in import AskedToGenerate, Handed, compiler_stood_in, generation_stood_in, landing_stood_in, report
 
 from semiont_worker.failure_class import DeterministicJobError, classify_failure
 from semiont_worker.generation.citations import GenerationCitation
 from semiont_worker.generation.resource_generation import GeneratedDocument, Repair
-from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, Compiled, NotCompiled
-from semiont_worker.processors import MAX_OUTPUT_BYTES, Cancelled, GeneratedArtifact, assert_within_output_budget, process_generation_job
+from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, Compiled, Landed, LandedCompile, NotCompiled
+from semiont_worker.processors import (
+    MAX_OUTPUT_BYTES,
+    Cancelled,
+    GeneratedArtifact,
+    GeneratedPdf,
+    GeneratedText,
+    PdfCitation,
+    assert_within_output_budget,
+    process_generation_job,
+)
 
 SOURCE: Final[JsonValue] = {"@context": "https://schema.org", "@id": "src-1", "name": "Source Doc", "representations": []}
 CONTEXT: Final[JsonValue] = {
@@ -68,7 +77,7 @@ def generate(handed: Handed, params: GenerationJobParams) -> GeneratedArtifact |
 
 def made(outcome: GeneratedArtifact | Cancelled) -> GeneratedArtifact:
     """What a generation that ran to its end made. One a cancellation stopped made nothing, and fails the test that did not expect it."""
-    assert isinstance(outcome, GeneratedArtifact), "the generation was stopped by a cancellation"
+    assert not isinstance(outcome, Cancelled), "the generation was stopped by a cancellation"
     return outcome
 
 
@@ -107,7 +116,7 @@ def test_a_generation_asks_once_for_the_job_as_it_is_and_answers_the_document_as
     # Y2: one request. The job is handed on whole, with the format it writes and the provider it was claimed for.
     assert asked == [AskedToGenerate(params, "text/markdown", handed.client, None)]
     # Y1: with no format stated, the job writes Markdown. The artifact is bytes, whatever its format: UTF-8, of a text.
-    assert artifact == GeneratedArtifact(
+    assert artifact == GeneratedText(
         content=b"# Caf\xc3\xa9\n\nBody.", title="Initial", format="text/markdown", citations=[], truncated=False
     )
     # Y8.
@@ -156,20 +165,20 @@ def test_a_format_the_registry_does_not_mark_generatable_is_refused_as_determini
 # ── Y4: citations ───────────────────────────────────────────────────────
 
 
-def test_with_cite_the_marks_are_taken_out_of_the_document_and_each_whose_id_the_context_showed_cites_the_claim_before_it(
+def test_with_cite_a_bare_mark_becomes_the_name_the_context_gave_its_source_and_cites_exactly_that_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    answering(monkeypatch, whole("Paris is the capital of France. [[ctx-9]] It is large."))
+    answering(monkeypatch, whole("Paris is the capital of France, as [[ctx-9]] says."))
 
     artifact = made(generate(Handed(1), job({"cite": True})))
 
     text = artifact.content.decode("utf-8")
-    assert text == "Paris is the capital of France. It is large."
+    assert text == "Paris is the capital of France, as Context Doc says."
     assert artifact.citations == [
-        GenerationCitation(resource_id=ResourceId("ctx-9"), annotation_id=None, start=0, end=31, exact="Paris is the capital of France.")
+        GenerationCitation(resource_id=ResourceId("ctx-9"), annotation_id=None, start=35, end=46, exact="Context Doc")
     ]
     # Offsets in the document as it is uploaded (Y7).
-    assert text[0:31] == "Paris is the capital of France."
+    assert text[35:46] == "Context Doc"
 
 
 def test_a_mark_whose_id_the_context_did_not_show_is_taken_out_makes_no_citation_and_is_warned_of_once(
@@ -201,18 +210,25 @@ def test_without_cite_what_is_in_double_brackets_is_the_document_s_own(
 PDF: Final = Compiled(pdf=b"%PDF-STAND-IN\x00\xff")
 UNCLOSED: Final = NotCompiled(error="error: unclosed delimiter\n  ┌─ doc.typ:1:14")
 AS_PDF: Final[dict[str, JsonValue]] = {"title": "T", "outputMediaType": "application/pdf"}
+MARKED: Final = Compiled(pdf=b"%PDF-MARKED-STAND-IN")
+LANDED: Final = Landed(page=1, x=272.0, y=680.0)
+CITED_SOURCE: Final = "= Answer\nParis is the capital of France, says [[ctx-9]]."
+"""A source that cites once, by a bare mark: resolved, the mark is its source's name, `Context Doc`, which ends at 57."""
 
 
 def test_a_pdf_is_what_the_compiler_makes_of_the_typst_the_model_wrote(monkeypatch: pytest.MonkeyPatch) -> None:
     asked = answering(monkeypatch, whole("= Title\nBody."))
     compiled = compiler_stood_in(monkeypatch, [PDF])
+    landing = landing_stood_in(monkeypatch, NotCompiled(error="a PDF that cites nothing is marked nowhere"))
     handed = Handed(1)
 
     artifact = made(generate(handed, job(AS_PDF)))
 
     assert [(call.output_media_type, call.repair) for call in asked] == [("application/pdf", None)]
     assert compiled == ["= Title\nBody."]
-    assert artifact == GeneratedArtifact(content=PDF.pdf, title="T", format="application/pdf", citations=[], truncated=False)
+    # A PDF that cites nothing is compiled once: nothing in it is to be found again.
+    assert landing == []
+    assert artifact == GeneratedPdf(content=PDF.pdf, title="T", citations=[], truncated=False)
     assert handed.told.said() == [GENERATING, CREATING, complete(False)]
 
 
@@ -312,18 +328,133 @@ def test_with_cite_the_marks_are_taken_out_of_a_pdf_s_source_before_every_compil
     # Y4: a mark never reaches what is rendered.
     asked = answering(
         monkeypatch,
-        whole("= Answer\n#let x = [ Paris is the capital. [[ctx-9]]"),
-        whole("= Answer\nParis is the capital of France. [[ctx-9]]"),
+        whole("= Answer\n#let x = [ As [[ctx-9]] says, Paris is the capital."),
+        whole("= Answer\nAs [[ctx-9]] says, [[ctx-9: Paris is the capital of France]]."),
     )
     compiled = compiler_stood_in(monkeypatch, [UNCLOSED, PDF])
+    landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[LANDED, LANDED]))
 
     artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
 
-    assert compiled == ["= Answer\n#let x = [ Paris is the capital.", "= Answer\nParis is the capital of France."]
-    assert asked[1].repair == Repair(source="= Answer\n#let x = [ Paris is the capital.", error=UNCLOSED.error)
-    assert artifact.content == PDF.pdf
-    # The citations are the repaired document's: the claim as its source has it, to be found again in what is rendered.
-    assert [(citation.resource_id, citation.exact) for citation in artifact.citations] == [("ctx-9", "Paris is the capital of France.")]
+    # A name put in a mark's place is in every compile, and in the source a repair is handed.
+    assert compiled == [
+        "= Answer\n#let x = [ As Context Doc says, Paris is the capital.",
+        "= Answer\nAs Context Doc says, Paris is the capital of France.",
+    ]
+    assert asked[1].repair == Repair(source="= Answer\n#let x = [ As Context Doc says, Paris is the capital.", error=UNCLOSED.error)
+    # The citations are the repaired document's: the words as its source has them, to be found again in what is rendered.
+    assert isinstance(artifact, GeneratedPdf)
+    assert [(citation.resource_id, citation.exact) for citation in artifact.citations] == [
+        ("ctx-9", "Context Doc"),
+        ("ctx-9", "Paris is the capital of France"),
+    ]
+
+
+def test_a_pdf_that_cites_is_compiled_again_with_each_claim_s_end_marked_and_that_pdf_is_what_is_made(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Where each claim is in the PDF is the compiler's to say, not a search's to guess: the source is compiled once more with
+    # the end of each claim marked, and that compile is the PDF, so that what it says of its pages is the PDF's own.
+    answering(monkeypatch, whole(CITED_SOURCE))
+    compiler_stood_in(monkeypatch, [PDF])
+    landing = landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[LANDED]))
+
+    artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
+
+    assert landing == [("= Answer\nParis is the capital of France, says Context Doc.", [57])]
+    assert artifact == GeneratedPdf(
+        content=MARKED.pdf,
+        title="T",
+        citations=[PdfCitation(resource_id=ResourceId("ctx-9"), annotation_id=None, exact="Context Doc", landed=LANDED)],
+        truncated=False,
+    )
+
+
+def test_a_marked_claim_in_a_pdf_has_its_own_end_marked(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The claim the model wrapped is the citation's words, and where they end is no guess: that end is the one marked.
+    answering(monkeypatch, whole("= Answer\nThe theory was [[ctx-9: proposed by Smith]]."))
+    compiler_stood_in(monkeypatch, [PDF])
+    landing = landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[LANDED]))
+
+    artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
+
+    # `= Answer\nThe theory was ` is 24 code points, and the claim 17 more.
+    assert landing == [("= Answer\nThe theory was proposed by Smith.", [41])]
+    assert isinstance(artifact, GeneratedPdf)
+    assert [(citation.resource_id, citation.exact) for citation in artifact.citations] == [("ctx-9", "proposed by Smith")]
+
+
+def test_a_marked_source_the_compiler_refuses_keeps_the_pdf_and_drops_its_citations_saying_so(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A mark is code put in the model's prose. Where it breaks the compile, no citation can be placed: none is made, and the
+    # PDF is the one that compiled without the marks.
+    answering(monkeypatch, whole(CITED_SOURCE))
+    compiler_stood_in(monkeypatch, [PDF])
+    landing_stood_in(monkeypatch, NotCompiled(error="error: a mark in the wrong place"))
+    caplog.set_level(logging.WARNING, logger="semiont_worker")
+
+    artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
+
+    assert artifact == GeneratedPdf(content=PDF.pdf, title="T", citations=[], truncated=False)
+    (said,) = [record for record in caplog.records if record.getMessage().startswith("PDF citations dropped")]
+    assert (vars(said)["citations"], vars(said)["error"]) == (1, "error: a mark in the wrong place")
+
+
+def test_a_citation_the_compiler_gives_no_landing_is_dropped_saying_so_and_the_others_are_kept(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    answering(monkeypatch, whole("= Answer\n[[ctx-9: Tea is hot]]. [[src-1: Ice is cold]]."))
+    compiler_stood_in(monkeypatch, [PDF])
+    landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[None, LANDED]))
+    caplog.set_level(logging.WARNING, logger="semiont_worker")
+
+    artifact = made(generate(Handed(1), job({**AS_PDF, "cite": True})))
+
+    assert isinstance(artifact, GeneratedPdf)
+    assert [(citation.resource_id, citation.exact) for citation in artifact.citations] == [("src-1", "Ice is cold")]
+    (said,) = [record for record in caplog.records if record.getMessage().startswith("PDF citation dropped")]
+    assert (vars(said)["citedResourceId"], vars(said)["exactPreview"]) == ("ctx-9", "Tea is hot")
+
+
+def test_the_budget_is_held_to_the_pdf_that_is_made_which_is_the_marked_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    answering(monkeypatch, whole(CITED_SOURCE))
+    compiler_stood_in(monkeypatch, [Compiled(pdf=b"x" * 8)])
+    landing_stood_in(monkeypatch, LandedCompile(pdf=b"x" * 9, landed=[LANDED]))
+    monkeypatch.setattr("semiont_worker.processors.MAX_OUTPUT_BYTES", 8)
+
+    with pytest.raises(RuntimeError, match="output byte budget: 9 bytes > 8"):
+        generate(Handed(1), job({**AS_PDF, "cite": True}))
+
+
+PUNCTUATED: Final[JsonValue] = {
+    "focus": {"kind": "resource", "resource": SOURCE},
+    "graph": {"nodes": [{"id": "ctx-9", "type": "resource", "label": "Notes (1879)"}], "edges": []},
+    "metadata": {},
+}
+"""A context whose one other resource has a name with punctuation in it."""
+
+
+@pytest.mark.parametrize(
+    ("media_type", "written"),
+    [("text/markdown", "Notes \\(1879\\)"), ("text/plain", "Notes (1879)"), ("application/pdf", "Notes \\(1879\\)")],
+)
+def test_a_name_is_written_as_the_job_s_format_writes_it(monkeypatch: pytest.MonkeyPatch, media_type: str, written: str) -> None:
+    # In Markdown, and in the Typst a PDF is compiled from, a name's punctuation is put after a backslash: no name is read as markup.
+    answering(monkeypatch, whole("See [[ctx-9]]."))
+    compiled = compiler_stood_in(monkeypatch, [PDF])
+    landing = landing_stood_in(monkeypatch, LandedCompile(pdf=MARKED.pdf, landed=[LANDED]))
+
+    artifact = made(generate(Handed(1), job({"cite": True, "context": PUNCTUATED, "outputMediaType": media_type})))
+
+    source = compiled[0] if isinstance(artifact, GeneratedPdf) else artifact.content.decode("utf-8")
+    assert source == f"See {written}."
+    if isinstance(artifact, GeneratedText):
+        assert [(citation.start, citation.end, citation.exact) for citation in artifact.citations] == [(4, 4 + len(written), written)]
+    else:
+        # The end marked is the source's; the words looked for are the PDF's, which has the name as the compiler rendered it.
+        assert landing == [(f"See {written}.", [4 + len(written)])]
+        assert [citation.exact for citation in artifact.citations] == ["Notes (1879)"]
 
 
 def test_without_cite_a_pdf_s_source_is_compiled_as_the_model_wrote_it(monkeypatch: pytest.MonkeyPatch) -> None:
