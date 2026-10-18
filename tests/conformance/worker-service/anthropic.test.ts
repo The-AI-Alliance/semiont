@@ -470,7 +470,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
   it('asks for a generation with the job\'s own length and temperature and no schema, uploads the answer, and says when the model was cut off', async () => {
     const w = world();
     const agent = claude(w);
-    // The model reads 400 tokens: the prompt, 359 of them, and the 300 asked for are together over that, and the generation is asked for all the same.
+    // The model reads 400 tokens: the prompt, 394 of them, and the 300 asked for are together over that, and the generation is asked for all the same.
     w.anthropic.models.set(agent.model, { ...ANTHROPIC_MODEL, maxInputTokens: 400, maxOutputTokens: 300 });
     const whole = yieldJob(w, 'anthropic-yield', { maxTokens: 300, temperature: 0.2 });
     const cutOff = yieldJob(w, 'anthropic-yield-cut-off', { maxTokens: 300, temperature: 0.2 });

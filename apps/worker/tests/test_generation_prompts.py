@@ -273,7 +273,8 @@ def test_an_annotation_s_comment_its_neighbourhood_and_the_similar_passages_are_
         "as [[<id>: the claim's words]], where <id> is an id shown in square brackets in the context above (for a passage labeled "
         "[abc], write [[abc: the words that passage supports]]). A claim drawn from several passages lists their ids, separated by "
         "commas: [[abc,def: the claim's words]]. Wrap only the words a source supports, cite each source once per claim, and cite "
-        "only ids that appear in the context.\n"
+        "only ids that appear in the context. Prefer wrapping words: a bare [[<id>]] is replaced by that source's name, so write one "
+        "only where the source's name belongs in your sentence.\n"
         "- Use markdown formatting\n"
         "- Write the response as markdown"
     )

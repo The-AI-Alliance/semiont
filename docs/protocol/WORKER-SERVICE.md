@@ -784,11 +784,14 @@ focused on a resource or on an annotation.
   separated by commas. A mark is taken out of the document and its claim left
   where it stood, and each of its ids that the context showed makes a
   citation of exactly that claim. A mark without a claim, `[[<id>]]`, is
-  taken out with the spaces and tabs before it, and makes a citation of the
-  claim before it: the sentence that ends at the mark, with its closing marks
-  and without the white space around it.
+  replaced by the name the context gave its source, and makes a citation of
+  exactly that name. In Markdown, and in the Typst a PDF is compiled from,
+  the name's ASCII punctuation is written after a backslash, so that none of
+  it is read as markup. Nothing is guessed.
   [`citation-cases.json`](../../specs/src/worker/citation-cases.json) states
-  both. An id the context did not show makes none.
+  both. An id the context did not show makes none, and neither does a mark
+  without a claim whose source the context named only by its id: it is taken
+  out with the spaces and tabs before it.
   *Held by `worker-service/yield`.*
 - **Y5.** The document is uploaded to the gateway, `POST /resources`, as the
   job's `title` in `name`, its media type in `format`, at the job's

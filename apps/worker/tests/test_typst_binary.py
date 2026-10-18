@@ -2,22 +2,26 @@
 
 `test_typst.py` holds how the worker calls a compiler. These hold what the
 call is for, which only the compiler can show: a PDF comes back, the pinned
-creation time is the PDF's, one source is the same bytes every time, and a
-source it refuses comes back with diagnostics that name the place.
+creation time is the PDF's, one source is the same bytes every time, a
+source it refuses comes back with diagnostics that name the place, and a
+source's name, as the worker writes one into Typst, is read as itself.
 
 Nothing here installs the compiler or stands in for it, and no test is
 skipped without it: on a machine that has no `typst` each fails, and says
 where the image gets its own.
 """
 
+import json
 import re
 import shutil
+import string
 from datetime import UTC, datetime
 from typing import Final
 
 import pytest
 from spec import PROJECT
 
+from semiont_worker.generation.citations import CitableIds, resolve_citation_tokens
 from semiont_worker.generation.typst import (
     PINNED_CREATION_TIMESTAMP,
     Compiled,
@@ -138,3 +142,24 @@ def test_a_mark_on_a_page_whose_height_is_auto_has_no_landing() -> None:
     source = "#set page(height: auto)\nTea is hot."
 
     assert landed(source, [at(source, "hot")]) == [None]
+
+
+# ── a source's name, as a PDF's source has it ──────────────────────────
+
+
+def test_a_name_written_for_a_pdf_is_read_as_itself_and_a_mark_after_it_lands() -> None:
+    # A name put in a PDF's source has each of its ASCII punctuation characters after a backslash (`citation-cases.json`). Each
+    # of the 32 must be read by the compiler as itself, and none of them, nor what follows them, as markup.
+    citable = CitableIds(resource_ids=frozenset({"r1"}), annotation_ids=frozenset(), names={"r1": string.punctuation})
+    written = resolve_citation_tokens("[[r1]]", citable, "application/pdf").content
+    read_back = (
+        f"#let name = [{written}]\n"
+        '#let read = if name.has("children") { name.children.map(part => part.text).join() } else { name.text }\n'
+        f"#assert.eq(read, {json.dumps(string.punctuation)})\n"
+        "#name\n"
+    )
+    assert compiled(read_back).startswith(b"%PDF-")
+    # A mark at the name's end is code just after its last escape: it lands as at any other word.
+    source = PAGE + f"See {written}. Then more."
+    (point,) = landed(source, [at(source, written)])
+    assert point is not None

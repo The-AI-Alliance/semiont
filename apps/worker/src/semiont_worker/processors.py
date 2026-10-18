@@ -891,11 +891,11 @@ type GeneratedArtifact = GeneratedText | GeneratedPdf
 """What a `yield` job made, of either kind."""
 
 
-def _cited(document: str, citable: CitableIds | None) -> tuple[str, list[GenerationCitation]]:
+def _cited(document: str, citable: CitableIds | None, written_as: SupportedMediaType) -> tuple[str, list[GenerationCitation]]:
     """A document without its citation tokens, and the citations they made. Of a job that asks for none: the document as it is, and none."""
     if citable is None:
         return document, []
-    resolved = resolve_citation_tokens(document, citable)
+    resolved = resolve_citation_tokens(document, citable, written_as)
     return resolved.content, resolved.citations
 
 
@@ -907,9 +907,10 @@ async def process_generation_job(
     The job writes Markdown where it states no format. For a PDF the model
     writes Typst, which the worker compiles. A source that does not compile
     is handed back to the model with what the compiler said, a bounded
-    number of times. With `cite`, the tokens the model marks its claims with
-    are taken out before anything is stored or compiled, and each that names
-    what the context showed is answered as a citation.
+    number of times. With `cite`, the tokens the model cites its sources with
+    are resolved before anything is stored or compiled: a marked token leaves
+    the words it wrapped, a bare one becomes its source's name, and each that
+    names what the context showed is answered as a citation of those words.
 
     A cancellation that has arrived by the time the model has answered ends
     the job there: nothing is made of the answer, and nothing more is
@@ -935,7 +936,7 @@ async def process_generation_job(
     generated = await generate_resource_from_topic(params, output_media_type, client, None)
     if _is(cancelled):
         return Cancelled(completed_units=[])
-    source, citations = _cited(generated.content, citable)
+    source, citations = _cited(generated.content, citable, output_media_type)
 
     if output_media_type == "application/pdf":
         compiled = compile_typst(source)
@@ -958,7 +959,7 @@ async def process_generation_job(
             generated = await generate_resource_from_topic(params, output_media_type, client, Repair(source=source, error=compiled.error))
             if _is(cancelled):
                 return Cancelled(completed_units=[])
-            source, citations = _cited(generated.content, citable)
+            source, citations = _cited(generated.content, citable, output_media_type)
             compiled = compile_typst(source)
         pdf, landed = _landed(source, citations, compiled.pdf)
         assert_within_output_budget(len(pdf))
