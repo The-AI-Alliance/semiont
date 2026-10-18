@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from typing import Final, Literal, final
 
 from semiont.annotations import TextSpan, reconcile
-from semiont.identifiers import AnnotationId
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import stated
 from semiont.types import (
     Annotation,
@@ -85,7 +85,7 @@ from semiont_worker.detection.parsers import AssessmentMatch, CommentMatch, TagM
 from semiont_worker.failure_class import DeterministicJobError
 from semiont_worker.generation.citations import CitableIds, GenerationCitation, collect_citable_ids, resolve_citation_tokens
 from semiont_worker.generation.resource_generation import Repair, generate_resource_from_topic, tokens_asked
-from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, NotCompiled, compile_typst
+from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, Landed, NotCompiled, compile_typst, compile_typst_landing
 from semiont_worker.log import LOG
 from semiont_worker.media_types import GENERATABLE_MEDIA_TYPES
 from semiont_worker.numbers import as_javascript_writes
@@ -827,26 +827,68 @@ def assert_within_output_budget(byte_length: int) -> None:
 
 @final
 @dataclass(frozen=True, slots=True)
-class GeneratedArtifact:
-    """What a `yield` job made: the artifact to upload, and the claims in it to cite.
+class GeneratedText:
+    """What a `yield` job that writes text made: the text to upload, and the claims in it to cite.
 
     It is not the job's result. A generation has none to state before its
     resource exists.
     """
 
     content: bytes
-    """The artifact, whatever its format. A text's is its UTF-8."""
+    """The text's UTF-8."""
     title: str
     """The job's own title."""
     format: SupportedMediaType
     citations: list[GenerationCitation]
-    """Each claim with the source it cites.
-
-    A text's offsets are into the artifact as decoded. A PDF's are into its
-    Typst source, and say nothing of where the claim is in the PDF.
-    """
+    """Each claim with the source it cites, by its offsets into the text as decoded."""
     truncated: bool
-    """Whether the model was cut off at the length asked for: the artifact is then not whole."""
+    """Whether the model was cut off at the length asked for: the text is then not whole."""
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PdfCitation:
+    """One claim of a generated PDF, and the source it cites.
+
+    A PDF is anchored by where its words are on a page, so a claim is cited
+    by its words and by where the compiler says it ended: offsets into the
+    Typst source say nothing of where the claim is in the PDF.
+    """
+
+    resource_id: ResourceId
+    """The resource cited: one the context showed."""
+    annotation_id: AnnotationId | None
+    """The annotation the cited passage came from, where the token named one: one the context showed."""
+    exact: str
+    """The claim, as the source has it."""
+    landed: Landed
+    """Where the compiler says the claim ended."""
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class GeneratedPdf:
+    """What a `yield` job that makes a PDF made: the PDF to upload, and the claims in it to cite.
+
+    It is not the job's result. A generation has none to state before its
+    resource exists.
+    """
+
+    content: bytes
+    """The PDF's bytes."""
+    title: str
+    """The job's own title."""
+    citations: list[PdfCitation]
+    truncated: bool
+    """Whether the model was cut off at the length asked for: the PDF is then not whole."""
+
+    @property
+    def format(self) -> SupportedMediaType:
+        return "application/pdf"
+
+
+type GeneratedArtifact = GeneratedText | GeneratedPdf
+"""What a `yield` job made, of either kind."""
 
 
 def _cited(document: str, citable: CitableIds | None) -> tuple[str, list[GenerationCitation]]:
@@ -918,16 +960,48 @@ async def process_generation_job(
                 return Cancelled(completed_units=[])
             source, citations = _cited(generated.content, citable)
             compiled = compile_typst(source)
-        content = compiled.pdf
-        assert_within_output_budget(len(content))
+        pdf, landed = _landed(source, citations, compiled.pdf)
+        assert_within_output_budget(len(pdf))
         report(95, JobProgressCreatingResource(code="creating-resource"))
-    else:
-        report(95, JobProgressCreatingResource(code="creating-resource"))
-        content = source.encode("utf-8")
-        assert_within_output_budget(len(content))
+        report(100, JobProgressCompleteGenerated(code="complete-generated", truncated=generated.truncated))
+        return GeneratedPdf(content=pdf, title=params.title, citations=landed, truncated=generated.truncated)
 
+    report(95, JobProgressCreatingResource(code="creating-resource"))
+    content = source.encode("utf-8")
+    assert_within_output_budget(len(content))
     # The job's last report says it is done, and whether what it made is whole.
     report(100, JobProgressCompleteGenerated(code="complete-generated", truncated=generated.truncated))
-    return GeneratedArtifact(
-        content=content, title=params.title, format=output_media_type, citations=citations, truncated=generated.truncated
-    )
+    return GeneratedText(content=content, title=params.title, format=output_media_type, citations=citations, truncated=generated.truncated)
+
+
+def _landed(source: str, citations: list[GenerationCitation], unmarked: bytes) -> tuple[bytes, list[PdfCitation]]:
+    """The PDF to upload, and each citation with where the compiler says its claim ended.
+
+    A PDF that cites nothing is the one that compiled. One that cites is
+    compiled again with the end of each claim marked, and that compile is the
+    PDF: the compiler's points are of its layout. Where the marked source
+    does not compile, the marks broke it, and no citation can be placed: the
+    PDF is the one that compiled without them, and none is made. A citation
+    the compiler gives no point for is dropped. Each drop is said in the log.
+    """
+    if not citations:
+        return unmarked, []
+    landing = compile_typst_landing(source, [citation.end for citation in citations])
+    if isinstance(landing, NotCompiled):
+        LOG.warning(
+            "PDF citations dropped \N{EM DASH} the source does not compile with each claim's end marked",
+            extra={"citations": len(citations), "error": landing.error[:500]},
+        )
+        return unmarked, []
+    placed: list[PdfCitation] = []
+    for citation, landed in zip(citations, landing.landed, strict=True):
+        if landed is None:
+            LOG.warning(
+                "PDF citation dropped \N{EM DASH} the compiler gave no point on its page for where the claim ended",
+                extra={"citedResourceId": citation.resource_id, "exactPreview": citation.exact[:80]},
+            )
+            continue
+        placed.append(
+            PdfCitation(resource_id=citation.resource_id, annotation_id=citation.annotation_id, exact=citation.exact, landed=landed)
+        )
+    return landing.pdf, placed

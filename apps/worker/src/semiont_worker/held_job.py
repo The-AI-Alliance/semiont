@@ -58,12 +58,13 @@ from semiont_inference.interface import InferenceClient
 from semiont_worker import telemetry
 from semiont_worker.detection.prepare_detection import DetectionDecline, DetectionSource, prepare_detection
 from semiont_worker.failure_class import DeterministicJobError, classify_failure, words_of
-from semiont_worker.generation.claim_search import find_claim_span
+from semiont_worker.generation.claim_search import find_landed_claim
 from semiont_worker.held_params import HeldTagging, held_generation, held_mark, motivation_of
 from semiont_worker.log import LOG
 from semiont_worker.processors import (
     Cancelled,
     GeneratedArtifact,
+    GeneratedText,
     UnitCheckpoint,
     process_assessment_job,
     process_comment_job,
@@ -445,9 +446,10 @@ async def _citations(
 
     A text is anchored by offsets into the text as decoded. A PDF is anchored
     by where its words are on a page, so each claim is found again in the
-    PDF's own text, which is the Smelter's. A claim that is not found there
-    is dropped, and said in the log, and so is every claim of a PDF whose
-    text is not to be had: a citation is never made in the wrong place.
+    PDF's own text, which is the Smelter's, at the place the compiler says it
+    ended. A claim that is at no place there is dropped, and said in the log,
+    and so is every claim of a PDF whose text is not to be had: a citation is
+    never made in the wrong place.
     """
     if not made.citations:
         return []
@@ -455,7 +457,7 @@ async def _citations(
     def citing(cited: ResourceId) -> SpecificResource:
         return SpecificResource(type="SpecificResource", source=cited, purpose="linking")
 
-    if made.format != "application/pdf":
+    if isinstance(made, GeneratedText):
         text = made.content.decode("utf-8")
         return [
             annotation_of_span(
@@ -482,15 +484,16 @@ async def _citations(
         return []
     citations: list[Annotation] = []
     for citation in made.citations:
-        found = find_claim_span(anchored.text, citation.exact)
+        found = find_landed_claim(anchored, citation.exact, citation.landed)
         if found is None:
             LOG.warning(
-                "PDF citation dropped \N{EM DASH} claim not found in the rendered text",
+                "PDF citation dropped \N{EM DASH} the claim is not in the rendered text where the compiler says it ended",
                 extra={
                     "jobId": job.job_id,
                     "resourceId": new_resource_id,
                     "citedResourceId": citation.resource_id,
                     "exactPreview": citation.exact[:80],
+                    "landedPage": citation.landed.page,
                 },
             )
             continue
