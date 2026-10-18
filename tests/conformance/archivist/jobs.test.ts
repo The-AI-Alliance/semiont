@@ -150,7 +150,7 @@ withArchivist('a job, in the record', (world) => {
     );
     const unassigned = `job-${randomUUID()}`;
     expect(await worker.refused('mark:commit', { resourceId: id, jobId: unassigned, annotations: [whole(id, 'worker')] })).toBe(
-      `refused: cites job ${unassigned}, but this resource's log holds no assignment for it`,
+      `refused: cites job ${unassigned}, but the log of ${id} holds no assignment of it, and the job did not make it`,
     );
     expect(await other.refused('mark:commit', { resourceId: id, jobId, annotations: [whole(id, 'worker')] })).toBe(
       `refused: job ${jobId}'s recorded holder is ${worker.did}, not the writer ${other.did}`,
@@ -197,6 +197,10 @@ withArchivist('a job, in the record', (world) => {
       },
     });
     expect(world().view(generated)!.resource).toMatchObject({ generator: { '@id': worker.did }, wasAttributedTo: [{ '@id': requester.did }, { '@id': worker.did }] });
+    // Its record names the job, and the resource it was generated from, with no annotation named.
+    expect(world().stored(generated)[0]!.payload['jobId']).toBe(jobId);
+    expect(world().stored(generated)[0]!.payload['generatedFrom']).toEqual({ resourceId: id });
+    expect(world().view(generated)!.resource).toMatchObject({ wasDerivedFrom: id });
 
     // Without the job, or without the resource the job was assigned on, a worker's upload is not recorded.
     const uncited = await world().upload(worker.did, { name: 'Uncited', storageUri: `file://jobs/uncited-${randomUUID()}.md`, content }, ['semiont-service', 'semiont-worker']);
@@ -205,5 +209,62 @@ withArchivist('a job, in the record', (world) => {
     const sourceless = await world().upload(worker.did, { name: 'Sourceless', storageUri: `file://jobs/sourceless-${randomUUID()}.md`, content, jobId }, ['semiont-service', 'semiont-worker']);
     expect(sourceless.status).toBe(500);
     expect(sourceless.json).toEqual({ error: 'yield:create refused: a create citing a job must name the source resource its job was assigned on (generatedFrom.resourceId)' });
+  });
+
+  it('attributes a worker\'s annotations on the resource its job made to whoever the job was assigned for', async () => {
+    const worker = await world().worker('citer');
+    const requester = await world().person('requester');
+    const { id, jobId } = await assigned(world(), worker, requester, 'yield');
+    const made = await world().upload(worker.did, { name: 'Made', storageUri: `file://jobs/made-${randomUUID()}.md`, content: TEXT, jobId, sourceResourceId: id }, ['semiont-service', 'semiont-worker']);
+    expect(made.status).toBe(200);
+    const generated = (made.json as { resourceId: string }).resourceId;
+    const batch = [whole(generated, 'worker'), whole(generated, 'marks')];
+
+    expect(await worker.ask('mark:commit', { resourceId: generated, jobId, annotations: batch })).toEqual({ persisted: 2, annotationIds: batch.map((a) => a.id) });
+
+    const recorded = world().stored(generated).filter((e) => e.type === 'mark:added');
+    expect(recorded).toHaveLength(2);
+    for (const event of recorded) {
+      expect(event.userId).toBe(worker.did);
+      expect(event.payload['annotation']).toMatchObject({
+        creator: { '@type': 'Person', '@id': requester.did },
+        generator: { '@type': 'Software', '@id': worker.did },
+        wasAttributedTo: [{ '@id': requester.did }, { '@id': worker.did }],
+      });
+    }
+  });
+
+  it('refuses a write citing a job on a resource it neither was assigned on nor made, on one another job made, and from another writer on one it made', async () => {
+    const worker = await world().worker('trespasser');
+    const other = await world().worker('bystander');
+    const requester = await world().person('requester');
+    const { id, jobId } = await assigned(world(), worker, requester, 'yield');
+    const made = await world().upload(worker.did, { name: 'Made', storageUri: `file://jobs/made-${randomUUID()}.md`, content: TEXT, jobId, sourceResourceId: id }, ['semiont-service', 'semiont-worker']);
+    expect(made.status).toBe(200);
+    const generated = (made.json as { resourceId: string }).resourceId;
+
+    // A resource the job has nothing to do with.
+    const elsewhere = await world().created(requester.did, { name: 'Elsewhere', storageUri: `file://jobs/elsewhere-${randomUUID()}.md`, content: TEXT });
+    expect(await worker.refused('mark:commit', { resourceId: elsewhere, jobId, annotations: [whole(elsewhere, 'worker')] })).toBe(
+      `refused: cites job ${jobId}, but the log of ${elsewhere} holds no assignment of it, and the job did not make it`,
+    );
+
+    // A resource the same worker made under another job.
+    const second = await assigned(world(), worker, requester, 'yield');
+    const madeBySecond = await world().upload(worker.did, { name: 'Made by another job', storageUri: `file://jobs/second-${randomUUID()}.md`, content: TEXT, jobId: second.jobId, sourceResourceId: second.id }, ['semiont-service', 'semiont-worker']);
+    expect(madeBySecond.status).toBe(200);
+    const secondMade = (madeBySecond.json as { resourceId: string }).resourceId;
+    expect(await worker.refused('mark:commit', { resourceId: secondMade, jobId, annotations: [whole(secondMade, 'worker')] })).toBe(
+      `refused: cites job ${jobId}, but the log of ${secondMade} holds no assignment of it, and the job did not make it`,
+    );
+
+    // The resource the job made, written on by another worker citing the job.
+    expect(await other.refused('mark:commit', { resourceId: generated, jobId, annotations: [whole(generated, 'worker')] })).toBe(
+      `refused: job ${jobId}'s recorded holder is ${worker.did}, not the writer ${other.did}`,
+    );
+
+    for (const resource of [elsewhere, secondMade, generated]) {
+      expect(world().stored(resource).filter((e) => e.type === 'mark:added')).toEqual([]);
+    }
   });
 });

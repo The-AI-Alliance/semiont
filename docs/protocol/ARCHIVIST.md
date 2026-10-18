@@ -310,11 +310,17 @@ the requester is then whoever the job was assigned for.
 - `wasAttributedTo` is the executor alone when it is also the requester, otherwise the creator then
   the executor.
 
-**A command that cites a job** (`jobId`) is checked against the record: the log of the resource the
-job was assigned on must hold a `job:assigned` for that job, and its `holder` must be the sender.
-Otherwise: `refused: cites job <id>, but this resource's log holds no assignment for it`, or
-`refused: job <id>'s recorded holder is <did>, not the writer <did>`. The requester is that event's
-`requester`.
+**A command that cites a job** (`jobId`) is checked against the log of the resource it writes on,
+or, for `yield:create`, of the resource it names in `generatedFrom.resourceId`. Either:
+
+- the log holds a `job:assigned` for that job, and its `holder` is the sender. The requester is
+  that event's `requester`; or
+- the job made the resource: the log's first event is a `yield:created` that cites the job in its
+  `jobId`, and that event's sender is this command's. The requester is that event's `creator`.
+
+Otherwise: `refused: cites job <id>, but the log of <resourceId> holds no assignment of it, and
+the job did not make it`, or `refused: job <id>'s recorded holder is <did>, not the writer <did>`,
+where the holder is the assignment's `holder` or the sender of the `yield:created`.
 
 ### Resources
 
@@ -329,8 +335,8 @@ Otherwise: `refused: cites job <id>, but this resource's log holds no assignment
 - The content is registered against the command's checksum.
 - The event's payload is `name`, `format`, `contentChecksum`, `contentByteSize`, `storageUri`,
   `entityTypes` (empty when none), `language` when given, `isDraft` (`false` when not given),
-  `generatedFrom` when the command names both the source resource and the source annotation,
-  `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
+  `jobId` when the command cites a job, `generatedFrom` when the command names the source resource
+  (with `annotationId` when it names the source annotation too), `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
 - When the command names both the source resource and the source annotation, the new resource is
   then linked from that annotation: a `mark:body-updated` adding a `SpecificResource` whose `source`
   is the new resource, with `purpose` `linking`. The link is recorded before the reply is sent. If

@@ -3210,8 +3210,12 @@ type RepresentationRel = Annotated[
 
 
 class ResourceCreatedPayloadGeneratedFrom(WireModel, frozen=True):
+    """
+    What this resource was generated from: the resource, and the annotation on it when the generation was for one. The resource's descriptor names the resource as `wasDerivedFrom`.
+    """
+
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
+    annotation_id: Annotated[AnnotationId | None, Field(alias="annotationId")] = None
 
 
 type ResourceDescriptorContextItem = str | dict[str, JsonValue]
@@ -4593,6 +4597,13 @@ class ResourceCreatedPayload(WireModel, frozen=True):
     ] = None
     language: str | None = None
     is_draft: Annotated[bool | None, Field(alias="isDraft")] = None
+    job_id: Annotated[
+        JobId | None,
+        Field(
+            alias="jobId",
+            description="The job this resource was made in fulfilment of, when its create cited one. A write that cites the same job on this resource, by the one who made it, is attributed to that job's requester: the `creator` here.",
+        ),
+    ] = None
     generated_from: Annotated[ResourceCreatedPayloadGeneratedFrom | None, Field(alias="generatedFrom")] = None
     generation_prompt: Annotated[str | None, Field(alias="generationPrompt")] = None
     generator: Agent | list[Agent] | None = None
