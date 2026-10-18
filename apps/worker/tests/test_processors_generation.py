@@ -452,7 +452,9 @@ def test_a_name_is_written_as_the_job_s_format_writes_it(monkeypatch: pytest.Mon
     if isinstance(artifact, GeneratedText):
         assert [(citation.start, citation.end, citation.exact) for citation in artifact.citations] == [(4, 4 + len(written), written)]
     else:
+        # The end marked is the source's; the words looked for are the PDF's, which has the name as the compiler rendered it.
         assert landing == [(f"See {written}.", [4 + len(written)])]
+        assert [citation.exact for citation in artifact.citations] == ["Notes (1879)"]
 
 
 def test_without_cite_a_pdf_s_source_is_compiled_as_the_model_wrote_it(monkeypatch: pytest.MonkeyPatch) -> None:

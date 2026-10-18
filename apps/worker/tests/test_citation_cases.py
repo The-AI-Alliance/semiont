@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Annotated, Final
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import GatheredContext, SupportedMediaType
 from spec import SPEC
@@ -132,7 +132,7 @@ R1: Final = CitableIds(resource_ids=frozenset({"r1"}), annotation_ids=frozenset(
 
 def names_given(name: str) -> Mapping[str, str]:
     """The names a context gives where its focus, `res-1`, is named `name`."""
-    resource = {"@context": "https://semiont.dev/context/v1", "@id": "res-1", "name": name, "representations": []}
+    resource: JsonValue = {"@context": "https://semiont.dev/context/v1", "@id": "res-1", "name": name, "representations": []}
     context = GatheredContext.model_validate(
         {"focus": {"kind": "resource", "resource": resource}, "graph": {"nodes": [], "edges": []}, "metadata": {}}
     )

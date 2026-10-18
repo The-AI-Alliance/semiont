@@ -30,6 +30,7 @@ from semiont_worker.generation.typst import (
     NotCompiled,
     compile_typst,
     compile_typst_landing,
+    read_escapes,
 )
 
 DOCUMENT: Final = "= The Analytical Engine\n\nIt was never built, and caf\u00e9s were.\n"
@@ -159,6 +160,8 @@ def test_a_name_written_for_a_pdf_is_read_as_itself_and_a_mark_after_it_lands() 
         "#name\n"
     )
     assert compiled(read_back).startswith(b"%PDF-")
+    # What the compiler read is what the worker looks for in the PDF's text.
+    assert read_escapes(written) == string.punctuation
     # A mark at the name's end is code just after its last escape: it lands as at any other word.
     source = PAGE + f"See {written}. Then more."
     (point,) = landed(source, [at(source, written)])

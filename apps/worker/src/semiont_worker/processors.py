@@ -85,7 +85,7 @@ from semiont_worker.detection.parsers import AssessmentMatch, CommentMatch, TagM
 from semiont_worker.failure_class import DeterministicJobError
 from semiont_worker.generation.citations import CitableIds, GenerationCitation, collect_citable_ids, resolve_citation_tokens
 from semiont_worker.generation.resource_generation import Repair, generate_resource_from_topic, tokens_asked
-from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, Landed, NotCompiled, compile_typst, compile_typst_landing
+from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, Landed, NotCompiled, compile_typst, compile_typst_landing, read_escapes
 from semiont_worker.log import LOG
 from semiont_worker.media_types import GENERATABLE_MEDIA_TYPES
 from semiont_worker.numbers import as_javascript_writes
@@ -860,7 +860,7 @@ class PdfCitation:
     annotation_id: AnnotationId | None
     """The annotation the cited passage came from, where the token named one: one the context showed."""
     exact: str
-    """The claim, as the source has it."""
+    """The claim's words as the compiler renders them: the source's, with their escapes read (`read_escapes`)."""
     landed: Landed
     """Where the compiler says the claim ended."""
 
@@ -1002,7 +1002,11 @@ def _landed(source: str, citations: list[GenerationCitation], unmarked: bytes) -
                 extra={"citedResourceId": citation.resource_id, "exactPreview": citation.exact[:80]},
             )
             continue
+        # The claim is looked for in the PDF's text, which has what the compiler rendered: a name the worker put in, or a
+        # model's escaped character, without its backslash.
         placed.append(
-            PdfCitation(resource_id=citation.resource_id, annotation_id=citation.annotation_id, exact=citation.exact, landed=landed)
+            PdfCitation(
+                resource_id=citation.resource_id, annotation_id=citation.annotation_id, exact=read_escapes(citation.exact), landed=landed
+            )
         )
     return landing.pdf, placed

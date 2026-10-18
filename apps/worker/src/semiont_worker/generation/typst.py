@@ -10,11 +10,14 @@ repair its source by.
 A PDF that cites is compiled with the end of each cited claim marked, and the
 compiler is asked where each mark landed: the worker wrote the claim, so the
 compiler can say where it is, and nothing need search the PDF's text for it.
+A claim's words in the PDF are its source's with their escapes read.
 
 The compile is not awaited: it holds its caller until the compiler exits.
 """
 
 import json
+import re
+import string
 import subprocess
 import tempfile
 from collections.abc import Sequence
@@ -140,6 +143,21 @@ def mark_ends(source: str, ends: Sequence[int]) -> str:
     for citation, end in sorted(enumerate(ends), key=lambda numbered: (numbered[1], numbered[0]), reverse=True):
         marked = marked[:end] + _mark(citation) + marked[end:]
     return marked
+
+
+_ESCAPE: Final = re.compile(f"\\\\([{re.escape(string.punctuation)}])")
+"""A backslash and the ASCII punctuation character after it: an escape, which the compiler renders as that character."""
+
+
+def read_escapes(source: str) -> str:
+    """Words of Typst markup with each escape of an ASCII punctuation character read: the backslash dropped, and the character kept.
+
+    These are the escapes the worker writes in a name it puts in a PDF's
+    source, and the ones a model writes most. Typst's other escapes, a code
+    point written `\\u{…}` and a backslash before white space, which breaks
+    the line, the worker never writes, and they are left as they are.
+    """
+    return _ESCAPE.sub(r"\1", source)
 
 
 class _Point(BaseModel, frozen=True, extra="forbid", strict=True):

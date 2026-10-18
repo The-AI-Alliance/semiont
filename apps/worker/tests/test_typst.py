@@ -5,10 +5,13 @@ run with and does as its test says. So these hold the worker's side of the
 call on any machine, with or without the compiler: the arguments and their
 order, the creation time every compile pins, the source as the compiler finds
 it, the bytes answered, what is answered of a refusal, and that nothing is
-left behind. `test_typst_binary.py` runs the compiler itself.
+left behind. `test_typst_binary.py` runs the compiler itself. How a claim's
+words are read as the compiler renders them needs no compiler, and is held
+here too.
 """
 
 import os
+import string
 import tempfile
 from pathlib import Path
 from typing import Final, final
@@ -24,6 +27,7 @@ from semiont_worker.generation.typst import (
     compile_typst,
     compile_typst_landing,
     mark_ends,
+    read_escapes,
 )
 
 SOURCE: Final = "= Caf\u00e9 \U0001f600\r\n\r\nBody text.\n"
@@ -204,3 +208,22 @@ def test_a_query_that_fails_answers_what_the_compiler_said(typst: StandIn) -> No
     typst.does("case \"$1\" in\ncompile) printf '%%PDF-MARKED' > \"$5\";;\neval) echo 'error: no such label' >&2; exit 1;;\nesac")
 
     assert compile_typst_landing("Tea is hot.", [11]) == NotCompiled(error="error: no such label\n")
+
+
+# ── a claim's words, as the compiler renders them ──────────────────────
+
+
+def test_each_escaped_ascii_punctuation_character_is_read_as_itself() -> None:
+    assert read_escapes("".join("\\" + character for character in string.punctuation)) == string.punctuation
+    assert read_escapes("Notes \\(1879\\) cost \\$5") == "Notes (1879) cost $5"
+
+
+def test_an_escaped_backslash_is_read_first_and_what_follows_it_is_its_own() -> None:
+    # `\\*` is a backslash, and then an asterisk that the escape does not reach.
+    assert read_escapes("a\\\\*b") == "a\\*b"
+
+
+def test_what_the_worker_never_writes_is_left_as_it_is() -> None:
+    # A code point written by its number, a backslash before white space or a letter, and one that ends the words.
+    assert read_escapes("\\u{1F600} a\\ b \\x c\\") == "\\u{1F600} a\\ b \\x c\\"
+    assert read_escapes("No escape here.") == "No escape here."
