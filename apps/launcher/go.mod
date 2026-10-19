@@ -22,7 +22,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/sys v0.49.0
-	golang.org/x/term v0.46.0
+	golang.org/x/term v0.47.0
 )
 
 require (
