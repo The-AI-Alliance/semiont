@@ -82,13 +82,13 @@
   "sideEffects": false,
   "license": "Apache-2.0",
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.0",
     "openapi-typescript": "^7.10.1",
-    "rollup": "^4.64.1",
+    "rollup": "^4.64.7",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   },
   "dependencies": {
