@@ -949,9 +949,12 @@
 /* Inside the single pane the display flows at natural height — the gather
    step's clip-and-scroll flex (outer/body/panes each scrolling internally)
    would otherwise compress the evidence AND nest scrollbars. One scrollbar
-   governs the whole step. */
+   governs the whole step. The search results flow the same way: as a
+   shrinking flex item with no least height, the list is squeezed to nothing
+   whenever the evidence above it is taller than the pane. */
 .semiont-wizard__step-scroll .semiont-gather__outer,
-.semiont-wizard__step-scroll .semiont-gather__body {
+.semiont-wizard__step-scroll .semiont-gather__body,
+.semiont-wizard__step-scroll .semiont-search-results {
   flex: none;
   min-height: auto;
   overflow: visible;
