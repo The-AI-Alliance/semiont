@@ -21,17 +21,17 @@ from semiont.types import (
     GenerationJobParams,
     GenerationJobRequest,
     HighlightingJobParams,
-    JobDeclinedResult,
-    JobDetectionResult,
-    JobGenerationResult,
+    JobDeclined,
     MarkDeleteCommand,
     MarkJobCompleteCommand,
     MarkJobCreateCommand,
+    MarkJobDone,
     MarkJobQueuedEvent,
     StoredEventResponse,
     TaggingJobParams,
     YieldJobCompleteCommand,
     YieldJobCreateCommand,
+    YieldJobDone,
     YieldJobQueuedEvent,
 )
 
@@ -250,14 +250,14 @@ def test_a_job_s_completion_is_read_as_its_verb_s_with_what_that_verb_reports() 
     generated: dict[str, JsonValue] = {"resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
     marked = channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": {"found": 3, "persisted": 2}})
     assert type(marked) is MarkJobCompleteCommand
-    assert marked.result == JobDetectionResult(found=3, persisted=2)
+    assert marked.result == MarkJobDone(found=3, persisted=2)
     made = channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": generated})
     assert type(made) is YieldJobCompleteCommand
-    assert made.result == JobGenerationResult(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
+    assert made.result == YieldJobDone(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
     # Either may have declined, and either may report nothing.
     declined: dict[str, JsonValue] = {"declined": True, "reason": "encrypted"}
-    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": declined}).result) is JobDeclinedResult
-    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": declined}).result) is JobDeclinedResult
+    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": declined}).result) is JobDeclined
+    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": declined}).result) is JobDeclined
     assert channels.JOB_COMPLETE.decode({**said, "jobType": "yield"}).result is None
     # A result that is the other verb's is not that job's completion.
     with pytest.raises(ValidationError):

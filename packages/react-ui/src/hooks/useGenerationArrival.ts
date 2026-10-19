@@ -1,8 +1,7 @@
-import type { AnnotationId } from '@semiont/core';
+import type { AnnotationId, YieldJobDone } from '@semiont/core';
 import { useEffect, useRef } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getBodySource } from '@semiont/core';
-import type { YieldOutcome } from '@semiont/sdk';
 
 /**
  * The reveal's arming logic.
@@ -19,7 +18,7 @@ import type { YieldOutcome } from '@semiont/sdk';
  * an arrival nobody witnessed is not an arrival.
  */
 export function useGenerationArrival(
-  outcome: YieldOutcome | null,
+  outcome: YieldJobDone | null,
   annotations: Annotation[],
   onReveal: (annotationId: AnnotationId) => void,
 ): void {
@@ -28,7 +27,7 @@ export function useGenerationArrival(
   // Armed between the outcome arriving and its edge appearing — usually the
   // same render (the worker awaits the commit of the edge before
   // job:complete), but the ordering is not this hook's to assume.
-  const pending = useRef<YieldOutcome | null>(null);
+  const pending = useRef<YieldJobDone | null>(null);
   const onRevealRef = useRef(onReveal);
   useEffect(() => { onRevealRef.current = onReveal; });
 

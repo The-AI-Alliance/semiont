@@ -37,7 +37,7 @@ A job description is the spec's, so the job starts there, in [`specs/src/compone
 
 What the job needs no schema of its own for:
 
-- **A result.** Every `mark` job completes with a [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): its counts ([`JobDetectionResult`](../../specs/src/components/schemas/JobDetectionResult.json)) or a decline. A count only one job has is an optional member of the counts, as tagging's `byCategory` is.
+- **A result.** Every `mark` job completes with a [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): its counts ([`MarkJobDone`](../../specs/src/components/schemas/MarkJobDone.json)) or a decline. A count only one job has is an optional member of the counts, as tagging's `byCategory` is.
 - **Progress.** Every job reports one shape, [`JobProgress`](../../specs/src/components/schemas/JobProgress.json), whose `message` is a code with its values and never a sentence ([`JobProgressMessage`](../../specs/src/components/schemas/JobProgressMessage.json)). A job's last report, `complete-created`, states its motivation. A code of the job's own, as tagging's `analyzing-tags` and `creating-tag-annotations` are, is a member added to that union, and words for it in each client ([step 9](#9-word-it-in-each-client)).
 - **A filter.** A claim names `mark` jobs by motivation ([`MarkJobFilter`](../../specs/src/components/schemas/MarkJobFilter.json)), and the motivation there is `Motivation`.
 

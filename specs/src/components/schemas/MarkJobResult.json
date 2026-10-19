@@ -2,10 +2,10 @@
   "description": "What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`.",
   "oneOf": [
     {
-      "$ref": "./JobDetectionResult.json"
+      "$ref": "./MarkJobDone.json"
     },
     {
-      "$ref": "./JobDeclinedResult.json"
+      "$ref": "./JobDeclined.json"
     }
   ]
 }

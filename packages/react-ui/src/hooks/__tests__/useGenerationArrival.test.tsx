@@ -13,12 +13,11 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import type { Annotation, AnnotationId } from '@semiont/core';
+import type { Annotation, AnnotationId, YieldJobDone } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { YieldOutcome } from '@semiont/sdk';
 import { useGenerationArrival } from '../useGenerationArrival';
 
-const outcomeFor = (target: string): YieldOutcome => ({
+const outcomeFor = (target: string): YieldJobDone => ({
   resourceId: makeResourceId(target),
   resourceName: 'Generated Doc',
   truncated: false,
@@ -36,7 +35,7 @@ const provenanceRef = (id: string, newResourceId: string): Annotation => ({
   body: { type: 'SpecificResource', source: makeResourceId(newResourceId), purpose: 'linking' },
 });
 
-type HookProps = { outcome: YieldOutcome | null; annotations: Annotation[] };
+type HookProps = { outcome: YieldJobDone | null; annotations: Annotation[] };
 
 const renderArrival = (initial: HookProps) => {
   const onReveal = vi.fn<(annotationId: string) => void>();

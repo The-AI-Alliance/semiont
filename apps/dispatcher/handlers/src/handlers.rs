@@ -468,16 +468,16 @@ fn concluded(command: JobCompleteCommand) -> (JobId, &'static str, JobStoredResu
             done.job_id,
             done.job_type.as_str(),
             stored(done.result.map(|result| match result {
-                MarkJobResult::DetectionResult(counts) => counts.into(),
-                MarkJobResult::DeclinedResult(declined) => declined.into(),
+                MarkJobResult::MarkJobDone(counts) => counts.into(),
+                MarkJobResult::JobDeclined(declined) => declined.into(),
             })),
         ),
         JobCompleteCommand::YieldJobCompleteCommand(done) => (
             done.job_id,
             done.job_type.as_str(),
             stored(done.result.map(|result| match result {
-                YieldJobResult::GenerationResult(made) => made.into(),
-                YieldJobResult::DeclinedResult(declined) => declined.into(),
+                YieldJobResult::YieldJobDone(made) => made.into(),
+                YieldJobResult::JobDeclined(declined) => declined.into(),
             })),
         ),
     }

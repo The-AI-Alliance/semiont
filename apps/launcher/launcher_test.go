@@ -9165,7 +9165,7 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 // The trap this guards is specific. A yield job's result is a generation or a
 // decline with no discriminant between them, and every generated As*()
 // accessor is a bare json.Unmarshal, so a declined result decodes CLEANLY into
-// JobGenerationResult with a zero-value resource id. A result is read by the
+// YieldJobDone with a zero-value resource id. A result is read by the
 // members it carries: a decline carries `declined` and `reason`, and none of
 // what a generation requires.
 func TestYieldDelegateReportsADecline(t *testing.T) {
@@ -9200,7 +9200,7 @@ func TestYieldDelegateRefusesAResultThatIsNotAYieldJobs(t *testing.T) {
 			t.Fatalf("%v: a yield job that reported a mark job's counts must fail the command\nstdout:\n%s", format, stdout)
 		}
 		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither the resource a yield job made nor a decline: {"found":2,"persisted":2}`, "What the job did:  semiont browse res-src")
-		mustNotContain(t, "a type's name in what a user reads", stderr, "JobGenerationResult", "JobDeclinedResult")
+		mustNotContain(t, "a type's name in what a user reads", stderr, "YieldJobDone", "JobDeclined")
 		if strings.Contains(stdout, "Yielded") {
 			t.Errorf("%v: claimed a yield that never happened:\n%s", format, stdout)
 		}
@@ -9414,7 +9414,7 @@ func TestMarkDelegateRefusesAResultThatIsNotAMarkJobs(t *testing.T) {
 			t.Fatalf("%v: a mark job that reported a yield job's resource must fail the command\nstdout:\n%s", format, stdout)
 		}
 		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither a mark job's counts nor a decline: {"resourceId":"res-new","resourceName":"Generated","truncated":false}`, "What the job did:  semiont browse res-1 --annotations")
-		mustNotContain(t, "a type's name in what a user reads", stderr, "JobDetectionResult", "JobDeclinedResult")
+		mustNotContain(t, "a type's name in what a user reads", stderr, "MarkJobDone", "JobDeclined")
 		if strings.Contains(stdout, "Marked") {
 			t.Errorf("%v: claimed a mark that never happened:\n%s", format, stdout)
 		}

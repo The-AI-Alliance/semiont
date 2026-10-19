@@ -4,7 +4,7 @@ from semiont.client import SemiontClient
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
-from semiont.types import Agent, AgentSoftware, Annotation, JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
 
@@ -14,7 +14,7 @@ async def passages(text: str) -> list[QuotedText]:
     return [QuotedText(exact=text.partition("\n")[0])]
 
 
-async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> JobDetectionResult:
+async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> MarkJobDone:
     """Your work: read the resource, have its passages quoted, and commit a highlight of each one the text has."""
     text = await client.browse.resource_content(job.resource_id)
     quoted = await passages(text)
@@ -28,7 +28,7 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
             # An annotation's id is worked out from what it is, so a passage quoted twice is one annotation.
             highlights[built.id] = built
     await job.commit(job.resource_id, list(highlights.values()))
-    return JobDetectionResult(found=len(quoted), persisted=len(highlights))
+    return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:

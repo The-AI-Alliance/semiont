@@ -284,7 +284,7 @@ while let Some(handed) = claims.next().await {
                     highlights.push(built);
                 }
             }
-            let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+            let result = MarkJobDone::new(quoted.len() as u64, highlights.len() as u64);
             job.commit(&resource_id, highlights).await?;
             // A settle takes the job, so it cannot be settled twice. A
             // job dropped unsettled is failed, and the queue retries it.

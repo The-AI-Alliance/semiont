@@ -383,7 +383,7 @@ var yieldJobFlags = jobFlags{
 
 // yieldJobResults: what a `yield` job reports.
 var yieldJobResults = resultMembers[semiont.YieldJobResult]{
-	{semiont.JobGenerationResult{}, "the resource a yield job made"},
+	{semiont.YieldJobDone{}, "the resource a yield job made"},
 	declinedResult,
 }
 
@@ -463,7 +463,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 	if err != nil {
 		return job.resultFail(u, done.JobId, err)
 	}
-	declined, isDecline := result.(semiont.JobDeclinedResult)
+	declined, isDecline := result.(semiont.JobDeclined)
 	if asJSON {
 		fmt.Println(string(raw))
 		// The exit code is a property of the outcome, not of the output
@@ -483,7 +483,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 		return 1
 	}
 	// A generation names the resource it produced.
-	if generated, ok := result.(semiont.JobGenerationResult); ok {
+	if generated, ok := result.(semiont.YieldJobDone); ok {
 		u.Ok("Yielded %s → %s %s", request.StorageUri, generated.ResourceId, u.Dim(generated.ResourceName))
 		return 0
 	}

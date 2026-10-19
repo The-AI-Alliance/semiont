@@ -76,7 +76,7 @@ fn a_completed_job_carries_its_result_or_the_empty_object() {
     };
     assert!(matches!(
         reported.result,
-        JobStoredResult::JobResult(JobResult::DetectionResult(_))
+        JobStoredResult::JobResult(JobResult::MarkJobDone(_))
     ));
     let Job::Complete(bare) = serde_json::from_value(complete(json!({}))).expect("it decodes")
     else {
@@ -95,7 +95,7 @@ fn a_result_is_one_of_three_told_apart_by_what_each_alone_carries() {
         "found": 7, "persisted": 5, "errors": 2, "byCategory": { "Issue": 3, "Rule": 2 }, "underReportedPieces": 1
     }))
     .expect("a mark job's counts decode");
-    let JobResult::DetectionResult(counts) = &detection else {
+    let JobResult::MarkJobDone(counts) = &detection else {
         panic!("counts decoded as {detection:?}");
     };
     assert_eq!(
@@ -109,11 +109,11 @@ fn a_result_is_one_of_three_told_apart_by_what_each_alone_carries() {
     );
     assert!(matches!(
         result(json!({ "resourceId": "res-made", "resourceName": "Made", "truncated": false })),
-        Ok(JobResult::GenerationResult(_))
+        Ok(JobResult::YieldJobDone(_))
     ));
     assert!(matches!(
         result(json!({ "declined": true, "reason": "no-text-layer" })),
-        Ok(JobResult::DeclinedResult(_))
+        Ok(JobResult::JobDeclined(_))
     ));
 
     for none in [

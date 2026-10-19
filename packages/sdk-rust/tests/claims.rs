@@ -24,8 +24,8 @@ use semiont::types::DurabilityEvidence::{
     Acknowledged, ProbeConfirmed, ProbeRefused, ProbeUnreachable,
 };
 use semiont::types::{
-    Annotation, DurabilityEvidence, FailureClass, JobDetectionResult, JobFilter, JobProgress,
-    JobType, ResourceId, YieldJobResult,
+    Annotation, DurabilityEvidence, FailureClass, JobFilter, JobProgress, JobType, MarkJobDone,
+    ResourceId, YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::collections::VecDeque;
@@ -383,7 +383,7 @@ async fn held(claims: &Claims) -> HeldJob {
 }
 
 fn found(found: u64, persisted: u64) -> semiont::types::MarkJobResult {
-    JobDetectionResult::new(found, persisted).into()
+    MarkJobDone::new(found, persisted).into()
 }
 
 /// Complete a held `mark` job that found nothing. A completion is its verb's,

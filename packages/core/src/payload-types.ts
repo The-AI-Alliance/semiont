@@ -30,8 +30,8 @@ export type CommandErrorCode = NonNullable<components['schemas']['CommandError']
 export type MarkJobParams = components['schemas']['MarkJobParams'];
 export type JobFilter = components['schemas']['JobFilter'];
 export type JobResult = components['schemas']['JobResult'];
-export type JobDetectionResult = components['schemas']['JobDetectionResult'];
-export type JobGenerationResult = components['schemas']['JobGenerationResult'];
+export type MarkJobDone = components['schemas']['MarkJobDone'];
+export type YieldJobDone = components['schemas']['YieldJobDone'];
 /** What a `mark` job reports: its counts, or a decline. */
 export type MarkJobResult = components['schemas']['MarkJobResult'];
 /** What a `yield` job reports: the resource it made, or a decline. */

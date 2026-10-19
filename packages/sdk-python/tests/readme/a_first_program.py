@@ -1,7 +1,7 @@
 from semiont.client import SemiontClient
 from semiont.identifiers import ResourceId
 from semiont.transport import PutBinaryRequest, Transport
-from semiont.types import GenerationJobParams, JobDeclinedResult, LinkingJobParams
+from semiont.types import GenerationJobParams, JobDeclined, LinkingJobParams
 
 
 async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
@@ -33,4 +33,4 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
     )
     # What a `yield` job reports is the resource it made. One that could not read what it was given declines, and makes nothing.
     made = done.result
-    return None if made is None or isinstance(made, JobDeclinedResult) else made.resource_id
+    return None if made is None or isinstance(made, JobDeclined) else made.resource_id

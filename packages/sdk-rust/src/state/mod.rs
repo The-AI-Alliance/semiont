@@ -28,7 +28,7 @@ pub use hover::HoverDwell;
 pub use mark::{MarkStateUnit, PendingAnnotation};
 pub use match_::MatchStateUnit;
 pub use search::{SearchPipeline, SearchPipelineOptions, SearchState};
-pub use yield_::{YieldOutcome, YieldStateUnit};
+pub use yield_::YieldStateUnit;
 
 use crate::bus::decoded;
 use crate::channels::Channel;

@@ -146,8 +146,8 @@ let done = client
     .await?;
 // The completion is a yield job's: the resource it made, or a decline.
 let summary = match done.result {
-    Some(YieldJobResult::GenerationResult(generated)) => Some(generated.resource_id),
-    Some(YieldJobResult::DeclinedResult(_)) | None => None,
+    Some(YieldJobResult::YieldJobDone(generated)) => Some(generated.resource_id),
+    Some(YieldJobResult::JobDeclined(_)) | None => None,
 };
 ```
 
@@ -278,7 +278,7 @@ for quote in quoted {
 }
 
 // The job commits what was built, and says what became of the work.
-let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+let result = MarkJobDone::new(quoted.len() as u64, highlights.len() as u64);
 job.commit(&resource_id, highlights).await?;
 job.complete(result.into()).await?;
 ```

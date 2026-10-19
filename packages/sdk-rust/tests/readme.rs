@@ -23,9 +23,8 @@ use semiont::testing::{
 use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
     Agent, GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, HttpEndpoint,
-    HttpEndpointProtocol, InvalidIdentifier, JobCompleteCommand, JobDetectionResult, KbEndpoint,
-    KnowledgeBase, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId,
-    YieldJobResult,
+    HttpEndpointProtocol, InvalidIdentifier, JobCompleteCommand, KbEndpoint, KnowledgeBase,
+    LinkingJobParams, MarkJobCompleteCommand, MarkJobDone, Motivation, ResourceId, YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -94,8 +93,8 @@ async fn a_first_program(
         .await?;
     // The completion is a yield job's: the resource it made, or a decline.
     let summary = match done.result {
-        Some(YieldJobResult::GenerationResult(generated)) => Some(generated.resource_id),
-        Some(YieldJobResult::DeclinedResult(_)) | None => None,
+        Some(YieldJobResult::YieldJobDone(generated)) => Some(generated.resource_id),
+        Some(YieldJobResult::JobDeclined(_)) | None => None,
     };
     // </readme:story>
     Ok(summary)
@@ -166,7 +165,7 @@ async fn a_held_jobs_work(
     }
 
     // The job commits what was built, and says what became of the work.
-    let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+    let result = MarkJobDone::new(quoted.len() as u64, highlights.len() as u64);
     job.commit(&resource_id, highlights).await?;
     job.complete(result.into()).await?;
     // </readme:worker>

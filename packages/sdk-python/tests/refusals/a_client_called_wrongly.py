@@ -13,14 +13,14 @@ from semiont.types import (
     BeckonHoverEvent,
     GenerationJobParams,
     HighlightingJobParams,
-    JobDeclinedResult,
-    JobGenerationResult,
+    JobDeclined,
     MarkDeleteCommand,
     MarkJobCompleteCommand,
     MarkSubmitEvent,
     ResourceDescriptor,
     TaggingJobParams,
     YieldJobCompleteCommand,
+    YieldJobDone,
 )
 
 type Client = SemiontClient[HttpTransport]
@@ -68,14 +68,14 @@ async def a_mark_job_s_completion_taken_for_a_yield_job_s(
     return await client.mark.delegate(resource, params)  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
 
 
-def the_resource_made(reported: JobGenerationResult) -> ResourceId:
+def the_resource_made(reported: YieldJobDone) -> ResourceId:
     return reported.resource_id
 
 
 async def a_mark_job_read_for_the_resource_it_made(client: Client, resource: ResourceId, params: HighlightingJobParams) -> None:
     reported = (await client.mark.delegate(resource, params)).result
     # What a `mark` job reports that is no decline is its counts: what a generation reports is not among what it may be.
-    if reported is not None and not isinstance(reported, JobDeclinedResult):
+    if reported is not None and not isinstance(reported, JobDeclined):
         the_resource_made(reported)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
 

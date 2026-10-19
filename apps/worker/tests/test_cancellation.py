@@ -27,9 +27,9 @@ from semiont.types import (
     CommentingJobParams,
     GenerationJobParams,
     HighlightingJobParams,
-    JobDetectionResult,
     JobProgress,
     LinkingJobParams,
+    MarkJobDone,
     TagCategory,
     TaggingJobParams,
     TagSchema,
@@ -385,7 +385,7 @@ COMMENTING: Final = CommentingJobParams(motivation="commenting")
 ASSESSING: Final = AssessingJobParams(motivation="assessing")
 END: Final = len(SHORT)
 
-type Runs = Callable[[pytest.MonkeyPatch, str, Handed, int | None], tuple[JobDetectionResult | Cancelled, int]]
+type Runs = Callable[[pytest.MonkeyPatch, str, Handed, int | None], tuple[MarkJobDone | Cancelled, int]]
 """Run a job over a text with its detection stood in for, handing on one piece of nothing that ends at the offset given, or none at all.
 
 Answers what the processor answered, and how many times its detection was asked.
@@ -404,7 +404,7 @@ def cancelling_as_it_commits(handed: Handed) -> None:
 
 def run_highlighting(
     monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None
-) -> tuple[JobDetectionResult | Cancelled, int]:
+) -> tuple[MarkJobDone | Cancelled, int]:
     script = pieces(*([] if ends_at is None else [(list[TextSpan](), ChunkCursor(next=ends_at, size=5), 0)]))
     asked = highlights_stood_in(monkeypatch, script)
     answered = run(
@@ -422,9 +422,7 @@ def run_highlighting(
     return answered, len(asked)
 
 
-def run_commenting(
-    monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None
-) -> tuple[JobDetectionResult | Cancelled, int]:
+def run_commenting(monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None) -> tuple[MarkJobDone | Cancelled, int]:
     script = pieces(*([] if ends_at is None else [(list[CommentMatch](), ChunkCursor(next=ends_at, size=5), 0)]))
     asked = comments_stood_in(monkeypatch, script)
     answered = run(
@@ -442,9 +440,7 @@ def run_commenting(
     return answered, len(asked)
 
 
-def run_assessing(
-    monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None
-) -> tuple[JobDetectionResult | Cancelled, int]:
+def run_assessing(monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None) -> tuple[MarkJobDone | Cancelled, int]:
     script = pieces(*([] if ends_at is None else [(list[AssessmentMatch](), ChunkCursor(next=ends_at, size=5), 0)]))
     asked = assessments_stood_in(monkeypatch, script)
     answered = run(
@@ -462,9 +458,7 @@ def run_assessing(
     return answered, len(asked)
 
 
-def run_tagging(
-    monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None
-) -> tuple[JobDetectionResult | Cancelled, int]:
+def run_tagging(monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None) -> tuple[MarkJobDone | Cancelled, int]:
     script = pieces(*([] if ends_at is None else [(list[TagMatch](), ChunkCursor(next=ends_at, size=5), 0)]))
     asked = tags_stood_in(monkeypatch, script)
     answered = run(
@@ -483,9 +477,7 @@ def run_tagging(
     return answered, len(asked)
 
 
-def run_linking(
-    monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None
-) -> tuple[JobDetectionResult | Cancelled, int]:
+def run_linking(monkeypatch: pytest.MonkeyPatch, text: str, handed: Handed, ends_at: int | None) -> tuple[MarkJobDone | Cancelled, int]:
     found = [Mention(quoted=QuotedText(exact="alpha"), entity_type="Person")]
     script = pieces(*([] if ends_at is None else [(found, ChunkCursor(next=ends_at, size=5), 0)]))
     asked = mentions_stood_in(monkeypatch, script)
@@ -668,7 +660,7 @@ def test_a_highlighting_job_cancelled_while_its_first_piece_is_with_the_model_co
     kind = KINDS[0]
     next_, size = first_cut(kind)
 
-    async def scenario() -> tuple[JobDetectionResult | Cancelled, Model, Handed]:
+    async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
         client = Model(limits_of(kind), [[marker(1), marker(2)]], None, 1)
         handed = Handed(1)
         answered = await held_then_cancelled(
@@ -725,7 +717,7 @@ def test_a_highlighting_job_that_is_not_cancelled_says_where_it_stands_after_eac
         )
     )
 
-    assert isinstance(answered, JobDetectionResult)
+    assert isinstance(answered, MarkJobDone)
     cursors = [checkpoint.cursor for checkpoint in handed.committed.checkpoints]
     assert len(cursors) == len(client.asked) >= 4
     between: list[JsonValue] = []
@@ -746,7 +738,7 @@ def test_a_tagging_job_cancelled_while_its_first_category_is_with_the_model_fini
     # The short text is one piece for each category.
     limits = window(estimate_tokens(tag_prompt("", SCHEMA, EVIDENCE, source_language=None)) + 600)
 
-    async def scenario() -> tuple[JobDetectionResult | Cancelled, Model, Handed]:
+    async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
         client = Model(limits, [[{"exact": "gamma"}]], None, 1)
         handed = Handed(1)
         answered = await held_then_cancelled(
@@ -790,7 +782,7 @@ def test_a_linking_job_cancelled_while_a_piece_s_extraction_is_with_the_model_co
     kind = KINDS[4]
     next_, size = first_cut(kind)
 
-    async def scenario() -> tuple[JobDetectionResult | Cancelled, Model, Handed]:
+    async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
         client = Model(limits_of(kind), [[{"exact": "marker 003", "entityType": "Person"}]], ["1"], 1)
         handed = Handed(1)
         answered = await held_then_cancelled(
@@ -847,7 +839,7 @@ def test_a_linking_job_cancelled_while_a_piece_s_extraction_is_with_the_model_co
 def test_a_linking_job_cancelled_on_the_last_piece_of_its_last_entity_type_is_cancelled_all_the_same_with_the_type_named() -> None:
     limits = window(estimate_tokens(mention_prompt("", ["Person"], include_descriptive_references=False, source_language=None)) + 600)
 
-    async def scenario() -> tuple[JobDetectionResult | Cancelled, Model, Handed]:
+    async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
         client = Model(limits, [[{"exact": "alpha", "entityType": "Person"}]], ["1"], 1)
         handed = Handed(1)
         answered = await held_then_cancelled(

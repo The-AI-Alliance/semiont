@@ -29,8 +29,8 @@ from semiont.types import (
     CommentingJobParams,
     FragmentSelector,
     HighlightingJobParams,
-    JobDetectionResult,
     LinkingJobParams,
+    MarkJobDone,
     PdfTextItem,
     Selector,
     TagCategory,
@@ -115,7 +115,7 @@ def tagging(*categories: str) -> TaggingJobParams:
 
 def highlight(
     text: str, handed: Handed, params: HighlightingJobParams, resume: Mapping[str, UnitCursor], build: BuildAnnotation
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     return run(
         process_highlight_job(
             text,
@@ -130,7 +130,7 @@ def highlight(
     )
 
 
-def comment(text: str, handed: Handed, params: CommentingJobParams, resume: Mapping[str, UnitCursor]) -> JobDetectionResult | Cancelled:
+def comment(text: str, handed: Handed, params: CommentingJobParams, resume: Mapping[str, UnitCursor]) -> MarkJobDone | Cancelled:
     return run(
         process_comment_job(
             text,
@@ -145,7 +145,7 @@ def comment(text: str, handed: Handed, params: CommentingJobParams, resume: Mapp
     )
 
 
-def assess(text: str, handed: Handed, params: AssessingJobParams, resume: Mapping[str, UnitCursor]) -> JobDetectionResult | Cancelled:
+def assess(text: str, handed: Handed, params: AssessingJobParams, resume: Mapping[str, UnitCursor]) -> MarkJobDone | Cancelled:
     return run(
         process_assessment_job(
             text,
@@ -162,7 +162,7 @@ def assess(text: str, handed: Handed, params: AssessingJobParams, resume: Mappin
 
 def link(
     text: str, handed: Handed, params: LinkingJobParams, resume: Mapping[str, UnitCursor], completed_units: Sequence[str]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     return run(
         process_reference_job(
             text,
@@ -179,7 +179,7 @@ def link(
     )
 
 
-def tag(text: str, handed: Handed, params: TaggingJobParams, resume: Mapping[str, UnitCursor]) -> JobDetectionResult | Cancelled:
+def tag(text: str, handed: Handed, params: TaggingJobParams, resume: Mapping[str, UnitCursor]) -> MarkJobDone | Cancelled:
     return run(
         process_tag_job(
             text,
@@ -195,9 +195,9 @@ def tag(text: str, handed: Handed, params: TaggingJobParams, resume: Mapping[str
     )
 
 
-def ran(outcome: JobDetectionResult | Cancelled) -> JobDetectionResult:
+def ran(outcome: MarkJobDone | Cancelled) -> MarkJobDone:
     """What a processor that ran to its end answered. One a cancellation stopped has no result, and fails a test that did not expect it."""
-    assert isinstance(outcome, JobDetectionResult), f"the processor was stopped by a cancellation: {outcome}"
+    assert isinstance(outcome, MarkJobDone), f"the processor was stopped by a cancellation: {outcome}"
     return outcome
 
 
@@ -797,19 +797,19 @@ class OneUnit:
     """A job of one unit, of one kind: its unit's name, and how these tests run one over `TEXT`."""
 
     unit: str
-    job: Callable[[pytest.MonkeyPatch, HandedOn, Handed, Mapping[str, UnitCursor]], JobDetectionResult | Cancelled]
+    job: Callable[[pytest.MonkeyPatch, HandedOn, Handed, Mapping[str, UnitCursor]], MarkJobDone | Cancelled]
 
 
 def highlighting_job(
     monkeypatch: pytest.MonkeyPatch, handed_on: HandedOn, handed: Handed, resume: Mapping[str, UnitCursor]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     highlights_stood_in(monkeypatch, pieces(*(([span(TEXT, words) for words in kept], at, dropped) for kept, at, dropped in handed_on)))
     return highlight(TEXT, handed, HIGHLIGHTING, resume, text_build(TEXT))
 
 
 def commenting_job(
     monkeypatch: pytest.MonkeyPatch, handed_on: HandedOn, handed: Handed, resume: Mapping[str, UnitCursor]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     comments_stood_in(
         monkeypatch, pieces(*(([commented(TEXT, words, f"on {words}") for words in kept], at, dropped) for kept, at, dropped in handed_on))
     )
@@ -818,7 +818,7 @@ def commenting_job(
 
 def assessing_job(
     monkeypatch: pytest.MonkeyPatch, handed_on: HandedOn, handed: Handed, resume: Mapping[str, UnitCursor]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     assessments_stood_in(
         monkeypatch, pieces(*(([assessed(TEXT, words, f"of {words}") for words in kept], at, dropped) for kept, at, dropped in handed_on))
     )
@@ -827,14 +827,14 @@ def assessing_job(
 
 def tagging_job(
     monkeypatch: pytest.MonkeyPatch, handed_on: HandedOn, handed: Handed, resume: Mapping[str, UnitCursor]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     tags_stood_in(monkeypatch, pieces(*(([tagged(TEXT, words, "catA") for words in kept], at, dropped) for kept, at, dropped in handed_on)))
     return tag(TEXT, handed, tagging("catA"), resume)
 
 
 def linking_job(
     monkeypatch: pytest.MonkeyPatch, handed_on: HandedOn, handed: Handed, resume: Mapping[str, UnitCursor]
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     mentions_stood_in(
         monkeypatch, pieces(*(([mention(words, "Person") for words in kept], at, dropped) for kept, at, dropped in handed_on))
     )
