@@ -501,14 +501,14 @@
       "UnitCursor": {
         "$ref": "./components/schemas/UnitCursor.json"
       },
-      "JobDeclinedResult": {
-        "$ref": "components/schemas/JobDeclinedResult.json"
+      "JobDeclined": {
+        "$ref": "components/schemas/JobDeclined.json"
       },
       "JobFailedPayload": {
         "$ref": "components/schemas/JobFailedPayload.json"
       },
-      "JobGenerationResult": {
-        "$ref": "components/schemas/JobGenerationResult.json"
+      "YieldJobDone": {
+        "$ref": "components/schemas/YieldJobDone.json"
       },
       "JobProgress": {
         "$ref": "components/schemas/JobProgress.json"
@@ -549,8 +549,8 @@
       "JobQueuedEvent": {
         "$ref": "components/schemas/JobQueuedEvent.json"
       },
-      "JobDetectionResult": {
-        "$ref": "components/schemas/JobDetectionResult.json"
+      "MarkJobDone": {
+        "$ref": "components/schemas/MarkJobDone.json"
       },
       "JobReportProgressCommand": {
         "$ref": "components/schemas/JobReportProgressCommand.json"

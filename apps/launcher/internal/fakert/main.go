@@ -1635,7 +1635,7 @@ func busSubscriberCount(channel string) int {
 
 // fakeMarkResults: what a `mark` job of each motivation completes with when a
 // test scripts no result. The counts differ, so a test can tell which job ran.
-var fakeMarkResults = map[semiont.Motivation]semiont.JobDetectionResult{
+var fakeMarkResults = map[semiont.Motivation]semiont.MarkJobDone{
 	semiont.MotivationHighlighting: {Found: 4, Persisted: 3},
 	semiont.MotivationCommenting:   {Found: 2, Persisted: 2},
 	semiont.MotivationAssessing:    {Found: 1, Persisted: 1},
@@ -1669,7 +1669,7 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 		if scripted != "" {
 			err = result.UnmarshalJSON([]byte(scripted))
 		} else {
-			err = result.FromJobGenerationResult(semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"})
+			err = result.FromYieldJobDone(semiont.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"})
 		}
 		if err == nil {
 			err = completion.FromYieldJobCompleteCommand(semiont.YieldJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
@@ -1683,7 +1683,7 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 		case scripted != "":
 			err = result.UnmarshalJSON([]byte(scripted))
 		case counted:
-			err = result.FromJobDetectionResult(counts)
+			err = result.FromMarkJobDone(counts)
 		default:
 			return completion, false
 		}

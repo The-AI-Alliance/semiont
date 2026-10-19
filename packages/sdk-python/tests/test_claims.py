@@ -55,11 +55,11 @@ from semiont.types import (
     Annotation,
     DurabilityEvidence,
     FailureClass,
-    JobDetectionResult,
     JobFilter,
-    JobGenerationResult,
     JobProgress,
+    MarkJobDone,
     UnitCursor,
+    YieldJobDone,
 )
 from semiont.watched import Watched
 
@@ -236,7 +236,7 @@ async def held(claims: Claims) -> HeldJob:
 async def finish(job: HeldJob) -> None:
     """Complete a held `mark` job that found nothing. A completion is its verb's, so the verb is read first."""
     assert isinstance(job, HeldMarkJob)
-    await job.complete(JobDetectionResult(found=0, persisted=0))
+    await job.complete(MarkJobDone(found=0, persisted=0))
 
 
 def now[T](watched: Watched[T]) -> T:
@@ -491,7 +491,7 @@ def test_a_held_job_says_its_whole_lifecycle_itself() -> None:
             await job.progress(JobProgress(percentage=40))
             await job.checkpoint(["Person"], {"Place": UnitCursor.model_validate(cursor)})
             assert await commit_observing(w, job, "acknowledged") is None
-            await job.complete(JobDetectionResult(found=9, persisted=7))
+            await job.complete(MarkJobDone(found=9, persisted=7))
             with pytest.raises(RuntimeError, match="already settled"):
                 await job.fail("too late")
 
@@ -526,7 +526,7 @@ def test_a_yield_job_focused_on_an_annotation_is_anchored_to_it_and_says_so() ->
             with pytest.raises(RuntimeError, match="first message"):
                 await job.start()
             await job.progress(JobProgress(percentage=5))
-            await job.complete(JobGenerationResult(resource_id=job.resource_id, resource_name="Ouranos", truncated=False))
+            await job.complete(YieldJobDone(resource_id=job.resource_id, resource_name="Ouranos", truncated=False))
 
         identity: JsonObject = {"resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "attempt": 1, "annotationId": "ann-7"}
         said = w.said()
@@ -1003,7 +1003,7 @@ def test_a_yield_job_commits_and_says_how_its_commits_were_established_as_a_mark
             job = await held(claims)
             assert isinstance(job, HeldYieldJob)
             assert await commit_observing(w, job, "probe-confirmed") is None
-            await job.complete(JobGenerationResult(resource_id=job.resource_id, resource_name="Ouranos", truncated=False))
+            await job.complete(YieldJobDone(resource_id=job.resource_id, resource_name="Ouranos", truncated=False))
 
         assert w.sent("mark:commit")[0]["jobId"] == "job-1"
         assert w.sent("job:complete")[0]["durability"] == "probe-confirmed"

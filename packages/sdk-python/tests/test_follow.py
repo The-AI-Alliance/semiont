@@ -28,14 +28,14 @@ from semiont.types import (
     GenerationJobParams,
     HighlightingJobParams,
     JobCompleteCommand,
-    JobDeclinedResult,
-    JobDetectionResult,
-    JobGenerationResult,
+    JobDeclined,
     JobProgress,
     JobType,
     MarkJobCompleteCommand,
+    MarkJobDone,
     MarkJobParams,
     YieldJobCompleteCommand,
+    YieldJobDone,
 )
 
 SILENCE, POLL = JOB_SILENCE_MS / 1000, JOB_STATUS_POLL_MS / 1000
@@ -147,7 +147,7 @@ def test_a_job_reports_its_progress_and_ends_with_its_completion() -> None:
         last = seen[-1]
         assert isinstance(last, JobCompleted)
         assert (last.kind, last.data.job_id, last.data.resource_id) == ("complete", "job-1", "res-1")
-        assert last.data.result == JobDetectionResult(found=3, persisted=2, errors=1)
+        assert last.data.result == MarkJobDone(found=3, persisted=2, errors=1)
         assert asked(transport, "job:status-requested") == []
         await client.close()
 
@@ -182,7 +182,7 @@ def test_awaited_a_job_gives_its_completion() -> None:
         # The completion itself, and no event to take it out of: a `mark` job's, whose result is what a `mark` job reports.
         assert type(done) is MarkJobCompleteCommand
         assert (done.job_id, done.job_type, done.resource_id) == ("job-1", "mark", "res-1")
-        assert done.result == JobDetectionResult(found=2, persisted=2)
+        assert done.result == MarkJobDone(found=2, persisted=2)
         await client.close()
 
     run(scenario())
@@ -195,9 +195,9 @@ async def _awaited[C: JobCompleteCommand](delegation: Delegation[C]) -> C:
 def counted(done: MarkJobCompleteCommand) -> int | None:
     """What a `mark` job found. What it reports is its counts, a decline, or nothing: a type checker holds this to naming all three."""
     match done.result:
-        case JobDetectionResult(found=found):
+        case MarkJobDone(found=found):
             return found
-        case JobDeclinedResult() | None:
+        case JobDeclined() | None:
             return None
         case _ as other:
             assert_never(other)
@@ -215,7 +215,7 @@ def test_what_a_mark_job_reports_is_its_counts_or_a_decline() -> None:
 
     assert counted(run(scenario({"found": 4, "persisted": 3}))) == 4
     declined = run(scenario({"declined": True, "reason": "encrypted"}))
-    assert isinstance(declined.result, JobDeclinedResult)
+    assert isinstance(declined.result, JobDeclined)
     assert counted(declined) is None
 
 
@@ -229,7 +229,7 @@ def test_awaited_a_generation_gives_the_resource_it_made() -> None:
         done = await soon(awaiting)
         assert type(done) is YieldJobCompleteCommand
         assert done.job_type == "yield"
-        assert done.result == JobGenerationResult(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
+        assert done.result == YieldJobDone(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
         await client.close()
 
     run(scenario())
@@ -344,7 +344,7 @@ def test_a_status_carries_the_result_its_job_was_stored_with_and_an_empty_one_is
 
     stored = run(scenario({"found": 3, "persisted": 2}))
     assert isinstance(stored, JobCompleted)
-    assert stored.data.result == JobDetectionResult(found=3, persisted=2)
+    assert stored.data.result == MarkJobDone(found=3, persisted=2)
     empty = run(scenario({}))
     assert isinstance(empty, JobCompleted)
     assert empty.data.result is None

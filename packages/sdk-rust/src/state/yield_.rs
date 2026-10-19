@@ -13,30 +13,17 @@ use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
-use crate::types::{GenerationJobParams, JobProgress, YieldJobResult};
-use crate::types::{JobId, ResourceId};
-use serde::Serialize;
+use crate::types::{GenerationJobParams, JobId, JobProgress, YieldJobDone, YieldJobResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
-
-/// What a finished generation produced.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct YieldOutcome {
-    pub resource_id: ResourceId,
-    pub resource_name: String,
-    /// The run stopped at its token ceiling: the resource is cut off, not
-    /// complete.
-    pub truncated: bool,
-}
 
 struct Shared {
     client: Arc<SemiontClient>,
     locale: String,
     generating: Held<bool>,
     progress: Held<Option<JobProgress>>,
-    outcome: Held<Option<YieldOutcome>>,
+    outcome: Held<Option<YieldJobDone>>,
     failure: Held<Option<SemiontError>>,
     job_id: Held<Option<JobId>>,
     tasks: Tasks,
@@ -74,9 +61,9 @@ impl YieldStateUnit {
         self.shared.progress.read()
     }
 
-    /// What the last finished run produced; none while one runs, and none
-    /// once dismissed.
-    pub fn outcome(&self) -> watch::Receiver<Option<YieldOutcome>> {
+    /// What the last finished run produced, as its `job:complete` said; none
+    /// while one runs, and none once dismissed.
+    pub fn outcome(&self) -> watch::Receiver<Option<YieldJobDone>> {
         self.shared.outcome.read()
     }
 
@@ -123,12 +110,8 @@ impl YieldStateUnit {
                         shared.generating.set(true);
                     }
                     Ok(JobEvent::Complete(complete)) => {
-                        if let Some(YieldJobResult::GenerationResult(result)) = complete.result {
-                            shared.outcome.set(Some(YieldOutcome {
-                                resource_id: result.resource_id,
-                                resource_name: result.resource_name,
-                                truncated: result.truncated,
-                            }));
+                        if let Some(YieldJobResult::YieldJobDone(result)) = complete.result {
+                            shared.outcome.set(Some(result));
                         }
                     }
                     // An attempt that failed and will be tried again: the

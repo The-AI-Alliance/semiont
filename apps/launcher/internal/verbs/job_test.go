@@ -23,13 +23,13 @@ import (
 // result among them.
 func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 	const counts, resource, decline = `{"found":4,"persisted":3}`, `{"resourceId":"res-new","resourceName":"Generated","truncated":false}`, `{"declined":true,"reason":"encrypted"}`
-	declined := semiont.JobDeclinedResult{Declined: true, Reason: "encrypted"}
+	declined := semiont.JobDeclined{Declined: true, Reason: "encrypted"}
 	for _, c := range []struct {
 		name, result string
 		mark, yield  any // nil: an error
 	}{
-		{"a mark job's counts", counts, semiont.JobDetectionResult{Found: 4, Persisted: 3}, nil},
-		{"the resource a yield job made", resource, nil, semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"}},
+		{"a mark job's counts", counts, semiont.MarkJobDone{Found: 4, Persisted: 3}, nil},
+		{"the resource a yield job made", resource, nil, semiont.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"}},
 		{"a decline", decline, declined, declined},
 		{"no member's required members", `{}`, nil, nil},
 		{"half of a member's required members", `{"found":4,"resourceId":"res-new"}`, nil, nil},
@@ -187,14 +187,14 @@ func TestMarkedTextSaysWhatAMarkJobDid(t *testing.T) {
 	one, issue := 1, map[string]int{"rule": 4, "issue": 2}
 	for _, c := range []struct {
 		motivation semiont.Motivation
-		result     semiont.JobDetectionResult
+		result     semiont.MarkJobDone
 		want       string
 	}{
-		{"highlighting", semiont.JobDetectionResult{Found: 4, Persisted: 3}, "created 3 highlights (4 found)"},
-		{"commenting", semiont.JobDetectionResult{Found: 2, Persisted: 2}, "created 2 comments (2 found)"},
-		{"assessing", semiont.JobDetectionResult{Found: 1, Persisted: 1}, "created 1 assessment (1 found)"},
-		{"linking", semiont.JobDetectionResult{Found: 5, Persisted: 4, Errors: &one}, "created 4 references (5 found, 1 error)"},
-		{"tagging", semiont.JobDetectionResult{Found: 6, Persisted: 6, ByCategory: &issue}, "created 6 tags (6 found): issue 2, rule 4"},
+		{"highlighting", semiont.MarkJobDone{Found: 4, Persisted: 3}, "created 3 highlights (4 found)"},
+		{"commenting", semiont.MarkJobDone{Found: 2, Persisted: 2}, "created 2 comments (2 found)"},
+		{"assessing", semiont.MarkJobDone{Found: 1, Persisted: 1}, "created 1 assessment (1 found)"},
+		{"linking", semiont.MarkJobDone{Found: 5, Persisted: 4, Errors: &one}, "created 4 references (5 found, 1 error)"},
+		{"tagging", semiont.MarkJobDone{Found: 6, Persisted: 6, ByCategory: &issue}, "created 6 tags (6 found): issue 2, rule 4"},
 	} {
 		if got := markedText(c.motivation, c.result); got != c.want {
 			t.Errorf("%s: %q, want %q", c.motivation, got, c.want)

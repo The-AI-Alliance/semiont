@@ -37,8 +37,8 @@ use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
-    JobCompleteCommand, JobDetectionResult, JobProgress, KbEndpoint, KbTarget, KnowledgeBase,
-    LocalEndpoint, MarkJobFilter, MarkJobFilterParams, Motivation,
+    JobCompleteCommand, JobProgress, KbEndpoint, KbTarget, KnowledgeBase, LocalEndpoint,
+    MarkJobDone, MarkJobFilter, MarkJobFilterParams, Motivation,
 };
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
@@ -2577,7 +2577,7 @@ async fn a_worker(
                         highlights.push(built);
                     }
                 }
-                let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+                let result = MarkJobDone::new(quoted.len() as u64, highlights.len() as u64);
                 job.commit(&resource_id, highlights).await?;
                 // A settle takes the job, so it cannot be settled twice. A
                 // job dropped unsettled is failed, and the queue retries it.

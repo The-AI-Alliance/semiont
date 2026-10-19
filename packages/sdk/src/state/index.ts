@@ -44,7 +44,6 @@ export {
 export {
   createYieldStateUnit,
   type YieldStateUnit,
-  type YieldOutcome,
 } from './flows/yield-state-unit';
 export {
   createMarkStateUnit,

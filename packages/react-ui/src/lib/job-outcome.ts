@@ -1,7 +1,7 @@
 import { isObject, isString } from '@semiont/core';
 import type { components } from '@semiont/core';
 
-type DeclineReason = components['schemas']['JobDeclinedResult']['reason'];
+type DeclineReason = components['schemas']['JobDeclined']['reason'];
 
 /** The closed vocabulary this client has copy for. */
 const REASONS: readonly string[] = ['no-text-layer', 'encrypted', 'corrupt', 'too-large', 'empty'];
@@ -10,7 +10,7 @@ const REASONS: readonly string[] = ['no-text-layer', 'encrypted', 'corrupt', 'to
  * A detection job can *decline* cleanly rather than succeed or fail: a PDF
  * that is encrypted, damaged, or a scan whose text could not be recognized.
  * The worker reports it on `job:complete` as a `{ declined, reason }`
- * result — `JobDeclinedResult`, a member of the typed `JobResult` union.
+ * result — `JobDeclined`, a member of the typed `JobResult` union.
  * Narrowed structurally anyway: this runs against whatever the wire
  * delivered, and a runtime check is the honest guard at that boundary.
  * Returns the reason code, or null for an ordinary result or a reason this

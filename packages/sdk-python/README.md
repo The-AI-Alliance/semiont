@@ -151,7 +151,7 @@ client comes to be signed in.
 from semiont.client import SemiontClient
 from semiont.identifiers import ResourceId
 from semiont.transport import PutBinaryRequest, Transport
-from semiont.types import GenerationJobParams, JobDeclinedResult, LinkingJobParams
+from semiont.types import GenerationJobParams, JobDeclined, LinkingJobParams
 
 
 async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
@@ -183,7 +183,7 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
     )
     # What a `yield` job reports is the resource it made. One that could not read what it was given declines, and makes nothing.
     made = done.result
-    return None if made is None or isinstance(made, JobDeclinedResult) else made.resource_id
+    return None if made is None or isinstance(made, JobDeclined) else made.resource_id
 ```
 
 Both resources, and every annotation the model made, are in the knowledge base
@@ -268,9 +268,9 @@ Every method returns one of nine shapes, and the table says which:
   `GenerationJobParams` for a `yield` job. Each takes what its job takes and
   nothing else. Awaited, the job gives its completion, which is its verb's:
   a `MarkJobCompleteCommand`, whose `result` is the job's counts
-  (`JobDetectionResult`) or a decline (`JobDeclinedResult`), or a
+  (`MarkJobDone`) or a decline (`JobDeclined`), or a
   `YieldJobCompleteCommand`, whose `result` is the resource the job made
-  (`JobGenerationResult`) or a decline. A type checker holds what reads a
+  (`YieldJobDone`) or a decline. A type checker holds what reads a
   `mark` job's result to those two, and never offers it a generation's. Read,
   the job reports its progress and ends with that same completion. A job that
   says nothing is asked for its status, so a completion the stream did not
@@ -415,7 +415,7 @@ from semiont.client import SemiontClient
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
-from semiont.types import Agent, AgentSoftware, Annotation, JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
 
@@ -425,7 +425,7 @@ async def passages(text: str) -> list[QuotedText]:
     return [QuotedText(exact=text.partition("\n")[0])]
 
 
-async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> JobDetectionResult:
+async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> MarkJobDone:
     """Your work: read the resource, have its passages quoted, and commit a highlight of each one the text has."""
     text = await client.browse.resource_content(job.resource_id)
     quoted = await passages(text)
@@ -439,7 +439,7 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
             # An annotation's id is worked out from what it is, so a passage quoted twice is one annotation.
             highlights[built.id] = built
     await job.commit(job.resource_id, list(highlights.values()))
-    return JobDetectionResult(found=len(quoted), persisted=len(highlights))
+    return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:

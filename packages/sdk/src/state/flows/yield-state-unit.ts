@@ -1,28 +1,10 @@
 import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import { watched, type GenerationJobParams, type JobId, type ResourceId, type StateUnit, type Watched, type components } from '@semiont/core';
+import { watched, type GenerationJobParams, type JobId, type StateUnit, type Watched, type YieldJobDone, type components } from '@semiont/core';
 import type { DelegationObservable, YieldJobCompletion } from '../../awaitable';
 import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
-
-/**
- * What a finished generation produced, held for the terminal display.
- * Sourced from `job:complete` — the broadcast, emitted after citations
- * attach — never from a progress event, which is mid-run and carries no
- * result.
- */
-export interface YieldOutcome {
-  resourceId: ResourceId;
-  resourceName: string;
-  /**
-   * The run stopped at the maxTokens ceiling — the artifact is cut off, not
-   * complete. Mirrors `JobGenerationResult.truncated` so the terminal frame
-   * derives its sentence from the OUTCOME rather than the final progress
-   * frame, whose fire-and-forget emit can lose the race with `job:complete`.
-   */
-  truncated: boolean;
-}
 
 export interface YieldStateUnit extends StateUnit {
   isGenerating$: Watched<boolean>;
@@ -32,8 +14,14 @@ export interface YieldStateUnit extends StateUnit {
    * result; null while running and after dismissal. Lives and dies with the
    * progress display: a new `generate()` clears it, `dismissProgress()` clears
    * both together.
+   *
+   * It is taken from `job:complete` — the broadcast, emitted after citations
+   * attach — never from a progress event, which is mid-run and carries no
+   * result. So the terminal frame says whether the run was cut off by the
+   * result's `truncated`, and not by the final progress frame, whose
+   * fire-and-forget emit can lose the race with `job:complete`.
    */
-  outcome$: Watched<YieldOutcome | null>;
+  outcome$: Watched<YieldJobDone | null>;
   /**
    * Why the last run ended without a result: it failed, stalled or was
    * cancelled. A `SemiontError`'s `code` says which. Null while a run is
@@ -70,7 +58,7 @@ export function createYieldStateUnit(
   const subs: Subscription[] = [];
   const isGenerating$ = new BehaviorSubject<boolean>(false);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
-  const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
+  const outcome$ = new BehaviorSubject<YieldJobDone | null>(null);
   const failure$ = new BehaviorSubject<Error | null>(null);
   const jobId$ = new BehaviorSubject<JobId | null>(null);
   // A completed BehaviorSubject still takes a value from `next`, which its
@@ -112,11 +100,7 @@ export function createYieldStateUnit(
         // the one that names the resource made, so it narrows by that member
         // without a cast. Held for the terminal frame's link.
         if (e.kind === 'complete' && e.data.result && 'resourceId' in e.data.result) {
-          outcome$.next({
-            resourceId: e.data.result.resourceId,
-            resourceName: e.data.result.resourceName,
-            truncated: e.data.result.truncated,
-          });
+          outcome$.next(e.data.result);
         }
       },
       complete: () => {

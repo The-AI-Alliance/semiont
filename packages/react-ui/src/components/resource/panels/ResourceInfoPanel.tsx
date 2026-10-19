@@ -1,9 +1,9 @@
 'use client';
 
-import type { AnchoredTextAnswer, JobId, ResourceId } from '@semiont/core';
+import type { AnchoredTextAnswer, JobId, ResourceId, YieldJobDone } from '@semiont/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
+import { readyValue, type SemiontSession } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
 import { type components } from '@semiont/core';
 import { useEventSubscription } from '../../../contexts/useEventSubscription';
@@ -52,7 +52,7 @@ interface Props {
    */
   generationJobId?: JobId | null;
   /** The finished run's result; the ended frame links it by name. */
-  generationOutcome?: YieldOutcome | null;
+  generationOutcome?: YieldJobDone | null;
   /**
    * The run ended cancelled (`yield.failure$` holds a `JobCancelledError`):
    * its display stays, in its cancelled form, until dismissed.

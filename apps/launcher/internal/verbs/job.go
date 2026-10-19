@@ -330,7 +330,7 @@ type resultMember struct {
 type resultMembers[R json.Marshaler] []resultMember
 
 // declinedResult: the member each verb's result union has.
-var declinedResult = resultMember{semiont.JobDeclinedResult{}, "a decline"}
+var declinedResult = resultMember{semiont.JobDeclined{}, "a decline"}
 
 // jobResult: what a completed job reported, as the member of its verb's
 // result union it is; nil when it reported nothing. An error: what it reported
@@ -339,7 +339,7 @@ var declinedResult = resultMember{semiont.JobDeclinedResult{}, "a decline"}
 // A verb's result union has no discriminant. Its members share no required
 // member, so a result is the one member whose required members it carries all
 // of. The generated As*() accessors are bare json.Unmarshal calls and cannot
-// say: each "decodes" the other's payload, and AsJobGenerationResult on a
+// say: each "decodes" the other's payload, and AsYieldJobDone on a
 // decline returns a zero-valued struct with a nil error.
 func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, error) {
 	if reported == nil {
@@ -400,7 +400,7 @@ func carriesRequired(carried map[string]json.RawMessage, members map[string]bool
 // An unrecognized reason falls back to the raw code rather than an empty
 // string: for a CLI a bare token is still diagnostic, and a decline the user
 // cannot name is worse than an ugly one.
-func declineText(reason semiont.JobDeclinedResultReason) string {
+func declineText(reason semiont.JobDeclinedReason) string {
 	switch reason {
 	case "no-text-layer":
 		return "this PDF is a scan whose text could not be recognized, so there was nothing to annotate"

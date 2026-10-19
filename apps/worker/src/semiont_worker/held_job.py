@@ -43,15 +43,15 @@ from semiont.types import (
     ExtractedText,
     ExtractionDeclined,
     HighlightingJobParams,
-    JobDeclinedResult,
-    JobDetectionResult,
+    JobDeclined,
     JobFilter,
-    JobGenerationResult,
     JobProgress,
     JobProgressCompleteGenerated,
     LinkingJobParams,
+    MarkJobDone,
     SpecificResource,
     UnitCursor,
+    YieldJobDone,
 )
 from semiont_inference.interface import InferenceClient
 
@@ -257,7 +257,7 @@ async def _mark(
                 )
             case "no-text-layer" | "encrypted" | "corrupt" | "too-large" | "empty":
                 # The resource has nothing to read. Nothing went wrong: the job completes, and says why it did no work.
-                await job.complete(JobDeclinedResult(declined=True, reason=source.declined))
+                await job.complete(JobDeclined(declined=True, reason=source.declined))
                 return "completed"
             case _:
                 assert_never(source.declined)
@@ -285,7 +285,7 @@ async def _detect(
     inference: InferenceClient,
     reports: _Reports,
     stood: _Stood,
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Run a detection through the processor of its motivation, committing each piece and saying where that leaves the job."""
     # The cursor of every unit the job has begun: each as the job was claimed with it, until this attempt commits a
     # piece of that unit. A finished unit keeps its cursor, where it ended.
@@ -430,7 +430,7 @@ async def _yield(
     await job.commit(new_resource_id, await _citations(job, client, made, new_resource_id, generator, reports))
 
     await reports.taken()
-    await job.complete(JobGenerationResult(resource_id=new_resource_id, resource_name=made.title, truncated=made.truncated))
+    await job.complete(YieldJobDone(resource_id=new_resource_id, resource_name=made.title, truncated=made.truncated))
     return "completed"
 
 

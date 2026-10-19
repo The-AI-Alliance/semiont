@@ -2,7 +2,7 @@
  * Type-level guards for what a job is asked with and what it reports, held by
  * `tsc --noEmit`.
  *
- * A1: `JobGenerationResult.resourceId` is REQUIRED. The worker awaits the
+ * A1: `YieldJobDone.resourceId` is REQUIRED. The worker awaits the
  * create round-trip (`yield.resource(...)`) and holds the id before it ever
  * emits `job:complete` — the id is always on the wire. A schema claiming the
  * opposite (optional) propagates: an SDK consumer designs around "the id may
@@ -29,17 +29,17 @@ import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
 import { resourceId } from '../identifiers';
 
-type JobGenerationResult = components['schemas']['JobGenerationResult'];
+type YieldJobDone = components['schemas']['YieldJobDone'];
 
-describe('JobGenerationResult — the id is always there (A1)', () => {
+describe('YieldJobDone — the id is always there (A1)', () => {
   it('a result with every field is the wire shape', () => {
-    const full: JobGenerationResult = { resourceId: resourceId('res-1'), resourceName: 'Ouranos', truncated: false };
+    const full: YieldJobDone = { resourceId: resourceId('res-1'), resourceName: 'Ouranos', truncated: false };
     expect(full.resourceId).toBe('res-1');
   });
 
   it('a result missing resourceId does not typecheck', () => {
     // @ts-expect-error — resourceId is required: the worker always sends it
-    const missing: JobGenerationResult = { resourceName: 'Ouranos', truncated: false };
+    const missing: YieldJobDone = { resourceName: 'Ouranos', truncated: false };
     expect(missing).toBeDefined();
   });
 });

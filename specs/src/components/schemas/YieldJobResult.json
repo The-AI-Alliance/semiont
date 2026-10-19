@@ -2,10 +2,10 @@
   "description": "What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`.",
   "oneOf": [
     {
-      "$ref": "./JobGenerationResult.json"
+      "$ref": "./YieldJobDone.json"
     },
     {
-      "$ref": "./JobDeclinedResult.json"
+      "$ref": "./JobDeclined.json"
     }
   ]
 }

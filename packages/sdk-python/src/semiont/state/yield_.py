@@ -19,7 +19,7 @@ from semiont.state._jobs import cancelled
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Transport
-from semiont.types import GenerationJobParams, JobGenerationResult, JobProgress, YieldJobCompleteCommand
+from semiont.types import GenerationJobParams, JobProgress, YieldJobCompleteCommand, YieldJobDone
 from semiont.watched import Variable, Watched
 
 __all__ = ["YieldStateUnit"]
@@ -34,7 +34,7 @@ class YieldStateUnit(StateUnit):
         self._locale: Final = locale
         self._generating: Final = Variable(False)
         self._progress: Final = Variable[JobProgress | None](None)
-        self._outcome: Final = Variable[JobGenerationResult | None](None)
+        self._outcome: Final = Variable[YieldJobDone | None](None)
         self._failure: Final = Variable[SemiontError | None](None)
         self._job_id: Final = Variable[JobId | None](None)
         self._tasks: Final = Tasks()
@@ -50,7 +50,7 @@ class YieldStateUnit(StateUnit):
         return Reading(self._progress)
 
     @property
-    def outcome(self) -> Watched[JobGenerationResult | None]:
+    def outcome(self) -> Watched[YieldJobDone | None]:
         """What the last finished run produced; none while one runs, and none once dismissed."""
         return Reading(self._outcome)
 
@@ -103,7 +103,7 @@ class YieldStateUnit(StateUnit):
                         self._progress.set(progress)
                         self._generating.set(True)
                     case JobCompleted(data=complete):
-                        if isinstance(complete.result, JobGenerationResult):
+                        if isinstance(complete.result, YieldJobDone):
                             self._outcome.set(complete.result)
                     case JobAttemptFailed():
                         # An attempt that failed and will be tried again: the run is not over.

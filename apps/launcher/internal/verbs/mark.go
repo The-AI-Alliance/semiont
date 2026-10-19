@@ -465,7 +465,7 @@ options:
 
 // markJobResults: what a `mark` job reports.
 var markJobResults = resultMembers[semiont.MarkJobResult]{
-	{semiont.JobDetectionResult{}, "a mark job's counts"},
+	{semiont.MarkJobDone{}, "a mark job's counts"},
 	declinedResult,
 }
 
@@ -498,7 +498,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 	if err != nil {
 		return job.resultFail(u, done.JobId, err)
 	}
-	declined, isDecline := result.(semiont.JobDeclinedResult)
+	declined, isDecline := result.(semiont.JobDeclined)
 	if asJSON {
 		fmt.Println(string(raw))
 		// The exit code is a property of the outcome, not of the output
@@ -516,7 +516,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 		fmt.Fprintln(os.Stderr, "  Nothing was annotated.")
 		return 1
 	}
-	if detected, ok := result.(semiont.JobDetectionResult); ok {
+	if detected, ok := result.(semiont.MarkJobDone); ok {
 		u.Ok("Marked %s: %s", resourceID, markedText(motivation, detected))
 		return 0
 	}
@@ -527,7 +527,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 // markedText: what a completed mark job did, in the words of its last
 // progress line: "created 4 references (5 found, 1 error)". A tagging job's
 // count per category follows: ": issue 2, rule 4".
-func markedText(motivation semiont.Motivation, result semiont.JobDetectionResult) string {
+func markedText(motivation semiont.Motivation, result semiont.MarkJobDone) string {
 	text := fmt.Sprintf("created %s (%d found", plural(result.Persisted, markNouns[motivation]), result.Found)
 	if result.Errors != nil {
 		text += ", " + plural(*result.Errors, "error")

@@ -229,14 +229,12 @@ __all__ = [
     "JobCreateCommand",
     "JobCreatedResult",
     "JobCreatedResultResponse",
-    "JobDeclinedResult",
-    "JobDeclinedResultReason",
-    "JobDetectionResult",
+    "JobDeclined",
+    "JobDeclinedReason",
     "JobFailCommand",
     "JobFailed",
     "JobFailedPayload",
     "JobFilter",
-    "JobGenerationResult",
     "JobMetadata",
     "JobParams",
     "JobPending",
@@ -309,6 +307,7 @@ __all__ = [
     "MarkDeleteOkResponse",
     "MarkJobCompleteCommand",
     "MarkJobCreateCommand",
+    "MarkJobDone",
     "MarkJobFilter",
     "MarkJobFilterParams",
     "MarkJobParams",
@@ -429,6 +428,7 @@ __all__ = [
     "YieldCreateOkResponse",
     "YieldJobCompleteCommand",
     "YieldJobCreateCommand",
+    "YieldJobDone",
     "YieldJobFilter",
     "YieldJobQueuedEvent",
     "YieldJobResult",
@@ -1200,7 +1200,7 @@ class UnitCursor(WireModel, frozen=True):
     ]
 
 
-class JobGenerationResult(WireModel, frozen=True, extra="forbid"):
+class YieldJobDone(WireModel, frozen=True, extra="forbid"):
     """
     What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
     """
@@ -1239,7 +1239,7 @@ class JobProgressAnalyzingTags(WireModel, frozen=True):
 
 class JobProgressCompleteGenerated(WireModel, frozen=True):
     """
-    Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
+    Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `YieldJobDone.truncated` carries, so the two surfaces cannot drift.
     """
 
     code: Literal["complete-generated"]
@@ -1303,7 +1303,7 @@ class JobProgressLoading(WireModel, frozen=True):
     code: Literal["loading"]
 
 
-class JobDetectionResult(WireModel, frozen=True, extra="forbid"):
+class MarkJobDone(WireModel, frozen=True, extra="forbid"):
     """
     What a `mark` job reports when it has done its work, whatever its motivation.
     """
@@ -3096,7 +3096,7 @@ class JobCreatedResultResponse(WireModel, frozen=True):
     job_id: Annotated[JobId, Field(alias="jobId")]
 
 
-type JobDeclinedResultReason = Annotated[
+type JobDeclinedReason = Annotated[
     Literal["no-text-layer", "encrypted", "corrupt", "too-large", "empty"],
     Field(
         description="Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere."
@@ -4220,7 +4220,7 @@ class JobCheckpointCommand(WireModel, frozen=True):
     ] = None
 
 
-class JobDeclinedResult(WireModel, frozen=True, extra="forbid"):
+class JobDeclined(WireModel, frozen=True, extra="forbid"):
     """
     Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
     """
@@ -4229,7 +4229,7 @@ class JobDeclinedResult(WireModel, frozen=True, extra="forbid"):
         Literal[True],
         Field(description="Always true. It is what tells a decline from the result of a job that did its work, which never carries it."),
     ]
-    reason: JobDeclinedResultReason
+    reason: JobDeclinedReason
 
 
 class JobFailedPayload(WireModel, frozen=True):
@@ -4278,7 +4278,7 @@ class JobProgressCompleteCreated(WireModel, frozen=True):
 
 
 type JobResult = Annotated[
-    JobDetectionResult | JobGenerationResult | JobDeclinedResult,
+    MarkJobDone | YieldJobDone | JobDeclined,
     Field(
         description="What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries."
     ),
@@ -4980,7 +4980,7 @@ class AssessingJobParams(WireModel, frozen=True, extra="forbid"):
 
 
 type MarkJobResult = Annotated[
-    JobDetectionResult | JobDeclinedResult,
+    MarkJobDone | JobDeclined,
     Field(
         description="What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`."
     ),
@@ -4988,7 +4988,7 @@ type MarkJobResult = Annotated[
 
 
 type YieldJobResult = Annotated[
-    JobGenerationResult | JobDeclinedResult,
+    YieldJobDone | JobDeclined,
     Field(
         description="What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`."
     ),

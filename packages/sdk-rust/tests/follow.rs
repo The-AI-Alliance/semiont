@@ -10,9 +10,8 @@ use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_t
 use semiont::timing::{JOB_SILENCE, JOB_STATUS_POLL};
 use semiont::transport::{ConnectionState, Envelope};
 use semiont::types::{
-    HighlightingJobParams, JobDeclinedResultReason, JobDetectionResult, LinkingJobParams,
-    MarkJobCompleteCommand, MarkJobResult, TaggingJobParams, YieldJobCompleteCommand,
-    YieldJobResult,
+    HighlightingJobParams, JobDeclinedReason, LinkingJobParams, MarkJobCompleteCommand,
+    MarkJobDone, MarkJobResult, TaggingJobParams, YieldJobCompleteCommand, YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::future::IntoFuture;
@@ -177,10 +176,10 @@ async fn awaited_a_job_gives_a_completion_whose_result_is_its_verbs() {
     );
     let done: MarkJobCompleteCommand = ended(following).await.expect("the job completes");
     let reason = match done.result {
-        Some(MarkJobResult::DeclinedResult(declined)) => Some(declined.reason),
-        Some(MarkJobResult::DetectionResult(_)) | None => None,
+        Some(MarkJobResult::JobDeclined(declined)) => Some(declined.reason),
+        Some(MarkJobResult::MarkJobDone(_)) | None => None,
     };
-    assert_eq!(reason, Some(JobDeclinedResultReason::NoTextLayer));
+    assert_eq!(reason, Some(JobDeclinedReason::NoTextLayer));
 
     let (client, _transport) = world();
     let following = tokio::spawn(
@@ -200,8 +199,8 @@ async fn awaited_a_job_gives_a_completion_whose_result_is_its_verbs() {
     );
     let done: YieldJobCompleteCommand = ended(following).await.expect("the job completes");
     let made = match done.result {
-        Some(YieldJobResult::GenerationResult(made)) => Some((made.resource_id, made.truncated)),
-        Some(YieldJobResult::DeclinedResult(_)) | None => None,
+        Some(YieldJobResult::YieldJobDone(made)) => Some((made.resource_id, made.truncated)),
+        Some(YieldJobResult::JobDeclined(_)) | None => None,
     };
     assert_eq!(made, Some((as_id("res-made"), true)));
 }
@@ -277,9 +276,9 @@ async fn a_completion_learned_from_the_status_is_read_as_the_verbs_or_ends_the_f
     };
     assert_eq!(
         done.result,
-        Some(MarkJobResult::DetectionResult(JobDetectionResult {
+        Some(MarkJobResult::MarkJobDone(MarkJobDone {
             errors: Some(1),
-            ..JobDetectionResult::new(4, 3)
+            ..MarkJobDone::new(4, 3)
         }))
     );
     let seen = learned(json!({ "result": { "declined": true, "reason": "empty" } })).await;
@@ -324,10 +323,10 @@ async fn awaited_a_mark_job_gives_its_counts_and_what_it_under_reported() {
     let done = ended(following).await.expect("the job completes");
     assert_eq!(
         done.result,
-        Some(MarkJobResult::DetectionResult(JobDetectionResult {
+        Some(MarkJobResult::MarkJobDone(MarkJobDone {
             errors: Some(2),
             under_reported_pieces: Some(1),
-            ..JobDetectionResult::new(7, 5)
+            ..MarkJobDone::new(7, 5)
         }))
     );
 }

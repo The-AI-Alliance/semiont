@@ -40,7 +40,6 @@ from semiont.types import (
     CommentingJobParams,
     GenerationJobParams,
     HighlightingJobParams,
-    JobDetectionResult,
     JobProgress,
     JobProgressAnalyzing,
     JobProgressAnalyzingTags,
@@ -58,6 +57,7 @@ from semiont.types import (
     JobProgressMessage,
     JobProgressRequestParamsItem,
     LinkingJobParams,
+    MarkJobDone,
     Motivation,
     SupportedMediaType,
     TaggingJobParams,
@@ -202,9 +202,7 @@ def _repeats_removed() -> Callable[[list[Annotation]], list[Annotation]]:
     return without_repeats
 
 
-def _detected(
-    found: int, persisted: int, errors: int, by_category: dict[str, int] | None, under_reported_pieces: int
-) -> JobDetectionResult:
+def _detected(found: int, persisted: int, errors: int, by_category: dict[str, int] | None, under_reported_pieces: int) -> MarkJobDone:
     """A `mark` job's counts.
 
     `found` is what the model proposed and `persisted` what was committed.
@@ -213,7 +211,7 @@ def _detected(
     is the one way to say none.
     """
     return stated(
-        JobDetectionResult(
+        MarkJobDone(
             found=found,
             persisted=persisted,
             errors=errors if errors > 0 else None,
@@ -284,7 +282,7 @@ async def _mark_passages[M: TextSpan](
     cancelled: Watched[bool],
     on_chunk_complete: OnChunkComplete,
     prior: UnitCursor | None,
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """A job of one unit, named by its motivation: what a highlighting, a commenting and an assessing job have in common.
 
     `detect` asks about the text a piece at a time and hands on each piece's
@@ -339,7 +337,7 @@ async def process_highlight_job(
     cancelled: Watched[bool],
     on_chunk_complete: OnChunkComplete,
     resume_cursors: Mapping[str, UnitCursor],
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Do a highlighting job over `text`: a highlight of each passage the model finds worth a reader's attention.
 
     A highlight has no body.
@@ -383,7 +381,7 @@ async def process_comment_job(
     cancelled: Watched[bool],
     on_chunk_complete: OnChunkComplete,
     resume_cursors: Mapping[str, UnitCursor],
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Do a commenting job over `text`: a comment on each passage the model has one for.
 
     A comment's body is a list of one body of text: the comment, in the
@@ -430,7 +428,7 @@ async def process_assessment_job(
     cancelled: Watched[bool],
     on_chunk_complete: OnChunkComplete,
     resume_cursors: Mapping[str, UnitCursor],
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Do an assessing job over `text`: an assessment of each passage the model judges.
 
     An assessment's body is one body of text and no list: the assessment, in
@@ -498,7 +496,7 @@ async def process_reference_job(
     on_chunk_complete: OnChunkComplete,
     resume_cursors: Mapping[str, UnitCursor],
     completed_units: Sequence[str],
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Do a linking job over `text`: a reference at each mention of one of the job's entity types, linked to nothing yet.
 
     Each entity type is a unit of its own, with its own extraction, its own
@@ -692,7 +690,7 @@ async def process_tag_job(
     cancelled: Watched[bool],
     on_chunk_complete: OnChunkComplete,
     resume_cursors: Mapping[str, UnitCursor],
-) -> JobDetectionResult | Cancelled:
+) -> MarkJobDone | Cancelled:
     """Do a tagging job over `text`: a tag on each passage that serves as one of the job's categories of `schema`.
 
     `schema` is the one the job's `schema_id` names, as the Dispatcher handed

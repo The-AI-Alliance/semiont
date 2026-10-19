@@ -1101,42 +1101,42 @@ func (e JobCompleteStatus) Valid() bool {
 	}
 }
 
-// Defines values for JobDeclinedResultDeclined.
+// Defines values for JobDeclinedDeclined.
 const (
-	JobDeclinedResultDeclinedTrue JobDeclinedResultDeclined = true
+	JobDeclinedDeclinedTrue JobDeclinedDeclined = true
 )
 
-// Valid indicates whether the value is a known member of the JobDeclinedResultDeclined enum.
-func (e JobDeclinedResultDeclined) Valid() bool {
+// Valid indicates whether the value is a known member of the JobDeclinedDeclined enum.
+func (e JobDeclinedDeclined) Valid() bool {
 	switch e {
-	case JobDeclinedResultDeclinedTrue:
+	case JobDeclinedDeclinedTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for JobDeclinedResultReason.
+// Defines values for JobDeclinedReason.
 const (
-	JobDeclinedResultReasonCorrupt     JobDeclinedResultReason = "corrupt"
-	JobDeclinedResultReasonEmpty       JobDeclinedResultReason = "empty"
-	JobDeclinedResultReasonEncrypted   JobDeclinedResultReason = "encrypted"
-	JobDeclinedResultReasonNoTextLayer JobDeclinedResultReason = "no-text-layer"
-	JobDeclinedResultReasonTooLarge    JobDeclinedResultReason = "too-large"
+	JobDeclinedReasonCorrupt     JobDeclinedReason = "corrupt"
+	JobDeclinedReasonEmpty       JobDeclinedReason = "empty"
+	JobDeclinedReasonEncrypted   JobDeclinedReason = "encrypted"
+	JobDeclinedReasonNoTextLayer JobDeclinedReason = "no-text-layer"
+	JobDeclinedReasonTooLarge    JobDeclinedReason = "too-large"
 )
 
-// Valid indicates whether the value is a known member of the JobDeclinedResultReason enum.
-func (e JobDeclinedResultReason) Valid() bool {
+// Valid indicates whether the value is a known member of the JobDeclinedReason enum.
+func (e JobDeclinedReason) Valid() bool {
 	switch e {
-	case JobDeclinedResultReasonCorrupt:
+	case JobDeclinedReasonCorrupt:
 		return true
-	case JobDeclinedResultReasonEmpty:
+	case JobDeclinedReasonEmpty:
 		return true
-	case JobDeclinedResultReasonEncrypted:
+	case JobDeclinedReasonEncrypted:
 		return true
-	case JobDeclinedResultReasonNoTextLayer:
+	case JobDeclinedReasonNoTextLayer:
 		return true
-	case JobDeclinedResultReasonTooLarge:
+	case JobDeclinedReasonTooLarge:
 		return true
 	default:
 		return false
@@ -4385,38 +4385,20 @@ type JobCreatedResult struct {
 	} `json:"response"`
 }
 
-// JobDeclinedResult Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
-type JobDeclinedResult struct {
+// JobDeclined Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
+type JobDeclined struct {
 	// Declined Always true. It is what tells a decline from the result of a job that did its work, which never carries it.
-	Declined JobDeclinedResultDeclined `json:"declined"`
+	Declined JobDeclinedDeclined `json:"declined"`
 
 	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere.
-	Reason JobDeclinedResultReason `json:"reason"`
+	Reason JobDeclinedReason `json:"reason"`
 }
 
-// JobDeclinedResultDeclined Always true. It is what tells a decline from the result of a job that did its work, which never carries it.
-type JobDeclinedResultDeclined bool
+// JobDeclinedDeclined Always true. It is what tells a decline from the result of a job that did its work, which never carries it.
+type JobDeclinedDeclined bool
 
-// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere.
-type JobDeclinedResultReason string
-
-// JobDetectionResult What a `mark` job reports when it has done its work, whatever its motivation.
-type JobDetectionResult struct {
-	// ByCategory The annotations persisted per category. A tagging job's; absent from every other.
-	ByCategory *map[string]int `json:"byCategory,omitempty"`
-
-	// Errors How many of the proposed could not be anchored in the text. Absent means none.
-	Errors *int `json:"errors,omitempty"`
-
-	// Found What the model proposed, before anything was checked against the text.
-	Found int `json:"found"`
-
-	// Persisted What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed.
-	Persisted int `json:"persisted"`
-
-	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
-	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
-}
+// JobDeclinedReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere.
+type JobDeclinedReason string
 
 // JobFailCommand Command to mark a job as failed
 type JobFailCommand struct {
@@ -4505,18 +4487,6 @@ type JobFailedPayload struct {
 // JobFilter Some jobs, named by fields of the job description: a partial description, at the description's own paths. A job matches when every field stated here equals the job's. A `mark` filter always states its motivation.
 type JobFilter struct {
 	union json.RawMessage
-}
-
-// JobGenerationResult What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
-type JobGenerationResult struct {
-	// ResourceId ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted
-	ResourceId ResourceId `json:"resourceId"`
-
-	// ResourceName Name of the generated resource
-	ResourceName string `json:"resourceName"`
-
-	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows.
-	Truncated bool `json:"truncated"`
 }
 
 // JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -4675,7 +4645,7 @@ type JobProgressCompleteCreated struct {
 // JobProgressCompleteCreatedCode defines model for JobProgressCompleteCreated.Code.
 type JobProgressCompleteCreatedCode string
 
-// JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
+// JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `YieldJobDone.truncated` carries, so the two surfaces cannot drift.
 type JobProgressCompleteGenerated struct {
 	Code JobProgressCompleteGeneratedCode `json:"code"`
 
@@ -5256,6 +5226,24 @@ type MarkJobCreateCommand struct {
 
 // MarkJobCreateCommandJobType defines model for MarkJobCreateCommand.JobType.
 type MarkJobCreateCommandJobType string
+
+// MarkJobDone What a `mark` job reports when it has done its work, whatever its motivation.
+type MarkJobDone struct {
+	// ByCategory The annotations persisted per category. A tagging job's; absent from every other.
+	ByCategory *map[string]int `json:"byCategory,omitempty"`
+
+	// Errors How many of the proposed could not be anchored in the text. Absent means none.
+	Errors *int `json:"errors,omitempty"`
+
+	// Found What the model proposed, before anything was checked against the text.
+	Found int `json:"found"`
+
+	// Persisted What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed.
+	Persisted int `json:"persisted"`
+
+	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
+	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
+}
 
 // MarkJobFilter `mark` jobs of one motivation.
 type MarkJobFilter struct {
@@ -6928,6 +6916,18 @@ type YieldJobCreateCommand struct {
 
 // YieldJobCreateCommandJobType defines model for YieldJobCreateCommand.JobType.
 type YieldJobCreateCommandJobType string
+
+// YieldJobDone What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
+type YieldJobDone struct {
+	// ResourceId ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted
+	ResourceId ResourceId `json:"resourceId"`
+
+	// ResourceName Name of the generated resource
+	ResourceName string `json:"resourceName"`
+
+	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows.
+	Truncated bool `json:"truncated"`
+}
 
 // YieldJobFilter `yield` jobs.
 type YieldJobFilter struct {
@@ -11429,22 +11429,22 @@ func (t *JobQueuedEvent) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobDetectionResult returns the union data inside the JobResult as a JobDetectionResult
-func (t JobResult) AsJobDetectionResult() (JobDetectionResult, error) {
-	var body JobDetectionResult
+// AsMarkJobDone returns the union data inside the JobResult as a MarkJobDone
+func (t JobResult) AsMarkJobDone() (MarkJobDone, error) {
+	var body MarkJobDone
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobDetectionResult overwrites any union data inside the JobResult as the provided JobDetectionResult
-func (t *JobResult) FromJobDetectionResult(v JobDetectionResult) error {
+// FromMarkJobDone overwrites any union data inside the JobResult as the provided MarkJobDone
+func (t *JobResult) FromMarkJobDone(v MarkJobDone) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobDetectionResult performs a merge with any union data inside the JobResult, using the provided JobDetectionResult
-func (t *JobResult) MergeJobDetectionResult(v JobDetectionResult) error {
+// MergeMarkJobDone performs a merge with any union data inside the JobResult, using the provided MarkJobDone
+func (t *JobResult) MergeMarkJobDone(v MarkJobDone) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -11455,22 +11455,22 @@ func (t *JobResult) MergeJobDetectionResult(v JobDetectionResult) error {
 	return err
 }
 
-// AsJobGenerationResult returns the union data inside the JobResult as a JobGenerationResult
-func (t JobResult) AsJobGenerationResult() (JobGenerationResult, error) {
-	var body JobGenerationResult
+// AsYieldJobDone returns the union data inside the JobResult as a YieldJobDone
+func (t JobResult) AsYieldJobDone() (YieldJobDone, error) {
+	var body YieldJobDone
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobGenerationResult overwrites any union data inside the JobResult as the provided JobGenerationResult
-func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
+// FromYieldJobDone overwrites any union data inside the JobResult as the provided YieldJobDone
+func (t *JobResult) FromYieldJobDone(v YieldJobDone) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobGenerationResult performs a merge with any union data inside the JobResult, using the provided JobGenerationResult
-func (t *JobResult) MergeJobGenerationResult(v JobGenerationResult) error {
+// MergeYieldJobDone performs a merge with any union data inside the JobResult, using the provided YieldJobDone
+func (t *JobResult) MergeYieldJobDone(v YieldJobDone) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -11481,22 +11481,22 @@ func (t *JobResult) MergeJobGenerationResult(v JobGenerationResult) error {
 	return err
 }
 
-// AsJobDeclinedResult returns the union data inside the JobResult as a JobDeclinedResult
-func (t JobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
-	var body JobDeclinedResult
+// AsJobDeclined returns the union data inside the JobResult as a JobDeclined
+func (t JobResult) AsJobDeclined() (JobDeclined, error) {
+	var body JobDeclined
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobDeclinedResult overwrites any union data inside the JobResult as the provided JobDeclinedResult
-func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+// FromJobDeclined overwrites any union data inside the JobResult as the provided JobDeclined
+func (t *JobResult) FromJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobDeclinedResult performs a merge with any union data inside the JobResult, using the provided JobDeclinedResult
-func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+// MergeJobDeclined performs a merge with any union data inside the JobResult, using the provided JobDeclined
+func (t *JobResult) MergeJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -11998,22 +11998,22 @@ func (t *MarkJobParams) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobDetectionResult returns the union data inside the MarkJobResult as a JobDetectionResult
-func (t MarkJobResult) AsJobDetectionResult() (JobDetectionResult, error) {
-	var body JobDetectionResult
+// AsMarkJobDone returns the union data inside the MarkJobResult as a MarkJobDone
+func (t MarkJobResult) AsMarkJobDone() (MarkJobDone, error) {
+	var body MarkJobDone
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobDetectionResult overwrites any union data inside the MarkJobResult as the provided JobDetectionResult
-func (t *MarkJobResult) FromJobDetectionResult(v JobDetectionResult) error {
+// FromMarkJobDone overwrites any union data inside the MarkJobResult as the provided MarkJobDone
+func (t *MarkJobResult) FromMarkJobDone(v MarkJobDone) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobDetectionResult performs a merge with any union data inside the MarkJobResult, using the provided JobDetectionResult
-func (t *MarkJobResult) MergeJobDetectionResult(v JobDetectionResult) error {
+// MergeMarkJobDone performs a merge with any union data inside the MarkJobResult, using the provided MarkJobDone
+func (t *MarkJobResult) MergeMarkJobDone(v MarkJobDone) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -12024,22 +12024,22 @@ func (t *MarkJobResult) MergeJobDetectionResult(v JobDetectionResult) error {
 	return err
 }
 
-// AsJobDeclinedResult returns the union data inside the MarkJobResult as a JobDeclinedResult
-func (t MarkJobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
-	var body JobDeclinedResult
+// AsJobDeclined returns the union data inside the MarkJobResult as a JobDeclined
+func (t MarkJobResult) AsJobDeclined() (JobDeclined, error) {
+	var body JobDeclined
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobDeclinedResult overwrites any union data inside the MarkJobResult as the provided JobDeclinedResult
-func (t *MarkJobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+// FromJobDeclined overwrites any union data inside the MarkJobResult as the provided JobDeclined
+func (t *MarkJobResult) FromJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobDeclinedResult performs a merge with any union data inside the MarkJobResult, using the provided JobDeclinedResult
-func (t *MarkJobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+// MergeJobDeclined performs a merge with any union data inside the MarkJobResult, using the provided JobDeclined
+func (t *MarkJobResult) MergeJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -14190,22 +14190,22 @@ func (t *YieldCreateCommand_Generator) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobGenerationResult returns the union data inside the YieldJobResult as a JobGenerationResult
-func (t YieldJobResult) AsJobGenerationResult() (JobGenerationResult, error) {
-	var body JobGenerationResult
+// AsYieldJobDone returns the union data inside the YieldJobResult as a YieldJobDone
+func (t YieldJobResult) AsYieldJobDone() (YieldJobDone, error) {
+	var body YieldJobDone
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobGenerationResult overwrites any union data inside the YieldJobResult as the provided JobGenerationResult
-func (t *YieldJobResult) FromJobGenerationResult(v JobGenerationResult) error {
+// FromYieldJobDone overwrites any union data inside the YieldJobResult as the provided YieldJobDone
+func (t *YieldJobResult) FromYieldJobDone(v YieldJobDone) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobGenerationResult performs a merge with any union data inside the YieldJobResult, using the provided JobGenerationResult
-func (t *YieldJobResult) MergeJobGenerationResult(v JobGenerationResult) error {
+// MergeYieldJobDone performs a merge with any union data inside the YieldJobResult, using the provided YieldJobDone
+func (t *YieldJobResult) MergeYieldJobDone(v YieldJobDone) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -14216,22 +14216,22 @@ func (t *YieldJobResult) MergeJobGenerationResult(v JobGenerationResult) error {
 	return err
 }
 
-// AsJobDeclinedResult returns the union data inside the YieldJobResult as a JobDeclinedResult
-func (t YieldJobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
-	var body JobDeclinedResult
+// AsJobDeclined returns the union data inside the YieldJobResult as a JobDeclined
+func (t YieldJobResult) AsJobDeclined() (JobDeclined, error) {
+	var body JobDeclined
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobDeclinedResult overwrites any union data inside the YieldJobResult as the provided JobDeclinedResult
-func (t *YieldJobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+// FromJobDeclined overwrites any union data inside the YieldJobResult as the provided JobDeclined
+func (t *YieldJobResult) FromJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobDeclinedResult performs a merge with any union data inside the YieldJobResult, using the provided JobDeclinedResult
-func (t *YieldJobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+// MergeJobDeclined performs a merge with any union data inside the YieldJobResult, using the provided JobDeclined
+func (t *YieldJobResult) MergeJobDeclined(v JobDeclined) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
