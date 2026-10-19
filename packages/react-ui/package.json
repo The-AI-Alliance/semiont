@@ -79,8 +79,8 @@
     "test:split:coverage": "npm run test:coverage"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "styled-components": "^6.0.0",
     "vitest": "^4.0.0 || ^5.0.0"
   },
