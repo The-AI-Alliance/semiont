@@ -6466,22 +6466,6 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     ]
     identity: LibrarianConfigIdentity
     archivist: LibrarianConfigArchivist
-    state_home: Annotated[
-        str,
-        Field(
-            alias="stateHome",
-            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.",
-            min_length=1,
-        ),
-    ]
-    kb_name: Annotated[
-        str,
-        Field(
-            alias="kbName",
-            description="The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.",
-            min_length=1,
-        ),
-    ]
     graph: GraphConfig
     vectors: VectorsConfig
     embedding: EmbeddingConfig

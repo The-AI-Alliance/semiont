@@ -7,13 +7,11 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// The "state" store is the one host volume at /semiont-state. The Archivist
-// writes its projection tree and stamp under it (its document names it as
-// stateHome), the librarian reads views from it, and the
-// supervisors of the containers that mount it (these two and the gateway) keep
-// their events logs there so a death record outlives the container. If the
-// store stopped mounting a host volume, all of that would
-// silently fall back inside the container and die with it.
+// The "state" store is the Archivist's host volume at /semiont-state. The
+// Archivist writes its projection tree and stamp under it (its document names
+// it as stateHome), and its supervisor keeps its events log there so a death
+// record outlives the container. If the store stopped mounting a host volume,
+// all of that would silently fall back inside the container and die with it.
 
 func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 	harness.Home(t)

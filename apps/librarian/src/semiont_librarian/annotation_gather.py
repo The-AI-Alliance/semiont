@@ -1,12 +1,13 @@
 """Gathering around an annotation: the context a reference search and a generation are given for one annotation.
 
 `docs/protocol/LIBRARIAN.md` § Gathering around an annotation states it, rule
-by rule, and the reads are made in the order of its rules: the resource's
-view and the annotation in it; the resource the annotation links to; the text
-around the selection; the linked resource's text and a model's summary of it;
-the knowledge graph, one link out; how many resources have each entity type; a model's
-sentence on how the passage relates to what is around it; and the annotations
-elsewhere whose quoted text is like the selection.
+by rule, and the reads are made in the order of its rules: the resource as
+the record describes it, and the annotation on it; the resource the
+annotation links to; the text around the selection; the linked resource's
+text and a model's summary of it; the knowledge graph, one link out; how many
+resources have each entity type; a model's sentence on how the passage
+relates to what is around it; and the annotations elsewhere whose quoted text
+is like the selection.
 
 A gather answers its context or raises, and emits nothing. `Ungathered` is a
 gather that cannot be answered, and its words are what the failure channel
@@ -39,11 +40,11 @@ from semiont_service.content import ContentReads
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader, VectorSearchResult
 
-from semiont_librarian.grace import view_if_readable
+from semiont_librarian.grace import described_if_readable
 from semiont_librarian.knowledge_graph import LEAST_DEPTH, build_knowledge_graph
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, relationship_prompt, resource_summary_prompt
-from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Views, WeaveWaits
+from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Record, WeaveWaits
 from semiont_librarian.resource_text import has_stored_bytes, text_of
 from semiont_librarian.views import derive_views
 from semiont_librarian.window import Window, refuse_out_of_bounds, selection_of
@@ -75,24 +76,24 @@ def language_of(resource: ResourceDescriptor) -> str | None:
     return None if representation is None else representation.language or None
 
 
-async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[SemanticMatch]:
-    """What a vector search found, as a gathered context states it: each match named by its resource's view, in the order found.
+async def similar_of(found: Sequence[VectorSearchResult], record: Record) -> list[SemanticMatch]:
+    """What a vector search found, as a gathered context states it: each match named as the record names its resource, in the order found.
 
-    A match whose resource has no view that can be read, or a view with an
-    empty name, is left out: a match must name where it is from.
+    A match whose resource the record does not hold, or cannot be read of,
+    or whose name is empty, is left out: a match must name where it is from.
     """
     similar: list[SemanticMatch] = []
     for hit in found:
-        view = await view_if_readable(views, hit.resource_id)
-        if view is None or not view.resource.name:
-            LOG.debug("Semantic match dropped: its resource has no view", extra={"resourceId": hit.resource_id})
+        held = await described_if_readable(record, hit.resource_id)
+        if held is None or not held.resource.name:
+            LOG.debug("Semantic match dropped: the record holds no name for its resource", extra={"resourceId": hit.resource_id})
             continue
         similar.append(
             stated(
                 SemanticMatch(
                     text=hit.text,
                     resource_id=hit.resource_id,
-                    resource_name=view.resource.name,
+                    resource_name=held.resource.name,
                     annotation_id=hit.annotation_id,
                     score=hit.score,
                     entity_types=None if hit.entity_types is None else [*hit.entity_types],
@@ -106,7 +107,7 @@ async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[
 async def gather(
     request: GatherAnnotationRequest,
     *,
-    views: Views,
+    record: Record,
     content: ContentReads,
     anchored: AnchoredText,
     graph: GraphReads,
@@ -122,7 +123,7 @@ async def gather(
     request does not state them, and `contextWindow` is 1,000. Raises
     `semiont_librarian.window.WindowRefused` for a window less than 100 or
     more than 5,000, before anything is read. Raises `Ungathered` for a
-    resource with no view; for an annotation the view does not hold, or
+    resource the record does not hold; for an annotation it does not hold, or
     whose target names another resource; and for a resource with no stored
     bytes whose text was asked for. A read of bytes that fails, a graph that
     cannot be built and a count of entity types that fails each raise what
@@ -132,8 +133,8 @@ async def gather(
     relationship sentence, and an embedding or an index that fails in the
     search for similar annotations, each leave the context without that
     member. Each is logged as a warning and counted (`degraded`), and the
-    context is answered. A view that only adds to it, and cannot be read, is
-    passed over (`semiont_librarian.grace.view_if_readable`).
+    context is answered. A read of the record that only adds to it, and
+    fails, is passed over (`semiont_librarian.grace.described_if_readable`).
     """
     options = request.options
     include_source = options is None or options.include_source_context is None or options.include_source_context
@@ -142,23 +143,23 @@ async def gather(
     refuse_out_of_bounds(window)
 
     resource_id = request.resource_id
-    view = await views.get(resource_id)
-    if view is None:
+    held = await record.described(resource_id)
+    if held is None:
         raise Ungathered("Source resource not found")
-    annotation = next((held for held in view.annotations.annotations if held.id == request.annotation_id), None)
+    annotation = await record.annotation(resource_id, request.annotation_id)
     if annotation is None:
         raise Ungathered("Annotation not found in view")
     on = target_source(annotation.target)
     if on != resource_id:
         raise Ungathered(f"Annotation target resource ID ({on}) does not match expected resource ID ({resource_id})")
-    source = view.resource
+    source = held.resource
 
-    # The resource the annotation's body links to, where it links to one that has a view.
+    # The resource the annotation's body links to, where it links to one the record holds.
     linked: ResourceDescriptor | None = None
     linked_id = body_source(annotation.body)
     if linked_id is not None:
-        linked_view = await view_if_readable(views, linked_id)
-        linked = None if linked_view is None else linked_view.resource
+        linked_held = await described_if_readable(record, linked_id)
+        linked = None if linked_held is None else linked_held.resource
 
     selection: Window | None = None
     if include_source:
@@ -188,7 +189,7 @@ async def gather(
                 )
             target_context = stated(GatheredContextFocusAnnotationTargetContext(content=linked_text[: window * 2], summary=summary))
 
-    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded, depth=LEAST_DEPTH)
+    around = await build_knowledge_graph(resource_id, graph=graph, record=record, weave=weave, degraded=degraded, depth=LEAST_DEPTH)
     lists = derive_views(around, resource_id, annotation.id)
     frequencies = {stat.type: stat.count for stat in await graph.get_entity_type_stats()}
     types = entity_types(annotation)
@@ -218,7 +219,7 @@ async def gather(
                 await embedding.embed_query(selection.selected),
                 SearchOptions(limit=_SIMILAR, score_threshold=LIKE_ENOUGH, filter=SearchFilter(exclude_resource_id=resource_id)),
             )
-            similar = await similar_of(found, views)
+            similar = await similar_of(found, record)
         except CollectionAbsent:
             # An index nobody has started is no index that failed: the gather fails, and says so.
             raise

@@ -832,7 +832,8 @@ XDG directories on Linux, and each other system's own equivalent:
 
 A knowledge base's `roots/<key>/` holds one directory per store — `postgres/`
 (database), `neo4j/` (graph), `qdrant/` (vectors), `nats/` (job queue and
-signals), `state/` (views and projections), `anchored-text/` — and `logs/`,
+signals), `state/` (views and projections), `anchored-text/`, `gateway/` and
+`librarian/` (each service's supervisor's events log) — and `logs/`,
 the container logs a start keeps before it removes the containers. Its kept
 secrets are files beside them, unless `semiont settings secret-store` names
 another store.
@@ -869,8 +870,14 @@ the OCR engine that derived it, and is served only under the stamp the Smelter
 states, so no image change clears it: an older stamp's entries stay on disk, served
 to no one, until `semiont clean --store anchored-text`.
 
+No store is mounted by two containers: under Apple container each container is
+its own VM, and a second mounter of a host directory can read a file cut short.
+The state tree (`state/`) is the Archivist's alone, and the gateway and the
+Librarian each mount a store of their own (`gateway/`, `librarian/`) for their
+supervisor's events log, which no image stamps.
+
 `semiont clean` is the one way this state dies: it removes the current
-root's state directory (`--store database|vectors|graph|anchored-text|state`
+root's state directory (`--store database|vectors|graph|anchored-text|messaging|state|gateway|librarian`
 scopes to one
 store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
 targets another root — a literal key is how you remove *orphaned* state

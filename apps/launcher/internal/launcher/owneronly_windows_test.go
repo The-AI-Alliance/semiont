@@ -155,7 +155,7 @@ func TestWhatTheLauncherKeepsIsClosedUnderAnOpenHome(t *testing.T) {
 	}
 	closed("the staging dir", filepath.Dir(staged))
 
-	if _, ok := x.stateMountsShared("state", root); !ok {
+	if _, ok := x.stateMountsUnstamped("gateway", root); !ok {
 		t.Fatal("mount prep refused")
 	}
 	closed("a root's state dir", stateRootDir(root))

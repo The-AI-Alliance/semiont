@@ -1,229 +1,198 @@
-"""The two files a Librarian reads of the record: a resource's view, and the people projection.
+"""What a Librarian reads of the record and of its people, each asked of the Archivist over the bus.
 
-Each is written here where the Archivist writes it, under a state directory
-of the test's own, and read by the reader a Librarian is handed. A file that
-is there and is not what its schema states is a failure that names the file.
-It is never taken for a file that is not there.
+Each read is answered here as the Archivist answers it, through a transport
+whose stream names the replies of `READ` and no other: an operation the
+readers ask that is not among them is never answered. A resource the record
+does not hold is `None`, and so is an annotation the Archivist refuses to
+read; every other failure is raised.
 """
 
-import json
-import threading
-from pathlib import Path
+from collections.abc import Mapping, Sequence
+from typing import Final
 
 import pytest
-from aio import run
+from aio import hurried, run
 from pydantic import JsonValue
-from semiont.identifiers import ResourceId
+from rig import ADA_ID, LOVELACE, RECORDED, described, reference
+from semiont.bus import Bus, reply_channels_for
+from semiont.errors import BusRequestError
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
-from semiont.types import PersonProfile
-from semiont_service.shard import shard_path
-from spec import JsonObject
+from semiont.testing import DropReply, FaultAction, FaultyTransport, Refuse
 
-from semiont_librarian.reads import PeopleUnread
-from semiont_librarian.record import FilePeople, FileViews, ViewUnread
+from semiont_librarian.reads import Described, PeopleUnread
+from semiont_librarian.record import READ, BusPeople, BusRecord
 
-R1 = ResourceId("res-1")
+R1: Final = ResourceId("res-1")
+NOTE_ID: Final = AnnotationId("ann-1")
+GRACE_ID: Final = "did:web:example.org:users:grace"
 
-PEOPLE: JsonObject = {
-    "people": {
-        "did:web:example.org:users:ada": {"name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z"},
-        "did:web:example.org:users:grace": {"name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z"},
-    }
-}
-"""A people projection, as the Archivist writes one."""
+HELD: Final = described(R1, name="Black Hawk")
+NOTE: Final = reference(NOTE_ID, R1)
 
 
-def view_of(resource: str) -> JsonObject:
-    """A resource's view, as the Archivist writes one: its description, one annotation on it, and the last event applied."""
-    return {
-        "resource": {
-            "@context": "https://schema.org/",
-            "@id": resource,
-            "name": "Black Hawk",
-            "representations": [{"mediaType": "text/plain", "storageUri": "file://black-hawk.txt", "rel": "original"}],
-        },
-        "annotations": {
-            "resourceId": resource,
-            "annotations": [
-                {
-                    "@context": "http://www.w3.org/ns/anno.jsonld",
-                    "type": "Annotation",
-                    "id": "ann-1",
-                    "motivation": "highlighting",
-                    "target": {"source": resource, "selector": {"type": "TextPositionSelector", "start": 0, "end": 5}},
-                    "created": "2020-03-04T05:06:07.000Z",
-                }
-            ],
-            "version": 3,
-            "updatedAt": "2020-03-04T05:06:07.000Z",
-        },
-        "lastSequence": 3,
-    }
+def archivist(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue:
+    """What the Archivist answers each read with: the one resource it holds, the one annotation on it, and Ada's profile."""
+    if operation == "browse:resource-requested":
+        return {"resource": written(HELD), "lastSequence": 3}
+    if operation == "browse:annotation-requested":
+        return {"annotation": written(NOTE), "resource": written(HELD), "resolvedResource": None}
+    if operation == "browse:people-requested":
+        return {"people": {ADA_ID: {"name": "Ada Lovelace", "since": RECORDED}}}
+    raise AssertionError(f"the Librarian asked {operation}, which it is not to")
 
 
-def put(path: Path, document: JsonValue) -> Path:
-    """Write a document where a file of the record is, indented by two spaces as the Archivist writes one."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(document, indent=2), encoding="utf-8")
-    return path
+def wire(refuse: Refuse | None = None, schedule: Sequence[FaultAction] = ()) -> FaultyTransport:
+    """A transport whose stream names the replies of what a Librarian reads, answered as the Archivist answers them."""
+    transport = FaultyTransport(schedule, make_response=archivist, channels=reply_channels_for(*READ))
+    if refuse is not None:
+        transport.refuse_when(refuse)
+    return transport
 
 
-def view_path(state_dir: Path, resource: str) -> Path:
-    """Where a resource's view is, under a state directory."""
-    ab, cd = shard_path(resource)
-    return state_dir / "resources" / ab / cd / f"{resource}.json"
+def asked(transport: FaultyTransport) -> list[tuple[str, Mapping[str, JsonValue]]]:
+    """Each request sent, by its channel, with what it asked."""
+    return [(entry.channel, entry.payload) for entry in transport.request_log]
 
 
-def people_path(state_dir: Path) -> Path:
-    """Where the people projection is, under a state directory."""
-    return state_dir / "projections" / "__system__" / "people.json"
+def test_a_resource_is_its_descriptor_and_the_sequence_number_of_its_last_event() -> None:
+    async def scenario() -> None:
+        transport = wire()
+        assert await BusRecord(Bus(transport)).described(R1) == Described(resource=HELD, last_sequence=3)
+        assert asked(transport) == [("browse:resource-requested", {"resourceId": R1})]
+        await transport.close()
+
+    run(scenario())
 
 
-# ── A resource's view ─────────────────────────────────────────────────
+def test_a_resource_the_record_does_not_hold_is_none() -> None:
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"code": "not-found", "message": f"no resource {payload['resourceId']}"}
+
+    async def scenario() -> None:
+        transport = wire(refuse)
+        assert await BusRecord(Bus(transport)).described(R1) is None
+        await transport.close()
+
+    run(scenario())
 
 
-def test_a_view_is_read_from_the_file_the_archivist_writes_it_to(tmp_path: Path) -> None:
-    put(view_path(tmp_path, R1), view_of(R1))
-    read = run(FileViews(tmp_path).get(R1))
-    assert read is not None
-    assert written(read) == view_of(R1)
-    assert (read.resource.id, read.last_sequence, [each.id for each in read.annotations.annotations]) == (R1, 3, ["ann-1"])
+def test_a_resource_read_that_fails_otherwise_is_raised() -> None:
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"message": "the Archivist could not read its view"}
+
+    async def scenario() -> None:
+        refused = wire(refuse)
+        with pytest.raises(BusRequestError) as failure:
+            await BusRecord(Bus(refused)).described(R1)
+        assert failure.value.code == "bus.rejected"
+        await refused.close()
+
+        unanswered = wire(schedule=[DropReply()])
+        with pytest.raises(BusRequestError) as timed_out:
+            await hurried(BusRecord(Bus(unanswered)).described(R1))
+        assert timed_out.value.code == "bus.timeout"
+        await unanswered.close()
+
+    run(scenario())
 
 
-def test_a_view_is_filed_under_resources_by_the_two_halves_of_its_id_s_shard(tmp_path: Path) -> None:
-    # The shard of `a` is its one code unit, 97, which is 0061 in four hex digits (`specs/src/archivist/shard-cases.json`).
-    put(tmp_path / "resources" / "00" / "61" / "a.json", view_of("a"))
-    read = run(FileViews(tmp_path).get(ResourceId("a")))
-    assert read is not None
-    assert read.resource.id == "a"
+def test_an_annotation_is_the_one_the_archivist_holds_on_the_resource() -> None:
+    async def scenario() -> None:
+        transport = wire()
+        assert await BusRecord(Bus(transport)).annotation(R1, NOTE_ID) == NOTE
+        assert asked(transport) == [("browse:annotation-requested", {"resourceId": R1, "annotationId": NOTE_ID})]
+        await transport.close()
+
+    run(scenario())
 
 
-def test_a_resource_with_no_file_has_no_view(tmp_path: Path) -> None:
-    views = FileViews(tmp_path)
-    # Neither where the state directory holds no view at all, nor beside the view of another resource.
-    assert run(views.get(R1)) is None
-    put(view_path(tmp_path, "res-2"), view_of("res-2"))
-    assert run(views.get(R1)) is None
+def test_an_annotation_the_archivist_refuses_is_none() -> None:
+    # Asked of a resource the record holds, the Archivist's one refusal is that the annotation is not in it. It states no code.
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"message": f"no annotation {payload['annotationId']}"}
+
+    async def scenario() -> None:
+        transport = wire(refuse)
+        assert await BusRecord(Bus(transport)).annotation(R1, NOTE_ID) is None
+        await transport.close()
+
+    run(scenario())
 
 
-@pytest.mark.parametrize(
-    "held",
-    ["", "{", '{"resource": ', "null", "[]", "{}"],
-    ids=["nothing", "an object cut short", "a view cut short", "null", "a list", "an object with no member"],
-)
-def test_a_file_that_is_no_view_is_a_failure_that_names_the_file_and_is_not_taken_for_no_view(held: str, tmp_path: Path) -> None:
-    path = view_path(tmp_path, R1)
-    path.parent.mkdir(parents=True)
-    path.write_text(held, encoding="utf-8")
-    with pytest.raises(ViewUnread) as refused:
-        run(FileViews(tmp_path).get(R1))
-    assert str(path) in str(refused.value)
+def test_an_annotation_read_the_archivist_does_not_answer_is_raised() -> None:
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"code": "peer-unavailable", "message": "nothing answers"}
+
+    async def scenario() -> None:
+        unanswered = wire(schedule=[DropReply()])
+        with pytest.raises(BusRequestError) as timed_out:
+            await hurried(BusRecord(Bus(unanswered)).annotation(R1, NOTE_ID))
+        assert timed_out.value.code == "bus.timeout"
+        await unanswered.close()
+
+        absent = wire(refuse)
+        with pytest.raises(BusRequestError) as unavailable:
+            await BusRecord(Bus(absent)).annotation(R1, NOTE_ID)
+        assert unavailable.value.code == "bus.peer-unavailable"
+        await absent.close()
+
+        closed = wire()
+        await closed.close()
+        with pytest.raises(BusRequestError) as shut:
+            await BusRecord(Bus(closed)).annotation(R1, NOTE_ID)
+        assert shut.value.code == "bus.closed"
+
+    run(scenario())
 
 
-def test_a_view_with_a_member_its_schema_does_not_state_or_without_one_it_requires_is_a_failure(tmp_path: Path) -> None:
-    path = view_path(tmp_path, R1)
-    more = {**view_of(R1), "writtenBy": "nobody"}
-    put(path, more)
-    with pytest.raises(ViewUnread) as refused:
-        run(FileViews(tmp_path).get(R1))
-    assert str(path) in str(refused.value)
-    less = {member: stated for member, stated in view_of(R1).items() if member != "lastSequence"}
-    put(path, less)
-    with pytest.raises(ViewUnread):
-        run(FileViews(tmp_path).get(R1))
+def test_the_people_are_asked_by_the_dids_given_and_each_that_has_a_profile_is_answered() -> None:
+    async def scenario() -> None:
+        transport = wire()
+        assert await BusPeople(Bus(transport)).of([ADA_ID, GRACE_ID]) == LOVELACE
+        assert asked(transport) == [("browse:people-requested", {"dids": [ADA_ID, GRACE_ID]})]
+        await transport.close()
+
+    run(scenario())
 
 
-def test_a_view_s_file_that_cannot_be_opened_is_a_failure_that_names_it(tmp_path: Path) -> None:
-    path = view_path(tmp_path, R1)
-    # A directory where the file is to be: it is there, and it cannot be read as a file.
-    path.mkdir(parents=True)
-    with pytest.raises(ViewUnread) as refused:
-        run(FileViews(tmp_path).get(R1))
-    assert str(path) in str(refused.value)
+def test_no_one_is_asked_after_for_no_dids_nor_for_a_text_that_is_no_did() -> None:
+    async def scenario() -> None:
+        transport = wire()
+        people = BusPeople(Bus(transport))
+        assert await people.of([]) == {}
+        assert await people.of(["constructor", "an id with spaces"]) == {}
+        assert asked(transport) == []
+        assert await people.of(["constructor", ADA_ID]) == LOVELACE
+        assert asked(transport) == [("browse:people-requested", {"dids": [ADA_ID]})]
+        await transport.close()
+
+    run(scenario())
 
 
-def test_a_file_is_read_off_the_loop_s_thread(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    put(view_path(tmp_path, R1), view_of(R1))
-    put(people_path(tmp_path), PEOPLE)
-    read_on: list[bool] = []
-    as_it_reads = Path.read_bytes
+def test_more_people_than_one_request_may_ask_after_are_asked_after_in_parts_each_once() -> None:
+    async def scenario() -> None:
+        transport = wire()
+        many = [f"did:web:example.org:users:person-{n}" for n in range(501)]
+        assert await BusPeople(Bus(transport)).of([*many, ADA_ID, ADA_ID]) == LOVELACE
+        assert asked(transport) == [
+            ("browse:people-requested", {"dids": many[:500]}),
+            ("browse:people-requested", {"dids": [many[500], ADA_ID]}),
+        ]
+        await transport.close()
 
-    def watched(path: Path) -> bytes:
-        read_on.append(threading.current_thread() is threading.main_thread())
-        return as_it_reads(path)
-
-    monkeypatch.setattr(Path, "read_bytes", watched)
-    assert run(FileViews(tmp_path).get(R1)) is not None
-    assert run(FilePeople(tmp_path).read())
-    assert read_on == [False, False]
+    run(scenario())
 
 
-# ── The people projection ─────────────────────────────────────────────
+def test_people_that_cannot_be_read_are_unread() -> None:
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"code": "peer-unavailable", "message": "nothing answers"}
 
+    async def scenario() -> None:
+        transport = wire(refuse)
+        with pytest.raises(PeopleUnread) as unread:
+            await BusPeople(Bus(transport)).of([ADA_ID])
+        assert isinstance(unread.value.__cause__, BusRequestError)
+        await transport.close()
 
-def test_the_people_are_read_from_the_file_the_archivist_writes_them_to(tmp_path: Path) -> None:
-    put(people_path(tmp_path), PEOPLE)
-    assert run(FilePeople(tmp_path).read()) == {
-        "did:web:example.org:users:ada": PersonProfile(name="Ada Lovelace", since="2020-03-04T05:06:07.000Z"),
-        "did:web:example.org:users:grace": PersonProfile(name="Grace Hopper", since="2020-03-04T05:06:08.000Z"),
-    }
-
-
-def test_a_knowledge_base_with_no_projection_file_calls_no_one_anything(tmp_path: Path) -> None:
-    people = FilePeople(tmp_path)
-    assert run(people.read()) == {}
-    # Nor where the directory of the projections is there and the file is not.
-    people_path(tmp_path).parent.mkdir(parents=True)
-    assert run(people.read()) == {}
-
-
-def test_a_projection_of_no_people_calls_no_one_anything(tmp_path: Path) -> None:
-    put(people_path(tmp_path), {"people": {}})
-    assert run(FilePeople(tmp_path).read()) == {}
-
-
-def test_the_projection_is_read_again_at_every_read(tmp_path: Path) -> None:
-    people = FilePeople(tmp_path)
-    assert run(people.read()) == {}
-    put(people_path(tmp_path), PEOPLE)
-    assert sorted(run(people.read())) == ["did:web:example.org:users:ada", "did:web:example.org:users:grace"]
-
-
-@pytest.mark.parametrize(
-    "held",
-    [
-        "",
-        "{",
-        "null",
-        "[]",
-        "{}",
-        '{"people": []}',
-        '{"people": {"did:web:example.org:users:ada": {"name": "Ada Lovelace"}}}',
-        '{"people": {}, "more": 1}',
-    ],
-    ids=[
-        "nothing",
-        "cut short",
-        "null",
-        "a list",
-        "no people",
-        "people that are a list",
-        "a profile with no moment",
-        "a member too many",
-    ],
-)
-def test_a_file_that_is_no_people_projection_is_unread_and_names_the_file(held: str, tmp_path: Path) -> None:
-    path = people_path(tmp_path)
-    path.parent.mkdir(parents=True)
-    path.write_text(held, encoding="utf-8")
-    with pytest.raises(PeopleUnread) as refused:
-        run(FilePeople(tmp_path).read())
-    assert str(path) in str(refused.value)
-
-
-def test_a_projection_s_file_that_cannot_be_opened_is_unread(tmp_path: Path) -> None:
-    path = people_path(tmp_path)
-    path.mkdir(parents=True)
-    with pytest.raises(PeopleUnread) as refused:
-        run(FilePeople(tmp_path).read())
-    assert str(path) in str(refused.value)
+    run(scenario())

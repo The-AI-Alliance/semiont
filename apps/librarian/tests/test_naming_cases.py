@@ -8,7 +8,8 @@ A member of the table or of a case that nothing here reads fails.
 
 After the table's cases comes what no case of it rests on: ids that are the
 names of things every object of some language has, a person that states no
-id, and the one read of the projection a reply is named over.
+id, and the one read of the people a reply is named over: of the people it
+mentions, and of no one where it mentions no one.
 """
 
 import copy
@@ -22,7 +23,7 @@ from rig import ADA, ADA_ID, LOVELACE, RECORDED, FakePeople
 from semiont.types import PeopleProjection, PersonProfile
 from spec import ROOT, JsonObject, objects, only, read, why
 
-from semiont_librarian.naming import named, namer
+from semiont_librarian.naming import name, named
 from semiont_librarian.reads import PeopleUnread
 
 TABLE = read(ROOT / "specs/src/librarian/naming-cases.json")
@@ -103,32 +104,43 @@ def test_a_name_is_put_where_the_person_carried_one_and_last_where_it_carried_no
     assert list(unnamed) == ["@type", "@id", "name"]
 
 
-def test_a_namer_reads_the_projection_once_however_many_people_the_reply_mentions() -> None:
+def test_a_reply_asks_once_after_the_people_it_mentions_each_once_in_the_order_they_first_appear() -> None:
     people = FakePeople(LOVELACE)
-    name = run(namer(people))
-    reply: JsonObject = {"creator": ADA, "wasAttributedTo": [ADA, ADA]}
+    grace: JsonObject = {"@type": "Person", "@id": "did:web:example.org:users:grace"}
+    reply: JsonObject = {
+        "creator": ADA,
+        "wasAttributedTo": [grace, ADA],
+        "agent": {"@type": "Software", "@id": "did:web:example.org:agents:a:b"},
+    }
     ada_named: JsonObject = {**ADA, "name": "Ada Lovelace"}
-    assert name(reply) == {"creator": ada_named, "wasAttributedTo": [ada_named, ada_named]}
-    assert name(ADA) == ada_named
-    assert people.reads == 1
+    said = run(name(reply, people))
+    assert said == {"creator": ada_named, "wasAttributedTo": [grace, ada_named], "agent": reply["agent"]}
+    assert people.asked == [[ADA_ID, "did:web:example.org:users:grace"]]
 
 
-def test_a_knowledge_base_with_no_projection_names_no_one_and_nothing_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+def test_a_reply_that_mentions_no_one_asks_after_no_one_and_nothing_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    people = FakePeople(LOVELACE)
+    reply: JsonObject = {"items": [{"@type": "Resource", "@id": "res-1"}], "total": 1}
     with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
-        name = run(namer(FakePeople()))
-    reply: JsonObject = {"creator": ADA}
-    assert name(reply) == reply
+        assert run(name(reply, people)) == reply
+    assert people.asked == []
     assert warnings(caplog) == []
 
 
-def test_a_projection_that_cannot_be_read_is_logged_as_a_warning_and_the_reply_names_no_one(caplog: pytest.LogCaptureFixture) -> None:
-    people = FakePeople(LOVELACE)
-    people.failing = PeopleUnread("people.json is not a people projection that can be read")
-    with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
-        name = run(namer(people))
+def test_a_person_with_no_profile_is_named_by_no_one_and_nothing_is_logged(caplog: pytest.LogCaptureFixture) -> None:
     reply: JsonObject = {"creator": ADA}
-    assert name(reply) == reply
+    with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
+        assert run(name(reply, FakePeople())) == reply
+    assert warnings(caplog) == []
+
+
+def test_people_that_cannot_be_read_are_logged_as_a_warning_and_the_reply_goes_as_it_is(caplog: pytest.LogCaptureFixture) -> None:
+    people = FakePeople(LOVELACE)
+    people.failing = PeopleUnread("the Archivist did not answer")
+    reply: JsonObject = {"creator": ADA}
+    with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
+        assert run(name(reply, people)) == reply
     (said,) = warnings(caplog)
     assert said.getMessage() == "People projection unreadable: this reply names no one"
-    assert vars(said)["error"] == "people.json is not a people projection that can be read"
-    assert people.reads == 1
+    assert vars(said)["error"] == "the Archivist did not answer"
+    assert people.asked == [[ADA_ID]]

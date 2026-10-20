@@ -66,7 +66,7 @@ def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> N
     assert started.matcher is not started.gatherer
 
 
-def test_its_stream_names_the_eight_requests_it_answers_and_the_two_signals_it_follows_and_no_reply() -> None:
+def test_its_stream_names_the_eight_requests_it_answers_the_two_signals_it_follows_and_the_replies_of_what_it_asks() -> None:
     assert sorted(CHANNELS) == sorted(
         [
             "match:search-requested",
@@ -79,6 +79,12 @@ def test_its_stream_names_the_eight_requests_it_answers_and_the_two_signals_it_f
             "gather:limits-requested",
             "weave:applied",
             "smelt:settled",
+            "browse:resource-result",
+            "browse:resource-failed",
+            "browse:annotation-result",
+            "browse:annotation-failed",
+            "browse:people-result",
+            "browse:people-failed",
         ]
     )
     assert len(CHANNELS) == len(set(CHANNELS))
@@ -114,8 +120,6 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
         "gatewayUrl",
         "identity",
         "archivist",
-        "stateHome",
-        "kbName",
         "graph",
         "vectors",
         "embedding",

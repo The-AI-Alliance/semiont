@@ -3,7 +3,8 @@
 `docs/protocol/LIBRARIAN.md` states what it does, rule by rule. Held with
 `async with`: it takes frames from the way in to the way out. It reads
 through what it is handed and through nothing else: it knows no address, no
-directory and no database, and it asks nothing over the bus.
+directory and no database. What it reads of the record and of its people is
+asked of the Archivist, on the bus, by what it is handed to read them by.
 
 **One stream.** Every frame the transport delivers is taken as it is
 delivered, whatever its channel, in the order of delivery (§ What it
@@ -27,9 +28,9 @@ channel, or on its failure channel where what handles it raises. A request
 that fails ends nothing: the next is handled. A frame that is not its
 channel's is logged, and answered as a failure where it states enough to be.
 
-**Who is named.** The replies to a text search and to what refers to a
-resource have their people named, each by what handles it (§ Names). The
-reply to a reference search names no one.
+**Who is named.** The replies to a text search and to a reference search have
+their people named, each by what handles it (§ Names). The reply to what
+refers to a resource names no person, and no one is named in it.
 
 **Stopping** (§ Stopping). On the way out no frame is taken any more, what is
 in hand is given up, and the two folds are closed, which lets go of every
@@ -90,7 +91,7 @@ from semiont_vectors.store import VectorReader
 from semiont_librarian.annotation_gather import gather as gather_annotation
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
-from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, People, Views
+from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, People, Record
 from semiont_librarian.reference_search import search as search_references
 from semiont_librarian.referenced_by import answer as answer_referenced_by
 from semiont_librarian.resource_gather import gather as gather_resource
@@ -166,7 +167,7 @@ class _Delivered(FrameSink):
 class Librarian:
     """A Librarian over what it is handed to read by, reaching the bus through `transport`.
 
-    `views` and `people` are what the Archivist writes; `graph` the six reads
+    `record` and `people` read what the Archivist keeps; `graph` the six reads
     of the graph; `vectors` the index, connected, and `embedding` what makes
     a query's vector; `matcher` and `gatherer` the models of its two actors;
     `content` what reads a resource's bytes, and `anchored` what asks for its
@@ -177,14 +178,15 @@ class Librarian:
     `semantic_floor` the least score a resource needs to be found by
     meaning.
 
-    The transport's stream names the eight request channels and the two
-    signals before it is entered.
+    The transport's stream names the eight request channels, the two
+    signals and the replies of what `record` and `people` ask before it is
+    entered.
     """
 
     def __init__(
         self,
         *,
-        views: Views,
+        record: Record,
         people: People,
         graph: GraphReads,
         vectors: VectorReader,
@@ -201,7 +203,7 @@ class Librarian:
         semantic_floor: float,
         transport: Transport,
     ) -> None:
-        self._views: Final = views
+        self._record: Final = record
         self._people: Final = people
         self._graph: Final = graph
         self._vectors: Final = vectors
@@ -304,7 +306,8 @@ class Librarian:
                 if passage is not None:
                     self._beside(self._summarize(frame, passage))
             case _:
-                # The two limits requests among them: what answers those listens for them itself.
+                # The two limits requests among them, whose answerer listens for them itself, and the replies to what
+                # the record and the people are asked.
                 return
 
     def _signalled[P: WireModel](self, frame: Frame, channel: Channel[P]) -> P | None:
@@ -387,7 +390,7 @@ class Librarian:
         async def gathered() -> GatherAnnotationComplete:
             context = await gather_annotation(
                 request,
-                views=self._views,
+                record=self._record,
                 content=self._content,
                 anchored=self._anchored,
                 graph=self._graph,
@@ -410,7 +413,7 @@ class Librarian:
         async def gathered() -> GatherResourceComplete:
             context = await gather_resource(
                 request,
-                views=self._views,
+                record=self._record,
                 content=self._content,
                 anchored=self._anchored,
                 graph=self._graph,
@@ -435,7 +438,7 @@ class Librarian:
             return await search_references(
                 request,
                 graph=self._graph,
-                views=self._views,
+                record=self._record,
                 vectors=self._vectors,
                 embedding=self._embedding,
                 inference=self._matcher,
@@ -455,7 +458,7 @@ class Librarian:
             return await answer_text_search(
                 request,
                 graph=self._graph,
-                views=self._views,
+                record=self._record,
                 vectors=self._vectors,
                 embedding=self._embedding,
                 semantic_floor=self._semantic_floor,
@@ -469,10 +472,10 @@ class Librarian:
         await self._answer(frame, MATCH_RESOURCES_REQUESTED.result, MATCH_RESOURCES_REQUESTED.failure, searched, failed)
 
     async def _refer(self, frame: Frame, request: GatherReferencedByRequest) -> None:
-        """Answer a `gather:referenced-by-requested`: what refers to a resource, its people named."""
+        """Answer a `gather:referenced-by-requested`: what refers to a resource."""
 
         async def referred() -> GatherReferencedByResult:
-            return await answer_referenced_by(request, graph=self._graph, views=self._views, people=self._people)
+            return await answer_referenced_by(request, graph=self._graph, record=self._record)
 
         def failed(said: str) -> CommandError:
             return CommandError(message=said)
@@ -483,7 +486,9 @@ class Librarian:
         """Answer a `gather:summary-requested`: what the Gatherer's model says of a passage where it stands."""
 
         async def summarized() -> Response[ContextualSummaryResponse]:
-            summary = await summarize(request, views=self._views, content=self._content, anchored=self._anchored, inference=self._gatherer)
+            summary = await summarize(
+                request, record=self._record, content=self._content, anchored=self._anchored, inference=self._gatherer
+            )
             return Response[ContextualSummaryResponse](response=summary)
 
         def failed(said: str) -> CommandError:

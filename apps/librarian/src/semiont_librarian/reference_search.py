@@ -15,9 +15,9 @@ words are the message of `match:search-failed`. A listing that fails raises.
 A vector index or a model that fails does not: it is logged, and the search
 is answered without it.
 
-Everything read is handed in: the graph, the views, the index, the provider
-that makes the term's vector, the model, the people projection its reply is
-named by, and the clock recency is counted by.
+Everything read is handed in: the graph, the record, the index, the provider
+that makes the term's vector, the model, what the knowledge base calls the
+people its reply names, and the clock recency is counted by.
 """
 
 import asyncio
@@ -46,9 +46,9 @@ from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions,
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
-from semiont_librarian.naming import namer
+from semiont_librarian.naming import name
 from semiont_librarian.prompts import score_prompt
-from semiont_librarian.reads import GraphReads, People, Views
+from semiont_librarian.reads import GraphReads, People, Record
 from semiont_librarian.replies import SCORE_ELEMENT, ask_for_elements, read_scores
 from semiont_librarian.score import Score, Source, score_of, with_model_score
 from semiont_librarian.views import GraphViews, derive_views
@@ -197,7 +197,7 @@ async def search(
     request: MatchSearchRequest,
     *,
     graph: GraphReads,
-    views: Views,
+    record: Record,
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     inference: InferenceClient,
@@ -206,13 +206,13 @@ async def search(
 ) -> MatchSearchResult:
     """The reply to a reference search: its candidates by score, the highest first, and no more of them than the request's limit.
 
-    The people projection is read once, after the search, and the reply's
-    people are named.
+    The reply's people are asked after once, after the search, and named
+    (`semiont_librarian.naming.name`).
 
     Raises `FocusNotAnAnnotation`, before any source is asked, where the
     context's focus is not an annotation, and
     `semiont_librarian.limit.LimitRefused` for a limit below 1. Raises what
-    a listing of the graph raised, or a read of a view. `now` answers the
+    a listing of the graph raised, or a read of the record. `now` answers the
     moment the search is made, with its offset.
     """
     context = request.context
@@ -246,7 +246,7 @@ async def search(
     # A neighbour is read back from the graph, and from its view where the graph has none yet: the view is written
     # first, and a resource just made is not to be dropped while the graph is behind.
     neighbours = await asyncio.gather(
-        *(resource_with_view_grace(graph, views, ResourceId(connection.resource_id)) for connection in graph_views.connections)
+        *(resource_with_view_grace(graph, record, ResourceId(connection.resource_id)) for connection in graph_views.connections)
     )
     lagged = sum(1 for neighbour in neighbours if neighbour.lagged_behind_view)
     if lagged > 0:
@@ -268,7 +268,7 @@ async def search(
         vector_scores[hit.resource_id] = max(hit.score, vector_scores.get(hit.resource_id, hit.score))
     lagged = 0
     for hit_resource in vector_scores:
-        graced = await resource_with_view_grace(graph, views, hit_resource)
+        graced = await resource_with_view_grace(graph, record, hit_resource)
         if graced.lagged_behind_view:
             lagged += 1
         if graced.resource is not None:
@@ -334,5 +334,4 @@ async def search(
 
     limited = ordered if request.limit is None else ordered[: request.limit]
     reply = MatchSearchResult(reference_id=request.reference_id, response=[_candidate(resource, score) for resource, score in limited])
-    name = await namer(people)
-    return MatchSearchResult.model_validate(name(written(reply)))
+    return MatchSearchResult.model_validate(await name(written(reply), people))

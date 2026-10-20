@@ -5009,9 +5009,6 @@ type LibrarianConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
-	// KbName The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.
-	KbName string `json:"kbName"`
-
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
 
@@ -5032,9 +5029,6 @@ type LibrarianConfig struct {
 		// SemanticFloor The least similarity a hit by meaning must have.
 		SemanticFloor float32 `json:"semanticFloor"`
 	} `json:"search"`
-
-	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.
-	StateHome string `json:"stateHome"`
 
 	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
 	Vectors VectorsConfig `json:"vectors"`

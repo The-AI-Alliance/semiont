@@ -3,7 +3,7 @@
 It is the table every Librarian runs, so that the candidates a search
 answers, their scores and their reasons are stated once and not once for each
 language. A case is run through `search`, and through nothing else of the
-Librarian: there is no bus here. The graph, the views, the index and the
+Librarian: there is no bus here. The graph, the record, the index and the
 model of a case answer what the case states and nothing else, and the moment
 the search is made at is the case's, handed to it: recency is counted from
 it, and no clock is read.
@@ -26,15 +26,15 @@ from typing import Final, final, override
 
 import pytest
 from aio import run
-from rig import FakeEmbedding, FakeInference, FakePeople, FakeVectors, view
-from semiont.identifiers import ResourceId
+from rig import FakeEmbedding, FakeInference, FakePeople, FakeVectors
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
-from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor, ResourceView
+from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
 from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResult
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, why
 
-from semiont_librarian.reads import GraphReads, Views
+from semiont_librarian.reads import Described, GraphReads, Record
 from semiont_librarian.reference_search import search
 
 TABLE = read(ROOT / "specs/src/librarian/score-cases.json")
@@ -163,8 +163,8 @@ class StatedGraph(GraphReads):
 
 
 @final
-class StatedViews(Views):
-    """The views of a case. `asked` is every id a view was asked for."""
+class StatedRecord(Record):
+    """The record of a case, which holds each resource the case states a view of. `asked` is every id it was asked to describe."""
 
     def __init__(self, stated: Mapping[str, str], described: Mapping[str, JsonObject]) -> None:
         assert FAILS not in stated.values(), "a case states a view that fails, and no rule says what follows"
@@ -173,13 +173,17 @@ class StatedViews(Views):
         self.asked: Final[list[str]] = []
 
     @override
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
+    async def described(self, resource_id: ResourceId) -> Described | None:
         self.asked.append(resource_id)
         await asyncio.sleep(0)
         if self._stated.get(resource_id) != HELD:
             return None
-        # A view is its resource and what the Archivist keeps beside it, which a reference search does not read.
-        return view(ResourceDescriptor.model_validate(self._described[resource_id]))
+        # The record states the sequence number of the resource's last event too, which a reference search does not read.
+        return Described(resource=ResourceDescriptor.model_validate(self._described[resource_id]), last_sequence=1)
+
+    @override
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        raise Unstated(f"the annotation {annotation_id} of {resource_id}")
 
 
 @final
@@ -188,7 +192,7 @@ class World:
     """The sources of one case: each answers what the case states, and keeps what it was asked."""
 
     graph: StatedGraph
-    views: StatedViews
+    record: StatedRecord
     vectors: FakeVectors
     embedding: FakeEmbedding
     inference: FakeInference
@@ -232,7 +236,7 @@ def world_of(case: JsonObject) -> World:
 
     return World(
         graph=StatedGraph(graph_of(case), described),
-        views=StatedViews(states(case, "views", "views"), described),
+        record=StatedRecord(states(case, "views", "views"), described),
         vectors=vectors,
         embedding=FakeEmbedding(),
         inference=inference,
@@ -245,7 +249,7 @@ async def searched(case: JsonObject, world: World) -> MatchSearchResult:
     return await search(
         request_of(case),
         graph=world.graph,
-        views=world.views,
+        record=world.record,
         vectors=world.vectors,
         embedding=world.embedding,
         inference=world.inference,
@@ -357,7 +361,7 @@ def test_a_reference_search_answers_the_candidates_the_table_states_and_asks_eac
     assert world.graph.by_name == [ResourceQuery(search=term, limit=20)], why(case)
     assert world.graph.by_entity_type == (by_entity_type if "byEntityType" in graph else []), why(case)
     assert each_once(world.graph.read) == sorted(states(graph, "byId", "byId")), why(case)
-    assert each_once(world.views.asked) == sorted(states(case, "views", "views")), why(case)
+    assert each_once(world.record.asked) == sorted(states(case, "views", "views")), why(case)
     assert world.embedding.asked == ([term] if "vectors" in case else []), why(case)
     # The index is asked for chunks of any resource but the request's own.
     hits_asked = SearchOptions(limit=40, score_threshold=0.4, filter=SearchFilter(exclude_resource_id=request.resource_id))
@@ -381,7 +385,7 @@ def test_a_reference_search_fails_with_the_words_the_table_states_and_asks_no_so
     if "byId" not in graph:
         assert world.graph.read == [], why(case)
     if "views" not in case:
-        assert world.views.asked == [], why(case)
+        assert world.record.asked == [], why(case)
     if "vectors" not in case:
         assert world.embedding.asked == [], why(case)
         assert world.vectors.asked == [], why(case)

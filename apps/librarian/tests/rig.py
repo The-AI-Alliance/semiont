@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from typing import Final, final, override
 
 from pydantic import JsonValue
-from semiont.identifiers import ResourceId
+from semiont.errors import BusRequestError
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import (
     AnchoredTextAbsent,
     AnchoredTextAnswer,
@@ -45,17 +46,17 @@ from semiont_librarian.prompts import Prompt
 from semiont_librarian.reads import (
     AnchoredText,
     Degraded,
+    Described,
     GraphReads,
     People,
     Projection,
+    Record,
     Settled,
     SmeltWaits,
     SmeltWaitTimedOut,
-    Views,
     WeaveWaits,
     WeaveWaitTimedOut,
 )
-from semiont_librarian.record import ViewUnread
 
 ADA_ID: Final = "did:web:example.org:users:ada"
 """The id of the one person a rig's builders name."""
@@ -66,7 +67,7 @@ RECORDED: Final = "2020-03-04T05:06:07.000Z"
 """The moment everything a rig's builders make was recorded at, where a test states no other."""
 
 LOVELACE: Final = {ADA_ID: PersonProfile(name="Ada Lovelace", since=RECORDED)}
-"""A people projection in which Ada has a profile, and nobody else has."""
+"""What the knowledge base calls its people, where Ada has a profile and nobody else has."""
 
 DIMENSIONS: Final = 8
 """How wide the vectors of a rig's embedding provider are."""
@@ -122,49 +123,64 @@ def reference(annotation: str, on: str, *body: JsonValue, **stated: JsonValue) -
 
 
 def view(resource: ResourceDescriptor, *annotations: Annotation, last_sequence: int = 1) -> ResourceView:
-    """The view the Archivist keeps of a resource: its description, the annotations on it, and the last event applied."""
+    """What the record holds of a resource: its description, the annotations on it, and the sequence number of its last event."""
     on_it = ResourceAnnotations(resource_id=resource.id, annotations=[*annotations], version=last_sequence, updated_at=RECORDED)
     return ResourceView(resource=resource, annotations=on_it, last_sequence=last_sequence)
 
 
-# ── What the Archivist writes, and what it serves ──────────────────────
+# ── What the Archivist keeps, and what it serves ───────────────────────
 
 
 @final
-class FakeViews(Views):
-    """The views a test states. `held` is each, by its resource, and `asked` every resource a view was asked for.
+class FakeRecord(Record):
+    """The record a test states. `held` is what it holds of each resource, and `asked` every resource whose description was asked for.
 
-    `failing` fails every read. `unread` is the resources whose view is
-    there and cannot be read, as a file that is no view cannot.
+    `asked_annotations` is every annotation asked for, with its resource.
+    `failing` fails every read. `unread` is the resources whose description
+    cannot be read, as one the Archivist does not answer for cannot. An
+    annotation is asked only of a resource the record holds.
     """
 
     def __init__(self, *held: ResourceView) -> None:
         self.held: Final[dict[ResourceId, ResourceView]] = {each.resource.id: each for each in held}
         self.asked: Final[list[ResourceId]] = []
+        self.asked_annotations: Final[list[tuple[ResourceId, AnnotationId]]] = []
         self.failing: Exception | None = None
         self.unread: Final[set[ResourceId]] = set()
 
     @override
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
+    async def described(self, resource_id: ResourceId) -> Described | None:
         self.asked.append(resource_id)
-        await _turn(ViewUnread(f"the view of {resource_id} cannot be read") if resource_id in self.unread else self.failing)
-        return self.held.get(resource_id)
+        unread = BusRequestError("bus.timeout", f"{resource_id} could not be read of the record")
+        await _turn(unread if resource_id in self.unread else self.failing)
+        held = self.held.get(resource_id)
+        return None if held is None else Described(resource=held.resource, last_sequence=held.last_sequence)
+
+    @override
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        self.asked_annotations.append((resource_id, annotation_id))
+        await _turn(self.failing)
+        assert resource_id in self.held, f"an annotation was asked of {resource_id}, which the record does not hold"
+        return next((held for held in self.held[resource_id].annotations.annotations if held.id == annotation_id), None)
 
 
 @final
 class FakePeople(People):
-    """The people projection a test states. `people` is each profile, by DID, and `reads` how many times it was read."""
+    """What the knowledge base calls its people, as a test states it. `people` is each profile, by DID.
+
+    `asked` is the DIDs of each read, in order.
+    """
 
     def __init__(self, people: Mapping[str, PersonProfile] | None = None) -> None:
         self.people: Final[dict[str, PersonProfile]] = dict(people or {})
-        self.reads = 0
+        self.asked: Final[list[list[str]]] = []
         self.failing: Exception | None = None
 
     @override
-    async def read(self) -> Mapping[str, PersonProfile]:
-        self.reads += 1
+    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
+        self.asked.append([*dids])
         await _turn(self.failing)
-        return dict(self.people)
+        return {did: self.people[did] for did in dids if did in self.people}
 
 
 @final

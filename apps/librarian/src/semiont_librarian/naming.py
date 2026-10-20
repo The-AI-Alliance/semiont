@@ -2,9 +2,10 @@
 
 No stored thing carries a person's name (`docs/protocol/LIBRARIAN.md` §
 Names). A person is identified by an id, and what the knowledge base calls
-them is in the people projection, which the Archivist keeps. A reply is
-named as it goes out: every person in it, wherever it is, is given the name
-the projection states for its id. `specs/src/librarian/naming-cases.json`
+them is in the people projection, which the Archivist keeps and is asked, on
+the bus, for the people a reply mentions. A reply is named as it goes out:
+every person in it, wherever it is, is given the name the projection states
+for its id. `specs/src/librarian/naming-cases.json`
 states the rule, and the tests run every case of it.
 
 A reply is read here as the wire carries it: objects, lists, text, numbers
@@ -13,7 +14,7 @@ whatever shape of reply holds it, and no list of the places a person may be
 is kept.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 
 from pydantic import JsonValue
 from semiont.types import PersonProfile
@@ -21,7 +22,13 @@ from semiont.types import PersonProfile
 from semiont_librarian.log import LOG
 from semiont_librarian.reads import People, PeopleUnread
 
-__all__ = ["named", "namer"]
+__all__ = ["name", "named"]
+
+
+def _person(said: Mapping[str, JsonValue]) -> str | None:
+    """The id an object states, where it is a person: its `@type` is `Person` and its `@id` is text. `None` for any other object."""
+    identity = said.get("@id")
+    return identity if said.get("@type") == "Person" and isinstance(identity, str) else None
 
 
 def named(reply: JsonValue, people: Mapping[str, PersonProfile]) -> JsonValue:
@@ -44,33 +51,45 @@ def named(reply: JsonValue, people: Mapping[str, PersonProfile]) -> JsonValue:
     if not isinstance(reply, dict):
         return reply
     said: dict[str, JsonValue] = {key: named(member, people) for key, member in reply.items()}
-    identity = reply.get("@id")
-    if reply.get("@type") == "Person" and isinstance(identity, str):
+    identity = _person(reply)
+    if identity is not None:
         profile = people.get(identity)
         if profile is not None:
             said["name"] = profile.name
     return said
 
 
-def _as_it_is(reply: JsonValue) -> JsonValue:
-    """A reply with no one named."""
-    return reply
+def _people_of(reply: JsonValue, found: dict[str, None]) -> None:
+    """Add to `found` the id of every person in `reply`, wherever it is, in the order each first appears: the walk `named` makes."""
+    if isinstance(reply, list):
+        for item in reply:
+            _people_of(item, found)
+        return
+    if not isinstance(reply, dict):
+        return
+    identity = _person(reply)
+    if identity is not None:
+        found[identity] = None
+    for member in reply.values():
+        _people_of(member, found)
 
 
-async def namer(people: People) -> Callable[[JsonValue], JsonValue]:
-    """What names the people of one reply, over one read of the projection: one read for each reply, and not one for each person.
+async def name(reply: JsonValue, people: People) -> JsonValue:
+    """`reply` with its people named, over one read of what the knowledge base calls the people in it.
 
-    A name is added to an answer and is none itself. A projection that
-    cannot be read is logged as a warning, and the reply is then sent with
-    no one named, which is how a reply reads where nobody has a profile.
+    Each person the reply mentions is asked after once, in the order they
+    first appear, and a reply that mentions no one asks nothing. A name is
+    added to an answer and is none itself: where the people cannot be read,
+    a warning is logged and the reply is sent as it is, which is how a reply
+    reads where nobody has a profile.
     """
+    found: dict[str, None] = {}
+    _people_of(reply, found)
+    if not found:
+        return reply
     try:
-        profiles = await people.read()
+        profiles = await people.of([*found])
     except PeopleUnread as unread:
         LOG.warning("People projection unreadable: this reply names no one", extra={"error": str(unread)})
-        return _as_it_is
-
-    def name(reply: JsonValue) -> JsonValue:
-        return named(reply, profiles)
-
-    return name
+        return reply
+    return named(reply, profiles)

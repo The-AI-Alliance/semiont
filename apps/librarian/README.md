@@ -40,8 +40,9 @@ models are.
 
 **It owns no store, and makes nothing in one.** It reads the graph the Weaver writes and the
 vector index the Smelter writes, and puts no node, no edge, no collection and no point in
-either. It reads the views and the people projection the Archivist writes, from the state
-volume. A Librarian that is stopped and started again has lost nothing.
+either. What it needs of the record, and what the knowledge base calls the people a reply
+names, it asks the Archivist on the bus, each read bounded by its question. A Librarian that
+is stopped and started again has lost nothing.
 
 ## What it reaches
 
@@ -49,20 +50,21 @@ volume. A Librarian that is stopped and started again has lost nothing.
   the Librarian. A resource's anchored text is read from the gateway too
   (`GET /resources/{id}/anchored-text`).
 - **The Archivist**, for a resource's bytes (`GET /resources/{id}/content`), as its service
-  account.
+  account; and, on the bus, for a resource's description (`browse:resource-requested`), an
+  annotation on it (`browse:annotation-requested`) and the profiles of the people a reply
+  names (`browse:people-requested`).
 - **The graph database and the vector index**, each read directly.
 - **An embedding provider**, for the vector of a query, and **the provider of each actor's
   model**.
-- **The state volume**, which it mounts to read: the views and the people projection are
-  under `semiont/<the knowledge base's name>` in it. It mounts no piece of the knowledge
-  base.
+
+It mounts no volume and no piece of the knowledge base, and opens no file of the record.
 
 ## Readers of two signals
 
 It follows `weave:applied`, by which it knows how far the Weaver has applied a resource's
 events, and `smelt:settled`, by which it knows what the Smelter decided of a resource's
 bytes. A gather waits on each within a bound, and answers with less when the bound runs out.
-It follows no recorded event, and asks no service a question over the bus.
+It follows no recorded event.
 
 ## When it starts
 
@@ -86,7 +88,6 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | the Archivist's host and port |
-| `stateHome`, `kbName` | the state volume, and the knowledge base's name: the views are under `semiont/<kbName>` in it |
 | `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
 | `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |

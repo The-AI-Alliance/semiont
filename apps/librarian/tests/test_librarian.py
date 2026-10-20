@@ -31,8 +31,8 @@ from rig import (
     FakeGraph,
     FakeInference,
     FakePeople,
+    FakeRecord,
     FakeVectors,
-    FakeViews,
     described,
     reference,
     view,
@@ -40,7 +40,7 @@ from rig import (
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
-from semiont.types import ResourceView
+from semiont.types import Annotation, ResourceView
 from semiont_graph.interface import ResourceListing
 from semiont_inference.interface import ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse
 from semiont_service.content import Content
@@ -48,7 +48,7 @@ from spec import JsonObject, objects, thing
 
 from semiont_librarian.librarian import Librarian
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
-from semiont_librarian.reads import Views
+from semiont_librarian.reads import Described, Record
 
 QUAY: Final = ResourceId("res-quay")
 FERRY: Final = ResourceId("res-ferry")
@@ -89,11 +89,11 @@ async def turns() -> None:
 
 
 @final
-class HeldViews(Views):
-    """Views that hold no resource, and that answer for a resource a test holds only once the test lets them.
+class HeldRecord(Record):
+    """A record that holds no resource, and that answers for a resource a test holds only once the test lets it.
 
-    `asked` is every resource a view was asked for, in order: what shows
-    that a request has begun to be handled.
+    `asked` is every resource whose description was asked for, in order:
+    what shows that a request has begun to be handled.
     """
 
     def __init__(self) -> None:
@@ -101,12 +101,12 @@ class HeldViews(Views):
         self._holding: Final[dict[ResourceId, asyncio.Event]] = {}
 
     def hold(self, resource_id: ResourceId) -> asyncio.Event:
-        """Hold every read of a resource's view until the event answered is set."""
+        """Hold every read of a resource's description until the event answered is set."""
         self._holding[resource_id] = asyncio.Event()
         return self._holding[resource_id]
 
     @override
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
+    async def described(self, resource_id: ResourceId) -> Described | None:
         self.asked.append(resource_id)
         held = self._holding.get(resource_id)
         if held is None:
@@ -114,6 +114,10 @@ class HeldViews(Views):
         else:
             await held.wait()
         return None
+
+    @override
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        raise AssertionError(f"an annotation was asked of {resource_id}, which the record does not hold")
 
 
 @final
@@ -164,7 +168,7 @@ class World:
     """Held with `async with`: a Librarian that takes frames from the way in to the way out, over a fake of each thing it reads by.
 
     The graph lists nothing and the index answers nothing, until a test
-    states otherwise. `views` are the views it reads in place of the ones
+    states otherwise. `record` is the record it reads in place of the one
     made of what a test holds, and `matcher` and `gatherer` the models of
     its two actors in place of two that answer the empty text.
     """
@@ -172,7 +176,7 @@ class World:
     def __init__(
         self,
         *held: ResourceView,
-        views: Views | None = None,
+        record: Record | None = None,
         matcher: InferenceClient | None = None,
         gatherer: InferenceClient | None = None,
     ) -> None:
@@ -190,7 +194,7 @@ class World:
         self.vectors.stated["search_resources"] = []
         self.vectors.stated["search_by_resource"] = []
         self.librarian: Final = Librarian(
-            views=FakeViews(*held) if views is None else views,
+            record=FakeRecord(*held) if record is None else record,
             people=self.people,
             graph=self.graph,
             vectors=self.vectors,
@@ -509,9 +513,9 @@ def test_a_signal_is_noted_while_the_gather_that_waits_for_it_is_in_hand() -> No
 
 def test_gathers_of_one_kind_for_one_resource_take_turns_and_no_other_gather_waits_on_them() -> None:
     async def scenario() -> None:
-        views = HeldViews()
-        let_go = views.hold(QUAY)
-        async with World(views=views) as world:
+        record = HeldRecord()
+        let_go = record.hold(QUAY)
+        async with World(record=record) as world:
             world.ask("gather:requested", {"annotationId": CROSSING, "resourceId": QUAY}, "c-1")
             world.ask("gather:requested", {"annotationId": LANDING, "resourceId": QUAY}, "c-2")
             world.ask("gather:requested", {"annotationId": CROSSING, "resourceId": FERRY}, "c-3")
@@ -520,8 +524,8 @@ def test_gathers_of_one_kind_for_one_resource_take_turns_and_no_other_gather_wai
 
             # The first gather around an annotation of the quay is in hand, and the second has not begun. The gather
             # around the quay itself is in hand beside it, and the gather for the ferry is answered.
-            assert views.asked.count(QUAY) == 2
-            assert views.asked.count(FERRY) == 1
+            assert record.asked.count(QUAY) == 2
+            assert record.asked.count(FERRY) == 1
             assert world.answered_for("gather:failed") == ["c-3"]
             assert world.answered("gather:resource-failed") == []
 
@@ -530,23 +534,23 @@ def test_gathers_of_one_kind_for_one_resource_take_turns_and_no_other_gather_wai
 
             assert world.answered_for("gather:failed") == ["c-3", "c-1", "c-2"]
             assert world.answered_for("gather:resource-failed") == ["c-4"]
-            assert views.asked.count(QUAY) == 3
+            assert record.asked.count(QUAY) == 3
 
     run(scenario())
 
 
 def test_reference_searches_are_made_one_at_a_time_and_everything_else_is_handled_as_it_arrives() -> None:
     async def scenario() -> None:
-        views = HeldViews()
-        let_go = views.hold(FORT)
-        async with World(views=views) as world:
+        record = HeldRecord()
+        let_go = record.hold(FORT)
+        async with World(record=record) as world:
             # The graph does not hold the neighbour, so each search reads its view, which is held.
             world.graph.resources[FORT] = None
             world.graph.referenced_by[QUAY] = []
             world.ask("match:search-requested", searching(neighbours=(FORT,)), "c-1")
             world.ask("match:search-requested", searching(neighbours=(FORT,)), "c-2")
             await turns()
-            assert views.asked == [FORT]
+            assert record.asked == [FORT]
             assert len(world.graph.asked_of("list_resources")) == 1
 
             # While a search is in hand, what takes no turn is answered.
@@ -555,7 +559,7 @@ def test_reference_searches_are_made_one_at_a_time_and_everything_else_is_handle
             world.ask("gather:summary-requested", {"annotationId": CROSSING, "resourceId": NOWHERE}, "c-5")
             await turns()
             assert world.answered_for("match:resources-result") == ["c-3"]
-            # These views hold no resource, so what refers to one fails: it is answered all the same.
+            # This record holds no resource, so what refers to one fails: it is answered all the same.
             assert world.answered_for("gather:referenced-by-failed") == ["c-4"]
             assert world.answered_for("gather:summary-failed") == ["c-5"]
             assert world.answered("match:search-results") == []
@@ -601,15 +605,15 @@ def test_a_request_that_fails_ends_nothing_and_the_next_is_handled() -> None:
 
 def test_a_stopped_librarian_gives_up_what_is_in_hand_takes_nothing_more_and_lets_go_of_every_wait() -> None:
     async def scenario() -> None:
-        views = HeldViews()
-        views.hold(QUAY)
-        async with World(views=views) as world:
+        record = HeldRecord()
+        record.hold(QUAY)
+        async with World(record=record) as world:
             world.ask("gather:requested", {"annotationId": CROSSING, "resourceId": QUAY}, "c-1")
             world.ask("gather:summary-requested", {"annotationId": CROSSING, "resourceId": QUAY}, "c-2")
             waiting = asyncio.ensure_future(world.weave.when_applied(FERRY, 9, LONG))
             deciding = asyncio.ensure_future(world.smelt.when_settled(FERRY, "sum", LONG))
             await turns()
-            assert views.asked == [QUAY, QUAY]
+            assert record.asked == [QUAY, QUAY]
             assert not waiting.done()
 
             await world.librarian.__aexit__(None, None, None)
@@ -625,7 +629,7 @@ def test_a_stopped_librarian_gives_up_what_is_in_hand_takes_nothing_more_and_let
             world.ask("match:limits-requested", {}, "c-5")
             world.tell("smelt:settled", {"resourceId": FERRY, "contentChecksum": "sum", "outcome": "indexed"})
             await turns()
-            assert views.asked == [QUAY, QUAY]
+            assert record.asked == [QUAY, QUAY]
             assert world.graph.asked == []
             assert world.transport.emitted == []
             assert await soon(world.smelt.when_settled(FERRY, "sum", LONG)) == "inert"

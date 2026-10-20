@@ -37,10 +37,6 @@ export interface LibrarianSettings {
   gatewayUrl?: string;
   /** The issuer its service account signs in at. */
   issuer?: string;
-  /** The knowledge base's name, by which it finds the views under the state volume. */
-  kbName?: string;
-  /** The state volume the Archivist writes the views and the people projection into. */
-  stateHome?: string;
   /** Where the Archivist is, for a resource's bytes. */
   archivist?: { host: string; port: number };
   /** The graph database. Its password is the environment's, under `passwordEnv`. */
@@ -119,8 +115,6 @@ function document(settings: LibrarianSettings, port: number): string {
     gatewayUrl: settings.gatewayUrl,
     identity: { issuer: settings.issuer },
     archivist: settings.archivist,
-    stateHome: settings.stateHome,
-    kbName: settings.kbName,
     graph: settings.graph,
     vectors: settings.vectors,
     embedding: settings.embedding,

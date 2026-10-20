@@ -82,7 +82,8 @@ The report calls out orphaned state, whose knowledge base's directory no longer 
 ```bash
 semiont clean --dry-run              # what would go, and how big
 semiont clean --store vectors        # one store: database, graph, vectors,
-                                     #   anchored-text, messaging or state
+                                     #   anchored-text, messaging, state,
+                                     #   gateway or librarian
 semiont clean --root <path|name|key> # another knowledge base's, including an orphan's
 ```
 

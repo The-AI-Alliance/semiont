@@ -4,7 +4,7 @@ from typing import Final, final
 
 import pytest
 from aio import run
-from rig import FakeAnchoredText, FakeContent, FakeInference, FakeViews, described, reference, sent, tag, view
+from rig import FakeAnchoredText, FakeContent, FakeInference, FakeRecord, described, reference, sent, tag, view
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
 from semiont.types import Annotation, ContextualSummaryResponse, ContextualSummaryResponseContext, GatherSummaryRequest, ResourceView
@@ -41,10 +41,10 @@ def the_treaty() -> Annotation:
 
 @final
 class World:
-    """What one summary is handed: a fake of each thing it reads by, over the views a test states."""
+    """What one summary is handed: a fake of each thing it reads by, over the record a test states."""
 
     def __init__(self, *held: ResourceView) -> None:
-        self.views: Final = FakeViews(*held)
+        self.record: Final = FakeRecord(*held)
         self.content: Final = FakeContent()
         self.anchored: Final = FakeAnchoredText()
         self.inference: Final = FakeInference()
@@ -53,7 +53,7 @@ class World:
         """The summary of the annotation of the treaty."""
         return await summarize(
             GatherSummaryRequest(annotation_id=TREATY, resource_id=WAR),
-            views=self.views,
+            record=self.record,
             content=self.content,
             anchored=self.anchored,
             inference=self.inference,
@@ -79,7 +79,7 @@ def test_a_summary_answers_the_model_s_words_the_resource_s_name_the_entity_type
         assert world.inference.asked == [sent(asking)]
         assert world.content.asked == [WAR]
         # The resource's view holds the annotation and the resource: it is read once.
-        assert world.views.asked == [WAR]
+        assert world.record.asked == [WAR]
 
     run(scenario())
 

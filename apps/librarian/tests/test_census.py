@@ -11,8 +11,10 @@ no database's client and no provider's library, and requires none. Each is an
 extra. It reads only: of the vector index it names what searches, and never
 what writes. One module names the logger, one names OpenTelemetry, and one
 reads the process's environment and its arguments, through the package every
-Python service is built on. Every channel its stream names is answered or
-followed, and it answers and follows no other. The variables its code reads
+Python service is built on. It opens no file of the record: what it reads of
+the record and of its people it asks the Archivist on the bus. Every channel
+its stream names is answered, followed or a reply to what it asks, and it
+answers and follows no other. The variables its code reads
 by name are the ones the protocol's page lists.
 
 How its document is read, how its log is written and what exports its
@@ -28,10 +30,12 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
+from semiont.bus import reply_channels_for
 from semiont_vectors.store import VectorReader, VectorStore
 from spec import PROJECT, ROOT, SDK
 
 from semiont_librarian.config import SERVICE
+from semiont_librarian.record import READ
 from semiont_librarian.service import CHANNELS
 
 SRC = PROJECT / "src/semiont_librarian"
@@ -48,14 +52,15 @@ PUBLIC = sorted(path.stem for path in SRC.glob("*.py") if not path.stem.startswi
 HANDED = [
     "AnchoredText",
     "Degraded",
+    "Described",
     "GraphReads",
     "People",
     "PeopleUnread",
     "Projection",
+    "Record",
     "Settled",
     "SmeltWaitTimedOut",
     "SmeltWaits",
-    "Views",
     "WeaveWaitTimedOut",
     "WeaveWaits",
 ]
@@ -314,6 +319,14 @@ def test_it_reads_only() -> None:
         assert naming(f".{member}(") == [], member
 
 
+def test_it_opens_no_file_of_the_record() -> None:
+    # What it reads of the record and of its people it asks the Archivist on the bus (`record.py`). The one module that
+    # names a path is the one that reads its document, which names the path of the model catalogue.
+    assert importing("pathlib") == ["service.py"]
+    for opening in ("open(", ".read_bytes(", ".read_text(", "to_thread("):
+        assert naming(opening) == [], opening
+
+
 def test_one_module_names_the_logger_and_one_reads_the_process_s_environment_and_its_arguments() -> None:
     assert naming("getLogger(") == ["log.py"]
     assert (SRC / "log.py").read_text(encoding="utf-8").count('getLogger("semiont_librarian")') == 1
@@ -346,8 +359,13 @@ def test_what_makes_a_store_a_provider_and_a_client_is_asked_by_the_module_that_
     assert importing(r"semiont_service\.lanes") == ["librarian.py"]
 
 
-def test_every_channel_its_stream_names_is_answered_or_followed_and_no_other_is() -> None:
-    assert len(CHANNELS) == len(set(CHANNELS)) == 10
+def test_every_channel_its_stream_names_is_answered_followed_or_a_reply_to_what_it_asks_and_no_other_is() -> None:
+    assert len(CHANNELS) == len(set(CHANNELS)) == 16
+    # The replies of the three reads of the Archivist, and no other reply.
+    replies = reply_channels_for(*READ)
+    assert len(replies) == 6
+    assert set(replies) <= set(CHANNELS)
+    taken = sorted(set(CHANNELS) - set(replies))
     # What a frame does is one `match` over its channel: a channel the stream names that has no case there is
     # delivered and passed by, and whoever asked waits out its own wait.
     source = (SRC / "librarian.py").read_text(encoding="utf-8")
@@ -359,7 +377,7 @@ def test_every_channel_its_stream_names_is_answered_or_followed_and_no_other_is(
     listening = re.findall(r"answer_limits_requests\(self\._bus, ([A-Z_]+), \(self\._(\w+),\)\)", source)
     assert sorted(listening) == [("GATHER_LIMITS_REQUESTED", "gatherer"), ("MATCH_LIMITS_REQUESTED", "matcher")]
     limits = ["gather:limits-requested", "match:limits-requested"]
-    assert sorted([*cases, *limits]) == sorted(CHANNELS)
+    assert sorted([*cases, *limits]) == taken
     # They are the eight requests the protocol's table lists, and the two signals its rule names.
     page = (ROOT / "docs/protocol/LIBRARIAN.md").read_text(encoding="utf-8")
     section = re.search(r"^## What it answers\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
@@ -369,7 +387,7 @@ def test_every_channel_its_stream_names_is_answered_or_followed_and_no_other_is(
     rule = re.search(r"\*\*It follows two signals:\*\*(.*?)\*Held by", section.group(1), re.DOTALL)
     assert rule is not None, "docs/protocol/LIBRARIAN.md no longer names the signals a Librarian follows"
     signals = re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))
-    assert sorted([*requests, *signals]) == sorted(CHANNELS)
+    assert sorted([*requests, *signals]) == taken
 
 
 def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:

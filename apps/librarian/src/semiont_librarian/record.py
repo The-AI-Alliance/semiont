@@ -1,89 +1,101 @@
-"""What a Librarian reads of the record from the state volume: a resource's view, and what the knowledge base calls its people.
+"""What a Librarian reads of the record, and what the knowledge base calls its people: each asked of the Archivist, over the bus.
 
-The Archivist writes both, and a Librarian only reads them
-(`docs/protocol/LIBRARIAN.md` § What it answers, § Names). Each is a file
-under the knowledge base's state directory, which is
-`semiont/<the knowledge base's name>` in the state volume:
-
-- a resource's view at `resources/<ab>/<cd>/<resourceId>.json`, where the
-  two directory names are the id's shard (`semiont_service.shard`);
-- the people projection at `projections/__system__/people.json`.
-
-The Archivist writes a file whole, by renaming a finished one onto its path,
-so a reader sees a whole document or none. A file is read off the loop, on a
-thread, and is held to the shape its schema states (`ResourceView`,
-`PeopleProjection`): what is there and is not that shape is a failure that
-names the file, and is never taken for a file that is not there.
+The Archivist keeps both, and a Librarian only reads them
+(`docs/protocol/LIBRARIAN.md` § What it answers, § Names). Each read is
+bounded by its question: a resource's descriptor and the sequence number of
+its last event (`browse:resource-requested`), one annotation on a resource
+(`browse:annotation-requested`), and the profiles of the people a reply
+names (`browse:people-requested`). It opens no file of the record. A
+resource's bytes are another read, and no part of this
+(`semiont_service.content`).
 """
 
-import asyncio
-from collections.abc import Mapping
-from pathlib import Path
+from collections.abc import Mapping, Sequence
 from typing import Final, final, override
 
-from semiont.identifiers import ResourceId
-from semiont.types import PeopleProjection, PersonProfile, ResourceView
-from semiont_service.shard import shard_path
+from semiont.bus import Bus
+from semiont.errors import BusRequestError, TransportError
+from semiont.identifiers import AnnotationId, ResourceId, UserId
+from semiont.operations import BROWSE_ANNOTATION_REQUESTED, BROWSE_PEOPLE_REQUESTED, BROWSE_RESOURCE_REQUESTED
+from semiont.types import Annotation, BrowseAnnotationRequest, BrowsePeopleRequest, BrowseResourceRequest, PersonProfile
 
-from semiont_librarian.reads import People, PeopleUnread, Views
+from semiont_librarian.reads import Described, People, PeopleUnread, Record
 
-__all__ = ["FilePeople", "FileViews", "ViewUnread"]
+__all__ = ["READ", "BusPeople", "BusRecord"]
+
+READ: Final = (BROWSE_RESOURCE_REQUESTED, BROWSE_ANNOTATION_REQUESTED, BROWSE_PEOPLE_REQUESTED)
+"""The operations a Librarian awaits: its stream names their replies."""
+
+
+def _asked_at_once() -> int:
+    """How many people one request may ask after: the bound the request's own schema states (`BrowsePeopleRequest`)."""
+    bound = BrowsePeopleRequest.model_json_schema()["properties"]["dids"]["maxItems"]
+    if not isinstance(bound, int):
+        raise TypeError("BrowsePeopleRequest states no bound on how many people one request asks after")
+    return bound
+
+
+_ASKED_AT_ONCE: Final = _asked_at_once()
 
 
 @final
-class ViewUnread(Exception):
-    """A resource's view could not be read: its file is there, and is not what its schema states, or could not be opened.
+class BusRecord(Record):
+    """The record, as a Librarian reads it over `bus`."""
 
-    A resource with no view is not this: its view is `None`.
-    """
-
-
-def _held(path: Path) -> bytes | None:
-    """What a file holds. `None` for one that is not there. Raises `OSError` for one that is there and cannot be read."""
-    try:
-        return path.read_bytes()
-    except FileNotFoundError:
-        return None
-
-
-@final
-class FileViews(Views):
-    """The views of the knowledge base whose state directory is `state_dir`, read from its files."""
-
-    def __init__(self, state_dir: Path) -> None:
-        self._resources: Final = state_dir / "resources"
-
-    def _read(self, resource_id: ResourceId) -> ResourceView | None:
-        ab, cd = shard_path(resource_id)
-        path = self._resources / ab / cd / f"{resource_id}.json"
-        try:
-            held = _held(path)
-            return None if held is None else ResourceView.model_validate_json(held)
-        except (OSError, ValueError) as failure:
-            # What a model refuses is a `ValueError`, and so is what is no JSON.
-            raise ViewUnread(f"{path} is not a resource's view that can be read: {failure}") from failure
+    def __init__(self, bus: Bus) -> None:
+        self._bus: Final = bus
 
     @override
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
-        """A resource's view, as its file states it. `None` where there is no file. Raises `ViewUnread` for a file that is no view."""
-        return await asyncio.to_thread(self._read, resource_id)
+    async def described(self, resource_id: ResourceId) -> Described | None:
+        """A resource as the Archivist describes it now. `None` where it holds no such resource; any other failure is raised."""
+        try:
+            answered = (await self._bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response
+        except BusRequestError as failure:
+            if failure.code == "bus.not-found":
+                return None
+            raise
+        return Described(resource=answered.resource, last_sequence=answered.last_sequence)
+
+    @override
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        """An annotation on a resource, as the Archivist holds it now. `None` where it refuses the read.
+
+        It is asked only of a resource the record holds, and the Archivist's
+        one refusal then is that the annotation is not in it. Its refusals
+        state no code, so each is `bus.rejected`. A timeout, a closed bus
+        and an Archivist that is not there are no refusal, and are raised.
+        """
+        asked = BrowseAnnotationRequest(resource_id=resource_id, annotation_id=annotation_id)
+        try:
+            return (await self._bus.request(BROWSE_ANNOTATION_REQUESTED, asked)).response.annotation
+        except BusRequestError as failure:
+            if failure.code == "bus.rejected":
+                return None
+            raise
 
 
 @final
-class FilePeople(People):
-    """The people projection of the knowledge base whose state directory is `state_dir`, read from its file."""
+class BusPeople(People):
+    """What the knowledge base calls its people, as a Librarian reads it over `bus`."""
 
-    def __init__(self, state_dir: Path) -> None:
-        self._path: Final = state_dir / "projections" / "__system__" / "people.json"
-
-    def _read(self) -> Mapping[str, PersonProfile]:
-        try:
-            held = _held(self._path)
-            return {} if held is None else PeopleProjection.model_validate_json(held).people
-        except (OSError, ValueError) as failure:
-            raise PeopleUnread(f"{self._path} is not a people projection that can be read: {failure}") from failure
+    def __init__(self, bus: Bus) -> None:
+        self._bus: Final = bus
 
     @override
-    async def read(self) -> Mapping[str, PersonProfile]:
-        """Each person's profile, by their DID. Nobody, where there is no file. Raises `PeopleUnread` for a file that is no projection."""
-        return await asyncio.to_thread(self._read)
+    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
+        """The profile of each of `dids` that has one, as the Archivist answers it now. Raises `PeopleUnread` where the read fails.
+
+        A text that is no DID has no profile, and is not asked after; each
+        DID is asked after once. Where nothing is to be asked after, nothing
+        is asked. More people than one request may ask after are asked after
+        in parts, in order.
+        """
+        asked = list(dict.fromkeys(did for did in (UserId.parse(text) for text in dids) if did is not None))
+        profiles: dict[str, PersonProfile] = {}
+        for start in range(0, len(asked), _ASKED_AT_ONCE):
+            part = asked[start : start + _ASKED_AT_ONCE]
+            try:
+                profiles.update((await self._bus.request(BROWSE_PEOPLE_REQUESTED, BrowsePeopleRequest(dids=part))).response.people)
+            except (BusRequestError, TransportError) as failure:
+                raise PeopleUnread(f"What the knowledge base calls {len(asked)} people could not be read: {failure}") from failure
+        return profiles

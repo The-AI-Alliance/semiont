@@ -244,9 +244,6 @@ export class LibrarianWorld {
       settings: {
         gatewayUrl,
         issuer,
-        kbName: kb.world.kb.name,
-        // The state volume is the one the Archivist writes the views into.
-        stateHome: kb.dirs.stateHome,
         archivist,
         graph: { type: 'neo4j', ...graph },
         vectors: { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT },

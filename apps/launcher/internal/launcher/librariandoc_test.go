@@ -90,7 +90,7 @@ func librarianDocumentFrom(t *testing.T, b []byte) semiont.LibrarianConfig {
 // launcher runs, or the refusal.
 func librarianDocumentOf(t *testing.T, config string, userEnv ...string) ([]byte, error) {
 	t.Helper()
-	return librarianDocument(envFrom(t, config), "local", "test-kb", "container", "192.168.64.1", 8080, userEnv, true)
+	return librarianDocument(envFrom(t, config), "local", "container", "192.168.64.1", 8080, userEnv, true)
 }
 
 // The document is whole and resolved: every address a literal, each union the
@@ -116,12 +116,6 @@ func TestLibrarianDocumentIsResolved(t *testing.T) {
 	}
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
 		t.Errorf("archivist = %+v, want where this start places the Archivist", doc.Archivist)
-	}
-	if store := stateStores["state"]; doc.StateHome != store.mounts[0].target {
-		t.Errorf("stateHome = %q, want the path the launcher mounts the state volume onto, %q", doc.StateHome, store.mounts[0].target)
-	}
-	if doc.KbName != "test-kb" {
-		t.Errorf("kbName = %q, want the knowledge base's name", doc.KbName)
 	}
 	wantGraph := semiont.Neo4jGraphConfig{
 		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
@@ -202,7 +196,7 @@ func TestLibrarianDocumentSharesTheWeaversGraphAndTheSmeltersIndex(t *testing.T)
 			config = librarianConfig("graph", "platform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"semiont\"\ndatabase = \"kb\"\npassword = \"${GRAPH_PASSWORD}\"\n")
 		}
 		env := envFrom(t, config)
-		librarian, err := librarianDocument(env, "local", "test-kb", "container", "192.168.64.1", 8080, nil, graphRun)
+		librarian, err := librarianDocument(env, "local", "container", "192.168.64.1", 8080, nil, graphRun)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +234,7 @@ func TestLibrarianDocumentNamesItsSecretsAndNeverStatesThem(t *testing.T) {
 	config := librarianConfig("graph", "platform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"semiont\"\ndatabase = \"kb\"\npassword = \"${GRAPH_PASSWORD}\"\n")
 	config = withSection(config, "embedding", "type = \"voyage\"\nmodel = \"voyage-3\"\napiKey = \"${VOYAGE_API_KEY}\"\n")
 	env := envFrom(t, config)
-	b, err := librarianDocument(env, "local", "test-kb", "container", "192.168.64.1", 8080,
+	b, err := librarianDocument(env, "local", "container", "192.168.64.1", 8080,
 		[]string{"--env", "GRAPH_PASSWORD=graph-secret", "--env", "VOYAGE_API_KEY=voyage-secret", "--env", "ANTHROPIC_API_KEY=model-secret"}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -381,7 +375,7 @@ func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 		{"a gather that waits no time", librarianConfig("make-meaning.gather", "settleTimeoutMs = 0\n"), true, "make-meaning.gather.settleTimeoutMs"},
 		{"a floor above every similarity", librarianConfig("make-meaning.search", "semanticFloor = 1.5\n"), true, "make-meaning.search.semanticFloor"},
 	} {
-		_, err := librarianDocument(envFrom(t, c.config), "local", "test-kb", "container", "192.168.64.1", 8080, nil, c.graphRun)
+		_, err := librarianDocument(envFrom(t, c.config), "local", "container", "192.168.64.1", 8080, nil, c.graphRun)
 		if err == nil || !strings.Contains(err.Error(), c.names) {
 			t.Errorf("%s: err = %v, want a refusal naming %q", c.why, err, c.names)
 		}
@@ -389,36 +383,28 @@ func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 			t.Errorf("%s: the refusal repeats the secret: %v", c.why, err)
 		}
 	}
-	if _, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "", "container", "192.168.64.1", 8080, nil, true); err == nil || !strings.Contains(err.Error(), "name") {
-		t.Errorf("a knowledge base with no name: err = %v, want a refusal", err)
-	}
 }
 
 // The launcher mounts the document where the image's command points --config
-// (TestConfigDocumentsAreWhereTheImagesLook), and the state volume where the
-// document says it is. It hands the Librarian nothing else: no copy of the
-// KB's config, no path, and no *_HOST variables, because the document already
-// carries every address, the state volume's directory and the knowledge
-// base's name. Its health port is the descriptor's, which the document
-// carries, the launcher publishes and the image probes.
+// (TestConfigDocumentsAreWhereTheImagesLook). It hands the Librarian nothing
+// else: no copy of the KB's config, no path, and no *_HOST variables, because
+// the document already carries every address. Its health port is the
+// descriptor's, which the document carries, the launcher publishes and the
+// image probes.
 func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "librarian", "Dockerfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "test-kb", "container", "1.2.3.4", 8080, nil, true)
+	b, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "container", "1.2.3.4", 8080, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	doc := librarianDocumentFrom(t, b)
 
-	args := strings.Join(librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil,
-		"-v", "/state/state:"+stateStores["state"].mounts[0].target), " ")
+	args := strings.Join(librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil), " ")
 	if want := "/stage/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Librarian's document is not mounted onto %s:\n%s", librarianDocumentTarget, args)
-	}
-	if want := "-v /state/state:" + doc.StateHome + " "; !strings.Contains(args, want) {
-		t.Errorf("the state volume is not mounted onto %s, where the Librarian's document says it is:\n%s", doc.StateHome, args)
 	}
 	for _, unread := range []string{"GATEWAY_HOST", "NEO4J_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", "XDG_STATE_HOME", "JWT_SECRET", ".semiontconfig", ".toml"} {
 		if strings.Contains(args, unread) {

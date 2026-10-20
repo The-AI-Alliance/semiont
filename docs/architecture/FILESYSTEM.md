@@ -22,13 +22,15 @@ Only the Archivist mounts the working tree. Every other service reaches content 
 ```
 
 The state dir is `<stateHome>/semiont/<the knowledge base's name>/`. `stateHome` is a member of the
-configuration document of each service that reaches the state tree, the Archivist and the
-Librarian, and has no default: a path nothing mounted would be written to and lost. The launcher
-writes it as the mount it gives the service.
+Archivist's configuration document, and has no default: a path nothing mounted would be written to
+and lost. The launcher writes it as the mount it gives the Archivist, the one service that reaches
+the state tree; every other service reads what it holds of the Archivist, on the bus or over its
+HTTP surface.
 
 On the machine that runs the stack, that mount and every other store (the database, the graph, the
-vectors, the job queue, the anchored text) are directories the launcher keeps for the knowledge
-base. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
+vectors, the job queue, the anchored text, and the supervisor's log of the gateway and of the
+Librarian) are directories the launcher keeps for the knowledge base. Each is mounted into one
+container: two containers sharing a directory can each see a file at a different length. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
 says where, on each system, and `semiont status --verbose` lists them with what each takes on disk.
 The full layout of the log and the views is
 [specified with the Archivist](../protocol/ARCHIVIST.md).

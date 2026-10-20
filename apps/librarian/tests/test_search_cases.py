@@ -8,9 +8,9 @@ through `search_resources`, and a `preview` case through `with_previews`.
 Each store of a `search` case answers what the case states, and keeps what
 it was asked. A store the case does not state fails when it is asked, and
 what each store was asked is compared with what the case states it is asked:
-a search that asks more, or less, fails. The graph, the views and the
+a search that asks more, or less, fails. The graph, the record and the
 embedding provider are stores of this file's own, since a case states them
-resource by resource and vector by vector.
+resource by resource and vector by vector. The record answers a case's views.
 
 A member of the table or of a case that nothing here reads fails.
 
@@ -29,8 +29,8 @@ from typing import Final, final, override
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, LOVELACE, FakeContent, FakeEmbedding, FakeGraph, FakePeople, FakeVectors, FakeViews, described, view
-from semiont.identifiers import ResourceId
+from rig import ADA, ADA_ID, LOVELACE, FakeContent, FakeEmbedding, FakeGraph, FakePeople, FakeRecord, FakeVectors, described, view
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
 from semiont.types import (
     Annotation,
@@ -47,7 +47,7 @@ from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions,
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, whole, why
 
 from semiont_librarian.limit import LimitRefused
-from semiont_librarian.reads import GraphReads, PeopleUnread, Views
+from semiont_librarian.reads import Described, GraphReads, PeopleUnread, Record
 from semiont_librarian.text_search import Page, answer, search_resources, with_previews
 
 TABLE = read(ROOT / "specs/src/librarian/search-cases.json")
@@ -156,15 +156,15 @@ class StatedGraph(GraphReads):
 
 
 @final
-class StatedViews(Views):
-    """The views of a case: what they answer for each resource read back that states a view. `asked` is every resource asked for."""
+class StatedRecord(Record):
+    """The record of a case: what it answers for each resource read back that states a view. `asked` is every resource asked for."""
 
     def __init__(self, hydrated: Sequence[JsonObject]) -> None:
         self._views: Final = {text(entry["resource"], "resource"): thing(entry["view"], "view") for entry in hydrated if "view" in entry}
         self.asked: Final[list[str]] = []
 
     @override
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
+    async def described(self, resource_id: ResourceId) -> Described | None:
         self.asked.append(resource_id)
         await asyncio.sleep(0)
         stated = self._views.get(resource_id)
@@ -172,7 +172,14 @@ class StatedViews(Views):
             raise Unstated(f"the view of {resource_id}")
         if fails(stated, f"the view of {resource_id}"):
             raise Fails(f"the view of {resource_id} fails")
-        return None if stated["answers"] is None else ResourceView.model_validate(stated["answers"])
+        if stated["answers"] is None:
+            return None
+        held = ResourceView.model_validate(stated["answers"])
+        return Described(resource=held.resource, last_sequence=held.last_sequence)
+
+    @override
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        raise Unstated(f"the annotation {annotation_id} of {resource_id}")
 
 
 def vector_of(stated: JsonValue, what: str) -> list[float]:
@@ -282,12 +289,12 @@ def test_a_search_asks_each_store_what_the_table_states_and_answers_its_page(cas
     embedded = thing(case["embedding"], "embedding") if "embedding" in case else None
     indexed = thing(case["index"], "index") if "index" in case else None
 
-    graph, views = StatedGraph(listing, hydrated), StatedViews(hydrated)
+    graph, record = StatedGraph(listing, hydrated), StatedRecord(hydrated)
     embedding, index = StatedEmbedding(embedded), index_of(indexed)
     searching = search_resources(
         MatchResourcesRequest.model_validate(case["filters"]),
         graph=graph,
-        views=views,
+        record=record,
         vectors=index,
         embedding=embedding,
         semantic_floor=number(case["semanticFloor"], "semanticFloor"),
@@ -319,7 +326,7 @@ def test_a_search_asks_each_store_what_the_table_states_and_answers_its_page(cas
         options = SearchOptions(limit=whole(asked["limit"], "limit"), filter=kept_to)
         assert index.asked == [("search_resources", vector_of(asked["embedding"], "embedding"), options)]
     assert graph.read == [text(entry["resource"], "resource") for entry in hydrated]
-    assert views.asked == [text(entry["resource"], "resource") for entry in hydrated if "view" in entry]
+    assert record.asked == [text(entry["resource"], "resource") for entry in hydrated if "view" in entry]
 
 
 @pytest.mark.parametrize("case", PREVIEWS, ids=[why(case) for case in PREVIEWS])
@@ -356,18 +363,18 @@ class Stores:
     """The stores a search is handed: each a fake of the rig, holding what a test puts in it."""
 
     graph: FakeGraph
-    views: FakeViews
+    record: FakeRecord
     vectors: FakeVectors
     embedding: FakeEmbedding
     content: FakeContent
     people: FakePeople
 
 
-def stores(*views: ResourceView, lists: ResourceListing) -> Stores:
-    """Stores whose graph answers every listing with `lists`, whose views are `views`, and in whose projection Ada has a profile."""
+def stores(*held: ResourceView, lists: ResourceListing) -> Stores:
+    """Stores whose graph answers every listing with `lists`, whose record holds `held`, and in which Ada has a profile."""
     graph = FakeGraph()
     graph.listing = lambda _: lists
-    return Stores(graph, FakeViews(*views), FakeVectors(), FakeEmbedding(), FakeContent(), FakePeople(LOVELACE))
+    return Stores(graph, FakeRecord(*held), FakeVectors(), FakeEmbedding(), FakeContent(), FakePeople(LOVELACE))
 
 
 def nothing_listed() -> ResourceListing:
@@ -377,7 +384,9 @@ def nothing_listed() -> ResourceListing:
 
 def page_of(request: MatchResourcesRequest, at: Stores, *, floor: float = 0.5) -> Page:
     """The page a search answers from `at`."""
-    return run(search_resources(request, graph=at.graph, views=at.views, vectors=at.vectors, embedding=at.embedding, semantic_floor=floor))
+    return run(
+        search_resources(request, graph=at.graph, record=at.record, vectors=at.vectors, embedding=at.embedding, semantic_floor=floor)
+    )
 
 
 def reply_to(request: MatchResourcesRequest, at: Stores) -> MatchResourcesResult:
@@ -386,7 +395,7 @@ def reply_to(request: MatchResourcesRequest, at: Stores) -> MatchResourcesResult
         answer(
             request,
             graph=at.graph,
-            views=at.views,
+            record=at.record,
             vectors=at.vectors,
             embedding=at.embedding,
             semantic_floor=0.5,
@@ -414,7 +423,7 @@ def test_the_reply_to_a_lexical_search_has_previews_the_offset_and_the_limit_and
     assert resource["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
     assert at.graph.asked_of("list_resources") == [ResourceQuery(search="hawk", offset=0, limit=50)]
     assert at.content.asked == [R1]
-    assert at.people.reads == 1
+    assert at.people.asked == [[ADA_ID]]
     assert at.embedding.asked == []
     assert at.vectors.asked == []
 
@@ -464,12 +473,12 @@ def test_the_reply_to_a_semantic_search_keeps_each_passage_and_reads_no_bytes_an
     assert resource["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
     assert at.content.asked == []
     assert at.embedding.asked == ["ouranos"]
-    assert at.people.reads == 1
+    assert at.people.asked == [[ADA_ID]]
 
 
-def test_a_reply_is_sent_with_no_one_named_where_the_projection_cannot_be_read(caplog: pytest.LogCaptureFixture) -> None:
+def test_a_reply_is_sent_with_no_one_named_where_its_people_cannot_be_read(caplog: pytest.LogCaptureFixture) -> None:
     at = stores(lists=ResourceListing(resources=[described(R1, wasAttributedTo=[ADA])], total=1))
-    at.people.failing = PeopleUnread("people.json is not a people projection that can be read")
+    at.people.failing = PeopleUnread("the Archivist did not answer")
     with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
         response = reply_to(MatchResourcesRequest(search="hawk"), at).response
     (resource,) = in_wire_words(response.resources)
@@ -477,12 +486,12 @@ def test_a_reply_is_sent_with_no_one_named_where_the_projection_cannot_be_read(c
     assert len(lines(caplog, logging.WARNING)) == 1
 
 
-def test_a_graph_that_fails_to_list_fails_the_request_and_the_projection_is_not_read() -> None:
+def test_a_graph_that_fails_to_list_fails_the_request_and_no_one_is_asked_after() -> None:
     at = stores(lists=nothing_listed())
     at.graph.failing["list_resources"] = Fails("the graph is away")
     with pytest.raises(Fails, match=r"the graph is away"):
         reply_to(MatchResourcesRequest(search="hawk"), at)
-    assert at.people.reads == 0
+    assert at.people.asked == []
     assert at.embedding.asked == []
 
 
@@ -565,6 +574,6 @@ def test_a_resource_read_from_its_view_is_on_the_page_as_the_view_holds_it_and_h
     with caplog.at_level(logging.INFO, logger="semiont_librarian"):
         (resource,) = in_wire_words(page_of(MatchResourcesRequest(search="ouranos"), at).resources)
     assert (resource["name"], resource["content"]) == ("As the view holds it", "a passage of a")
-    assert at.views.asked == [R1]
+    assert at.record.asked == [R1]
     lagged = [(said["msg"], said["count"]) for said in lines(caplog, logging.INFO)]
     assert lagged == [("[graph lag] text search hits hydrated from view", 1)]

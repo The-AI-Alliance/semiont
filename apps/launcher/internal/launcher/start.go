@@ -681,8 +681,8 @@ const kbMountTarget = "/kb"
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
 // the KB's committed identity, the addresses, the issuer — mounted at the
 // path its image passes to `--config`. Resolved means no ${VAR} is left for
-// it to expand, so it is handed no *_HOST variable. What is left is that document, the state mount its supervisor keeps its
-// events on, its secrets, and the user's variables (the document names its
+// it to expand, so it is handed no *_HOST variable. What is left is that document, its own store, where its supervisor keeps its
+// events, its secrets, and the user's variables (the document names its
 // broker credentials by variable).
 //
 // jwt is the token-signing key — gateway-only, deliberately handed to no
@@ -695,7 +695,7 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version, mem string, port i
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":" + gatewayDocumentTarget + ":ro"}
 	// The gateway writes nothing to disk; supervise.sh keeps its events log on
-	// the state mount so a death record outlives the container.
+	// its store so a death record outlives the container.
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -750,13 +750,12 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version, mem st
 
 // librarianArgs: the Librarian answers search, match and gather. It reads
 // everything and writes nothing durable, and its mounts say so: no piece of
-// the knowledge base, just the shared state tree flowLibrarian passes as
-// state, as a reader of the views the Archivist writes there. The gateway is
-// its route to the bus, and the Archivist its route to a resource's bytes. It
-// reads a resolved configuration document (librariandoc.go) at the path its
-// image passes to `--config`, so it is handed no *_HOST variables, no path and
-// no copy of the KB's config: the document carries every address, the state
-// volume's directory and the knowledge base's name already, and names the
+// the knowledge base, just its own store flowLibrarian passes as state, where
+// its supervisor keeps its events. The gateway is its route to the bus, and
+// the Archivist its route to a resource's bytes. It reads a resolved
+// configuration document (librariandoc.go) at the path its image passes to
+// `--config`, so it is handed no *_HOST variables, no path and no copy of the
+// KB's config: the document carries every address already, and names the
 // variables holding the graph database's password, the embedding provider's
 // key and each model provider's key (librarianNamedVars, and the launcher's
 // own for a Neo4j it runs), which arrive among the user's. It keeps the

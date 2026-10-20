@@ -38,8 +38,6 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
     "archivist": {"host": "127.0.0.1", "port": 1},
-    "stateHome": "/tmp/semiont/state",
-    "kbName": "a-knowledge-base",
     "graph": NEO4J,
     "vectors": QDRANT,
     "embedding": OLLAMA,
@@ -81,7 +79,7 @@ def test_the_service_is_called_the_librarian() -> None:
 
 def test_a_document_that_states_everything_is_read_as_it_is(tmp_path: Path) -> None:
     config = read_librarian_config(written(tmp_path))
-    assert config.kb_name == "a-knowledge-base"
+    assert config.gateway_url == "http://127.0.0.1:1"
     assert config.gather.settle_timeout_ms == 15000
     assert config.search.semantic_floor == 0.6
     assert config.port == 24104

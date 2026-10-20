@@ -18,9 +18,9 @@ from rig import (
     FakeDegraded,
     FakeGraph,
     FakeInference,
+    FakeRecord,
     FakeSmelt,
     FakeVectors,
-    FakeViews,
     FakeWeave,
     described,
     link,
@@ -90,7 +90,7 @@ def options(
 
 @final
 class World:
-    """What one gather is handed: a fake of each thing it reads by, over the views a test states.
+    """What one gather is handed: a fake of each thing it reads by, over the record a test states.
 
     The index finds nothing like the quay, and the Smelter is signalled to
     have skipped its bytes, where a test states no other: a gather then
@@ -98,7 +98,7 @@ class World:
     """
 
     def __init__(self, *held: ResourceView) -> None:
-        self.views: Final = FakeViews(*held)
+        self.record: Final = FakeRecord(*held)
         self.content: Final = FakeContent()
         self.anchored: Final = FakeAnchoredText()
         self.graph: Final = FakeGraph()
@@ -121,7 +121,7 @@ class World:
         """The context gathered around the quay."""
         return await gather(
             GatherResourceRequest(resource_id=QUAY, options=asked),
-            views=self.views,
+            record=self.record,
             content=self.content,
             anchored=self.anchored,
             graph=self.graph,
@@ -213,7 +213,7 @@ def test_a_depth_less_than_1_or_more_than_3_fails_the_gather_and_nothing_is_read
         with pytest.raises(DepthRefused, match=r"depth must be between 1 and 3"):
             await world.gathered(asked)
 
-        assert world.views.asked == []
+        assert world.record.asked == []
         assert world.content.asked == []
         assert world.graph.asked == []
         assert world.vectors.asked == []
@@ -391,7 +391,7 @@ def test_a_model_that_fails_leaves_the_context_with_neither_and_the_gather_is_co
 def test_what_is_like_the_resource_is_named_by_its_view_and_states_the_entity_types_excluded() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.views.held[COPY] = view(described(COPY, name="The quay, copied"))
+        world.record.held[COPY] = view(described(COPY, name="The quay, copied"))
         world.vectors.stated["search_by_resource"] = [
             VectorSearchResult(score=0.97, resource_id=COPY, text=TEXT),
             # A match whose resource has no view names nothing, and is left out.
@@ -414,7 +414,7 @@ def test_what_is_like_the_resource_is_named_by_its_view_and_states_the_entity_ty
 def test_matches_with_no_entity_types_excluded_state_none_excluded() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.views.held[COPY] = view(described(COPY, name="The quay, copied"))
+        world.record.held[COPY] = view(described(COPY, name="The quay, copied"))
         of_a_place = VectorSearchResult(score=0.97, resource_id=COPY, text=TEXT, entity_types=("Place",))
         world.vectors.stated["search_by_resource"] = [of_a_place]
 
@@ -435,7 +435,7 @@ def test_matches_with_no_entity_types_excluded_state_none_excluded() -> None:
 def test_an_index_with_nothing_of_the_resource_is_asked_again_once_the_smelter_has_indexed_its_bytes() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()
-        world.views.held[COPY] = view(described(COPY, name="The quay, copied"))
+        world.record.held[COPY] = view(described(COPY, name="The quay, copied"))
         world.smelt.settled[(QUAY, CHECKSUM)] = "indexed"
 
         def indexed() -> None:
@@ -631,7 +631,7 @@ def test_a_related_resource_whose_view_cannot_be_read_is_left_out_and_the_others
         quay = stored(QUAY, "The quay", checksum=CHECKSUM)
         ferry, tides = stored(FERRY, "The ferry"), stored(TIDES, "The tides")
         world = World(view(quay), view(ferry), view(tides))
-        world.views.unread.add(FERRY)
+        world.record.unread.add(FERRY)
         world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
         world.content.held[TIDES] = Content(b"High water at noon.", "text/plain")
         world.weave_in(quay, ferry, tides)
@@ -656,7 +656,7 @@ def test_a_citing_resource_that_is_a_node_already_is_not_read_again_and_one_whos
         quay = stored(QUAY, "The quay", checksum=CHECKSUM)
         ferry, tides = stored(FERRY, "The ferry"), stored(TIDES, "The tides")
         world = World(view(quay), view(ferry), view(tides))
-        world.views.unread.add(TIDES)
+        world.record.unread.add(TIDES)
         world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
         # The quay links to the ferry, and the ferry and the tides each cite the quay.
         world.weave_in(quay, ferry)
@@ -667,6 +667,6 @@ def test_a_citing_resource_that_is_a_node_already_is_not_read_again_and_one_whos
         labels = {node.id: node.label for node in context.graph.nodes if node.id in (FERRY, TIDES)}
         assert labels == {FERRY: "The ferry", TIDES: TIDES}
         # The ferry's view is read once, as a related resource. The tides' is asked for as a citing resource, and again as a related one.
-        assert world.views.asked == [QUAY, TIDES, FERRY, TIDES]
+        assert world.record.asked == [QUAY, TIDES, FERRY, TIDES]
 
     run(scenario())

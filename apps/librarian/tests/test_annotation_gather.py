@@ -18,8 +18,8 @@ from rig import (
     FakeEmbedding,
     FakeGraph,
     FakeInference,
+    FakeRecord,
     FakeVectors,
-    FakeViews,
     FakeWeave,
     described,
     link,
@@ -67,10 +67,10 @@ def at(start: int, end: int) -> JsonObject:
 
 @final
 class World:
-    """What one gather is handed: a fake of each thing it reads by, over the views a test states."""
+    """What one gather is handed: a fake of each thing it reads by, over the record a test states."""
 
     def __init__(self, *held: ResourceView) -> None:
-        self.views: Final = FakeViews(*held)
+        self.record: Final = FakeRecord(*held)
         self.content: Final = FakeContent()
         self.anchored: Final = FakeAnchoredText()
         self.graph: Final = FakeGraph()
@@ -93,7 +93,7 @@ class World:
         """The context gathered around the reference to Zeus."""
         return await gather(
             GatherAnnotationRequest(annotation_id=REFERENCE, resource_id=MYTHS, options=options),
-            views=self.views,
+            record=self.record,
             content=self.content,
             anchored=self.anchored,
             graph=self.graph,
@@ -184,7 +184,7 @@ def test_a_window_less_than_100_or_more_than_5000_fails_the_gather_and_nothing_i
         asked = GatherAnnotationOptions.model_construct(context_window=window)
         with pytest.raises(WindowRefused, match=r"contextWindow must be between 100 and 5000"):
             await world.gathered(asked)
-        assert world.views.asked == []
+        assert world.record.asked == []
         assert world.content.asked == []
         assert world.graph.asked == []
         assert world.inference.asked == []
@@ -364,7 +364,7 @@ def test_a_linked_resource_whose_view_cannot_be_read_is_no_target_and_the_gather
         myths = stored(MYTHS, "Greek Myths")
         zeus = reference(REFERENCE, MYTHS, link(THEOGONY), target=at(START, END))
         world = World(view(myths, zeus), view(stored(THEOGONY, "Theogony")))
-        world.views.unread.add(THEOGONY)
+        world.record.unread.add(THEOGONY)
         world.content.held[MYTHS] = Content(TEXT.encode(), "text/plain")
         world.weave_in(myths, zeus)
 
@@ -381,9 +381,9 @@ def test_a_linked_resource_whose_view_cannot_be_read_is_no_target_and_the_gather
 def test_a_similar_annotation_whose_view_cannot_be_read_is_left_out_and_the_others_are_stated() -> None:
     async def scenario() -> None:
         world = a_world_of_the_myths()
-        world.views.held[THEOGONY] = view(described(THEOGONY, name="Theogony"))
-        world.views.held[OLYMPUS] = view(described(OLYMPUS, name="Mount Olympus"))
-        world.views.unread.add(OLYMPUS)
+        world.record.held[THEOGONY] = view(described(THEOGONY, name="Theogony"))
+        world.record.held[OLYMPUS] = view(described(OLYMPUS, name="Mount Olympus"))
+        world.record.unread.add(OLYMPUS)
         world.vectors.stated["search_annotations"] = [
             VectorSearchResult(score=0.9, resource_id=OLYMPUS, text="the mountain"),
             VectorSearchResult(score=0.8, resource_id=THEOGONY, text="the thunderer"),
@@ -427,7 +427,7 @@ def test_a_link_to_a_resource_with_no_view_gives_no_target() -> None:
 
         assert "targetResource" not in focus
         assert "targetContext" not in focus
-        assert world.views.asked[:2] == [MYTHS, THEOGONY]
+        assert world.record.asked[:2] == [MYTHS, THEOGONY]
 
     run(scenario())
 
