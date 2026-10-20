@@ -446,7 +446,7 @@ async fn admitted_json(
     surface: &Surface,
     request: Request,
     limit: usize,
-) -> Result<Value, Response> {
+) -> Result<Value, Box<Response>> {
     let (parts, body) = request.into_parts();
     let declared = parts
         .headers
@@ -454,17 +454,17 @@ async fn admitted_json(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
     if declared.is_some_and(|length| length > limit as u64) {
-        return Err(too_large(limit));
+        return Err(Box::new(too_large(limit)));
     }
     // Past the limit, or cut off: either way no body of at most `limit` bytes arrived.
     let bytes = axum::body::to_bytes(body, limit).await;
     if let Some(refusal) = refusal(surface, &parts.headers).await {
-        return Err(refusal);
+        return Err(Box::new(refusal));
     }
     let Ok(bytes) = bytes else {
-        return Err(too_large(limit));
+        return Err(Box::new(too_large(limit)));
     };
-    serde_json::from_slice(&bytes).map_err(|_| bad("The body is not JSON"))
+    serde_json::from_slice(&bytes).map_err(|_| Box::new(bad("The body is not JSON")))
 }
 
 fn too_large(limit: usize) -> Response {
@@ -489,7 +489,7 @@ async fn store_anchored_text(
 ) -> Response {
     let write = match admitted_json(&surface, request, surface.limits.anchored_text).await {
         Ok(write) => write,
-        Err(answer) => return answer,
+        Err(answer) => return *answer,
     };
     if let Some(problems) = semiont_core::spec::problems("AnchoredTextWrite", &write) {
         return bad(format!("The body is no AnchoredTextWrite: {problems}"));
@@ -588,7 +588,7 @@ async fn anchored_text_keys(State(surface): Shared, headers: HeaderMap) -> Respo
 async fn state_anchored_text_stamp(State(surface): Shared, request: Request) -> Response {
     let stated = match admitted_json(&surface, request, surface.limits.stamp).await {
         Ok(stated) => stated,
-        Err(answer) => return answer,
+        Err(answer) => return *answer,
     };
     if let Some(problems) = semiont_core::spec::problems("AnchoredTextStamp", &stated) {
         return bad(format!("The body is no AnchoredTextStamp: {problems}"));
@@ -621,7 +621,7 @@ pub fn router(surface: Arc<Surface>) -> Router {
         )
         .route("/anchored-text/entries", get(anchored_text_keys))
         .route(
-            "/anchored-text/entries/{checksum}",
+            "/resources/{id}/anchored-text/stored",
             get(stored_anchored_text),
         )
         .route("/anchored-text/stamp", put(state_anchored_text_stamp))
