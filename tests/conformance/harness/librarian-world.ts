@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
-import type { components, EventMap } from '@semiont/core';
+import type { Annotation, components, EventMap, ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, sha256, unstamped, type BusClient } from './archivist-world';
 import {
   refusedLibrarianBoot,
@@ -427,6 +427,18 @@ export class LibrarianWorld {
       this.people.set(sub, who);
     }
     return who;
+  }
+
+  /** A resource as the Archivist answers `browse:resource-requested` for it: its description, its people named. */
+  async described(resourceId: string): Promise<ResourceDescriptor> {
+    const reader = await this.person(PERSON);
+    return (await reader.ask('browse:resource-requested', { resourceId }))['resource'] as ResourceDescriptor;
+  }
+
+  /** An annotation as the Archivist answers `browse:annotation-requested` for it, its people named. */
+  async annotated(resourceId: string, annotationId: string): Promise<Annotation> {
+    const reader = await this.person(PERSON);
+    return (await reader.ask('browse:annotation-requested', { resourceId, annotationId }))['annotation'] as Annotation;
   }
 
   /** The DID a person is named by: who a reply says made a thing. */

@@ -793,8 +793,10 @@ profiles of the people a reader names (`browse:people-requested`).
   is sent with no one named.**
   *Held by `apps/librarian/tests/test_naming_cases.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_referenced_by.py`.*
 - **The replies to the two gathers, to a summary, to what refers to a
-  resource and to the two limits requests are not named:** what refers to a
-  resource names no person. *Held by no case.*
+  resource and to the two limits requests are not named here:** what refers
+  to a resource names no person, and a gather's resources and annotations are
+  as the Archivist answers them, which has named their people already.
+  *Held by `librarian/gather`, for a gather's resources and annotations.*
 
 ## What a failed read does
 
