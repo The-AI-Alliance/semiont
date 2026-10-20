@@ -80,7 +80,7 @@ Reading the diagram:
 - **Dotted edges are identity, and they come first.** Nobody reaches the gateway without visiting the issuer. People and SDK clients sign in there. Every service obtains its own service-account token there, then exchanges it at `POST /api/tokens/agent` for the agent identity its work is attributed to. The gateway verifies each bearer against the issuer's published keys and keeps no account of its own.
 - **Bidirectional edges are the bus**: `POST /bus/emit`, and `POST /bus/subscribe` as Server-Sent Events. The gateway hosts no actors. Every service subscribes over those two endpoints like any other participant, and each rectangle names what runs inside it.
 - **The blue rectangles are the bus's clients**, and each speaks an SDK — TypeScript (`@semiont/sdk`), Rust (`semiont`) or Go: the Browser in a person's web browser, and the same client without a UI for ingestion, curation and agentic workflows. The `semiont` launcher's verbs and the MCP server are two of them.
-- **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for its clients, the workers among them, and reads from the archivist the events a reconnecting stream missed. The smelter and the librarian dial the archivist directly for bytes.
+- **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for its clients, the workers among them, and reads from the archivist the events a reconnecting stream missed. The smelter dials the archivist directly for bytes, for a resource's annotations and to keep the anchored-text store, and the librarian for bytes.
 - **The dispatcher has no edge to the archivist.** Job ids, types, parameters and status flow through it, and content never does. A worker claims a job there, then reads bytes on the gateway and writes annotations through the bus.
 - **`semiont-browser` only serves static files.** The app runs in the person's web browser and connects to gateways from there, so the container needs no config and no connection of its own.
 
@@ -139,10 +139,8 @@ graph TB
     end
 
     ARCH -->|rw| TREE
-    ARCH --> VIEWS
-    LIB -->|ro| VIEWS
-    SMELT --> ANCH
-    ARCH -->|ro| ANCH
+    ARCH -->|rw| VIEWS
+    ARCH -->|rw| ANCH
     GW -->|signal plane| NATS
     DISP -->|JetStream| NATS
     NATS -->|rw — sole owner: dispatcher| JS
@@ -215,16 +213,18 @@ The partition is why the gateway stays responsive: keeping the record, retrieval
 
 ### Who mounts what
 
-The second diagram draws the mounts; this table states the rule. Exactly one container mounts the knowledge base's tree, which a launcher test holds, and every other byte crosses HTTP or the bus. A store that two services share has one owner, the stamp holder: when the owner's image changes, the launcher clears the store and the owner rebuilds it.
+The second diagram draws the mounts; this table states the rule. Every store is mounted into one container, which a launcher test holds, and every other byte crosses HTTP or the bus: two containers sharing a directory can each see a file at a different length. When the image of a store's owner changes, the launcher clears a store that image stamps, and the owner rebuilds it.
 
 | Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
-| archivist | **rw — sole owner** | read | **stamp holder** — writes views |
+| archivist | **rw — sole owner** | **rw — sole owner**: writes what the smelter stores on its HTTP surface | **rw — sole owner, stamp holder**: writes views |
 | gateway | — | — | — (its signal tables are JetStream on `semiont-nats`, not a mount) |
 | dispatcher | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
-| librarian | — | — | shared — reads views |
-| smelter | — | **stamp holder** — writes | — |
+| librarian | — | — | — (reads what the record holds on the bus) |
+| smelter | — | — (keeps its entries on the archivist's HTTP surface) | — |
 | worker · weaver · browser | — | — | — |
+
+The gateway and the librarian each mount one more store of their own, for their supervisor's events log.
 
 Every service but the Browser also mounts its own configuration document, read-only. Each infrastructure container has a data directory of its own.
 
