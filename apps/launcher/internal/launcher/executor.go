@@ -1538,7 +1538,11 @@ func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
 }
 
 func (x *planExec) stateMountsShared(role, root string) ([]string, bool) {
-	x.c("mount %s state (shared; the stamp stays with its owning service)", role)
+	if stateStores[role].unstamped {
+		x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
+	} else {
+		x.c("mount %s state (shared; the stamp stays with its owning service)", role)
+	}
 	return stateMountArgs(role, root), true
 }
 
