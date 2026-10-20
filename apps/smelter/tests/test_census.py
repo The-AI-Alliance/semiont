@@ -262,8 +262,9 @@ def test_it_writes_the_index_and_the_store_and_says_three_things_and_nothing_els
     assert naming(".emit(") == ["smelter.py"]
     emitted = sorted(set(re.findall(r"\.emit\(\s*(\w+)", source)))
     assert emitted == ["SMELT_REBUILD_ANCHORS_FAILED", "SMELT_REBUILD_ANCHORS_OK", "SMELT_SETTLED"]
-    # What it asks of the record, it asks in one module, and the catalog through the package every service reads it by.
-    assert naming(".request(") == ["record.py"]
+    # What it asks of the record on the bus, it asks in one module, and the catalog through the package every service
+    # reads it by. What it asks of the anchored-text store, on the Archivist's surface, the store asks.
+    assert naming(".request(") == ["anchored_text_store.py", "record.py"]
     asked = sorted(set(re.findall(r"\.request\(\s*(\w+)", (SRC / "record.py").read_text(encoding="utf-8"))))
     assert asked == ["BROWSE_ANNOTATIONS_REQUESTED", "BROWSE_RESOURCE_REQUESTED"]
     assert naming("from semiont_service import catalog") == ["record.py"]
