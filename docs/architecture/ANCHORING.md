@@ -152,7 +152,7 @@ is re-recognized six times.
 
 The store holds derived values only — every entry is reproducible from the
 resource's bytes — which is what makes a version-stamp miss safe. The stamp is
-read from what is installed (the Smelter's version, PDFium's and its binding's,
+read from what is installed (PDFium's and its binding's,
 the `tesseract` program's, and a digest of its language data), never
 hand-maintained: over-invalidating costs a recomputation, under-invalidating
 serves geometry built by different code.

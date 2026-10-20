@@ -136,8 +136,8 @@ starts.
 takes out the images its pages paint; it arrives inside the `pypdfium2` package. The
 `tesseract` program, with its English data, reads those images: a page with no text of its
 own is read from its pixels. Neither reaches the network. The stamp every anchored-text entry
-is written under names the Smelter's version and both engines', so an entry derived by other
-engines is derived again. No more PDFs are worked on at once than its document says
+is written under names both engines' versions and not the Smelter's, so an entry derived by
+other engines is derived again, and a release of the Smelter alone derives nothing again. No more PDFs are worked on at once than its document says
 (`pdfsAtOnce`), however many are waiting: a scanned page held in pixels, beside the `tesseract`
 process reading it, is what fills the Smelter's memory, and the rest of what it does goes on
 beside them. The launcher writes the number the environment states, and otherwise one for each

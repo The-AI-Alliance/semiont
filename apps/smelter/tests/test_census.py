@@ -332,9 +332,8 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
 
 def test_the_distribution_is_named_for_the_service() -> None:
     # Its telemetry is exported under its word for itself after `semiont-`, at the version of the distribution of
-    # that name (`semiont_service.observability`), and the stamp of its anchored-text entries states that version.
+    # that name (`semiont_service.observability`).
     assert table(MANIFEST["project"], "project")["name"] == f"semiont-{SERVICE}"
-    assert '_DISTRIBUTION: Final = "semiont-smelter"' in (SRC / "stamp.py").read_text(encoding="utf-8")
 
 
 def test_it_is_a_service_s_code_and_no_library() -> None:

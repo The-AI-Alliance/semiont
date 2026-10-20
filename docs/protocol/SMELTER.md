@@ -341,9 +341,10 @@ states what each kind of document becomes.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The writer states its stamp:** the store's directory holds a file,
   `STAMP`, with the stamp its entries carry, and a reader takes no entry
-  under another, nor one of another version of the entry's form. An entry
-  made by a Smelter that derives text another way is then a miss, and is
-  derived again.
+  under another, nor one of another version of the entry's form. The stamp
+  names the PDF reader and the OCR engine, and not the Smelter's version: an
+  entry made by another reader or engine is a miss, and is derived again; one
+  made by another release of the Smelter is not.
   *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 
 ## The index
@@ -670,7 +671,9 @@ it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
   A change to how a Smelter makes a point that is neither of those (where it
   cuts at a boundary, what it tells its provider a text is for, how it
   derives a document's text) is in no stamp, and an index made before such a
-  change is not made again.
+  change is not made again. Nor is an anchored-text entry: its stamp names
+  the reader and the engine, and a change in how the Smelter's own code
+  derives a text from what they read is in neither.
 - **Events it does not follow.** `yield:moved` and
   `yield:representation-removed` change a resource, and the index is not
   told of either as it happens.
