@@ -8,8 +8,9 @@ commanded on `smelt:rebuild-anchors`.
 
 It reaches four things, each handed to it: the index and the embedding
 provider (`semiont_vectors`), a resource's bytes (`semiont_service.content`),
-the anchored-text store, and everything else through the transport. It opens
-no file of the record and knows no address.
+the anchored-text store the Archivist keeps (`semiont_smelter.anchored_text_store`),
+and everything else through the transport. It opens no file and knows no
+address.
 
 **The order it works in.** Every frame the transport delivers is taken as it
 is delivered, whatever its channel. A resource's events are applied one at a
@@ -92,7 +93,7 @@ from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import AnnotationPayload, AnnotationStamp, Declined, EmbeddingChunk, VectorStore
 
-from semiont_smelter.anchored_text_store import AnchoredTextStore
+from semiont_smelter.anchored_text_store import AnchoredTexts, StoreFailed
 from semiont_smelter.chunking import Chunking, chunk_text
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.log import LOG, failure_said, words_of
@@ -270,7 +271,7 @@ class Smelter:
         provider: EmbeddingProvider,
         content: ContentReads,
         extractor: PdfExtractor,
-        anchored: AnchoredTextStore,
+        anchored: AnchoredTexts,
         transport: Transport,
         chunking: Chunking,
         pdfs_at_once: int,
@@ -569,7 +570,7 @@ class Smelter:
             case "pdf-text-layer":
                 if not in_turn:
                     return _OUTSIDE_TURN
-                derived = await self._derived(checksum, content)
+                derived = await self._derived(resource, checksum, content)
                 if isinstance(derived, ExtractionDeclined):
                     return _Declined(checksum, content.content_type, derived.declined)
                 if derived.ocr_confidence is not None and derived.ocr_confidence.low_confidence_words > 0:
@@ -597,21 +598,24 @@ class Smelter:
             return _Declined(checksum, content.content_type, "empty")
         return _Text(text, checksum, content.content_type, machine_read)
 
-    async def _derived(self, checksum: str, content: Content) -> ExtractionOutcome:
-        """What deriving a PDF's text comes to, for bytes of this checksum: the stored outcome where there is one, or derived and stored.
+    async def _derived(self, resource: ResourceId, checksum: str, content: Content) -> ExtractionOutcome:
+        """What deriving a PDF's text comes to, for a resource's bytes of this checksum: the stored outcome, or derived and stored.
 
         Bytes whose outcome is stored are not derived again, a decline no
         more than a text. An outcome that cannot be stored is still the
         outcome: the entry is found missing when the Smelter next starts.
         """
-        held = await self._anchored.read(checksum)
+        held = await self._anchored.read(resource, checksum)
         if held is not None:
             return held
         outcome = await self._extractor.extract(content.data)
         try:
-            await self._anchored.write(checksum, outcome)
-        except (OSError, ValueError) as failure:
-            LOG.warning("An anchored-text entry could not be written", extra={"contentChecksum": checksum, "error": words_of(failure)})
+            await self._anchored.write(resource, checksum, outcome)
+        except (StoreFailed, ValueError) as failure:
+            LOG.warning(
+                "An anchored-text entry could not be written",
+                extra={"resourceId": resource, "contentChecksum": checksum, "error": words_of(failure)},
+            )
         return outcome
 
     async def _settle(self, settled: SmeltSettled) -> None:
@@ -661,10 +665,10 @@ class Smelter:
                 )
                 return
             checksum = _checksum(content.data)
-            if await self._anchored.read(checksum) is not None:
+            if await self._anchored.read(resource, checksum) is not None:
                 return
             outcome = await self._extractor.extract(content.data)
-            await self._anchored.write(checksum, outcome)
+            await self._anchored.write(resource, checksum, outcome)
             LOG.info(
                 "Re-anchored resource",
                 extra={"resourceId": resource, "contentChecksum": checksum, "outcome": outcome.kind, "residentBytes": resident_bytes()},

@@ -41,7 +41,6 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "embedding": OLLAMA,
     "vectors": QDRANT,
     "chunking": {"chunkSize": 512, "overlap": 64},
-    "anchoredTextDir": "/tmp/semiont/anchored-text",
     "pdfsAtOnce": 1,
     "port": 24101,
     "logLevel": "warn",
@@ -124,7 +123,7 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
 
 def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no_value(tmp_path: Path) -> None:
     document: dict[str, JsonValue] = {
-        **without("anchoredTextDir"),
+        **without("pdfsAtOnce"),
         "port": "24101",
         "embedding": {"type": "voyage", "model": "voyage-3", "endpoint": "http://127.0.0.1:1/v1/embeddings", "apiKey": "hunter2"},
         "extra": 1,
@@ -136,7 +135,7 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
         [
             "  Missing required property: apiKeyEnv",
             "  embedding.voyage: unknown property apiKey",
-            "  Missing required property: anchoredTextDir",
+            "  Missing required property: pdfsAtOnce",
             "  port: Input should be a valid integer",
             "  root: unknown property extra",
         ]

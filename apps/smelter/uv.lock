@@ -1006,6 +1006,7 @@ dev = [
 name = "semiont-smelter"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "pypdfium2" },
     { name = "semiont" },
@@ -1024,6 +1025,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "pypdfium2", specifier = ">=5.14,<6" },
     { name = "semiont", editable = "../../packages/sdk-python" },

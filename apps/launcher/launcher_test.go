@@ -1267,9 +1267,8 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 // Unmounted it lives in the container and dies with it on every `stop`, and
 // the Smelter's reconcile re-derives every lost map on the next start.
 //
-// The container path is a constant — the Smelter's document and the
-// Archivist's each name it — so this mount looks like every other one: KB
-// identity on the host side only.
+// The container path is a constant — the Archivist's document names it — so
+// this mount looks like every other one: KB identity on the host side only.
 func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -1290,15 +1289,65 @@ func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	// the first boot did — so it is asserted against the first boot rather
 	// than against a hard-coded total.
 	//
-	// A literal count would encode fleet size, which is not what this test is
-	// about: the Smelter and the Archivist each mount the store, and a start
-	// with one mounter more or fewer is a correct state that should not make
-	// this test fail.
+	// A literal count would encode how many containers mount it, which is
+	// TestOnlyTheArchivistMountsTheAnchoredTextStore's question, not this one's.
 	if firstBoot == 0 {
 		t.Fatalf("anchored-text mount absent from the first boot")
 	}
 	if total := strings.Count(string(s.mustLog(t)), mount); total != firstBoot*2 {
 		t.Errorf("anchored-text mount did not survive the restart: %d on the first boot, %d across both", firstBoot, total)
+	}
+}
+
+// The anchored-text store is the Archivist's alone: the Smelter keeps its
+// entries on the Archivist's surface and mounts none of it. Two containers
+// sharing a host directory each keep their own view of a file's length under
+// Apple container, so a second mounter is a reader that can be handed a file
+// cut short.
+func TestOnlyTheArchivistMountsTheAnchoredTextStore(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mount := filepath.Join(stateRootFor(s.home, testKBKey), "anchored-text") + ":"
+	var mounters int
+	for _, line := range strings.Split(string(s.mustLog(t)), "\n") {
+		if !strings.Contains(line, mount) {
+			continue
+		}
+		mounters++
+		if !strings.Contains(line, "--name semiont-archivist ") {
+			t.Errorf("a container other than the Archivist mounts the anchored-text store:\n%s", line)
+		}
+	}
+	if mounters != 1 {
+		t.Errorf("the anchored-text store is mounted %d times in one start, want once, into the Archivist", mounters)
+	}
+}
+
+// No image stamps the anchored-text store. Each entry carries the stamp of
+// what derived it and is served only under the stamp the Smelter states, so an
+// image change, the Smelter's or the Archivist's, clears nothing: what an
+// older stamp derived stays until `clean --store anchored-text`.
+func TestAnImageChangeClearsNothingFromTheAnchoredTextStore(t *testing.T) {
+	s := newScenario(t, "container")
+	dir := stateRootFor(s.home, testKBKey)
+	entry := filepath.Join(dir, "anchored-text", "ab", "cd", "kept.json")
+	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte(`{"v":3,"stamp":"reader-0+engine-0","declined":"encrypted"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"anchored-text":{"image":"ghcr.io/the-ai-alliance/semiont-smelter:0.0.0-old"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, err := os.Stat(entry); err != nil {
+		t.Errorf("an image change cleared the anchored-text store: %v", err)
 	}
 }
 
@@ -6945,8 +6994,8 @@ func TestStartServiceLibrarian(t *testing.T) {
 
 // The Archivist restart path: teardown + port settle + staged config + run +
 // health gate, like any sidecar — but with the record's mounts. The argv is
-// the pin: /kb read-write, its configuration document, the shared
-// anchored-text store, and NO JWT_SECRET (it signs nothing).
+// the pin: /kb read-write, its configuration document, the anchored-text
+// store it alone mounts, and NO JWT_SECRET (it signs nothing).
 func TestStartServiceArchivist(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "archivist")

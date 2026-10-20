@@ -26,7 +26,6 @@ def configured(embedding: dict[str, str], chunk_size: int, overlap: int) -> Smel
             "embedding": embedding,
             "vectors": {"type": "qdrant", "host": "127.0.0.1", "port": 1},
             "chunking": {"chunkSize": chunk_size, "overlap": overlap},
-            "anchoredTextDir": "/tmp/semiont/anchored-text",
             "pdfsAtOnce": 1,
             "port": 24101,
             "logLevel": "warn",

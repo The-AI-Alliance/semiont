@@ -53,8 +53,9 @@ Each file runs its cases in a world of its own
   is sent, and a case can have it answer 404, as for a model not fetched yet,
   answer any other failing status, or hold a request until the case releases
   it;
-- the directory of the anchored-text store: the Smelter writes it, the
-  Archivist is configured to read it, and the suite reads its files;
+- the anchored-text store, which the Archivist keeps: the Smelter states its
+  stamp and stores its entries on the Archivist's surface and mounts none of
+  it, and the suite reads the Archivist's files;
 - the Smelter, started with its settings and its environment, and waited for
   until its reconcile has ended.
 

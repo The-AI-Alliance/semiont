@@ -27,10 +27,10 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 |---|---|---|---|---|
 | gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
 | dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
-| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
+| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-write, which no other container mounts | The gateway's bus | one |
 | librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json) document | The state directory, to read views | The gateway, for the bus and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
 | worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
-| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
+| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | Its document alone | The gateway's bus; vectors; embedding; the Archivist, for bytes and to keep the anchored-text store | one |
 | weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |
 

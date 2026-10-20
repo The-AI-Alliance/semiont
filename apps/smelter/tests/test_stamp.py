@@ -5,12 +5,8 @@ each from itself. A reader and an engine that read nothing stand in for the
 real ones here. What stamp a real one states is held by its own tests.
 """
 
-from pathlib import Path
-
 from aio import run
-from semiont.types import ExtractionDeclined
 
-from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.scripted import ScriptedOcrEngine, ScriptedPdfReader
 from semiont_smelter.stamp import current_stamp
 
@@ -39,12 +35,3 @@ def test_making_the_stamp_opens_no_document_and_reads_no_image() -> None:
     run(current_stamp(reader, engine))
     assert reader.opened == []
     assert engine.asked == []
-
-
-def test_a_store_takes_the_stamp_and_states_it_in_its_directory(tmp_path: Path) -> None:
-    stamp = run(current_stamp(ScriptedPdfReader({}), ScriptedOcrEngine()))
-    declined = ExtractionDeclined(kind="declined", declined="encrypted")
-    store = AnchoredTextStore(tmp_path, stamp=stamp)
-    run(store.write("feedc0de", declined))
-    assert (tmp_path / "STAMP").read_text(encoding="utf-8") == f"{stamp}\n"
-    assert run(store.read("feedc0de")) == declined

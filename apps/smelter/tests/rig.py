@@ -18,10 +18,11 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Self, final, override
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from semiont.identifiers import ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
+from semiont.types import ExtractionOutcome
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_vectors.embedding import EmbeddingProvider, EmbeddingProviderError
 from semiont_vectors.memory import MemoryVectorStore
@@ -29,7 +30,7 @@ from semiont_vectors.mock import MockEmbeddingProvider, deterministic_vector
 from semiont_vectors.store import Declined, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
-from semiont_smelter.anchored_text_store import AnchoredTextStore
+from semiont_smelter.anchored_text_store import AnchoredTexts, StoreFailed
 from semiont_smelter.chunking import Chunking
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.ocr_engine import Box, OcrLine, OcrParagraph, OcrRead, OcrWord
@@ -41,9 +42,6 @@ ADA: Final[JsonObject] = {"@type": "Person", "@id": "did:web:example.org:users:a
 
 DIMENSIONS: Final = 8
 """How wide the vectors of a rig's provider are."""
-
-STAMP: Final = "rig-stamp-1"
-"""The stamp a rig's anchored-text store writes under."""
 
 WHOLE_PAGE: Final[Matrix] = (612.0, 0.0, 0.0, 792.0, 0.0, 0.0)
 """The matrix that places an image over the whole of a US Letter page."""
@@ -359,6 +357,53 @@ async def held_by(index: MemoryVectorStore) -> Held:
     return Held(stamps=by_name, chunks=chunks, annotations=annotations, declined=remembered)
 
 
+# ── The anchored-text store ────────────────────────────────────────────
+
+_OUTCOME: Final = TypeAdapter[ExtractionOutcome](ExtractionOutcome)
+
+
+@final
+class PlayedStore(AnchoredTexts):
+    """The anchored-text store as the Archivist keeps it, played in a directory: one file for each key, holding the outcome.
+
+    A Smelter over the same directory is one over the same store, and one over
+    another directory is one whose store was cleared. Where the directory cannot
+    be one, every write fails, as an Archivist that cannot keep an entry
+    answers. Which resource an entry is for is not asked: the Archivist's
+    suite holds it to that.
+    """
+
+    def __init__(self, home: Path) -> None:
+        self._home: Final = home
+
+    @override
+    async def read(self, resource_id: ResourceId, key: str) -> ExtractionOutcome | None:
+        return self.kept(key)
+
+    @override
+    async def write(self, resource_id: ResourceId, key: str, outcome: ExtractionOutcome) -> None:
+        try:
+            self._home.mkdir(parents=True, exist_ok=True)
+            (self._home / f"{key}.json").write_bytes(_OUTCOME.dump_json(outcome, by_alias=True))
+        except OSError as failure:
+            raise StoreFailed(f"the played Archivist did not keep {key}: {failure}") from failure
+
+    def kept(self, key: str) -> ExtractionOutcome | None:
+        """What is kept under a key, whichever resource it was written for."""
+        try:
+            return _OUTCOME.validate_json((self._home / f"{key}.json").read_bytes())
+        except OSError:
+            return None
+
+    # The last member of the class: below this one, `list` in a signature would name this method.
+    @override
+    async def list(self) -> list[str]:
+        try:
+            return sorted(path.stem for path in self._home.glob("*.json"))
+        except OSError:
+            return []
+
+
 # ── The rig ────────────────────────────────────────────────────────────
 
 
@@ -392,7 +437,7 @@ class Rig:
         self.provider: Final = Provider()
         self.reader: Final = ScriptedPdfReader(pdfs or {})
         self.engine: Final = ScriptedOcrEngine(reads)
-        self.store: Final = AnchoredTextStore(home, stamp=STAMP)
+        self.store: Final = PlayedStore(home)
         self.unanswered: Final[set[str]] = set()
         """The operations nobody answers: each is refused as a peer that is not there."""
         self.failing: Final[set[str]] = set()

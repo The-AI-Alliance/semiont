@@ -38,8 +38,6 @@ export interface SmelterSettings {
   embedding: { type?: 'ollama'; model?: string; baseUrl?: string };
   /** The two numbers a text is cut by: a chunk's size, and how far one chunk overlaps the next. */
   chunking?: { chunkSize: number; overlap: number };
-  /** The directory of the anchored-text store. */
-  anchoredTextDir?: string;
   /** How many PDFs it works on at once. */
   pdfsAtOnce?: number;
 }
@@ -131,7 +129,6 @@ function document(settings: SmelterSettings): string {
       embedding: stated({ type: settings.embedding.type, model: settings.embedding.model, baseUrl: settings.embedding.baseUrl }),
       vectors: stated({ type: settings.vectors.type, host: settings.vectors.host, port: settings.vectors.port }),
       chunking: settings.chunking,
-      anchoredTextDir: settings.anchoredTextDir,
       pdfsAtOnce: settings.pdfsAtOnce,
       port: SMELTER_HEALTH_PORT,
       logLevel: 'info',

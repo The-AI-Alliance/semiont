@@ -155,8 +155,7 @@ func vectorsConfig(env *envConfig, vars map[string]string, who string) (vectors 
 // smelterDocument renders the document from the selected environment, the
 // address the launcher computed, and the user's variables. The Archivist is
 // where this start places it, and a hand-written archivist section wins
-// (archivistAddress). The anchored-text store is where the launcher mounts it
-// (flowSidecar).
+// (archivistAddress), and the Smelter keeps the anchored-text store there.
 func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []string) ([]byte, error) {
 	if env.Gateway == nil || env.Gateway.PublicURL == "" {
 		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the Smelter has no gateway to reach")
@@ -191,7 +190,6 @@ func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []
 			doc.Chunking.Overlap = *stated.Overlap
 		}
 	}
-	doc.AnchoredTextDir = anchoredTextTarget
 	if doc.PdfsAtOnce, err = smelterPdfsAtOnce(env); err != nil {
 		return nil, err
 	}

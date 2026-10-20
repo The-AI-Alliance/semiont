@@ -3,8 +3,9 @@
  * Archivist world (a knowledge base, a real Archivist that records and
  * answers, a gateway, the trusted issuer), the Smelter's own service account
  * at that issuer, a real Qdrant, cleared when the world is made and when it
- * is closed, a stand-in for its embedding provider, and the directory of the
- * anchored-text store, which the Smelter writes and the Archivist reads.
+ * is closed, and a stand-in for its embedding provider. The anchored-text
+ * store is the Archivist's: the Smelter mounts none of it, and keeps it on
+ * the Archivist's surface.
  *
  * Cases meet the Smelter where the rest of Semiont does: in the index it
  * writes and in the anchored-text store, each read here by the suite's own
@@ -104,8 +105,6 @@ export class SmelterWorld {
         vectors: { type: 'qdrant', host, port: QDRANT_PORT },
         embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: provider.origin },
         chunking: { chunkSize: 512, overlap: 64 },
-        // The store's directory is the one the Archivist is configured to read.
-        anchoredTextDir: kb.dirs.anchoredTextDir,
         pdfsAtOnce: 1,
       },
       { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret },

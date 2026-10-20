@@ -88,6 +88,10 @@ type stateStoreSpec struct {
 	// the contents reflect. Exactly one service takes the stamped mount path
 	// per store; sharers mount via stateMountsShared.
 	owner string
+	// unstamped: no image stamps this store, and no image change clears it.
+	// What it holds says what derived it, entry by entry, so it is mounted
+	// through stateMountsShared by every service that mounts it.
+	unstamped bool
 }
 
 // stateMount: one -v within a store. sub "" mounts the store dir itself.
@@ -125,21 +129,26 @@ var stateStores = map[string]stateStoreSpec{
 		projection: true,
 		owner:      "graph",
 	},
-	// The Smelter's derived state: the anchored-text store, one coordinate
-	// map per representation, ~2.9s/page of OCR to rebuild. Unmounted it lives
-	// in the container and dies on every stop, and the Smelter's reconcile
-	// re-derives every lost map on the next start.
+	// The anchored-text store: one coordinate map per representation,
+	// ~2.9s/page of OCR to rebuild. The Smelter derives each and stores it on
+	// the Archivist's surface; the Archivist writes it here and is the only
+	// container that mounts it. Unmounted it lives in the container and dies
+	// on every stop, and the Smelter's reconcile re-derives every lost map on
+	// the next start.
 	//
-	// The container path is one constant: the Smelter's document and the
-	// Archivist's each name it as `anchoredTextDir`. So this side carries no
-	// KB identifier and nothing here has to know how a service composes its
-	// own paths — the same arrangement every other store has
-	// (/qdrant/storage, /var/lib/postgresql/data).
+	// The container path is one constant: the Archivist's document names it
+	// as `anchoredTextDir`. So this side carries no KB identifier and nothing
+	// here has to know how a service composes its own paths — the same
+	// arrangement every other store has (/qdrant/storage,
+	// /var/lib/postgresql/data).
 	//
-	// projection: reproducible from the resource's bytes, so an image change
-	// clears rather than refuses — and `clean --store anchored-text` is safe.
+	// unstamped: each entry carries the stamp of the PDF reader and the OCR
+	// engine that derived it, and is served only under the stamp the Smelter
+	// states. So an image change, the Smelter's or the Archivist's, clears
+	// nothing: an older stamp's entries stay on disk, served to no one, until
+	// `clean --store anchored-text`, which is safe: the store is a projection.
 	//
-	// mode: the Smelter runs as uid 1001. On a Linux Docker host the invoker
+	// mode: the Archivist runs as uid 1001. On a Linux Docker host the invoker
 	// is some other uid, so a 0755 dir is unwritable inside (macOS runtimes
 	// map ownership and hide it).
 	"anchored-text": {
@@ -148,7 +157,8 @@ var stateStores = map[string]stateStoreSpec{
 		mounts:     []stateMount{{"", anchoredTextTarget}},
 		mode:       0o777,
 		projection: true,
-		owner:      "smelter",
+		owner:      "archivist",
+		unstamped:  true,
 	},
 	// JetStream's data dir (streams + KV buckets, one daemon). projection:
 	// true is a DECISION, not an inheritance: queued work is clearable

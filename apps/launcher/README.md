@@ -863,6 +863,12 @@ rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
 entrypoint refuses to boot unless its `test -w` gate passes, and Apple
 container's virtiofs won't let it chown a mount root.)
 
+The anchored-text store (`anchored-text/`) is a projection with no image stamp,
+mounted into the Archivist alone. Each entry carries the stamp of the PDF reader and
+the OCR engine that derived it, and is served only under the stamp the Smelter
+states, so no image change clears it: an older stamp's entries stay on disk, served
+to no one, until `semiont clean --store anchored-text`.
+
 `semiont clean` is the one way this state dies: it removes the current
 root's state directory (`--store database|vectors|graph|anchored-text|state`
 scopes to one

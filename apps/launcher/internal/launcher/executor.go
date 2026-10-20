@@ -1098,6 +1098,9 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
 		spec := stateStores[role]
+		if spec.unstamped {
+			continue
+		}
 		var img string
 		if rp, ok := fc.plan.Roles[spec.owner]; ok {
 			if rp.Presence != presenceLauncher {
@@ -1142,17 +1145,16 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 }
 
 // stateMountsShared: a role's state mounts for a container that is NOT the
-// stamp's owner. The SMELTER owns the anchored-text stamp (it mounts via
-// stateMounts with the smelter image and clears on image change); the
-// Archivist mounts the same store through here and only reads it. The
-// ARCHIVIST owns the state tree's stamp; the gateway and the Librarian mount
-// that one through here. The bind is the same either way (stateMountArgs
-// emits no `:ro`): what a sharer leaves alone is the stamp.
+// stamp's owner, and for a store no image stamps. The ARCHIVIST owns the
+// state tree's stamp; the gateway and the Librarian mount that one through
+// here. The anchored-text store is unstamped: the Archivist, its one mounter,
+// mounts it through here, and no image change clears it. The bind is the
+// same either way (stateMountArgs emits no `:ro`): what a sharer leaves alone
+// is the stamp.
 //
 // Running the stamped path here with a second image would flip the stamp on
-// every start and — anchored-text being a projection — CLEAR the store each
-// alternation, at ~2.9s/page of OCR to rebuild. Exactly one service may take
-// the stamped path per store.
+// every start and, for a projection, CLEAR the store each alternation.
+// Exactly one service may take the stamped path per store.
 //
 // The stamp follows the WRITER, which is what makes an image-change clear
 // correct: the stamp names the code whose output the store holds.

@@ -89,7 +89,7 @@ eachSmelter('a Smelter, given a PDF', (world) => {
       expect(entry.text).toContain(word);
       expect(pagesStored(entry, word), word).toEqual([1]);
     }
-    // The store's writer states its stamp in the file `STAMP`, and its entries carry that one.
+    // The Smelter states its stamp, which the Archivist keeps in the file `STAMP`, and its entries carry that one.
     expect(entry.stamp).toBe(world().anchoredStamp());
   });
 

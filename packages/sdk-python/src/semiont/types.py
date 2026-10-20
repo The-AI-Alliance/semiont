@@ -3557,7 +3557,7 @@ class SmelterConfigIdentity(WireModel, frozen=True, extra="forbid"):
 
 class SmelterConfigArchivist(WireModel, frozen=True, extra="forbid"):
     """
-    Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+    Where the Archivist listens. The Smelter reads a resource's bytes from it, and keeps the anchored-text store there, as its service account.
     """
 
     host: Annotated[str, Field(min_length=1)]
@@ -5905,14 +5905,6 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
     embedding: EmbeddingConfig
     vectors: VectorsConfig
     chunking: SmelterConfigChunking
-    anchored_text_dir: Annotated[
-        str,
-        Field(
-            alias="anchoredTextDir",
-            description="The anchored-text store the Smelter writes and the Archivist reads.",
-            min_length=1,
-        ),
-    ]
     pdfs_at_once: Annotated[
         int,
         Field(

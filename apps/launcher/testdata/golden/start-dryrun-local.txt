@@ -118,8 +118,7 @@ container run -d --name semiont-dispatcher --memory 2G --publish 24105:24105 --v
 # wait: http://localhost:24105/health (30s)
 container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volume <config-stage>/worker.json:/etc/semiont/worker.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-worker --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:local
 # wait: http://localhost:24100/health (30s)
-# anchored-text state: <data-home>/roots/example.github.io-test-kb/anchored-text (created if absent; reused across restarts)
-container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volume <config-stage>/smelter.json:/etc/semiont/smelter.json:ro -v <data-home>/roots/example.github.io-test-kb/anchored-text:/anchored-text --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-smelter:local
+container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volume <config-stage>/smelter.json:/etc/semiont/smelter.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-smelter:local
 # wait: http://localhost:24101/health (30s)
 container run -d --name semiont-weaver --memory 2G --publish 24102:24102 --volume <config-stage>/weaver.json:/etc/semiont/weaver.json:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:local
 # wait: http://localhost:24102/health (30s)

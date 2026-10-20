@@ -60,7 +60,8 @@ tree that is not a git checkout stops the Archivist at boot, naming the tree and
 `TestExactlyOneContainerMountsTheKB` in the launcher, not merely intended. `/kb` is the working
 tree (the document's `root`): the resources, and the event log under `.semiont/events/`. The views
 it derives from the log go to the state volume (the document's `stateHome`), which the Librarian mounts to
-read them. Anchored text (`/anchored-text`) it mounts **read-only** — the Smelter writes that.
+read them. The anchored-text store (`/anchored-text`) is its alone, and no other container mounts
+it: the Smelter derives each entry and stores it here over HTTP (below).
 [Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the layout.
 
 ## How requests reach it
