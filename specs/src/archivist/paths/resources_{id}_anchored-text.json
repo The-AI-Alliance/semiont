@@ -37,5 +37,83 @@
         "$ref": "../../components/responses/InternalError.json"
       }
     }
+  },
+  "put": {
+    "operationId": "putResourceAnchoredText",
+    "summary": "Store a resource's anchored text",
+    "description": "Store what the Smelter derived from the bytes of this resource, under their checksum: every resource whose bytes those are has it then. The entry is written whole, beside its name and moved onto it, and replaces one stored under the same checksum. The resource's first representation must have these bytes: content that changed while it was read is derived again from what it is now. Called by the Smelter only; no client writes anchored text.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "x-semiont-limits": {
+      "maxBodyBytes": 268435456
+    },
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The resource, percent-encoded.",
+        "schema": {
+          "$ref": "../../components/schemas/ResourceId.json"
+        }
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../../components/schemas/AnchoredTextWrite.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "204": {
+        "description": "Stored."
+      },
+      "400": {
+        "description": "The body is no `AnchoredTextWrite`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "404": {
+        "description": "The record holds no such resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "409": {
+        "description": "The resource's first representation has other bytes than the checksum the write states, or none; `error` names the checksum it has.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "413": {
+        "$ref": "../../components/responses/PayloadTooLarge.json"
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
   }
 }

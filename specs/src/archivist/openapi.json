@@ -3,7 +3,7 @@
   "info": {
     "title": "Semiont Archivist",
     "version": "0.1.0",
-    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and replay a resource's events. Everything else reaches the Archivist over the bus.",
+    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and replay a resource's events; and what the Smelter calls to keep the anchored-text store. Everything else reaches the Archivist over the bus.",
     "license": {
       "name": "Apache-2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -41,6 +41,15 @@
     },
     "/resources/{id}/anchored-text": {
       "$ref": "paths/resources_{id}_anchored-text.json"
+    },
+    "/anchored-text/entries": {
+      "$ref": "paths/anchored-text_entries.json"
+    },
+    "/resources/{id}/anchored-text/stored": {
+      "$ref": "paths/resources_{id}_anchored-text_stored.json"
+    },
+    "/anchored-text/stamp": {
+      "$ref": "paths/anchored-text_stamp.json"
     }
   },
   "components": {
@@ -49,12 +58,24 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "`Authorization: Bearer <JWT>` from the knowledge base's trusted issuer — the issuer and audience the `bearerAuth` scheme of the gateway's API names — carrying `semiont-service` in its flat `roles` claim: a service account of this knowledge base. People never call the Archivist; the gateway does, as itself."
+        "description": "`Authorization: Bearer <JWT>` from the knowledge base's trusted issuer — the issuer and audience the `bearerAuth` scheme of the gateway's API names — carrying `semiont-service` in its flat `roles` claim: a service account of this knowledge base. People never call the Archivist; the gateway does, as itself, and so do the stack's own services: the Smelter keeps the anchored-text store here."
       }
     },
     "schemas": {
       "AnchoredTextAnswer": {
         "$ref": "../components/schemas/AnchoredTextAnswer.json"
+      },
+      "AnchoredTextEntries": {
+        "$ref": "../components/schemas/AnchoredTextEntries.json"
+      },
+      "AnchoredTextEntry": {
+        "$ref": "../components/schemas/AnchoredTextEntry.json"
+      },
+      "AnchoredTextStamp": {
+        "$ref": "../components/schemas/AnchoredTextStamp.json"
+      },
+      "AnchoredTextWrite": {
+        "$ref": "../components/schemas/AnchoredTextWrite.json"
       },
       "ArchivistEventsResponse": {
         "$ref": "../components/schemas/ArchivistEventsResponse.json"

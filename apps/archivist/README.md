@@ -80,7 +80,11 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | `POST /resources` | an upload, multipart as the client sent it, for the principal named in `Semiont-Principal` (with its roles in `Semiont-Roles`): the bytes are stored and the resource is recorded — as a copy when the upload carries `cloneToken` — and the answer is `{resourceId}`. 400 names what is wrong with the upload; 500 carries the record's reason for refusing it. | the gateway, for `POST /resources` |
 | `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
 | `GET /resources/:id/jsonld` | a resource's linked-data description (the answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
-| `GET /resources/:id/anchored-text` | a resource's anchored text, read from the store the Smelter writes: the text and where each piece of it sits on the page, or the reason there is none. Never 404: a resource the Archivist does not hold is the answer `unknown`. A resource whose media type has no derived text (an image, a text file) is answered `no-map` at once. For one that has (a PDF), it waits up to 15 seconds for the Smelter to settle content the store lacks before answering `not-yet` | the gateway, for `GET /resources/:id/anchored-text` |
+| `GET /resources/:id/anchored-text` | a resource's anchored text, read from the anchored-text store: the text and where each piece of it sits on the page, or the reason there is none. Never 404: a resource the Archivist does not hold is the answer `unknown`. A resource whose media type has no derived text (an image, a text file) is answered `no-map` at once. For one that has (a PDF), it waits up to 15 seconds for the Smelter to settle content the store lacks before answering `not-yet` | the gateway, for `GET /resources/:id/anchored-text` |
+| `PUT /resources/:id/anchored-text` | stores the entry the Smelter derived from the resource's content, under its checksum; 409 when the resource's content has another | the Smelter |
+| `GET /resources/:id/anchored-text/stored?contentChecksum=…` | the entry stored for the resource's content, as stored, at once; 404 when there is none, 409 when the resource's content has another checksum | the Smelter, before it derives a text |
+| `GET /anchored-text/entries` | the checksums the store holds entries of, under the stamp stated | the Smelter, when it starts |
+| `PUT /anchored-text/stamp` | states the stamp the store's entries are taken under | the Smelter, when it starts |
 | `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
 
 The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
@@ -99,7 +103,7 @@ Every refusal is **401**. Its challenge is `Bearer`, or `Bearer error="invalid_t
 token was presented and refused.
 
 **⚠️ Standing rule: this surface serves content, and nothing else** — the KB tree, each
-resource's linked-data description, and each resource's anchored text. Those are the answers
+resource's linked-data description, and the anchored-text store, which the Smelter keeps here. Those are the answers
 whose size follows the document's, and the bus is for messages of bounded size. Every other
 `browse:*`, and `match:*` and `gather:*`, stay on the bus. An endpoint that is none of these
 does not belong here.

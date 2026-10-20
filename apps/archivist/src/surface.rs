@@ -9,7 +9,7 @@ use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use semiont::media_types::{base_media_type, capabilities_of};
 use semiont::roles::{SERVICE_ROLE, has_role};
 use semiont_archivist_record::{Object, ids};
@@ -23,6 +23,33 @@ use tokio::io::AsyncReadExt;
 pub struct Surface {
     pub archivist: Arc<Archivist>,
     pub verifier: IssuerVerifier,
+    pub limits: BodyLimits,
+}
+
+/// The most each operation that takes a JSON body is sent, as the
+/// Archivist's API states it (`x-semiont-limits.maxBodyBytes`).
+pub struct BodyLimits {
+    anchored_text: usize,
+    stamp: usize,
+}
+
+impl BodyLimits {
+    /// Read from the Archivist's API document; one it does not state is a
+    /// document the Archivist was not built against, and it does not start.
+    pub fn of(document: &Value) -> Result<BodyLimits, String> {
+        let limit = |path: &str, method: &str| -> Result<usize, String> {
+            document["paths"][path][method]["x-semiont-limits"]["maxBodyBytes"]
+                .as_u64()
+                .and_then(|bytes| usize::try_from(bytes).ok())
+                .ok_or_else(|| {
+                    format!("the Archivist's API states no maxBodyBytes for {method} {path}")
+                })
+        };
+        Ok(BodyLimits {
+            anchored_text: limit("/resources/{id}/anchored-text", "put")?,
+            stamp: limit("/anchored-text/stamp", "put")?,
+        })
+    }
 }
 
 type Shared = State<Arc<Surface>>;
@@ -410,6 +437,177 @@ async fn upload(State(surface): Shared, request: Request) -> Response {
     }
 }
 
+/// The whole body of a request, as JSON, from an admitted caller, of no
+/// more than `limit` bytes. A body whose length says it is more is refused
+/// before any of it is read. Otherwise the body is taken before anything is
+/// answered: a caller still sending when the answer closes the connection
+/// reads no answer.
+async fn admitted_json(
+    surface: &Surface,
+    request: Request,
+    limit: usize,
+) -> Result<Value, Response> {
+    let (parts, body) = request.into_parts();
+    let declared = parts
+        .headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
+    if declared.is_some_and(|length| length > limit as u64) {
+        return Err(too_large(limit));
+    }
+    // Past the limit, or cut off: either way no body of at most `limit` bytes arrived.
+    let bytes = axum::body::to_bytes(body, limit).await;
+    if let Some(refusal) = refusal(surface, &parts.headers).await {
+        return Err(refusal);
+    }
+    let Ok(bytes) = bytes else {
+        return Err(too_large(limit));
+    };
+    serde_json::from_slice(&bytes).map_err(|_| bad("The body is not JSON"))
+}
+
+fn too_large(limit: usize) -> Response {
+    error(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        &format!("The body is larger than {limit} bytes, this operation's maxBodyBytes"),
+    )
+}
+
+fn is_checksum(text: &str) -> bool {
+    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+fn no_content() -> Response {
+    StatusCode::NO_CONTENT.into_response()
+}
+
+async fn store_anchored_text(
+    State(surface): Shared,
+    Path(resource_id): Path<String>,
+    request: Request,
+) -> Response {
+    let write = match admitted_json(&surface, request, surface.limits.anchored_text).await {
+        Ok(write) => write,
+        Err(answer) => return answer,
+    };
+    if let Some(problems) = semiont_core::spec::problems("AnchoredTextWrite", &write) {
+        return bad(format!("The body is no AnchoredTextWrite: {problems}"));
+    }
+    if !ids::is_safe(&resource_id) {
+        return error(StatusCode::NOT_FOUND, "Resource not found");
+    }
+    let (Some(checksum), Some(entry)) = (
+        write["contentChecksum"].as_str(),
+        write["entry"].as_object(),
+    ) else {
+        return bad("The body is no AnchoredTextWrite");
+    };
+    match anchored::store(&surface.archivist, &resource_id, checksum, entry) {
+        Ok(anchored::Checked::Done(())) => no_content(),
+        Ok(anchored::Checked::Unheld) => error(StatusCode::NOT_FOUND, "Resource not found"),
+        Ok(anchored::Checked::Stale(has)) => stale(has.as_deref(), checksum),
+        Err(refusal) => {
+            logging::error(
+                "Anchored-text entry not stored",
+                json!({ "component": "archivist", "resourceId": resource_id, "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+        }
+    }
+}
+
+/// The content a caller read is not the resource's: the answer names the
+/// checksum the resource's content has.
+fn stale(has: Option<&str>, checksum: &str) -> Response {
+    error(
+        StatusCode::CONFLICT,
+        &match has {
+            Some(has) => format!(
+                "The resource's content is {has}, not {checksum}: derive its text from what it is now"
+            ),
+            None => format!("The resource has no content to be {checksum}"),
+        },
+    )
+}
+
+async fn stored_anchored_text(
+    State(surface): Shared,
+    Path(resource_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(refusal) = refusal(&surface, &headers).await {
+        return refusal;
+    }
+    let Some(checksum) = query
+        .get("contentChecksum")
+        .filter(|c| is_checksum(c))
+        .cloned()
+    else {
+        return bad("contentChecksum must be 64 lowercase hexadecimal digits");
+    };
+    if !ids::is_safe(&resource_id) {
+        return error(StatusCode::NOT_FOUND, "Resource not found");
+    }
+    match anchored::stored(&surface.archivist, &resource_id, &checksum) {
+        Ok(anchored::Checked::Done(Some(entry))) => {
+            json_reply(StatusCode::OK, Value::Object(entry))
+        }
+        Ok(anchored::Checked::Done(None)) => {
+            error(StatusCode::NOT_FOUND, "No entry is stored for this content")
+        }
+        Ok(anchored::Checked::Unheld) => error(StatusCode::NOT_FOUND, "Resource not found"),
+        Ok(anchored::Checked::Stale(has)) => stale(has.as_deref(), &checksum),
+        Err(refusal) => {
+            logging::error(
+                "Anchored-text entry read failed",
+                json!({ "component": "archivist", "resourceId": resource_id, "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+        }
+    }
+}
+
+async fn anchored_text_keys(State(surface): Shared, headers: HeaderMap) -> Response {
+    if let Some(refusal) = refusal(&surface, &headers).await {
+        return refusal;
+    }
+    match anchored::keys(&surface.archivist) {
+        Ok(checksums) => json_reply(StatusCode::OK, json!({ "checksums": checksums })),
+        Err(refusal) => {
+            logging::error(
+                "Anchored-text keys not listed",
+                json!({ "component": "archivist", "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+        }
+    }
+}
+
+async fn state_anchored_text_stamp(State(surface): Shared, request: Request) -> Response {
+    let stated = match admitted_json(&surface, request, surface.limits.stamp).await {
+        Ok(stated) => stated,
+        Err(answer) => return answer,
+    };
+    if let Some(problems) = semiont_core::spec::problems("AnchoredTextStamp", &stated) {
+        return bad(format!("The body is no AnchoredTextStamp: {problems}"));
+    }
+    let Some(stamp) = stated["stamp"].as_str() else {
+        return bad("The body is no AnchoredTextStamp");
+    };
+    match anchored::state_stamp(&surface.archivist, stamp) {
+        Ok(()) => no_content(),
+        Err(refusal) => {
+            logging::error(
+                "Anchored-text stamp not stated",
+                json!({ "component": "archivist", "stamp": stamp, "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+        }
+    }
+}
+
 pub fn router(surface: Arc<Surface>) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -417,7 +615,16 @@ pub fn router(surface: Arc<Surface>) -> Router {
         .route("/resources", post(upload))
         .route("/resources/{id}/content", get(content))
         .route("/resources/{id}/jsonld", get(described))
-        .route("/resources/{id}/anchored-text", get(anchored_text))
+        .route(
+            "/resources/{id}/anchored-text",
+            get(anchored_text).put(store_anchored_text),
+        )
+        .route("/anchored-text/entries", get(anchored_text_keys))
+        .route(
+            "/anchored-text/entries/{checksum}",
+            get(stored_anchored_text),
+        )
+        .route("/anchored-text/stamp", put(state_anchored_text_stamp))
         .fallback(not_found)
         .method_not_allowed_fallback(not_found)
         .layer(DefaultBodyLimit::disable())

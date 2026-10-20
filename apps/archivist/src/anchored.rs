@@ -1,11 +1,10 @@
-//! Anchored text: which media types have any, the store the Smelter writes,
-//! read under the stamp its writer states, and the wait for the Smelter to
-//! settle content not yet in it.
+//! Anchored text: which media types have any, the store the Smelter keeps
+//! here (its stamp, its entries, their keys), read under the stamp last
+//! stated, and the wait for the Smelter to settle content not yet in it.
 
 use crate::archivist::{Archivist, Refusal, locked, primary_representation};
 use semiont::media_types::yields_geometry_of;
-use semiont_archivist_record::Object;
-use semiont_archivist_record::shard::shard_path;
+use semiont_archivist_record::{Object, RecordError, anchored_text};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
@@ -95,37 +94,13 @@ impl SmeltProgress {
     }
 }
 
-fn valid_key(key: &str) -> bool {
-    !key.is_empty()
-        && key
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-}
-
 /// The store's entry for content of this checksum, as an answer: a hit only
-/// for an entry of version 3 under the stamp the writer states. Every miss is
-/// none. A word's offsets are the entry's, carried as they are stored.
+/// for an entry of the store's version under the stamp last stated. Every
+/// miss is none. A word's offsets are the entry's, carried as they are stored.
 async fn read_entry(dir: &Path, checksum: &str) -> Option<Object> {
-    if !valid_key(checksum) {
-        return None;
-    }
-    let stated = tokio::fs::read_to_string(dir.join("STAMP")).await.ok()?;
-    let stated = stated.trim();
-    if stated.is_empty() {
-        return None;
-    }
-    let (ab, cd) = shard_path(checksum);
-    let text = tokio::fs::read_to_string(dir.join(ab).join(cd).join(format!("{checksum}.json")))
-        .await
-        .ok()?;
-    let Value::Object(mut entry) = serde_json::from_str(&text).ok()? else {
-        return None;
-    };
-    if entry.get("v") != Some(&json!(3))
-        || entry.get("stamp").and_then(Value::as_str) != Some(stated)
-    {
-        return None;
-    }
+    let mut entry = tokio::task::block_in_place(|| anchored_text::entry(dir, checksum))
+        .ok()
+        .flatten()?;
     let mut answer = Object::new();
     if let Some(declined) = entry.get("declined").filter(|d| d.is_string()) {
         answer.insert("kind".into(), json!("declined"));
@@ -204,4 +179,75 @@ pub async fn anchored_text(archivist: &Archivist, resource_id: &str) -> Result<O
         return Ok(entry);
     }
     Ok(absent("not-yet"))
+}
+
+/// What became of a call that names a resource and the content it read.
+pub enum Checked<T> {
+    /// The resource's first representation is that content: what was done.
+    Done(T),
+    /// The record holds no such resource.
+    Unheld,
+    /// The resource's first representation has other content, or none: the
+    /// checksum it has, when it has one.
+    Stale(Option<String>),
+}
+
+/// Do `work` on the store when the resource's first representation is the
+/// content of `checksum`.
+fn checked<T>(
+    archivist: &Archivist,
+    resource_id: &str,
+    checksum: &str,
+    work: impl FnOnce(&Path) -> Result<T, RecordError>,
+) -> Result<Checked<T>, Refusal> {
+    let Some(view) = archivist.held_view(resource_id)? else {
+        return Ok(Checked::Unheld);
+    };
+    let has = primary_representation(&view)
+        .and_then(|r| r.get("checksum"))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    if has.as_deref() != Some(checksum) {
+        return Ok(Checked::Stale(has));
+    }
+    let dir = Path::new(&archivist.config.anchored_text_dir);
+    Ok(Checked::Done(tokio::task::block_in_place(|| work(dir))?))
+}
+
+/// Store an entry for the content of this resource, filed under its checksum.
+pub fn store(
+    archivist: &Archivist,
+    resource_id: &str,
+    checksum: &str,
+    entry: &Object,
+) -> Result<Checked<()>, Refusal> {
+    checked(archivist, resource_id, checksum, |dir| {
+        anchored_text::store(dir, checksum, entry)
+    })
+}
+
+/// The entry stored for the content of this resource, as stored, without
+/// waiting: none when there is no entry under the stamp last stated.
+pub fn stored(
+    archivist: &Archivist,
+    resource_id: &str,
+    checksum: &str,
+) -> Result<Checked<Option<Object>>, Refusal> {
+    checked(archivist, resource_id, checksum, |dir| {
+        anchored_text::entry(dir, checksum)
+    })
+}
+
+/// The checksums the store holds entries of, under the stamp last stated.
+pub fn keys(archivist: &Archivist) -> Result<Vec<String>, Refusal> {
+    let dir = Path::new(&archivist.config.anchored_text_dir);
+    Ok(tokio::task::block_in_place(|| anchored_text::keys(dir))?)
+}
+
+/// State the stamp the store's entries are taken under.
+pub fn state_stamp(archivist: &Archivist, stamp: &str) -> Result<(), Refusal> {
+    let dir = Path::new(&archivist.config.anchored_text_dir);
+    Ok(tokio::task::block_in_place(|| {
+        anchored_text::state_stamp(dir, stamp)
+    })?)
 }

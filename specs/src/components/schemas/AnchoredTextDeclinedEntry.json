@@ -12,7 +12,7 @@
     "stamp": {
       "type": "string",
       "minLength": 1,
-      "description": "The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file."
+      "description": "The stamp the entry was derived under: the PDF reader's and the OCR engine's. A reader takes the entry only when it equals the stamp the Smelter last stated."
     },
     "declined": {
       "type": "string",

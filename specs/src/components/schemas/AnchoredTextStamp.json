@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "The stamp an anchored-text store's entries are taken under: which PDF reader and which OCR engine derived them. Its writer states it before it writes or lists an entry; an entry stored under another stamp is answered to no reader.",
+  "properties": {
+    "stamp": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "description": "The stamp: no white space, since it is held in a file of one line."
+    }
+  },
+  "required": [
+    "stamp"
+  ],
+  "additionalProperties": false
+}

@@ -25,8 +25,8 @@ Each file runs its cases in a world of its own
 - the Archivist, started with `--config` and an `ArchivistConfig` document.
 
 Cases play people, workers and sidecars, and the Smelter as far as the
-Archivist meets it: an entry in the store, the stamp its writer states, and
-`smelt:settled`. They emit through the gateway and read replies and facts off
+Archivist meets it: the stamp it states and the entries it stores, over the
+HTTP surface, and `smelt:settled`. They emit through the gateway and read replies and facts off
 their own streams, call the HTTP surface with a service account's token, and
 read the log, the views, the projections, the index and the git index straight
 off the disk. Every frame a stream carries must be what the registry says its
@@ -50,6 +50,13 @@ what its schema says; and a case fails otherwise, whatever it was about.
   removed, what each reads back as, the annotation a published fact carries,
   and a generated resource linked from the annotation it was generated for by
   the time its creation is answered, on `yield:create` and over HTTP.
+- **The anchored-text store** (`anchored-text.test.ts`): an entry stored for
+  a resource's content and read by every resource with that content, and
+  replaced by the next; an entry read back by its checksum at once, as stored;
+  the keys listed under the stamp stated and only those; a stamp kept across a
+  restart; a write refused for content the resource does not have, for no
+  resource and for a body that is no write; and each operation admitted only
+  as a service.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
   seeding, tag schemas, the listing, a resource's events, people named by
   their profile, a directory of the working tree and the roster; and, over
