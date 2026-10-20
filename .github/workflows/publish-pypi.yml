@@ -51,7 +51,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@v10.3.0
 
       # The package takes its version from version.json when it is built, so a
       # development release is built from a version.json that says so. Only

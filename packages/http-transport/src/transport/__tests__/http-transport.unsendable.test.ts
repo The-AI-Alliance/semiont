@@ -6,7 +6,8 @@
  * refuses a header value that is none, a token with a line break inside it
  * among them, and an address that is no URL or carries a credential; and it
  * says the value, or the address, in refusing. ky makes its request before
- * any hook of its own runs, so the refusal comes out of ky as it is thrown.
+ * any hook of its own runs, so the refusal comes out of ky as the runtime made
+ * it, in the promise ky hands back.
  *
  * ky is the real one here, and so are the runtime's `Request` and `Headers`:
  * the refusal is the runtime's own. `fetch` is stubbed, since nothing is to

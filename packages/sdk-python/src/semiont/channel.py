@@ -95,7 +95,9 @@ class _OfPayload[P: WireModel]:
             )
         object.__setattr__(self, "members", members)
         object.__setattr__(self, "stamps", stamps)
-        object.__setattr__(self, "_adapter", TypeAdapter[P](self.payload))
+        # pydantic is handed a type form: a class as it is, and an alias as the type it stands for.
+        payload = self.payload
+        object.__setattr__(self, "_adapter", TypeAdapter[P](payload.__value__ if isinstance(payload, TypeAliasType) else payload))
 
     def decode(self, value: JsonValue) -> P:
         """What a frame on this channel carries, as its payload's type. Raises `ValidationError` for anything else."""

@@ -1,7 +1,7 @@
 {
   "package": "@opencode-ai/models",
-  "version": "0.0.99",
-  "generatedAt": "2026-10-09T05:36:02.941Z",
+  "version": "0.0.106",
+  "generatedAt": "2026-10-16T05:31:10.840Z",
   "license": "MIT",
   "providers": {
     "google": {
@@ -30,6 +30,7 @@
         "gemini-3.6-flash": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
         "gemini-3.7-flash": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
         "gemini-3.8-flash": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
+        "gemini-4-argon": {"limit":{"context":1048576,"input":null,"output":32768},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
         "gemini-embedding-001": {"limit":{"context":2048,"input":null,"output":1},"reasoning":false,"reasoning_options":null,"status":null,"structured_output":null,"temperature":false},
         "gemini-embedding-2": {"limit":{"context":8192,"input":null,"output":1},"reasoning":false,"reasoning_options":null,"status":null,"structured_output":null,"temperature":false},
         "gemini-flash-latest": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
