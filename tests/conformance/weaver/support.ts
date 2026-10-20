@@ -11,8 +11,12 @@ import type { WeaverWorld } from '../harness/weaver-world';
 export const TEXT = 'The quick brown fox jumps over the lazy dog.\n';
 
 /** Upload a resource as a person, and answer its id. */
-export function uploaded(world: WeaverWorld, name: string, by = 'ada'): Promise<string> {
-  return world.kb.created(world.kb.world.personDid(by), { name, storageUri: `file://weaver/${randomUUID()}.md`, content: TEXT });
+export async function uploaded(world: WeaverWorld, name: string, by = 'ada'): Promise<string> {
+  const resourceId = await world.kb.created(world.kb.world.personDid(by), { name, storageUri: `file://weaver/${randomUUID()}.md`, content: TEXT });
+  // The gateway of an Archivist world reads a resource's annotations from the harness's stand-in Archivist. What the
+  // stand-in answers for this resource is what the real Archivist answers when it is asked.
+  world.kb.world.archivist.annotations.set(resourceId, () => world.kb.annotations(resourceId));
+  return resourceId;
 }
 
 /** A highlight of `exact`, asked for by `who`: its id. */

@@ -66,8 +66,13 @@ export interface FakeArchivist {
   readonly events: Map<string, StoredEvent[]>;
   /** Linked-data descriptions, per resource. */
   readonly descriptions: Map<string, unknown>;
-  /** What a read of a resource's annotations is answered, per resource. A resource with no entry is answered 404. */
-  readonly annotations: Map<string, unknown>;
+  /**
+   * What a read of a resource's annotations is answered, per resource: an
+   * answer, or a function asked afresh at each read, so a world can answer
+   * what its real Archivist answers. A resource with no entry, or whose
+   * function answers nothing, is answered 404.
+   */
+  readonly annotations: Map<string, Record<string, unknown> | (() => Promise<Record<string, unknown> | undefined>)>;
   /**
    * What a read of a resource's anchored text is answered: an answer, or a
    * function asked afresh at each read, so a case can say `not-yet` and then
@@ -149,7 +154,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   const resources = new Map<string, { storageUri: string; mediaType: string }>();
   const events = new Map<string, StoredEvent[]>();
   const descriptions = new Map<string, unknown>();
-  const annotations = new Map<string, unknown>();
+  const annotations: FakeArchivist['annotations'] = new Map();
   const anchoredTexts: FakeArchivist['anchoredTexts'] = new Map();
   const uploads: RecordedUpload[] = [];
   const mode: FakeArchivist['mode'] = {
@@ -265,8 +270,9 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
 
       if (operation.path === '/resources/{id}/annotations') {
         const held = annotations.get(id);
-        if (held === undefined) return json(404, { error: 'Resource not found' });
-        return json(200, held);
+        const answered = typeof held === 'function' ? await held() : held;
+        if (answered === undefined) return json(404, { error: 'Resource not found' });
+        return json(200, answered);
       }
 
       if (operation.path === '/resources/{id}/anchored-text') {
