@@ -27,11 +27,12 @@ const archivistDocumentFile = "archivist.json"
 const archivistDocumentTarget = "/etc/semiont/archivist.json"
 
 // anchoredTextTarget: where the anchored-text store is mounted in the
-// containers that hold it.
+// Archivist, the one container that holds it.
 const anchoredTextTarget = "/anchored-text"
 
-// stateHomeTarget: where the state volume is mounted in the containers that
-// hold it. The Archivist's document names it, and so does the Librarian's.
+// stateHomeTarget: where the Archivist's state volume is mounted, and where
+// the gateway and the Librarian each mount a store of their own: supervise.sh
+// keeps a supervisor's events log under it. The Archivist's document names it.
 const stateHomeTarget = "/semiont-state"
 
 // archivistStaging: how far a deployed Archivist's staging may run behind the

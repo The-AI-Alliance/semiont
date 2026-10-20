@@ -19,9 +19,9 @@ use crate::cache::{
 use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
     BrowseAgentsRequested, BrowseAnnotationHistoryRequested, BrowseAnnotationRequested,
-    BrowseAnnotationsRequested, BrowseClick, BrowseDirectoryRequested, BrowseEntityTypesRequested,
-    BrowseEventsRequested, BrowseKbRequested, BrowseResourceOpen, BrowseResourceRequested,
-    BrowseResourceViewed, BrowseResourcesRequested, BrowseTagSchemasRequested,
+    BrowseClick, BrowseDirectoryRequested, BrowseEntityTypesRequested, BrowseEventsRequested,
+    BrowseKbRequested, BrowseResourceOpen, BrowseResourceRequested, BrowseResourceViewed,
+    BrowseResourcesRequested, BrowseTagSchemasRequested,
 };
 use crate::client::{CachePersistence, Links};
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
@@ -32,14 +32,13 @@ use crate::state_unit::StateUnit;
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
     Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
-    BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseAnnotationsRequest,
-    BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
-    BrowseDirectoryResultResponse, BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest,
-    BrowseResourceOpenEvent, BrowseResourceRequest, BrowseResourceViewedEvent,
-    BrowseResourcesRequest, BrowseTagSchemasRequest, CollaboratorEntry,
-    GetAnnotationHistoryResponse, GetAnnotationsResponse, GetResourceResponse, InferenceLimits,
-    InferenceLimitsResultResponse, InferencePairLimits, KbDescription, ListResourcesResponse,
-    ResourceDescriptor, TagSchema,
+    BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseClickEvent,
+    BrowseDirectoryRequest, BrowseDirectoryRequestSort, BrowseDirectoryResultResponse,
+    BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest, BrowseResourceOpenEvent,
+    BrowseResourceRequest, BrowseResourceViewedEvent, BrowseResourcesRequest,
+    BrowseTagSchemasRequest, CollaboratorEntry, GetAnnotationHistoryResponse,
+    GetAnnotationsResponse, GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse,
+    InferencePairLimits, KbDescription, ListResourcesResponse, ResourceDescriptor, TagSchema,
 };
 use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
@@ -209,7 +208,11 @@ fn events_of(resource_id: &ResourceId) -> BrowseEventsRequest {
 }
 
 impl Live {
-    fn new(links: &Links, persistence: Option<&CachePersistence>) -> Arc<Live> {
+    fn new(
+        links: &Links,
+        content: &Arc<dyn ContentTransport>,
+        persistence: Option<&CachePersistence>,
+    ) -> Arc<Live> {
         let annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>> = Arc::default();
         let asking = |links: &Links| links.clone();
 
@@ -242,17 +245,10 @@ impl Live {
             }
         });
         let annotations = kept(persistence, "annotations", {
-            let links = asking(links);
+            let content = content.clone();
             move |resource_id: ResourceId| {
-                let links = links.clone();
-                async move {
-                    let answer = links
-                        .request::<BrowseAnnotationsRequested>(&BrowseAnnotationsRequest {
-                            resource_id,
-                        })
-                        .await?;
-                    Ok(answer.response)
-                }
+                let content = content.clone();
+                async move { Ok(content.get_annotations(&resource_id).await?) }
             }
         });
         let annotation = kept(persistence, "annotation-detail", {
@@ -551,7 +547,7 @@ impl BrowseNamespace {
         persistence: Option<&CachePersistence>,
     ) -> BrowseNamespace {
         BrowseNamespace {
-            live: Live::new(&links, persistence),
+            live: Live::new(&links, &content, persistence),
             links,
             content,
         }
@@ -627,6 +623,7 @@ impl BrowseNamespace {
         })
     }
 
+    /// A resource's annotations. Read as content is, and not over the bus.
     pub fn annotations(&self, resource_id: &ResourceId) -> Cached<Vec<Annotation>> {
         self.of_resource(&self.live.annotations, resource_id, resource_id, |list| {
             list.annotations
@@ -683,8 +680,7 @@ impl BrowseNamespace {
         )?)
     }
 
-    /// A resource's description as linked data: itself, its annotations and
-    /// the references to it.
+    /// A resource's description as linked data: itself and its annotations.
     pub async fn resource_graph(
         &self,
         resource_id: &ResourceId,

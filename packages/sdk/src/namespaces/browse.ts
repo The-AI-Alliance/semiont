@@ -37,7 +37,7 @@ import type {
   ResourceList,
 } from './types';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 type ResourceListFilters = {
   limit?: number;
@@ -87,7 +87,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   private readonly resourceCache: Cache<ResourceId, ResourceDescriptor>;
   private readonly resourceListCache: Cache<string, ResourceList>;
-  private readonly annotationListCache: Cache<ResourceId, AnnotationsListResponse>;
+  private readonly annotationListCache: Cache<ResourceId, GetAnnotationsResponse>;
   /**
    * Annotation-detail cache keyed by `annotationId` only — the resourceId
    * is a routing hint for the gateway fetch, not an identity component.
@@ -111,7 +111,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   /**
    * Per-key memo for `annotations()` observables. The cache stores the
-   * full `AnnotationsListResponse`; the public shape is just the inner
+   * full `GetAnnotationsResponse`; the public shape is just the inner
    * `Annotation[]`. Without this memo, every call to `annotations(rId)`
    * would produce a fresh `.pipe(map(...))` observable, violating B4
    * (per-key observable stability). Consumers that compare observable
@@ -230,13 +230,10 @@ export class BrowseNamespace implements IBrowseNamespace {
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
-    this.annotationListCache = track(createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
-      return this.wire.request(
-        'browse:annotations-requested',
-        { resourceId },
-        this.busTimeoutMs,
-      );
-    }, persisted<ResourceId, AnnotationsListResponse>('annotations')));
+    this.annotationListCache = track(createCache<ResourceId, GetAnnotationsResponse>(
+      (resourceId) => this.content.getAnnotations(resourceId),
+      persisted<ResourceId, GetAnnotationsResponse>('annotations'),
+    ));
 
     this.annotationDetailCache = track(createCache<AnnotationId, Annotation>(async (annotationId) => {
       const resourceId = this.annotationResources.get(annotationId);
@@ -406,10 +403,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   /**
-   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
-   * inbound entity references). One-shot, uncached, dereferenced via the
-   * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
-   * linked-data client gets.
+   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations).
+   * One-shot, uncached, dereferenced via the transport's HTTP `/jsonld` face
+   * (bus-free) — the LD view an external linked-data client gets.
    */
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
     return this.content.getResourceGraph(resourceId);

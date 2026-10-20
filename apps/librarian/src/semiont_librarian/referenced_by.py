@@ -4,14 +4,15 @@
 (`docs/protocol/LIBRARIAN.md` § What refers to a resource). It asks which
 links arrive at a resource, which only the graph answers. The graph is asked
 as it holds them then: nothing here waits for it. A resource nobody made is
-no resource nothing refers to: the request fails for one with no view.
+no resource nothing refers to: the request fails for one the record does not
+hold. Its reply names no person, so no one is named in it.
 """
 
 import asyncio
 
 from semiont.annotations import exact_text, target_selector, target_source
 from semiont.identifiers import ResourceId
-from semiont.model import stated, written
+from semiont.model import stated
 from semiont.types import (
     GatherReferencedByRequest,
     GatherReferencedByResult,
@@ -25,35 +26,34 @@ from semiont.types import (
 from semiont_librarian.annotation_gather import Ungathered
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.log import LOG
-from semiont_librarian.naming import namer
-from semiont_librarian.reads import GraphReads, People, Views
+from semiont_librarian.reads import GraphReads, Record
 
 __all__ = ["answer"]
 
 
-async def answer(request: GatherReferencedByRequest, *, graph: GraphReads, views: Views, people: People) -> GatherReferencedByResult:
+async def answer(request: GatherReferencedByRequest, *, graph: GraphReads, record: Record) -> GatherReferencedByResult:
     """The reply to `gather:referenced-by-requested`: one entry for each annotation that refers to the resource, in the graph's order.
 
-    Raises `Ungathered` for a resource with no view, before the graph is
-    asked. Each resource those annotations are on is read once, from the
-    graph, and from the views where the graph has none or its read fails. An
-    entry is the annotation's id, the name of the resource it is on, and its
-    target: that resource, and the words its quote selector states, or the
-    empty string where it has none. An entry states no name where nobody
-    holds a description of its resource, and where the name is empty. The
-    people projection is read once, and the reply's people are named. A
-    graph that fails to answer is raised, and is the request's failure.
+    Raises `Ungathered` for a resource the record does not hold, before the
+    graph is asked. Each resource those annotations are on is read once, from
+    the graph, and from the record where the graph has none or its read
+    fails. An entry is the annotation's id, the name of the resource it is
+    on, and its target: that resource, and the words its quote selector
+    states, or the empty string where it has none. An entry states no name
+    where nobody holds a description of its resource, and where the name is
+    empty. A graph that fails to answer is raised, and is the request's
+    failure.
     """
     LOG.debug(
         "Looking for annotations referencing resource",
         extra={"resourceId": request.resource_id, "motivation": request.motivation or "all"},
     )
-    if await views.get(request.resource_id) is None:
+    if await record.described(request.resource_id) is None:
         raise Ungathered("Resource not found")
     references = await graph.get_resource_referenced_by(request.resource_id, request.motivation)
 
     cited_from = list(dict.fromkeys(target_source(reference.target) for reference in references))
-    graced = await asyncio.gather(*(resource_with_view_grace(graph, views, source) for source in cited_from))
+    graced = await asyncio.gather(*(resource_with_view_grace(graph, record, source) for source in cited_from))
     described: dict[ResourceId, ResourceDescriptor] = {}
     for source, read in zip(cited_from, graced, strict=True):
         if read.resource is not None:
@@ -80,6 +80,4 @@ async def answer(request: GatherReferencedByRequest, *, graph: GraphReads, views
             )
         )
 
-    name = await namer(people)
-    reply = GatherReferencedByResult(response=GetReferencedByResponse(referenced_by=entries))
-    return GatherReferencedByResult.model_validate(name(written(reply)))
+    return GatherReferencedByResult(response=GetReferencedByResponse(referenced_by=entries))

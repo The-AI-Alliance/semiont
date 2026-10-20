@@ -190,7 +190,7 @@ def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_
     async def scenario() -> None:
         client, transport = world()
         descriptor: JsonObject = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
-        described: JsonObject = {"resource": descriptor, "annotations": [], "entityReferences": []}
+        described: JsonObject = {"resource": descriptor, "lastSequence": 1}
         transport.queue_reply("browse:resource-requested", [described] * 2)
         transport.queue_reply("browse:entity-types-requested", [{"entityTypes": ["Person", "Place"]}])
         transport.queue_reply("gather:referenced-by-requested", [{"referencedBy": []}])

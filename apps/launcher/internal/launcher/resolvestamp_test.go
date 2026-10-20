@@ -10,10 +10,8 @@ import (
 
 // A store's stamp mismatch is resolved in preflight, and resolution must
 // RESTAMP the moment it resolves. A preflight that cleared and left the stamp
-// would have the stamp owner's own prep see mismatch + non-empty again —
-// non-empty because the gateway has by then written its jobs tree into the
-// shared store — and clear a second time, mid-boot, deleting what a sharer
-// just wrote.
+// would leave meta.json naming an image whose output is gone, and the stamp
+// owner's own prep would resolve the same mismatch again, mid-boot.
 func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	harness.Home(t)
 	root := t.TempDir()
@@ -41,7 +39,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 		t.Fatal("a projection mismatch must resolve, not refuse")
 	}
 	if got := loadRootMeta(dir).Stores["state"].Image; got != "img:new" {
-		t.Errorf("stamp after resolution = %q, want %q — an unstamped resolution re-fires at the owner's prep and clears what sharers wrote in between", got, "img:new")
+		t.Errorf("stamp after resolution = %q, want %q — a resolution that leaves the stamp re-fires at the owner's prep, mid-boot", got, "img:new")
 	}
 
 	// The refusal path must NOT restamp: the data on disk is still the old

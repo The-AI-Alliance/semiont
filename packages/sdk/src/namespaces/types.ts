@@ -174,7 +174,8 @@ export type MatchedResources = Omit<components['schemas']['MatchResourcesRespons
  * Event prefix: browse:*
  */
 export interface BrowseNamespace {
-  // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
+  // Live queries (Observable — refreshed by bus events, cached in BehaviorSubject;
+  // `annotations` reads over HTTP, the rest ask the bus)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
   resources(filters?: { limit?: number; archived?: boolean; entityType?: string }): CacheObservable<ResourceList>;
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;

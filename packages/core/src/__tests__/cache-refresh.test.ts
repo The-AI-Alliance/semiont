@@ -22,7 +22,8 @@ const TABLE = fileURLToPath(new URL('../../../../specs/src/client/refresh.json',
 interface Query {
   name: string;
   per?: string;
-  asks: string;
+  asks?: string;
+  reads?: string;
   docs?: string;
 }
 
@@ -91,6 +92,13 @@ describe('the cache-refresh generator', () => {
     refused((t) => delete t.queries[0]!.docs, 'the query resource has no docs');
     refused((t) => (t.queries[0]!.asks = 'browse:resource-result'), 'which is not an operation of the registry');
     refused((t) => (t.queries[0]!.per = 'page'), 'is kept per "page"');
+  });
+
+  it('refuses a query that reads no GET of the gateway, one that asks and reads, and one that does neither', () => {
+    const annotations = (t: Table): Query => t.queries.find((q) => q.name === 'annotations')!;
+    refused((t) => (annotations(t).reads = 'GET /resources/{id}/notes'), 'reads "GET /resources/{id}/notes", which is no GET of the gateway\'s API');
+    refused((t) => (annotations(t).asks = 'browse:annotation-requested'), 'must either ask an operation of the registry or read a route of the gateway\'s API, and not both');
+    refused((t) => delete annotations(t).reads, 'must either ask an operation of the registry or read a route of the gateway\'s API, and not both');
   });
 
   it('refuses a trigger that is neither a channel nor reopened', () => {

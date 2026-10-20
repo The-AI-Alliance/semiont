@@ -92,9 +92,10 @@ document,**
 [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json),
 at the path its `--config` flag names. The harness writes the document
 ([harness/librarian-process.ts](../harness/librarian-process.ts)) into a home
-directory of the world's own. The document states the state volume, which is
-the one the world's Archivist writes its views into, and the health port, a
-free port the harness chooses for each world. It states the two numbers a
+directory of the world's own. It states no state volume: a Librarian mounts
+none, and reads what the world's Archivist records of each resource, and the
+people it names, on the bus. It states the health port, a free port the
+harness chooses for each world. It states the two numbers a
 deployment may leave to their defaults too: how long a gather waits for a
 resource's vectors, and the floor of the semantic fallback. The Librarian's
 environment holds its service account, the graph database's password and
@@ -109,8 +110,8 @@ the stand-in answers what the real Archivist answers when it is asked.
 ## What it checks
 
 - **As a process** (`boot.test.ts`): what its health reports; a clean stop;
-  and every refusal to start: no gateway address, no issuer, no name for the
-  knowledge base, no state volume, no address for the Archivist, no graph
+  and every refusal to start: no gateway address, no issuer, no address for
+  the Archivist, no graph
   database, no vector database, no embedding provider, no model for an actor,
   a graph or a vector index that lives in one process's memory, a settle
   bound that is no time at all or does not end under the stall of a held job,

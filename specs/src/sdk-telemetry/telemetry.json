@@ -85,6 +85,18 @@
         }
       ]
     }
+,
+    {
+      "name": "content.get_annotations",
+      "transport": "content",
+      "kind": "client",
+      "meaning": "A read of a resource's annotations.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        }
+      ]
+    }
   ],
   "metrics": [
     {

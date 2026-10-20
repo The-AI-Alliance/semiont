@@ -42,16 +42,6 @@
       ],
       "additionalProperties": false
     },
-    "stateHome": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there."
-    },
-    "kbName": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume."
-    },
     "graph": {
       "$ref": "./GraphConfig.json"
     },
@@ -120,8 +110,6 @@
     "gatewayUrl",
     "identity",
     "archivist",
-    "stateHome",
-    "kbName",
     "graph",
     "vectors",
     "embedding",

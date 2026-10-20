@@ -1,7 +1,8 @@
 """A knowledge base's answers and events, as small as their shapes allow: what a test of a client's queries scripts."""
 
-from collections.abc import Mapping
-from typing import Final, assert_never
+import asyncio
+from collections.abc import Mapping, Sequence
+from typing import Final, assert_never, final, override
 
 from pydantic import JsonValue
 from spec import JsonObject
@@ -9,8 +10,9 @@ from spec import JsonObject
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import OPERATIONS
 from semiont.refresh import CacheQuery, CacheRefreshTrigger, CacheRefreshWhen
-from semiont.testing import DropReply, FaultyTransport, Refuse, refuse_unscripted_operation
-from semiont.transport import Frame
+from semiont.testing import ContentCall, DropReply, FaultyTransport, GetAnnotations, InMemoryContent, Refuse, refuse_unscripted_operation
+from semiont.transport import Content, ContentStream, ContentTransport, Frame, PutBinaryRequest, Upload
+from semiont.types import AnchoredTextAnswer, GetAnnotationsResponse, GetResourceResponse
 
 RESOURCE, OTHER = ResourceId("res-1"), ResourceId("res-2")
 ANNOTATION, ELSEWHERE = AnnotationId("ann-1"), AnnotationId("ann-2")
@@ -20,7 +22,7 @@ LIMITS: Final = ("gather:limits-requested", "job:limits-requested", "match:limit
 
 ASKS: Final[dict[CacheQuery, tuple[str, ...]]] = {
     "resource": ("browse:resource-requested",),
-    "annotations": ("browse:annotations-requested",),
+    "annotations": ("getAnnotations",),
     "annotation": ("browse:annotation-requested",),
     "events": ("browse:events-requested",),
     "referencedBy": ("gather:referenced-by-requested",),
@@ -30,7 +32,7 @@ ASKS: Final[dict[CacheQuery, tuple[str, ...]]] = {
     "tagSchemas": ("browse:tag-schemas-requested",),
     "agents": ("browse:agents-requested", *LIMITS),
 }
-"""The operations each live query asks."""
+"""The operations each live query asks, or the read of the content transport it makes, as `surface.json` names that read."""
 
 
 def descriptor(resource: str, name: str = "A resource") -> JsonObject:
@@ -53,8 +55,7 @@ def annotation(annotation_id: str, resource: str, modified: str | None = None) -
 
 _PAGE: Final[JsonObject] = {"resources": [], "total": 0, "offset": 0, "limit": 100}
 _ANSWERS: Final[dict[str, JsonValue]] = {
-    "browse:resource-requested": {"resource": descriptor(RESOURCE), "annotations": [], "entityReferences": []},
-    "browse:annotations-requested": {"annotations": [annotation(ANNOTATION, RESOURCE)], "total": 1},
+    "browse:resource-requested": {"resource": descriptor(RESOURCE), "lastSequence": 1},
     "browse:annotation-requested": {"annotation": annotation(ANNOTATION, RESOURCE), "resource": None, "resolvedResource": None},
     "browse:events-requested": {"events": [], "total": 0, "resourceId": RESOURCE},
     "gather:referenced-by-requested": {"referencedBy": []},
@@ -76,6 +77,57 @@ def knowing(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | Non
     if operation not in _ANSWERS:
         refuse_unscripted_operation(operation, payload)
     return _ANSWERS[operation]
+
+
+def knowing_content() -> InMemoryContent:
+    """A content transport that answers the annotations of `RESOURCE` and of `OTHER`, each as `RESOURCE`'s, as often as it is asked."""
+    content = InMemoryContent()
+    listed = GetAnnotationsResponse.model_validate({"annotations": [annotation(ANNOTATION, RESOURCE)], "total": 1})
+    for resource in (RESOURCE, OTHER):
+        content.seed_annotations(resource, listed)
+    return content
+
+
+@final
+class SilentContent(ContentTransport):
+    """A content transport that hears each read of a resource's annotations and answers none: the read waits until it is cancelled.
+
+    A live query makes no other call of the content transport, and one is refused.
+    """
+
+    def __init__(self) -> None:
+        self._calls: Final[list[ContentCall]] = []
+
+    @property
+    def calls(self) -> Sequence[ContentCall]:
+        """Every read of a resource's annotations, in order."""
+        return self._calls
+
+    @override
+    def put_binary(self, request: PutBinaryRequest) -> Upload:
+        raise AssertionError("a live query uploads nothing")
+
+    @override
+    async def get_binary(self, resource_id: ResourceId) -> Content:
+        raise AssertionError("a live query reads no bytes")
+
+    @override
+    async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
+        raise AssertionError("a live query reads no bytes")
+
+    @override
+    async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
+        raise AssertionError("a live query reads no description as linked data")
+
+    @override
+    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        self._calls.append(GetAnnotations(resource_id))
+        unanswered: asyncio.Future[GetAnnotationsResponse] = asyncio.get_running_loop().create_future()
+        return await unanswered
+
+    @override
+    async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
+        raise AssertionError("a live query reads no anchored text")
 
 
 def silent() -> FaultyTransport:

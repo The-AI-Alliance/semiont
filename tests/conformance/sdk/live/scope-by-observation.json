@@ -4,24 +4,24 @@
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},
-    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},
 
     {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
     {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
-    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "lastSequence": 1}}}},
     {"scopes": [{"$var": "r1"}]},
 
-    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "b"},
-    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
-    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"observe": {"query": "events", "resource": {"$var": "r1"}}, "as": "b"},
+    {"fetch": "browse:events-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:events-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"events": [], "total": 0, "resourceId": {"$var": "r1"}}}}},
     {"reaches": "b", "state": {"status": "ready", "value": []}},
     {"leave": "a"},
 
     {"observe": {"query": "resource", "resource": {"$var": "r2"}}, "as": "c"},
     {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r2"}}, "as": "f3"},
-    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f3"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f3"}, "payload": {"response": {"resource": {"$var": "two"}, "lastSequence": 1}}}},
     {"scopes": [{"$var": "r1"}, {"$var": "r2"}]},
 
     {"leave": "b"},

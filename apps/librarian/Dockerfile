@@ -71,10 +71,8 @@ RUN apk upgrade --no-cache && apk add --no-cache tini
 # installer.
 RUN pip uninstall --yes --root-user-action=ignore pip
 
-# The uid every service image runs as. The Librarian reads the views and the
-# people projection the Archivist writes as this uid, in the state volume its
-# document names (`stateHome`): whoever starts the container mounts the
-# volume there.
+# The uid every service image runs as. The Librarian mounts nothing: what it
+# reads of the record and of its people it asks the Archivist on the bus.
 RUN addgroup --system --gid 1001 semiont && \
     adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 

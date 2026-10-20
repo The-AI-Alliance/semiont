@@ -25,7 +25,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const GRAPH = { resource: { id: 'res-1' }, annotations: [], entityReferences: [] };
+const GRAPH = { resource: { id: 'res-1' }, annotations: [] };
 
 describe('useResourceGraph', () => {
   beforeEach(() => {
@@ -73,8 +73,8 @@ describe('useResourceGraph', () => {
     let resolveNew!: (g: unknown) => void;
     const oldFetch = new Promise((r) => { resolveOld = r; });
     const newFetch = new Promise((r) => { resolveNew = r; });
-    const GRAPH_OLD = { resource: { id: 'res-old' }, annotations: [], entityReferences: [] };
-    const GRAPH_NEW = { resource: { id: 'res-new' }, annotations: [], entityReferences: [] };
+    const GRAPH_OLD = { resource: { id: 'res-old' }, annotations: [] };
+    const GRAPH_NEW = { resource: { id: 'res-new' }, annotations: [] };
     mockResourceGraph.mockReturnValueOnce(oldFetch).mockReturnValueOnce(newFetch);
 
     const { result, rerender } = renderHook(({ id }) => useResourceGraph(id), {

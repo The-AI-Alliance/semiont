@@ -42,9 +42,9 @@ withArchivist('a tree written before', (world) => {
     expect(listed.map((r) => [r['@id'], r.name, r.archived]).sort()).toEqual([[SHARED, 'Shared', false], [COPY, 'A copy', true]].sort());
 
     const shared = await reader.ask('browse:resource-requested', { resourceId: SHARED });
-    expect(shared).toMatchObject({ resource: { entityTypes: ['Event'], dateModified: expect.any(String) } });
-    expect((shared['annotations'] as unknown[])).toHaveLength(1);
-    expect((shared['entityReferences'] as unknown[])).toHaveLength(1);
+    expect(shared).toMatchObject({ resource: { entityTypes: ['Event'], dateModified: expect.any(String) }, lastSequence: world().view(SHARED)!.lastSequence });
+    const annotations = await world().http('GET', `/resources/${SHARED}/annotations`, { route: '/resources/{id}/annotations' });
+    expect((annotations.json as { total: number }).total).toBe(1);
 
     const replay = await world().http('GET', `/events/${SHARED}?fromSequence=1`, { route: '/events/{resourceId}' });
     const lines = readFileSync(join(FIXTURE, 'kb/.semiont/events/66/9b', SHARED, 'events-000001.jsonl'), 'utf8').split('\n').filter(Boolean);

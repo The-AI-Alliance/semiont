@@ -39,6 +39,7 @@ import { APIError, refusalBody } from './api-error';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 export class HttpContentTransport implements IContentTransport {
   constructor(private readonly transport: HttpTransport) {}
@@ -175,6 +176,26 @@ export class HttpContentTransport implements IContentTransport {
         const path = `${this.pathOf(resourceId)}/jsonld`;
         return this.transport.ask('GET', path, (http) =>
           http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetResourceResponse>());
+      },
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
+  }
+
+  /**
+   * A resource's annotations, from the gateway's
+   * `GET /resources/:id/annotations`: the body is the answer.
+   */
+  async getAnnotations(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<GetAnnotationsResponse> {
+    busLog('GET', 'content', { resourceId, annotations: true });
+    return withSpan(
+      'content.get_annotations',
+      () => {
+        const path = `${this.pathOf(resourceId)}/annotations`;
+        return this.transport.ask('GET', path, (http) =>
+          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetAnnotationsResponse>());
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );

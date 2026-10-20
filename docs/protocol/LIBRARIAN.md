@@ -3,8 +3,9 @@
 What the Librarian does: the process a librarian image runs. It answers the
 questions that need the graph, the vector index or a model: what a reference
 could refer to, which resources a text finds, what surrounds an annotation or
-a resource, and what refers to a resource. It reads the views the Archivist
-writes, the graph the Weaver writes and the index the Smelter writes, and it
+a resource, and what refers to a resource. It reads what the Archivist's
+views say of a resource, and the people they name, from the Archivist on the
+bus; the graph the Weaver writes and the index the Smelter writes; and it
 records nothing. The client's side of what it answers is
 [flows/MATCH.md](./flows/MATCH.md) and [flows/GATHER.md](./flows/GATHER.md);
 what the record is, and what the Archivist answers, is
@@ -60,9 +61,7 @@ A Librarian reads its settings from a configuration document, the protocol's
 at the path its `--config` flag names. The document is resolved: no `${VAR}`
 is left in it, and the Librarian defaults nothing it leaves out. It states
 the gateway's URL; the issuer the Librarian's service account signs in at;
-the Archivist's host and port, for a resource's bytes; the state volume and
-the knowledge base's name, by which the views the Archivist writes are found;
-the graph database
+the Archivist's host and port, for a resource's bytes; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the
 environment variable that holds its password); the vector index
@@ -91,8 +90,7 @@ knowledge base's config states neither. The Librarian supplies no value.
   value found there. *Held by `apps/librarian/tests/test_service.py`.*
 - **Without any one member of the document it refuses to start, and names the
   member that is missing:** the gateway's URL, the issuer, the Archivist's
-  address, the state volume, the knowledge base's name, a graph database, a
-  vector index, an embedding provider, a model for either actor, the settle
+  address, a graph database, a vector index, an embedding provider, a model for either actor, the settle
   bound, the semantic floor, its port, or how it logs.
   *Held by `apps/librarian/tests/test_service.py` and `librarian/boot`.*
 - **A graph that lives in one process's memory is refused, and so is a vector
@@ -130,9 +128,12 @@ knowledge base's config states neither. The Librarian supplies no value.
 A Librarian signs in as its service account and works as the agent `(semiont,
 librarian)`: one agent, whatever models its two actors use. It reaches the bus
 through the gateway. It reads the graph database and the vector index
-directly, each through a reader that can write nothing; the views and the
-people projection from the state volume, under `semiont/<the knowledge base's
-name>` in it; a resource's bytes from the Archivist's own
+directly, each through a reader that can write nothing; what the Archivist's
+views say of a resource, and the people a reply names, from the Archivist on
+the bus, each read bounded by what it asks (`browse:resource-requested` for a
+resource's description and the sequence number of its last event,
+`browse:annotation-requested` for one annotation, `browse:people-requested`
+for the people a reply names); a resource's bytes from the Archivist's own
 `GET /resources/{id}/content`, as its service account; and a resource's
 anchored text from the gateway's `GET /resources/{id}/anchored-text`.
 
@@ -166,9 +167,11 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   ([The two waits](#the-two-waits)). It follows no recorded event. A signal
   whose payload is not its channel's is logged and passed by.
   *Held by `apps/librarian/tests/test_service.py` and `apps/librarian/tests/test_librarian.py`.*
-- **Its stream names those ten channels and no other, and it awaits nothing
-  on the bus.** It asks no service a question over the bus: what it needs of
-  another service it reads over HTTP, or from a store.
+- **Its stream names those ten channels and the replies of the three reads
+  it asks the Archivist, and no other.** It asks the bus only
+  `browse:resource-requested`, `browse:annotation-requested` and
+  `browse:people-requested`; what else it needs of another service it reads
+  over HTTP, or from a store.
   *Held by `apps/librarian/tests/test_service.py` and `apps/librarian/tests/test_census.py`.*
 - **It records nothing, and puts no node and no edge in the graph, no point
   in the index and nothing in a view.** Connecting to the graph database
@@ -181,10 +184,11 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   failure channel, saying the index has no such collection. Every other
   failure of the index is as each operation's own rules say.
   *Held by `packages/vectors-python/tests/qdrant_live.py`, and by `apps/librarian/tests/test_reference_search.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_annotation_gather.py`.*
-- **A resource with no view file has no view. A file that is there and is not
-  a view, or cannot be opened, is a failure that names the file,** and is
-  never taken for a resource with no view. The people projection is read the
-  same way ([Names](#names)).
+- **A resource the Archivist answers `not-found` for has no view; any other
+  failure of the read is a failure,** and is never taken for a resource with
+  no view. Of a resource the record holds, an annotation the Archivist refuses
+  is one its view does not hold. It mounts no state volume and opens no file
+  of the record.
   *Held by `apps/librarian/tests/test_record.py`.*
 
 ## Reference search
@@ -770,25 +774,29 @@ among them.
 ## Names
 
 No stored thing carries a person's name. The Archivist keeps what the
-knowledge base calls each person in the people projection, on the state
-volume.
+knowledge base calls each person in the people projection, and answers the
+profiles of the people a reader names (`browse:people-requested`).
 
-- **The replies to a reference search, to a text search and to what refers
-  to a resource have their people named:** every object whose `@type` is `Person`, wherever in the
+- **The replies to a reference search and to a text search have their people
+  named:** every object whose `@type` is `Person`, wherever in the
   reply it is, and whose `@id` the projection holds, has its `name` set to
   the name stated there, in place of any it carried. A person whose `@id`
   the projection does not hold is left as it is, whatever text the `@id` is.
   Nothing else of the reply changes, as
   [`naming-cases.json`](../../specs/src/librarian/naming-cases.json) states.
   *Held by `apps/librarian/tests/test_naming_cases.py` and `apps/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a text search's lexical page, its semantic one, and a candidate of a reference.*
-- **The projection is read once for each reply.** A knowledge base with no
-  projection names no one.
+- **The people are asked for once for each reply, by the DIDs it mentions,**
+  and a reply that mentions no one asks nothing. A person the projection holds
+  no profile of is not named.
   *Held by `apps/librarian/tests/test_naming_cases.py` and `apps/librarian/tests/test_record.py`.*
 - **A projection that cannot be read is logged as a warning, and the reply
   is sent with no one named.**
   *Held by `apps/librarian/tests/test_naming_cases.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_referenced_by.py`.*
-- **The replies to the two gathers, to a summary and to the two limits
-  requests are not named.** *Held by no case.*
+- **The replies to the two gathers, to a summary, to what refers to a
+  resource and to the two limits requests are not named here:** what refers
+  to a resource names no person, and a gather's resources and annotations are
+  as the Archivist answers them, which has named their people already.
+  *Held by `librarian/gather`, for a gather's resources and annotations.*
 
 ## What a failed read does
 
@@ -839,7 +847,7 @@ This one states them together.
 | | a hit's description: the graph | read from its view |
 | | a hit's description: its view | that hit is left out; logged |
 | | a preview's bytes | the empty string |
-| | the people projection | no one is named; logged |
+| | the people the reply names | no one is named; logged |
 | gather around an annotation | the resource's view | the gather fails |
 | | the linked resource's view | no `targetResource`; logged |
 | | the resource's text, the linked resource's text | the gather fails |
@@ -860,7 +868,6 @@ This one states them together.
 | what refers to a resource | the resource's view, the graph's list | the request fails |
 | | a citing resource's description: the graph | read from its view; logged |
 | | a citing resource's description: its view | its entry states no name; logged |
-| | the people projection | no one is named; logged |
 | limits | the provider | left out of the list |
 
 In every row, a vector index with no such collection fails the request.
@@ -948,10 +955,6 @@ requests; opens its health port.
 - **It reaches no embedding provider and no model at start.** It makes no
   collection, so it has no width of a vector to learn.
   *Held by `apps/librarian/tests/test_service.py`, for a reader of the index that is made with nothing dialled.*
-- **It does not look for the state directory.** A state volume that holds no
-  directory of the knowledge base is a knowledge base with no views and no
-  people: a gather then fails for a resource with no view, and a reply names
-  no one. *Held by `apps/librarian/tests/test_record.py`, for a file that is not there.*
 - **Every refusal to start ends the process with a status other than 0.**
   *Held by `apps/librarian/tests/test_service.py` and `librarian/boot`.*
 - **It loads nothing and makes nothing at start:** no view, no graph and no

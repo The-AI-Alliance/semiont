@@ -178,9 +178,8 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.initStack(fc.root, fc.opts.configName, fc.version, addr, stage)
 	x.recordPorts(checks)
 
-	// Store stamps resolve HERE, before the first container run: the state
-	// store is shared, and a clear at its owner's prep would land after the
-	// gateway attached it.
+	// Store stamps resolve HERE, before the first container run, so no clear
+	// lands on a directory a container has already attached.
 	if !x.resolveStoreStamps(fc) {
 		return 1
 	}
@@ -738,12 +737,11 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	// The gateway's one state mount is the shared XDG state tree, attached
-	// for its supervisor's events log (gatewayArgs); the Archivist rebuilds
-	// the views in there. Shared, not stamped — the Archivist owns this
-	// store's stamp. No anchored-text mount: the gateway neither reads nor
-	// writes that store, which is the Smelter's.
-	extra, ok := x.stateMountsShared("state", fc.root)
+	// The gateway's one state mount is its own store, for its supervisor's
+	// events log (gatewayArgs). No image stamps it. It mounts neither the
+	// Archivist's state tree nor the anchored-text store: no store is mounted
+	// by two containers.
+	extra, ok := x.stateMountsUnstamped("gateway", fc.root)
 	if !ok {
 		return 1
 	}
@@ -826,7 +824,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	x.banner(startBanner(fc, "Archivist"))
 	// The anchored-text store is the Archivist's alone and no image stamps
 	// it; the state tree it stamps, as the projection writer.
-	extra, ok := x.stateMountsShared("anchored-text", fc.root)
+	extra, ok := x.stateMountsUnstamped("anchored-text", fc.root)
 	if !ok {
 		return 1
 	}
@@ -862,7 +860,9 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 // its own configuration document, staged for it — see librarianArgs.
 func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Librarian"))
-	state, ok := x.stateMountsShared("state", fc.root)
+	// Its own store, for its supervisor's events log; no image stamps it. It
+	// reads the views on the bus, not from the Archivist's state tree.
+	state, ok := x.stateMountsUnstamped("librarian", fc.root)
 	if !ok {
 		return 1
 	}

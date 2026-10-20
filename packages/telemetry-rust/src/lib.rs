@@ -5,7 +5,8 @@
 //! A transport reports through one function per row of the SDK telemetry
 //! table (specs/src/sdk-telemetry/telemetry.json): [`bus_emit`], which is
 //! also the `semiont.bus.sent` count, [`bus_recv`], [`content_put`],
-//! [`content_get`], [`content_get_graph`] and [`content_get_anchored_text`].
+//! [`content_get`], [`content_get_graph`], [`content_get_annotations`] and
+//! [`content_get_anchored_text`].
 //! It names no span, kind or attribute of its own, and puts [`active_trace`]
 //! on what it sends.
 //!
@@ -103,6 +104,18 @@ pub async fn content_get<T>(resource_id: &str, stream: bool, read: impl Future<O
         "content.get".to_owned(),
         SpanKind::Client,
         attributes,
+        Context::current(),
+        read,
+    )
+    .await
+}
+
+/// `content.get_annotations`: a read of a resource's annotations.
+pub async fn content_get_annotations<T>(resource_id: &str, read: impl Future<Output = T>) -> T {
+    in_span(
+        "content.get_annotations".to_owned(),
+        SpanKind::Client,
+        vec![KeyValue::new("resource.id", resource_id.to_owned())],
         Context::current(),
         read,
     )

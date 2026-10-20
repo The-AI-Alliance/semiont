@@ -161,9 +161,9 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |
 | `anchored_text_store.py`, `stamp.py` | The Archivist's anchored-text store as the Smelter keeps it, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
 
-What reads a resource's bytes and the reader that asks the Archivist, where an entry of the
-store is filed, and what white space is are every Python service's, in
-[`semiont-service`](../../packages/service-python/README.md) (`content`, `archivist`, `shard`,
+What reads a resource's bytes and its annotations, the reader that asks the Archivist for them,
+and what white space is are every Python service's, in
+[`semiont-service`](../../packages/service-python/README.md) (`content`, `archivist`,
 `white_space`).
 
 ```sh

@@ -19,7 +19,6 @@ from semiont.namespaces.links import Links
 from semiont.operations import (
     BROWSE_AGENTS_REQUESTED,
     BROWSE_ANNOTATION_REQUESTED,
-    BROWSE_ANNOTATIONS_REQUESTED,
     BROWSE_ENTITY_TYPES_REQUESTED,
     BROWSE_EVENTS_REQUESTED,
     BROWSE_RESOURCE_REQUESTED,
@@ -31,12 +30,12 @@ from semiont.operations import (
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
 from semiont.storage import MAX_STORED_BYTES, SessionStorage, StoragePersister
+from semiont.transport import ContentTransport
 from semiont.types import (
     Annotation,
     AttributedEvent,
     BrowseAgentsRequest,
     BrowseAnnotationRequest,
-    BrowseAnnotationsRequest,
     BrowseEntityTypesRequest,
     BrowseEventsRequest,
     BrowseResourceRequest,
@@ -121,8 +120,9 @@ class Subject:
 class Live:
     """See the module's documentation."""
 
-    def __init__(self, links: Links, persistence: CachePersistence | None) -> None:
+    def __init__(self, links: Links, content: ContentTransport, persistence: CachePersistence | None) -> None:
         self._links: Final = links
+        self._content: Final = content
         self._persistence: Final = persistence
         self._kept_true = False
         self._disposed = False
@@ -188,7 +188,7 @@ class Live:
         return (await self._links.request(BROWSE_RESOURCES_REQUESTED, request)).response
 
     async def _annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
-        return (await self._links.request(BROWSE_ANNOTATIONS_REQUESTED, BrowseAnnotationsRequest(resource_id=resource_id))).response
+        return await self._content.get_annotations(resource_id)
 
     async def _annotation(self, annotation_id: AnnotationId) -> Annotation:
         resource_id = self.annotation_of.get(annotation_id)

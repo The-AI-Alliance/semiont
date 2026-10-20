@@ -20,13 +20,13 @@ __all__ = [
     "OPERATIONS",
     "BIND_UPDATE_BODY",
     "BROWSE_AGENTS_REQUESTED",
-    "BROWSE_ANNOTATIONS_REQUESTED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
     "BROWSE_ANNOTATION_REQUESTED",
     "BROWSE_DIRECTORY_REQUESTED",
     "BROWSE_ENTITY_TYPES_REQUESTED",
     "BROWSE_EVENTS_REQUESTED",
     "BROWSE_KB_REQUESTED",
+    "BROWSE_PEOPLE_REQUESTED",
     "BROWSE_RESOURCES_REQUESTED",
     "BROWSE_RESOURCE_REQUESTED",
     "BROWSE_TAG_SCHEMAS_REQUESTED",
@@ -81,11 +81,6 @@ BROWSE_ANNOTATION_REQUESTED: Final = Operation(
     result=channels.BROWSE_ANNOTATION_RESULT,
     failure=channels.BROWSE_ANNOTATION_FAILED,
 )
-BROWSE_ANNOTATIONS_REQUESTED: Final = Operation(
-    request=channels.BROWSE_ANNOTATIONS_REQUESTED,
-    result=channels.BROWSE_ANNOTATIONS_RESULT,
-    failure=channels.BROWSE_ANNOTATIONS_FAILED,
-)
 BROWSE_ANNOTATION_HISTORY_REQUESTED: Final = Operation(
     request=channels.BROWSE_ANNOTATION_HISTORY_REQUESTED,
     result=channels.BROWSE_ANNOTATION_HISTORY_RESULT,
@@ -110,6 +105,11 @@ BROWSE_AGENTS_REQUESTED: Final = Operation(
     request=channels.BROWSE_AGENTS_REQUESTED,
     result=channels.BROWSE_AGENTS_RESULT,
     failure=channels.BROWSE_AGENTS_FAILED,
+)
+BROWSE_PEOPLE_REQUESTED: Final = Operation(
+    request=channels.BROWSE_PEOPLE_REQUESTED,
+    result=channels.BROWSE_PEOPLE_RESULT,
+    failure=channels.BROWSE_PEOPLE_FAILED,
 )
 BROWSE_KB_REQUESTED: Final = Operation(
     request=channels.BROWSE_KB_REQUESTED,
@@ -274,12 +274,12 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
         "browse:resource-requested": BROWSE_RESOURCE_REQUESTED,
         "browse:resources-requested": BROWSE_RESOURCES_REQUESTED,
         "browse:annotation-requested": BROWSE_ANNOTATION_REQUESTED,
-        "browse:annotations-requested": BROWSE_ANNOTATIONS_REQUESTED,
         "browse:annotation-history-requested": BROWSE_ANNOTATION_HISTORY_REQUESTED,
         "browse:events-requested": BROWSE_EVENTS_REQUESTED,
         "browse:entity-types-requested": BROWSE_ENTITY_TYPES_REQUESTED,
         "browse:tag-schemas-requested": BROWSE_TAG_SCHEMAS_REQUESTED,
         "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
+        "browse:people-requested": BROWSE_PEOPLE_REQUESTED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:directory-requested": BROWSE_DIRECTORY_REQUESTED,
         "frame:add-entity-type": FRAME_ADD_ENTITY_TYPE,

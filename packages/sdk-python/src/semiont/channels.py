@@ -41,8 +41,6 @@ from semiont.types import (
     BrowseAnnotationHistoryResult,
     BrowseAnnotationRequest,
     BrowseAnnotationResult,
-    BrowseAnnotationsRequest,
-    BrowseAnnotationsResult,
     BrowseClickEvent,
     BrowseDirectoryFailed,
     BrowseDirectoryRequest,
@@ -58,6 +56,8 @@ from semiont.types import (
     BrowseLinkClickedEvent,
     BrowsePanelOpenEvent,
     BrowsePanelToggleEvent,
+    BrowsePeopleRequest,
+    BrowsePeopleResult,
     BrowseResourceCloseEvent,
     BrowseResourceOpenEvent,
     BrowseResourceReorderEvent,
@@ -180,9 +180,6 @@ __all__ = [
     "BROWSE_AGENTS_FAILED",
     "BROWSE_AGENTS_REQUESTED",
     "BROWSE_AGENTS_RESULT",
-    "BROWSE_ANNOTATIONS_FAILED",
-    "BROWSE_ANNOTATIONS_REQUESTED",
-    "BROWSE_ANNOTATIONS_RESULT",
     "BROWSE_ANNOTATION_FAILED",
     "BROWSE_ANNOTATION_HISTORY_FAILED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
@@ -203,6 +200,9 @@ __all__ = [
     "BROWSE_KB_FAILED",
     "BROWSE_KB_REQUESTED",
     "BROWSE_KB_RESULT",
+    "BROWSE_PEOPLE_FAILED",
+    "BROWSE_PEOPLE_REQUESTED",
+    "BROWSE_PEOPLE_RESULT",
     "BROWSE_RESOURCES_FAILED",
     "BROWSE_RESOURCES_REQUESTED",
     "BROWSE_RESOURCES_RESULT",
@@ -477,9 +477,6 @@ type ChannelName = Literal[
     "browse:resources-requested",
     "browse:resources-result",
     "browse:resources-failed",
-    "browse:annotations-requested",
-    "browse:annotations-result",
-    "browse:annotations-failed",
     "browse:annotation-requested",
     "browse:annotation-result",
     "browse:annotation-failed",
@@ -498,6 +495,9 @@ type ChannelName = Literal[
     "browse:agents-requested",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-requested",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -674,9 +674,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:resources-requested",
     "browse:resources-result",
     "browse:resources-failed",
-    "browse:annotations-requested",
-    "browse:annotations-result",
-    "browse:annotations-failed",
     "browse:annotation-requested",
     "browse:annotation-result",
     "browse:annotation-failed",
@@ -695,6 +692,9 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:agents-requested",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-requested",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -870,9 +870,6 @@ BROWSE_RESOURCE_FAILED: Final = Channel[CommandError]("browse:resource-failed", 
 BROWSE_RESOURCES_REQUESTED: Final = Channel[BrowseResourcesRequest]("browse:resources-requested", BrowseResourcesRequest)
 BROWSE_RESOURCES_RESULT: Final = Channel[BrowseResourcesResult]("browse:resources-result", BrowseResourcesResult)
 BROWSE_RESOURCES_FAILED: Final = Channel[CommandError]("browse:resources-failed", CommandError)
-BROWSE_ANNOTATIONS_REQUESTED: Final = Channel[BrowseAnnotationsRequest]("browse:annotations-requested", BrowseAnnotationsRequest)
-BROWSE_ANNOTATIONS_RESULT: Final = Channel[BrowseAnnotationsResult]("browse:annotations-result", BrowseAnnotationsResult)
-BROWSE_ANNOTATIONS_FAILED: Final = Channel[CommandError]("browse:annotations-failed", CommandError)
 BROWSE_ANNOTATION_REQUESTED: Final = Channel[BrowseAnnotationRequest]("browse:annotation-requested", BrowseAnnotationRequest)
 BROWSE_ANNOTATION_RESULT: Final = Channel[BrowseAnnotationResult]("browse:annotation-result", BrowseAnnotationResult)
 BROWSE_ANNOTATION_FAILED: Final = Channel[CommandError]("browse:annotation-failed", CommandError)
@@ -891,6 +888,9 @@ BROWSE_TAG_SCHEMAS_FAILED: Final = Channel[CommandError]("browse:tag-schemas-fai
 BROWSE_AGENTS_REQUESTED: Final = Channel[BrowseAgentsRequest]("browse:agents-requested", BrowseAgentsRequest)
 BROWSE_AGENTS_RESULT: Final = Channel[BrowseAgentsResult]("browse:agents-result", BrowseAgentsResult)
 BROWSE_AGENTS_FAILED: Final = Channel[CommandError]("browse:agents-failed", CommandError)
+BROWSE_PEOPLE_REQUESTED: Final = Channel[BrowsePeopleRequest]("browse:people-requested", BrowsePeopleRequest)
+BROWSE_PEOPLE_RESULT: Final = Channel[BrowsePeopleResult]("browse:people-result", BrowsePeopleResult)
+BROWSE_PEOPLE_FAILED: Final = Channel[CommandError]("browse:people-failed", CommandError)
 BROWSE_KB_REQUESTED: Final = Channel[BrowseKbRequest]("browse:kb-requested", BrowseKbRequest)
 BROWSE_KB_RESULT: Final = Channel[BrowseKbResult]("browse:kb-result", BrowseKbResult)
 BROWSE_KB_FAILED: Final = Channel[CommandError]("browse:kb-failed", CommandError)
@@ -1068,9 +1068,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:resources-requested": BROWSE_RESOURCES_REQUESTED,
         "browse:resources-result": BROWSE_RESOURCES_RESULT,
         "browse:resources-failed": BROWSE_RESOURCES_FAILED,
-        "browse:annotations-requested": BROWSE_ANNOTATIONS_REQUESTED,
-        "browse:annotations-result": BROWSE_ANNOTATIONS_RESULT,
-        "browse:annotations-failed": BROWSE_ANNOTATIONS_FAILED,
         "browse:annotation-requested": BROWSE_ANNOTATION_REQUESTED,
         "browse:annotation-result": BROWSE_ANNOTATION_RESULT,
         "browse:annotation-failed": BROWSE_ANNOTATION_FAILED,
@@ -1089,6 +1086,9 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
         "browse:agents-result": BROWSE_AGENTS_RESULT,
         "browse:agents-failed": BROWSE_AGENTS_FAILED,
+        "browse:people-requested": BROWSE_PEOPLE_REQUESTED,
+        "browse:people-result": BROWSE_PEOPLE_RESULT,
+        "browse:people-failed": BROWSE_PEOPLE_FAILED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:kb-result": BROWSE_KB_RESULT,
         "browse:kb-failed": BROWSE_KB_FAILED,
@@ -1167,8 +1167,6 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "browse:resources-failed",
     "browse:annotation-result",
     "browse:annotation-failed",
-    "browse:annotations-result",
-    "browse:annotations-failed",
     "browse:annotation-history-result",
     "browse:annotation-history-failed",
     "browse:events-result",
@@ -1179,6 +1177,8 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "browse:tag-schemas-failed",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-result",
     "browse:kb-failed",
     "browse:directory-result",

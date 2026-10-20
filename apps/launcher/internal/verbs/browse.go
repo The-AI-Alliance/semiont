@@ -1,19 +1,23 @@
 package verbs
 
 // browse.go — `semiont browse`: reads over the event bus (the launcher's
-// first bus verb). Every read is one correlated request/reply exchange
-// through packages/sdk-go/bus; the operation names and payload schemas come
-// from specs/src/bus/registry.json, so this file holds no protocol knowledge
-// of its own beyond which operation answers which question.
+// first bus verb). Every read but a resource's annotations is one correlated
+// request/reply exchange through packages/sdk-go/bus; the operation names and
+// payload schemas come from specs/src/bus/registry.json, so this file holds
+// no protocol knowledge of its own beyond which operation answers which
+// question. A resource's annotations are read over the gateway's HTTP API
+// (GET /resources/{id}/annotations), through the generated client.
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
@@ -254,6 +258,19 @@ options:
 		return 0
 	}
 
+	if annotations {
+		list, ok := annotationsOf(u, t, resourceID)
+		if !ok {
+			return 1
+		}
+		if asJSON {
+			fmt.Println(string(list.Body))
+			return 0
+		}
+		printAnnotations(u, *list.JSON200)
+		return 0
+	}
+
 	// Typed request per operation — the generated types come from the same
 	// schemas the gateway validates against, so a wrong or missing field is
 	// a compile error here rather than a rejection (or a silent drop) there.
@@ -266,9 +283,6 @@ options:
 	case tagSchemas:
 		op = "browse:tag-schemas-requested"
 		payload = semiont.BrowseTagSchemasRequest{}
-	case annotations:
-		op = "browse:annotations-requested"
-		payload = semiont.BrowseAnnotationsRequest{ResourceId: resourceID}
 	case resourceID != "":
 		op = "browse:resource-requested"
 		payload = semiont.BrowseResourceRequest{ResourceId: resourceID}
@@ -290,7 +304,88 @@ options:
 		fmt.Println(string(reply))
 		return 0
 	}
+	if op == "browse:resource-requested" {
+		return renderResource(u, t, resourceID, reply)
+	}
 	return renderBrowse(u, op, reply)
+}
+
+// annotationsOf reads a resource's annotations over the gateway's HTTP API,
+// under the session's renew-and-retry policy. A failure is printed here in
+// the launcher's voice; ok=false means stop.
+func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID string) (*semiont.GetResourceAnnotationsResponse, bool) {
+	cli, err := t.API()
+	if err != nil {
+		u.Fail("client: %v", err)
+		return nil, false
+	}
+	var resp *semiont.GetResourceAnnotationsResponse
+	err = t.Authorized(func(token string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		r, err := cli.GetResourceAnnotationsWithResponse(ctx, resourceID, launcher.Bearer(token))
+		if err != nil {
+			return err
+		}
+		if r.StatusCode() == http.StatusUnauthorized {
+			// The signal the bus client raises for the same answer, so the
+			// session's one policy reads both wires the same way.
+			return &bus.StatusError{Op: "GET /resources/{id}/annotations", Status: r.StatusCode()}
+		}
+		resp = r
+		return nil
+	})
+	var rej *launcher.SessionRejected
+	switch {
+	case errors.As(err, &rej):
+		launcher.RejectedFail(u, "browse", rej)
+		return nil, false
+	case err != nil:
+		u.Fail("Gateway unreachable: %v", err)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+		return nil, false
+	case resp.JSON200 != nil:
+		return resp, true
+	case resp.JSON404 != nil:
+		u.Fail("There is no resource %s in this knowledge base.", resourceID)
+		return nil, false
+	default:
+		u.Fail("Reading the annotations of %s failed: HTTP %d.", resourceID, resp.StatusCode())
+		return nil, false
+	}
+}
+
+// renderResource prints one resource from its GENERATED reply type, and how
+// many annotations it has, which the reply does not carry: they are read
+// over the HTTP API.
+func renderResource(u *launcher.UI, t launcher.VerbTarget, resourceID string, reply json.RawMessage) int {
+	var r semiont.BrowseResourceResult
+	if err := json.Unmarshal(reply, &r); err != nil {
+		return rawFallback(reply)
+	}
+	list, ok := annotationsOf(u, t, resourceID)
+	if !ok {
+		return 1
+	}
+	fmt.Printf("  %s  %s\n", u.Bold(r.Response.Resource.Name), u.Dim(r.Response.Resource.Id))
+	if r.Response.Resource.EntityTypes != nil && len(*r.Response.Resource.EntityTypes) > 0 {
+		fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
+	}
+	fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", int(list.JSON200.Total))))
+	return 0
+}
+
+// printAnnotations prints a resource's annotations: each one's id and
+// motivation, and how many of how many.
+func printAnnotations(u *launcher.UI, list semiont.GetAnnotationsResponse) {
+	if len(list.Annotations) == 0 {
+		u.Log("No annotations on that resource.")
+		return
+	}
+	for _, a := range list.Annotations {
+		fmt.Printf("  %-28s %s\n", a.Id, u.Dim(string(a.Motivation)))
+	}
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d of %d", len(list.Annotations), int(list.Total))))
 }
 
 // drive is one `--browser` act: what was sent, on which channel, and the
@@ -401,29 +496,6 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 			return rawFallback(reply)
 		}
 		printResources(u, r.Response.Resources, int(r.Response.Total))
-	case "browse:resource-requested":
-		var r semiont.BrowseResourceResult
-		if err := json.Unmarshal(reply, &r); err != nil {
-			return rawFallback(reply)
-		}
-		fmt.Printf("  %s  %s\n", u.Bold(r.Response.Resource.Name), u.Dim(r.Response.Resource.Id))
-		if r.Response.Resource.EntityTypes != nil && len(*r.Response.Resource.EntityTypes) > 0 {
-			fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
-		}
-		fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(r.Response.Annotations))))
-	case "browse:annotations-requested":
-		var r semiont.BrowseAnnotationsResult
-		if err := json.Unmarshal(reply, &r); err != nil {
-			return rawFallback(reply)
-		}
-		if len(r.Response.Annotations) == 0 {
-			u.Log("No annotations on that resource.")
-			return 0
-		}
-		for _, a := range r.Response.Annotations {
-			fmt.Printf("  %-28s %s\n", a.Id, u.Dim(string(a.Motivation)))
-		}
-		fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d of %d", len(r.Response.Annotations), int(r.Response.Total))))
 	case "browse:entity-types-requested":
 		var r semiont.BrowseEntityTypesResult
 		if err := json.Unmarshal(reply, &r); err != nil {

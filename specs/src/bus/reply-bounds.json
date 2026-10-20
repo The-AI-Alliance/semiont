@@ -1,0 +1,160 @@
+{
+  "$comment": "AUTHORITY for how large each answer on the bus can be. A bus message is bounded by its question: an answer whose size follows a document or a collection is read over HTTP. Every list or map an operation's reply carries is bounded by its own schema (`maxItems`, `maxProperties`), or is named here: `by` a member of the request (an array, so the answer is no larger than what was asked, or an integer with a `maximum`), or as one that `grows`, saying with what. A `grows` entry is an answer not yet bounded. Lists inside a resource's descriptor or an annotation are the record's, bounded by the write that made them, and are not walked. scripts/spec/check-reply-bounds.mjs holds the registry to this table both ways: a list it names that is gone or bounded fails, and so does a reply's list it does not name.",
+  "replies": {
+    "browse:resources-requested": {
+      "response.resources": {
+        "grows": "with the knowledge base: a page whose `limit` states no maximum"
+      }
+    },
+    "browse:annotation-history-requested": {
+      "response.events": {
+        "grows": "with the annotation's history"
+      }
+    },
+    "browse:events-requested": {
+      "response.events": {
+        "grows": "with the resource's history: the request's `limit` states no maximum"
+      }
+    },
+    "browse:entity-types-requested": {
+      "response.entityTypes": {
+        "grows": "with the knowledge base's entity types"
+      }
+    },
+    "browse:tag-schemas-requested": {
+      "response.tagSchemas": {
+        "grows": "with the knowledge base's tag schemas"
+      }
+    },
+    "browse:agents-requested": {
+      "response.agents": {
+        "grows": "with the knowledge base's collaborators"
+      }
+    },
+    "browse:people-requested": {
+      "response.people": {
+        "by": "dids"
+      }
+    },
+    "browse:directory-requested": {
+      "response.entries": {
+        "grows": "with one directory of the working tree"
+      }
+    },
+    "gather:requested": {
+      "response.focus.suggestedReferences": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.focus.content.related": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.graph.nodes": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.graph.edges": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.semanticContext.similar": {
+        "grows": "with the passages the recall ranks"
+      },
+      "response.semanticContext.excludedEntityTypes": {
+        "grows": "with the entity types the recall excluded"
+      },
+      "response.metadata.entityTypes": {
+        "grows": "with the focal anchor's entity types"
+      },
+      "response.metadata.entityTypeFrequencies": {
+        "grows": "with the knowledge base's entity types"
+      }
+    },
+    "gather:resource-requested": {
+      "response.focus.suggestedReferences": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.focus.content.related": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.graph.nodes": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.graph.edges": {
+        "grows": "with the focus's neighbourhood in the graph"
+      },
+      "response.semanticContext.similar": {
+        "grows": "with the passages the recall ranks"
+      },
+      "response.semanticContext.excludedEntityTypes": {
+        "grows": "with the entity types the recall excluded"
+      },
+      "response.metadata.entityTypes": {
+        "grows": "with the focal anchor's entity types"
+      },
+      "response.metadata.entityTypeFrequencies": {
+        "grows": "with the knowledge base's entity types"
+      }
+    },
+    "gather:referenced-by-requested": {
+      "response.referencedBy": {
+        "grows": "with the annotations elsewhere that refer to the resource"
+      }
+    },
+    "gather:limits-requested": {
+      "response.limits": {
+        "grows": "with the (provider, model) pairs the service serves"
+      }
+    },
+    "job:limits-requested": {
+      "response.limits": {
+        "grows": "with the (provider, model) pairs the service serves"
+      }
+    },
+    "match:limits-requested": {
+      "response.limits": {
+        "grows": "with the (provider, model) pairs the service serves"
+      }
+    },
+    "job:status-requested": {
+      "response.progress.completedItems": {
+        "grows": "with the items the job has finished"
+      },
+      "response.progress.requestParams": {
+        "grows": "with the job's parameters"
+      },
+      "response.result.byCategory": {
+        "grows": "with the tagging job's categories"
+      }
+    },
+    "job:claim": {
+      "response.metadata.completedUnits": {
+        "grows": "with the units the job has finished"
+      },
+      "response.metadata.unitCursors": {
+        "grows": "with the units the job has begun"
+      },
+      "response.params.schema.tags": {
+        "grows": "with the tag schema's tags"
+      },
+      "response.progress.completedItems": {
+        "grows": "with the items the job has finished"
+      },
+      "response.progress.requestParams": {
+        "grows": "with the job's parameters"
+      }
+    },
+    "mark:commit": {
+      "response.annotationIds": {
+        "by": "annotations"
+      }
+    },
+    "match:search-requested": {
+      "response": {
+        "by": "limit"
+      }
+    },
+    "match:resources-requested": {
+      "response.resources": {
+        "by": "limit"
+      }
+    }
+  }
+}

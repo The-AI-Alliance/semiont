@@ -199,19 +199,12 @@ function createHarness(opts: HarnessOptions = {}) {
       case 'browse:resource-requested': {
         resultChannel = 'browse:resource-result';
         const id = (payload.resourceId as string) ?? 'res-1';
-        response = { resource: mockResource(id, state.resourceName(id)), annotations: [], entityReferences: [] };
+        response = { resource: mockResource(id, state.resourceName(id)), lastSequence: 1 };
         break;
       }
       case 'browse:resources-requested': {
         resultChannel = 'browse:resources-result';
         response = { resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20 };
-        break;
-      }
-      case 'browse:annotations-requested': {
-        resultChannel = 'browse:annotations-result';
-        const annotations: Annotation[] = [];
-        for (let i = 0; i < state.annotationCount; i++) annotations.push(mockAnnotation(`ann-${i + 1}`));
-        response = { annotations, total: annotations.length };
         break;
       }
       case 'browse:annotation-requested': {
@@ -272,11 +265,18 @@ function createHarness(opts: HarnessOptions = {}) {
     },
   });
 
+  // A resource's annotations are read over HTTP: the content transport's.
+  const getAnnotations = vi.fn<IContentTransport['getAnnotations']>(async () => {
+    const annotations: Annotation[] = [];
+    for (let i = 0; i < state.annotationCount; i++) annotations.push(mockAnnotation(`ann-${i + 1}`));
+    return { annotations, total: annotations.length };
+  });
   const content: IContentTransport = {
     putBinary: vi.fn(),
     getBinary: vi.fn(),
     getBinaryStream: vi.fn(),
     getResourceGraph: vi.fn(),
+    getAnnotations,
     getAnchoredText: vi.fn(),
     dispose: vi.fn(),
   };
@@ -289,7 +289,7 @@ function createHarness(opts: HarnessOptions = {}) {
     opts.busTimeoutMs !== undefined ? { busTimeoutMs: opts.busTimeoutMs } : undefined,
   );
 
-  return { browse, eventBus, emitSpy, state };
+  return { browse, eventBus, emitSpy, getAnnotations, state };
 }
 
 function firstDefined<T>(obs: import('rxjs').Observable<import('../../cache').CacheState<T>>): Promise<T> {
@@ -595,21 +595,26 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('mark:added + mark:removed are independent events on annotationList', async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, emitSpy } = createHarness();
+        const { browse, eventBus, emitSpy, getAnnotations } = createHarness();
         await firstDefined(browse.annotations(RID));
         await firstDefined(browse.events(RID));
-        expect(emitSpy).toHaveBeenCalledTimes(2);
+        expect(getAnnotations).toHaveBeenCalledTimes(1);
+        expect(emitSpy).toHaveBeenCalledTimes(1);
+        getAnnotations.mockClear();
         emitSpy.mockClear();
 
         eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
         await vi.advanceTimersByTimeAsync(0);
-        expect(emitSpy).toHaveBeenCalledTimes(2); // annotations + events refetched
+        // annotations + events refetched
+        expect(getAnnotations).toHaveBeenCalledTimes(1);
+        expect(emitSpy).toHaveBeenCalledTimes(1);
 
         eventBus.emit('mark:removed', fakeMarkRemoved(RID, AID));
         // Each is independent; mark:removed also fires annotations + events
         // refetch — owed to the window mark:added opened on those keys (B19).
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
-        expect(emitSpy).toHaveBeenCalledTimes(4);
+        expect(getAnnotations).toHaveBeenCalledTimes(2);
+        expect(emitSpy).toHaveBeenCalledTimes(2);
       } finally {
         vi.useRealTimers();
       }
@@ -622,13 +627,14 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
 
     it('after a drop, asks again for what events without a position feed, and not for what a scope replays', async () => {
       const state$ = new BehaviorSubject<ConnectionState>('open');
-      const { browse, emitSpy } = createHarness({ state$ });
+      const { browse, emitSpy, getAnnotations } = createHarness({ state$ });
 
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resources());
       await firstDefined(browse.entityTypes());
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
 
       reopen(state$);
       await flush();
@@ -639,18 +645,19 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       expect(requests(emitSpy, 'browse:resources-requested')).toBe(2);
       expect(requests(emitSpy, 'browse:entity-types-requested')).toBe(2);
       // A scope's own events are replayed from where the client left off.
-      expect(requests(emitSpy, 'browse:annotations-requested')).toBe(1);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
     });
 
     it('asks for nothing it does not hold (B20)', async () => {
       const state$ = new BehaviorSubject<ConnectionState>('open');
-      const { browse, emitSpy } = createHarness({ state$ });
+      const { browse, emitSpy, getAnnotations } = createHarness({ state$ });
       await firstDefined(browse.annotations(RID));
 
       reopen(state$);
       await flush();
 
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).not.toHaveBeenCalled();
     });
 
     it('asks for nothing while the state stays open, which is all a handoff shows', async () => {
@@ -681,7 +688,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     });
 
     it('`bus:resume-gap` asks again for what is held of that scope, and of nothing else', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+      const { browse, eventBus, emitSpy, getAnnotations } = createHarness();
       const RID_A = resourceId('res-A');
       const RID_B = resourceId('res-B');
       const AID_A = annotationId('ann-A');
@@ -691,15 +698,16 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       await firstDefined(browse.resource(RID_B));
       await firstDefined(browse.annotation(RID_B, AID));
       await firstDefined(browse.entityTypes());
-      expect(emitSpy).toHaveBeenCalledTimes(6);
+      expect(emitSpy).toHaveBeenCalledTimes(5);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
 
       eventBus.emit('bus:resume-gap', fakeBusResumeGap(RID_A, 'retention-exceeded'));
       await flush();
 
-      const asked = emitSpy.mock.calls.slice(6).map(([channel, payload]) => [channel, payload]);
-      expect(asked).toHaveLength(3);
+      const asked = emitSpy.mock.calls.slice(5).map(([channel, payload]) => [channel, payload]);
+      expect(asked).toHaveLength(2);
       expect(asked).toContainEqual(['browse:resource-requested', { resourceId: RID_A }]);
-      expect(asked).toContainEqual(['browse:annotations-requested', { resourceId: RID_A }]);
+      expect(getAnnotations.mock.calls.slice(1)).toEqual([[RID_A]]);
       // The scope's annotations too: its events are what feed them.
       expect(asked).toContainEqual(['browse:annotation-requested', { resourceId: RID_A, annotationId: AID_A }]);
     });
@@ -770,11 +778,11 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     });
 
     it('refetches the list when mark:body-updated arrives without its annotation', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+      const { browse, eventBus, getAnnotations } = createHarness();
       // An active observer, so invalidation revalidates (B7).
       const sub = browse.annotations(RID).subscribe(() => {});
       await firstDefined(browse.annotations(RID));
-      const listFetches = () => emitSpy.mock.calls.filter(([ch]) => ch === 'browse:annotations-requested').length;
+      const listFetches = () => getAnnotations.mock.calls.length;
       const before = listFetches();
 
       // No top-level `annotation`: the enricher declined, so there is nothing to
@@ -792,14 +800,14 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       emitSpy.mock.calls.filter(([ch]) => ch === channel).length;
 
     it('an event on an observed resource costs no request for what nothing has asked for', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+      const { browse, eventBus, emitSpy, getAnnotations } = createHarness();
       const sub = browse.annotations(RID).subscribe(() => {});
       await firstDefined(browse.annotations(RID));
 
       eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
       await flush();
 
-      expect(requests(emitSpy, 'browse:annotations-requested'), 'the observed list is refreshed').toBe(2);
+      expect(getAnnotations, 'the observed list is refreshed').toHaveBeenCalledTimes(2);
       expect(requests(emitSpy, 'browse:events-requested'), 'the event history nobody asked for is not').toBe(0);
       sub.unsubscribe();
     });
@@ -871,20 +879,20 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('a stream of marks on the open resource refetches its annotations at most once per window, and ends showing the last', async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, emitSpy, state } = createHarness();
+        const { browse, eventBus, getAnnotations, state } = createHarness();
         let shown: Annotation[] = [];
         const sub = browse.annotations(RID).subscribe((s) => {
           if (isReady(s)) shown = s.value;
         });
         await firstDefined(browse.annotations(RID));
-        const before = requests(emitSpy, 'browse:annotations-requested');
+        const before = getAnnotations.mock.calls.length;
         for (let i = 0; i < STORM_EVENTS; i++) {
           state.annotationCount = i + 2; // the server's list grows with each mark
           eventBus.emit('mark:added', fakeMarkAdded(RID, `ann-storm-${i}`));
           await vi.advanceTimersByTimeAsync(STORM_SPACING_MS);
         }
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
-        expect(requests(emitSpy, 'browse:annotations-requested') - before, `annotation refetches during ${STORM_EVENTS} marks`).toBeLessThanOrEqual(BOUND);
+        expect(getAnnotations.mock.calls.length - before, `annotation refetches during ${STORM_EVENTS} marks`).toBeLessThanOrEqual(BOUND);
         expect(shown, 'the list ends with every mark').toHaveLength(STORM_EVENTS + 1);
         sub.unsubscribe();
       } finally {
@@ -895,13 +903,13 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('one event refetches at once: an isolated write is seen without waiting for a window', async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, emitSpy } = createHarness();
+        const { browse, eventBus, getAnnotations } = createHarness();
         const sub = browse.annotations(RID).subscribe(() => {});
         await firstDefined(browse.annotations(RID));
-        const before = requests(emitSpy, 'browse:annotations-requested');
+        const before = getAnnotations.mock.calls.length;
         eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-single'));
         await vi.advanceTimersByTimeAsync(0);
-        expect(requests(emitSpy, 'browse:annotations-requested')).toBe(before + 1);
+        expect(getAnnotations).toHaveBeenCalledTimes(before + 1);
         sub.unsubscribe();
       } finally {
         vi.useRealTimers();
@@ -911,20 +919,20 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('disposal closes every window, dropping what they still owed (B16)', async () => {
       vi.useFakeTimers();
       try {
-        const { browse, eventBus, emitSpy } = createHarness();
+        const { browse, eventBus, getAnnotations } = createHarness();
         const sub = browse.annotations(RID).subscribe(() => {});
         await firstDefined(browse.annotations(RID));
         eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
         eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
         await vi.advanceTimersByTimeAsync(0);
-        const settled = emitSpy.mock.calls.length;
+        const settled = getAnnotations.mock.calls.length;
         sub.unsubscribe();
         browse.dispose();
         // An open window is a live timer: left running, it would hold a Node
         // process open and fire into disposed caches.
         expect(vi.getTimerCount(), 'timers left running after disposal').toBe(0);
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS * 2);
-        expect(emitSpy.mock.calls.length, 'nothing is requested after disposal').toBe(settled);
+        expect(getAnnotations.mock.calls.length, 'nothing is requested after disposal').toBe(settled);
       } finally {
         vi.useRealTimers();
       }
@@ -933,10 +941,11 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
 
   describe('B13b — update-in-place writes through without a fetch', () => {
     it('mark:body-updated writes the annotation into both list and detail caches', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+      const { browse, eventBus, emitSpy, getAnnotations } = createHarness();
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.annotation(RID, AID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
 
       const newBody: components['schemas']['TextualBody'] = {
         type: 'TextualBody',

@@ -23,8 +23,8 @@ use crate::event_bus::EventBus;
 use crate::locked;
 use crate::types::ResourceId;
 use crate::types::{
-    AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, HealthResponse,
-    MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
+    AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse,
+    HealthResponse, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
 use crate::types::{AnnotationId, JobId};
 use bytes::Bytes;
@@ -614,8 +614,8 @@ pub struct ContentStream {
     pub content_type: String,
 }
 
-/// Bytes, which never ride the bus, a resource's description as linked data
-/// and its anchored text.
+/// Bytes, which never ride the bus, a resource's description as linked data,
+/// its annotations and its anchored text.
 pub trait ContentTransport: Send + Sync + 'static {
     /// Upload `request`'s bytes as a new resource.
     fn put_binary(&self, request: PutBinaryRequest) -> Upload;
@@ -632,12 +632,18 @@ pub trait ContentTransport: Send + Sync + 'static {
         resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<ContentStream, TransportError>>;
 
-    /// A resource's description: itself, its annotations and the references
-    /// to it, as linked data.
+    /// A resource's description: itself and its annotations, as linked data.
     fn get_resource_graph<'a>(
         &'a self,
         resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<GetResourceResponse, TransportError>>;
+
+    /// A resource's annotations, with the people they mention named, and how
+    /// many there are.
+    fn get_annotations<'a>(
+        &'a self,
+        resource_id: &'a ResourceId,
+    ) -> BoxFuture<'a, Result<GetAnnotationsResponse, TransportError>>;
 
     /// A resource's anchored text: the text read from its content with where
     /// each run of it is on a page, a stored decline, or why there is none.

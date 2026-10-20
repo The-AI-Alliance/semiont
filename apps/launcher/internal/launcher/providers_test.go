@@ -74,7 +74,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	if got := workerDocumentFrom(t, plain).ModelCatalogue; got != modelCatalogueTarget {
 		t.Errorf("a worker of Anthropic and Ollama is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
 	}
-	lb, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "test-kb", "container", "192.168.64.1", 8080, nil, true)
+	lb, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "container", "192.168.64.1", 8080, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}

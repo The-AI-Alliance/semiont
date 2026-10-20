@@ -74,6 +74,7 @@ const REQUESTS: ReadonlyArray<readonly [string, Asking]> = [
   ['GET /resources/res-1', (_transport, content) => content.getBinary(RESOURCE)],
   ['GET /resources/res-1', (_transport, content) => content.getBinaryStream(RESOURCE)],
   ['GET /resources/res-1/jsonld', (_transport, content) => content.getResourceGraph(RESOURCE)],
+  ['GET /resources/res-1/annotations', (_transport, content) => content.getAnnotations(RESOURCE)],
   ['GET /resources/res-1/anchored-text', (_transport, content) => content.getAnchoredText(RESOURCE)],
   ['POST /resources', (_transport, content) => content.putBinary({ name: 'a note', file: Buffer.from('a note'), format: 'text/plain', storageUri: 'file://a-note.txt' })],
 ];

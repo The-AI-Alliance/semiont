@@ -3,13 +3,13 @@
   "source": "docs/protocol/CACHE-SEMANTICS.md B13",
   "tier": "parity",
   "steps": [
-    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},
 
-    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "a"},
-    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
-    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"observe": {"query": "events", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:events-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:events-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"events": [], "total": 0, "resourceId": {"$var": "r1"}}}}},
     {"reaches": "a", "state": {"status": "ready", "value": []}},
     {"scopes": [{"$var": "r1"}]},
     {"backend": "cut"},

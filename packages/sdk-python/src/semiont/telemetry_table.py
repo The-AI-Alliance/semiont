@@ -17,6 +17,7 @@ __all__ = [
     "BUS_RECV",
     "CONTENT_GET",
     "CONTENT_GET_ANCHORED_TEXT",
+    "CONTENT_GET_ANNOTATIONS",
     "CONTENT_GET_GRAPH",
     "CONTENT_PUT",
     "Instrument",
@@ -109,6 +110,14 @@ CONTENT_GET_ANCHORED_TEXT: Final = SpanRow(
     always=("resource.id",),
 )
 
+# A read of a resource's annotations.
+CONTENT_GET_ANNOTATIONS: Final = SpanRow(
+    name="content.get_annotations",
+    kind="client",
+    attributes=("resource.id",),
+    always=("resource.id",),
+)
+
 # Emits the client sent.
 SEMIONT_BUS_SENT: Final = MetricRow(
     name="semiont.bus.sent",
@@ -124,6 +133,7 @@ SPANS: Final[tuple[SpanRow, ...]] = (
     CONTENT_GET,
     CONTENT_GET_GRAPH,
     CONTENT_GET_ANCHORED_TEXT,
+    CONTENT_GET_ANNOTATIONS,
 )
 
 METRICS: Final[tuple[MetricRow, ...]] = (

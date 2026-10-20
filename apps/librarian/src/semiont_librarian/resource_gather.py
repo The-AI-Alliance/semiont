@@ -1,12 +1,12 @@
 """Gathering around a resource: the context a generation is given for one resource as a whole.
 
 `docs/protocol/LIBRARIAN.md` § Gathering around a resource states it, rule by
-rule, and the reads are made in the order of its rules: the resource's view;
-its text, where the request asks for content or for a summary; the knowledge
-graph; the related resources and their texts; a model's summary and
-suggestions, where the request asks for them and there is a text; and the
-passages of other resources that are like this one, by the vectors its own
-chunks have.
+rule, and the reads are made in the order of its rules: the resource, as the
+record describes it; its text, where the request asks for content or for a
+summary; the knowledge graph; the related resources and their texts; a
+model's summary and suggestions, where the request asks for them and there is
+a text; and the passages of other resources that are like this one, by the
+vectors its own chunks have.
 
 Only the search for those passages waits (§ The two waits), and only where
 the index does not hold the resource's bytes yet: it holds no point of the
@@ -45,11 +45,11 @@ from semiont_service.content import ContentReads
 from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader, VectorSearchResult
 
 from semiont_librarian.annotation_gather import LIKE_ENOUGH, Ungathered, language_of, similar_of
-from semiont_librarian.grace import view_if_readable
+from semiont_librarian.grace import described_if_readable
 from semiont_librarian.knowledge_graph import build_knowledge_graph, refuse_depth_out_of_bounds
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, reference_suggestions_prompt, resource_summary_prompt
-from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, SmeltWaits, SmeltWaitTimedOut, Views, WeaveWaits
+from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Record, SmeltWaits, SmeltWaitTimedOut, WeaveWaits
 from semiont_librarian.replies import SUGGESTION_ELEMENT, ask_for_elements, read_suggestions
 from semiont_librarian.resource_text import text_of
 
@@ -126,7 +126,7 @@ async def _alike(
 async def gather(
     request: GatherResourceRequest,
     *,
-    views: Views,
+    record: Record,
     content: ContentReads,
     anchored: AnchoredText,
     graph: GraphReads,
@@ -142,16 +142,16 @@ async def gather(
     `settle_within` is the settle bound, in seconds. Raises
     `semiont_librarian.knowledge_graph.DepthRefused` for a `depth` less than
     1 or more than 3, before anything is read. Raises `Ungathered` for a
-    resource with no view. A read of bytes that fails, a graph that cannot
-    be built, an index with no such collection and a wait that fails in any
-    way but running out each raise what they failed with.
+    resource the record does not hold. A read of bytes that fails, a graph
+    that cannot be built, an index with no such collection and a wait that
+    fails in any way but running out each raise what they failed with.
 
     A model that fails on the summary or on the suggestions leaves the
     context with neither, and an index that fails or a wait for it that runs
     out leaves it without similar passages. Each is logged as a warning and
-    counted (`degraded`), and the context is answered. A view that only adds
-    to it, and cannot be read, is passed over
-    (`semiont_librarian.grace.view_if_readable`).
+    counted (`degraded`), and the context is answered. A read of the record
+    that only adds to it, and fails, is passed over
+    (`semiont_librarian.grace.described_if_readable`).
 
     The resource's text is read where the request asks for content or for a
     summary: a summary is of the text. It is in the answer only where
@@ -160,20 +160,20 @@ async def gather(
     resource_id = request.resource_id
     options = request.options
     refuse_depth_out_of_bounds(options.depth)
-    view = await views.get(resource_id)
-    if view is None:
+    recorded = await record.described(resource_id)
+    if recorded is None:
         raise Ungathered("Resource not found")
-    main = view.resource
+    main = recorded.resource
     main_text = await text_of(main, content=content, anchored=anchored) if options.include_content or options.include_summary else None
 
-    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded, depth=options.depth)
+    around = await build_knowledge_graph(resource_id, graph=graph, record=record, weave=weave, degraded=degraded, depth=options.depth)
 
-    # The related resources: the first of the graph's resource nodes, but for the resource itself, that have a view. The
-    # graph's resource nodes are nearest first.
+    # The related resources: the first of the graph's resource nodes, but for the resource itself, that the record holds.
+    # The graph's resource nodes are nearest first.
     peers = [node for node in around.nodes if isinstance(node, GraphResourceNode) and node.id != resource_id]
     related: list[ResourceDescriptor] = []
     for node in peers[: max(0, options.max_resources - 1)]:
-        peer = await view_if_readable(views, node.id)
+        peer = await described_if_readable(record, node.id)
         if peer is not None:
             related.append(peer.resource)
     related_texts: dict[str, str] = {}
@@ -207,7 +207,7 @@ async def gather(
         filter=SearchFilter(exclude_entity_types=excluded) if excluded else None,
     )
     matches = await _alike(main, asking, vectors=vectors, smelt=smelt, degraded=degraded, settle_within=settle_within)
-    similar = await similar_of(matches, views)
+    similar = await similar_of(matches, record)
 
     # The focus states `content` whenever content was asked for, and `related` in it even where no related text was read.
     held: GatheredContextFocusResourceContent | None = None

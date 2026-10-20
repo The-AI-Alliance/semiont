@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Final, final, override
 
 from pydantic import JsonValue
+from semiont.bus import Bus, reply_channels_for
 from semiont.channels import SMELT_SETTLED, WEAVE_APPLIED
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identifiers import ResourceId
@@ -68,7 +69,7 @@ from semiont_librarian.librarian import Librarian, words_of
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
 from semiont_librarian.reads import AnchoredText
-from semiont_librarian.record import FilePeople, FileViews
+from semiont_librarian.record import READ, BusPeople, BusRecord
 from semiont_librarian.telemetry import GatherDegraded
 
 __all__ = ["CHANNELS", "boot", "health", "main"]
@@ -84,11 +85,9 @@ CHANNELS: Final[tuple[str, ...]] = (
     GATHER_LIMITS_REQUESTED.request.name,
     WEAVE_APPLIED.name,
     SMELT_SETTLED.name,
+    *reply_channels_for(*READ),
 )
-"""What the Librarian's stream names: the eight requests it answers and the two signals it follows.
-
-No reply channel is among them: it asks nothing over the bus.
-"""
+"""What the Librarian's stream names: the eight requests it answers, the two signals it follows, and the replies of what it asks."""
 
 _PROVIDER: Final = "semiont"
 _MODEL: Final = "librarian"
@@ -191,8 +190,6 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         loop.add_signal_handler(told, told_to_stop.set)
 
     account = ServiceToken(started.credential)
-    # Where the Archivist keeps the knowledge base's views and its people projection, in the state volume.
-    state_dir = Path(config.state_home) / "semiont" / config.kb_name
 
     async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
@@ -205,8 +202,8 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Librarian(
-                    views=FileViews(state_dir),
-                    people=FilePeople(state_dir),
+                    record=BusRecord(Bus(transport)),
+                    people=BusPeople(Bus(transport)),
                     graph=started.graph,
                     vectors=started.vectors,
                     embedding=started.embedding,

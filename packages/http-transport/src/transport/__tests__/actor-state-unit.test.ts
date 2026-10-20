@@ -753,7 +753,7 @@ describe('createActorStateUnit', () => {
     });
 
     expect(stateUnit.isSubscribed('job:claimed')).toBe(true);
-    expect(stateUnit.isSubscribed('browse:annotations-result')).toBe(false);
+    expect(stateUnit.isSubscribed('browse:events-result')).toBe(false);
 
     stateUnit.addChannels(['job:queued']);
     expect(stateUnit.isSubscribed('job:queued')).toBe(true);
@@ -1182,10 +1182,10 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['browse:annotations-result'],
+      channels: ['browse:events-result'],
     });
     const received: unknown[] = [];
-    stateUnit.stream('browse:annotations-result').subscribe((p) => received.push(p));
+    stateUnit.stream('browse:events-result').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
@@ -1195,12 +1195,12 @@ describe('createActorStateUnit', () => {
 
     // New connection still connecting; the result arrives on the live old one.
     c1.sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'browse:annotations-result',
-      payload: { correlationId: 'x', annotations: [] },
+      channel: 'browse:events-result',
+      payload: { correlationId: 'x', events: [] },
     })));
 
     await vi.waitFor(() => expect(received).toHaveLength(1));
-    expect(received[0]).toEqual({ correlationId: 'x', annotations: [] });
+    expect(received[0]).toEqual({ correlationId: 'x', events: [] });
 
     // Let the handoff complete (old retired after the drain window) before teardown.
     c2.open();

@@ -8,8 +8,8 @@
  * Covers:
  *   - Auth / status / health endpoints
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
- *   - A resource's description and its anchored text
- *     (`HttpContentTransport.getResourceGraph`, `getAnchoredText`)
+ *   - A resource's description, its annotations and its anchored text
+ *     (`HttpContentTransport.getResourceGraph`, `getAnnotations`, `getAnchoredText`)
  *   - Multipart upload (`HttpContentTransport.putBinary`)
  *   - `HttpTransport.subscribeToResource` ref-counting (mocks the
  *     local `actor-state-unit` module to assert add/removeChannels)
@@ -213,7 +213,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
   describe('Resource graph (HttpContentTransport.getResourceGraph)', () => {
     test('GETs /resources/:id/jsonld and returns the parsed graph', async () => {
-      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [], entityReferences: [] };
+      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [] };
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue(graph),
       } as never);
@@ -228,7 +228,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('an id is one segment of the path, whatever text a caller with no type checker hands over', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
       } as never);
 
       // Not a ResourceId: its constructor refuses this. JavaScript does not ask.
@@ -241,12 +241,40 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('sends the bearer auth header when a token is provided', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
       } as never);
 
       await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });
       expect(mockKy.get).toHaveBeenCalledWith(
         `${testBaseUrl}/resources/${testResourceId}/jsonld`,
+        { headers: { Authorization: 'Bearer tok-123' } },
+      );
+    });
+  });
+
+  describe('Annotations (HttpContentTransport.getAnnotations)', () => {
+    test('GETs /resources/:id/annotations and returns the parsed answer', async () => {
+      const held = { annotations: [], total: 0 };
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue(held),
+      } as never);
+
+      const result = await content.getAnnotations(testResourceId);
+      expect(result).toBe(held);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/annotations`,
+        { headers: {} },
+      );
+    });
+
+    test('sends the bearer auth header when a token is provided', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
+      } as never);
+
+      await content.getAnnotations(testResourceId, { auth: 'tok-123' as never });
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/annotations`,
         { headers: { Authorization: 'Bearer tok-123' } },
       );
     });

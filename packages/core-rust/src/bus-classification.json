@@ -558,22 +558,6 @@
       "direction": "inbound",
       "delivery": "correlated"
     },
-    "browse:annotations-requested": {
-      "recorded": false,
-      "direction": "outbound",
-      "writes": false,
-      "delivery": "passing"
-    },
-    "browse:annotations-result": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
-    "browse:annotations-failed": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
     "browse:annotation-requested": {
       "recorded": false,
       "direction": "outbound",
@@ -666,6 +650,22 @@
       "delivery": "correlated"
     },
     "browse:agents-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:people-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:people-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:people-failed": {
       "recorded": false,
       "direction": "inbound",
       "delivery": "correlated"

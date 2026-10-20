@@ -15,7 +15,7 @@ use semiont::testing::examples::assert_readme_shows;
 use semiont::transport::TraceCarrier;
 use semiont_telemetry::{
     active_trace, active_trace_id, bus_emit, bus_recv, content_get, content_get_anchored_text,
-    content_get_graph, content_put, continued, continuing, in_span_now,
+    content_get_annotations, content_get_graph, content_put, continued, continuing, in_span_now,
 };
 use serde_json::Value;
 
@@ -115,6 +115,7 @@ async fn every_row_of_the_sdk_telemetry_table_is_what_a_function_here_records() 
     content_get(SCOPE, false, async {}).await;
     content_get(SCOPE, true, async {}).await;
     content_get_graph(SCOPE, async {}).await;
+    content_get_annotations(SCOPE, async {}).await;
     content_get_anchored_text(SCOPE, async {}).await;
 
     let table = table();

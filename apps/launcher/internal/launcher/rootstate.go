@@ -84,13 +84,12 @@ type stateStoreSpec struct {
 	// auto-cleans and rebuilds instead of refusing. False = system of
 	// record (database): existing data is never auto-deleted.
 	projection bool
-	// owner: the role whose image stamps this store — the writer whose code
-	// the contents reflect. Exactly one service takes the stamped mount path
-	// per store; sharers mount via stateMountsShared.
+	// owner: the one role whose container mounts this store — the writer
+	// whose code the contents reflect, and so, unless unstamped, the image
+	// that stamps it.
 	owner string
 	// unstamped: no image stamps this store, and no image change clears it.
-	// What it holds says what derived it, entry by entry, so it is mounted
-	// through stateMountsShared by every service that mounts it.
+	// Its owner mounts it through stateMountsUnstamped.
 	unstamped bool
 }
 
@@ -173,11 +172,11 @@ var stateStores = map[string]stateStoreSpec{
 		projection: true,
 		owner:      "messaging",
 	},
-	// The XDG state tree, shared across the Archivist (projection writer —
-	// owns the stamp) and the librarian (reads views). The gateway mounts it
-	// only for its supervisor's events log.
+	// The XDG state tree: the Archivist writes the views and projections in
+	// it and is the only container that mounts it. Its supervisor keeps its
+	// events log there too.
 	//
-	// mode: all three run as uid 1001 — the same Linux ownership gap as
+	// mode: the Archivist runs as uid 1001 — the same Linux ownership gap as
 	// anchored-text: without it the Archivist dies with EACCES in a codespace
 	// (uid 1000).
 	"state": {
@@ -187,6 +186,34 @@ var stateStores = map[string]stateStoreSpec{
 		mode:       0o777,
 		projection: true,
 		owner:      "archivist",
+	},
+	// The gateway's and the Librarian's supervisors' events logs: supervise.sh
+	// keeps one at /semiont-state/<name>-supervisor/events.log so a death
+	// record outlives the container. Each service mounts a store of its own
+	// at that path, because no store is mounted by two containers: under
+	// Apple container each is its own VM, and a second mounter of a host
+	// directory can read a file cut short.
+	//
+	// unstamped: a log line is what happened, whichever image wrote it, so no
+	// image change clears it. projection: the log is clearable; nothing reads
+	// it to start. mode: both run as uid 1001, the anchored-text gap.
+	"gateway": {
+		dir:        "gateway",
+		holds:      "the gateway supervisor's events",
+		mounts:     []stateMount{{"", stateHomeTarget}},
+		mode:       0o777,
+		projection: true,
+		owner:      "gateway",
+		unstamped:  true,
+	},
+	"librarian": {
+		dir:        "librarian",
+		holds:      "the Librarian supervisor's events",
+		mounts:     []stateMount{{"", stateHomeTarget}},
+		mode:       0o777,
+		projection: true,
+		owner:      "librarian",
+		unstamped:  true,
 	},
 }
 

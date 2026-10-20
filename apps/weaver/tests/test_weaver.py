@@ -467,13 +467,12 @@ def test_what_it_holds_of_the_record_is_never_written_back_into_it() -> None:
             await rig.happened(created("res-1"), added("res-1", 2, "ann-1", tag("Person")))
             await rig.weaver.catch_up()
             await rig.weaver.reconcile()
-            # It asks three things of the record and says one: everything else on the bus is somebody else's.
+            # It asks two things of the record on the bus and says one: everything else on the bus is somebody else's.
             assert {frame.channel for frame in rig.transport.emitted} <= {
                 "yield:created",
                 "mark:added",
                 "browse:resources-requested",
                 "browse:events-requested",
-                "browse:annotations-requested",
                 "weave:applied",
             }
             assert written((await rig.views.get_resource_annotations(R1))[0])["id"] == "ann-1"

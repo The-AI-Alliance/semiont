@@ -11,7 +11,10 @@ use crate::locked;
 use crate::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
-use crate::types::{AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, ResourceId};
+use crate::types::{
+    AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse,
+    ResourceId,
+};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -25,6 +28,7 @@ pub enum ContentCall {
     GetBinary(ResourceId),
     GetBinaryStream(ResourceId),
     GetResourceGraph(ResourceId),
+    GetAnnotations(ResourceId),
     GetAnchoredText(ResourceId),
 }
 
@@ -32,6 +36,7 @@ pub enum ContentCall {
 struct Inner {
     stored: Mutex<HashMap<ResourceId, Content>>,
     graphs: Mutex<HashMap<ResourceId, GetResourceResponse>>,
+    annotations: Mutex<HashMap<ResourceId, GetAnnotationsResponse>>,
     anchored_texts: Mutex<HashMap<ResourceId, AnchoredTextAnswer>>,
     calls: Mutex<Vec<ContentCall>>,
 }
@@ -63,6 +68,11 @@ impl InMemoryContent {
     /// Store `graph` as the description of `resource_id`.
     pub fn seed_graph(&self, resource_id: &ResourceId, graph: GetResourceResponse) {
         locked(&self.inner.graphs).insert(resource_id.clone(), graph);
+    }
+
+    /// Store `annotations` as the annotations of `resource_id`.
+    pub fn seed_annotations(&self, resource_id: &ResourceId, annotations: GetAnnotationsResponse) {
+        locked(&self.inner.annotations).insert(resource_id.clone(), annotations);
     }
 
     /// Store `answer` as what a read of `resource_id`'s anchored text gives.
@@ -160,6 +170,19 @@ impl ContentTransport for InMemoryContent {
                 .get(resource_id)
                 .cloned()
                 .ok_or_else(|| not_found("description", resource_id))
+        })
+    }
+
+    fn get_annotations<'a>(
+        &'a self,
+        resource_id: &'a ResourceId,
+    ) -> BoxFuture<'a, Result<GetAnnotationsResponse, TransportError>> {
+        Box::pin(async move {
+            locked(&self.inner.calls).push(ContentCall::GetAnnotations(resource_id.clone()));
+            locked(&self.inner.annotations)
+                .get(resource_id)
+                .cloned()
+                .ok_or_else(|| not_found("annotations", resource_id))
         })
     }
 

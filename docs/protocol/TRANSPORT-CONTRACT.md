@@ -69,7 +69,7 @@ language's SDK offers the same operations in its own idiom.
 
 `Bus` (`@semiont/core`) is the typed bus over any transport, and a client hands its own out as `client.wire`. Its `request(operation, payload, timeoutMs?, signal?)` is a request and its reply.
 
-**`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph`, `getAnchoredText` and `dispose`.
+**`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph`, `getAnnotations`, `getAnchoredText` and `dispose`.
 
 **`IGatewayOperations`**: `getCurrentUser`, `getMediaToken`, `getProtectedResourceMetadata`, `healthCheck` and `getStatus`.
 
@@ -84,15 +84,16 @@ export const transport: Exactly<ITransport,
   | 'emit' | 'stream' | 'frames' | 'on' | 'isSubscribed'
   | 'baseUrl' | 'state$' | 'errors$' | 'subscribeToResource' | 'trackReply' | 'bridgeInto' | 'dispose'> = true;
 export const content: Exactly<IContentTransport,
-  'putBinary' | 'getBinary' | 'getBinaryStream' | 'getResourceGraph' | 'getAnchoredText' | 'dispose'> = true;
+  'putBinary' | 'getBinary' | 'getBinaryStream' | 'getResourceGraph' | 'getAnnotations' | 'getAnchoredText' | 'dispose'> = true;
 export const gateway: Exactly<IGatewayOperations,
   'getCurrentUser' | 'getMediaToken' | 'getProtectedResourceMetadata' | 'healthCheck' | 'getStatus'> = true;
 ```
 
 `ITransport` is the bus. `IContentTransport` carries bytes, which never
-ride the bus; a resource's description as linked data; and a resource's
-anchored text, the text read out of its content with where each run of it
-is on a page, which is as large as the content it was read from.
+ride the bus; a resource's description as linked data; a resource's
+annotations, which grow without a bound; and a resource's anchored text,
+the text read out of its content with where each run of it is on a page,
+which is as large as the content it was read from.
 `IGatewayOperations` is what a gateway answers for itself; a transport with
 no gateway behind it does not implement it.
 
@@ -386,8 +387,8 @@ Bytes do not ride the bus.
   closed, nothing is reported on the error stream, and it is not sent again.
   *Held by `sdk/wire/upload-cancelled`.*
 - A read returns a resource's bytes unchanged with their media type, whole
-  or as a stream; a resource's description is what the gateway answers; and
-  one that is not there fails as `not-found`.
+  or as a stream; a resource's description is what the gateway answers, and
+  so are its annotations; and one that is not there fails as `not-found`.
   *Held by `sdk/wire/content-read`.*
 - A resource's anchored text is what the gateway answers: the text with
   where each run of it is on a page, or why there is none. That there is

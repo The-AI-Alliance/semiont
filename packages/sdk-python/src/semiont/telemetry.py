@@ -27,6 +27,7 @@ from semiont.telemetry_table import (
     BUS_RECV,
     CONTENT_GET,
     CONTENT_GET_ANCHORED_TEXT,
+    CONTENT_GET_ANNOTATIONS,
     CONTENT_GET_GRAPH,
     CONTENT_PUT,
     SEMIONT_BUS_SENT,
@@ -41,6 +42,7 @@ __all__ = [
     "emitting",
     "getting",
     "getting_anchored_text",
+    "getting_annotations",
     "getting_graph",
     "putting",
     "received",
@@ -173,6 +175,11 @@ def getting(resource_id: str, *, stream: bool) -> AbstractContextManager[None]:
 def getting_graph(resource_id: str) -> AbstractContextManager[None]:
     """A read of a resource's description, in a span for as long as it is held."""
     return _span(CONTENT_GET_GRAPH, {"resource.id": resource_id})
+
+
+def getting_annotations(resource_id: str) -> AbstractContextManager[None]:
+    """A read of a resource's annotations, in a span for as long as it is held."""
+    return _span(CONTENT_GET_ANNOTATIONS, {"resource.id": resource_id})
 
 
 def getting_anchored_text(resource_id: str) -> AbstractContextManager[None]:

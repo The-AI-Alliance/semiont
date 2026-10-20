@@ -48,20 +48,6 @@ const FAILS = { status: 500, body: JSON.stringify({ error: 'the stand-in fails t
 const TEXTS = { depth: 1, maxResources: 10, includeContent: true, includeSummary: false };
 
 eachLibrarian('a Librarian, asked to gather', (world) => {
-  /** A resource's view, as the Archivist wrote it. */
-  function recorded(resourceId: string) {
-    const view = world().kb.view(resourceId);
-    if (view === undefined) throw new Error(`the record holds no view of ${resourceId}`);
-    return view;
-  }
-
-  /** An annotation, as its resource's view holds it. */
-  function recordedAnnotation(resourceId: string, annotationId: string) {
-    const annotation = recorded(resourceId).annotations.annotations.find((one) => one.id === annotationId);
-    if (annotation === undefined) throw new Error(`the view of ${resourceId} holds no annotation ${annotationId}`);
-    return annotation;
-  }
-
   /** Wait until the index holds the point of each annotation: the Smelter signals nothing when it writes one. */
   async function pointed(...annotationIds: string[]): Promise<void> {
     for (const annotationId of annotationIds) {
@@ -91,8 +77,8 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
 
       expect(reply.annotationId).toBe(highlight);
       const focus = annotationFocus(reply.response);
-      expect(focus.annotation).toEqual(recordedAnnotation(source, highlight));
-      expect(focus.sourceResource).toEqual(recorded(source).resource);
+      expect(focus.annotation).toEqual(await world().annotated(source, highlight));
+      expect(focus.sourceResource).toEqual(await world().described(source));
       expect(focus.selected).toEqual({ before: 'The quick brown ', text: 'fox', after: ' jumps over the lazy dog.\n' });
       expect(focus).not.toHaveProperty('targetResource');
       expect(focus).not.toHaveProperty('targetContext');
@@ -115,8 +101,8 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const reply = await world().answered('gather:requested', { annotationId: reference, resourceId: source });
 
       const focus = annotationFocus(reply.response);
-      expect(focus.annotation).toEqual(recordedAnnotation(source, reference));
-      expect(focus.targetResource).toEqual(recorded(linked).resource);
+      expect(focus.annotation).toEqual(await world().annotated(source, reference));
+      expect(focus.targetResource).toEqual(await world().described(linked));
       expect(focus.targetContext).toEqual({ content: TIDE, summary: 'A marsh that floods twice a day.' });
       expect(reply.response.inferredRelationshipSummary).toBe('The passage links to a marsh.');
       expect(reply.response.metadata.entityTypes).toEqual(['Animal']);
@@ -181,7 +167,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
 
       expect(reply.response).not.toHaveProperty('inferredRelationshipSummary');
       const focus = annotationFocus(reply.response);
-      expect(focus.annotation).toEqual(recordedAnnotation(source, highlight));
+      expect(focus.annotation).toEqual(await world().annotated(source, highlight));
       expect(focus.selected?.text).toBe('lazy');
       expect(reply.response.graph.nodes[0]).toMatchObject({ id: source, type: 'resource' });
       // It asked once, and did not ask again.
@@ -196,7 +182,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const reply = await world().answered('gather:requested', { annotationId: reference, resourceId: source });
 
       const focus = annotationFocus(reply.response);
-      expect(focus.targetResource).toEqual(recorded(linked).resource);
+      expect(focus.targetResource).toEqual(await world().described(linked));
       expect(focus.targetContext).toEqual({ content: TIDE });
       expect(focus.selected?.text).toBe('fox');
       expect(reply.response.inferredRelationshipSummary).toBe('The passage links to a marsh.');
@@ -225,7 +211,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       // No passage is the annotation's own resource's, though two of its highlights quote these very words.
       expect(similar.filter((match) => match.resourceId === source)).toEqual([]);
       // Every passage is named as the record names its resource.
-      for (const match of similar) expect(match.resourceName).toBe(recorded(match.resourceId).resource.name);
+      for (const match of similar) expect(match.resourceName).toBe((await world().described(match.resourceId)).name);
 
       // The text it had embedded to search by is the selected text, and that alone.
       expect(world().embedder.since(embedded).flatMap((request) => request.texts)).toEqual([phrase]);
@@ -240,10 +226,10 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const reply = await world().answered('gather:requested', { annotationId: reference, resourceId: source, options: { includeSourceContext: false } });
 
       const focus = annotationFocus(reply.response);
-      expect(focus.annotation).toEqual(recordedAnnotation(source, reference));
-      expect(focus.sourceResource).toEqual(recorded(source).resource);
+      expect(focus.annotation).toEqual(await world().annotated(source, reference));
+      expect(focus.sourceResource).toEqual(await world().described(source));
       expect(focus).not.toHaveProperty('selected');
-      expect(focus.targetResource).toEqual(recorded(linked).resource);
+      expect(focus.targetResource).toEqual(await world().described(linked));
       expect(focus.targetContext).toEqual({ content: TIDE, summary: 'A marsh that floods twice a day.' });
       expect(reply.response).not.toHaveProperty('inferredRelationshipSummary');
       expect(reply.response).not.toHaveProperty('semanticContext');
@@ -259,7 +245,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const reply = await world().answered('gather:requested', { annotationId: reference, resourceId: source, options: { includeTargetContext: false } });
 
       const focus = annotationFocus(reply.response);
-      expect(focus.targetResource).toEqual(recorded(linked).resource);
+      expect(focus.targetResource).toEqual(await world().described(linked));
       expect(focus).not.toHaveProperty('targetContext');
       expect(focus.selected?.text).toBe('fox');
       expect(reply.response.inferredRelationshipSummary).toBe('The passage links to a marsh.');
@@ -331,7 +317,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const outward = await world().answered('gather:resource-requested', { resourceId: source, options: TEXTS });
       expect(outward.resourceId).toBe(source);
       const focus = resourceFocus(outward.response);
-      expect(focus.resource).toEqual(recorded(source).resource);
+      expect(focus.resource).toEqual(await world().described(source));
       expect(focus.content).toEqual({ main: FOX, related: { [linked]: TIDE } });
       expect(outward.response.graph.nodes[0]).toMatchObject({ id: source, type: 'resource', label: 'A fox and a dog' });
       expect(outward.response.graph.nodes).toContainEqual(expect.objectContaining({ id: linked, type: 'resource', label: 'A salt marsh' }));
@@ -352,7 +338,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const reply = await world().answered('gather:resource-requested', { resourceId: source, options: { ...TEXTS, includeContent: false } });
 
       const focus = resourceFocus(reply.response);
-      expect(focus.resource).toEqual(recorded(source).resource);
+      expect(focus.resource).toEqual(await world().described(source));
       expect(focus).not.toHaveProperty('content');
       expect(reply.response.graph.nodes).toContainEqual(expect.objectContaining({ id: linked, type: 'resource' }));
       expect(world().gatherer.generations).toEqual([]);
@@ -420,7 +406,7 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       const focus = resourceFocus(reply.response);
       expect(focus).not.toHaveProperty('summary');
       expect(focus).not.toHaveProperty('suggestedReferences');
-      expect(focus.resource).toEqual(recorded(source).resource);
+      expect(focus.resource).toEqual(await world().described(source));
       expect(focus.content?.main).toBe(TIDE);
       expect(world().gatherer.generations).toHaveLength(1);
     });

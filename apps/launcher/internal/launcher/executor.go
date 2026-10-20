@@ -91,11 +91,11 @@ type admitter interface {
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
 // database a launcher-run PostgreSQL must already carry.
 type storer interface {
-	stateMounts(role, image, root string) ([]string, bool) // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)  // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run
-	createDatabase(user, name string) bool                 // a database on the launcher-run PostgreSQL, if absent
-	ollamaVolume(opts startOptions) string                 // model-cache choice (prompt is live-only)
+	stateMounts(role, image, root string) ([]string, bool)   // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsUnstamped(role, root string) ([]string, bool) // the same mounts for a store no image stamps
+	resolveStoreStamps(fc flowCtx) bool                      // preflight: every store's mismatch refuse/clear, before the first container run
+	createDatabase(user, name string) bool                   // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string                   // model-cache choice (prompt is live-only)
 }
 
 // modeler: the models a role serves — pulled when absent locally, verified when remote.
@@ -453,7 +453,7 @@ func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool
 		env, envName, _, err := loadConfig(fc.configFile)
 		if err == nil {
 			var doc []byte
-			if doc, err = librarianDocument(env, envName, effectiveKBName(x.root), x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
+			if doc, err = librarianDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
 				err = os.WriteFile(filepath.Join(stage, librarianDocumentFile), doc, 0o644)
 			}
 		}
@@ -1083,18 +1083,14 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 	}
 	// Restamp here, not at the owner's prep: the stamped image's output is
 	// gone, and a resolution that leaves its stamp re-fires at the owner's own
-	// stateMounts — clearing whatever an earlier-booting sharer wrote into
-	// the store in between (the gateway's fresh jobs tree, cleared at
-	// archivist prep).
+	// stateMounts.
 	meta.Stores[role] = storeMeta{Image: image}
 	saveRootMeta(dir, meta)
 	return true
 }
 
-// resolveStoreStamps runs every store's stamp resolution in PREFLIGHT. The
-// state store is shared — the gateway and librarian attach what the
-// archivist stamps — so a clear at the owner's own prep lands mid-boot,
-// after sharers attached.
+// resolveStoreStamps runs every store's stamp resolution in PREFLIGHT, so a
+// clear lands before any container runs rather than mid-boot.
 func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
 		spec := stateStores[role]
@@ -1144,21 +1140,12 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	return args, true
 }
 
-// stateMountsShared: a role's state mounts for a container that is NOT the
-// stamp's owner, and for a store no image stamps. The ARCHIVIST owns the
-// state tree's stamp; the gateway and the Librarian mount that one through
-// here. The anchored-text store is unstamped: the Archivist, its one mounter,
-// mounts it through here, and no image change clears it. The bind is the
-// same either way (stateMountArgs emits no `:ro`): what a sharer leaves alone
-// is the stamp.
-//
-// Running the stamped path here with a second image would flip the stamp on
-// every start and, for a projection, CLEAR the store each alternation.
-// Exactly one service may take the stamped path per store.
-//
-// The stamp follows the WRITER, which is what makes an image-change clear
-// correct: the stamp names the code whose output the store holds.
-func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
+// stateMountsUnstamped: a store's mounts for its owner when no image stamps
+// it — the anchored-text store and the gateway's and the Librarian's
+// supervisor logs. An anchored-text entry says what derived it, and a log
+// line is what happened whichever image wrote it, so no image change clears
+// either; the bind is the one stateMounts makes, without the stamp.
+func (x *liveExec) stateMountsUnstamped(role, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
 		return nil, true
@@ -1170,10 +1157,8 @@ func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 }
 
 // openStoreDirs creates a store's mount dirs with the store's mode and clamps
-// the root's state dir to owner-only. Both mount paths run it, because
-// whichever service mounts a store first creates it — in startOrder that is
-// often a sharer (the gateway mounts `state` before the Archivist that owns
-// it) — so the mode belongs to the store, not to its owner's prep.
+// the root's state dir to owner-only. Both mount paths run it, so the mode
+// belongs to the store, not to one path's prep.
 func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
 	sd := spec.storeDir(root)
 	for _, m := range spec.mounts {
@@ -1537,12 +1522,8 @@ func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
 	return args, true
 }
 
-func (x *planExec) stateMountsShared(role, root string) ([]string, bool) {
-	if stateStores[role].unstamped {
-		x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
-	} else {
-		x.c("mount %s state (shared; the stamp stays with its owning service)", role)
-	}
+func (x *planExec) stateMountsUnstamped(role, root string) ([]string, bool) {
+	x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
 	return stateMountArgs(role, root), true
 }
 

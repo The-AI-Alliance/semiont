@@ -28,6 +28,7 @@ from semiont.testing import (
     DuplicateReply,
     FaultyTransport,
     GetAnchoredText,
+    GetAnnotations,
     GetBinary,
     GetBinaryStream,
     GetResourceGraph,
@@ -44,6 +45,7 @@ from semiont.transport import Content, ContentTransport, Frame, FrameSink, Gatew
 from semiont.types import (
     AnchoredTextAbsent,
     GatheredContext,
+    GetAnnotationsResponse,
     GetResourceResponse,
     HealthResponse,
     MediaTokenResponse,
@@ -432,6 +434,7 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
             (content.get_binary(RESOURCE), "content"),
             (content.get_binary_stream(RESOURCE), "content"),
             (content.get_resource_graph(RESOURCE), "description"),
+            (content.get_annotations(RESOURCE), "annotations"),
             (content.get_anchored_text(RESOURCE), "anchored text"),
         ):
             with pytest.raises(TransportError) as missing:
@@ -441,8 +444,10 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
 
         page = Content(data=b"# A page", content_type="text/markdown")
         content.seed(RESOURCE, page)
-        graph = GetResourceResponse.model_validate({"resource": DESCRIBED, "annotations": [], "entityReferences": []})
+        graph = GetResourceResponse.model_validate({"resource": DESCRIBED, "annotations": []})
         content.seed_graph(RESOURCE, graph)
+        annotations = GetAnnotationsResponse.model_validate({"annotations": [], "total": 0})
+        content.seed_annotations(RESOURCE, annotations)
         not_yet = AnchoredTextAbsent(kind="not-yet")
         content.seed_anchored_text(RESOURCE, not_yet)
         assert await content.get_binary(RESOURCE) == page
@@ -450,6 +455,7 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
             assert arriving.content_type == "text/markdown"
             assert [piece async for piece in arriving] == [b"# A page"]
         assert await content.get_resource_graph(RESOURCE) is graph
+        assert await content.get_annotations(RESOURCE) is annotations
         assert await content.get_anchored_text(RESOURCE) is not_yet
         with pytest.raises(TransportError):
             await content.get_binary(OTHER)
@@ -469,10 +475,12 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
             GetBinary(RESOURCE),
             GetBinaryStream(RESOURCE),
             GetResourceGraph(RESOURCE),
+            GetAnnotations(RESOURCE),
             GetAnchoredText(RESOURCE),
             GetBinary(RESOURCE),
             GetBinaryStream(RESOURCE),
             GetResourceGraph(RESOURCE),
+            GetAnnotations(RESOURCE),
             GetAnchoredText(RESOURCE),
             GetBinary(OTHER),
             PutBinary(put),
@@ -573,7 +581,7 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
                 await soon(unscripted)
 
         # Scripted, the client's own namespaces, cache and deadlines do the rest.
-        made.transport.queue_reply(ASK, [{"resource": DESCRIBED, "annotations": [], "entityReferences": []}])
+        made.transport.queue_reply(ASK, [{"resource": DESCRIBED, "lastSequence": 1}])
         made.content.seed(RESOURCE, Content(data=b"text", content_type="text/plain"))
         async with made.client as client, client.browse.resource(RESOURCE) as live:
             assert await soon(anext(live)) == Pending()
@@ -601,7 +609,7 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
         # And its persistence: what the client's small queries hold is kept where the test says.
         storage = MemoryStorage()
         keeping = create_test_client(persistence=CachePersistence(storage=storage, key_prefix="kb"))
-        keeping.transport.queue_reply(ASK, [{"resource": DESCRIBED, "annotations": [], "entityReferences": []}])
+        keeping.transport.queue_reply(ASK, [{"resource": DESCRIBED, "lastSequence": 1}])
         async with keeping.client as client:
             await soon(client.browse.resource(RESOURCE).fresh())
         assert storage.get("semiont.cache.kb.resource") is not None

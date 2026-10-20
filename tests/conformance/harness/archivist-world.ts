@@ -373,6 +373,14 @@ export class ArchivistWorld {
     return reply.json as Record<string, unknown>;
   }
 
+  /** A resource's annotations, as the Archivist answers them over HTTP; undefined for a resource it does not hold. */
+  async annotations(resourceId: string): Promise<Record<string, unknown> | undefined> {
+    const reply = await this.http('GET', `/resources/${encodeURIComponent(resourceId)}/annotations`, { route: '/resources/{id}/annotations' });
+    if (reply.status === 404) return undefined;
+    if (reply.status !== 200) throw new Error(`the annotations were not answered: ${reply.status} ${reply.text}`);
+    return reply.json as Record<string, unknown>;
+  }
+
   // ── The files it keeps ────────────────────────────────────────────────────
 
   /** A resource's stream directory, or the `__system__` stream's. */

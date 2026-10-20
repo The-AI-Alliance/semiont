@@ -20,7 +20,16 @@ it forgot.
 """
 
 from semiont.testing.client import TestClient, create_test_client
-from semiont.testing.content import ContentCall, GetAnchoredText, GetBinary, GetBinaryStream, GetResourceGraph, InMemoryContent, PutBinary
+from semiont.testing.content import (
+    ContentCall,
+    GetAnchoredText,
+    GetAnnotations,
+    GetBinary,
+    GetBinaryStream,
+    GetResourceGraph,
+    InMemoryContent,
+    PutBinary,
+)
 from semiont.testing.gateway import StubGateway
 from semiont.testing.transport import (
     Delay,
@@ -46,6 +55,7 @@ __all__ = [
     "FaultAction",
     "FaultyTransport",
     "GetAnchoredText",
+    "GetAnnotations",
     "GetBinary",
     "GetBinaryStream",
     "GetResourceGraph",

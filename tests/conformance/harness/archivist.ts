@@ -2,8 +2,8 @@
  * A stand-in Archivist: the knowledge base's record and bytes, over the HTTP
  * surface the Archivist serves (`specs/src/archivist/openapi.json`) — the
  * recording upload, byte reads by resource, the linked-data description, a
- * resource's anchored text, and the sequence-ranged event read that backs
- * replay. It checks the caller's
+ * resource's annotations, its anchored text, and the sequence-ranged event
+ * read that backs replay. It checks the caller's
  * token as the real one does (an issuer token carrying the service role) and
  * records every call, so a case can see what the gateway sent it.
  *
@@ -66,6 +66,13 @@ export interface FakeArchivist {
   readonly events: Map<string, StoredEvent[]>;
   /** Linked-data descriptions, per resource. */
   readonly descriptions: Map<string, unknown>;
+  /**
+   * What a read of a resource's annotations is answered, per resource: an
+   * answer, or a function asked afresh at each read, so a world can answer
+   * what its real Archivist answers. A resource with no entry, or whose
+   * function answers nothing, is answered 404.
+   */
+  readonly annotations: Map<string, Record<string, unknown> | (() => Promise<Record<string, unknown> | undefined>)>;
   /**
    * What a read of a resource's anchored text is answered: an answer, or a
    * function asked afresh at each read, so a case can say `not-yet` and then
@@ -147,6 +154,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   const resources = new Map<string, { storageUri: string; mediaType: string }>();
   const events = new Map<string, StoredEvent[]>();
   const descriptions = new Map<string, unknown>();
+  const annotations: FakeArchivist['annotations'] = new Map();
   const anchoredTexts: FakeArchivist['anchoredTexts'] = new Map();
   const uploads: RecordedUpload[] = [];
   const mode: FakeArchivist['mode'] = {
@@ -260,6 +268,13 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         return reply(200, { 'content-type': 'application/ld+json; charset=utf-8' }, Buffer.from(JSON.stringify(description)));
       }
 
+      if (operation.path === '/resources/{id}/annotations') {
+        const held = annotations.get(id);
+        const answered = typeof held === 'function' ? await held() : held;
+        if (answered === undefined) return json(404, { error: 'Resource not found' });
+        return json(200, answered);
+      }
+
       if (operation.path === '/resources/{id}/anchored-text') {
         if (mode.anchoredTextFails) return json(500, { error: 'anchored-text read failed' });
         const held = anchoredTexts.get(id);
@@ -304,6 +319,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     resources,
     events,
     descriptions,
+    annotations,
     anchoredTexts,
     uploads,
     mode,

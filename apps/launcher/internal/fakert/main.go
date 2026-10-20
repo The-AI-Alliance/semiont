@@ -1771,7 +1771,6 @@ func busReplyFor(request string) (string, map[string]any) {
 var busScripted = map[string]bool{
 	"browse:resources-requested":    true,
 	"browse:resource-requested":     true,
-	"browse:annotations-requested":  true,
 	"browse:entity-types-requested": true,
 	"frame:add-entity-type":         true,
 	"gather:resource-requested":     true,
@@ -2493,6 +2492,19 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							}
 						}
 					}
+				}
+				// A resource's annotations, which `browse` reads over HTTP:
+				// none, for whatever resource is asked about.
+				if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/resources/") &&
+					strings.HasSuffix(r.URL.Path, "/annotations") {
+					w.Header().Set("Content-Type", "application/json")
+					if !bearerOK() {
+						w.WriteHeader(401)
+						_ = json.NewEncoder(w).Encode(map[string]any{"error": "token expired"})
+						return
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"annotations": []any{}, "total": 0})
+					return
 				}
 				// The yield upload (sdk-go glue): capture the multipart —
 				// fields, file bytes, auth header — for test assertions,

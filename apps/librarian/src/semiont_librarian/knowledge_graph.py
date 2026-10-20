@@ -1,4 +1,4 @@
-"""The knowledge graph around one resource, built from the graph database and the views.
+"""The knowledge graph around one resource, built from the graph database and the record.
 
 Both gathers build it (`docs/protocol/LIBRARIAN.md` § The knowledge graph).
 The first node is the resource. Then each of its connections is a node and
@@ -14,8 +14,8 @@ graph is built around has its annotations as nodes. The graph stops taking
 resources at `RESOURCE_CEILING`, and then says that it is `truncated`.
 
 The graph database is written after the record, by the Weaver. A resource
-its view holds and the graph database does not is waited for (§ The two
-waits): for `weave:applied` to reach the sequence number the view states,
+the record holds and the graph database does not is waited for (§ The two
+waits): for `weave:applied` to reach the sequence number of its last event,
 then by asking the graph database again after longer and longer pauses. A
 resource neither holds is unknown, and nothing waits. A resource the graph
 database never comes to hold is the graph behind the views, and is not a
@@ -41,9 +41,9 @@ from semiont.types import (
     ResourceDescriptor,
 )
 
-from semiont_librarian.grace import view_if_readable
+from semiont_librarian.grace import described_if_readable
 from semiont_librarian.log import LOG
-from semiont_librarian.reads import Degraded, GraphReads, Views, WeaveWaits, WeaveWaitTimedOut
+from semiont_librarian.reads import Degraded, GraphReads, Record, WeaveWaits, WeaveWaitTimedOut
 
 __all__ = [
     "GRAPH_WAIT_BUDGET",
@@ -67,7 +67,7 @@ RESOURCE_CEILING: Final = 200
 """How many resource nodes a graph holds before a further link out adds no more."""
 
 _SIGNAL_SECONDS: Final = 0.5
-"""How long a build waits for `weave:applied` to reach the sequence number a resource's view states."""
+"""How long a build waits for `weave:applied` to reach the sequence number of a resource's last event."""
 
 _PAUSES_SECONDS: Final = (0.025, 0.05, 0.1, 0.2)
 """The pause before each time the graph database is asked again, once the signal has come or its wait has run out."""
@@ -86,12 +86,12 @@ class DepthRefused(Exception):
 
 @final
 class ResourceUnknown(Exception):
-    """Neither the graph database nor the views hold the resource."""
+    """Neither the graph database nor the record holds the resource."""
 
 
 @final
 class GraphBehind(Exception):
-    """The views hold the resource, and the graph database did not come to hold it within the wait. The resource is not missing."""
+    """The record holds the resource, and the graph database did not come to hold it within the wait. The resource is not missing."""
 
 
 @final
@@ -177,19 +177,19 @@ def refuse_depth_out_of_bounds(depth: int) -> None:
         raise DepthRefused(f"depth must be between {LEAST_DEPTH} and {LARGEST_DEPTH}")
 
 
-async def _held(resource_id: ResourceId, graph: GraphReads, views: Views, weave: WeaveWaits, degraded: Degraded) -> ResourceDescriptor:
-    """The resource's description, from the graph database, waited for where the views hold the resource and it does not yet."""
+async def _held(resource_id: ResourceId, graph: GraphReads, record: Record, weave: WeaveWaits, degraded: Degraded) -> ResourceDescriptor:
+    """The resource's description, from the graph database, waited for where the record holds the resource and it does not yet."""
     described = await graph.get_resource(resource_id)
     if described is not None:
         return described
-    view = await views.get(resource_id)
-    if view is None:
+    recorded = await record.described(resource_id)
+    if recorded is None:
         raise ResourceUnknown("Resource not found")
 
-    # The signal first: it comes at the moment the Weaver has applied what the view states. A wait that fails in any
+    # The signal first: it comes at the moment the Weaver has applied the resource's last event. A wait that fails in any
     # way but running out is raised, and is not asked past.
     try:
-        await weave.when_applied(resource_id, view.last_sequence, _SIGNAL_SECONDS)
+        await weave.when_applied(resource_id, recorded.last_sequence, _SIGNAL_SECONDS)
         described = await graph.get_resource(resource_id)
     except WeaveWaitTimedOut:
         described = None
@@ -205,7 +205,7 @@ async def _held(resource_id: ResourceId, graph: GraphReads, views: Views, weave:
     degraded.note("graph")
     LOG.warning(
         "Gather degraded: the graph did not come to hold a resource its view holds",
-        extra={"resourceId": resource_id, "lastSequence": view.last_sequence, "waitedSeconds": GRAPH_WAIT_BUDGET},
+        extra={"resourceId": resource_id, "lastSequence": recorded.last_sequence, "waitedSeconds": GRAPH_WAIT_BUDGET},
     )
     raise GraphBehind(
         f"The graph is behind the views for {resource_id}: the views hold it and the graph does not "
@@ -213,7 +213,7 @@ async def _held(resource_id: ResourceId, graph: GraphReads, views: Views, weave:
     )
 
 
-async def _one_link_further(built: _Built, frontier: Sequence[ResourceId], *, graph: GraphReads, views: Views) -> list[ResourceId]:
+async def _one_link_further(built: _Built, frontier: Sequence[ResourceId], *, graph: GraphReads, record: Record) -> list[ResourceId]:
     """Take the graph one link further out from `frontier`, the resources its last step added. Answers the resources this step added.
 
     Each resource of the frontier is asked, in order, for what it links to
@@ -221,8 +221,8 @@ async def _one_link_further(built: _Built, frontier: Sequence[ResourceId], *, gr
     graph has it or has no room for it, and a `link` edge between the two,
     unless the graph has it. A resource that links to another is named and
     typed by the description the graph database answers with the connection;
-    one that cites another by its view, or by its id where it has no view.
-    No annotation becomes a node.
+    one that cites another as the record describes it, or by its id where it
+    cannot be. No annotation becomes a node.
     """
     added_from = len(built.resources)
     for at in frontier:
@@ -237,33 +237,33 @@ async def _one_link_further(built: _Built, frontier: Sequence[ResourceId], *, gr
             if source == at or not built.has_room_for(source):
                 continue
             if not built.holds(source):
-                await _cited_from(built, source, views)
+                await _cited_from(built, source, record)
             built.link(source, at, None)
     return built.resources[added_from:]
 
 
-async def _cited_from(built: _Built, source: ResourceId, views: Views) -> None:
-    """The node of a resource that cites another: named and typed by its view, and by its id alone where it has no view that can be read."""
-    view = await view_if_readable(views, source)
-    if view is None:
+async def _cited_from(built: _Built, source: ResourceId, record: Record) -> None:
+    """The node of a resource that cites another: named and typed as the record describes it, and by its id alone where it cannot be."""
+    recorded = await described_if_readable(record, source)
+    if recorded is None:
         built.resource(source, source, [])
     else:
-        built.resource(source, view.resource.name, resource_entity_types(view.resource))
+        built.resource(source, recorded.resource.name, resource_entity_types(recorded.resource))
 
 
 async def build_knowledge_graph(
-    resource_id: ResourceId, *, graph: GraphReads, views: Views, weave: WeaveWaits, degraded: Degraded, depth: int
+    resource_id: ResourceId, *, graph: GraphReads, record: Record, weave: WeaveWaits, degraded: Degraded, depth: int
 ) -> KnowledgeGraph:
     """The knowledge graph around a resource, `depth` links out: its nodes and its edges, in the order the page states.
 
     Raises `DepthRefused` for a depth out of bounds, before anything is
-    read; `ResourceUnknown` where neither the graph database nor the views
-    hold the resource; and `GraphBehind` where the views hold it and the
+    read; `ResourceUnknown` where neither the graph database nor the record
+    holds the resource; and `GraphBehind` where the record holds it and the
     graph database does not come to within `GRAPH_WAIT_BUDGET`. A read that
     fails is raised as it failed.
     """
     refuse_depth_out_of_bounds(depth)
-    main = await _held(resource_id, graph, views, weave, degraded)
+    main = await _held(resource_id, graph, record, weave, degraded)
     connections = await graph.get_resource_connections(resource_id)
     referring = await graph.get_resource_referenced_by(resource_id, None)
     on_it = await graph.get_resource_annotations(resource_id)
@@ -284,7 +284,7 @@ async def build_knowledge_graph(
             continue
         # A citing resource that is a node already, as one this resource links to is, is not read again.
         if not built.holds(source):
-            await _cited_from(built, source, views)
+            await _cited_from(built, source, record)
         built.annotation(annotation)
         built.edges.append(KnowledgeGraphEdgesItem(source=annotation.id, target=source, type="annotation-of"))
         built.edges.append(KnowledgeGraphEdgesItem(source=annotation.id, target=resource_id, type="cites"))
@@ -298,7 +298,7 @@ async def build_knowledge_graph(
     # That is one link out. Each further link out starts from the resources the last one added, so the nearest come first.
     frontier: Sequence[ResourceId] = built.resources[1:]
     for _ in range(LEAST_DEPTH, depth):
-        frontier = await _one_link_further(built, frontier, graph=graph, views=views)
+        frontier = await _one_link_further(built, frontier, graph=graph, record=record)
 
     # `truncated` is said only where it is true.
     return stated(KnowledgeGraph(nodes=built.nodes, edges=built.edges, truncated=True if built.kept_out else None))

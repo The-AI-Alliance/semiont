@@ -125,6 +125,7 @@ before it. Frames and failures are sequences: every one, in order.
 | `get` | `resource` | `{"contentType": "...", "bytes": "<base64>"}` |
 | `get-stream` | `resource`: read as a stream, to its end | the same |
 | `graph` | `resource` | the description the gateway answered |
+| `annotations` | `resource` | the annotations the gateway answered |
 | `anchored-text` | `resource` | what the gateway answered |
 | `health`, `status`, `current-user`, `protected-resource-metadata` | | what the gateway answered |
 | `media-token` | `resource` | what the gateway answered |
@@ -250,6 +251,7 @@ A live case uses these in place of `wire` and `carried`:
 | `{"holds": "a", "state": {...}}` | the state it holds now is this one |
 | `{"completes": "a"}` | its live query completes |
 | `{"fetch": "browse:resource-requested", "payload": {...}, "as": "f1"}` | the client's next request of a service is this one; `f1` is its correlation id, for the backend to answer |
+| `{"fetch": "GET /resources/{id}/annotations", "params": {...}}` | its next request of a service is this read over HTTP, which the stand-in Archivist answers from what the case gave it |
 | `{"fetches": [ ... ]}` | its next requests are these, in whatever order it makes them |
 | `{"scopes": ["..."]}` | the client comes to hold one stream, naming exactly these scopes, that has caught up |
 
@@ -299,6 +301,7 @@ no other.
 | `archivist` | `replayFails` | the Archivist fails, or stops failing, the gateway's reads of a record |
 | `content` | `resource`, `mediaType`, `bytes` | the Archivist holds these bytes for the resource |
 | `description` | `resource`, `graph` | the Archivist holds this description of the resource |
+| `annotations` | `resource`, `annotations` | the Archivist holds these annotations of the resource |
 | `anchored-text` | `resource`, `answer` | the Archivist answers this for the resource's anchored text |
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
 | `refuse` | `wire`, `status`, `retryAfter`, `headers` (any other header the refusal declares, such as a 401's `WWW-Authenticate`), `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |

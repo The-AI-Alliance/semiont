@@ -129,7 +129,7 @@ class Parties:
                 return self.queue.popleft()
             case "browse:resource-requested":
                 assert isinstance(resource_id, str)
-                return {"resource": self.descriptors[resource_id], "annotations": [], "entityReferences": []}
+                return {"resource": self.descriptors[resource_id], "lastSequence": 1}
             case "mark:commit":
                 annotations = payload.get("annotations")
                 assert isinstance(resource_id, str)

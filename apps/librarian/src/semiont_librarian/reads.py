@@ -1,11 +1,12 @@
 """What a Librarian is handed to read by: each a protocol, and the ways a read fails that the Librarian tells apart.
 
-A Librarian owns no store (`docs/protocol/LIBRARIAN.md`). It reads the views
-and the people projection the Archivist writes (§ Names), the graph the
-Weaver writes and the index the Smelter writes, and it waits, within a bound,
-for the two that are written after the record (§ The two waits). What reads
-each is behind a protocol here. A Librarian is handed these, and knows no
-address, no directory and no database.
+A Librarian owns no store (`docs/protocol/LIBRARIAN.md`), and mounts no state
+volume. It asks the Archivist, on the bus, for what it needs of the record and
+for what the knowledge base calls its people (§ Names), each read bounded by
+its question. It reads the graph the Weaver writes and the index the Smelter
+writes, and it waits, within a bound, for the two that are written after the
+record (§ The two waits). What reads each is behind a protocol here. A
+Librarian is handed these, and knows no address, no directory and no database.
 
 Four more are handed to it from their own packages, each a protocol too: what
 reads a resource's bytes (`semiont_service.content.ContentReads`), the vector
@@ -17,17 +18,17 @@ A bound on a wait is in seconds. The page states milliseconds, and they are
 divided once, where a setting is read.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Literal, Protocol, final
 
-from semiont.identifiers import ResourceId
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import (
     AnchoredTextAnswer,
     Annotation,
     Motivation,
-    PeopleProjectionPeopleValue,
+    PersonProfile,
     ResourceDescriptor,
-    ResourceView,
     SmeltSettledOutcome,
 )
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
@@ -35,14 +36,15 @@ from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceLi
 __all__ = [
     "AnchoredText",
     "Degraded",
+    "Described",
     "GraphReads",
     "People",
     "PeopleUnread",
     "Projection",
+    "Record",
     "Settled",
     "SmeltWaitTimedOut",
     "SmeltWaits",
-    "Views",
     "WeaveWaitTimedOut",
     "WeaveWaits",
 ]
@@ -68,9 +70,9 @@ resource; `summary`, the summary of the resource an annotation links to; and
 
 @final
 class PeopleUnread(Exception):
-    """The people projection could not be read: it is there, and is not what its schema states, or the file could not be opened.
+    """What the knowledge base calls some people could not be read: the Archivist refused the read, or did not answer it.
 
-    A knowledge base with no projection is not this: it names no one.
+    A person with no profile is not this: they are named by no one.
     """
 
 
@@ -84,24 +86,37 @@ class SmeltWaitTimedOut(Exception):
     """The index was not signalled to have settled a resource's bytes within the bound."""
 
 
-class Views(Protocol):
-    """The views the Archivist keeps of each resource (`ResourceView`). Every reader of them has this member and no other."""
+@final
+@dataclass(frozen=True, slots=True)
+class Described:
+    """A resource as the record describes it: its descriptor, and the sequence number of its last event."""
 
-    async def get(self, resource_id: ResourceId) -> ResourceView | None:
-        """A resource's view: its description, its annotations and the sequence number of the last event applied.
+    resource: ResourceDescriptor
+    last_sequence: int
 
-        `None` where there is no view of it.
+
+class Record(Protocol):
+    """The record the Archivist keeps, read a resource or an annotation at a time. Every reader of it has these members and no other."""
+
+    async def described(self, resource_id: ResourceId) -> Described | None:
+        """A resource as the record describes it. `None` where the record holds no such resource."""
+        ...
+
+    async def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation | None:
+        """An annotation on a resource. `None` where the resource holds no such annotation.
+
+        Asked only of a resource the record holds.
         """
         ...
 
 
 class People(Protocol):
-    """What the people of a knowledge base are called (`PeopleProjection`). Every reader of it has this member and no other."""
+    """What the people of a knowledge base are called (`PersonProfile`). Every reader of it has this member and no other."""
 
-    async def read(self) -> Mapping[str, PeopleProjectionPeopleValue]:
-        """Each person's profile, by their DID. Nobody, where the knowledge base has no projection.
+    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
+        """The profile of each of `dids` that has one, by their DID.
 
-        Raises `PeopleUnread` where the projection cannot be read.
+        Raises `PeopleUnread` where they cannot be read.
         """
         ...
 

@@ -25,6 +25,7 @@ from semiont.types import (
     Agent,
     AnchoredTextAnswer,
     CreateResourceResponse,
+    GetAnnotationsResponse,
     GetResourceResponse,
     HealthResponse,
     MediaTokenResponse,
@@ -486,7 +487,7 @@ class ContentStream:
 
 
 class ContentTransport(Protocol):
-    """Bytes, which never ride the bus, a resource's description as linked data, and its anchored text."""
+    """Bytes, which never ride the bus, a resource's description as linked data, its annotations, and its anchored text."""
 
     def put_binary(self, request: PutBinaryRequest) -> Upload:
         """Upload `request`'s bytes as a new resource."""
@@ -502,6 +503,10 @@ class ContentTransport(Protocol):
 
     async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
         """A resource's description: itself, its annotations and the references to it."""
+        ...
+
+    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        """A resource's annotations, with the people they mention named, and how many there are."""
         ...
 
     async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:

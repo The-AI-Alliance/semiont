@@ -16,9 +16,18 @@ from typing import Final, final, override
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
 from semiont.transport import Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress
-from semiont.types import AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse
+from semiont.types import AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse
 
-__all__ = ["ContentCall", "GetAnchoredText", "GetBinary", "GetBinaryStream", "GetResourceGraph", "InMemoryContent", "PutBinary"]
+__all__ = [
+    "ContentCall",
+    "GetAnchoredText",
+    "GetAnnotations",
+    "GetBinary",
+    "GetBinaryStream",
+    "GetResourceGraph",
+    "InMemoryContent",
+    "PutBinary",
+]
 
 
 @final
@@ -55,13 +64,21 @@ class GetResourceGraph:
 
 @final
 @dataclass(frozen=True, slots=True)
+class GetAnnotations:
+    """A call of `get_annotations`."""
+
+    resource_id: ResourceId
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class GetAnchoredText:
     """A call of `get_anchored_text`."""
 
     resource_id: ResourceId
 
 
-type ContentCall = PutBinary | GetBinary | GetBinaryStream | GetResourceGraph | GetAnchoredText
+type ContentCall = PutBinary | GetBinary | GetBinaryStream | GetResourceGraph | GetAnnotations | GetAnchoredText
 """One call made of the content transport."""
 
 
@@ -80,6 +97,7 @@ class InMemoryContent(ContentTransport):
     def __init__(self) -> None:
         self._stored: Final[dict[ResourceId, Content]] = {}
         self._graphs: Final[dict[ResourceId, GetResourceResponse]] = {}
+        self._annotations: Final[dict[ResourceId, GetAnnotationsResponse]] = {}
         self._anchored_texts: Final[dict[ResourceId, AnchoredTextAnswer]] = {}
         self._calls: Final[list[ContentCall]] = []
 
@@ -90,6 +108,10 @@ class InMemoryContent(ContentTransport):
     def seed_graph(self, resource_id: ResourceId, graph: GetResourceResponse) -> None:
         """Store `graph` as the description of `resource_id`."""
         self._graphs[resource_id] = graph
+
+    def seed_annotations(self, resource_id: ResourceId, annotations: GetAnnotationsResponse) -> None:
+        """Store `annotations` as the annotations of `resource_id`."""
+        self._annotations[resource_id] = annotations
 
     def seed_anchored_text(self, resource_id: ResourceId, answer: AnchoredTextAnswer) -> None:
         """Store `answer` as what a read of `resource_id`'s anchored text is answered."""
@@ -137,6 +159,14 @@ class InMemoryContent(ContentTransport):
         if graph is None:
             raise _not_found("description", resource_id)
         return graph
+
+    @override
+    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        self._calls.append(GetAnnotations(resource_id))
+        annotations = self._annotations.get(resource_id)
+        if annotations is None:
+            raise _not_found("annotations", resource_id)
+        return annotations
 
     @override
     async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:

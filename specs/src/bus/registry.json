@@ -111,9 +111,6 @@
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
-      "browse:annotations-requested",
-      "browse:annotations-result",
-      "browse:annotations-failed",
       "browse:annotation-requested",
       "browse:annotation-result",
       "browse:annotation-failed",
@@ -132,6 +129,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:people-requested",
+      "browse:people-result",
+      "browse:people-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -307,9 +307,6 @@
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
-      "browse:annotations-requested",
-      "browse:annotations-result",
-      "browse:annotations-failed",
       "browse:annotation-requested",
       "browse:annotation-result",
       "browse:annotation-failed",
@@ -328,6 +325,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:people-requested",
+      "browse:people-result",
+      "browse:people-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -2036,7 +2036,7 @@
       "shape": "schema",
       "schema": "BrowseResourceResult",
       "validate": "BrowseResourceResult",
-      "tsRefinement": "{\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['BrowseResourceResult']['response'], 'resource'> & {\n      resource: ResourceDescriptor;\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2093,51 +2093,6 @@
     },
     {
       "channel": "browse:resources-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-requested",
-      "shape": "schema",
-      "schema": "BrowseAnnotationsRequest",
-      "validate": "BrowseAnnotationsRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-result",
-      "shape": "schema",
-      "schema": "BrowseAnnotationsResult",
-      "validate": "BrowseAnnotationsResult",
-      "tsRefinement": "{\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -2403,6 +2358,50 @@
     },
     {
       "channel": "browse:agents-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:people-requested",
+      "shape": "schema",
+      "schema": "BrowsePeopleRequest",
+      "validate": "BrowsePeopleRequest",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:people-result",
+      "shape": "schema",
+      "schema": "BrowsePeopleResult",
+      "validate": "BrowsePeopleResult",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:people-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -3471,15 +3470,6 @@
       }
     },
     {
-      "request": "browse:annotations-requested",
-      "result": "browse:annotations-result",
-      "failure": "browse:annotations-failed",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "request": "browse:annotation-history-requested",
       "result": "browse:annotation-history-result",
       "failure": "browse:annotation-history-failed",
@@ -3519,6 +3509,15 @@
       "request": "browse:agents-requested",
       "result": "browse:agents-result",
       "failure": "browse:agents-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:people-requested",
+      "result": "browse:people-result",
+      "failure": "browse:people-failed",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -4019,11 +4018,11 @@
       "browse:agents-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
-      "browse:annotations-requested",
       "browse:directory-requested",
       "browse:entity-types-requested",
       "browse:events-requested",
       "browse:kb-requested",
+      "browse:people-requested",
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",

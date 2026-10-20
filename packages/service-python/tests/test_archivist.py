@@ -1,11 +1,13 @@
-"""A resource's bytes, read from an Archivist a test plays over real HTTP.
+"""A resource's bytes and its annotations, read from an Archivist a test plays over real HTTP.
 
 The Archivist's content route is `specs/src/archivist/openapi.json`'s: the
 bytes as they are stored, under the content type the record stores, or a 404
 that says which half of the lookup failed. Here is what the reader asks,
 what it hands over of each answer, and that whatever keeps the bytes from
 being read is a `ContentUnread` that says what it was, and names the service
-that could not sign in by the word the service handed in.
+that could not sign in by the word the service handed in. A resource's
+annotations are read the same way, from its annotations route, and whatever
+keeps them from being read is an `AnnotationsUnread`.
 """
 
 import asyncio
@@ -20,8 +22,9 @@ import pytest
 from aio import run
 from semiont.errors import SemiontError, SignInError
 from semiont.identifiers import ResourceId
+from semiont.types import GetAnnotationsResponse
 
-from semiont_service.archivist import ArchivistContent, Authorizes
+from semiont_service.archivist import AnnotationsUnread, ArchivistContent, Authorizes
 from semiont_service.content import Content, ContentUnread
 
 RESOURCE: Final = ResourceId("res-1")
@@ -239,3 +242,62 @@ def test_a_reader_that_is_not_held_open_reads_nothing() -> None:
             await content.read(RESOURCE)
 
     run(scenario())
+
+
+async def annotations_of(says: Said) -> tuple[GetAnnotationsResponse, PlayedArchivist]:
+    """What the reader hands over of one answer to a read of annotations, and the Archivist that gave it."""
+    async with (
+        PlayedArchivist(says) as archivist,
+        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as content,
+    ):
+        return await content.read_annotations(RESOURCE), archivist
+
+
+async def annotations_unread(says: Said) -> str:
+    """What the reader says of an answer that gives it no annotations."""
+    with pytest.raises(AnnotationsUnread) as failure:
+        await annotations_of(says)
+    return str(failure.value)
+
+
+ANNOTATIONS: Final = {
+    "annotations": [
+        {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "highlighting",
+            "target": {"source": "res-1"},
+            "created": "2026-01-01T00:00:00.000Z",
+        }
+    ],
+    "total": 1,
+}
+
+
+def test_the_annotations_are_asked_for_by_the_resource_s_id_as_the_account_and_handed_over_as_answered() -> None:
+    async def scenario() -> None:
+        served = json.dumps(ANNOTATIONS).encode("utf-8")
+        listed, archivist = await annotations_of(Said(headers={"Content-Type": "application/json"}, body=served))
+        (asked,) = archivist.asked
+        assert (asked.method, asked.path) == ("GET", "/resources/res-1/annotations")
+        assert asked.headers["authorization"] == TOKEN
+        assert listed == GetAnnotationsResponse.model_validate(ANNOTATIONS)
+
+    run(scenario())
+
+
+def test_annotations_of_a_resource_the_record_does_not_hold_are_unread() -> None:
+    body = json.dumps({"error": "Resource not found"}).encode("utf-8")
+    said = run(annotations_unread(Said(status=404, headers={"Content-Type": "application/json"}, body=body)))
+    assert said == "the Archivist has no annotations of res-1: the record holds no such resource"
+
+
+@pytest.mark.parametrize("status", [401, 500, 503])
+def test_annotations_answered_with_any_other_failing_status_are_unread_and_state_the_status(status: int) -> None:
+    assert run(annotations_unread(Said(status=status))) == f"the Archivist answered {status} for the annotations of res-1"
+
+
+def test_an_answer_that_is_no_list_of_annotations_is_unread() -> None:
+    said = run(annotations_unread(Said(headers={"Content-Type": "application/json"}, body=b'{"total": 1}')))
+    assert said.startswith("the Archivist's answer for the annotations of res-1 is no list of annotations: ")

@@ -298,10 +298,8 @@ export type EventMap = {
   // intersection; envelope shape per the reply-shape standard.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
   'browse:resource-result': Refines<components['schemas']['BrowseResourceResult'], {
-    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
+    response: Omit<components['schemas']['BrowseResourceResult']['response'], 'resource'> & {
       resource: ResourceDescriptor;
-      annotations: Annotation[];
-      entityReferences: Annotation[];
     };
   }>;
   'browse:resource-failed': components['schemas']['CommandError'];
@@ -313,14 +311,6 @@ export type EventMap = {
     };
   }>;
   'browse:resources-failed': components['schemas']['CommandError'];
-
-  'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
-  'browse:annotations-result': Refines<components['schemas']['BrowseAnnotationsResult'], {
-    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
-      annotations: Annotation[];
-    };
-  }>;
-  'browse:annotations-failed': components['schemas']['CommandError'];
 
   'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
   'browse:annotation-result': Refines<components['schemas']['BrowseAnnotationResult'], {
@@ -351,6 +341,10 @@ export type EventMap = {
   'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
   'browse:agents-result': components['schemas']['BrowseAgentsResult'];
   'browse:agents-failed': components['schemas']['CommandError'];
+
+  'browse:people-requested': components['schemas']['BrowsePeopleRequest'];
+  'browse:people-result': components['schemas']['BrowsePeopleResult'];
+  'browse:people-failed': components['schemas']['CommandError'];
 
   'browse:kb-requested': components['schemas']['BrowseKbRequest'];
   'browse:kb-result': components['schemas']['BrowseKbResult'];
@@ -676,9 +670,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,
-  'browse:annotations-requested':     'BrowseAnnotationsRequest',
-  'browse:annotations-result':        'BrowseAnnotationsResult',
-  'browse:annotations-failed':        null,
   'browse:annotation-requested':      'BrowseAnnotationRequest',
   'browse:annotation-result':         'BrowseAnnotationResult',
   'browse:annotation-failed':         null,
@@ -697,6 +688,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:agents-requested':          'BrowseAgentsRequest',
   'browse:agents-result':             'BrowseAgentsResult',
   'browse:agents-failed':             null,
+  'browse:people-requested':          'BrowsePeopleRequest',
+  'browse:people-result':             'BrowsePeopleResult',
+  'browse:people-failed':             null,
   'browse:kb-requested':              'BrowseKbRequest',
   'browse:kb-result':                 'BrowseKbResult',
   'browse:kb-failed':                 null,

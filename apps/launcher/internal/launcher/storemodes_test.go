@@ -34,9 +34,8 @@ func declaredUser(t *testing.T, parts ...string) string {
 // (uid 1000). macOS runtimes map ownership and hide it.
 //
 // Which stores this covers is read from the images: a store whose owner is a
-// Semiont-built role is written by the user its Dockerfile declares. Either
-// mount path can create the dir — the gateway mounts `state` shared before the
-// archivist, its owner, boots — so each is run first on a fresh data home.
+// Semiont-built role is written by the user its Dockerfile declares. Both
+// mount paths create the dirs they mount, so each is run on a fresh data home.
 func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 	gated := 0
 	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
@@ -54,8 +53,8 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 				_, ok := x.stateMounts(role, image(spec.owner, "test"), root)
 				return ok
 			},
-			"sharer": func(x *liveExec, root string) bool {
-				_, ok := x.stateMountsShared(role, root)
+			"unstamped": func(x *liveExec, root string) bool {
+				_, ok := x.stateMountsUnstamped(role, root)
 				return ok
 			},
 		}

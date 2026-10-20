@@ -39,8 +39,8 @@ from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions,
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
-from semiont_librarian.naming import namer
-from semiont_librarian.reads import GraphReads, People, Views
+from semiont_librarian.naming import name
+from semiont_librarian.reads import GraphReads, People, Record
 from semiont_librarian.resource_text import preview_of
 
 __all__ = ["Page", "answer", "search_resources", "with_previews"]
@@ -93,7 +93,7 @@ async def search_resources(
     filters: MatchResourcesRequest,
     *,
     graph: GraphReads,
-    views: Views,
+    record: Record,
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     semantic_floor: float,
@@ -133,7 +133,7 @@ async def search_resources(
         limit,
         filters.entity_type or None,
         graph=graph,
-        views=views,
+        record=record,
         vectors=vectors,
         embedding=embedding,
         semantic_floor=semantic_floor,
@@ -146,7 +146,7 @@ async def _by_meaning(
     entity_type: str | None,
     *,
     graph: GraphReads,
-    views: Views,
+    record: Record,
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     semantic_floor: float,
@@ -188,7 +188,7 @@ async def _by_meaning(
         lagged = 0
         for hit in kept[:limit]:
             # The index can hold a resource a moment after it is gone: a hit nobody holds a resource for is left out.
-            graced = await resource_with_view_grace(graph, views, hit.resource_id)
+            graced = await resource_with_view_grace(graph, record, hit.resource_id)
             if graced.lagged_behind_view:
                 lagged += 1
             if graced.resource is not None:
@@ -217,7 +217,7 @@ async def answer(
     request: MatchResourcesRequest,
     *,
     graph: GraphReads,
-    views: Views,
+    record: Record,
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     semantic_floor: float,
@@ -227,15 +227,14 @@ async def answer(
     """The reply to `match:resources-requested`: the page, the offset and the limit the search was made with, and its people named.
 
     Each resource of a lexical page is given a preview. A semantic page's
-    `content` is the passage that matched, and is left as it is. The people
-    projection is read once, after the search. A graph that fails to list is
-    raised, and is the request's failure.
+    `content` is the passage that matched, and is left as it is. Its people
+    are asked after once, after the search (`semiont_librarian.naming.name`).
+    A graph that fails to list is raised, and is the request's failure.
     """
     offset, limit = _paged(request)
-    page = await search_resources(request, graph=graph, views=views, vectors=vectors, embedding=embedding, semantic_floor=semantic_floor)
+    page = await search_resources(request, graph=graph, record=record, vectors=vectors, embedding=embedding, semantic_floor=semantic_floor)
     resources = await with_previews(page.resources, content=content) if page.match_kind == "lexical" else page.resources
-    name = await namer(people)
     reply = MatchResourcesResult(
         response=MatchResourcesResponse(resources=resources, total=page.total, offset=offset, limit=limit, match_kind=page.match_kind)
     )
-    return MatchResourcesResult.model_validate(name(written(reply)))
+    return MatchResourcesResult.model_validate(await name(written(reply), people))

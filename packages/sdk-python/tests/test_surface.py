@@ -31,6 +31,7 @@ from semiont.testing import (
     ContentCall,
     FaultyTransport,
     GetAnchoredText,
+    GetAnnotations,
     GetBinary,
     GetBinaryStream,
     GetResourceGraph,
@@ -360,6 +361,8 @@ def content_call(call: ContentCall) -> tuple[str, JsonObject]:
             return "getBinaryStream", {"resourceId": resource_id}
         case GetResourceGraph(resource_id=resource_id):
             return "getResourceGraph", {"resourceId": resource_id}
+        case GetAnnotations(resource_id=resource_id):
+            return "getAnnotations", {"resourceId": resource_id}
         case GetAnchoredText(resource_id=resource_id):
             return "getAnchoredText", {"resourceId": resource_id}
 

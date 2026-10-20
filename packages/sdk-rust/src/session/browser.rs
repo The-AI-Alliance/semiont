@@ -1125,7 +1125,7 @@ mod tests {
                                 "@context": "https://schema.org", "@id": id,
                                 "name": format!("name-{id}"), "representations": [],
                             },
-                            "annotations": [], "entityReferences": [],
+                            "lastSequence": 1,
                         })))
                     }
                     other => Err(format!("{other} is not answered here")),

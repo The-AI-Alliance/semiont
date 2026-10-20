@@ -92,15 +92,17 @@ gateway, and reads bytes from the Archivist.
   `mark:entity-tag-added` and `mark:entity-tag-removed`.
   *Held by `apps/smelter/tests/test_census.py`.*
 - **It reads what the record holds from the Archivist, over the bus:** a
-  resource's description (`browse:resource-requested`), a resource's
-  annotations (`browse:annotations-requested`), and the catalog of resources
-  that are not archived (`browse:resources-requested`, 200 to a page). It
-  opens no file of the record.
+  resource's description (`browse:resource-requested`) and the catalog of
+  resources that are not archived (`browse:resources-requested`, 200 to a
+  page). It opens no file of the record.
   *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
 - **It reads a resource's bytes from the Archivist's own
   `GET /resources/{id}/content`, as its service account, and takes them as
-  they are stored.** The checksum it works by is of exactly those bytes.
-  *Held by `packages/service-python/tests/test_archivist.py`.*
+  they are stored.** The checksum it works by is of exactly those bytes. It
+  reads a resource's annotations the same way, from
+  `GET /resources/{id}/annotations`: their number follows the document's, so
+  they are no bus read.
+  *Held by `packages/service-python/tests/test_archivist.py` and `apps/smelter/tests/test_smelter.py`.*
 - **It answers one command,** `smelt:rebuild-anchors` ([Rebuild](#rebuild)),
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).

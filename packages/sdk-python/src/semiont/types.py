@@ -77,8 +77,6 @@ __all__ = [
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
     "BrowseAnnotationResult",
-    "BrowseAnnotationsRequest",
-    "BrowseAnnotationsResult",
     "BrowseClickEvent",
     "BrowseDirectoryFailed",
     "BrowseDirectoryRequest",
@@ -97,11 +95,15 @@ __all__ = [
     "BrowseLinkClickedEvent",
     "BrowsePanelOpenEvent",
     "BrowsePanelToggleEvent",
+    "BrowsePeopleRequest",
+    "BrowsePeopleResult",
+    "BrowsePeopleResultResponse",
     "BrowseResourceCloseEvent",
     "BrowseResourceOpenEvent",
     "BrowseResourceReorderEvent",
     "BrowseResourceRequest",
     "BrowseResourceResult",
+    "BrowseResourceResultResponse",
     "BrowseResourceViewedEvent",
     "BrowseResourcesRequest",
     "BrowseResourcesResult",
@@ -341,8 +343,8 @@ __all__ = [
     "OllamaEmbeddingConfig",
     "PdfTextItem",
     "PeopleProjection",
-    "PeopleProjectionPeopleValue",
     "PersistedEventId",
+    "PersonProfile",
     "PersonProfileCommand",
     "PersonProfiledPayload",
     "ProtectedResourceMetadata",
@@ -609,6 +611,17 @@ class BrowseAgentsRequest(WireModel, frozen=True):
     """
 
 
+class BrowsePeopleRequest(WireModel, frozen=True, extra="forbid"):
+    """
+    Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
+    """
+
+    dids: Annotated[
+        list[UserId],
+        Field(description="The people asked after.", max_length=500, min_length=1),
+    ]
+
+
 class BrowseAnnotationHistoryRequest(WireModel, frozen=True):
     """
     Request to browse the history of an annotation
@@ -625,14 +638,6 @@ class BrowseAnnotationRequest(WireModel, frozen=True):
 
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
     annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
-
-
-class BrowseAnnotationsRequest(WireModel, frozen=True):
-    """
-    Request to browse annotations for a resource
-    """
-
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
 class BrowseClickEvent(WireModel, frozen=True):
@@ -2814,6 +2819,15 @@ class TagSchemasProjection(WireModel, frozen=True, extra="forbid"):
     ]
 
 
+class PersonProfile(WireModel, frozen=True, extra="forbid"):
+    """
+    What a person last said they are called, and when: the profile a `person:profiled` event gives.
+    """
+
+    name: Annotated[str, Field(description="The name the person last gave.")]
+    since: Annotated[str, Field(description="The timestamp of the event that gave it.")]
+
+
 class StorageUriEntry(WireModel, frozen=True, extra="forbid"):
     """
     One entry of the storage-uri index: the file `projections/storage-uri/<ab>/<cd>/<sha256 of the URI, hex>.json` under the state directory. It answers which resource's content is at a place in the working tree. Written as JSON indented by two spaces, `uri` first.
@@ -2895,6 +2909,10 @@ class WeaveApplied(WireModel, frozen=True):
 
 
 type BindBodyOperationOp = Annotated[Literal["add", "remove", "replace"], Field(description="The type of body operation")]
+
+
+class BrowsePeopleResultResponse(WireModel, frozen=True, extra="forbid"):
+    people: Annotated[dict[str, PersonProfile], Field(description="Each profile, keyed by DID.")]
 
 
 type BrowseDirectoryRequestSort = Literal["name", "mtime", "annotationCount"]
@@ -3664,11 +3682,6 @@ class ArchivistConfigStaging(WireModel, frozen=True, extra="forbid"):
     ]
 
 
-class PeopleProjectionPeopleValue(WireModel, frozen=True, extra="forbid"):
-    name: Annotated[str, Field(description="The name the person last gave.")]
-    since: Annotated[str, Field(description="The timestamp of the event that gave it.")]
-
-
 type AnchoredTextExtractedEntryLinesItemWordsItem = Annotated[list[float], Field(max_length=4, min_length=4)]
 
 
@@ -3815,6 +3828,14 @@ class BodyOperationReplace(WireModel, frozen=True):
     op: Literal["replace"]
     old_item: Annotated[TextualBody | SpecificResource, Field(alias="oldItem")]
     new_item: Annotated[TextualBody | SpecificResource, Field(alias="newItem")]
+
+
+class BrowsePeopleResult(WireModel, frozen=True):
+    """
+    What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
+    """
+
+    response: BrowsePeopleResultResponse
 
 
 class BrowseDirectoryRequest(WireModel, frozen=True):
@@ -5170,7 +5191,7 @@ class PeopleProjection(WireModel, frozen=True, extra="forbid"):
     """
 
     people: Annotated[
-        dict[str, PeopleProjectionPeopleValue],
+        dict[str, PersonProfile],
         Field(description="Each person's current profile, keyed by their DID."),
     ]
 
@@ -5282,6 +5303,18 @@ type AnnotationBodyUpdatedPayloadOperationsItem = BodyOperationAdd | BodyOperati
 class BrowseDirectoryResultResponse(WireModel, frozen=True):
     path: str
     entries: list[DirectoryEntry]
+
+
+class BrowseResourceResultResponse(WireModel, frozen=True, extra="forbid"):
+    resource: ResourceDescriptor
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the resource's last event. A graph read that follows a write waits for the graph projection to reach it.",
+            ge=1,
+        ),
+    ]
 
 
 class BusSubscribeRequestScopedItem(WireModel, frozen=True, extra="forbid"):
@@ -5503,6 +5536,14 @@ type AnchoredTextAnswer = Annotated[
         discriminator="kind",
     ),
 ]
+
+
+class BrowseResourceResult(WireModel, frozen=True):
+    """
+    A resource's descriptor, and the sequence number of the last of its events the descriptor reflects. Its annotations are not here: their number follows the document's, so they are read over HTTP (`GET /resources/{id}/annotations`).
+    """
+
+    response: BrowseResourceResultResponse
 
 
 class BrowseTagSchemasResult(WireModel, frozen=True):
@@ -6117,13 +6158,6 @@ class GetResourceResponse(WireModel, frozen=True):
         list[Annotation],
         Field(description="All annotations for the resource (highlights, references, assessments, etc.)"),
     ]
-    entity_references: Annotated[
-        list[Annotation],
-        Field(
-            alias="entityReferences",
-            description="Annotations that reference this resource from other resources",
-        ),
-    ]
 
 
 class GraphAnnotationNode(WireModel, frozen=True):
@@ -6432,22 +6466,6 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     ]
     identity: LibrarianConfigIdentity
     archivist: LibrarianConfigArchivist
-    state_home: Annotated[
-        str,
-        Field(
-            alias="stateHome",
-            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.",
-            min_length=1,
-        ),
-    ]
-    kb_name: Annotated[
-        str,
-        Field(
-            alias="kbName",
-            description="The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.",
-            min_length=1,
-        ),
-    ]
     graph: GraphConfig
     vectors: VectorsConfig
     embedding: EmbeddingConfig
@@ -6596,22 +6614,6 @@ class BrowseAnnotationResult(WireModel, frozen=True):
     """
 
     response: GetAnnotationResponse
-
-
-class BrowseAnnotationsResult(WireModel, frozen=True):
-    """
-    Result of browsing annotations for a resource
-    """
-
-    response: GetAnnotationsResponse
-
-
-class BrowseResourceResult(WireModel, frozen=True):
-    """
-    Result of browsing a single resource
-    """
-
-    response: GetResourceResponse
 
 
 class GatherReferencedByResult(WireModel, frozen=True):

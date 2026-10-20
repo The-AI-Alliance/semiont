@@ -13,7 +13,9 @@ use semiont::namespaces::ResourceFilters;
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::as_id;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
-use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
+use semiont::testing::{
+    ContentCall, FaultyTransport, InMemoryContent, TestClientOptions, create_test_client,
+};
 use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
 use semiont::types::MatchResourcesResponse;
 use serde_json::{Map, Value, json};
@@ -61,14 +63,10 @@ fn answers(
         Ok(Some(match operation {
             "browse:resource-requested" => json!({
                 "resource": descriptor(resource, &format!("as of ask {n}")),
-                "annotations": [], "entityReferences": [],
+                "lastSequence": 1,
             }),
             "browse:resources-requested" => json!({
                 "resources": [], "total": n, "offset": 0, "limit": 100,
-            }),
-            "browse:annotations-requested" => json!({
-                "annotations": [annotation("ann-1", resource, &format!("as of ask {n}"))],
-                "total": 1,
             }),
             "browse:annotation-requested" => json!({
                 "annotation": annotation(
@@ -125,9 +123,34 @@ fn client_over(
     .client
 }
 
-fn world() -> (Arc<SemiontClient>, FaultyTransport) {
+/// What the content transport answers a read of each resource's
+/// annotations with.
+fn annotated() -> InMemoryContent {
+    let content = InMemoryContent::new();
+    for resource in ["res-1", "res-2"] {
+        content.seed_annotations(
+            &as_id(resource),
+            serde_json::from_value(json!({
+                "annotations": [annotation("ann-1", resource, "as read")],
+                "total": 1,
+            }))
+            .expect("a resource's annotations"),
+        );
+    }
+    content
+}
+
+fn world() -> (Arc<SemiontClient>, FaultyTransport, InMemoryContent) {
     let transport = FaultyTransport::answering(vec![], answers(&[]));
-    (client_over(&transport, None), transport)
+    let content = annotated();
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        content: Some(content.clone()),
+        client: options(None),
+        ..TestClientOptions::default()
+    })
+    .client;
+    (client, transport, content)
 }
 
 /// Let what is ready run.
@@ -176,6 +199,19 @@ fn asked_of(transport: &FaultyTransport, operation: &str, resource: &str) -> usi
         .count()
 }
 
+/// How many times the annotations of `resource`, or of any resource when
+/// none is named, have been read.
+fn annotations_read(content: &InMemoryContent, resource: Option<&str>) -> usize {
+    content
+        .calls()
+        .iter()
+        .filter(|call| match call {
+            ContentCall::GetAnnotations(id) => resource.is_none_or(|resource| *id == resource),
+            _ => false,
+        })
+        .count()
+}
+
 /// An event of a resource's record, as the stream carries it.
 fn recorded(resource: &str, payload: Value, more: Value) -> Map<String, Value> {
     let mut event = object(json!({
@@ -199,29 +235,46 @@ fn heard(client: &SemiontClient, channel: &str, payload: Map<String, Value>) {
     client.bus().emit(channel, payload, Envelope::default());
 }
 
-const READS: [&str; 10] = [
-    "browse:resource-requested",
-    "browse:resources-requested",
-    "browse:annotations-requested",
-    "browse:annotation-requested",
-    "browse:events-requested",
-    "gather:referenced-by-requested",
-    "browse:entity-types-requested",
-    "browse:tag-schemas-requested",
-    "browse:agents-requested",
-    "match:resources-requested",
+/// A read a query makes: an operation asked over the bus, or a resource's
+/// annotations, read from the content transport.
+#[derive(Clone, Copy)]
+enum Read {
+    Asked(&'static str),
+    Annotations,
+}
+
+const READS: [Read; 10] = [
+    Read::Asked("browse:resource-requested"),
+    Read::Asked("browse:resources-requested"),
+    Read::Annotations,
+    Read::Asked("browse:annotation-requested"),
+    Read::Asked("browse:events-requested"),
+    Read::Asked("gather:referenced-by-requested"),
+    Read::Asked("browse:entity-types-requested"),
+    Read::Asked("browse:tag-schemas-requested"),
+    Read::Asked("browse:agents-requested"),
+    Read::Asked("match:resources-requested"),
 ];
+
+/// How many times each of `READS` has been made.
+fn made(transport: &FaultyTransport, content: &InMemoryContent) -> [usize; 10] {
+    READS.map(|read| match read {
+        Read::Asked(operation) => asked(transport, [operation])[0],
+        Read::Annotations => annotations_read(content, None),
+    })
+}
 
 /// A watcher of every query, of two resources: what a busy viewer holds.
 struct Everything {
     transport: FaultyTransport,
+    content: InMemoryContent,
     client: Arc<SemiontClient>,
     _watching: Vec<Box<dyn std::any::Any + Send>>,
     before: [usize; 10],
 }
 
 async fn watching_everything() -> Everything {
-    let (client, transport) = world();
+    let (client, transport, content) = world();
     let mut watching: Vec<Box<dyn std::any::Any + Send>> = Vec::new();
     for resource in ["res-1", "res-2"] {
         watching.push(Box::new(client.browse.resource(&as_id(resource)).watch()));
@@ -258,7 +311,7 @@ async fn watching_everything() -> Everything {
     watching.push(Box::new(client.browse.tag_schemas().watch()));
     watching.push(Box::new(client.browse.agents().watch()));
     settle().await;
-    let before = asked(&transport, READS);
+    let before = made(&transport, &content);
     assert_eq!(
         before,
         [2, 1, 2, 2, 2, 2, 1, 1, 1, 1],
@@ -266,6 +319,7 @@ async fn watching_everything() -> Everything {
     );
     Everything {
         transport,
+        content,
         client,
         _watching: watching,
         before,
@@ -277,7 +331,7 @@ impl Everything {
     /// settled, once the window has closed and what it owed has run.
     async fn more(&self) -> [usize; 10] {
         tokio::time::sleep(WINDOW * 3).await;
-        let now = asked(&self.transport, READS);
+        let now = made(&self.transport, &self.content);
         std::array::from_fn(|i| now[i] - self.before[i])
     }
 }
@@ -294,14 +348,8 @@ async fn b12_an_annotation_added_asks_again_for_that_resources_annotations_and_h
         recorded("res-1", json!({}), json!({})),
     );
     assert_eq!(all.more().await, [0, 0, 1, 0, 1, 0, 0, 0, 0, 0]);
-    assert_eq!(
-        asked_of(&all.transport, "browse:annotations-requested", "res-1"),
-        2
-    );
-    assert_eq!(
-        asked_of(&all.transport, "browse:annotations-requested", "res-2"),
-        1
-    );
+    assert_eq!(annotations_read(&all.content, Some("res-1")), 2);
+    assert_eq!(annotations_read(&all.content, Some("res-2")), 1);
 }
 
 #[tokio::test(start_paused = true)]
@@ -338,7 +386,7 @@ async fn a_change_to_the_vocabulary_asks_again_for_it() {
 
 #[tokio::test(start_paused = true)]
 async fn b20_an_event_about_what_nothing_asked_for_costs_no_request() {
-    let (client, transport) = world();
+    let (client, transport, content) = world();
     let _resource = client.browse.resource(&as_id("res-1")).watch();
     settle().await;
 
@@ -357,12 +405,12 @@ async fn b20_an_event_about_what_nothing_asked_for_costs_no_request() {
         recorded("res-1", json!({}), json!({})),
     );
     tokio::time::sleep(WINDOW * 3).await;
-    assert_eq!(asked(&transport, READS), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(made(&transport, &content), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 }
 
 #[tokio::test(start_paused = true)]
 async fn b20_a_value_the_cache_still_holds_is_refreshed_though_its_watcher_has_left() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     drop(client.browse.resource(&as_id("res-1")).watch());
     settle().await;
     heard(
@@ -421,12 +469,12 @@ async fn b13_a_gap_the_gateway_could_not_replay_asks_again_for_what_is_held_of_t
     assert_eq!(all.more().await, [1, 0, 1, 1, 1, 1, 0, 0, 0, 0]);
     for read in [
         "browse:resource-requested",
-        "browse:annotations-requested",
         "browse:events-requested",
         "gather:referenced-by-requested",
     ] {
         assert_eq!(asked_of(&all.transport, read, "res-2"), 1, "{read}");
     }
+    assert_eq!(annotations_read(&all.content, Some("res-2")), 1);
 }
 
 #[tokio::test(start_paused = true)]
@@ -466,7 +514,7 @@ async fn b13a_an_annotation_that_is_gone_fails_its_watchers_as_not_found_and_ask
             object(json!({ "response": { "annotationId": "ann-1" } })),
         ),
     ] {
-        let (client, transport) = world();
+        let (client, transport, _) = world();
         let mut watcher = client
             .browse
             .annotation(&as_id("res-1"), &as_id("ann-1"))
@@ -501,7 +549,7 @@ async fn b13a_an_annotation_that_is_gone_fails_its_watchers_as_not_found_and_ask
 
 #[tokio::test(start_paused = true)]
 async fn b13a_an_annotation_nothing_asked_for_is_not_marked_gone() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     heard(
         &client,
         "mark:removed",
@@ -573,7 +621,7 @@ async fn a_body_update_that_does_not_carry_the_annotation_asks_again_for_it() {
 #[tokio::test(start_paused = true)]
 async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_ending_on_the_last()
 {
-    let (client, transport) = world();
+    let (client, _, content) = world();
     let _watching = client.browse.annotations(&as_id("res-1")).watch();
     settle().await;
 
@@ -583,11 +631,7 @@ async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_e
         recorded("res-1", json!({}), json!({})),
     );
     settle().await;
-    assert_eq!(
-        asked(&transport, ["browse:annotations-requested"]),
-        [2],
-        "at once"
-    );
+    assert_eq!(annotations_read(&content, None), 2, "at once");
 
     // Fifty more inside the window: one refetch is owed, and runs when it closes.
     for _ in 0..50 {
@@ -598,14 +642,14 @@ async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_e
         );
     }
     settle().await;
-    assert_eq!(asked(&transport, ["browse:annotations-requested"]), [2]);
+    assert_eq!(annotations_read(&content, None), 2);
     tokio::time::sleep(WINDOW * 3).await;
-    assert_eq!(asked(&transport, ["browse:annotations-requested"]), [3]);
+    assert_eq!(annotations_read(&content, None), 3);
 }
 
 #[tokio::test(start_paused = true)]
 async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_anything_of_it() {
-    let (client, transport) = world();
+    let (client, _, content) = world();
     let mut watcher = client.browse.annotations(&as_id("res-1")).watch();
     holds(&mut watcher).await;
     heard(
@@ -619,12 +663,12 @@ async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_a
         recorded("res-1", json!({}), json!({})),
     );
     settle().await;
-    let before = asked(&transport, ["browse:annotations-requested"]);
+    let before = annotations_read(&content, None);
 
     client.close().await;
     client.close().await;
     tokio::time::sleep(WINDOW * 5).await;
-    assert_eq!(asked(&transport, ["browse:annotations-requested"]), before);
+    assert_eq!(annotations_read(&content, None), before);
     // Whatever state it had not read yet, and then its end.
     while tokio::time::timeout(Duration::from_secs(1), watcher.next())
         .await
@@ -648,7 +692,7 @@ async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_a
 
 #[tokio::test(start_paused = true)]
 async fn watching_a_query_of_a_resource_holds_its_scope_and_a_one_shot_read_holds_none() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let _ = client.browse.annotations(&as_id("res-1")).fresh().await;
     assert_eq!(transport.holds(&as_id("res-1")), 0);
 
@@ -685,7 +729,7 @@ async fn watching_a_query_of_a_resource_holds_its_scope_and_a_one_shot_read_hold
 
 #[tokio::test(start_paused = true)]
 async fn a_query_of_the_knowledge_base_as_a_whole_holds_no_scope() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let _watching = (
         client.browse.resources(ResourceFilters::default()).watch(),
         client
@@ -704,7 +748,7 @@ async fn a_query_of_the_knowledge_base_as_a_whole_holds_no_scope() {
 
 #[tokio::test(start_paused = true)]
 async fn a_list_is_kept_per_set_of_filters_and_every_list_held_is_asked_for_again_as_one() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let mut all = client.browse.resources(ResourceFilters::default()).watch();
     let mut people = client
         .browse
@@ -742,7 +786,7 @@ fn searched(transport: &FaultyTransport) -> Vec<Value> {
 
 #[tokio::test(start_paused = true)]
 async fn a_search_asks_for_its_text_among_the_resources_its_filters_admit() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let found = client
         .match_
         .resources("cat", ResourceFilters::default())
@@ -797,7 +841,7 @@ async fn searching() -> (
     FaultyTransport,
     Vec<Observed<MatchResourcesResponse>>,
 ) {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let people = || ResourceFilters {
         entity_type: Some("Person".to_owned()),
         ..ResourceFilters::default()
@@ -895,7 +939,7 @@ async fn b13_a_stream_that_reopens_asks_again_for_every_search_held() {
 
 #[tokio::test(start_paused = true)]
 async fn b20_an_event_asks_for_no_search_when_none_is_held() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let _list = client.browse.resources(ResourceFilters::default()).watch();
     settle().await;
     heard(
@@ -915,7 +959,7 @@ async fn b20_an_event_asks_for_no_search_when_none_is_held() {
 
 #[tokio::test(start_paused = true)]
 async fn a_search_can_be_said_to_be_out_of_date_and_ends_with_its_client() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let search = client.match_.resources("cat", ResourceFilters::default());
     let mut watcher = search.watch();
     assert!(holds(&mut watcher).await.is_ready());
@@ -942,7 +986,7 @@ async fn a_search_can_be_said_to_be_out_of_date_and_ends_with_its_client() {
 
 #[tokio::test(start_paused = true)]
 async fn what_refers_to_a_resource_is_asked_of_the_gather_flow_by_the_resource_alone() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let referring = client
         .gather
         .referenced_by(&as_id("res-1"))
@@ -966,7 +1010,7 @@ async fn what_refers_to_a_resource_is_asked_of_the_gather_flow_by_the_resource_a
 
 #[tokio::test(start_paused = true)]
 async fn b13_a_gap_asks_again_for_what_refers_to_the_resource_it_names_and_to_no_other() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let _watching = (
         client.gather.referenced_by(&as_id("res-1")).watch(),
         client.gather.referenced_by(&as_id("res-2")).watch(),
@@ -1007,7 +1051,7 @@ fn limits_of(collaborators: &[semiont::namespaces::Collaborator]) -> Vec<Option<
 
 #[tokio::test(start_paused = true)]
 async fn the_directory_has_each_models_limits_as_its_key_holder_reports_them() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let mut watcher = client.browse.agents().watch();
     let directory = holds(&mut watcher).await;
     let directory = directory.ready().expect("a directory");
@@ -1048,7 +1092,7 @@ async fn a_key_holder_that_does_not_answer_holds_up_nothing_but_its_own_models_l
 
 #[tokio::test(start_paused = true)]
 async fn a_stream_that_reopens_asks_the_directory_and_the_key_holders_again() {
-    let (client, transport) = world();
+    let (client, transport, _) = world();
     let _watching = client.browse.agents().watch();
     settle().await;
     transport.set_state(ConnectionState::Reconnecting);

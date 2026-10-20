@@ -12,7 +12,22 @@ from contextlib import AsyncExitStack
 
 import pytest
 from aio import pass_time, run, soon, turns
-from kb import ANNOTATION, ASKS, ELSEWHERE, OTHER, RESOURCE, annotation, asked_for, event, knowing, recorded, refusing, silent
+from kb import (
+    ANNOTATION,
+    ASKS,
+    ELSEWHERE,
+    OTHER,
+    RESOURCE,
+    SilentContent,
+    annotation,
+    asked_for,
+    event,
+    knowing,
+    knowing_content,
+    recorded,
+    refusing,
+    silent,
+)
 from pydantic import JsonValue
 
 from semiont.cache import CacheState, Failed, Pending, Ready
@@ -22,7 +37,7 @@ from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.identifiers import AnnotationId
 from semiont.refresh import CACHE_QUERIES, CACHE_REFRESH, CacheQuery, CacheRefresh, CacheRefreshReach, CacheRefreshTrigger
-from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
+from semiont.testing import ContentCall, FaultyTransport, GetAnnotations, InMemoryContent, StubGateway
 from semiont.transport import Frame
 from semiont.types import Annotation
 
@@ -31,12 +46,13 @@ type Client = SemiontClient[FaultyTransport]
 WINDOW_MS = 1000
 
 
-def world(window_ms: int = WINDOW_MS, *, answered: bool = True) -> tuple[Client, FaultyTransport]:
-    """A client over a gateway that answers every operation a live query asks, or one the test answers for when it is not `answered`."""
+def world(window_ms: int = WINDOW_MS, *, answered: bool = True) -> tuple[Client, FaultyTransport, InMemoryContent | SilentContent]:
+    """A client over doubles that answer every read a live query makes, or, when it is not `answered`, that answer none: the test does."""
     transport = FaultyTransport(make_response=knowing) if answered else silent()
+    content = knowing_content() if answered else SilentContent()
     timing = ClientTiming(invalidation_window_ms=window_ms)
-    client: Client = SemiontClient(transport, InMemoryContent(), StubGateway(), timing=timing)
-    return client, transport
+    client: Client = SemiontClient(transport, content, StubGateway(), timing=timing)
+    return client, transport, content
 
 
 async def watched[T](held: AsyncExitStack, query: Cached[T]) -> AsyncIterator[CacheState[T]]:
@@ -63,9 +79,16 @@ def everything(client: Client) -> Sequence[Cached[object]]:
     ]
 
 
-async def asked_after(transport: FaultyTransport, cause: Frame | None) -> Counter[str]:
-    """How often each operation is asked once `cause` is delivered: or, with none, once the stream has dropped and reopened."""
-    before = len(transport.emitted)
+def read_named(call: ContentCall) -> str:
+    """A read of the content transport, as `ASKS` names it: a live query makes one kind."""
+    assert isinstance(call, GetAnnotations), f"a live query made {call}"
+    return "getAnnotations"
+
+
+async def asked_after(transport: FaultyTransport, content: InMemoryContent | SilentContent, cause: Frame | None) -> Counter[str]:
+    """How often each operation is asked, and each read of `content` made, once `cause` is delivered: or, with none, once the stream
+    has dropped and reopened."""
+    before, read_before = len(transport.emitted), len(content.calls)
     if cause is None:
         transport.set_state("reconnecting")
         await turns()
@@ -73,7 +96,9 @@ async def asked_after(transport: FaultyTransport, cause: Frame | None) -> Counte
     else:
         transport.deliver(cause)
     await turns(20)
-    return Counter(frame.channel for frame in transport.emitted[before:])
+    asked = Counter(frame.channel for frame in transport.emitted[before:])
+    asked.update(read_named(call) for call in content.calls[read_before:])
+    return asked
 
 
 OF_A_RESOURCE = ("resource", "annotations", "events", "referencedBy", "annotation")
@@ -81,7 +106,7 @@ OF_A_RESOURCE = ("resource", "annotations", "events", "referencedBy", "annotatio
 
 
 def expected(queries: Sequence[CacheQuery], reach: CacheRefreshReach) -> Counter[str]:
-    """What asking again for `queries` asks, of everything `everything` holds, when the event is about `RESOURCE`.
+    """What asking again for `queries` asks and reads, of everything `everything` holds, when the event is about `RESOURCE`.
 
     A row that reaches its subject asks for what is of that resource, and of
     its annotation: the one the event names, or each one held of the resource
@@ -100,7 +125,7 @@ ROWS = [(trigger, row) for trigger, rows in CACHE_REFRESH.items() for row in row
 @pytest.mark.parametrize(("trigger", "row"), ROWS, ids=[f"{trigger}{'' if row.when is None else ' ' + row.when}" for trigger, row in ROWS])
 def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigger: CacheRefreshTrigger, row: CacheRefresh) -> None:
     async def scenario() -> None:
-        client, transport = world()
+        client, transport, content = world()
         async with client, AsyncExitStack() as held:
             for query in everything(client):
                 await watched(held, query)
@@ -108,7 +133,7 @@ def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigg
             listed = await watched(held, client.browse.annotations(RESOURCE))
 
             cause = None if trigger == "reopened" else event(trigger, row.when)
-            assert await asked_after(transport, cause) == expected(row.refetches, row.reach)
+            assert await asked_after(transport, content, cause) == expected(row.refetches, row.reach)
 
             written = Annotation.model_validate(annotation(ANNOTATION, RESOURCE, modified="2026-10-06T01:00:00.000Z"))
             if "annotation" in row.writes:
@@ -137,7 +162,7 @@ def test_every_trigger_but_the_reopening_is_a_channel_a_client_hears() -> None:
 
 def test_b19_the_refetches_events_ask_of_one_key_inside_a_window_are_one_refetch() -> None:
     async def scenario() -> None:
-        client, transport = world()
+        client, transport, _ = world()
 
         def asked() -> int:
             return len(asked_for(transport, "browse:resource-requested"))
@@ -203,7 +228,7 @@ def test_b19_the_refetches_events_ask_of_one_key_inside_a_window_are_one_refetch
 
 def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         async with client, AsyncExitStack() as held:
             # Nothing is held: no event of any kind asks for anything.
             for trigger in CACHE_REFRESH:
@@ -215,14 +240,14 @@ def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
             await turns(20)
             assert transport.emitted == []
 
-            await watched(held, client.browse.annotations(RESOURCE))
+            await watched(held, client.browse.events(RESOURCE))
             before = len(transport.emitted)
-            # Of what `mark:added` names, the annotations are held and the events are not; and no other resource's are.
+            # Of what `mark:added` names, the events are held and the annotations are not; and no other resource's are.
             transport.deliver(event("mark:added"))
             transport.deliver(event("mark:added", resource=OTHER))
             await turns(20)
             assert [(frame.channel, frame.payload) for frame in transport.emitted[before:]] == [
-                ("browse:annotations-requested", {"resourceId": RESOURCE})
+                ("browse:events-requested", {"resourceId": RESOURCE})
             ]
 
     run(scenario())
@@ -230,7 +255,7 @@ def test_b20_an_event_asks_again_only_for_what_the_cache_holds() -> None:
 
 def test_b20_a_key_that_is_failed_or_being_fetched_is_held() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         transport.refuse_when(refusing("browse:events-requested"))
         async with client, AsyncExitStack() as held:
             failing = await held.enter_async_context(client.browse.events(RESOURCE))
@@ -244,35 +269,36 @@ def test_b20_a_key_that_is_failed_or_being_fetched_is_held() -> None:
             assert len(asked_for(transport, "browse:events-requested")) == 4
 
         # One whose first request nobody has answered.
-        waiting, unanswered = world(window_ms=0, answered=False)
-        async with waiting, waiting.browse.annotations(RESOURCE):
+        waiting, unanswered, _ = world(window_ms=0, answered=False)
+        async with waiting, waiting.browse.events(RESOURCE):
             await turns()
-            assert len(asked_for(unanswered, "browse:annotations-requested")) == 1
+            assert len(asked_for(unanswered, "browse:events-requested")) == 1
             unanswered.deliver(event("mark:added"))
             await turns()
-            assert len(asked_for(unanswered, "browse:annotations-requested")) == 2
+            assert len(asked_for(unanswered, "browse:events-requested")) == 2
 
     run(scenario())
 
 
 def test_an_event_that_cannot_be_read_asks_again_for_everything_held() -> None:
     async def scenario() -> None:
-        client, transport = world()
+        client, transport, content = world()
         async with client, AsyncExitStack() as held:
             for query in everything(client):
                 await watched(held, query)
             # Something changed and nothing says what.
             unreadable = Frame(channel="mark:added", payload={"not": "a recorded event"})
-            assert await asked_after(transport, unreadable) == expected(CACHE_QUERIES, "held")
+            assert await asked_after(transport, content, unreadable) == expected(CACHE_QUERIES, "held")
             # And a frame on a channel that is no trigger asks for nothing.
-            assert await asked_after(transport, Frame(channel="beckon:focus", payload={"annotationId": ANNOTATION})) == Counter()
+            focused = Frame(channel="beckon:focus", payload={"annotationId": ANNOTATION})
+            assert await asked_after(transport, content, focused) == Counter()
 
     run(scenario())
 
 
 def test_b13_only_a_stream_that_left_open_and_returned_has_reopened() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         transport.set_state("initial")
 
         def asked() -> int:
@@ -311,7 +337,7 @@ def test_b13_only_a_stream_that_left_open_and_returned_has_reopened() -> None:
 
 def test_b13b_an_event_that_carries_an_annotation_writes_it_where_it_was_or_at_the_end_and_asks_nothing() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         async with client, AsyncExitStack() as held:
             listed = await watched(held, client.browse.annotations(RESOURCE))
             before = len(transport.emitted)
@@ -363,7 +389,7 @@ def test_b13b_an_event_that_carries_an_annotation_writes_it_where_it_was_or_at_t
 
 def test_b13a_an_annotation_that_is_gone_ends_as_not_found_and_its_next_watcher_asks_naming_its_resource() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         async with client, AsyncExitStack() as held:
             one = await watched(held, client.browse.annotation(RESOURCE, ANNOTATION))
             asked = len(asked_for(transport, "browse:annotation-requested"))
@@ -387,7 +413,7 @@ def test_b13a_an_annotation_that_is_gone_ends_as_not_found_and_its_next_watcher_
 
 def test_a_client_listens_while_it_is_held_and_not_before_or_after() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         # Before: a read works, a watcher is refused, and no event is heard.
         assert (await soon(client.browse.resource(RESOURCE).fresh())).name == "A resource"
         with pytest.raises(RuntimeError, match="inside its client's `async with`"):
@@ -417,13 +443,13 @@ def test_a_client_listens_while_it_is_held_and_not_before_or_after() -> None:
         with pytest.raises(RuntimeError, match="held once"):
             await client.__aenter__()
 
-        again, _ = world()
+        again, _, _ = world()
         async with again:
             with pytest.raises(RuntimeError, match="held once"):
                 await again.__aenter__()
 
         # A client closed without ever being held has nothing to watch, which is no fault.
-        never, _ = world()
+        never, _, _ = world()
         await never.close()
         async with never.browse.resource(RESOURCE) as live:
             assert await soon(anext(live, None)) is None
@@ -433,7 +459,7 @@ def test_a_client_listens_while_it_is_held_and_not_before_or_after() -> None:
 
 def test_an_event_that_names_an_annotation_asks_for_that_one_and_one_that_names_none_for_each_held_of_its_resource() -> None:
     async def scenario() -> None:
-        client, transport = world(window_ms=0)
+        client, transport, _ = world(window_ms=0)
         third = AnnotationId("ann-3")
 
         def annotations_asked_for(since: int) -> list[JsonValue]:
@@ -462,7 +488,7 @@ def test_an_event_that_names_an_annotation_asks_for_that_one_and_one_that_names_
 def test_closing_a_client_ends_every_querys_watcher_and_fails_every_read_still_waiting_as_closed() -> None:
     async def scenario() -> None:
         # The knowledge base has answered nothing when the client closes: every watcher is pending, and every read waiting.
-        client, transport = world(answered=False)
+        client, transport, _ = world(answered=False)
         async with AsyncExitStack() as held:
             async with client:
                 watching = [await held.enter_async_context(query) for query in everything(client)]

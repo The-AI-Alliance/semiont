@@ -1,8 +1,9 @@
 """What refers to a resource: the reply to `gather:referenced-by-requested`.
 
 The rule is `docs/protocol/LIBRARIAN.md`'s (§ What refers to a resource).
-The graph, the views and the people projection are the rig's fakes: each
-answers what a test states and keeps what it was asked.
+The graph and the record are the rig's fakes: each answers what a test
+states and keeps what it was asked. Its reply names no person, so no one is
+asked after for it.
 """
 
 import logging
@@ -10,14 +11,13 @@ import logging
 import pytest
 from aio import run
 from pydantic import ValidationError
-from rig import LOVELACE, FakeGraph, FakePeople, FakeViews, described, link, reference, view
+from rig import FakeGraph, FakeRecord, described, link, reference, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import GatherReferencedByRequest, GatherReferencedByResult, ResourceView
 from spec import JsonObject
 
 from semiont_librarian.annotation_gather import Ungathered
-from semiont_librarian.reads import PeopleUnread
 from semiont_librarian.referenced_by import answer
 
 CITED = ResourceId("res-cited")
@@ -36,12 +36,9 @@ def graph() -> FakeGraph:
     return held
 
 
-def reply_to(
-    request: GatherReferencedByRequest, graph: FakeGraph, *views: ResourceView, people: FakePeople | None = None
-) -> GatherReferencedByResult:
-    """The reply to a request, answered from the graph, a view of the cited resource and these, and a projection that names Ada."""
-    held = FakeViews(view(described(CITED)), *views)
-    return run(answer(request, graph=graph, views=held, people=FakePeople(LOVELACE) if people is None else people))
+def reply_to(request: GatherReferencedByRequest, graph: FakeGraph, *held: ResourceView) -> GatherReferencedByResult:
+    """The reply to a request, answered from the graph, and from a record that holds the cited resource and these."""
+    return run(answer(request, graph=graph, record=FakeRecord(view(described(CITED)), *held)))
 
 
 def entries(reply: GatherReferencedByResult) -> list[JsonObject]:
@@ -74,20 +71,18 @@ def test_each_resource_the_annotations_are_on_is_read_once(graph: FakeGraph) -> 
         reference("ann-1", R1, link(CITED)),
         reference("ann-3", R2, link(CITED)),
     ]
-    views = FakeViews(view(described(CITED)))
-    run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
+    record = FakeRecord(view(described(CITED)))
+    run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, record=record))
     assert sorted(graph.asked_of("get_resource"), key=str) == [R1, R2]
-    # The graph holds both, so no view is read but the cited resource's own.
-    assert views.asked == [CITED]
+    # The graph holds both, so the record is asked of nothing but the cited resource.
+    assert record.asked == [CITED]
 
 
 def test_a_resource_nobody_made_fails_the_request_and_the_graph_is_not_asked(graph: FakeGraph) -> None:
     graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED))]
-    people = FakePeople(LOVELACE)
     with pytest.raises(Ungathered, match=r"^Resource not found$"):
-        run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=FakeViews(), people=people))
+        run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, record=FakeRecord()))
     assert graph.asked == []
-    assert people.reads == 0
 
 
 def test_the_graph_is_asked_for_every_annotation_where_the_request_names_no_motivation(graph: FakeGraph) -> None:
@@ -167,11 +162,9 @@ def test_a_resource_nobody_holds_is_logged_as_a_warning_and_its_annotation_is_st
 
 def test_a_graph_that_fails_to_answer_fails_the_request_and_nothing_else_is_read(graph: FakeGraph) -> None:
     graph.failing["get_resource_referenced_by"] = RuntimeError("the graph is away")
-    people = FakePeople(LOVELACE)
     with pytest.raises(RuntimeError, match=r"the graph is away"):
-        reply_to(GatherReferencedByRequest(resource_id=CITED), graph, people=people)
+        reply_to(GatherReferencedByRequest(resource_id=CITED), graph)
     assert graph.asked_of("get_resource") == []
-    assert people.reads == 0
 
 
 def test_a_view_that_cannot_be_read_leaves_its_resource_unnamed_and_the_request_is_answered(
@@ -179,29 +172,13 @@ def test_a_view_that_cannot_be_read_leaves_its_resource_unnamed_and_the_request_
 ) -> None:
     graph.resources[R1] = None
     graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED)), reference("ann-2", R2, link(CITED))]
-    views = FakeViews(view(described(CITED)), view(described(R1, name="As the view holds it")))
-    views.unread.add(R1)
+    record = FakeRecord(view(described(CITED)), view(described(R1, name="As the view holds it")))
+    record.unread.add(R1)
     with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
-        reply = run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, views=views, people=FakePeople()))
+        reply = run(answer(GatherReferencedByRequest(resource_id=CITED), graph=graph, record=record))
     assert [entry.resource_name for entry in reply.response.referenced_by] == [None, "Keokuk"]
     # One warning says the view could not be read, and one that nobody holds the resource.
     assert [said["resourceId"] for said in lines(caplog, logging.WARNING)] == [R1, R1]
-
-
-def test_the_projection_is_read_once_for_the_reply_and_a_reply_is_sent_where_it_cannot_be_read(
-    graph: FakeGraph, caplog: pytest.LogCaptureFixture
-) -> None:
-    graph.referenced_by[CITED] = [reference("ann-1", R1, link(CITED)), reference("ann-2", R2, link(CITED))]
-    people = FakePeople(LOVELACE)
-    named = reply_to(GatherReferencedByRequest(resource_id=CITED), graph, people=people)
-    assert people.reads == 1
-
-    people.failing = PeopleUnread("people.json is not a people projection that can be read")
-    with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
-        unnamed = reply_to(GatherReferencedByRequest(resource_id=CITED), graph, people=people)
-    assert entries(unnamed) == entries(named)
-    assert people.reads == 2
-    assert len(lines(caplog, logging.WARNING)) == 1
 
 
 def test_what_is_looked_for_is_logged_for_whoever_reads_the_log_closely(graph: FakeGraph, caplog: pytest.LogCaptureFixture) -> None:

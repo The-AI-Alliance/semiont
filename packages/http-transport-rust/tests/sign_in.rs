@@ -1766,10 +1766,13 @@ async fn asked_with_a_token_the_knowledge_base_says_who_it_is() {
 async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept() {
     let world = World::start().await;
     world.staged.answers.lock().unwrap().insert(
-        "browse:annotations-requested".to_owned(),
+        "browse:resource-requested".to_owned(),
         (
-            "browse:annotations-result".to_owned(),
-            json!({ "response": { "annotations": [], "total": 0 } }),
+            "browse:resource-result".to_owned(),
+            json!({ "response": {
+                "resource": { "@context": "https://schema.org", "@id": "res-1", "name": "res-1", "representations": [] },
+                "lastSequence": 1,
+            } }),
         ),
     );
     let storage = Arc::new(InMemorySessionStorage::new());
@@ -1782,8 +1785,9 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     let browser = browser(&world, storage.clone());
     let session = live(&browser).await;
 
-    // Watching a query of the resource holds its scope.
-    let _watching = session.client().browse.annotations(&as_id("res-1")).watch();
+    // Watching a query of the resource holds its scope. The resource's
+    // description is a cache that is persisted, so taking an event in writes.
+    let _watching = session.client().browse.resource(&as_id("res-1")).watch();
     let resumed_from = || {
         world
             .staged
@@ -1805,7 +1809,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
 
     // A recorded event of the scope moves the place, and the place is kept
     // once the caches have taken the event in and written what they hold.
-    let frame = json!({ "channel": "mark:added", "scope": "res-1", "payload": {} });
+    let frame = json!({ "channel": "mark:archived", "scope": "res-1", "payload": {} });
     let event = Bytes::from(format!("event: bus-event\nid: p-9\ndata: {frame}\n\n"));
     for stream in world.staged.streams.lock().unwrap().iter() {
         let _ = stream.send(event.clone());

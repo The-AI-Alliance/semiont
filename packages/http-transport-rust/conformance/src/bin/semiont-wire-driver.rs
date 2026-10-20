@@ -255,6 +255,7 @@ impl Wire {
             "get" => self.get(&args, false).await,
             "get-stream" => self.get(&args, true).await,
             "graph" => self.graph(&args).await,
+            "annotations" => self.annotations(&args).await,
             "anchored-text" => self.anchored_text(&args).await,
             "health"
             | "status"
@@ -381,6 +382,16 @@ impl Wire {
             .map_err(|e| Ended::Misuse(format!("the description does not serialize: {e}")))
     }
 
+    async fn annotations(&self, args: &Arguments) -> Result<Value, Ended> {
+        let client = self.client()?;
+        let annotations = client
+            .content
+            .get_annotations(&identifier::<ResourceId>(args, "resource")?)
+            .await?;
+        serde_json::to_value(annotations)
+            .map_err(|e| Ended::Misuse(format!("the annotations do not serialize: {e}")))
+    }
+
     async fn anchored_text(&self, args: &Arguments) -> Result<Value, Ended> {
         let client = self.client()?;
         let answer = client
@@ -424,6 +435,7 @@ impl Driver for Wire {
         "get",
         "get-stream",
         "graph",
+        "annotations",
         "anchored-text",
         "health",
         "status",

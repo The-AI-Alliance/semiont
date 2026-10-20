@@ -114,23 +114,18 @@ func librarianBounds(env *envConfig) (settleTimeoutMs int, semanticFloor float32
 }
 
 // librarianDocument renders the document from the selected environment and its
-// name, the knowledge base's name, the address the launcher computed, and the
-// user's variables. kbName is the name the Archivist reads from the tree it
-// mounts (effectiveKBName): the Archivist writes the views under it in the
-// state volume, and the Librarian reads them there. The Archivist is where
-// this start places it, and a hand-written archivist section wins
-// (archivistAddress). The graph is the Weaver's (graphConfig), and the vector
-// index and the embedding provider the Smelter's (vectorsConfig,
-// embeddingConfig). graphRun says the launcher runs the graph database.
-func librarianDocument(env *envConfig, envName, kbName, rt, addr string, issuerPort int, userEnv []string, graphRun bool) ([]byte, error) {
+// name, the address the launcher computed, and the user's variables. The
+// Archivist is where this start places it, and a hand-written archivist
+// section wins (archivistAddress). The graph is the Weaver's (graphConfig),
+// and the vector index and the embedding provider the Smelter's
+// (vectorsConfig, embeddingConfig). graphRun says the launcher runs the graph
+// database.
+func librarianDocument(env *envConfig, envName, rt, addr string, issuerPort int, userEnv []string, graphRun bool) ([]byte, error) {
 	if env.Gateway == nil || env.Gateway.PublicURL == "" {
 		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the Librarian has no gateway to reach")
 	}
 	if env.Identity == nil {
 		return nil, fmt.Errorf("the environment declares no [identity]: the Librarian has no issuer to sign in at")
-	}
-	if kbName == "" {
-		return nil, fmt.Errorf("the knowledge base has no name: the Librarian cannot find the Archivist's views in the state volume")
 	}
 	vars := gatewayDialerVars(rt, addr, issuerPort, userEnv)
 	var doc semiont.LibrarianConfig
@@ -144,8 +139,6 @@ func librarianDocument(env *envConfig, envName, kbName, rt, addr string, issuerP
 	if doc.Archivist.Host, doc.Archivist.Port, err = archivistAddress(env, addr, vars); err != nil {
 		return nil, err
 	}
-	doc.StateHome = stateHomeTarget
-	doc.KbName = kbName
 	if doc.Graph, err = graphConfig(env, vars, graphRun, "the Librarian"); err != nil {
 		return nil, err
 	}

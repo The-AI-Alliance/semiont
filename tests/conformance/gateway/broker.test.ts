@@ -33,7 +33,7 @@ eachPlane('the broker', (world) => {
     const { result } = operationFor(REQUEST);
     await world().responder([REQUEST], () => ({
       channel: result,
-      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, annotations: [], entityReferences: [] } },
+      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },
     }));
     const alice = await world().person('alice');
     const clientId = randomUUID();

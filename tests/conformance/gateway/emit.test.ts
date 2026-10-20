@@ -218,7 +218,7 @@ eachPlane('emitting', (world, plane) => {
     const { result } = operationFor(REQUEST);
     const answered = await world().emit(responder.token, {
       channel: result,
-      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, annotations: [], entityReferences: [] } },
+      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },
       correlationId: cids[0],
     });
     expect(answered.status, answered.text).toBe(202);
@@ -316,7 +316,7 @@ eachPlane('emitting', (world, plane) => {
     const participant = await world().agent('conformance', 'uncorrelated');
     const reply = await world().emit(participant.token, {
       channel: result,
-      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, annotations: [], entityReferences: [] } },
+      payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },
     });
     expect(reply.status, reply.text).toBe(202);
     await watcher.quiet(result, 500);

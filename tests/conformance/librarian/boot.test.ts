@@ -31,8 +31,6 @@ const missing = (member: string): RegExp => new RegExp(`Missing required propert
 const REFUSED: ReadonlyArray<[how: string, changed: (settings: LibrarianSettings) => LibrarianSettings, named: RegExp]> = [
   ["without the gateway's address", (settings) => ({ ...settings, gatewayUrl: undefined }), missing('gatewayUrl')],
   ['without the issuer', (settings) => ({ ...settings, issuer: undefined }), missing('issuer')],
-  ["without the knowledge base's name", (settings) => ({ ...settings, kbName: undefined }), missing('kbName')],
-  ['without the state volume', (settings) => ({ ...settings, stateHome: undefined }), missing('stateHome')],
   ["without the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), missing('archivist')],
   ['without a graph database', (settings) => ({ ...settings, graph: undefined }), missing('graph')],
   ['without a vector database', (settings) => ({ ...settings, vectors: undefined }), missing('vectors')],

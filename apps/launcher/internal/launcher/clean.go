@@ -24,8 +24,8 @@ import (
 const cleanUsage = `Usage: semiont clean [options]
 
 Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data,
-and the gateway's own derived stores)
-for one local semiont root. The stack must be stopped first — state is
+the job queue, the Archivist's views and anchored text, and the
+supervisors' logs) for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
 
 An unscoped clean also deletes every secret the launcher keeps for this
@@ -39,8 +39,9 @@ Options:
   --store <role>   Remove one store only: database, vectors, graph,
                    anchored-text, messaging (the NATS daemon's JetStream
                    store: the job queue and the gateway's ledger claims —
-                   pending work is dropped; jobs are re-submittable), or state
-                   (views; they rebuild from the event log on next start)
+                   pending work is dropped; jobs are re-submittable), state
+                   (views; they rebuild from the event log on next start), or
+                   gateway or librarian (that service's supervisor's events log)
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)

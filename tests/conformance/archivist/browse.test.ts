@@ -138,6 +138,19 @@ withArchivist('browsing', (world) => {
     expect(world().stored(id)[0]!.payload['wasAttributedTo']).toEqual([{ '@type': 'Person', '@id': lovelace.did }]);
   });
 
+  it('answers the profiles of the people asked after, and leaves out one who has none', async () => {
+    const lovelace = await world().person('lovelace-asked');
+    const reader = await world().person('reader');
+    const id = await world().created(lovelace.did, { name: 'Asked after', storageUri: 'file://listed/asked.md', content: 'asked\n' });
+    // The gateway profiles a person, from their token, when they first write.
+    await lovelace.ask('mark:update-entity-types', { resourceId: id, currentEntityTypes: [], updatedEntityTypes: ['Person'] });
+    const profiled = await reader.fact('person:profiled', (e) => e.userId === lovelace.did);
+
+    const nobody = world().world.personDid('nobody-profiled');
+    const answer = await reader.ask('browse:people-requested', { dids: [lovelace.did, nobody] });
+    expect(answer).toEqual({ people: { [lovelace.did]: { name: profiled.payload['name'], since: profiled.timestamp } } });
+  });
+
   it('records a profile when the name is new, and not when it is the name last recorded', async () => {
     const namer = await world().sidecar('namer');
     const mine = () => world().stored('__system__').filter((e) => e.type === 'person:profiled' && e.userId === namer.did).map((e) => e.payload['name']);
@@ -174,6 +187,21 @@ withArchivist('browsing', (world) => {
       expect(refused.ok, path).toBe(false);
       expect(refused.payload, path).toEqual({ path, message });
     }
+  });
+
+  it('answers a request whose answer is larger than the largest bus message with a failure, at once', async () => {
+    const reader = await world().person('reader');
+    // Each entry names its file twice, by name and by path: 24,000 names of
+    // 200 characters are more than the 8 MiB a bus message may be.
+    const wide = join(world().dirs.root, 'wide');
+    mkdirSync(wide);
+    for (let n = 0; n < 24_000; n++) writeFileSync(join(wide, `${String(n).padStart(5, '0')}${'w'.repeat(195)}.md`), '');
+
+    // Well inside the 30 s a requester waits: the failure is the answer, not the wait running out.
+    const answer = await reader.request('browse:directory-requested', { path: 'wide' }, 10_000);
+    expect(answer.ok).toBe(false);
+    expect(answer.payload['path']).toBe('wide');
+    expect(answer.payload['message']).toMatch(/^The answer could not be sent: /);
   });
 
   it('answers anchored text from the store, under the stamp its writer states', async () => {

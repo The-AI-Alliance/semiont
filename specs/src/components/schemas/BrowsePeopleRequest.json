@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.",
+  "properties": {
+    "dids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "./UserId.json"
+      },
+      "description": "The people asked after."
+    }
+  },
+  "required": [
+    "dids"
+  ],
+  "additionalProperties": false
+}

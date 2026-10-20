@@ -22,13 +22,15 @@ Only the Archivist mounts the working tree. Every other service reaches content 
 ```
 
 The state dir is `<stateHome>/semiont/<the knowledge base's name>/`. `stateHome` is a member of the
-configuration document of each service that reaches the state tree, the Archivist and the
-Librarian, and has no default: a path nothing mounted would be written to and lost. The launcher
-writes it as the mount it gives the service.
+Archivist's configuration document, and has no default: a path nothing mounted would be written to
+and lost. The launcher writes it as the mount it gives the Archivist, the one service that reaches
+the state tree; every other service reads what it holds of the Archivist, on the bus or over its
+HTTP surface.
 
 On the machine that runs the stack, that mount and every other store (the database, the graph, the
-vectors, the job queue, the anchored text) are directories the launcher keeps for the knowledge
-base. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
+vectors, the job queue, the anchored text, and the supervisor's log of the gateway and of the
+Librarian) are directories the launcher keeps for the knowledge base. Each is mounted into one
+container: two containers sharing a directory can each see a file at a different length. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
 says where, on each system, and `semiont status --verbose` lists them with what each takes on disk.
 The full layout of the log and the views is
 [specified with the Archivist](../protocol/ARCHIVIST.md).
@@ -98,7 +100,8 @@ Each derived store has one owner, and that owner recovers it from the record:
 |---|---|---|
 | Views | Archivist | Rebuilds them from the event log every time it starts, before it serves a request |
 | Graph | Weaver | Catches up from its checkpoint at startup; `weave:rebuild` is the full rebuild |
-| Vectors and anchored text | Smelter | Reconciles against the catalog at startup: re-embeds what is missing or stale, purges orphans. An index made by another embedding model, or cut by other numbers, is cleared and filled again whole |
+| Vectors | Smelter | Reconciles against the catalog at startup: re-embeds what is missing or stale, purges orphans. An index made by another embedding model, or cut by other numbers, is cleared and filled again whole |
+| Anchored text | Smelter, in a store the Archivist keeps | Reconciles against the catalog at startup: derives again the text of each PDF whose bytes have no entry under the stamp it states, and stores it on the Archivist's surface. `smelt:rebuild-anchors` derives what is missing for one resource or for all |
 
 The procedures are the operator's: [backing up and restoring](../operator/administration/BACKUP.md)
 and [rebuilding derived state](../operator/administration/MAINTENANCE.md#rebuilding-derived-state).

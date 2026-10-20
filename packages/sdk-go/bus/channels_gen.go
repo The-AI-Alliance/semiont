@@ -339,15 +339,6 @@ const (
 	// not emittable (no registered schema)
 	BrowseResourcesFailed Channel = "browse:resources-failed"
 
-	// payload: BrowseAnnotationsRequest
-	BrowseAnnotationsRequested Channel = "browse:annotations-requested"
-
-	// payload: BrowseAnnotationsResult
-	BrowseAnnotationsResult Channel = "browse:annotations-result"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationsFailed Channel = "browse:annotations-failed"
-
 	// payload: BrowseAnnotationRequest
 	BrowseAnnotationRequested Channel = "browse:annotation-requested"
 
@@ -401,6 +392,15 @@ const (
 
 	// not emittable (no registered schema)
 	BrowseAgentsFailed Channel = "browse:agents-failed"
+
+	// payload: BrowsePeopleRequest
+	BrowsePeopleRequested Channel = "browse:people-requested"
+
+	// payload: BrowsePeopleResult
+	BrowsePeopleResult Channel = "browse:people-result"
+
+	// not emittable (no registered schema)
+	BrowsePeopleFailed Channel = "browse:people-failed"
 
 	// payload: BrowseKbRequest
 	BrowseKbRequested Channel = "browse:kb-requested"
@@ -663,8 +663,6 @@ var ChannelSchemas = map[Channel]string{
 	BrowseResourceResult:             "BrowseResourceResult",
 	BrowseResourcesRequested:         "BrowseResourcesRequest",
 	BrowseResourcesResult:            "BrowseResourcesResult",
-	BrowseAnnotationsRequested:       "BrowseAnnotationsRequest",
-	BrowseAnnotationsResult:          "BrowseAnnotationsResult",
 	BrowseAnnotationRequested:        "BrowseAnnotationRequest",
 	BrowseAnnotationResult:           "BrowseAnnotationResult",
 	BrowseEventsRequested:            "BrowseEventsRequest",
@@ -677,6 +675,8 @@ var ChannelSchemas = map[Channel]string{
 	BrowseTagSchemasResult:           "BrowseTagSchemasResult",
 	BrowseAgentsRequested:            "BrowseAgentsRequest",
 	BrowseAgentsResult:               "BrowseAgentsResult",
+	BrowsePeopleRequested:            "BrowsePeopleRequest",
+	BrowsePeopleResult:               "BrowsePeopleResult",
 	BrowseKbRequested:                "BrowseKbRequest",
 	BrowseKbResult:                   "BrowseKbResult",
 	BrowseDirectoryRequested:         "BrowseDirectoryRequest",

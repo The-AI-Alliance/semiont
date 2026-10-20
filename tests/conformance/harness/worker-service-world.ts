@@ -446,7 +446,7 @@ export class WorkerServiceWorld {
         await this.hooks.described?.(resourceId);
         const resource = this.descriptors.get(resourceId);
         if (!resource) return { channel: 'browse:resource-failed', payload: { code: 'not-found', message: `Resource not found: ${resourceId}` } };
-        return { channel: 'browse:resource-result', payload: { response: { resource, annotations: [], entityReferences: [] } } };
+        return { channel: 'browse:resource-result', payload: { response: { resource, lastSequence: 1 } } };
       }
       case 'mark:commit': {
         const annotations = Array.isArray(payload['annotations']) ? (payload['annotations'] as Annotation[]) : [];

@@ -1,0 +1,70 @@
+{
+  "get": {
+    "operationId": "getResourceAnnotations",
+    "summary": "Get a resource's annotations",
+    "description": "Every annotation on the resource, with people named, and how many there are: the Archivist's answer, passed through as it arrives. This is a read of content, so it is here and not on the bus: a resource's annotations grow without a bound, and a bus message has one.",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "../components/schemas/ResourceId.json"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The resource's annotations",
+        "headers": {
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "no-cache"
+              ]
+            },
+            "description": "Annotations change, so a cache must revalidate."
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetAnnotationsResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "404": {
+        "description": "The knowledge base has no such resource, or the path's `{id}` is not a `ResourceId` and so names none.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "429": {
+        "$ref": "../components/responses/TooManyRequests.json"
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
+      }
+    }
+  }
+}

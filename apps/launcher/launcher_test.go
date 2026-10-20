@@ -1290,7 +1290,7 @@ func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	// than against a hard-coded total.
 	//
 	// A literal count would encode how many containers mount it, which is
-	// TestOnlyTheArchivistMountsTheAnchoredTextStore's question, not this one's.
+	// TestNoStoreIsMountedByTwoContainers' question, not this one's.
 	if firstBoot == 0 {
 		t.Fatalf("anchored-text mount absent from the first boot")
 	}
@@ -1299,29 +1299,69 @@ func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	}
 }
 
-// The anchored-text store is the Archivist's alone: the Smelter keeps its
-// entries on the Archivist's surface and mounts none of it. Two containers
-// sharing a host directory each keep their own view of a file's length under
-// Apple container, so a second mounter is a reader that can be handed a file
-// cut short.
-func TestOnlyTheArchivistMountsTheAnchoredTextStore(t *testing.T) {
-	s := newScenario(t, "container")
-	if _, stderr, code := s.run(t, "start"); code != 0 {
-		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
-	}
-	mount := filepath.Join(stateRootFor(s.home, testKBKey), "anchored-text") + ":"
-	var mounters int
-	for _, line := range strings.Split(string(s.mustLog(t)), "\n") {
-		if !strings.Contains(line, mount) {
-			continue
-		}
-		mounters++
-		if !strings.Contains(line, "--name semiont-archivist ") {
-			t.Errorf("a container other than the Archivist mounts the anchored-text store:\n%s", line)
-		}
-	}
-	if mounters != 1 {
-		t.Errorf("the anchored-text store is mounted %d times in one start, want once, into the Archivist", mounters)
+// No store is mounted by two containers. Under Apple container each container
+// is its own VM, and a reader in one keeps a renamed file's old length, so a
+// second mounter of a host directory is a reader that can be handed a file cut
+// short. The anchored-text store and the state tree are the Archivist's
+// alone: the Smelter keeps its entries on the Archivist's surface, and the
+// Librarian reads the views on the bus.
+func TestNoStoreIsMountedByTwoContainers(t *testing.T) {
+	name := regexp.MustCompile(`--name (semiont-\S+)`)
+	for _, rt := range []string{"container", "docker"} {
+		t.Run(rt, func(t *testing.T) {
+			s := newScenario(t, "container", "docker", "podman")
+			s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
+			if _, stderr, code := s.run(t, "start", "--runtime", rt); code != 0 {
+				t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+			}
+			under := stateRootFor(s.home, testKBKey) + string(filepath.Separator)
+			mounters := map[string]map[string]bool{} // store dir -> the containers that mount it
+			for _, line := range strings.Split(string(s.mustLog(t)), "\n") {
+				m := name.FindStringSubmatch(line)
+				if m == nil {
+					continue
+				}
+				for _, opt := range []string{"-v ", "--volume "} {
+					rest := line
+					for {
+						at := strings.Index(rest, opt+under)
+						if at < 0 {
+							break
+						}
+						rest = rest[at+len(opt+under):]
+						end := strings.IndexAny(rest, ":"+string(filepath.Separator))
+						if end < 0 {
+							t.Fatalf("a mount under %s names no target:\n%s", under, line)
+						}
+						if mounters[rest[:end]] == nil {
+							mounters[rest[:end]] = map[string]bool{}
+						}
+						mounters[rest[:end]][m[1]] = true
+					}
+				}
+			}
+			if len(mounters) == 0 {
+				t.Fatalf("no container mounts a store under %s: the census read nothing", under)
+			}
+			containers := func(store string) []string {
+				var names []string
+				for c := range mounters[store] {
+					names = append(names, c)
+				}
+				sort.Strings(names)
+				return names
+			}
+			for store := range mounters {
+				if by := containers(store); len(by) > 1 {
+					t.Errorf("the %s store is mounted by %d containers, want one: %s", store, len(by), strings.Join(by, ", "))
+				}
+			}
+			for _, store := range []string{"anchored-text", "state"} {
+				if by := containers(store); len(by) != 1 || by[0] != "semiont-archivist" {
+					t.Errorf("the %s store is mounted into %v, want the Archivist alone", store, by)
+				}
+			}
+		})
 	}
 }
 
@@ -1419,12 +1459,11 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	}
 }
 
-// The state store is SHARED — the gateway and librarian attach what the
-// archivist stamps — so its mismatch-clear must resolve before the boot's
-// first service container runs. A clear at the stamp owner's own prep
-// delete-and-recreates a directory earlier services have already attached,
-// orphaning their virtiofs shares (ls total 0, every write ENOENT).
-func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
+// A store's mismatch-clear resolves in preflight, before the boot's first
+// service container runs, so no clear lands on a directory a container has
+// already attached — which would orphan its virtiofs share (ls total 0, every
+// write ENOENT).
+func TestStoreClearResolvesBeforeFirstRun(t *testing.T) {
 	s := newScenario(t, "container")
 	dir := stateRootFor(s.home, testKBKey)
 	sentinel := filepath.Join(dir, "state", "stale-view")
@@ -1454,7 +1493,7 @@ func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
 	// attached. "absent" throughout also proves the clear happened at all.
 	for i, l := range lines {
 		if l != "absent" {
-			t.Fatalf("state-store sentinel still %s at service run %d of %d — the mismatch-clear resolved mid-boot, after a sharer attached", l, i+1, len(lines))
+			t.Fatalf("state-store sentinel still %s at service run %d of %d — the mismatch-clear resolved mid-boot, after a container attached", l, i+1, len(lines))
 		}
 	}
 }
@@ -6958,11 +6997,9 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 }
 
 // The Librarian restart path — the argv IS the contract: NO piece of the KB
-// tree, just the shared state mount, its document, 24104, and neither
-// JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it). The
-// document carries the committed name of the knowledge base — the one fact
-// the Librarian needs to find the Archivist's views — and where the state
-// volume is mounted.
+// tree and not the Archivist's state tree, just its own store (its
+// supervisor's events log), its document, 24104, and neither JWT_SECRET (it
+// signs nothing) nor LIBRARIAN_HOST (nothing dials it).
 func TestStartServiceLibrarian(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
@@ -6975,9 +7012,9 @@ func TestStartServiceLibrarian(t *testing.T) {
 		"--name semiont-librarian",
 		"--publish 24104:24104",
 		"librarian.json:/etc/semiont/librarian.json:ro",
-		"state:/semiont-state",
+		filepath.Join(testKBKey, "librarian")+":/semiont-state",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
-	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", "GATEWAY_HOST", "XDG_STATE_HOME", ".semiontconfig", ":/kb", "anchored-text:"} {
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", "GATEWAY_HOST", "XDG_STATE_HOME", ".semiontconfig", ":/kb", "anchored-text:", filepath.Join(testKBKey, "state") + ":"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}
@@ -6986,7 +7023,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	// would. Boot refuses a document that is not whole, so a miss here is a
 	// librarian that never starts live.
 	mustContain(t, "staged librarian.json", stagedFile(t, s, "librarian.json"),
-		`"kbName": "Test Knowledge Base"`, `"stateHome": "/semiont-state"`, `"passwordEnv": "NEO4J_PASSWORD"`)
+		`"passwordEnv": "NEO4J_PASSWORD"`)
 	if v, _ := s.containerEnv(t, "semiont-librarian", "NEO4J_PASSWORD"); len(v) < 32 {
 		t.Errorf("the Librarian's document names NEO4J_PASSWORD, and it was handed %q", v)
 	}

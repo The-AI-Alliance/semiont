@@ -149,6 +149,7 @@ schema cannot hold.
 | `POST /resources` | Upload: streamed to the Archivist, which stores the bytes and records the resource |
 | `GET /resources/{id}`, `GET /api/resources/{id}` | The stored bytes, streamed from the Archivist; the second takes a `?token=` media token |
 | `GET /resources/{id}/jsonld` | The resource's JSON-LD description |
+| `GET /resources/{id}/annotations` | The resource's annotations, as the Archivist answers them |
 | `GET /resources/{id}/anchored-text` | The resource's anchored text, as the Archivist answers it |
 
 Every error, on every route, is a JSON `ErrorResponse`. Emitted payloads are

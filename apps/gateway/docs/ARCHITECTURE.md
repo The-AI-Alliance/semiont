@@ -81,7 +81,7 @@ each way. Every error is an `ErrorResponse`. Handlers:
 |---|---|
 | [routes/meta.rs](../src/routes/meta.rs) | `GET /api/health`, `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`, `GET /api/status`, `GET /api/users/me` |
 | [routes/tokens.rs](../src/routes/tokens.rs) | `POST /api/tokens/agent`, `POST /api/tokens/media` |
-| [routes/content.rs](../src/routes/content.rs) | `POST /resources`, `GET /resources/{id}`, `GET /api/resources/{id}`, `GET /resources/{id}/jsonld`, `GET /resources/{id}/anchored-text` |
+| [routes/content.rs](../src/routes/content.rs) | `POST /resources`, `GET /resources/{id}`, `GET /api/resources/{id}`, `GET /resources/{id}/jsonld`, `GET /resources/{id}/annotations`, `GET /resources/{id}/anchored-text` |
 | [routes/bus.rs](../src/routes/bus.rs) | `POST /bus/emit` |
 | [routes/stream.rs](../src/routes/stream.rs) | `POST /bus/subscribe` |
 
@@ -195,6 +195,7 @@ client-credentials grant, kept until shortly before it expires:
 | `POST /resources` | `POST /resources`, the multipart body streamed unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles` |
 | `GET /resources/{id}`, `GET /api/resources/{id}` | `GET /resources/{id}/content`, streamed back unchanged |
 | `GET /resources/{id}/jsonld` | `GET /resources/{id}/jsonld` |
+| `GET /resources/{id}/annotations` | `GET /resources/{id}/annotations`, streamed back unread |
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
 | `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse` |
 

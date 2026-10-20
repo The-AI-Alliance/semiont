@@ -58,17 +58,13 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
 
 function defaultResponses(): ResponseMap {
   return {
-    'browse:annotations-requested': () => ({
-      resultChannel: 'browse:annotations-result',
-      response: { annotations: [mockAnnotation('ann-1')], total: 1 },
-    }),
     'browse:annotation-requested': () => ({
       resultChannel: 'browse:annotation-result',
       response: { annotation: mockAnnotation('ann-1'), resource: null, resolvedResource: null },
     }),
     'browse:resource-requested': () => ({
       resultChannel: 'browse:resource-result',
-      response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] },
+      response: { resource: mockResource('res-1'), lastSequence: 1 },
     }),
     'browse:resources-requested': () => ({
       resultChannel: 'browse:resources-result',
@@ -113,6 +109,7 @@ function makeContent(): IContentTransport {
     getBinary: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
     getBinaryStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
     getResourceGraph: vi.fn(),
+    getAnnotations: vi.fn().mockResolvedValue({ annotations: [mockAnnotation('ann-1')], total: 1 }),
     getAnchoredText: vi.fn(),
     dispose: vi.fn(),
   };
@@ -143,22 +140,23 @@ describe('BrowseNamespace', () => {
   // ── Annotation caching ────────────────────────────────────────────────
 
   describe('annotations()', () => {
-    it('fetches on first subscribe', async () => {
+    it('fetches on first subscribe, from the content transport and not the bus', async () => {
       const val = await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledWith('browse:annotations-requested', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
+      expect(content.getAnnotations).toHaveBeenCalledWith(RID);
+      expect(emitSpy).not.toHaveBeenCalled();
       expect(val).toHaveLength(1);
     });
 
     it('caches (no second fetch)', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
     });
 
     it('does not issue duplicate in-flight requests', () => {
       browse.annotations(RID).subscribe(() => {});
       browse.annotations(RID).subscribe(() => {});
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -286,10 +284,10 @@ describe('BrowseNamespace', () => {
   describe('invalidateAnnotationList()', () => {
     it('triggers re-fetch', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
       browse.invalidateAnnotationList(RID);
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -314,7 +312,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
       const list = await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-2' });
     });
 
@@ -327,6 +325,7 @@ describe('BrowseNamespace', () => {
 
     it('is a no-op when list is not cached', () => {
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
+      expect(content.getAnnotations).not.toHaveBeenCalled();
       expect(emitSpy).not.toHaveBeenCalled();
     });
   });
@@ -347,21 +346,23 @@ describe('BrowseNamespace', () => {
     it('mark:added → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.emit('mark:added', stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
-      // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('mark:removed → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.emit('mark:removed', stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
       await firstDefined(browse.annotations(RID));
-      // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('mark:body-updated (enriched) → in-place update + events refetch', async () => {
@@ -371,22 +372,24 @@ describe('BrowseNamespace', () => {
       eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID }, annotation: updated }) as any);
       const list = await firstDefined(browse.annotations(RID));
       // annotations not refetched (in-place update), but events refetched
-      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
     });
 
     it('mark:body-updated without annotation → invalidates list + events (never keeps the stale body)', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       // Unenriched: the view did not hold the annotation when the EventStore
       // enriched the event, so there is nothing to write through. A no-op
       // here would leave the stale body on screen; B13c in
       // cache-semantics.test.ts is the contract clause.
       eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID } }));
       await firstDefined(browse.annotations(RID));
-      // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('mark:entity-tag-added → invalidates annotation list + resource detail + events', async () => {
@@ -396,7 +399,9 @@ describe('BrowseNamespace', () => {
       eventBus.emit('mark:entity-tag-added', stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(6);
+      expect(content.getAnnotations).toHaveBeenCalledTimes(2);
+      // resource + events, each asked once and once again
+      expect(emitSpy).toHaveBeenCalledTimes(4);
     });
   });
 

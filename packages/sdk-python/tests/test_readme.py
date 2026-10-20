@@ -15,7 +15,7 @@ import pytest
 from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
 from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
-from kb import answer, asked_for, knowing, recorded, refusing, silent
+from kb import answer, asked_for, knowing_content, recorded, silent
 from readme import (
     a_first_program,
     a_person,
@@ -41,7 +41,7 @@ from semiont.identity import agent_did
 from semiont.operations import JOB_CLAIM
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.state import BeckonStateUnit
-from semiont.testing import FaultyTransport, PutBinary, create_test_client
+from semiont.testing import InMemoryContent, PutBinary, create_test_client
 from semiont.transport import Content, Frame
 from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, PdfTextItem
 from semiont.watched import Variable
@@ -54,8 +54,7 @@ PROGRAMS = {
 RESOURCE, ANNOTATION = ResourceId("res-1"), AnnotationId("ann-1")
 DESCRIBED: JsonObject = {
     "resource": {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []},
-    "annotations": [],
-    "entityReferences": [],
+    "lastSequence": 1,
 }
 STATUS: JsonObject = {
     "status": "ok",
@@ -308,27 +307,26 @@ def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.Capt
 
 
 def test_live_queries_shows_each_state_of_a_watched_query_until_its_client_closes(capsys: pytest.CaptureFixture[str]) -> None:
-    async def watched(transport: FaultyTransport) -> None:
-        made = create_test_client(transport=transport)
+    async def watched(content: InMemoryContent) -> None:
+        made = create_test_client(content=content)
         async with made.client as client:
             watching = asyncio.ensure_future(live_queries.watch(client, RESOURCE))
-            await until("the query's last state", lambda: transport.pending_replies == [] and len(transport.request_log) >= 1)
+            await until("the query's read", lambda: len(content.calls) >= 1)
             await settle()
-            assert transport.holds(RESOURCE) == 1
+            assert made.transport.holds(RESOURCE) == 1
             assert not watching.done()
         # Its client closed: the states ended, and so did the watching.
         await soon(watching)
-        assert transport.scopes == []
-        await transport.close()
+        assert made.transport.scopes == []
+        await made.transport.close()
 
-    run(watched(FaultyTransport(make_response=knowing)))
+    run(watched(knowing_content()))
     assert capsys.readouterr().out.splitlines() == ["asking", "1 annotations"]
 
-    refused = FaultyTransport()
-    refused.refuse_when(refusing("browse:annotations-requested"))
-    run(watched(refused))
+    # Nothing is stored for the resource: its annotations are not found.
+    run(watched(InMemoryContent()))
     # A failure is a state: the watcher lived through it, to the client's end.
-    assert capsys.readouterr().out.splitlines() == ["asking", "failed: bus.rejected"]
+    assert capsys.readouterr().out.splitlines() == ["asking", "failed: not-found"]
 
 
 def test_state_units_shows_what_is_hovered_as_it_changes_until_the_unit_is_disposed(capsys: pytest.CaptureFixture[str]) -> None:

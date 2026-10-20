@@ -10,9 +10,10 @@ the case's list, and it fails when asked once more than the list is long.
 Of a resource further out it answers what the case states under `further`,
 and fails for one the case states nothing of. A case fails too where a
 resource it states under `further` was not asked for what it links to and
-for what cites it, once each. The views are the rig's. The applied signal is real: the wait is a
-`WeaveProgress`, which is told of the signal before the build where a case
-states that it has arrived, and is left to run out where a case does not.
+for what cites it, once each. The views a case states are held by the rig's
+record. The applied signal is real: the wait is a `WeaveProgress`, which is
+told of the signal before the build where a case states that it has arrived,
+and is left to run out where a case does not.
 
 Time is the loop's clock, which the runner moves. Before each move the build
 is given its turns, so it is either done or waiting. Then the clock is moved
@@ -42,7 +43,7 @@ from typing import Final, Literal, final, override
 import pytest
 from aio import SteppedLoop, hurried, pass_time, run
 from pydantic import JsonValue
-from rig import FakeDegraded, FakeGraph, FakeViews, FakeWeave, described, view
+from rig import FakeDegraded, FakeGraph, FakeRecord, FakeWeave, described, view
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel
 from semiont.types import Annotation, GraphResourceNode, KnowledgeGraph, Motivation, ResourceDescriptor, ResourceView
@@ -324,7 +325,7 @@ async def outcome_of(case: Case) -> Outcome:
 
     began = loop.ahead
     building = asyncio.ensure_future(
-        build_knowledge_graph(case.resource, graph=store, views=FakeViews(*case.views), weave=weave, degraded=degraded, depth=case.depth)
+        build_knowledge_graph(case.resource, graph=store, record=FakeRecord(*case.views), weave=weave, degraded=degraded, depth=case.depth)
     )
     try:
         for wait in (0.0, *PAUSES) if case.applied else (0.0, SIGNAL_WAIT, *PAUSES):
@@ -434,10 +435,10 @@ def test_a_wait_that_fails_in_any_way_but_running_out_fails_the_build_and_the_st
     async def scenario() -> None:
         graph, degraded, weave = absent_from_the_graph(), FakeDegraded(), FakeWeave()
         weave.failing = RuntimeError("the fold is wedged")
-        views = FakeViews(view(described(MAIN), last_sequence=7))
+        record = FakeRecord(view(described(MAIN), last_sequence=7))
 
         with pytest.raises(RuntimeError, match=r"the fold is wedged"):
-            await build_knowledge_graph(MAIN, graph=graph, views=views, weave=weave, degraded=degraded, depth=1)
+            await build_knowledge_graph(MAIN, graph=graph, record=record, weave=weave, degraded=degraded, depth=1)
 
         assert graph.asked_of("get_resource") == [MAIN]
         assert weave.asked == [(MAIN, 7, SIGNAL_WAIT)]
@@ -457,9 +458,9 @@ def test_the_signal_is_waited_for_at_the_sequence_number_the_view_states_and_the
         # The store comes to hold the resource while the signal is waited for.
         graph.resources[MAIN] = None
         weave.then = lambda: graph.resources.update({MAIN: held})
-        views = FakeViews(view(held, last_sequence=4))
+        record = FakeRecord(view(held, last_sequence=4))
 
-        built = await build_knowledge_graph(MAIN, graph=graph, views=views, weave=weave, degraded=degraded, depth=1)
+        built = await build_knowledge_graph(MAIN, graph=graph, record=record, weave=weave, degraded=degraded, depth=1)
 
         assert wire(built) == {"nodes": [{"id": MAIN, "type": "resource", "label": "Main", "entityTypes": []}], "edges": []}
         assert weave.asked == [(MAIN, 4, SIGNAL_WAIT)]
@@ -479,10 +480,10 @@ def test_the_signal_is_waited_for_at_the_sequence_number_the_view_states_and_the
 def test_a_graph_that_stays_behind_is_counted_once_and_logged_once_as_a_warning(caplog: pytest.LogCaptureFixture) -> None:
     async def scenario() -> None:
         graph, degraded, weave = absent_from_the_graph(), FakeDegraded(), FakeWeave()
-        views = FakeViews(view(described(MAIN), last_sequence=3))
+        record = FakeRecord(view(described(MAIN), last_sequence=3))
 
         with pytest.raises(GraphBehind, match=r"behind the views.*not missing"):
-            await hurried(build_knowledge_graph(MAIN, graph=graph, views=views, weave=weave, degraded=degraded, depth=1))
+            await hurried(build_knowledge_graph(MAIN, graph=graph, record=record, weave=weave, degraded=degraded, depth=1))
 
         assert len(graph.asked_of("get_resource")) == 1 + len(PAUSES)
         assert degraded.noted == ["graph"]
@@ -499,7 +500,7 @@ def test_a_resource_no_one_holds_is_logged_and_counted_as_nothing(caplog: pytest
         graph, degraded, weave = absent_from_the_graph(), FakeDegraded(), FakeWeave()
 
         with pytest.raises(ResourceUnknown, match=r"not found"):
-            await build_knowledge_graph(MAIN, graph=graph, views=FakeViews(), weave=weave, degraded=degraded, depth=1)
+            await build_knowledge_graph(MAIN, graph=graph, record=FakeRecord(), weave=weave, degraded=degraded, depth=1)
 
         assert weave.asked == []
         assert degraded.noted == []
@@ -519,13 +520,13 @@ def test_the_depths_a_graph_is_built_to_are_1_to_3_and_its_ceiling_is_200_resour
 @pytest.mark.parametrize("depth", [-1, 0, 4, 200])
 def test_a_depth_less_than_1_or_more_than_3_is_refused_and_nothing_is_read(depth: int) -> None:
     async def scenario() -> None:
-        graph, degraded, weave, views = FakeGraph(), FakeDegraded(), FakeWeave(), FakeViews()
+        graph, degraded, weave, record = FakeGraph(), FakeDegraded(), FakeWeave(), FakeRecord()
 
         with pytest.raises(DepthRefused, match=r"depth must be between 1 and 3"):
-            await build_knowledge_graph(MAIN, graph=graph, views=views, weave=weave, degraded=degraded, depth=depth)
+            await build_knowledge_graph(MAIN, graph=graph, record=record, weave=weave, degraded=degraded, depth=depth)
 
         assert graph.asked == []
-        assert views.asked == []
+        assert record.asked == []
         assert weave.asked == []
 
     run(scenario())
@@ -562,7 +563,7 @@ def a_graph_of(near: list[ResourceId], far: dict[ResourceId, list[ResourceId]]) 
 
 async def built_from(graph: FakeGraph, depth: int) -> KnowledgeGraph:
     """The graph built around the main resource, to a depth."""
-    return await build_knowledge_graph(MAIN, graph=graph, views=FakeViews(), weave=FakeWeave(), degraded=FakeDegraded(), depth=depth)
+    return await build_knowledge_graph(MAIN, graph=graph, record=FakeRecord(), weave=FakeWeave(), degraded=FakeDegraded(), depth=depth)
 
 
 def resources_of(built: KnowledgeGraph) -> list[str]:

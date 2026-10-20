@@ -17,7 +17,7 @@ from typing import Final, final
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, LOVELACE, FakeEmbedding, FakeGraph, FakeInference, FakePeople, FakeVectors, FakeViews, described, tag, view
+from rig import ADA, ADA_ID, LOVELACE, FakeEmbedding, FakeGraph, FakeInference, FakePeople, FakeRecord, FakeVectors, described, tag, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import MatchSearchRequest, MatchSearchResult, ResourceDescriptor
@@ -96,7 +96,7 @@ class World:
     """
 
     graph: FakeGraph = field(default_factory=FakeGraph)
-    views: FakeViews = field(default_factory=FakeViews)
+    record: FakeRecord = field(default_factory=FakeRecord)
     vectors: FakeVectors = field(default_factory=FakeVectors)
     embedding: FakeEmbedding = field(default_factory=FakeEmbedding)
     inference: FakeInference = field(default_factory=FakeInference)
@@ -110,7 +110,7 @@ class World:
         return await search(
             asked,
             graph=self.graph,
-            views=self.views,
+            record=self.record,
             vectors=self.vectors,
             embedding=self.embedding,
             inference=self.inference,
@@ -203,7 +203,7 @@ def says(value: str, purpose: str) -> JsonObject:
     return {"type": "TextualBody", "value": value, "purpose": purpose}
 
 
-def test_the_people_of_a_reply_are_named_as_the_projection_holds_them_and_it_is_read_once() -> None:
+def test_the_people_of_a_reply_are_named_as_the_knowledge_base_calls_them_and_asked_after_once() -> None:
     world = World(people=FakePeople(LOVELACE))
     world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE, wasAttributedTo=[ADA])
 
@@ -211,7 +211,7 @@ def test_the_people_of_a_reply_are_named_as_the_projection_holds_them_and_it_is_
 
     (candidate,) = objects(written(reply)["response"], "response")
     assert candidate["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
-    assert world.people.reads == 1
+    assert world.people.asked == [[ADA_ID]]
 
 
 def test_the_scores_are_asked_for_as_elements_and_a_reply_that_is_no_array_leaves_every_score_as_it_was() -> None:
@@ -253,11 +253,11 @@ def test_the_model_is_shown_the_first_item_of_a_body_whose_purpose_is_commenting
 
 
 def test_a_neighbour_described_from_its_view_is_logged_with_how_many_were(caplog: pytest.LogCaptureFixture) -> None:
-    # Two neighbours: the graph holds one, and only the views hold the other.
+    # Two neighbours: the graph holds one, and only the record holds the other.
     world = World()
     world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE)
     world.graph.resources[FORT] = None
-    world.views.held[FORT] = view(described(FORT, dateCreated=MADE))
+    world.record.held[FORT] = view(described(FORT, dateCreated=MADE))
 
     with caplog.at_level(logging.INFO, logger="semiont_librarian"):
         reply = run(world.search(request(neighbours=(ROCK, FORT))))
@@ -270,8 +270,8 @@ def test_a_vector_hit_described_from_its_view_is_logged_with_how_many_were(caplo
     world = World()
     world.graph.resources[ROCK] = None
     world.graph.resources[FORT] = None
-    world.views.held[ROCK] = view(described(ROCK, dateCreated=MADE))
-    world.views.held[FORT] = view(described(FORT, dateCreated=MADE))
+    world.record.held[ROCK] = view(described(ROCK, dateCreated=MADE))
+    world.record.held[FORT] = view(described(FORT, dateCreated=MADE))
     world.vectors.stated["search_resources"] = [hit(ROCK, 0.8), hit(FORT, 0.6)]
 
     with caplog.at_level(logging.INFO, logger="semiont_librarian"):
@@ -286,8 +286,8 @@ def test_a_candidate_whose_view_cannot_be_read_is_left_out_and_the_search_is_ans
     world = World()
     world.graph.resources[ROCK] = None
     world.graph.resources[FORT] = described(FORT, dateCreated=MADE)
-    world.views.held[ROCK] = view(described(ROCK, dateCreated=MADE))
-    world.views.unread.add(ROCK)
+    world.record.held[ROCK] = view(described(ROCK, dateCreated=MADE))
+    world.record.unread.add(ROCK)
     world.vectors.stated["search_resources"] = [hit(ROCK, 0.8)]
 
     reply = run(world.search(request(neighbours=(ROCK, FORT))))

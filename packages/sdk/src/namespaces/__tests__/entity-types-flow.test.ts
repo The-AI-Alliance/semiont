@@ -122,8 +122,6 @@ function createHarness(): Harness {
         switch (op) {
           case 'browse:entity-types-requested':
             return { entityTypes: NINE_TYPES };
-          case 'browse:annotations-requested':
-            return { annotations: [], total: 0 };
           case 'browse:events-requested':
             return { events: [], total: 0, resourceId: 'res-1' };
           default:
