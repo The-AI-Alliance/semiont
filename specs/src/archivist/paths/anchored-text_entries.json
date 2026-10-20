@@ -1,0 +1,30 @@
+{
+  "get": {
+    "operationId": "listAnchoredTextEntries",
+    "summary": "The anchored-text store's keys",
+    "description": "The checksum of every set of bytes whose anchored text the store holds under the stamp last stated. Entries stored under another stamp are not listed. Read by the Smelter, to plan what it derives when it starts.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The keys.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/AnchoredTextEntries.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
+  }
+}

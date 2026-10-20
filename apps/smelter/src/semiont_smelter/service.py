@@ -31,7 +31,6 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
-from pathlib import Path
 from typing import Final, final
 
 from pydantic import JsonValue
@@ -145,7 +144,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     account = ServiceToken(started.credential)
     reader, engine = PdfiumReader(), TesseractEngine()
     # The stamp is read from what is installed. A Smelter with no OCR engine to ask says so here, before it follows anything.
-    anchored = AnchoredTextStore(Path(config.anchored_text_dir), stamp=await current_stamp(reader, engine))
+    anchored_stamp = await current_stamp(reader, engine)
 
     # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
     async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
@@ -156,6 +155,9 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         try:
             async with (
                 ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
+                AnchoredTextStore(
+                    SERVICE, host=config.archivist.host, port=config.archivist.port, account=account, stamp=anchored_stamp
+                ) as anchored,
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Smelter(
                     index=started.index,

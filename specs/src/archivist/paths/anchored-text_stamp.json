@@ -1,0 +1,49 @@
+{
+  "put": {
+    "operationId": "putAnchoredTextStamp",
+    "summary": "State the anchored-text store's stamp",
+    "description": "State the stamp the store's entries are taken under: which PDF reader and which OCR engine derive them. From then on an entry stored under another stamp is answered to no reader and is not listed; nothing is deleted. The stamp is kept across restarts. Stated by the Smelter when it starts, before it reads, lists or writes an entry.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "x-semiont-limits": {
+      "maxBodyBytes": 4096
+    },
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../../components/schemas/AnchoredTextStamp.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "204": {
+        "description": "Stated."
+      },
+      "400": {
+        "description": "The body is no `AnchoredTextStamp`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "413": {
+        "$ref": "../../components/responses/PayloadTooLarge.json"
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
+  }
+}

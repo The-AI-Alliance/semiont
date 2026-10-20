@@ -476,22 +476,46 @@ export class ArchivistWorld {
   // ── The Smelter ───────────────────────────────────────────────────────────
 
   /**
-   * The Smelter, as far as the Archivist meets it: state a stamp in the store,
-   * write an entry under it for content of this checksum, and signal that the
-   * resource has settled.
+   * The Smelter, as far as the Archivist meets it: state a stamp, store an
+   * entry under it for content of this checksum, and signal that the
+   * resource has settled. The stamp and the entry go through the Archivist's
+   * surface, as the Smelter's own account.
    */
   async smelt(resourceId: string, checksum: string, entry: Record<string, unknown> | undefined, outcome: 'indexed' | 'skipped' = 'indexed', stamp = 'conformance-smelter'): Promise<void> {
     if (entry !== undefined) {
-      writeFileSync(join(this.dirs.anchoredTextDir, 'STAMP'), `${stamp}\n`);
-      const path = join(this.dirs.anchoredTextDir, ...shardOf(checksum).split('/'), `${checksum}.json`);
-      mkdirSync(dirname(path), { recursive: true });
+      await this.stateStamp(stamp);
       const document = { v: 3, stamp, ...entry };
       const validate = spec().component('AnchoredTextEntry');
       if (!validate(document)) throw new Error(`the suite's anchored-text entry is not an AnchoredTextEntry (${errorsOf(validate)})`);
-      writeFileSync(path, JSON.stringify(document));
+      const stored = await this.storeAnchoredText(resourceId, { contentChecksum: checksum, entry: document });
+      if (stored.status !== 204) throw new Error(`the anchored-text entry was not stored: ${stored.status} ${stored.text}`);
     }
     const smelter = await this.sidecar('smelter');
     await smelter.emit('smelt:settled', { resourceId, contentChecksum: checksum, outcome });
+  }
+
+  /** State the stamp the anchored-text store's entries are taken under, as the Smelter does when it starts. */
+  async stateStamp(stamp: string): Promise<void> {
+    const stated = await this.http('PUT', '/anchored-text/stamp', { json: { stamp }, route: '/anchored-text/stamp' });
+    if (stated.status !== 204) throw new Error(`the stamp was not stated: ${stated.status} ${stated.text}`);
+  }
+
+  /** Store an anchored-text entry for a resource's bytes, as the Smelter does: the reply, held to the Archivist's API. */
+  storeAnchoredText(resourceId: string, write: unknown, options: { token?: string } = {}): Promise<Reply> {
+    return this.http('PUT', `/resources/${encodeURIComponent(resourceId)}/anchored-text`, { json: write, route: '/resources/{id}/anchored-text', ...options });
+  }
+
+  /** The entry the store holds for a resource's content, read with this checksum, as the Smelter reads it back: the reply. */
+  storedAnchoredText(resourceId: string, checksum: string | undefined, options: { token?: string } = {}): Promise<Reply> {
+    const query = checksum === undefined ? '' : `?contentChecksum=${checksum}`;
+    return this.http('GET', `/resources/${encodeURIComponent(resourceId)}/anchored-text/stored${query}`, { route: '/resources/{id}/anchored-text/stored', ...options });
+  }
+
+  /** The keys of the store's entries under the stamp last stated, as the Smelter lists them, sorted. */
+  async anchoredTextKeys(): Promise<string[]> {
+    const listed = await this.http('GET', '/anchored-text/entries', { route: '/anchored-text/entries' });
+    if (listed.status !== 200) throw new Error(`the store's keys were not listed: ${listed.status} ${listed.text}`);
+    return [...(listed.json as { checksums: string[] }).checksums].sort();
   }
 
   // ── Restarts ──────────────────────────────────────────────────────────────

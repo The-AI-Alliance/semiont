@@ -26,9 +26,9 @@ It is the only process that mounts the knowledge base's working tree, and the on
 log, the content and the views. It dials one thing, the gateway, for the bus. It holds no graph, no
 vector store and no model: finding things is the Librarian's.
 
-Two other services touch its files. The Librarian reads the view files and the people projection.
-The Smelter writes the anchored-text store, which the Archivist reads. Those formats are schemas in
-the spec, named where each file is described below.
+The Librarian reads the view files and the people projection. The Smelter keeps the anchored-text
+store through the Archivist's HTTP surface, and mounts none of it. Those formats are schemas in the
+spec, named where each file is described below.
 
 ## Configuration
 
@@ -76,7 +76,7 @@ Three trees:
 |---|---|---|
 | The working tree | `root` | The content, and under `.semiont/events/` the event log. Committed by people |
 | The state directory | `<stateHome>/semiont/<name>/` | The views and projections. Rebuilt from the log; never committed |
-| The anchored-text store | `anchoredTextDir` | Text extracted from content, with where each word is. Written by the Smelter |
+| The anchored-text store | `anchoredTextDir` | Text extracted from content, with where each word is. Written by the Archivist, from what the Smelter stores over HTTP |
 
 ### Identifiers and shards
 
@@ -250,19 +250,23 @@ The views and projections are outside the working tree and are never staged.
 ### The anchored-text store
 
 The store holds, for content that is not plain text, the text extracted from it and where each word
-is on the page. The Smelter writes it; the Archivist only reads it.
+is on the page. The Smelter derives it and sends it over the HTTP surface; the Archivist writes it,
+and is the only process that mounts it.
 
 An entry is the file `<ab>/<cd>/<checksum>.json` in the store, keyed by the checksum of the content
 it was extracted from. It is an
 [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json), compact JSON with
 `v` and `stamp` first: either the text with its lines and how it was extracted, or a decline naming
-why nothing was extracted.
+why nothing was extracted. It is written whole, beside its name and moved onto it, and replaces what
+was there.
 
-**The stamp is the writer's.** It identifies the code and the engines that derived an entry. The
-writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root,
-before it writes or lists entries. A reader takes an entry only when the entry's `stamp` equals the
-stated one. With no stamp stated, with an entry under another stamp, with no file, or with a file
-that is not an entry, the read is a miss. A read never fails.
+**The stamp is the Smelter's.** It names the PDF reader and the OCR engine that derived an entry.
+The Smelter states its stamp over the HTTP surface when it starts (`PUT /anchored-text/stamp`), and
+the Archivist keeps it, followed by a newline, in the file `STAMP` at the store's root, where it
+outlasts a restart. An entry is taken only when its `v` is 3 and its `stamp` is the one stated, by
+every read and by the listing. With no stamp stated, with an entry under another stamp, with no
+file, or with a file that is not an entry, the read is a miss. Nothing deletes an entry: those of
+an older stamp stay until the store is cleared.
 
 ## Commands
 
@@ -479,6 +483,14 @@ token was presented, `Bearer` when none was.
 | `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
 | `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: what `browse:resource-requested` answers. `404` `{"error":"Resource not found"}` |
 | `GET` `/resources/{id}/anchored-text` | `200`, `Content-Type: application/json`: the resource's anchored text, or why there is none; see below. A failed read: `500` `{"error":"anchored-text read failed"}` |
+| `PUT` `/resources/{id}/anchored-text` | Stores an entry for the resource's content; see below. The Smelter's |
+| `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |
+| `GET` `/anchored-text/entries` | `200` `{"checksums":[…]}`: the checksum of every entry stored under the stamp stated, in no order. The Smelter's |
+| `PUT` `/anchored-text/stamp` | States the stamp, an [`AnchoredTextStamp`](../../specs/src/components/schemas/AnchoredTextStamp.json): `204`. A body that is not one: `400`. The Smelter's |
+
+A body larger than its operation's `x-semiont-limits.maxBodyBytes` in the
+[API](../../specs/src/archivist/openapi.json) is `413`: refused unread when its `Content-Length`
+says so, and otherwise once more than that has arrived.
 | `POST` `/resources` | Stores content and records it; see below |
 
 Any other request is `404` with no body.
@@ -506,6 +518,19 @@ The answer is decided from the resource's first representation, in this order:
    whether the Smelter said it indexed the content or skipped it. The Smelter stores what deriving
    a text came to, a decline included, so settled content with no entry is content whose entry was
    lost, and the Smelter derives it again when it next starts.
+
+**`PUT /resources/{id}/anchored-text`** takes an
+[`AnchoredTextWrite`](../../specs/src/components/schemas/AnchoredTextWrite.json): the checksum of the
+content the entry was derived from, and the entry. The whole body is read before anything is
+answered.
+
+- A body that is not one: `400` `{"error":"The body is no AnchoredTextWrite: …"}`. One larger than
+  the operation's `maxBodyBytes`: `413`.
+- No view of the resource, or an id that is not one: `404` `{"error":"Resource not found"}`.
+- The resource's first representation has another checksum, or none: `409`, whose `error` names the
+  checksum it has. Content that changed while the Smelter read it is derived again from what it is.
+- Otherwise the entry is written under the checksum, with `v` and `stamp` first, and the answer is
+  `204`. Every resource with that content has it from then on.
 
 A wait ends when the Archivist is told to stop: every read it is holding is answered
 `{"kind":"not-yet"}` at once, and the process does not wait the reads out before it exits.

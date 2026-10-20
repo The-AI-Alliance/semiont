@@ -3,7 +3,8 @@
 The sections here are the page's, in its order, and each test is named for
 the rule it holds. The Smelter is a real one (`rig.Rig`), over a transport a
 test scripts, an index in the process, a provider that keeps what it was
-asked, and an anchored-text store in a directory of the test's. What stands
+asked, and the Archivist's anchored-text store played in a directory of the
+test's (`rig.PlayedStore`). What stands
 in for the Archivist is the rig's `World`. A test changes it as a record is
 changed, and each change answers its event: delivered, it is a change the
 Smelter followed, and kept back, one it missed.
@@ -699,7 +700,7 @@ def test_a_pdfs_text_is_derived_from_the_document(tmp_path: Path) -> None:
         async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
             await rig.happened(rig.world.put("pdf-1", PDF, "application/pdf"))
 
-            derived = await rig.store.read(checksum_of(PDF))
+            derived = rig.store.kept(checksum_of(PDF))
             assert isinstance(derived, ExtractedText)
             assert "Ada Lovelace wrote the first program" in derived.text
             held = await rig.held()
@@ -785,7 +786,7 @@ def test_text_read_from_pixels_is_marked_on_every_point_made_from_it(tmp_path: P
         async with Rig(tmp_path, pdfs={SCAN: document}, reads=reads, chunking=Chunking(chunk_size=2, overlap=0)) as rig:
             await rig.happened(rig.world.put("scan-1", SCAN, "application/pdf"))
 
-            derived = await rig.store.read(checksum_of(SCAN))
+            derived = rig.store.kept(checksum_of(SCAN))
             assert isinstance(derived, ExtractedText)
             assert derived.method == "ocr"
             assert (await rig.held()).stamps == {"scan-1": stamp(SCAN, machine_read=True, media_type="application/pdf")}
@@ -1280,10 +1281,10 @@ def test_what_deriving_a_pdfs_text_came_to_is_stored_under_the_checksum_a_declin
         async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
             await rig.happened(rig.world.put("pdf-1", PDF, "application/pdf"), rig.world.put("pdf-2", NO_PDF, "application/pdf"))
 
-            text = await rig.store.read(checksum_of(PDF))
+            text = rig.store.kept(checksum_of(PDF))
             assert isinstance(text, ExtractedText)
             assert "Ada Lovelace wrote the first program" in text.text
-            assert await rig.store.read(checksum_of(NO_PDF)) == ExtractionDeclined(kind="declined", declined="corrupt")
+            assert rig.store.kept(checksum_of(NO_PDF)) == ExtractionDeclined(kind="declined", declined="corrupt")
             assert await rig.store.list() == sorted([checksum_of(PDF), checksum_of(NO_PDF)])
 
     run(scenario())
@@ -1359,7 +1360,7 @@ def test_an_entry_that_cannot_be_written_does_not_stop_the_indexing(tmp_path: Pa
             assert held.stamps == {"pdf-1": stamp(PDF, media_type="application/pdf")}
             assert "Ada Lovelace wrote the first program" in held.chunks["pdf-1"][0]
             assert signals(rig) == [indexed("pdf-1", PDF)]
-            assert await rig.store.read(checksum_of(PDF)) is None
+            assert rig.store.kept(checksum_of(PDF)) is None
 
     with caplog.at_level(logging.WARNING, logger="semiont_smelter"):
         run(scenario())
@@ -1455,7 +1456,7 @@ def test_a_lost_anchored_text_entry_is_derived_again_and_nothing_is_embedded_or_
         async with Rig(tmp_path / "first", pdfs={PDF: WRITTEN}) as first:
             await first.happened(first.world.put("pdf-1", PDF, "application/pdf"))
             had = await first.held()
-            derived = await first.store.read(checksum_of(PDF))
+            derived = first.store.kept(checksum_of(PDF))
             assert isinstance(derived, ExtractedText)
 
         # The store was cleared while the Smelter was stopped: it starts over a directory with nothing in it.
@@ -1464,7 +1465,7 @@ def test_a_lost_anchored_text_entry_is_derived_again_and_nothing_is_embedded_or_
 
             assert await later.smelter.reconcile() == came_to(reanchored=1, eligible=1, indexed=1)
 
-            assert await later.store.read(checksum_of(PDF)) == derived
+            assert later.store.kept(checksum_of(PDF)) == derived
             assert later.reader.opened == [PDF]
             assert later.provider.asked == []
             assert await later.held() == had
@@ -1753,7 +1754,7 @@ def test_a_declined_document_whose_anchored_text_entry_was_lost_has_it_derived_a
         async with Rig(tmp_path / "first") as first:
             await first.happened(first.world.put("pdf-1", NO_PDF, "application/pdf"))
             had = await first.held()
-            stored = await first.store.read(checksum_of(NO_PDF))
+            stored = first.store.kept(checksum_of(NO_PDF))
             assert isinstance(stored, ExtractionDeclined)
 
         # The store was cleared while the Smelter was stopped: it starts over a directory with nothing in it.
@@ -1762,7 +1763,7 @@ def test_a_declined_document_whose_anchored_text_entry_was_lost_has_it_derived_a
 
             assert await later.smelter.reconcile() == came_to(reanchored=1, eligible=1, indexed=0)
 
-            assert await later.store.read(checksum_of(NO_PDF)) == stored
+            assert later.store.kept(checksum_of(NO_PDF)) == stored
             assert await later.held() == had
             assert later.provider.asked == []
             assert signals(later) == []
@@ -2098,7 +2099,7 @@ def test_a_rebuild_keeps_an_entry_that_is_there_and_derives_nothing_for_it(tmp_p
     async def scenario() -> None:
         async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
             await rig.happened(rig.world.put("pdf-1", PDF, "application/pdf"))
-            entry = await rig.store.read(checksum_of(PDF))
+            entry = rig.store.kept(checksum_of(PDF))
             assert isinstance(entry, ExtractedText)
 
             rebuild(rig, "c-1", "pdf-1")
@@ -2108,7 +2109,7 @@ def test_a_rebuild_keeps_an_entry_that_is_there_and_derives_nothing_for_it(tmp_p
             assert [answer.correlation_id for answer in rig.answered("smelt:rebuild-anchors-ok")] == ["c-1", "c-2"]
             # The document was opened once, when the resource was indexed, and by neither rebuild.
             assert rig.reader.opened == [PDF]
-            assert await rig.store.read(checksum_of(PDF)) == entry
+            assert rig.store.kept(checksum_of(PDF)) == entry
 
     run(scenario())
 
@@ -2145,7 +2146,7 @@ def test_a_rebuild_of_a_document_that_is_declined_is_done_and_its_decline_is_wha
             (answer,) = rig.answered("smelt:rebuild-anchors-ok")
             assert answer.correlation_id == "c-1"
             assert rig.answered("smelt:rebuild-anchors-failed") == []
-            assert await rig.store.read(checksum_of(PDF)) == ExtractionDeclined(kind="declined", declined="encrypted")
+            assert rig.store.kept(checksum_of(PDF)) == ExtractionDeclined(kind="declined", declined="encrypted")
 
     run(scenario())
 

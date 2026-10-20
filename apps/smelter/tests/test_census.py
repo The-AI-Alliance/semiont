@@ -49,7 +49,7 @@ SURFACE = {
     "ocr_text": ["ImageText", "ReadWord", "assemble", "place"],
     "extraction": ["LARGEST_PDF_BYTES", "PdfExtractor"],
     "stamp": ["current_stamp"],
-    "anchored_text_store": ["AnchoredTextStore"],
+    "anchored_text_store": ["AnchoredTextStore", "AnchoredTexts", "StoreFailed"],
     "chunking": ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"],
     "log": ["LOG", "failure_said", "words_of"],
     "recorded": ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"],
@@ -247,11 +247,11 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
     # It asks for a store and a provider by what its configuration states, in the one module that reads that.
     assert importing(r"semiont_vectors\.factory") == ["service.py"]
     assert importing("qdrant_client") == []
-    # The one request the Smelter makes that is not the SDK's is for a resource's bytes, of the Archivist. The reader
-    # that makes it is every Python service's (`semiont_service.archivist`), made by the module that starts the
-    # service, and the Smelter is handed it as what reads a resource's bytes.
-    assert importing("httpx") == []
-    assert importing(r"semiont_service\.archivist") == ["service.py"]
+    # What the Smelter asks of the Archivist that is not the SDK's: a resource's bytes, by the reader every Python
+    # service has (`semiont_service.archivist`), made by the module that starts the service; and the anchored-text
+    # store the Archivist keeps, by the store alone, as the same account.
+    assert importing("httpx") == ["anchored_text_store.py"]
+    assert importing(r"semiont_service\.archivist") == ["anchored_text_store.py", "service.py"]
     assert importing(r"semiont_service\.content") == ["smelter.py"]
 
 
@@ -262,15 +262,17 @@ def test_it_writes_the_index_and_the_store_and_says_three_things_and_nothing_els
     assert naming(".emit(") == ["smelter.py"]
     emitted = sorted(set(re.findall(r"\.emit\(\s*(\w+)", source)))
     assert emitted == ["SMELT_REBUILD_ANCHORS_FAILED", "SMELT_REBUILD_ANCHORS_OK", "SMELT_SETTLED"]
-    # What it asks of the record, it asks in one module, and the catalog through the package every service reads it by.
-    assert naming(".request(") == ["record.py"]
+    # What it asks of the record on the bus, it asks in one module, and the catalog through the package every service
+    # reads it by. What it asks of the anchored-text store, on the Archivist's surface, the store asks.
+    assert naming(".request(") == ["anchored_text_store.py", "record.py"]
     asked = sorted(set(re.findall(r"\.request\(\s*(\w+)", (SRC / "record.py").read_text(encoding="utf-8"))))
     assert asked == ["BROWSE_ANNOTATIONS_REQUESTED", "BROWSE_RESOURCE_REQUESTED"]
     assert naming("from semiont_service import catalog") == ["record.py"]
-    # A file is written, made or taken away by the anchored-text store alone. The index is written through its store.
+    # It writes, makes and takes away no file: the anchored-text store is the Archivist's, and the index is written
+    # through its store.
     writes = re.compile(r'\.write_bytes\(|\.write_text\(|\.unlink\(|\.mkdir\(|\.rmdir\(|\.open\("[wax]|\bshutil\.|\btempfile\.')
     writing = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if writes.search(path.read_text(encoding="utf-8")))
-    assert writing == ["anchored_text_store.py"]
+    assert writing == []
 
 
 def test_one_checksum_is_worked_out_in_one_place_and_white_space_is_asked_of_one_module() -> None:
@@ -332,9 +334,8 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
 
 def test_the_distribution_is_named_for_the_service() -> None:
     # Its telemetry is exported under its word for itself after `semiont-`, at the version of the distribution of
-    # that name (`semiont_service.observability`), and the stamp of its anchored-text entries states that version.
+    # that name (`semiont_service.observability`).
     assert table(MANIFEST["project"], "project")["name"] == f"semiont-{SERVICE}"
-    assert '_DISTRIBUTION: Final = "semiont-smelter"' in (SRC / "stamp.py").read_text(encoding="utf-8")
 
 
 def test_it_is_a_service_s_code_and_no_library() -> None:
@@ -381,11 +382,18 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert MANIFEST["build-system"] == theirs["build-system"]
 
 
-def test_what_the_project_requires_is_what_it_reads_a_pdf_with_and_what_the_sdk_brings() -> None:
+def test_what_the_project_requires_is_what_it_reads_a_pdf_with_what_it_asks_the_archivist_with_and_what_the_sdk_brings() -> None:
     project = table(MANIFEST["project"], "project")
     required = listed(project["dependencies"], "dependencies")
-    assert {name_of(requirement) for requirement in required} == {"pydantic", "pypdfium2", "semiont", "semiont-service", "semiont-vectors"}
-    for library in ("pydantic", "semiont", "semiont_service", "semiont_vectors"):
+    assert {name_of(requirement) for requirement in required} == {
+        "httpx",
+        "pydantic",
+        "pypdfium2",
+        "semiont",
+        "semiont-service",
+        "semiont-vectors",
+    }
+    for library in ("httpx", "pydantic", "semiont", "semiont_service", "semiont_vectors"):
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.
     of_the_sdk = listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "the SDK's dependencies")

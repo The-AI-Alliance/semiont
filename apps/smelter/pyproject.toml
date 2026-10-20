@@ -25,8 +25,10 @@ classifiers = [
 # page, the `tesseract` program, is no Python package: the image installs it.
 # What every Python service is built on is semiont-service, which also reads
 # a resource's bytes from the Archivist, and the index the Smelter writes and
-# the provider it asks for vectors are semiont-vectors.
+# the provider it asks for vectors are semiont-vectors. httpx is what the
+# Smelter asks the Archivist's anchored-text store with; the SDK bounds it.
 dependencies = [
+    "httpx",
     "pydantic",
     "pypdfium2>=5.14,<6",
     "semiont",

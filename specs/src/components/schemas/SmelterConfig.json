@@ -24,7 +24,7 @@
     },
     "archivist": {
       "type": "object",
-      "description": "Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.",
+      "description": "Where the Archivist listens. The Smelter reads a resource's bytes from it, and keeps the anchored-text store there, as its service account.",
       "properties": {
         "host": {
           "type": "string",
@@ -69,11 +69,6 @@
       ],
       "additionalProperties": false
     },
-    "anchoredTextDir": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The anchored-text store the Smelter writes and the Archivist reads."
-    },
     "pdfsAtOnce": {
       "type": "integer",
       "minimum": 1,
@@ -99,7 +94,6 @@
     "embedding",
     "vectors",
     "chunking",
-    "anchoredTextDir",
     "pdfsAtOnce",
     "port",
     "logLevel",

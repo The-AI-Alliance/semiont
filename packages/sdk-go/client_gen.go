@@ -2342,7 +2342,7 @@ type AnchoredTextDeclinedEntry struct {
 	// Declined Why extraction yielded nothing, by class.
 	Declined AnchoredTextDeclinedEntryDeclined `json:"declined"`
 
-	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
+	// Stamp The stamp the entry was derived under: the PDF reader's and the OCR engine's. A reader takes the entry only when it equals the stamp the Smelter last stated.
 	Stamp string `json:"stamp"`
 
 	// V The entry format.
@@ -2355,7 +2355,12 @@ type AnchoredTextDeclinedEntryDeclined string
 // AnchoredTextDeclinedEntryV The entry format.
 type AnchoredTextDeclinedEntryV int
 
-// AnchoredTextEntry One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter writes it; the Archivist reads it. Written as compact JSON, `v` and `stamp` first, by writing a sibling temporary file and renaming it onto the path. The store's writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root.
+// AnchoredTextEntries The keys of the entries the anchored-text store holds under the stamp last stated: one checksum for each set of bytes whose text is stored, in no order.
+type AnchoredTextEntries struct {
+	Checksums []string `json:"checksums"`
+}
+
+// AnchoredTextEntry One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter derives it and stores it over the Archivist's HTTP surface (`AnchoredTextWrite`); the Archivist writes it, as compact JSON with `v` and `stamp` first, to a sibling temporary file renamed onto the path. The stamp the Smelter states (`AnchoredTextStamp`) is kept, followed by a newline, in the file `STAMP` at the store's root.
 type AnchoredTextEntry struct {
 	union json.RawMessage
 }
@@ -2393,7 +2398,7 @@ type AnchoredTextExtractedEntry struct {
 	// PdfClass PDF classification, when the source was a PDF.
 	PdfClass *AnchoredTextExtractedEntryPdfClass `json:"pdfClass,omitempty"`
 
-	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
+	// Stamp The stamp the entry was derived under: the PDF reader's and the OCR engine's. A reader takes the entry only when it equals the stamp the Smelter last stated.
 	Stamp string `json:"stamp"`
 
 	// Text The extracted text.
@@ -2414,6 +2419,21 @@ type AnchoredTextExtractedEntryPdfClass string
 
 // AnchoredTextExtractedEntryV The entry format.
 type AnchoredTextExtractedEntryV int
+
+// AnchoredTextStamp The stamp an anchored-text store's entries are taken under: which PDF reader and which OCR engine derived them. Its writer states it before it writes or lists an entry; an entry stored under another stamp is answered to no reader.
+type AnchoredTextStamp struct {
+	// Stamp The stamp: no white space, since it is held in a file of one line.
+	Stamp string `json:"stamp"`
+}
+
+// AnchoredTextWrite A write of an anchored-text entry for the bytes of one resource: what the Smelter derived from them, and their checksum. The Archivist files the entry under the checksum, so every resource whose bytes those are has it, and refuses the write when the resource's first representation has other bytes.
+type AnchoredTextWrite struct {
+	// ContentChecksum The SHA-256 of the bytes the text was derived from, as 64 lower-case hexadecimal digits: the key the entry is filed under.
+	ContentChecksum string `json:"contentChecksum"`
+
+	// Entry One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter derives it and stores it over the Archivist's HTTP surface (`AnchoredTextWrite`); the Archivist writes it, as compact JSON with `v` and `stamp` first, to a sibling temporary file renamed onto the path. The stamp the Smelter states (`AnchoredTextStamp`) is kept, followed by a newline, in the file `STAMP` at the store's root.
+	Entry AnchoredTextEntry `json:"entry"`
+}
 
 // Annotation defines model for Annotation.
 type Annotation struct {
@@ -6372,10 +6392,7 @@ type SmeltSettledReason string
 
 // SmelterConfig Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type SmelterConfig struct {
-	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
-	AnchoredTextDir string `json:"anchoredTextDir"`
-
-	// Archivist Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+	// Archivist Where the Archivist listens. The Smelter reads a resource's bytes from it, and keeps the anchored-text store there, as its service account.
 	Archivist struct {
 		Host string `json:"host"`
 		Port int    `json:"port"`

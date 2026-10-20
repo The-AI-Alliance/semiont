@@ -279,8 +279,6 @@ export class LibrarianWorld {
           vectors: { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT },
           embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: smelterEmbedder.origin },
           chunking: { chunkSize: 512, overlap: 64 },
-          // The store's directory is the one the Archivist is configured to read.
-          anchoredTextDir: kb.dirs.anchoredTextDir,
           pdfsAtOnce: 1,
         },
         env: { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.smelter },

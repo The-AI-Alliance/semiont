@@ -84,8 +84,8 @@ failing most of the time.
 
 ```
 ingest    Smelter reads the bytes once, extracts to embed
-          └─ carries geometry? → writes its anchored-text store (checksum-keyed)
-store     the Smelter's — it owns the stamp; the Archivist holds a read-only mount
+          └─ carries geometry? → PUT /resources/{id}/anchored-text on the Archivist (checksum-keyed)
+store     the Archivist's — it alone mounts it; the Smelter states the stamp
 read      GET /resources/{id}/anchored-text  →  gateway  →  Archivist  →  anchored_text
           └─ miss → when_settled(resourceId, checksum) → re-read
 browser   browse.resourceAnchoredText()   every PDF and every image, once per viewer; pdf.js only draws
@@ -152,7 +152,7 @@ is re-recognized six times.
 
 The store holds derived values only — every entry is reproducible from the
 resource's bytes — which is what makes a version-stamp miss safe. The stamp is
-read from what is installed (the Smelter's version, PDFium's and its binding's,
+read from what is installed (PDFium's and its binding's,
 the `tesseract` program's, and a digest of its language data), never
 hand-maintained: over-invalidating costs a recomputation, under-invalidating
 serves geometry built by different code.
@@ -191,7 +191,7 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 |---|---|
 | `AnchoredText`, `locate`, `textUnder`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
 | Producing a map (text layer, OCR, tables, forms) | `apps/smelter` — `extraction.py`, over `pdfium.py` and `tesseract.py` |
-| Storing one | `apps/smelter` — `anchored_text_store.py` |
+| Storing one | `apps/smelter` — `anchored_text_store.py`, over the Archivist's `PUT /resources/{id}/anchored-text`; `apps/archivist` — `record/src/anchored_text.rs` |
 | Publishing at ingest | `apps/smelter` — `smelter.py` |
 | Serving one, with the barrier | `apps/archivist` — `src/anchored.rs` |
 | Detection's geometry tail | `@semiont/core` — `annotationOfSpan`, in `annotation-builders.ts` |
@@ -208,5 +208,5 @@ takes PDFium, the `tesseract` program and a directory to write.
 
 - **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the actors, and the storage the map sits in.
-- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the anchored-text store as the Archivist reads it, and the wait for the Smelter to settle.
+- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the anchored-text store as the Archivist keeps it, and the wait for the Smelter to settle.
 - **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.

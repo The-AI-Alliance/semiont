@@ -1,0 +1,81 @@
+{
+  "get": {
+    "operationId": "getStoredResourceAnchoredText",
+    "summary": "The anchored-text entry stored for a resource's content",
+    "description": "The entry stored for the resource's content, as it is stored, when it is stored under the stamp last stated. The query states the checksum of the content the caller read; content that has changed since is a 409, never another content's entry. Answered at once: unlike `GET /resources/{id}/anchored-text`, it never waits for the Smelter. Read by the Smelter, before it derives a text, to find whether it has already.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The resource, percent-encoded.",
+        "schema": {
+          "$ref": "../../components/schemas/ResourceId.json"
+        }
+      },
+      {
+        "name": "contentChecksum",
+        "in": "query",
+        "required": true,
+        "description": "The SHA-256 of the content the caller read, as 64 lower-case hexadecimal digits.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The entry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/AnchoredTextEntry.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "The query states no checksum, or one that is not 64 lower-case hexadecimal digits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "404": {
+        "description": "The record holds no such resource, or no entry is stored for its content under the stamp last stated; `error` says which.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "409": {
+        "description": "The resource's first representation has other content than the checksum the query states, or none; `error` names the checksum it has.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
+  }
+}

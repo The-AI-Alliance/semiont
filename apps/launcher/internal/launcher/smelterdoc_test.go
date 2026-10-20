@@ -138,8 +138,9 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 	if doc.Chunking.ChunkSize != 512 || doc.Chunking.Overlap != 64 {
 		t.Errorf("chunking = %+v, want the config's 512 and 64", doc.Chunking)
 	}
-	if store := stateStores["anchored-text"]; store.owner != "smelter" || doc.AnchoredTextDir != store.mounts[0].target {
-		t.Errorf("anchoredTextDir = %q, want the path the launcher mounts the Smelter's store onto, %q", doc.AnchoredTextDir, store.mounts[0].target)
+	// The anchored-text store is the Archivist's: the Smelter's document names no directory of it.
+	if store := stateStores["anchored-text"]; store.owner != "archivist" || !store.unstamped {
+		t.Errorf("the anchored-text store is owned by %q (unstamped %v), want the Archivist's, with no image stamp", store.owner, store.unstamped)
 	}
 	if doc.Port != semiontDescriptor("smelter").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
@@ -329,12 +330,11 @@ func TestSmelterDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 }
 
 // The launcher mounts the document where the image's command points --config
-// (TestConfigDocumentsAreWhereTheImagesLook), and the anchored-text store
-// where the document says it is. It hands the Smelter nothing else: no copy
-// of the KB's config, no path, and no *_HOST variables, because the document
-// already carries every address and the store's directory. Its health port is
-// the descriptor's, which the document carries, the launcher publishes and
-// the image probes.
+// (TestConfigDocumentsAreWhereTheImagesLook), and nothing else: no store, no
+// copy of the KB's config, no path, and no *_HOST variables, because the
+// document already carries every address. Its health port is the
+// descriptor's, which the document carries, the launcher publishes and the
+// image probes.
 func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "smelter", "Dockerfile"))
 	if err != nil {
@@ -346,15 +346,11 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := smelterDocumentFrom(t, b)
 
-	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil,
-		"-v", "/state/anchored-text:"+stateStores["anchored-text"].mounts[0].target), " ")
+	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil), " ")
 	if want := "/stage/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's document is not mounted onto %s:\n%s", smelterDocumentTarget, args)
 	}
-	if want := "-v /state/anchored-text:" + doc.AnchoredTextDir + " "; !strings.Contains(args, want) {
-		t.Errorf("the anchored-text store is not mounted onto %s, where the Smelter's document says it is:\n%s", doc.AnchoredTextDir, args)
-	}
-	for _, unread := range []string{"GATEWAY_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml"} {
+	for _, unread := range []string{"GATEWAY_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml", anchoredTextTarget} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the Smelter is handed %s, which it does not read:\n%s", unread, args)
 		}

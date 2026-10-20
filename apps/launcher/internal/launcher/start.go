@@ -723,8 +723,8 @@ func superviseEnv() []string {
 // archivistArgs: the Archivist owns the file-backed record, and its mounts
 // are the record's — the KB root read-write at kbMountTarget (it is the git
 // single-writer), and the stores flowArchivist passes as state: the
-// anchored-text store it answers reads from and the state tree it writes the
-// views to. It reads a resolved configuration document (archivistdoc.go) at
+// anchored-text store, which it keeps for the Smelter and answers reads from,
+// and the state tree it writes the views to. It reads a resolved configuration document (archivistdoc.go) at
 // the path its image passes to `--config`, so it is handed no *_HOST
 // variables and no path: the document carries every address and every
 // directory already. It keeps the
@@ -829,21 +829,20 @@ func workerArgs(stage, rt, addr string, clientSecret, version, mem string, userE
 
 // smelterArgs: the Smelter derives what search reads from a resource's
 // bytes: its vectors and its anchored text. It mounts no piece of the
-// knowledge base: the gateway is its route to the bus, and the Archivist its
-// route to a resource's bytes. Beside its document, its one mount is the
-// anchored-text store flowSidecar passes as state, which it writes. It reads
+// knowledge base and no store: the gateway is its route to the bus, and the
+// Archivist its route to a resource's bytes and to the anchored-text store,
+// which it writes there. Its one mount is its document. It reads
 // a resolved configuration document (smelterdoc.go) at the path its image
 // passes to `--config`, so it is handed no *_HOST variables, no path and no
-// copy of the KB's config: the document carries every address and the
-// store's directory already, and names the variable holding Voyage's key
+// copy of the KB's config: the document carries every address already, and
+// names the variable holding Voyage's key
 // (smelterNamedVars), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
+func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("smelter").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", port + ":" + port,
 		"--volume", stage + "/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"}
-	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)

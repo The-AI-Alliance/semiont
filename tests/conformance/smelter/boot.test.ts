@@ -25,7 +25,6 @@ const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings
   ["the embedding provider's kind", (settings) => ({ ...settings, embedding: { ...settings.embedding, type: undefined } }), /embedding/],
   ["the embedding provider's model", (settings) => ({ ...settings, embedding: { ...settings.embedding, model: undefined } }), /Missing required property: model/],
   ["the embedding provider's address", (settings) => ({ ...settings, embedding: { ...settings.embedding, baseUrl: undefined } }), /Missing required property: baseUrl/],
-  ['the directory of the anchored-text store', (settings) => ({ ...settings, anchoredTextDir: undefined }), /anchoredTextDir/],
   ['how many PDFs it works on at once', (settings) => ({ ...settings, pdfsAtOnce: undefined }), /pdfsAtOnce/],
 ];
 

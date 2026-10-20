@@ -197,7 +197,7 @@ withArchivist('browsing', (world) => {
     ]);
 
     // The entry stands; the writer moves on to another stamp; the entry is no longer taken.
-    writeFileSync(join(world().dirs.anchoredTextDir, 'STAMP'), 'a-newer-smelter\n');
+    await world().stateStamp('a-newer-smelter');
     const other = await world().created(reader, { name: 'Scanned again', storageUri: 'file://scans/again.pdf', format: 'application/pdf', content });
     await world().smelt(other, sha256(content), undefined, 'indexed');
     expect(await world().anchoredText(other)).toEqual({ kind: 'not-yet' });

@@ -73,9 +73,8 @@ RUN apk upgrade --no-cache && apk add --no-cache tini tesseract-ocr tesseract-oc
 # installer.
 RUN pip uninstall --yes --root-user-action=ignore pip
 
-# The uid every service image runs as. The Smelter writes the anchored-text
-# store as this uid, in the directory its document names (`anchoredTextDir`):
-# whoever starts the container mounts the store there, writable by it.
+# The uid every service image runs as. The Smelter mounts nothing: the
+# anchored-text store is the Archivist's, kept over its HTTP surface.
 RUN addgroup --system --gid 1001 semiont && \
     adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 

@@ -41,11 +41,12 @@ Archivist's `GET /resources/{id}/content`: every point carries the checksum of t
 was made from, so anything that changed them on the way would break the check that tells a
 start what to index again.
 
-**It owns the anchored-text store.** What deriving a PDF's text came to (the text with the
-place of each word, or the name the document was declined by) is kept under the checksum of
-the bytes, on a mount of the Smelter's own. It is the store's one writer. The Archivist mounts
-the same directory to read it, and every other process asks the gateway for a resource's
-anchored text. A PDF is read with PDFium, and a page with no text of its own by the
+**It derives the anchored text, and the Archivist keeps it.** What deriving a PDF's text came
+to (the text with the place of each word, or the name the document was declined by) is kept
+under the checksum of the bytes, in the Archivist's anchored-text store. The Smelter is its one
+writer: it states its stamp, stores each entry and reads it back on the Archivist's own surface,
+as its service account, and mounts none of it. Every other process asks the gateway for a
+resource's anchored text. A PDF is read with PDFium, and a page with no text of its own by the
 `tesseract` program.
 
 ## Readers wait on its signal
@@ -94,11 +95,10 @@ It reads one document, the protocol's
 | --- | --- |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
-| `archivist` | where the Archivist listens: the host and the port it reads bytes from |
+| `archivist` | where the Archivist listens: the host and the port it reads bytes from, and keeps the anchored-text store at |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, where it is reached, and, for a provider that takes a key, the name of the variable that holds it |
 | `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind, and where it is reached |
 | `chunking` | the two numbers a text is cut by: a chunk's size, and how much of it the next repeats |
-| `anchoredTextDir` | the directory of the anchored-text store |
 | `port` | the port `/health` answers on |
 | `logLevel`, `logFormat` | how it logs |
 
@@ -136,8 +136,8 @@ starts.
 takes out the images its pages paint; it arrives inside the `pypdfium2` package. The
 `tesseract` program, with its English data, reads those images: a page with no text of its
 own is read from its pixels. Neither reaches the network. The stamp every anchored-text entry
-is written under names the Smelter's version and both engines', so an entry derived by other
-engines is derived again. No more PDFs are worked on at once than its document says
+is written under names both engines' versions and not the Smelter's, so an entry derived by
+other engines is derived again, and a release of the Smelter alone derives nothing again. No more PDFs are worked on at once than its document says
 (`pdfsAtOnce`), however many are waiting: a scanned page held in pixels, beside the `tesseract`
 process reading it, is what fills the Smelter's memory, and the rest of what it does goes on
 beside them. The launcher writes the number the environment states, and otherwise one for each
@@ -159,7 +159,7 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
 | `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |
-| `anchored_text_store.py`, `stamp.py` | The anchored-text store, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
+| `anchored_text_store.py`, `stamp.py` | The Archivist's anchored-text store as the Smelter keeps it, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
 
 What reads a resource's bytes and the reader that asks the Archivist, where an entry of the
 store is filed, and what white space is are every Python service's, in
@@ -194,7 +194,7 @@ checks what a built one promises.
 - [`semiont-vectors`](../../packages/vectors-python/) — the vector stores and the embedding
   providers, and what the index holds
 - [Gateway](../gateway/) — the bus it rides
-- [Archivist](../archivist/) — serves the bytes, and answers reads of anchored text from the
-  store the Smelter writes
+- [Archivist](../archivist/) — serves the bytes, keeps the anchored-text store the Smelter
+  writes to, and answers every read of it
 - [Librarian](../librarian/) — searches the index it writes
 - [Weaver](../weaver/) — the other projection: the same shape, a graph instead of vectors

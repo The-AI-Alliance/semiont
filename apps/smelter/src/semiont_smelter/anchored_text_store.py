@@ -1,19 +1,30 @@
-"""The anchored-text store: what was derived from some bytes, kept in a file under the checksum of those bytes.
+"""The anchored-text store, which the Archivist keeps: what was derived from some bytes, kept under the checksum of those bytes.
 
 Deriving the text of a PDF costs seconds for each page that is read from
 pixels, and the same text is asked for again and again. So what was derived
 is kept: a text with where each of its words is and how it was derived, or
-the decline that came of trying. The Smelter writes an entry, and it and the
-Archivist read it. Everything kept is derived from the bytes, so an entry
-that is not taken costs deriving it again, and nothing else.
+the decline that came of trying. Everything kept is derived from the bytes,
+so an entry that is not taken costs deriving it again, and nothing else.
 
-An entry is the file `<ab>/<cd>/<key>.json` under the store's directory: the
-key is the SHA-256 of the bytes in hex, and `semiont_service.shard` says
-where it is filed. It holds the protocol's `AnchoredTextEntry` as compact
-JSON, `v` and `stamp` first. An entry is its outcome's members, by the names
-the wire gives them, without `kind`, which the entry's own shape says, and
-with the items packed as lines. Each entry is held to the SDK's model of it
-before it is written, and is read through that model.
+The Archivist keeps the store, and no other process mounts it
+(`docs/protocol/ARCHIVIST.md` § The anchored-text store). The Smelter reaches
+it on the Archivist's own surface (`specs/src/archivist/openapi.json`), as
+its service account, at the address its document names:
+
+- an entry is written for a resource's bytes by
+  `PUT /resources/{id}/anchored-text`, with the checksum of the bytes it was
+  derived from: the key it is kept under;
+- it is read back by `GET /resources/{id}/anchored-text/stored`, with the
+  checksum of the bytes that were read, and is answered at once;
+- the keys kept under the stamp are listed by `GET /anchored-text/entries`;
+- the stamp is stated by `PUT /anchored-text/stamp`, once, before the first
+  write or listing.
+
+An entry holds the protocol's `AnchoredTextEntry`, sent as compact JSON with
+`v` and `stamp` first. It is its outcome's members, by the names the wire
+gives them, without `kind`, which the entry's own shape says, and with the
+items packed as lines. Each entry is held to the SDK's model of it before it
+is sent, and is read back through that model.
 
 An entry's bytes are those of the document the model was shown, and not
 those of the model. The model holds a word as four fractions, and written
@@ -22,70 +33,87 @@ word's offsets on as they are stored, to readers that take only a whole
 number for one.
 
 An entry is taken only under the stamp it was written with, which says which
-Smelter, which reader of PDFs and which engine derived it
-(`semiont_smelter.stamp`). The Archivist cannot work a stamp out, so the
-store states its own in the file `STAMP` at the directory's root, the stamp
-and a line feed, before it writes an entry or lists any, whenever the file
-does not hold it already.
-
-`list` reads no entry whole. It names a key where a file is where that key's
-entry is kept and begins with the bytes every entry of this stamp begins
-with: its version and its stamp. `write` makes those bytes, by the function
-`list` compares with, and a file comes to an entry's name whole: it is
-written beside the name and moved onto it. So a key that is listed is read,
-as long as `write` alone puts files there and none is cut short afterwards.
-What `list` does not recognise it passes over. Nothing here deletes an
-entry.
-
-Reading and writing files is work, and no wait: it is done off the loop, at
-`_off_loop` and nowhere else.
+reader of PDFs and which engine derived it (`semiont_smelter.stamp`). The
+Archivist cannot work a stamp out, so the store states its own. Nothing here
+deletes an entry.
 """
 
 import asyncio
-import contextlib
 import json
-import os
 import re
-import uuid
-from collections.abc import Callable, Sequence
-from pathlib import Path
-from typing import Final, final
+from collections.abc import Sequence
+from types import TracebackType
+from typing import Final, Protocol, Self, final, override
 
-from pydantic import JsonValue, TypeAdapter
+import httpx
+from pydantic import JsonValue, TypeAdapter, ValidationError
+from semiont.errors import SemiontError
+from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import (
     AnchoredTextDeclinedEntry,
+    AnchoredTextEntries,
     AnchoredTextEntry,
     AnchoredTextExtractedEntry,
     ExtractedText,
     ExtractionOutcome,
     PdfTextItem,
 )
-from semiont_service.shard import shard_path
+from semiont_service.archivist import Authorizes
 
-__all__ = ["AnchoredTextStore"]
+from semiont_smelter.log import LOG, words_of
+
+__all__ = ["AnchoredTextStore", "AnchoredTexts", "StoreFailed"]
 
 _VERSION: Final = 3
 """The entry format, which says what an entry's numbers mean. The entry's model takes no other."""
 
-_STAMP_FILE: Final = "STAMP"
-"""The file in which the store states its stamp, for a reader that cannot work the stamp out."""
+_TIMEOUT: Final = httpx.Timeout(60.0, connect=10.0)
+"""How long the Archivist is waited for: ten seconds to connect, and a minute for each part of an answer.
 
-_ENTRY_SUFFIX: Final = ".json"
+No bound is put on a whole answer: a large entry takes as long as it takes,
+as long as it keeps coming.
+"""
 
-_VALID_KEY: Final = re.compile(r"[A-Za-z0-9_-]+")
-"""A key the store files: letters, digits, `_` and `-`. Any other is refused whole, and no part of it is dropped to make one."""
+_STAMP: Final = re.compile(r"\S+")
+"""A stamp the Archivist keeps: text with no white space, since it keeps it as a file of one line."""
 
-_SHARD_NAME: Final = re.compile(r"[0-9a-f]{2}")
-"""The name of a directory entries are filed under, at either level."""
+_OK: Final = 200
+_DONE: Final = 204
+_NOT_FOUND: Final = 404
+_STALE: Final = 409
+
+_UNREAD: Final = "An anchored-text entry was not read back, and is derived again"
+"""What is said of a read the Archivist did not answer."""
 
 _ENTRY: Final = TypeAdapter[AnchoredTextEntry](AnchoredTextEntry)
 _OUTCOME: Final = TypeAdapter[ExtractionOutcome](ExtractionOutcome)
 
 
-async def _off_loop[**P, T](work: Callable[P, T], *arguments: P.args, **named: P.kwargs) -> T:
-    """Do file work off the loop, on a thread (`asyncio.to_thread`). Every call of the store comes through here."""
-    return await asyncio.to_thread(work, *arguments, **named)
+@final
+class StoreFailed(Exception):
+    """The Archivist did not do what the store asked of it: it was not reached, the account could not sign in, or it refused."""
+
+
+class AnchoredTexts(Protocol):
+    """What the Smelter keeps of what it derived, and asks back: the store kept by the Archivist is one."""
+
+    async def read(self, resource_id: ResourceId, key: str) -> ExtractionOutcome | None:
+        """The outcome kept under `key`, the checksum of the resource's bytes as they were read, or `None` for any miss. Never raises."""
+        ...
+
+    async def write(self, resource_id: ResourceId, key: str, outcome: ExtractionOutcome) -> None:
+        """Keep an outcome under `key`, the checksum of the resource's bytes it was derived from.
+
+        Raises `ValueError` for an outcome that makes no entry
+        (`ValidationError` is one), and `StoreFailed` where it was not kept.
+        """
+        ...
+
+    # The last member: below this one, `list` in a signature would name this method.
+    async def list(self) -> list[str]:
+        """Every key `read` would answer an outcome for, in order. Raises `StoreFailed` where they could not be listed."""
+        ...
 
 
 def _compact(document: dict[str, JsonValue]) -> str:
@@ -94,11 +122,6 @@ def _compact(document: dict[str, JsonValue]) -> str:
     Raises `ValueError` for a number that is not finite: JSON has none.
     """
     return json.dumps(document, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-
-
-def _head(stamp: str) -> bytes:
-    """The bytes every entry of a stamp begins with: its version, its stamp, and the comma before its next member."""
-    return (_compact({"v": _VERSION, "stamp": stamp})[:-1] + ",").encode("utf-8")
 
 
 def _lines(items: Sequence[PdfTextItem]) -> list[JsonValue]:
@@ -176,145 +199,130 @@ def _outcome_of(entry: AnchoredTextEntry) -> ExtractionOutcome:
     return _OUTCOME.validate_python({"kind": "extracted", "items": items, **wire})
 
 
-def _held(path: Path) -> bytes | None:
-    """What a file holds. `None` for one that is not there, or cannot be read."""
+def _said(answer: httpx.Response) -> str:
+    """What an answer that is not the one asked for says: its status, and its body's `error` where it states one."""
     try:
-        return path.read_bytes()
-    except OSError:
-        return None
-
-
-def _begins(path: Path, head: bytes) -> bool:
-    """Whether a file begins with `head`. No more of it is read than that. False for what is no file, or cannot be read."""
-    try:
-        with path.open("rb") as file:
-            return file.read(len(head)) == head
-    except OSError:
-        return False
-
-
-def _names(directory: Path) -> list[str]:
-    """The names in a directory. None for a directory that is not there, or cannot be read."""
-    try:
-        return os.listdir(directory)
-    except OSError:
-        return []
-
-
-def _put(path: Path, content: bytes) -> None:
-    """Write a file whole: beside its name, under a name no other write has, and then moved onto its name.
-
-    A reader finds the file as it was or as it is, and never half of it, and
-    two writes of one file at once do not write into each other. Raises
-    `OSError` where the file cannot be written, and leaves nothing beside it.
-    """
-    beside = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        beside.write_bytes(content)
-        beside.replace(path)
-    except OSError:
-        with contextlib.suppress(OSError):
-            beside.unlink(missing_ok=True)
-        raise
+        said: JsonValue = json.loads(answer.content)
+    except ValueError:
+        said = None
+    error = said.get("error") if isinstance(said, dict) else None
+    return f"{answer.status_code}: {error}" if isinstance(error, str) else str(answer.status_code)
 
 
 @final
-class AnchoredTextStore:
-    """The entries under one directory, as one stamp reads and writes them. See the module's documentation.
+class AnchoredTextStore(AnchoredTexts):
+    """The store the Archivist at `host` and `port` keeps, under one stamp, asked as the account `account` for the service `service`.
 
-    Raises `ValueError` for a stamp that is empty or has space around it:
-    the Archivist reads the stated stamp without the space around it, and
-    would take no entry written under such a one.
+    Held with `async with`: its connections are closed on the way out.
+    Raises `ValueError` for a stamp that is empty or has white space in it:
+    the Archivist keeps no such one.
     """
 
-    def __init__(self, directory: Path, *, stamp: str) -> None:
-        if stamp == "" or stamp != stamp.strip():
-            raise ValueError(f"an anchored-text store's stamp is text with no space around it, and {stamp!r} is not")
-        self._directory: Final = directory
+    def __init__(self, service: str, *, host: str, port: int, account: Authorizes, stamp: str) -> None:
+        if _STAMP.fullmatch(stamp) is None:
+            raise ValueError(f"an anchored-text store's stamp is text with no white space, and {stamp!r} is not")
+        self._service: Final = service
+        self._origin: Final = f"http://{host}:{port}"
+        self._account: Final = account
         self._stamp: Final = stamp
-        self._head: Final = _head(stamp)
+        self._client: httpx.AsyncClient | None = None
+        self._stated = False
+        self._stating: Final = asyncio.Lock()
 
-    def _path_of(self, key: str) -> Path | None:
-        """Where a key's entry is kept. `None` for a key the store refuses."""
-        if _VALID_KEY.fullmatch(key) is None:
+    async def __aenter__(self) -> Self:
+        self._client = httpx.AsyncClient(base_url=self._origin, timeout=_TIMEOUT, trust_env=False)
+        return self
+
+    async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
+        client, self._client = self._client, None
+        if client is not None:
+            await client.aclose()
+
+    async def _asked(self, method: str, path: str, *, query: dict[str, str] | None = None, body: bytes | None = None) -> httpx.Response:
+        """One request of the Archivist, as the account.
+
+        Raises `StoreFailed` where the account could not sign in or the Archivist did not answer.
+        """
+        if self._client is None:
+            raise RuntimeError("the anchored-text store is not open: hold it with `async with`")
+        try:
+            authorization = await self._account.authorization()
+        except SemiontError as failure:
+            raise StoreFailed(f"{method} {path} was not asked: the {self._service} could not sign in ({failure})") from failure
+        headers = {"Authorization": authorization}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        try:
+            return await self._client.request(method, path, params=query, content=body, headers=headers)
+        except httpx.HTTPError as failure:
+            raise StoreFailed(f"the Archivist did not answer {method} {path}: {type(failure).__name__}: {failure}") from failure
+
+    async def _state_stamp(self) -> None:
+        """State this store's stamp to the Archivist, the first time it is needed. Raises `StoreFailed` where it was not stated."""
+        async with self._stating:
+            if self._stated:
+                return
+            answer = await self._asked("PUT", "/anchored-text/stamp", body=_compact({"stamp": self._stamp}).encode("utf-8"))
+            if answer.status_code != _DONE:
+                raise StoreFailed(f"the Archivist did not take the stamp {self._stamp}: {_said(answer)}")
+            self._stated = True
+
+    @override
+    async def read(self, resource_id: ResourceId, key: str) -> ExtractionOutcome | None:
+        """The outcome kept under `key`, or `None` for any miss. Never raises.
+
+        A miss is bytes with no entry, bytes the resource no longer has, an
+        entry of another version or under another stamp, an answer that is
+        no entry, and an Archivist that did not answer. Each costs deriving
+        the text again; one the Archivist did not answer is said.
+        """
+        try:
+            answer = await self._asked("GET", f"/resources/{resource_id}/anchored-text/stored", query={"contentChecksum": key})
+        except StoreFailed as failure:
+            LOG.warning(_UNREAD, extra={"resourceId": resource_id, "contentChecksum": key, "error": words_of(failure)})
             return None
-        ab, cd = shard_path(key)
-        return self._directory / ab / cd / f"{key}{_ENTRY_SUFFIX}"
-
-    def _state_stamp(self) -> None:
-        """State this store's stamp in the directory, unless the directory states it already. Raises `OSError` where it cannot."""
-        stated = f"{self._stamp}\n".encode()
-        path = self._directory / _STAMP_FILE
-        if _held(path) != stated:
-            self._directory.mkdir(parents=True, exist_ok=True)
-            _put(path, stated)
-
-    def _read(self, key: str) -> ExtractionOutcome | None:
-        path = self._path_of(key)
-        if path is None:
+        if answer.status_code in (_NOT_FOUND, _STALE):
+            return None
+        if answer.status_code != _OK:
+            LOG.warning(_UNREAD, extra={"resourceId": resource_id, "contentChecksum": key, "error": _said(answer)})
             return None
         try:
-            entry = _ENTRY.validate_json(path.read_bytes())
+            entry = _ENTRY.validate_json(answer.content)
             return _outcome_of(entry) if entry.stamp == self._stamp else None
-        except (OSError, ValueError):
-            # Not there, not readable, cut short, no JSON or no entry: each is a miss. What a model refuses is a `ValueError`.
+        except ValueError:
+            # No JSON, no entry, or words that are no items: each is a miss. What a model refuses is a `ValueError`.
             return None
 
-    def _write(self, key: str, outcome: ExtractionOutcome) -> None:
-        path = self._path_of(key)
-        if path is None:
-            raise ValueError(f"the anchored-text store files nothing under the key {key!r}")
-        content = _compact(_entry_of(outcome, self._stamp)).encode("utf-8")
-        self._state_stamp()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _put(path, content)
-
-    def _list(self) -> list[str]:
-        # The stamp is stated before its entries are counted as there: a Smelter that finds every text derived
-        # writes none, and the Archivist takes an entry only under a stamp that is stated.
-        with contextlib.suppress(OSError):
-            self._state_stamp()
-        keys: list[str] = []
-        for ab in _names(self._directory):
-            if _SHARD_NAME.fullmatch(ab) is None:
-                continue
-            for cd in _names(self._directory / ab):
-                if _SHARD_NAME.fullmatch(cd) is None:
-                    continue
-                for name in _names(self._directory / ab / cd):
-                    path = self._directory / ab / cd / name
-                    key = name.removesuffix(_ENTRY_SUFFIX)
-                    # A file is a key's entry only where `read` looks for that key: under the key's own shard, by its own name.
-                    if path == self._path_of(key) and _begins(path, self._head):
-                        keys.append(key)
-        return sorted(keys)
-
-    async def read(self, key: str) -> ExtractionOutcome | None:
-        """The outcome kept under a key, or `None` for any miss. Never raises.
-
-        A miss is a key with no entry, an entry of another version or under
-        another stamp, a file that is cut short, is no JSON or is no entry,
-        and a key the store refuses. Nothing is written, and an entry that
-        is not taken is left where it is.
-        """
-        return await _off_loop(self._read, key)
-
-    async def write(self, key: str, outcome: ExtractionOutcome) -> None:
+    @override
+    async def write(self, resource_id: ResourceId, key: str, outcome: ExtractionOutcome) -> None:
         """Keep an outcome under the checksum of the bytes it was derived from, having stated this store's stamp.
 
-        A write that returns has written. Raises `ValueError` for a key
-        that is not letters, digits, `_` and `-`, and for an outcome that
-        makes no entry (`ValidationError` is one); `OSError` where the file
-        cannot be written. Nothing is left beside the entry either way.
+        A write that returns has been kept. Raises `ValueError` for an
+        outcome that makes no entry (`ValidationError` is one), before
+        anything is sent; `StoreFailed` where the Archivist did not keep it,
+        bytes the resource no longer has among them.
         """
-        await _off_loop(self._write, key, outcome)
+        body = _compact({"contentChecksum": key, "entry": _entry_of(outcome, self._stamp)}).encode("utf-8")
+        await self._state_stamp()
+        try:
+            answer = await self._asked("PUT", f"/resources/{resource_id}/anchored-text", body=body)
+        except StoreFailed as failure:
+            raise StoreFailed(f"the anchored text of {resource_id} for {key} was not kept: {failure}") from failure
+        if answer.status_code != _DONE:
+            raise StoreFailed(f"the Archivist did not keep the anchored text of {resource_id} for {key}: {_said(answer)}")
 
     # The last member of the class: below this one, `list` in a signature would name this method.
+    @override
     async def list(self) -> list[str]:
-        """Every key `read` would answer an outcome for, in order, having stated this store's stamp. Never raises.
+        """Every key `read` would answer an outcome for, in order, having stated this store's stamp.
 
-        What is under the directory and is no entry of this stamp is passed
-        over, and left there. See the module's documentation for what a
-        listed key rests on.
+        Raises `StoreFailed` where they could not be listed.
         """
-        return await _off_loop(self._list)
+        await self._state_stamp()
+        answer = await self._asked("GET", "/anchored-text/entries")
+        if answer.status_code != _OK:
+            raise StoreFailed(f"the Archivist did not list the anchored-text store: {_said(answer)}")
+        try:
+            return sorted(AnchoredTextEntries.model_validate_json(answer.content).checksums)
+        except ValidationError as failure:
+            raise StoreFailed(f"the Archivist's listing of the anchored-text store is no listing: {failure}") from failure

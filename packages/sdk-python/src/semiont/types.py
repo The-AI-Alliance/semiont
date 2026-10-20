@@ -21,6 +21,8 @@ __all__ = [
     "AnchoredTextAnswer",
     "AnchoredTextDeclinedEntry",
     "AnchoredTextDeclinedEntryDeclined",
+    "AnchoredTextEntries",
+    "AnchoredTextEntriesChecksumsItem",
     "AnchoredTextEntry",
     "AnchoredTextExtractedEntry",
     "AnchoredTextExtractedEntryLinesItem",
@@ -28,6 +30,8 @@ __all__ = [
     "AnchoredTextExtractedEntryMethod",
     "AnchoredTextExtractedEntryOcrConfidence",
     "AnchoredTextExtractedEntryPdfClass",
+    "AnchoredTextStamp",
+    "AnchoredTextWrite",
     "Annotation",
     "AnnotationAddedPayload",
     "AnnotationBodies",
@@ -2822,6 +2826,21 @@ class StorageUriEntry(WireModel, frozen=True, extra="forbid"):
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
+class AnchoredTextStamp(WireModel, frozen=True, extra="forbid"):
+    """
+    The stamp an anchored-text store's entries are taken under: which PDF reader and which OCR engine derived them. Its writer states it before it writes or lists an entry; an entry stored under another stamp is answered to no reader.
+    """
+
+    stamp: Annotated[
+        str,
+        Field(
+            description="The stamp: no white space, since it is held in a file of one line.",
+            min_length=1,
+            pattern="^\\S+$",
+        ),
+    ]
+
+
 class MarkDelegateTimeoutEvent(WireModel, frozen=True):
     """
     The payload of `mark:delegate-timeout`, a client-local signal: a delegated job went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
@@ -3538,7 +3557,7 @@ class SmelterConfigIdentity(WireModel, frozen=True, extra="forbid"):
 
 class SmelterConfigArchivist(WireModel, frozen=True, extra="forbid"):
     """
-    Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+    Where the Archivist listens. The Smelter reads a resource's bytes from it, and keeps the anchored-text store there, as its service account.
     """
 
     host: Annotated[str, Field(min_length=1)]
@@ -3681,6 +3700,15 @@ class AnchoredTextExtractedEntryOcrConfidence(WireModel, frozen=True):
 type AnchoredTextDeclinedEntryDeclined = Annotated[
     Literal["no-text-layer", "encrypted", "corrupt", "too-large"],
     Field(description="Why extraction yielded nothing, by class."),
+]
+
+
+type AnchoredTextEntriesChecksumsItem = Annotated[
+    str,
+    Field(
+        description="The SHA-256 of the bytes the text was derived from, as 64 lower-case hexadecimal digits: the key the entry is filed under.",
+        pattern="^[0-9a-f]{64}$",
+    ),
 ]
 
 
@@ -5156,11 +5184,19 @@ class AnchoredTextDeclinedEntry(WireModel, frozen=True, extra="forbid"):
     stamp: Annotated[
         str,
         Field(
-            description="The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.",
+            description="The stamp the entry was derived under: the PDF reader's and the OCR engine's. A reader takes the entry only when it equals the stamp the Smelter last stated.",
             min_length=1,
         ),
     ]
     declined: AnchoredTextDeclinedEntryDeclined
+
+
+class AnchoredTextEntries(WireModel, frozen=True, extra="forbid"):
+    """
+    The keys of the entries the anchored-text store holds under the stamp last stated: one checksum for each set of bytes whose text is stored, in no order.
+    """
+
+    checksums: list[AnchoredTextEntriesChecksumsItem]
 
 
 class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
@@ -5869,14 +5905,6 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
     embedding: EmbeddingConfig
     vectors: VectorsConfig
     chunking: SmelterConfigChunking
-    anchored_text_dir: Annotated[
-        str,
-        Field(
-            alias="anchoredTextDir",
-            description="The anchored-text store the Smelter writes and the Archivist reads.",
-            min_length=1,
-        ),
-    ]
     pdfs_at_once: Annotated[
         int,
         Field(
@@ -5926,7 +5954,7 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     stamp: Annotated[
         str,
         Field(
-            description="The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.",
+            description="The stamp the entry was derived under: the PDF reader's and the OCR engine's. A reader takes the entry only when it equals the stamp the Smelter last stated.",
             min_length=1,
         ),
     ]
@@ -6488,9 +6516,25 @@ class ResourceView(WireModel, frozen=True, extra="forbid"):
 type AnchoredTextEntry = Annotated[
     AnchoredTextExtractedEntry | AnchoredTextDeclinedEntry,
     Field(
-        description="One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter writes it; the Archivist reads it. Written as compact JSON, `v` and `stamp` first, by writing a sibling temporary file and renaming it onto the path. The store's writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root."
+        description="One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter derives it and stores it over the Archivist's HTTP surface (`AnchoredTextWrite`); the Archivist writes it, as compact JSON with `v` and `stamp` first, to a sibling temporary file renamed onto the path. The stamp the Smelter states (`AnchoredTextStamp`) is kept, followed by a newline, in the file `STAMP` at the store's root."
     ),
 ]
+
+
+class AnchoredTextWrite(WireModel, frozen=True, extra="forbid"):
+    """
+    A write of an anchored-text entry for the bytes of one resource: what the Smelter derived from them, and their checksum. The Archivist files the entry under the checksum, so every resource whose bytes those are has it, and refuses the write when the resource's first representation has other bytes.
+    """
+
+    content_checksum: Annotated[
+        str,
+        Field(
+            alias="contentChecksum",
+            description="The SHA-256 of the bytes the text was derived from, as 64 lower-case hexadecimal digits: the key the entry is filed under.",
+            pattern="^[0-9a-f]{64}$",
+        ),
+    ]
+    entry: AnchoredTextEntry
 
 
 class ArchivistRoster(WireModel, frozen=True, extra="forbid"):

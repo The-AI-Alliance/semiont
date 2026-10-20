@@ -786,23 +786,8 @@ func flowNoWorker(x executor, fc flowCtx, noun string) {
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, otel []string) int {
 	spec := semiontDescriptor(sc.svc)
 	x.banner(startBanner(fc, sc.noun))
-	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
-	// rather than reaching it over the content transport — and it owns the
-	// STAMP too, stamped with its own image. That pairing is the point: the
-	// stamp names the code whose output the store holds, so an image change
-	// clears and re-derives. The worker and weaver mount no store.
-	//
-	// Exactly one service may take the stamped path — the Archivist mounts
-	// the same store SHARED (stateMountsShared) and only reads it, and the
-	// gateway mounts none of it.
-	var extra []string
-	if sc.svc == "smelter" {
-		m, ok := x.stateMounts("anchored-text", image("smelter", fc.version), fc.root)
-		if !ok {
-			return 1
-		}
-		extra = m
-	}
+	// No sidecar mounts a store: the Smelter keeps its anchored text on the
+	// Archivist's surface, and the worker and the Weaver keep nothing.
 	clientSecret, ok := x.serviceClientSecret(fc.root, sc.svc)
 	if !ok {
 		return 1
@@ -813,7 +798,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	case "worker":
 		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
 	case "smelter":
-		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel, extra...)
+		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
 	case "weaver":
 		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
 	}
@@ -839,9 +824,8 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 // boot-time bus requests are answered here and must find the pumps attached.
 func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Archivist"))
-	// anchored-text is a shared read (the Smelter holds that stamp); the
-	// state tree is the inverse — the Archivist holds it as the projection
-	// writer.
+	// The anchored-text store is the Archivist's alone and no image stamps
+	// it; the state tree it stamps, as the projection writer.
 	extra, ok := x.stateMountsShared("anchored-text", fc.root)
 	if !ok {
 		return 1

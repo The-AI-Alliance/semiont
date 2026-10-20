@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "The keys of the entries the anchored-text store holds under the stamp last stated: one checksum for each set of bytes whose text is stored, in no order.",
+  "properties": {
+    "checksums": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "The SHA-256 of the bytes the text was derived from, as 64 lower-case hexadecimal digits: the key the entry is filed under."
+      }
+    }
+  },
+  "required": [
+    "checksums"
+  ],
+  "additionalProperties": false
+}

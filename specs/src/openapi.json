@@ -1053,6 +1053,15 @@
       "AnchoredTextDeclinedEntry": {
         "$ref": "components/schemas/AnchoredTextDeclinedEntry.json"
       },
+      "AnchoredTextEntries": {
+        "$ref": "components/schemas/AnchoredTextEntries.json"
+      },
+      "AnchoredTextStamp": {
+        "$ref": "components/schemas/AnchoredTextStamp.json"
+      },
+      "AnchoredTextWrite": {
+        "$ref": "components/schemas/AnchoredTextWrite.json"
+      },
       "ArchivistRoster": {
         "$ref": "components/schemas/ArchivistRoster.json"
       },

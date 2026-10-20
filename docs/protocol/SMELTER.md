@@ -56,8 +56,8 @@ its kind, its model and where it is reached, with the name of the environment
 variable that holds its key, for a provider that takes one); the vector index
 ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json): its
 kind, and what that kind needs to be reached); the two numbers a text is cut
-by, a chunk's size and how far one chunk overlaps the next; the directory of
-the anchored-text store; how many PDFs it works on at once; the port its
+by, a chunk's size and how far one chunk overlaps the next; how many PDFs it
+works on at once; the port its
 health answers on; and how it logs.
 Whoever starts a Smelter writes it: the launcher for the Smelter it starts,
 and anyone else to the same schema.
@@ -68,8 +68,7 @@ and anyone else to the same schema.
   value found there. *Held by `apps/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
   vector database's host, the embedding provider's kind, model or address,
-  the directory of the anchored-text store, or how many PDFs it works on at
-  once, it refuses to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  or how many PDFs it works on at once, it refuses to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An index that lives in one process's memory is refused.** Nothing else
   could search it. *Held by `apps/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
@@ -106,8 +105,9 @@ gateway, and reads bytes from the Archivist.
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).
   *Held by `apps/smelter/tests/test_smelter.py`.*
-- **It writes the vector index and the anchored-text store, and nothing
-  else.** It records nothing: no event is its.
+- **It writes the vector index, and the anchored-text store through the
+  Archivist, and nothing else.** It records nothing, no event is its, and it
+  writes no file.
   *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
 
 ## What each event does
@@ -320,9 +320,12 @@ states what each kind of document becomes.
 
 ### The anchored-text store
 
-- **The Smelter is the store's only writer.** The Archivist reads it, and
-  answers a resource's anchored text from it
-  ([ARCHIVIST.md](./ARCHIVIST.md#the-http-surface)). *Held by `smelter/pdf`.*
+- **The Smelter is the store's only writer, and the Archivist keeps it.** The
+  Smelter states its stamp, stores each entry and reads it back on the
+  Archivist's own surface, as its service account, and mounts none of the
+  store ([ARCHIVIST.md](./ARCHIVIST.md#the-http-surface)). The Archivist
+  answers a resource's anchored text from it.
+  *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
   [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
@@ -339,11 +342,12 @@ states what each kind of document becomes.
   indexed.** The entry is found missing when the Smelter next starts
   ([Reconcile](#reconcile)).
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
-- **The writer states its stamp:** the store's directory holds a file,
-  `STAMP`, with the stamp its entries carry, and a reader takes no entry
-  under another, nor one of another version of the entry's form. An entry
-  made by a Smelter that derives text another way is then a miss, and is
-  derived again.
+- **The Smelter states its stamp,** once, before it stores or lists an entry,
+  and the Archivist keeps it: a reader takes no entry under another stamp,
+  nor one of another version of the entry's form. The stamp
+  names the PDF reader and the OCR engine, and not the Smelter's version: an
+  entry made by another reader or engine is a miss, and is derived again; one
+  made by another release of the Smelter is not.
   *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 
 ## The index
@@ -670,7 +674,9 @@ it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
   A change to how a Smelter makes a point that is neither of those (where it
   cuts at a boundary, what it tells its provider a text is for, how it
   derives a document's text) is in no stamp, and an index made before such a
-  change is not made again.
+  change is not made again. Nor is an anchored-text entry: its stamp names
+  the reader and the engine, and a change in how the Smelter's own code
+  derives a text from what they read is in neither.
 - **Events it does not follow.** `yield:moved` and
   `yield:representation-removed` change a resource, and the index is not
   told of either as it happens.

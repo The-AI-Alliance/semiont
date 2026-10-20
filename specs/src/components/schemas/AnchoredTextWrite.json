@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "A write of an anchored-text entry for the bytes of one resource: what the Smelter derived from them, and their checksum. The Archivist files the entry under the checksum, so every resource whose bytes those are has it, and refuses the write when the resource's first representation has other bytes.",
+  "properties": {
+    "contentChecksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The SHA-256 of the bytes the text was derived from, as 64 lower-case hexadecimal digits: the key the entry is filed under."
+    },
+    "entry": {
+      "$ref": "./AnchoredTextEntry.json"
+    }
+  },
+  "required": [
+    "contentChecksum",
+    "entry"
+  ],
+  "additionalProperties": false
+}

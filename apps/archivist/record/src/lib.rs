@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 
 pub mod agents;
+pub mod anchored_text;
 pub mod ids;
 pub mod index;
 pub mod kb;
