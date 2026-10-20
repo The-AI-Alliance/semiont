@@ -2884,17 +2884,6 @@ type BrowseAnnotationResult struct {
 	Response GetAnnotationResponse `json:"response"`
 }
 
-// BrowseAnnotationsRequest Request to browse annotations for a resource
-type BrowseAnnotationsRequest struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
-// BrowseAnnotationsResult Result of browsing annotations for a resource
-type BrowseAnnotationsResult struct {
-	Response GetAnnotationsResponse `json:"response"`
-}
-
 // BrowseClickEvent An annotation was clicked — open it: the viewer selects its entry in the annotations panel and relays a focus signal to scroll to it. The annotation id is the whole address; it identifies exactly one annotation on exactly one resource, so no resource field is carried and none is needed to scope the event. Motivation is NOT on the wire either: the viewer derives it from the annotation the id names, so the wire states the fact once. A viewer that has not loaded that annotation finds nothing and does nothing. Emitted locally by every clickable annotation surface, and over the wire by a driver opening an annotation on another participant's screen.
 type BrowseClickEvent struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3049,9 +3038,15 @@ type BrowseResourceRequest struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// BrowseResourceResult Result of browsing a single resource
+// BrowseResourceResult A resource's descriptor, and the sequence number of the last of its events the descriptor reflects. Its annotations are not here: their number follows the document's, so they are read over HTTP (`GET /resources/{id}/annotations`).
 type BrowseResourceResult struct {
-	Response GetResourceResponse `json:"response"`
+	Response struct {
+		// LastSequence The sequence number of the resource's last event. A graph read that follows a write waits for the graph projection to reach it.
+		LastSequence int `json:"lastSequence"`
+
+		// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+		Resource ResourceDescriptor `json:"resource"`
+	} `json:"response"`
 }
 
 // BrowseResourceViewedEvent REPORT that a resource has loaded in a viewer — emitted on arrival by ANY means: a followed cue, an in-app link, the back button, a typed URL. Deliberately distinct from the imperative browse:resource-open: drive and report never share a channel, or the driver hears its own commands and one viewer's arrival steers another's page.
@@ -4070,9 +4065,6 @@ type GetResourceByTokenResponse struct {
 type GetResourceResponse struct {
 	// Annotations All annotations for the resource (highlights, references, assessments, etc.)
 	Annotations []Annotation `json:"annotations"`
-
-	// EntityReferences Annotations that reference this resource from other resources
-	EntityReferences []Annotation `json:"entityReferences"`
 
 	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
 	Resource ResourceDescriptor `json:"resource"`

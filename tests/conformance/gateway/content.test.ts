@@ -213,7 +213,6 @@ eachPlane('content', (world) => {
         world().archivist.descriptions.set(id, {
           resource: { '@context': 'https://schema.org/', '@id': 'res-stored', name: 'Stored', representations: [] },
           annotations: [],
-          entityReferences: [],
         });
         world().archivist.annotations.set(id, { annotations: [], total: 0 });
         world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
@@ -247,7 +246,6 @@ eachPlane('content', (world) => {
     const description = {
       resource: { '@context': 'https://schema.org/', '@id': id, name: 'Described', representations: [{ mediaType: 'text/plain' }] },
       annotations: [],
-      entityReferences: [],
     };
     world().archivist.descriptions.set(id, description);
     const token = await world().person('reader');

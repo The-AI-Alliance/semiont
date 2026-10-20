@@ -163,6 +163,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                     index=started.index,
                     provider=started.provider,
                     content=content,
+                    annotations=content,
                     extractor=PdfExtractor(reader=reader, engine=engine),
                     anchored=anchored,
                     transport=transport,

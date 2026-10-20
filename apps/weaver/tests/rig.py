@@ -1,7 +1,8 @@
 """A Weaver for a test: a real one, over a transport a test scripts and a graph in the process.
 
 What stands in for the Archivist is the test itself: it says what the record
-holds, and the rig answers the Weaver's three reads from that. The catalog
+holds, and the rig answers the Weaver's three reads from that: two over the
+bus, and a resource's annotations through the content transport. The catalog
 and each resource's annotations are answered as a view holds them, which here
 is what a second graph, folded from the same record, holds.
 """
@@ -12,14 +13,14 @@ import tempfile
 from collections.abc import Coroutine, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Final, Self, final
+from typing import Final, Self, final, override
 
 from pydantic import JsonValue
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.testing import FaultyTransport
-from semiont.transport import Frame
-from semiont.types import StoredEventResponse
+from semiont.transport import Content, ContentStream, ContentTransport, Frame, PutBinaryRequest, Upload
+from semiont.types import AnchoredTextAnswer, GetAnnotationsResponse, GetResourceResponse, StoredEventResponse
 from semiont_graph.interface import ResourceQuery
 from semiont_graph.memory import MemoryGraphDatabase
 from spec import JsonObject
@@ -101,6 +102,39 @@ def added(resource: str, sequence: int, annotation: str, *body: JsonValue, **fie
 
 
 @final
+class ViewsContent(ContentTransport):
+    """The content transport, answering a resource's annotations as `views` holds them when they are asked for, and refusing the rest."""
+
+    def __init__(self, views: MemoryGraphDatabase) -> None:
+        self._views: Final = views
+
+    @override
+    def put_binary(self, request: PutBinaryRequest) -> Upload:
+        raise AssertionError("the Weaver uploaded, which it is not to")
+
+    @override
+    async def get_binary(self, resource_id: ResourceId) -> Content:
+        raise AssertionError("the Weaver read bytes, which it is not to")
+
+    @override
+    async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
+        raise AssertionError("the Weaver read bytes, which it is not to")
+
+    @override
+    async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
+        raise AssertionError("the Weaver read a description as linked data, which it is not to")
+
+    @override
+    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        annotations = await self._views.get_resource_annotations(resource_id)
+        return GetAnnotationsResponse(annotations=annotations, total=len(annotations))
+
+    @override
+    async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
+        raise AssertionError("the Weaver read anchored text, which it is not to")
+
+
+@final
 class Rig:
     """Held with `async with`: a Weaver that is following from the way in to the way out."""
 
@@ -117,7 +151,7 @@ class Rig:
         self.transport.refuse_when(self._refuse)
         self._home: Final = tempfile.TemporaryDirectory()
         self.kept: Final = Path(self._home.name) / "marks.json" if kept is None else kept
-        self.weaver: Final = Weaver(self.graph, self.transport, Checkpoint(self.kept))
+        self.weaver: Final = Weaver(self.graph, self.transport, ViewsContent(self.views), Checkpoint(self.kept))
 
     async def __aenter__(self) -> Self:
         await self.graph.connect()
@@ -171,9 +205,6 @@ class Rig:
         if operation == "browse:events-requested":
             events: list[JsonValue] = [{**stored, "agent": ADA} for stored in self.record.get(resource, [])]
             return {"events": events, "total": len(events), "resourceId": resource}
-        if operation == "browse:annotations-requested":
-            annotations: list[JsonValue] = [written(held) for held in _now(self.views.get_resource_annotations(ResourceId(resource)))]
-            return {"annotations": annotations, "total": len(annotations)}
         raise AssertionError(f"the Weaver asked {operation}, which it is not to")
 
     # ── What the Weaver did ────────────────────────────────────────────

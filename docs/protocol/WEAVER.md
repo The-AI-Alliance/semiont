@@ -74,9 +74,10 @@ weaver)`, and reaches everything but the graph through the gateway.
   a resource's stream passes it by, and moves no mark of its.
   *Held by `weaver/record`.*
 - **It reads history from the Archivist, over the bus:** the catalog
-  (`browse:resources-requested`, a page at a time), a resource's events
-  (`browse:events-requested`) and a resource's annotations
-  (`browse:annotations-requested`). It opens no file of the record.
+  (`browse:resources-requested`, a page at a time) and a resource's events
+  (`browse:events-requested`); and a resource's annotations through the
+  gateway, `GET /resources/{id}/annotations`, whose answer follows the
+  document's size and so is no bus read. It opens no file of the record.
   *Held by `weaver/repair`.*
 - **It answers one command,** `weave:rebuild` ([Rebuild](#rebuild)), and
   emits one signal, `weave:applied` ([What it has applied](#what-it-has-applied)).

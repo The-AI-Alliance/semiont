@@ -56,6 +56,44 @@
       "type": "string",
       "pattern": "^[A-Za-z][A-Za-z0-9]*$"
     },
+    "fetch": {
+      "oneOf": [
+        {
+          "description": "A request on the bus, on this channel; `as` names its correlation id, for the backend to answer.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fetch",
+            "as"
+          ],
+          "properties": {
+            "fetch": {
+              "type": "string",
+              "pattern": "^[a-z]+:[a-z-]+$"
+            },
+            "payload": {},
+            "as": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "A read over HTTP, an operation of the gateway's API by its method and path, with the values its path carries; the stand-in Archivist answers it from what the case seeded.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fetch"
+          ],
+          "properties": {
+            "fetch": {
+              "type": "string",
+              "pattern": "^GET /"
+            },
+            "params": {}
+          }
+        }
+      ]
+    },
     "step": {
       "oneOf": [
         {
@@ -442,22 +480,8 @@
           }
         },
         {
-          "description": "Live: the next request the client makes of a service is on this channel; `as` names its correlation id, for the backend to answer.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "fetch",
-            "as"
-          ],
-          "properties": {
-            "fetch": {
-              "type": "string"
-            },
-            "payload": {},
-            "as": {
-              "$ref": "#/definitions/name"
-            }
-          }
+          "description": "Live: the next request the client makes of a service is this one.",
+          "$ref": "#/definitions/fetch"
         },
         {
           "description": "Live: the next requests the client makes of a service are these, in whatever order it makes them.",
@@ -471,21 +495,7 @@
               "type": "array",
               "minItems": 2,
               "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "fetch",
-                  "as"
-                ],
-                "properties": {
-                  "fetch": {
-                    "type": "string"
-                  },
-                  "payload": {},
-                  "as": {
-                    "$ref": "#/definitions/name"
-                  }
-                }
+                "$ref": "#/definitions/fetch"
               }
             }
           }

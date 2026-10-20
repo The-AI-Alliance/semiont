@@ -33,7 +33,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), refuse);
+const { queries, refresh, whens, WHEN, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), resolve(ROOT, 'specs/src/openapi.json'), refuse);
 
 /** A tuple of strings, as Python writes one: `("a",)`, never `("a")`. */
 const tuple = (values) => (values.length === 0 ? '()' : `(${values.map(pyString).join(', ')}${values.length === 1 ? ',' : ''})`);

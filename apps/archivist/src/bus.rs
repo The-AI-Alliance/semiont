@@ -10,14 +10,15 @@ use crate::{browse, commands};
 use semiont::bus::{Bus, operation};
 use semiont::channels::{
     BindUpdateBody, BrowseAgentsRequested, BrowseAnnotationHistoryRequested,
-    BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseDirectoryRequested,
-    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowsePeopleRequested,
-    BrowseResourceRequested, BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
-    FrameAddEntityType, FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
+    BrowseAnnotationRequested, BrowseDirectoryRequested, BrowseEntityTypesRequested,
+    BrowseEventsRequested, BrowseKbRequested, BrowsePeopleRequested, BrowseResourceRequested,
+    BrowseResourcesRequested, BrowseTagSchemasRequested, Channel, FrameAddEntityType,
+    FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
     MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
     MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
     YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
 };
+use semiont::errors::TransportError;
 use semiont::transport::{Envelope, Frame, Frames};
 use semiont_archivist_record::Object;
 use semiont_observability::logging;
@@ -52,10 +53,9 @@ pub const COMMANDS: [&str; 19] = [
 
 /// The reads, and the Smelter's signal: answered as they arrive, in no
 /// particular order.
-pub const READS: [&str; 15] = [
+pub const READS: [&str; 14] = [
     BrowseResourceRequested::NAME,
     BrowseResourcesRequested::NAME,
-    BrowseAnnotationsRequested::NAME,
     BrowseAnnotationRequested::NAME,
     BrowseAnnotationHistoryRequested::NAME,
     BrowseEventsRequested::NAME,
@@ -156,7 +156,6 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
         FrameAddTagSchema::NAME => commands::frame_add_tag_schema(archivist, payload).await,
         BrowseResourceRequested::NAME => browse::resource(archivist, payload).await,
         BrowseResourcesRequested::NAME => browse::resources(archivist, payload).await,
-        BrowseAnnotationsRequested::NAME => browse::annotations(archivist, payload).await,
         BrowseAnnotationRequested::NAME => browse::annotation(archivist, payload).await,
         BrowseAnnotationHistoryRequested::NAME => {
             browse::annotation_history(archivist, payload).await
@@ -187,23 +186,62 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
     })
 }
 
+/// What a requester is told when the answer to its request, on `replied`,
+/// could not be sent: why, on the operation's failure channel, so it fails at
+/// once rather than when it stops waiting. None for a reply that is not the
+/// operation's result: a failure that could not be sent is not answered again.
+fn unsent(channel: &str, request: &Object, replied: &str, error: &TransportError) -> Option<Reply> {
+    let operation = operation(channel)?;
+    if replied != operation.result {
+        return None;
+    }
+    let message = format!("The answer could not be sent: {error}");
+    let payload = match channel {
+        BrowseDirectoryRequested::NAME => json!({
+            "path": request.get("path").and_then(Value::as_str).unwrap_or_default(),
+            "message": message,
+        }),
+        _ => json!({ "message": message }),
+    };
+    Some(Reply {
+        channel: operation.failure,
+        payload,
+    })
+}
+
+async fn send(bus: &Bus, reply: Reply, envelope: Envelope) -> Result<(), TransportError> {
+    let Value::Object(payload) = reply.payload else {
+        return Ok(());
+    };
+    bus.emit_on(reply.channel, payload, envelope)
+        .await
+        .map(|_| ())
+}
+
 async fn answer(archivist: &Archivist, bus: &Bus, frame: Frame) {
     let trace = frame.trace.clone();
     semiont_telemetry::continuing(trace.as_ref(), async {
         let Some(reply) = handle(archivist, &frame.channel, &frame.payload).await else {
             return;
         };
-        let Value::Object(payload) = reply.payload else {
-            return;
-        };
         let envelope = Envelope {
             correlation_id: frame.correlation_id.clone(),
             scope: None,
         };
-        if let Err(error) = bus.emit_on(reply.channel, payload, envelope).await {
+        let channel = reply.channel;
+        let Err(error) = send(bus, reply, envelope.clone()).await else {
+            return;
+        };
+        logging::error(
+            "A reply was not sent",
+            json!({ "component": "archivist", "channel": channel, "correlationId": frame.correlation_id, "error": error.to_string() }),
+        );
+        if let Some(told) = unsent(&frame.channel, &frame.payload, channel, &error)
+            && let Err(error) = send(bus, told, envelope).await
+        {
             logging::error(
-                "A reply was not sent",
-                json!({ "component": "archivist", "channel": reply.channel, "correlationId": frame.correlation_id, "error": error.to_string() }),
+                "Nor was the failure that says so",
+                json!({ "component": "archivist", "channel": channel, "correlationId": frame.correlation_id, "error": error.to_string() }),
             );
         }
     })

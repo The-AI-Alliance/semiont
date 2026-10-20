@@ -73,18 +73,17 @@ withArchivist('an annotation', (world) => {
     const first = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'quick', 4) })) as { annotationId: string }).annotationId;
     const second = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'lazy dog', 35) })) as { annotationId: string }).annotationId;
 
-    const listed = await grace.ask('browse:annotations-requested', { resourceId: id });
-    expect((listed['annotations'] as Annotation[]).map((a) => a.id)).toEqual([first, second]);
-    expect(listed['total']).toBe(2);
+    const listed = (await world().http('GET', `/resources/${id}/annotations`, { route: '/resources/{id}/annotations' })).json as { annotations: Annotation[]; total: number };
+    expect(listed.annotations.map((a) => a.id)).toEqual([first, second]);
+    expect(listed.total).toBe(2);
 
     const one = await grace.ask('browse:annotation-requested', { resourceId: id, annotationId: second });
     expect(one).toMatchObject({ annotation: { id: second }, resource: { '@id': id, name: 'Read back' }, resolvedResource: null });
 
     expect(await grace.refused('browse:annotation-requested', { resourceId: id, annotationId: 'f'.repeat(32) })).toBe('Annotation not found');
-    expect(await grace.refused('browse:annotations-requested', { resourceId: 'e'.repeat(32) })).toBe(`Resource ${'e'.repeat(32)} not found in view storage`);
   });
 
-  it('answers a resource\'s annotations over HTTP as the bus answers them, and 404 for a resource it does not hold', async () => {
+  it('answers a resource\'s annotations over HTTP, and 404 for a resource it does not hold', async () => {
     const id = await resource(world(), 'Listed over HTTP');
     const grace = await world().person('grace');
     const first = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'quick', 4) })) as { annotationId: string }).annotationId;
@@ -96,8 +95,6 @@ withArchivist('an annotation', (world) => {
     const listed = reply.json as { annotations: Annotation[]; total: number };
     expect(listed.annotations.map((a) => a.id)).toEqual([first, second]);
     expect(listed.total).toBe(2);
-    // The same answer, people named alike, as the bus gives.
-    expect(listed).toEqual(await grace.ask('browse:annotations-requested', { resourceId: id }));
 
     const none = await world().http('GET', `/resources/${'e'.repeat(32)}/annotations`, { route: '/resources/{id}/annotations' });
     expect(none.status).toBe(404);
@@ -145,7 +142,7 @@ withArchivist('an annotation', (world) => {
     expect(await grace.ask('mark:delete', { resourceId: id, annotationId })).toEqual({ annotationId });
     expect(world().stored(id)[2]).toMatchObject({ type: 'mark:removed', userId: grace.did, payload: { annotationId }, metadata: { sequenceNumber: 3 } });
     expect(world().view(id)).toMatchObject({ lastSequence: 3, annotations: { version: 3, annotations: [] } });
-    expect((await grace.ask('browse:annotations-requested', { resourceId: id }))['total']).toBe(0);
+    expect((await world().http('GET', `/resources/${id}/annotations`, { route: '/resources/{id}/annotations' })).json).toEqual({ annotations: [], total: 0 });
   });
 
   it('has its body changed by add, replace and remove, in order', async () => {
@@ -177,11 +174,6 @@ withArchivist('an annotation', (world) => {
     await grace.ask('bind:update-body', { resourceId: id, annotationId, operations: [{ op: 'add', item: link }] });
     const one = await grace.ask('browse:annotation-requested', { resourceId: id, annotationId });
     expect(one).toMatchObject({ resolvedResource: { '@id': target, name: 'Linked to' } });
-    // A linking annotation whose body names an entity type is one of its resource's entity references.
-    const plain = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'dog', 40) })) as { annotationId: string }).annotationId;
-    const described = await grace.ask('browse:resource-requested', { resourceId: id });
-    expect((described['annotations'] as Array<{ id: string }>).map((a) => a.id)).toEqual([annotationId, plain]);
-    expect((described['entityReferences'] as Array<{ id: string }>).map((a) => a.id)).toEqual([annotationId]);
   });
 
   it('has linked a generated resource from the annotation it was generated for when it answers the upload', async () => {

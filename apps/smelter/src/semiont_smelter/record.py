@@ -1,32 +1,47 @@
 """What a Smelter reads of the record: the catalog of what is not archived, a resource's entity types, and a resource's annotations.
 
-It reads them from the Archivist, over the bus (`docs/protocol/SMELTER.md` §
-What it follows), and opens no file of the record. A resource's bytes are
-another read, and no part of this (`semiont_service.content`).
+It reads the catalog and a resource's description from the Archivist, over
+the bus (`docs/protocol/SMELTER.md` § What it follows), and a resource's
+annotations from the Archivist's own `GET /resources/{id}/annotations`, as its
+service account: their number follows the document's, so they are no bus
+read. It opens no file of the record. A resource's bytes are another read,
+and no part of this (`semiont_service.content`).
 """
 
 import asyncio
-from typing import Final, final
+from typing import Final, Protocol, final
 
 from semiont.bus import Bus
 from semiont.identifiers import ResourceId
-from semiont.operations import BROWSE_ANNOTATIONS_REQUESTED, BROWSE_RESOURCE_REQUESTED, BROWSE_RESOURCES_REQUESTED
+from semiont.operations import BROWSE_RESOURCE_REQUESTED, BROWSE_RESOURCES_REQUESTED
 from semiont.resources import resource_entity_types
-from semiont.types import Annotation, BrowseAnnotationsRequest, BrowseResourceRequest, ResourceDescriptor
+from semiont.types import Annotation, BrowseResourceRequest, GetAnnotationsResponse, ResourceDescriptor
 from semiont_service import catalog
 
-__all__ = ["READ", "Record"]
+__all__ = ["READ", "AnnotationReads", "Record"]
 
-READ: Final = (BROWSE_RESOURCES_REQUESTED, BROWSE_RESOURCE_REQUESTED, BROWSE_ANNOTATIONS_REQUESTED)
+READ: Final = (BROWSE_RESOURCES_REQUESTED, BROWSE_RESOURCE_REQUESTED)
 """The operations a Smelter awaits: its stream names their replies."""
+
+
+class AnnotationReads(Protocol):
+    """What reads a resource's annotations: the Archivist's own surface is one (`semiont_service.archivist.ArchivistContent`)."""
+
+    async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        """Every annotation on a resource, as the record's view holds them. Raises `AnnotationsUnread` where they were not read."""
+        ...
 
 
 @final
 class Record:
-    """The record, as a Smelter reads it over `bus`. Once `stopping` is set, a page of the catalog nobody answers is not asked for again."""
+    """The record, as a Smelter reads it over `bus` and from `annotations`.
 
-    def __init__(self, bus: Bus, stopping: asyncio.Event) -> None:
+    Once `stopping` is set, a page of the catalog nobody answers is not asked for again.
+    """
+
+    def __init__(self, bus: Bus, annotations: AnnotationReads, stopping: asyncio.Event) -> None:
         self._bus: Final = bus
+        self._annotations: Final = annotations
         self._stopping: Final = stopping
 
     async def resources(self) -> list[ResourceDescriptor]:
@@ -50,7 +65,5 @@ class Record:
         return (await self.described(resource_id)).archived is True
 
     async def annotations(self, resource_id: ResourceId) -> list[Annotation]:
-        """A resource's annotations, as the record's view holds them."""
-        return (
-            await self._bus.request(BROWSE_ANNOTATIONS_REQUESTED, BrowseAnnotationsRequest(resource_id=resource_id))
-        ).response.annotations
+        """A resource's annotations, as the record's view holds them. A read that fails is raised."""
+        return (await self._annotations.read_annotations(resource_id)).annotations

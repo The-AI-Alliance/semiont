@@ -7,8 +7,8 @@ service runs once when it starts, and a rebuild, which it also answers when
 it is commanded on `weave:rebuild`.
 
 It reaches two things: the graph, through the store it is given, and
-everything else through the transport it is given. It opens no file of the
-record and knows no address.
+everything else through the transport and the content transport it is given.
+It opens no file of the record and knows no address.
 """
 
 import asyncio
@@ -24,7 +24,7 @@ from semiont.channels import WEAVE_APPLIED, WEAVE_REBUILD, WEAVE_REBUILD_FAILED,
 from semiont.errors import SemiontError
 from semiont.identifiers import ResourceId
 from semiont.model import written
-from semiont.transport import Frame, FrameSink, Transport
+from semiont.transport import ContentTransport, Frame, FrameSink, Transport
 from semiont.types import CommandError, ResourceDescriptor, StoredEventResponse, WeaveApplied
 from semiont_graph.codec import intended_graph_annotation
 from semiont_graph.interface import GraphDatabase
@@ -125,14 +125,14 @@ class _Delivered(FrameSink):
 
 @final
 class Weaver:
-    """A Weaver over `graph`, reaching the knowledge base through `transport`, and keeping its marks in `checkpoint`.
+    """A Weaver over `graph`, reaching the knowledge base through `transport` and `content`, and keeping its marks in `checkpoint`.
 
     The graph is connected and the transport's stream names what a Weaver
-    reads (`semiont_weaver.service.CHANNELS`) before it is entered. Neither
-    is closed on the way out: they are whoever made them's to close.
+    reads (`semiont_weaver.service.CHANNELS`) before it is entered. None of
+    them is closed on the way out: they are whoever made them's to close.
     """
 
-    def __init__(self, graph: GraphDatabase, transport: Transport, checkpoint: Checkpoint) -> None:
+    def __init__(self, graph: GraphDatabase, transport: Transport, content: ContentTransport, checkpoint: Checkpoint) -> None:
         self._graph: Final = graph
         self._transport: Final = transport
         self._bus: Final = Bus(transport)
@@ -140,7 +140,7 @@ class Weaver:
         self._marks: Final = Marks()
         self._lanes: Final = Lanes()
         self._stopping: Final = asyncio.Event()
-        self._history: Final = History(self._bus, self._stopping)
+        self._history: Final = History(self._bus, content, self._stopping)
         self._signals: Final[asyncio.Queue[WeaveApplied]] = asyncio.Queue()
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
         self._doing: Final[list[asyncio.Task[None]]] = []

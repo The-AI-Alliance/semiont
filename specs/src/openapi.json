@@ -216,12 +216,6 @@
       "BrowseAnnotationResult": {
         "$ref": "components/schemas/BrowseAnnotationResult.json"
       },
-      "BrowseAnnotationsRequest": {
-        "$ref": "components/schemas/BrowseAnnotationsRequest.json"
-      },
-      "BrowseAnnotationsResult": {
-        "$ref": "components/schemas/BrowseAnnotationsResult.json"
-      },
       "BrowseClickEvent": {
         "$ref": "components/schemas/BrowseClickEvent.json"
       },

@@ -308,8 +308,8 @@ export interface IContentTransport {
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
 
   /**
-   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
-   * inbound entity references). The HTTP transport dereferences
+   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations).
+   * The HTTP transport dereferences
    * `GET /resources/:id/jsonld` (the LD face an external linked-data client
    * sees).
    */

@@ -93,7 +93,7 @@ impl Factory {
                             "@context": "https://schema.org", "@id": id,
                             "name": format!("name-{id}"), "representations": representations,
                         },
-                        "annotations": [], "entityReferences": [],
+                        "lastSequence": 1,
                     })))
                 }
                 other => Err(format!("{other} is not answered here")),

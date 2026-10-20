@@ -27,9 +27,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { EventMap } from '@semiont/core';
-import type { IContentTransport, ResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
-import { inMemoryTransport } from './helpers/in-memory-transport';
+import { inMemoryTransport, contentTransportSpies } from './helpers/in-memory-transport';
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -66,12 +66,6 @@ function makeFakeTransport() {
   };
 }
 
-const noopContent = {
-  getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-  getBinaryStream: async () => ({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  dispose: () => {},
-} as unknown as IContentTransport;
-
 describe('browse read — await semantics on fetch failure', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
@@ -84,14 +78,14 @@ describe('browse read — await semantics on fetch failure', () => {
     const fake = makeFakeTransport();
     setOnEmit = fake.setOnEmit;
     push = fake.push;
-    browse = new BrowseNamespace(fake.transport, bus, noopContent);
+    browse = new BrowseNamespace(fake.transport, bus, contentTransportSpies());
 
-    // Every annotations request gets an immediate failure response on the
+    // Every events request gets an immediate failure response on the
     // matching correlationId. Bus.request subscribes to the failure stream
     // before emitting, so a synchronous push during emit is delivered.
     setOnEmit((channel, correlationId) => {
-      if (channel === 'browse:annotations-requested') {
-        push('browse:annotations-failed', { message: 'boom' }, correlationId);
+      if (channel === 'browse:events-requested') {
+        push('browse:events-failed', { message: 'boom' }, correlationId);
       }
     });
   });
@@ -104,7 +98,7 @@ describe('browse read — await semantics on fetch failure', () => {
     // A read that waited on the swallowed rejection would hang → 'hung'.
     // `.fresh()` rejects → 'rejected'.
     const outcome = await Promise.race([
-      browse.annotations(rId).fresh().then(() => 'resolved', () => 'rejected'),
+      browse.events(rId).fresh().then(() => 'resolved', () => 'rejected'),
       delay(250).then(() => 'hung'),
     ]);
 
@@ -113,7 +107,7 @@ describe('browse read — await semantics on fetch failure', () => {
 
   it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15)', async () => {
     const states: Array<{ status: string; error?: Error }> = [];
-    const sub = browse.annotations(rId).subscribe((s) => states.push(s));
+    const sub = browse.events(rId).subscribe((s) => states.push(s));
 
     await delay(50);
     sub.unsubscribe();

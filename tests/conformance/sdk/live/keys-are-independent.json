@@ -4,7 +4,7 @@
   "tier": "parity",
   "steps": [
     {"let": {"two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},
-    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},
 
@@ -17,7 +17,7 @@
     {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "f2"}, "payload": {"message": "it went wrong"}}},
     {"reaches": "a", "state": {"status": "failed", "error": {"code": "bus.rejected"}}},
     {"holds": "b", "state": {"status": "pending"}},
-    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "g1"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "g1"}, "payload": {"response": {"resource": {"$var": "two"}, "lastSequence": 1}}}},
     {"reaches": "b", "state": {"status": "ready", "value": {"$var": "two"}}},
     {"holds": "a", "state": {"status": "failed", "error": {"code": "bus.rejected"}}},
     {"quiet": 300}

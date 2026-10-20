@@ -69,7 +69,6 @@ const MOCK_GRAPH: GetResourceResponse = {
     modified: '2024-01-01T10:00:00Z',
   },
   annotations: [],
-  entityReferences: [],
 };
 
 describe('JsonLdPanel Component', () => {
@@ -143,11 +142,10 @@ describe('JsonLdPanel Component', () => {
       expect(mockClipboard.writeText).toHaveBeenCalledOnce();
       const parsed = JSON.parse(mockClipboard.writeText.mock.calls[0][0]);
 
-      // The graph wraps the descriptor and adds annotation collections; a bare
+      // The graph wraps the descriptor and adds its annotations; a bare
       // ResourceDescriptor would have `id` at the top level and no `resource`.
       expect(parsed.resource.id).toBe('test-resource-1');
       expect(Array.isArray(parsed.annotations)).toBe(true);
-      expect(Array.isArray(parsed.entityReferences)).toBe(true);
       expect(parsed.id).toBeUndefined();
     });
 

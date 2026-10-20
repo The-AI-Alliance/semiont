@@ -22,7 +22,8 @@ from pydantic import JsonValue, TypeAdapter
 from semiont.identifiers import ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
-from semiont.types import ExtractionOutcome
+from semiont.types import ExtractionOutcome, GetAnnotationsResponse
+from semiont_service.archivist import AnnotationsUnread
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_vectors.embedding import EmbeddingProvider, EmbeddingProviderError
 from semiont_vectors.memory import MemoryVectorStore
@@ -35,6 +36,7 @@ from semiont_smelter.chunking import Chunking
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.ocr_engine import Box, OcrLine, OcrParagraph, OcrRead, OcrWord
 from semiont_smelter.pdf_reader import Matrix, PdfEncrypted, PdfUnreadable, Pixels, Run
+from semiont_smelter.record import AnnotationReads
 from semiont_smelter.scripted import ScriptedDocument, ScriptedImage, ScriptedOcrEngine, ScriptedPage, ScriptedPdfReader
 from semiont_smelter.smelter import Smelter
 
@@ -90,12 +92,13 @@ def scanned(mark: int, *words: str) -> tuple[ScriptedDocument, Mapping[bytes, Oc
 
 
 @final
-class World(ContentReads):
+class World(ContentReads, AnnotationReads):
     """What the knowledge base holds, as the Archivist answers it: each resource's bytes and description, and the annotations on it.
 
-    It is also what reads a resource's bytes for the Smelter. `unread` names
-    the resources whose bytes cannot be read, and `read_of` every resource
-    whose bytes were asked for, in order.
+    It is also what reads a resource's bytes and its annotations for the
+    Smelter. `unread` names the resources whose bytes cannot be read,
+    `read_of` every resource whose bytes were asked for, in order, and
+    `annotations_of` every resource whose annotations were.
     """
 
     def __init__(self) -> None:
@@ -106,6 +109,7 @@ class World(ContentReads):
         """Each resource's annotations, as a view holds them."""
         self.unread: Final[set[str]] = set()
         self.read_of: Final[list[str]] = []
+        self.annotations_of: Final[list[str]] = []
         self._recorded: Final[dict[str, int]] = {}
 
     @override
@@ -117,6 +121,20 @@ class World(ContentReads):
         if held is None or resource_id in self.unread:
             raise ContentUnread(f"the bytes of {resource_id} could not be read")
         return held
+
+    @override
+    async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        self.annotations_of.append(resource_id)
+        # A real read waits on a request, and so gives up its turn.
+        await asyncio.sleep(0)
+        if resource_id not in self.described:
+            raise AnnotationsUnread(f"the Archivist has no annotations of {resource_id}: the record holds no such resource")
+        on_it: list[JsonValue] = [*self.annotations.get(resource_id, [])]
+        return GetAnnotationsResponse.model_validate({"annotations": on_it, "total": len(on_it)})
+
+    def last_sequence(self, resource: str) -> int:
+        """The sequence number of the last event the Archivist recorded of a resource."""
+        return self._recorded[resource]
 
     def _event(self, kind: str, resource: str, payload: JsonObject) -> JsonObject:
         """The event the Archivist records of a change, at the next place in its resource's record."""
@@ -448,6 +466,7 @@ class Rig:
             index=self.index,
             provider=self.provider,
             content=self.world,
+            annotations=self.world,
             extractor=PdfExtractor(reader=self.reader, engine=self.engine),
             anchored=self.store,
             transport=self.transport,
@@ -484,12 +503,8 @@ class Rig:
             return {"resources": listed[offset : offset + limit], "total": len(listed), "offset": offset, "limit": limit}
         resource = payload.get("resourceId")
         assert isinstance(resource, str), operation
-        on_it: list[JsonValue] = [*self.world.annotations.get(resource, [])]
         if operation == "browse:resource-requested":
-            none: list[JsonValue] = []
-            return {"resource": self.world.described[resource], "annotations": on_it, "entityReferences": none}
-        if operation == "browse:annotations-requested":
-            return {"annotations": on_it, "total": len(on_it)}
+            return {"resource": self.world.described[resource], "lastSequence": self.world.last_sequence(resource)}
         raise AssertionError(f"the Smelter asked {operation}, which it is not to")
 
     # ── What happens ───────────────────────────────────────────────────

@@ -339,15 +339,6 @@ const (
 	// not emittable (no registered schema)
 	BrowseResourcesFailed Channel = "browse:resources-failed"
 
-	// payload: BrowseAnnotationsRequest
-	BrowseAnnotationsRequested Channel = "browse:annotations-requested"
-
-	// payload: BrowseAnnotationsResult
-	BrowseAnnotationsResult Channel = "browse:annotations-result"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationsFailed Channel = "browse:annotations-failed"
-
 	// payload: BrowseAnnotationRequest
 	BrowseAnnotationRequested Channel = "browse:annotation-requested"
 
@@ -672,8 +663,6 @@ var ChannelSchemas = map[Channel]string{
 	BrowseResourceResult:             "BrowseResourceResult",
 	BrowseResourcesRequested:         "BrowseResourcesRequest",
 	BrowseResourcesResult:            "BrowseResourcesResult",
-	BrowseAnnotationsRequested:       "BrowseAnnotationsRequest",
-	BrowseAnnotationsResult:          "BrowseAnnotationsResult",
 	BrowseAnnotationRequested:        "BrowseAnnotationRequest",
 	BrowseAnnotationResult:           "BrowseAnnotationResult",
 	BrowseEventsRequested:            "BrowseEventsRequest",

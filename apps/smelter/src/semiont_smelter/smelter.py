@@ -111,7 +111,7 @@ from semiont_smelter.reconcile import (
     plan_reconcile,
     quotes_text,
 )
-from semiont_smelter.record import Record
+from semiont_smelter.record import AnnotationReads, Record
 from semiont_smelter.recorded import stored_event
 
 __all__ = ["ReconcileState", "Smelter"]
@@ -254,7 +254,8 @@ def _checksum(data: bytes) -> str:
 
 @final
 class Smelter:
-    """A Smelter over `index`, asking `provider` for vectors and `content` for bytes, and reaching the knowledge base through `transport`.
+    """A Smelter over `index`, asking `provider` for vectors, `content` for bytes and `annotations` for a resource's annotations, and
+    reaching the knowledge base through `transport`.
 
     The index is connected and the transport's stream names what a Smelter
     reads before it is entered. `pdfs_at_once` is how many PDFs it works on
@@ -270,6 +271,7 @@ class Smelter:
         index: VectorStore,
         provider: EmbeddingProvider,
         content: ContentReads,
+        annotations: AnnotationReads,
         extractor: PdfExtractor,
         anchored: AnchoredTexts,
         transport: Transport,
@@ -286,7 +288,7 @@ class Smelter:
         self._bus: Final = Bus(transport)
         self._lanes: Final = Lanes()
         self._stopping: Final = asyncio.Event()
-        self._record: Final = Record(self._bus, self._stopping)
+        self._record: Final = Record(self._bus, annotations, self._stopping)
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
         self._draining: Final = asyncio.Lock()
         """Held while planned work is done: a reconcile's and a rebuild's are never done at once."""

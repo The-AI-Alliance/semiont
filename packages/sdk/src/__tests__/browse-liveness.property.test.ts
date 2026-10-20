@@ -40,10 +40,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { filter, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport } from '@semiont/core';
 import { FaultyTransport } from '@semiont/core/testing';
 import { assertLivenessAxioms } from '@semiont/core/testing/axioms';
 import { BrowseNamespace } from '../namespaces/browse';
+import { contentTransportSpies } from './helpers/in-memory-transport';
 
 /** Small explicit Bus.request timeout — deterministic virtual time (no 30 s). */
 const TIMEOUT_MS = 50;
@@ -52,22 +52,18 @@ const TIMEOUT_MS = 50;
 function makeResponse(operation: string, payload: Record<string, unknown>): unknown {
   switch (operation) {
     case 'browse:resource-requested':
-      return { resource: { '@id': payload.resourceId, name: `Resource ${String(payload.resourceId)}` } };
-    case 'browse:annotations-requested':
-      return { annotations: [], total: 0 };
+      return { resource: { '@id': payload.resourceId, name: `Resource ${String(payload.resourceId)}` }, lastSequence: 1 };
+    case 'browse:events-requested':
+      return { events: [], total: 0, resourceId: payload.resourceId };
     default:
       return {};
   }
 }
 
-const noopContent = {
-  getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-  getBinaryStream: async () => ({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  dispose: () => {},
-} as unknown as IContentTransport;
-
 /**
- * One `useResourceLoader`-shaped mount: resource + annotations live queries.
+ * One mount of two resource-scoped live queries that both ride the faulty
+ * wire: resource + events. (A resource's annotations are read over HTTP, so
+ * they would be no test of the wire.)
  * Note: `failed` is an EMISSION, not a stream error — for the harness
  * (whose L1 counts value-or-error notifications) a failed state is re-thrown,
  * which keeps the axiom's meaning: `pending` forever is the forbidden state.
@@ -82,7 +78,7 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
         return s.value;
       }),
     );
-  return [settle(browse.resource(id)), settle(browse.annotations(id))];
+  return [settle(browse.resource(id)), settle(browse.events(id))];
 }
 
 describe('liveness axioms over the real BrowseNamespace composition', () => {
@@ -127,7 +123,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
           const browse = new BrowseNamespace(
             transport,
             bus,
-            noopContent,
+            contentTransportSpies(),
             { busTimeoutMs: TIMEOUT_MS },
           );
 
@@ -145,7 +141,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
                 return undefined;
               },
             ),
-            browse.annotations(awaitRid).fresh().then(
+            browse.events(awaitRid).fresh().then(
               (v) => v,
               (e) => {
                 expect(e).toBeInstanceOf(Error);
@@ -202,7 +198,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
           const browse = new BrowseNamespace(
             transport,
             bus,
-            noopContent,
+            contentTransportSpies(),
             { busTimeoutMs: TIMEOUT_MS },
           );
 
@@ -236,7 +232,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
     const transport = new FaultyTransport({ schedule: [{ kind: 'drop-reply' }], makeResponse });
     const bus = new EventBus();
     const browse = new BrowseNamespace(
-      transport, bus, noopContent, { busTimeoutMs: TIMEOUT_MS },
+      transport, bus, contentTransportSpies(), { busTimeoutMs: TIMEOUT_MS },
     );
 
     try {

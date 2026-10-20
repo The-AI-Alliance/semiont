@@ -189,6 +189,21 @@ withArchivist('browsing', (world) => {
     }
   });
 
+  it('answers a request whose answer is larger than the largest bus message with a failure, at once', async () => {
+    const reader = await world().person('reader');
+    // Each entry names its file twice, by name and by path: 24,000 names of
+    // 200 characters are more than the 8 MiB a bus message may be.
+    const wide = join(world().dirs.root, 'wide');
+    mkdirSync(wide);
+    for (let n = 0; n < 24_000; n++) writeFileSync(join(wide, `${String(n).padStart(5, '0')}${'w'.repeat(195)}.md`), '');
+
+    // Well inside the 30 s a requester waits: the failure is the answer, not the wait running out.
+    const answer = await reader.request('browse:directory-requested', { path: 'wide' }, 10_000);
+    expect(answer.ok).toBe(false);
+    expect(answer.payload['path']).toBe('wide');
+    expect(answer.payload['message']).toMatch(/^The answer could not be sent: /);
+  });
+
   it('answers anchored text from the store, under the stamp its writer states', async () => {
     const reader = world().world.personDid('reader');
     const content = Buffer.from('%PDF-1.4 the suite never parses this\n');

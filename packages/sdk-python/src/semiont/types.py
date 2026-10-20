@@ -77,8 +77,6 @@ __all__ = [
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
     "BrowseAnnotationResult",
-    "BrowseAnnotationsRequest",
-    "BrowseAnnotationsResult",
     "BrowseClickEvent",
     "BrowseDirectoryFailed",
     "BrowseDirectoryRequest",
@@ -105,6 +103,7 @@ __all__ = [
     "BrowseResourceReorderEvent",
     "BrowseResourceRequest",
     "BrowseResourceResult",
+    "BrowseResourceResultResponse",
     "BrowseResourceViewedEvent",
     "BrowseResourcesRequest",
     "BrowseResourcesResult",
@@ -639,14 +638,6 @@ class BrowseAnnotationRequest(WireModel, frozen=True):
 
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
     annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
-
-
-class BrowseAnnotationsRequest(WireModel, frozen=True):
-    """
-    Request to browse annotations for a resource
-    """
-
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
 class BrowseClickEvent(WireModel, frozen=True):
@@ -5314,6 +5305,18 @@ class BrowseDirectoryResultResponse(WireModel, frozen=True):
     entries: list[DirectoryEntry]
 
 
+class BrowseResourceResultResponse(WireModel, frozen=True, extra="forbid"):
+    resource: ResourceDescriptor
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the resource's last event. A graph read that follows a write waits for the graph projection to reach it.",
+            ge=1,
+        ),
+    ]
+
+
 class BusSubscribeRequestScopedItem(WireModel, frozen=True, extra="forbid"):
     scope: Annotated[ResourceId, Field(description="Resource scope (a resourceId).")]
     channels: Annotated[
@@ -5533,6 +5536,14 @@ type AnchoredTextAnswer = Annotated[
         discriminator="kind",
     ),
 ]
+
+
+class BrowseResourceResult(WireModel, frozen=True):
+    """
+    A resource's descriptor, and the sequence number of the last of its events the descriptor reflects. Its annotations are not here: their number follows the document's, so they are read over HTTP (`GET /resources/{id}/annotations`).
+    """
+
+    response: BrowseResourceResultResponse
 
 
 class BrowseTagSchemasResult(WireModel, frozen=True):
@@ -6147,13 +6158,6 @@ class GetResourceResponse(WireModel, frozen=True):
         list[Annotation],
         Field(description="All annotations for the resource (highlights, references, assessments, etc.)"),
     ]
-    entity_references: Annotated[
-        list[Annotation],
-        Field(
-            alias="entityReferences",
-            description="Annotations that reference this resource from other resources",
-        ),
-    ]
 
 
 class GraphAnnotationNode(WireModel, frozen=True):
@@ -6626,22 +6630,6 @@ class BrowseAnnotationResult(WireModel, frozen=True):
     """
 
     response: GetAnnotationResponse
-
-
-class BrowseAnnotationsResult(WireModel, frozen=True):
-    """
-    Result of browsing annotations for a resource
-    """
-
-    response: GetAnnotationsResponse
-
-
-class BrowseResourceResult(WireModel, frozen=True):
-    """
-    Result of browsing a single resource
-    """
-
-    response: GetResourceResponse
 
 
 class GatherReferencedByResult(WireModel, frozen=True):

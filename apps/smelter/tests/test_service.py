@@ -96,8 +96,6 @@ def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies
             "browse:resources-failed",
             "browse:resource-result",
             "browse:resource-failed",
-            "browse:annotations-result",
-            "browse:annotations-failed",
         ]
     )
     assert len(CHANNELS) == len(set(CHANNELS))

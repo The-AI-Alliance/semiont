@@ -213,7 +213,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
   describe('Resource graph (HttpContentTransport.getResourceGraph)', () => {
     test('GETs /resources/:id/jsonld and returns the parsed graph', async () => {
-      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [], entityReferences: [] };
+      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [] };
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue(graph),
       } as never);
@@ -228,7 +228,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('an id is one segment of the path, whatever text a caller with no type checker hands over', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
       } as never);
 
       // Not a ResourceId: its constructor refuses this. JavaScript does not ask.
@@ -241,7 +241,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('sends the bearer auth header when a token is provided', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
       } as never);
 
       await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });

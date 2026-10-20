@@ -221,10 +221,10 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # What a service is called and its one logger are its own, and so is what of its document only it has: a service
     # has a `config.py` and a `log.py`. How a document is read and how a log is written are stated here and nowhere else,
     # and so are the order a service does each resource's work in and how it reads the catalog whole. So are what
-    # reads a resource's bytes and the reader that asks the Archivist, where a file of the record is filed, what
-    # white space is, and how long a start waits for what it connects to.
+    # reads a resource's bytes and the reader that asks the Archivist for them and for its annotations, where a file of
+    # the record is filed, what white space is, and how long a start waits for what it connects to.
     stated_here = {
-        "archivist.py": ("class ArchivistContent", "class Authorizes"),
+        "archivist.py": ("class ArchivistContent", "class Authorizes", "class AnnotationsUnread"),
         "catalog.py": ("_UNTIL_THE_ARCHIVIST_ANSWERS", "bus.peer-unavailable"),
         "config.py": ("def config_path_of(", "def read_config", "def service_account_of(", "def set_in("),
         "connect.py": ("def connected", "_CONNECT_SECONDS"),

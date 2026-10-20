@@ -1261,7 +1261,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
             def answering(emit: JsonObject) -> None:
                 # The service that answers for a resource does, on the stream; the one that answers for the entity types is slow.
                 if emit["channel"] == "browse:resource-requested":
-                    answer: JsonObject = {"response": {"resource": described, "annotations": [], "entityReferences": []}}
+                    answer: JsonObject = {"response": {"resource": described, "lastSequence": 1}}
                     gateway.send(None, {"channel": "browse:resource-result", "payload": answer, "correlationId": emit["correlationId"]})
                 else:
                     unanswered.append(emit)

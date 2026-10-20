@@ -78,7 +78,7 @@ describe('browse content reads — pure pipe', () => {
   });
 
   it('resourceGraph dereferences via the content transport, uncached', async () => {
-    const graph = { resource: { id: 'r1' }, annotations: [], entityReferences: [] };
+    const graph = { resource: { id: 'r1' }, annotations: [] };
     const getResourceGraph = vi.fn().mockResolvedValue(graph);
     const content = {
       putBinary: vi.fn(),

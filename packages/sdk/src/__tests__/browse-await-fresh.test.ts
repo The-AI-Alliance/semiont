@@ -9,42 +9,28 @@
  * (`cache.fetch`) rather than serving the memo. `.subscribe(...)` keeps
  * the stale-while-revalidate cached view.
  *
- * No gateway: a fake transport returns an incrementing `browse:annotations-result`
- * so a fresh fetch is observably different from the memo.
+ * No gateway: a stub content transport answers `getAnnotations` with an
+ * incrementing list, so a fresh fetch is observably different from the memo.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { IContentTransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
-import { inMemoryTransport } from './helpers/in-memory-transport';
+import { inMemoryTransport, contentTransportSpies } from './helpers/in-memory-transport';
 import { mockAnnotation } from './fixtures/annotation';
 
-function makeFakeTransport() {
-  // Each annotations request returns a distinct result so a fresh fetch is
+function makeContent(): IContentTransport {
+  // Each annotations read returns a distinct result so a fresh fetch is
   // observably different from a cached one.
   let n = 0;
-  const bus = new EventBus();
-  const transport = inMemoryTransport({
-    bus,
-    onEmit: (channel, _payload, envelope) => {
-      if (channel === 'browse:annotations-requested') {
-        n += 1;
-        bus.emit('browse:annotations-result', {
-          response: { annotations: [mockAnnotation(`a${n}`)], total: 1 },
-        }, { correlationId: envelope?.correlationId });
-      }
+  return contentTransportSpies({
+    getAnnotations: async () => {
+      n += 1;
+      return { annotations: [mockAnnotation(`a${n}`)], total: 1 };
     },
   });
-
-  return { transport };
 }
-
-const noopContent = {
-  getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-  getBinaryStream: async () => ({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  dispose: () => {},
-} as unknown as IContentTransport;
 
 // The one-shot read is the explicit `.fresh()`: a Browse live query is not
 // thenable, so nothing awaits one directly.
@@ -55,7 +41,7 @@ describe('browse read — the one-shot .fresh() read is fresh', () => {
 
   beforeEach(() => {
     bus = new EventBus();
-    browse = new BrowseNamespace(makeFakeTransport().transport, bus, noopContent);
+    browse = new BrowseNamespace(inMemoryTransport(), bus, makeContent());
   });
 
   afterEach(() => {

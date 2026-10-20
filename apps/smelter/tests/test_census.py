@@ -53,7 +53,7 @@ SURFACE = {
     "chunking": ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"],
     "log": ["LOG", "failure_said", "words_of"],
     "recorded": ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"],
-    "record": ["READ", "Record"],
+    "record": ["READ", "AnnotationReads", "Record"],
     "reconcile": [
         "Embed",
         "EmbedAnnotation",
@@ -247,9 +247,9 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
     # It asks for a store and a provider by what its configuration states, in the one module that reads that.
     assert importing(r"semiont_vectors\.factory") == ["service.py"]
     assert importing("qdrant_client") == []
-    # What the Smelter asks of the Archivist that is not the SDK's: a resource's bytes, by the reader every Python
-    # service has (`semiont_service.archivist`), made by the module that starts the service; and the anchored-text
-    # store the Archivist keeps, by the store alone, as the same account.
+    # What the Smelter asks of the Archivist that is not the SDK's: a resource's bytes and its annotations, by the
+    # reader every Python service has (`semiont_service.archivist`), made by the module that starts the service; and the
+    # anchored-text store the Archivist keeps, by the store alone, as the same account.
     assert importing("httpx") == ["anchored_text_store.py"]
     assert importing(r"semiont_service\.archivist") == ["anchored_text_store.py", "service.py"]
     assert importing(r"semiont_service\.content") == ["smelter.py"]
@@ -266,7 +266,7 @@ def test_it_writes_the_index_and_the_store_and_says_three_things_and_nothing_els
     # reads it by. What it asks of the anchored-text store, on the Archivist's surface, the store asks.
     assert naming(".request(") == ["anchored_text_store.py", "record.py"]
     asked = sorted(set(re.findall(r"\.request\(\s*(\w+)", (SRC / "record.py").read_text(encoding="utf-8"))))
-    assert asked == ["BROWSE_ANNOTATIONS_REQUESTED", "BROWSE_RESOURCE_REQUESTED"]
+    assert asked == ["BROWSE_RESOURCE_REQUESTED"]
     assert naming("from semiont_service import catalog") == ["record.py"]
     # It writes, makes and takes away no file: the anchored-text store is the Archivist's, and the index is written
     # through its store.

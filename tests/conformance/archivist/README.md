@@ -41,14 +41,16 @@ what its schema says; and a case fails otherwise, whatever it was about.
   checkout — and a clean stop.
 - **Resources** (`resources.test.ts`): an upload stored, recorded and
   published; the line in the log, the view, the index entry, where each is
-  filed; the content, the description and the event replay over HTTP, and who
+  filed; the descriptor `browse:resource` answers, with the sequence number of
+  the resource's last event; the content, the description and the event
+  replay over HTTP, and who
   is admitted to them and to the anchored text; every upload refused; new
   content, archive and unarchive, entity types; and the order facts are
   published in, to a resource's scope and to none.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
   committed once however often it is sent, bodies changed, an annotation
-  removed, what each reads back as, a resource's annotations over HTTP as the
-  bus answers them, the annotation a published fact carries,
+  removed, what each reads back as, a resource's annotations over HTTP, the
+  annotation a published fact carries,
   and a generated resource linked from the annotation it was generated for by
   the time its creation is answered, on `yield:create` and over HTTP.
 - **The anchored-text store** (`anchored-text.test.ts`): an entry stored for
@@ -60,7 +62,9 @@ what its schema says; and a case fails otherwise, whatever it was about.
   as a service.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
   seeding, tag schemas, the listing, a resource's events, people named by
-  their profile, the profiles of the people asked after, a directory of the working tree and the roster; and, over
+  their profile, the profiles of the people asked after, a directory of the
+  working tree, an answer larger than the largest bus message answered as a
+  failure at once, and the roster; and, over
   HTTP, anchored text as it is stored, under the stamp its writer states and
   in the store's version only, `no-map` at once for a media type whose text
   is not derived, whatever the store holds, a read held until the Smelter has

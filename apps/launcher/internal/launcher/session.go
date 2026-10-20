@@ -218,6 +218,18 @@ func (t VerbTarget) Transport() bus.Transport {
 	return &sessionTransport{base: t.base, sess: t.sess}
 }
 
+// API is the gateway's HTTP API, for a verb that reads what the bus does not
+// carry. Each call of it runs under Authorized.
+func (t VerbTarget) API() (*semiont.ClientWithResponses, error) {
+	return semiont.NewClientWithResponses(t.base)
+}
+
+// Authorized runs op, one call of the gateway's HTTP API, under the session's
+// renew-and-retry policy.
+func (t VerbTarget) Authorized(op func(token string) error) error {
+	return t.sess.Authorized(op)
+}
+
 // VerbSession resolves a verb's target in one place, because nine verbs asking
 // the same questions nine different ways is how they drift. Refusals are
 // printed here with their fix-it lines; ok=false means stop.

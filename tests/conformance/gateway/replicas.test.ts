@@ -20,8 +20,7 @@ const BROADCAST = 'beckon:focus';
 const described = {
   response: {
     resource: { '@context': 'https://schema.org/', '@id': 'r', name: 'r', representations: [] },
-    annotations: [],
-    entityReferences: [],
+    lastSequence: 1,
   },
 };
 

@@ -69,15 +69,24 @@ export type Step =
   | { reaches: string; state: unknown }
   | { holds: string; state: unknown }
   | { completes: string }
-  | { fetch: string; payload?: unknown; as: string }
-  | { fetches: Array<{ fetch: string; payload?: unknown; as: string }> }
+  | FetchStep
+  | { fetches: FetchStep[] }
   | { scopes: unknown[] }
   | { claimed: unknown }
   | { refused: unknown }
   | { signalled: unknown }
   | { stalled: unknown };
 
-type FetchStep = { fetch: string; payload?: unknown; as: string };
+/** A request the client made of a service, as a `fetch` step reads it: a bus request's payload and correlation id, or an HTTP read's path values. */
+interface Asked {
+  fetch: string;
+  payload?: unknown;
+  params?: unknown;
+  correlationId?: unknown;
+}
+
+/** A request of a service: on the bus, answered by the backend under `as`; or a read over HTTP, which the stand-in Archivist answers. */
+type FetchStep = { fetch: string; payload?: unknown; as: string } | { fetch: string; params?: unknown };
 
 /**
  * A layer of the SDK suite: the transport, or the client's live queries over
@@ -194,7 +203,7 @@ class Run {
   /** What the client did outside the spec, whatever the case was about. */
   private readonly problems: string[] = [];
   private wireCursor = 0;
-  /** In a live case: how many of the client's emits its `fetch` steps have accounted for. */
+  /** In a live case: how many of the client's requests of a service its `fetch` steps have accounted for. */
   private fetchCursor = 0;
   /** In a live case: for each observer, how many of its states the case has read. */
   private readonly emissionCursor = new Map<string, number>();
@@ -438,9 +447,14 @@ class Run {
     this.emissionCursor.set(observer, at + 1);
   }
 
-  /** The client's emits, in order: in a live case each is a request it made of a service. */
+  /** The client's emits, in order. */
   private emits(): ProxiedRequest[] {
     return this.proxy.requests.filter((record) => record.method === 'POST' && record.path.split('?')[0] === '/bus/emit');
+  }
+
+  /** In a live case: the client's requests of a service, in order — each emit, and each read over HTTP. */
+  private asked(): ProxiedRequest[] {
+    return this.proxy.requests.filter((record) => (record.method === 'POST' && record.path.split('?')[0] === '/bus/emit') || !record.path.startsWith('/bus/'));
   }
 
   private fetch(step: FetchStep): Promise<void> {
@@ -452,20 +466,26 @@ class Run {
     const from = this.fetchCursor;
     const what = steps.map((step) => step.fetch).join(', ');
     const records = await this.proxy.until(`the client's next ${steps.length === 1 ? 'request' : `${steps.length} requests`}: ${what}`, () => {
-      const next = this.emits().slice(from, from + steps.length);
+      const next = this.asked().slice(from, from + steps.length);
       return next.length === steps.length && next.every((record) => record.status !== undefined) ? next : undefined;
     }, WAIT_MS);
     this.fetchCursor += steps.length;
-    const bodies = records.map((record) => {
-      const { body } = this.read(record);
+    const made = records.map((record): Asked => {
+      const { operation, params, body } = this.read(record);
+      if (operation !== 'POST /bus/emit') {
+        if (record.status !== 200) throw new Error(`the client's ${operation} ${JSON.stringify(params)} was answered ${record.status}`);
+        return { fetch: operation, params };
+      }
       if (record.status !== 202) throw new Error(`the gateway answered ${JSON.stringify(body)} with ${record.status}`);
       if (!isObject(body) || typeof body['correlationId'] !== 'string') throw new Error(`the client's request ${JSON.stringify(body)} carries no correlation id, so nothing can answer it`);
-      return body;
+      return { fetch: String(body['channel']), payload: body['payload'], correlationId: body['correlationId'] };
     });
     for (const step of steps) {
-      const at = bodies.findIndex((body) => body['channel'] === step.fetch && (step.payload === undefined || this.bindings.match(step.payload, body['payload']) === undefined));
-      if (at < 0) throw new Error(`none of the client's next requests is a ${step.fetch}${step.payload === undefined ? '' : ` with ${JSON.stringify(this.bindings.resolve(step.payload))}`}: it made ${JSON.stringify(bodies)}`);
-      this.bindings.bind(step.as, bodies.splice(at, 1)[0]!['correlationId']);
+      const [field, wanted] = 'as' in step ? (['payload', step.payload] as const) : (['params', step.params] as const);
+      const at = made.findIndex((request) => request.fetch === step.fetch && (wanted === undefined || this.bindings.match(wanted, request[field]) === undefined));
+      if (at < 0) throw new Error(`none of the client's next requests is a ${step.fetch}${wanted === undefined ? '' : ` with ${JSON.stringify(this.bindings.resolve(wanted))}`}: it made ${JSON.stringify(made)}`);
+      const [request] = made.splice(at, 1);
+      if ('as' in step) this.bindings.bind(step.as, request!.correlationId);
     }
   }
 
@@ -785,7 +805,7 @@ class Run {
     const unaccounted =
       this.layer !== 'live'
         ? this.proxy.requests.slice(this.wireCursor)
-        : [...this.emits().slice(this.fetchCursor), ...this.proxy.requests.filter((record) => !['/bus/emit', '/bus/subscribe'].includes(record.path.split('?')[0]!))];
+        : [...this.asked().slice(this.fetchCursor), ...this.proxy.requests.filter((record) => record.path.startsWith('/bus/') && !['/bus/emit', '/bus/subscribe'].includes(record.path.split('?')[0]!))];
     const extra = unaccounted.map((record) => {
       const seen = this.read(record);
       return `${seen.operation} ${JSON.stringify(seen.body)}`;

@@ -29,7 +29,7 @@ describe('HttpTransport channels config', () => {
     });
     expect(transport.isSubscribed('job:claimed')).toBe(true);
     expect(transport.isSubscribed('job:claim-failed')).toBe(true);
-    expect(transport.isSubscribed('browse:annotations-result')).toBe(false);
+    expect(transport.isSubscribed('browse:events-result')).toBe(false);
     expect(transport.isSubscribed('browse:resources-result')).toBe(false);
     transport.dispose();
   });

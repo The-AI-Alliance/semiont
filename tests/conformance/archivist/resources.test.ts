@@ -106,15 +106,15 @@ withArchivist('a resource', (world) => {
     expect(described.json).toEqual({ error: 'Resource not found' });
   });
 
-  it('describes a resource as JSON-LD: what browse answers', async () => {
+  it('describes a resource as JSON-LD, its descriptor as browse answers it, and browse with the sequence number of its last event', async () => {
     const reader = await world().person('reader');
     const id = await world().created(reader.did, { name: 'Described', storageUri: 'file://docs/described.md', content: 'described\n' });
     const reply = await world().http('GET', `/resources/${id}/jsonld`, { route: '/resources/{id}/jsonld' });
     expect(reply.status).toBe(200);
     expect(reply.headers.get('content-type')).toBe('application/ld+json; charset=utf-8');
     const browsed = await reader.ask('browse:resource-requested', { resourceId: id });
-    expect(reply.json).toEqual(browsed);
-    expect(browsed).toMatchObject({ resource: { '@id': id, name: 'Described' }, annotations: [], entityReferences: [] });
+    expect(browsed).toMatchObject({ resource: { '@id': id, name: 'Described' }, lastSequence: 1 });
+    expect(reply.json).toEqual({ resource: browsed['resource'], annotations: [] });
   });
 
   it('serves a stream\'s stored events from a sequence on', async () => {

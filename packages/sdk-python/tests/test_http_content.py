@@ -208,7 +208,6 @@ def test_a_description_is_what_the_gateway_answers_and_an_answer_that_is_not_the
     described: dict[str, JsonValue] = {
         "resource": {"@context": "https://schema.org/", "@id": "res-1", "name": "Described", "representations": []},
         "annotations": [],
-        "entityReferences": [],
     }
 
     async def scenario() -> tuple[JsonValue, TransportError]:

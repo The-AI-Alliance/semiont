@@ -251,6 +251,7 @@ A live case uses these in place of `wire` and `carried`:
 | `{"holds": "a", "state": {...}}` | the state it holds now is this one |
 | `{"completes": "a"}` | its live query completes |
 | `{"fetch": "browse:resource-requested", "payload": {...}, "as": "f1"}` | the client's next request of a service is this one; `f1` is its correlation id, for the backend to answer |
+| `{"fetch": "GET /resources/{id}/annotations", "params": {...}}` | its next request of a service is this read over HTTP, which the stand-in Archivist answers from what the case gave it |
 | `{"fetches": [ ... ]}` | its next requests are these, in whatever order it makes them |
 | `{"scopes": ["..."]}` | the client comes to hold one stream, naming exactly these scopes, that has caught up |
 

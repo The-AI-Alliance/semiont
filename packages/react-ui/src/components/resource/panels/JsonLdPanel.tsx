@@ -19,7 +19,7 @@ interface Props {
 /**
  * Dereferences the resource's LD face (`GET /resources/:id/jsonld` via
  * `browse.resourceGraph`) and pretty-prints the full graph — descriptor +
- * annotations + inbound entity references — read-only. This is exactly what
+ * annotations — read-only. This is exactly what
  * an external linked-data client gets when dereferencing the resource's
  * `describedby` URI, so the panel doubles as a living end-to-end test of the
  * LD face.

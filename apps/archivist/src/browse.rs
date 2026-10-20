@@ -77,39 +77,30 @@ fn body_items(annotation: &Value) -> Vec<&Value> {
     }
 }
 
-/// Whether an annotation is a link whose body names an entity type.
-fn is_entity_reference(annotation: &Value) -> bool {
-    annotation.get("motivation") == Some(&json!("linking"))
-        && body_items(annotation).iter().any(|item| {
-            item.get("type") == Some(&json!("TextualBody"))
-                && item.get("purpose") == Some(&json!("tagging"))
-                && item.get("value").is_some_and(Value::is_string)
-        })
-}
-
-/// What `browse:resource-requested` and the JSON-LD route answer: the
-/// resource, its annotations, and those that are entity references. None for
+/// What the JSON-LD route answers: the resource and its annotations. None for
 /// a resource with no events.
 pub fn resource_graph(archivist: &Archivist, resource_id: &str) -> Result<Option<Value>, Refusal> {
     let view = tokio::task::block_in_place(|| archivist.record().view(resource_id))?;
     let Some(view) = view else {
         return Ok(None);
     };
-    let annotations = annotations_of(&view);
-    let references: Vec<Value> = annotations
-        .iter()
-        .filter(|a| is_entity_reference(a))
-        .cloned()
-        .collect();
     Ok(Some(named(
         archivist,
-        json!({ "resource": view["resource"], "annotations": annotations, "entityReferences": references }),
+        json!({ "resource": view["resource"], "annotations": annotations_of(&view) }),
     )))
 }
 
+/// A resource's descriptor and the sequence number of its last event. Its
+/// annotations are not here: their number follows the document's, and they
+/// are read over HTTP.
 pub async fn resource(archivist: &Archivist, request: &Object) -> Answered {
-    match resource_graph(archivist, required(request, "resourceId")?)? {
-        Some(graph) => Ok(graph),
+    let resource_id = required(request, "resourceId")?;
+    let view = tokio::task::block_in_place(|| archivist.record().view(resource_id))?;
+    match view {
+        Some(view) => Ok(named(
+            archivist,
+            json!({ "resource": view["resource"], "lastSequence": view["lastSequence"] }),
+        )),
         None => Err(Refusal {
             message: "Resource not found".to_owned(),
             code: Some("not-found"),
@@ -163,8 +154,8 @@ pub async fn resources(archivist: &Archivist, request: &Object) -> Answered {
 }
 
 /// Every annotation on a resource, its people named, and how many there
-/// are: what `browse:annotations-requested` and the annotations route answer.
-/// None for a resource with no events.
+/// are: what the annotations route answers. None for a resource with no
+/// events.
 pub fn resource_annotations(
     archivist: &Archivist,
     resource_id: &str,
@@ -178,12 +169,6 @@ pub fn resource_annotations(
         archivist,
         json!({ "annotations": held, "total": total }),
     )))
-}
-
-pub async fn annotations(archivist: &Archivist, request: &Object) -> Answered {
-    let resource_id = required(request, "resourceId")?;
-    resource_annotations(archivist, resource_id)?
-        .ok_or_else(|| Refusal::from(format!("Resource {resource_id} {NOT_IN_VIEWS}")))
 }
 
 /// The profiles of the people asked after, by DID. One with no profile is

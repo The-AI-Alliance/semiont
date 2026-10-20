@@ -22,7 +22,7 @@ import type { EventMap } from '@semiont/core';
 import type { IContentTransport, ResourceId } from '@semiont/core';
 import { readyValue } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
-import { inMemoryTransport } from './helpers/in-memory-transport';
+import { inMemoryTransport, contentTransportSpies } from './helpers/in-memory-transport';
 import { mockAnnotation } from './fixtures/annotation';
 import { mockResource } from './fixtures/resource';
 
@@ -59,8 +59,7 @@ function makeFakeTransport() {
     bus,
     subscribeToResource,
     onEmit: (channel, _payload, envelope) => {
-      respond(channel as string, 'browse:annotations-requested', 'browse:annotations-result', envelope?.correlationId, { response: { annotations: [mockAnnotation('a1')], total: 1 } });
-      respond(channel as string, 'browse:resource-requested', 'browse:resource-result', envelope?.correlationId, { response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] } });
+      respond(channel as string, 'browse:resource-requested', 'browse:resource-result', envelope?.correlationId, { response: { resource: mockResource('res-1'), lastSequence: 1 } });
       respond(channel as string, 'browse:events-requested', 'browse:events-result', envelope?.correlationId, { response: { events: [], total: 0, resourceId: makeResourceId('res-1') } });
       respond(channel as string, 'browse:entity-types-requested', 'browse:entity-types-result', envelope?.correlationId, { response: { entityTypes: [] } });
     },
@@ -69,11 +68,13 @@ function makeFakeTransport() {
   return { transport, subscribeToResource, releases };
 }
 
-const noopContent = {
-  getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-  getBinaryStream: async () => ({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  dispose: () => {},
-} as unknown as IContentTransport;
+// A resource's annotations are read over HTTP, not the bus: the scope a
+// subscription acquires does not depend on how its query is fetched.
+function makeContent(): IContentTransport {
+  return contentTransportSpies({
+    getAnnotations: async () => ({ annotations: [mockAnnotation('a1')], total: 1 }),
+  });
+}
 
 describe('browse live-query subscription acquires the resource scope', () => {
   let bus: EventBus;
@@ -87,7 +88,7 @@ describe('browse live-query subscription acquires the resource scope', () => {
     const fake = makeFakeTransport();
     subscribeToResource = fake.subscribeToResource;
     releases = fake.releases;
-    browse = new BrowseNamespace(fake.transport, bus, noopContent);
+    browse = new BrowseNamespace(fake.transport, bus, makeContent());
   });
 
   afterEach(() => {
@@ -145,7 +146,7 @@ describe('multi-scope: distinct-rid live queries COMPOSE — all fully live', ()
   it('two distinct-rid live queries BOTH acquire their scopes — no throw, no degradation, both deliver', async () => {
     const bus = new EventBus();
     const { transport, subscribeToResource } = makeFakeTransport();
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const browse = new BrowseNamespace(transport, bus, makeContent());
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const values1: unknown[] = [];
@@ -171,7 +172,7 @@ describe('multi-scope: distinct-rid live queries COMPOSE — all fully live', ()
   it('releases are per-resource: dropping one loader keeps the other scoped', async () => {
     const bus = new EventBus();
     const { transport, subscribeToResource, releases } = makeFakeTransport();
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const browse = new BrowseNamespace(transport, bus, makeContent());
 
     const sub1 = browse.resource(rid1).subscribe(() => {});
     const sub2 = browse.resource(rid2).subscribe(() => {});

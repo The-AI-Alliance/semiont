@@ -20,7 +20,6 @@ __all__ = [
     "OPERATIONS",
     "BIND_UPDATE_BODY",
     "BROWSE_AGENTS_REQUESTED",
-    "BROWSE_ANNOTATIONS_REQUESTED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
     "BROWSE_ANNOTATION_REQUESTED",
     "BROWSE_DIRECTORY_REQUESTED",
@@ -81,11 +80,6 @@ BROWSE_ANNOTATION_REQUESTED: Final = Operation(
     request=channels.BROWSE_ANNOTATION_REQUESTED,
     result=channels.BROWSE_ANNOTATION_RESULT,
     failure=channels.BROWSE_ANNOTATION_FAILED,
-)
-BROWSE_ANNOTATIONS_REQUESTED: Final = Operation(
-    request=channels.BROWSE_ANNOTATIONS_REQUESTED,
-    result=channels.BROWSE_ANNOTATIONS_RESULT,
-    failure=channels.BROWSE_ANNOTATIONS_FAILED,
 )
 BROWSE_ANNOTATION_HISTORY_REQUESTED: Final = Operation(
     request=channels.BROWSE_ANNOTATION_HISTORY_REQUESTED,
@@ -280,7 +274,6 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
         "browse:resource-requested": BROWSE_RESOURCE_REQUESTED,
         "browse:resources-requested": BROWSE_RESOURCES_REQUESTED,
         "browse:annotation-requested": BROWSE_ANNOTATION_REQUESTED,
-        "browse:annotations-requested": BROWSE_ANNOTATIONS_REQUESTED,
         "browse:annotation-history-requested": BROWSE_ANNOTATION_HISTORY_REQUESTED,
         "browse:events-requested": BROWSE_EVENTS_REQUESTED,
         "browse:entity-types-requested": BROWSE_ENTITY_TYPES_REQUESTED,

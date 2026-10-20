@@ -632,8 +632,7 @@ pub trait ContentTransport: Send + Sync + 'static {
         resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<ContentStream, TransportError>>;
 
-    /// A resource's description: itself, its annotations and the references
-    /// to it, as linked data.
+    /// A resource's description: itself and its annotations, as linked data.
     fn get_resource_graph<'a>(
         &'a self,
         resource_id: &'a ResourceId,

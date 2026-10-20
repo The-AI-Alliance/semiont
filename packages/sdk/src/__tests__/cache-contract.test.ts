@@ -18,6 +18,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { isReady } from '../cache';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { createTestClient } from '../testing';
+import { contentTransportSpies } from './helpers/in-memory-transport';
 
 const flush = () => new Promise((r) => setTimeout(r, 10));
 
@@ -26,9 +27,7 @@ const RESPONSES = (op: string): unknown => {
     case 'browse:entity-types-requested':
       return { entityTypes: ['Person'] };
     case 'browse:resource-requested':
-      return { resource: { '@id': 'res-1', name: 'R' } };
-    case 'browse:annotations-requested':
-      return { annotations: [], total: 0 };
+      return { resource: { '@id': 'res-1', name: 'R' }, lastSequence: 1 };
     default:
       return {};
   }
@@ -61,13 +60,15 @@ describe('lazy: the fetch belongs to the first subscription, not the call', () =
   });
 
   it('scoped accessors are lazy too', async () => {
-    const { client, transport } = createTestClient({ transport: { makeResponse: RESPONSES } });
+    const content = contentTransportSpies();
+    const { client, transport } = createTestClient({ transport: { makeResponse: RESPONSES }, content });
     const rid = makeResourceId('res-1');
 
     client.browse.resource(rid);
     client.browse.annotations(rid);
     await flush();
     expect(transport.requestLog).toHaveLength(0);
+    expect(content.getAnnotations).not.toHaveBeenCalled();
 
     client.dispose();
   });

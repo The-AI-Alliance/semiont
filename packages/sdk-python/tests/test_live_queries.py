@@ -9,7 +9,23 @@ from contextlib import AsyncExitStack
 
 import pytest
 from aio import pass_time, run, soon, turns
-from kb import ANNOTATION, LIMITS, OTHER, RESOURCE, annotation, answer, asked_for, descriptor, event, knowing, refuse, refusing, silent
+from kb import (
+    ANNOTATION,
+    LIMITS,
+    OTHER,
+    RESOURCE,
+    SilentContent,
+    annotation,
+    answer,
+    asked_for,
+    descriptor,
+    event,
+    knowing,
+    knowing_content,
+    refuse,
+    refusing,
+    silent,
+)
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
@@ -19,7 +35,7 @@ from semiont.errors import BusRequestError
 from semiont.namespaces.browse import Collaborator
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
-from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
+from semiont.testing import FaultyTransport, StubGateway
 
 type Client = SemiontClient[FaultyTransport]
 
@@ -27,9 +43,10 @@ _DOCUMENT = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
 
 def world(persistence: CachePersistence | None = None, *, answered: bool = True) -> tuple[Client, FaultyTransport]:
-    """A client over a gateway that answers every operation a live query asks, or one the test answers for when it is not `answered`."""
+    """A client over doubles that answer every read a live query makes, or, when it is not `answered`, that answer none: the test does."""
     transport = FaultyTransport(make_response=knowing) if answered else silent()
-    client: Client = SemiontClient(transport, InMemoryContent(), StubGateway(), persistence=persistence)
+    content = knowing_content() if answered else SilentContent()
+    client: Client = SemiontClient(transport, content, StubGateway(), persistence=persistence)
     return client, transport
 
 
@@ -37,7 +54,7 @@ def test_watching_a_query_of_a_resource_holds_its_scope_from_before_it_asks_unti
     async def scenario() -> None:
         client, transport = world(answered=False)
         async with client:
-            query = client.browse.annotations(RESOURCE)
+            query = client.browse.events(RESOURCE)
             # Naming a query touches nothing.
             await turns()
             assert (transport.scopes, transport.emitted) == ([], [])
@@ -102,7 +119,7 @@ def test_a_read_gives_what_the_service_answers_now_and_every_watcher_is_given_it
         client, transport = world()
         transport.queue_reply(
             "browse:resource-requested",
-            [{"resource": descriptor(RESOURCE, name), "annotations": [], "entityReferences": []} for name in ("first", "second")],
+            [{"resource": descriptor(RESOURCE, name), "lastSequence": 1} for name in ("first", "second")],
         )
         async with client, client.browse.resource(RESOURCE) as live:
             assert await soon(anext(live)) == Pending()

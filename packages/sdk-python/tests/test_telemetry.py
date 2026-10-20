@@ -58,7 +58,6 @@ async def traffic() -> tuple[Frame, str | None]:
         gateway.described[RESOURCE] = {
             "resource": {"@context": "https://schema.org/", "@id": "res-1", "name": "n", "representations": []},
             "annotations": [],
-            "entityReferences": [],
         }
         gateway.annotations[RESOURCE] = {"annotations": [], "total": 0}
         gateway.anchored_texts[RESOURCE] = {"kind": "not-yet"}

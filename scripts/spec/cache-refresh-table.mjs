@@ -1,19 +1,29 @@
 // cache-refresh-table.mjs — the one reading of specs/src/client/refresh.json
 // that every generator of it shares: the queries, and what each trigger does
-// to them, held to the registry and to how each trigger is delivered.
+// to them, held to the registry, the gateway's API and how each trigger is
+// delivered.
 
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { deliveryClasses } from '../bus/delivery.mjs';
 
 /**
- * The table at `tablePath`, checked against the registry at `registryPath`:
+ * The table at `tablePath`, checked against the registry at `registryPath`
+ * and the gateway's API at `apiPath`:
  * its queries, its rows, the triggers in the order first stated (`whens`, each
  * with the kinds of event its rows are split by), and the two vocabularies a
  * row is written in. `refuse(message)` is called for a table that cannot be
  * generated from, and does not return.
  */
-export function readCacheRefresh(tablePath, registryPath, refuse) {
+export function readCacheRefresh(tablePath, registryPath, apiPath, refuse) {
   const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  // A path of the API's source is a file of its own, named by `$ref`.
+  const pathItem = (item) => ('$ref' in item ? JSON.parse(readFileSync(resolve(dirname(apiPath), item.$ref), 'utf8')) : item);
+  const reads = new Set(
+    Object.entries(JSON.parse(readFileSync(apiPath, 'utf8')).paths).flatMap(([template, item]) =>
+      'get' in pathItem(item) ? [`GET ${template}`] : [],
+    ),
+  );
   const channels = new Map(registry.channels.map((entry) => [entry.channel, entry]));
   const requests = new Set(registry.operations.map((operation) => operation.request));
   const delivery = deliveryClasses(registry);
@@ -26,11 +36,14 @@ export function readCacheRefresh(tablePath, registryPath, refuse) {
   const names = new Set();
   for (const query of queries) {
     const { name, per, asks, docs } = query;
+    const read = query.reads;
     if (typeof name !== 'string' || !/^[a-z][A-Za-z]*$/.test(name)) refuse(`${JSON.stringify(name)} is not a query's name: camelCase`);
     if (names.has(name)) refuse(`the query ${name} is stated twice`);
     names.add(name);
     if (typeof docs !== 'string' || docs === '') refuse(`the query ${name} has no docs`);
-    if (!requests.has(asks)) refuse(`the query ${name} asks ${JSON.stringify(asks)}, which is not an operation of the registry`);
+    if ((asks === undefined) === (read === undefined)) refuse(`the query ${name} must either ask an operation of the registry or read a route of the gateway's API, and not both`);
+    if (asks !== undefined && !requests.has(asks)) refuse(`the query ${name} asks ${JSON.stringify(asks)}, which is not an operation of the registry`);
+    if (read !== undefined && !reads.has(read)) refuse(`the query ${name} reads ${JSON.stringify(read)}, which is no GET of the gateway's API`);
     if (per !== undefined && !PER.includes(per)) refuse(`the query ${name} is kept per ${JSON.stringify(per)}: one of ${PER.join(', ')}, or absent`);
   }
 

@@ -245,10 +245,10 @@ async def planned_and_waiting(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> tupl
     began, let_go = holding_the_first_read(rig, monkeypatch)
     rebuild(rig, "c-held", "pdf-held")
     await until(began.is_set)
-    # The last thing a reconcile reads is the annotations of each resource of the catalog, one request for each.
-    read_last = len(rig.asked("browse:annotations-requested")) + len(rig.world.catalog(False))
+    # The last thing a reconcile reads is the annotations of each resource of the catalog, one read for each.
+    read_last = len(rig.world.annotations_of) + len(rig.world.catalog(False))
     reconciling = asyncio.ensure_future(rig.smelter.reconcile())
-    await until(lambda: len(rig.asked("browse:annotations-requested")) == read_last)
+    await until(lambda: len(rig.world.annotations_of) == read_last)
     await a_while()
     return reconciling, let_go
 
@@ -290,7 +290,7 @@ def declined_for(reason: str) -> DeclinedBytes:
 # ── What it follows ────────────────────────────────────────────────────
 
 
-def test_it_reads_what_the_record_holds_from_the_archivist_over_the_bus(tmp_path: Path) -> None:
+def test_it_reads_the_record_from_the_archivist_over_the_bus_and_a_resources_annotations_from_its_surface(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             await rig.happened(
@@ -302,12 +302,10 @@ def test_it_reads_what_the_record_holds_from_the_archivist_over_the_bus(tmp_path
             rig.world.put("res-2", LATER)
             await rig.smelter.reconcile()
 
-            # A resource's description, a resource's annotations and the catalog, and nothing else of the record.
-            assert {entry.channel for entry in rig.transport.request_log} == {
-                "browse:resource-requested",
-                "browse:annotations-requested",
-                "browse:resources-requested",
-            }
+            # A resource's description and the catalog, and nothing else of the record, over the bus.
+            assert {entry.channel for entry in rig.transport.request_log} == {"browse:resource-requested", "browse:resources-requested"}
+            # And each resource's annotations, from the Archivist's own surface.
+            assert sorted(set(rig.world.annotations_of)) == ["res-1", "res-2"]
             # The catalog it asks for is of the resources that are not archived, 200 to a page.
             (catalog,) = rig.asked("browse:resources-requested")
             assert catalog["archived"] is False
@@ -436,7 +434,7 @@ def test_mark_unarchived_indexes_the_resource_and_then_each_annotation_the_archi
             }
             # The resource's chunks first, and then the annotations' quotes, in one request of the provider.
             assert rig.provider.asked == [[TEXT.decode()], ["Ada Lovelace", "the first program"]]
-            assert [asked["resourceId"] for asked in rig.asked("browse:annotations-requested")] == ["res-1"]
+            assert rig.world.annotations_of == ["res-1"]
             assert signals(rig) == [indexed("res-1", TEXT), indexed("res-1", TEXT)]
 
     run(scenario())
@@ -475,7 +473,7 @@ def test_mark_added_indexes_the_annotation_the_event_carries(tmp_path: Path) -> 
             await rig.happened(added)
 
             assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
-            assert rig.asked("browse:annotations-requested") == []
+            assert rig.world.annotations_of == []
 
     run(scenario())
 
@@ -545,7 +543,7 @@ def test_mark_body_updated_rewrites_the_entity_types_on_the_annotations_point_an
             assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", ("Mathematician", "Person"), False)}
             assert rig.provider.asked == []
             # What the body states is asked of the Archivist then.
-            assert [asked["resourceId"] for asked in rig.asked("browse:annotations-requested")] == ["res-1"]
+            assert rig.world.annotations_of == ["res-1"]
 
             # A body that states none leaves the point with none.
             await rig.happened(rig.world.retag("res-1", "ann-1", []))
@@ -1563,7 +1561,7 @@ def test_a_point_that_carries_other_entity_types_than_its_annotations_body_state
             rig.world.retag("res-1", "ann-1", ["Person"])
             rig.world.retag("res-1", "ann-2", [])
             rig.provider.asked.clear()
-            asked = len(rig.asked("browse:annotations-requested"))
+            asked = len(rig.world.annotations_of)
 
             assert await rig.smelter.reconcile() == came_to(annotations_restamped=2, eligible=1, indexed=1)
 
@@ -1573,7 +1571,7 @@ def test_a_point_that_carries_other_entity_types_than_its_annotations_body_state
             }
             assert rig.provider.asked == []
             # The resource's annotations were asked for to plan, and once more to do the work of both.
-            assert len(rig.asked("browse:annotations-requested")) == asked + 2
+            assert len(rig.world.annotations_of) == asked + 2
 
     run(scenario())
 
@@ -1588,7 +1586,7 @@ def test_planned_work_whose_resource_no_event_arrived_for_is_done_as_planned_and
             assert await rig.smelter.reconcile() == came_to(annotations=1, eligible=1, indexed=1)
 
             # Its annotations were asked for once, to plan, and its description not at all.
-            assert len(rig.asked("browse:annotations-requested")) == 1
+            assert len(rig.world.annotations_of) == 1
             assert len(rig.asked("browse:resource-requested")) == described
 
     run(scenario())

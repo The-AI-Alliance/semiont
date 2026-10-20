@@ -676,8 +676,7 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
         [
             {
                 "resource": {"@context": "https://schema.org", "@id": "res-1", "name": "a page of notes", "representations": []},
-                "annotations": [],
-                "entityReferences": [],
+                "lastSequence": 1,
             }
         ],
     )

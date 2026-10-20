@@ -15,17 +15,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventBus, resourceId as makeResourceId, annotationId } from '@semiont/core';
 import type {
-  
   EventMetadata,
   EventOfType,
   IContentTransport,
-  
   ResourceId,
   StoredEvent,
   UserId,
 } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
-import { inMemoryTransport } from './helpers/in-memory-transport';
+import { inMemoryTransport, contentTransportSpies } from './helpers/in-memory-transport';
 import { mockResource } from './fixtures/resource';
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -33,11 +31,11 @@ const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 /**
  * Fake transport with the COMPOSING `subscribeToResource` contract (mirrors
  * HttpTransport: per-resource ref-counts, distinct resources independent)
- * and synchronous correlated replies. Tracks held
- * scopes and a per-channel/per-rid request log so tests can assert scope
- * composition and invalidation fan-out. `failFirstResourceFetchFor` makes
- * the first `browse:resource-requested` emit for that rid reject — the B14
- * retry path.
+ * and synchronous correlated replies, beside a content transport answering
+ * the annotation lists. Tracks held scopes and one per-rid log of what was
+ * asked, of either, so tests can assert scope composition and invalidation
+ * fan-out. `failFirstResourceFetchFor` makes the first
+ * `browse:resource-requested` emit for that rid reject — the B14 retry path.
  */
 function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {}) {
   // One typed bus: the transport streams from it and the test pushes into
@@ -58,7 +56,7 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
     };
   });
 
-  /** One entry per request emit: `channel rid`. */
+  /** One entry per resource request or annotations read: `<what was asked> rid`. */
   const requests: string[] = [];
   let pendingFailure = opts.failFirstResourceFetchFor;
 
@@ -68,10 +66,8 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
     onEmit: (channel, payload, envelope) => {
       const rid = (payload as { resourceId?: string }).resourceId as string;
       const cid = envelope?.correlationId as string;
-      if (channel === 'browse:resource-requested' || channel === 'browse:annotations-requested') {
-        requests.push(`${channel} ${rid}`);
-      }
       if (channel === 'browse:resource-requested') {
+        requests.push(`${channel} ${rid}`);
         if (pendingFailure === rid) {
           // One-shot loss: the request never gets a reply (the real failure
           // is a Bus.request timeout; a rejected emit produces the same
@@ -80,24 +76,19 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
           throw new Error(`simulated lost reply for ${rid}`);
         }
         bus.emit('browse:resource-result', {
-          response: { resource: mockResource(rid), annotations: [], entityReferences: [] },
-        }, { correlationId: cid });
-      }
-      if (channel === 'browse:annotations-requested') {
-        bus.emit('browse:annotations-result', {
-          response: { annotations: [], total: 0 },
+          response: { resource: mockResource(rid), lastSequence: 1 },
         }, { correlationId: cid });
       }
     },
   });
-  return { transport, subscribeToResource, heldScopes, requests };
+  const content: IContentTransport = contentTransportSpies({
+    getAnnotations: async (rid) => {
+      requests.push(`getAnnotations ${rid}`);
+      return { annotations: [], total: 0 };
+    },
+  });
+  return { transport, content, subscribeToResource, heldScopes, requests };
 }
-
-const noopContent = {
-  getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-  getBinaryStream: async () => ({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  dispose: () => {},
-} as unknown as IContentTransport;
 
 /** Mimic one `useResourceLoader(client, rid)`: resource + annotations subscriptions. */
 function mountLoader(browse: BrowseNamespace, rid: ResourceId) {
@@ -154,8 +145,8 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
 
   it('all N loaders resolve AND each holds its OWN scope — no contention state, no warns', async () => {
     const bus = new EventBus();
-    const { transport, heldScopes } = makeComposingTransport();
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const { transport, content, heldScopes } = makeComposingTransport();
+    const browse = new BrowseNamespace(transport, bus, content);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const loaders = RIDS.map((rid) => mountLoader(browse, rid));
@@ -177,8 +168,8 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
 
   it("KEYSTONE: a broadcast invalidation for rid-k refetches loader k's annotation list ONLY", async () => {
     const bus = new EventBus();
-    const { transport, requests } = makeComposingTransport();
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const { transport, content, requests } = makeComposingTransport();
+    const browse = new BrowseNamespace(transport, bus, content);
 
     const loaders = RIDS.map((rid) => mountLoader(browse, rid));
     await flush();
@@ -187,8 +178,8 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
     bus.emit('mark:added', fakeMarkAdded(RIDS[1]!)); // res-2's broadcast
     await flush();
 
-    expect(requests).toContain('browse:annotations-requested res-2');
-    expect(requests.filter((r) => r.startsWith('browse:annotations-requested'))).toHaveLength(1);
+    expect(requests).toContain('getAnnotations res-2');
+    expect(requests.filter((r) => r.startsWith('getAnnotations'))).toHaveLength(1);
 
     loaders.forEach((l) => l.unmount());
     bus.destroy();
@@ -196,8 +187,8 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
 
   it('a loader whose first fetch fails recovers via the bounded SWR retry (B14)', async () => {
     const bus = new EventBus();
-    const { transport } = makeComposingTransport({ failFirstResourceFetchFor: 'res-3' });
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const { transport, content } = makeComposingTransport({ failFirstResourceFetchFor: 'res-3' });
+    const browse = new BrowseNamespace(transport, bus, content);
 
     const loaders = RIDS.map((rid) => mountLoader(browse, rid));
     await flush();
@@ -213,8 +204,8 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
 
   it('unmount/remount keeps working: every remounted loader loads', async () => {
     const bus = new EventBus();
-    const { transport } = makeComposingTransport();
-    const browse = new BrowseNamespace(transport, bus, noopContent);
+    const { transport, content } = makeComposingTransport();
+    const browse = new BrowseNamespace(transport, bus, content);
 
     const loaders = RIDS.map((rid) => mountLoader(browse, rid));
     await flush();

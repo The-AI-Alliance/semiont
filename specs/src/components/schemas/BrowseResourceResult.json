@@ -1,9 +1,24 @@
 {
   "type": "object",
-  "description": "Result of browsing a single resource",
+  "description": "A resource's descriptor, and the sequence number of the last of its events the descriptor reflects. Its annotations are not here: their number follows the document's, so they are read over HTTP (`GET /resources/{id}/annotations`).",
   "properties": {
     "response": {
-      "$ref": "./GetResourceResponse.json"
+      "type": "object",
+      "properties": {
+        "resource": {
+          "$ref": "./ResourceDescriptor.json"
+        },
+        "lastSequence": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The sequence number of the resource's last event. A graph read that follows a write waits for the graph projection to reach it."
+        }
+      },
+      "required": [
+        "resource",
+        "lastSequence"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

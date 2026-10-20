@@ -18,7 +18,9 @@ import { caseOf, type Case, type Step } from './case';
 interface Query {
   name: string;
   per?: 'resource' | 'annotation' | 'filters';
-  asks: string;
+  /** The operation of the registry it asks, or the read of the gateway's API it makes: one of the two. */
+  asks?: string;
+  reads?: string;
 }
 
 interface Row {
@@ -56,12 +58,8 @@ const FOUND = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'sema
 /** The operations a refresh of the collaborator directory asks beside its own: each key holder's limits. */
 const limitsOperations = (): string[] => registry().operations.map((operation) => operation.request).filter((request) => request.endsWith(':limits-requested'));
 
-/** One request a query makes, and the answer the suite gives it. */
-interface Ask {
-  operation: string;
-  payload?: unknown;
-  response: unknown;
-}
+/** One request a query makes: on the bus, with the answer the suite gives it; or a read over HTTP, which the stand-in Archivist answers from what `seeded` gave it. */
+type Ask = { operation: string; payload?: unknown; response: unknown } | { read: string; params: unknown };
 
 /** One key the client holds: the observer that holds it, what observing it asks, and the value it then shows. */
 interface Held {
@@ -71,6 +69,8 @@ interface Held {
   of?: 'r1' | 'r2';
   observe: Record<string, unknown>;
   asks: Ask[];
+  /** What the stand-in Archivist is given to answer a read over HTTP with. */
+  seeded?: Step;
   value: unknown;
 }
 
@@ -84,9 +84,17 @@ function held(): Held[] {
     value,
   });
   return [
-    perResource('one', 'resource', 'r1', 'browse:resource-requested', { resource: resource('one'), annotations: [], entityReferences: [] }, resource('one')),
-    perResource('two', 'resource', 'r2', 'browse:resource-requested', { resource: resource('two'), annotations: [], entityReferences: [] }, resource('two')),
-    perResource('marks', 'annotations', 'r1', 'browse:annotations-requested', { annotations: [ANNOTATION], total: 1 }, [ANNOTATION]),
+    perResource('one', 'resource', 'r1', 'browse:resource-requested', { resource: resource('one'), lastSequence: 1 }, resource('one')),
+    perResource('two', 'resource', 'r2', 'browse:resource-requested', { resource: resource('two'), lastSequence: 1 }, resource('two')),
+    {
+      observer: 'marks',
+      query: 'annotations',
+      of: 'r1',
+      observe: { query: 'annotations', resource: V('r1') },
+      asks: [{ read: 'GET /resources/{id}/annotations', params: { id: V('r1') } }],
+      seeded: { backend: 'annotations', with: { resource: V('r1'), annotations: { annotations: [ANNOTATION], total: 1 } } },
+      value: [ANNOTATION],
+    },
     {
       observer: 'mark',
       query: 'annotation',
@@ -125,13 +133,17 @@ function held(): Held[] {
   ];
 }
 
-/** Steps that expect `asks`, in whatever order the client makes them, and answer each. `tag` keeps their names apart. */
+/** Steps that expect `asks`, in whatever order the client makes them, and answer each on the bus. `tag` keeps their names apart. */
 function asked(asks: Ask[], tag: string): Step[] {
   if (asks.length === 0) return [];
-  const fetches: FetchStep[] = asks.map((ask, index) => ({ fetch: ask.operation, ...(ask.payload === undefined ? {} : { payload: ask.payload }), as: `${tag}${index + 1}` }));
+  const fetches: FetchStep[] = asks.map((ask, index) =>
+    'read' in ask ? { fetch: ask.read, params: ask.params } : { fetch: ask.operation, ...(ask.payload === undefined ? {} : { payload: ask.payload }), as: `${tag}${index + 1}` },
+  );
   return [
     fetches.length === 1 ? fetches[0]! : { fetches },
-    ...asks.map((ask, index): Step => ({ backend: 'emit', with: { channel: operationFor(ask.operation).result, correlationId: V(`${tag}${index + 1}`), payload: { response: ask.response } } })),
+    ...asks.flatMap((ask, index): Step[] =>
+      'read' in ask ? [] : [{ backend: 'emit', with: { channel: operationFor(ask.operation).result, correlationId: V(`${tag}${index + 1}`), payload: { response: ask.response } } }],
+    ),
   ];
 }
 
@@ -204,8 +216,11 @@ function built(row: Row, all: Row[], queries: Query[]): Case {
   const unheld = queries.filter((query) => !holding.some((key) => key.query === query.name));
   if (unheld.length > 0) throw new Error(`refresh-cases.ts observes no ${unheld.map((query) => query.name).join(', ')}, which specs/src/client/refresh.json names`);
   for (const key of holding) {
-    const stated = queries.find((query) => query.name === key.query)!.asks;
-    if (key.asks[0]!.operation !== stated) throw new Error(`refresh-cases.ts asks ${key.asks[0]!.operation} for ${key.query}; the table says ${stated}`);
+    const query = queries.find((stated) => stated.name === key.query)!;
+    const first = key.asks[0]!;
+    const asking = 'read' in first ? first.read : first.operation;
+    const stated = query.asks ?? query.reads;
+    if (asking !== stated) throw new Error(`refresh-cases.ts asks ${asking} for ${key.query}; the table says ${stated}`);
   }
 
   // After a gap the keys of the scope are held by the observers that took it again.
@@ -213,9 +228,10 @@ function built(row: Row, all: Row[], queries: Query[]): Case {
   const acted = (queries: string[] | undefined): Held[] => holding.filter((key) => (queries ?? []).includes(key.query) && key.of !== 'r2');
   const written: Record<string, unknown> = { annotations: [UPDATED], annotation: UPDATED };
 
-  const requests = [...holding.flatMap((key) => key.asks.map((ask) => ask.operation)), 'mark:delete'];
+  const requests = [...holding.flatMap((key) => key.asks.flatMap((ask) => ('read' in ask ? [] : [ask.operation]))), 'mark:delete'];
   const steps: Step[] = [
     { backend: 'listen', with: { channels: [...new Set(requests)] } },
+    ...holding.flatMap((key) => (key.seeded === undefined ? [] : [key.seeded])),
     { driver: 'open', with: { timing: TIMING } },
     { state: 'open' },
     ...holding.flatMap((key, index): Step[] => [

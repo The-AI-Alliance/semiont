@@ -3,23 +3,23 @@
   "source": "docs/protocol/CACHE-SEMANTICS.md B19; specs/src/client/timing.json invalidationWindowMs",
   "tier": "parity",
   "steps": [
-    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 600, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},
 
-    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "a"},
-    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
-    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"observe": {"query": "events", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:events-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:events-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"events": [], "total": 0, "resourceId": {"$var": "r1"}}}}},
     {"reaches": "a", "state": {"status": "ready", "value": []}},
     {"scopes": [{"$var": "r1"}]},
     {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 1, "live": true}},
     {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 2, "live": true}},
     {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 3, "live": true}},
-    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
-    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"annotations": [], "total": 0}}}},
-    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f3"},
-    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f3"}, "payload": {"response": {"annotations": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}], "total": 1}}}},
-    {"reaches": "a", "state": {"status": "ready", "value": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}]}},
+    {"fetch": "browse:events-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:events-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"events": [], "total": 0, "resourceId": {"$var": "r1"}}}}},
+    {"fetch": "browse:events-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f3"},
+    {"backend": "emit", "with": {"channel": "browse:events-result", "correlationId": {"$var": "f3"}, "payload": {"response": {"events": [{"id": "event-1", "type": "mark:added", "timestamp": "2026-01-01T00:00:00.000Z", "userId": {"$var": "client"}, "resourceId": {"$var": "r1"}, "version": 1, "payload": {}, "metadata": {"sequenceNumber": 1}, "agent": {"@type": "Person", "@id": {"$var": "client"}}}], "total": 1, "resourceId": {"$var": "r1"}}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": [{"id": "event-1", "type": "mark:added", "timestamp": "2026-01-01T00:00:00.000Z", "userId": {"$var": "client"}, "resourceId": {"$var": "r1"}, "version": 1, "payload": {}, "metadata": {"sequenceNumber": 1}, "agent": {"@type": "Person", "@id": {"$var": "client"}}}]}},
     {"quiet": 900}
   ]
 }

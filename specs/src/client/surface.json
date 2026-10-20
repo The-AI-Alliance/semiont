@@ -98,7 +98,7 @@
         {
           "method": "annotations",
           "shape": "cache",
-          "via": { "request": "browse:annotations-requested" },
+          "via": { "content": "getAnnotations" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {

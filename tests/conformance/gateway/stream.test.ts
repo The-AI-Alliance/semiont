@@ -21,8 +21,7 @@ const OTHER_PERSISTED = 'mark:removed';
 const describedResult = {
   response: {
     resource: { '@context': 'https://schema.org/', '@id': 'r', name: 'r', representations: [] },
-    annotations: [],
-    entityReferences: [],
+    lastSequence: 1,
   },
 };
 

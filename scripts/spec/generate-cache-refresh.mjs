@@ -31,7 +31,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), refuse);
+const { queries, refresh, whens, WHEN } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), resolve(ROOT, 'specs/src/openapi.json'), refuse);
 
 const list = (values) => `[${values.map((v) => `'${v}'`).join(', ')}]`;
 const doc = (text) => `/** ${text.replaceAll('*/', '*\\/')} */`;

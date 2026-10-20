@@ -74,7 +74,7 @@ eachPlane(
       const { result } = operationFor(request);
       await world().responder([request], () => ({
         channel: result,
-        payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, annotations: [], entityReferences: [] } },
+        payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },
       }));
       const alice = await world().person('alice');
       const clientId = randomUUID();
@@ -113,7 +113,6 @@ eachPlane(
       world().archivist.descriptions.set(id, {
         resource: { '@context': 'https://schema.org/', '@id': id, name: 'traced', representations: [] },
         annotations: [],
-        entityReferences: [],
       });
       const describe = traceparent();
       expect((await call(world().origin, 'GET', `/resources/${id}/jsonld`, { token, headers: { traceparent: describe.header } })).status).toBe(200);
@@ -156,7 +155,7 @@ eachPlane(
       const participant = await world().agent('conformance', 'metered');
       await world().emit(participant.token, {
         channel: result,
-        payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, annotations: [], entityReferences: [] } },
+        payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },
         correlationId,
       });
       await owner.frame(result, (f) => f.correlationId === correlationId);

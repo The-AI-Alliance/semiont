@@ -101,7 +101,7 @@ class SemiontClient[T: Transport]:
         )
         self._closed = False
         self._held = False
-        self._live: Final = Live(self._links, persistence)
+        self._live: Final = Live(self._links, content, persistence)
         self._refresher: Final = Refresher(self._links, self._live, invalidation_window_ms=kept.invalidation_window_ms)
 
         self.frame: Final = FrameNamespace(self._links)

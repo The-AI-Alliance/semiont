@@ -111,9 +111,6 @@
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
-      "browse:annotations-requested",
-      "browse:annotations-result",
-      "browse:annotations-failed",
       "browse:annotation-requested",
       "browse:annotation-result",
       "browse:annotation-failed",
@@ -310,9 +307,6 @@
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
-      "browse:annotations-requested",
-      "browse:annotations-result",
-      "browse:annotations-failed",
       "browse:annotation-requested",
       "browse:annotation-result",
       "browse:annotation-failed",
@@ -2042,7 +2036,7 @@
       "shape": "schema",
       "schema": "BrowseResourceResult",
       "validate": "BrowseResourceResult",
-      "tsRefinement": "{\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['BrowseResourceResult']['response'], 'resource'> & {\n      resource: ResourceDescriptor;\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2099,51 +2093,6 @@
     },
     {
       "channel": "browse:resources-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-requested",
-      "shape": "schema",
-      "schema": "BrowseAnnotationsRequest",
-      "validate": "BrowseAnnotationsRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-result",
-      "shape": "schema",
-      "schema": "BrowseAnnotationsResult",
-      "validate": "BrowseAnnotationsResult",
-      "tsRefinement": "{\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotations-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -3521,15 +3470,6 @@
       }
     },
     {
-      "request": "browse:annotations-requested",
-      "result": "browse:annotations-result",
-      "failure": "browse:annotations-failed",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "request": "browse:annotation-history-requested",
       "result": "browse:annotation-history-result",
       "failure": "browse:annotation-history-failed",
@@ -4078,7 +4018,6 @@
       "browse:agents-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
-      "browse:annotations-requested",
       "browse:directory-requested",
       "browse:entity-types-requested",
       "browse:events-requested",

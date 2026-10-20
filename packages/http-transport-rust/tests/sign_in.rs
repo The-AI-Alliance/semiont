@@ -1766,10 +1766,10 @@ async fn asked_with_a_token_the_knowledge_base_says_who_it_is() {
 async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept() {
     let world = World::start().await;
     world.staged.answers.lock().unwrap().insert(
-        "browse:annotations-requested".to_owned(),
+        "browse:events-requested".to_owned(),
         (
-            "browse:annotations-result".to_owned(),
-            json!({ "response": { "annotations": [], "total": 0 } }),
+            "browse:events-result".to_owned(),
+            json!({ "response": { "events": [], "total": 0, "resourceId": "res-1" } }),
         ),
     );
     let storage = Arc::new(InMemorySessionStorage::new());
@@ -1783,7 +1783,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     let session = live(&browser).await;
 
     // Watching a query of the resource holds its scope.
-    let _watching = session.client().browse.annotations(&as_id("res-1")).watch();
+    let _watching = session.client().browse.events(&as_id("res-1")).watch();
     let resumed_from = || {
         world
             .staged

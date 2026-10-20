@@ -122,7 +122,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         try:
             async with (
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
-                Weaver(started.graph, transport, Checkpoint(Path(config.checkpoint_path))) as weaver,
+                Weaver(started.graph, transport, transport.content, Checkpoint(Path(config.checkpoint_path))) as weaver,
             ):
                 LOG.info("Following the record")
                 health = await _listening(

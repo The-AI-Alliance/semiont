@@ -4,7 +4,7 @@
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},
-    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},
 
@@ -13,7 +13,7 @@
     {"reaches": "a", "state": {"status": "pending"}},
     {"reaches": "b", "state": {"status": "pending"}},
     {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
-    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "lastSequence": 1}}}},
     {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
     {"reaches": "b", "state": {"status": "ready", "value": {"$var": "one"}}},
     {"quiet": 300}

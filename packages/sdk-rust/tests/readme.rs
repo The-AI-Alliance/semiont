@@ -245,7 +245,7 @@ fn a_knowledge_base(
                     "@context": "https://schema.org", "@id": id,
                     "name": format!("name-{id}"), "representations": [],
                 },
-                "annotations": [], "entityReferences": [],
+                "lastSequence": 1,
             })))
         }
         "job:create" => Ok(Some(json!({ "jobId": "job-1" }))),
