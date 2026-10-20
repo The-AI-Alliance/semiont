@@ -15,7 +15,7 @@
     "request": "A request of a bus operation, answered on its result or failure channel.",
     "emit": "A frame sent over the wire, with no reply awaited.",
     "local": "A frame published on the client's own bus and nowhere else.",
-    "content": "An operation of the content transport: putBinary, getBinary, getBinaryStream, getResourceGraph or getAnchoredText.",
+    "content": "An operation of the content transport: putBinary, getBinary, getBinaryStream, getResourceGraph, getAnnotations or getAnchoredText.",
     "gateway": "One of the gateway's own operations: getCurrentUser, getMediaToken, getProtectedResourceMetadata, healthCheck or getStatus.",
     "observes": "The channel of the client's own bus whose frames an `events` row gives."
   },

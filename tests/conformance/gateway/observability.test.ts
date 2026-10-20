@@ -119,6 +119,11 @@ eachPlane(
       expect((await call(world().origin, 'GET', `/resources/${id}/jsonld`, { token, headers: { traceparent: describe.header } })).status).toBe(200);
       expect((await eventually(spanName('archivist.resources.describe'), 10_000, () => otlp().spans.find((s) => s.name === spanName('archivist.resources.describe') && s.traceId === describe.traceId))).kind).toBe(CLIENT);
 
+      world().archivist.annotations.set(id, { annotations: [], total: 0 });
+      const listed = traceparent();
+      expect((await call(world().origin, 'GET', `/resources/${id}/annotations`, { token, headers: { traceparent: listed.header } })).status).toBe(200);
+      expect((await eventually(spanName('archivist.resources.annotations'), 10_000, () => otlp().spans.find((s) => s.name === spanName('archivist.resources.annotations') && s.traceId === listed.traceId))).kind).toBe(CLIENT);
+
       world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
       const anchored = traceparent();
       expect((await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token, headers: { traceparent: anchored.header } })).status).toBe(200);

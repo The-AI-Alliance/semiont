@@ -2,13 +2,14 @@
 
 An upload (`POST /resources`), a resource's bytes whole or as a stream
 (`GET /resources/{id}`), its description as linked data
-(`GET /resources/{id}/jsonld`), and its anchored text
+(`GET /resources/{id}/jsonld`), its annotations
+(`GET /resources/{id}/annotations`), and its anchored text
 (`GET /resources/{id}/anchored-text`). Bytes never ride the bus.
 
 It makes its requests as the bus transport makes its own, so one here is
 refused, tried again and reported as any other; and each is made in a span of
 the telemetry table (`content.put`, `content.get`, `content.get_graph`,
-`content.get_anchored_text`).
+`content.get_annotations`, `content.get_anchored_text`).
 """
 
 import asyncio
@@ -27,7 +28,7 @@ from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import Exchange
 from semiont.identifiers import ResourceId
 from semiont.transport import Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress
-from semiont.types import Agent, AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, ResourceUpload
+from semiont.types import Agent, AnchoredTextAnswer, CreateResourceResponse, GetAnnotationsResponse, GetResourceResponse, ResourceUpload
 
 __all__ = ["HttpContentTransport", "form_of"]
 
@@ -246,6 +247,12 @@ class HttpContentTransport(ContentTransport):
         bus_log("GET", "content", {"resourceId": resource_id, "graph": True})
         with telemetry.getting_graph(resource_id):
             return await self._exchange.answer(GetResourceResponse, "GET", f"{_path_of(resource_id)}/jsonld")
+
+    @override
+    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        bus_log("GET", "content", {"resourceId": resource_id, "annotations": True})
+        with telemetry.getting_annotations(resource_id):
+            return await self._exchange.answer(GetAnnotationsResponse, "GET", f"{_path_of(resource_id)}/annotations")
 
     @override
     async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:

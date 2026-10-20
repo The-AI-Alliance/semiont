@@ -97,6 +97,9 @@ __all__ = [
     "BrowseLinkClickedEvent",
     "BrowsePanelOpenEvent",
     "BrowsePanelToggleEvent",
+    "BrowsePeopleRequest",
+    "BrowsePeopleResult",
+    "BrowsePeopleResultResponse",
     "BrowseResourceCloseEvent",
     "BrowseResourceOpenEvent",
     "BrowseResourceReorderEvent",
@@ -341,8 +344,8 @@ __all__ = [
     "OllamaEmbeddingConfig",
     "PdfTextItem",
     "PeopleProjection",
-    "PeopleProjectionPeopleValue",
     "PersistedEventId",
+    "PersonProfile",
     "PersonProfileCommand",
     "PersonProfiledPayload",
     "ProtectedResourceMetadata",
@@ -607,6 +610,17 @@ class BrowseAgentsRequest(WireModel, frozen=True):
     """
     Request to browse the KB's collaborator directory (its declared Agents)
     """
+
+
+class BrowsePeopleRequest(WireModel, frozen=True, extra="forbid"):
+    """
+    Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
+    """
+
+    dids: Annotated[
+        list[UserId],
+        Field(description="The people asked after.", max_length=500, min_length=1),
+    ]
 
 
 class BrowseAnnotationHistoryRequest(WireModel, frozen=True):
@@ -2814,6 +2828,15 @@ class TagSchemasProjection(WireModel, frozen=True, extra="forbid"):
     ]
 
 
+class PersonProfile(WireModel, frozen=True, extra="forbid"):
+    """
+    What a person last said they are called, and when: the profile a `person:profiled` event gives.
+    """
+
+    name: Annotated[str, Field(description="The name the person last gave.")]
+    since: Annotated[str, Field(description="The timestamp of the event that gave it.")]
+
+
 class StorageUriEntry(WireModel, frozen=True, extra="forbid"):
     """
     One entry of the storage-uri index: the file `projections/storage-uri/<ab>/<cd>/<sha256 of the URI, hex>.json` under the state directory. It answers which resource's content is at a place in the working tree. Written as JSON indented by two spaces, `uri` first.
@@ -2895,6 +2918,10 @@ class WeaveApplied(WireModel, frozen=True):
 
 
 type BindBodyOperationOp = Annotated[Literal["add", "remove", "replace"], Field(description="The type of body operation")]
+
+
+class BrowsePeopleResultResponse(WireModel, frozen=True, extra="forbid"):
+    people: Annotated[dict[str, PersonProfile], Field(description="Each profile, keyed by DID.")]
 
 
 type BrowseDirectoryRequestSort = Literal["name", "mtime", "annotationCount"]
@@ -3664,11 +3691,6 @@ class ArchivistConfigStaging(WireModel, frozen=True, extra="forbid"):
     ]
 
 
-class PeopleProjectionPeopleValue(WireModel, frozen=True, extra="forbid"):
-    name: Annotated[str, Field(description="The name the person last gave.")]
-    since: Annotated[str, Field(description="The timestamp of the event that gave it.")]
-
-
 type AnchoredTextExtractedEntryLinesItemWordsItem = Annotated[list[float], Field(max_length=4, min_length=4)]
 
 
@@ -3815,6 +3837,14 @@ class BodyOperationReplace(WireModel, frozen=True):
     op: Literal["replace"]
     old_item: Annotated[TextualBody | SpecificResource, Field(alias="oldItem")]
     new_item: Annotated[TextualBody | SpecificResource, Field(alias="newItem")]
+
+
+class BrowsePeopleResult(WireModel, frozen=True):
+    """
+    What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
+    """
+
+    response: BrowsePeopleResultResponse
 
 
 class BrowseDirectoryRequest(WireModel, frozen=True):
@@ -5170,7 +5200,7 @@ class PeopleProjection(WireModel, frozen=True, extra="forbid"):
     """
 
     people: Annotated[
-        dict[str, PeopleProjectionPeopleValue],
+        dict[str, PersonProfile],
         Field(description="Each person's current profile, keyed by their DID."),
     ]
 

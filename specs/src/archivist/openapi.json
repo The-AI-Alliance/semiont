@@ -39,6 +39,9 @@
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },
+    "/resources/{id}/annotations": {
+      "$ref": "paths/resources_{id}_annotations.json"
+    },
     "/resources/{id}/anchored-text": {
       "$ref": "paths/resources_{id}_anchored-text.json"
     },
@@ -88,6 +91,9 @@
       },
       "ErrorResponse": {
         "$ref": "../components/schemas/ErrorResponse.json"
+      },
+      "GetAnnotationsResponse": {
+        "$ref": "../components/schemas/GetAnnotationsResponse.json"
       },
       "GetResourceResponse": {
         "$ref": "../components/schemas/GetResourceResponse.json"

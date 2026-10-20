@@ -127,6 +127,7 @@ export function contentTransportSpies(
     getBinary: vi.fn<IContentTransport['getBinary']>(),
     getBinaryStream: vi.fn<IContentTransport['getBinaryStream']>(),
     getResourceGraph: vi.fn<IContentTransport['getResourceGraph']>(),
+    getAnnotations: vi.fn<IContentTransport['getAnnotations']>(),
     getAnchoredText: vi.fn<IContentTransport['getAnchoredText']>(),
     dispose: vi.fn<IContentTransport['dispose']>(),
     ...overrides,

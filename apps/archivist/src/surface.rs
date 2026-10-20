@@ -234,6 +234,31 @@ async fn described(
     }
 }
 
+async fn annotations(
+    State(surface): Shared,
+    Path(resource_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(refusal) = refusal(&surface, &headers).await {
+        return refusal;
+    }
+    let held = match ids::is_safe(&resource_id) {
+        true => browse::resource_annotations(&surface.archivist, &resource_id),
+        false => Ok(None),
+    };
+    match held {
+        Ok(Some(held)) => json_reply(StatusCode::OK, held),
+        Ok(None) => error(StatusCode::NOT_FOUND, "Resource not found"),
+        Err(refusal) => {
+            logging::error(
+                "Annotations read failed",
+                json!({ "component": "archivist", "resourceId": resource_id, "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+        }
+    }
+}
+
 async fn anchored_text(
     State(surface): Shared,
     Path(resource_id): Path<String>,
@@ -615,6 +640,7 @@ pub fn router(surface: Arc<Surface>) -> Router {
         .route("/resources", post(upload))
         .route("/resources/{id}/content", get(content))
         .route("/resources/{id}/jsonld", get(described))
+        .route("/resources/{id}/annotations", get(annotations))
         .route(
             "/resources/{id}/anchored-text",
             get(anchored_text).put(store_anchored_text),

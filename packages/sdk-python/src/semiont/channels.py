@@ -58,6 +58,8 @@ from semiont.types import (
     BrowseLinkClickedEvent,
     BrowsePanelOpenEvent,
     BrowsePanelToggleEvent,
+    BrowsePeopleRequest,
+    BrowsePeopleResult,
     BrowseResourceCloseEvent,
     BrowseResourceOpenEvent,
     BrowseResourceReorderEvent,
@@ -203,6 +205,9 @@ __all__ = [
     "BROWSE_KB_FAILED",
     "BROWSE_KB_REQUESTED",
     "BROWSE_KB_RESULT",
+    "BROWSE_PEOPLE_FAILED",
+    "BROWSE_PEOPLE_REQUESTED",
+    "BROWSE_PEOPLE_RESULT",
     "BROWSE_RESOURCES_FAILED",
     "BROWSE_RESOURCES_REQUESTED",
     "BROWSE_RESOURCES_RESULT",
@@ -498,6 +503,9 @@ type ChannelName = Literal[
     "browse:agents-requested",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-requested",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -695,6 +703,9 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:agents-requested",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-requested",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -891,6 +902,9 @@ BROWSE_TAG_SCHEMAS_FAILED: Final = Channel[CommandError]("browse:tag-schemas-fai
 BROWSE_AGENTS_REQUESTED: Final = Channel[BrowseAgentsRequest]("browse:agents-requested", BrowseAgentsRequest)
 BROWSE_AGENTS_RESULT: Final = Channel[BrowseAgentsResult]("browse:agents-result", BrowseAgentsResult)
 BROWSE_AGENTS_FAILED: Final = Channel[CommandError]("browse:agents-failed", CommandError)
+BROWSE_PEOPLE_REQUESTED: Final = Channel[BrowsePeopleRequest]("browse:people-requested", BrowsePeopleRequest)
+BROWSE_PEOPLE_RESULT: Final = Channel[BrowsePeopleResult]("browse:people-result", BrowsePeopleResult)
+BROWSE_PEOPLE_FAILED: Final = Channel[CommandError]("browse:people-failed", CommandError)
 BROWSE_KB_REQUESTED: Final = Channel[BrowseKbRequest]("browse:kb-requested", BrowseKbRequest)
 BROWSE_KB_RESULT: Final = Channel[BrowseKbResult]("browse:kb-result", BrowseKbResult)
 BROWSE_KB_FAILED: Final = Channel[CommandError]("browse:kb-failed", CommandError)
@@ -1089,6 +1103,9 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
         "browse:agents-result": BROWSE_AGENTS_RESULT,
         "browse:agents-failed": BROWSE_AGENTS_FAILED,
+        "browse:people-requested": BROWSE_PEOPLE_REQUESTED,
+        "browse:people-result": BROWSE_PEOPLE_RESULT,
+        "browse:people-failed": BROWSE_PEOPLE_FAILED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:kb-result": BROWSE_KB_RESULT,
         "browse:kb-failed": BROWSE_KB_FAILED,
@@ -1179,6 +1196,8 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "browse:tag-schemas-failed",
     "browse:agents-result",
     "browse:agents-failed",
+    "browse:people-result",
+    "browse:people-failed",
     "browse:kb-result",
     "browse:kb-failed",
     "browse:directory-result",

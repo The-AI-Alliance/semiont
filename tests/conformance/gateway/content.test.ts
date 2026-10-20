@@ -215,10 +215,11 @@ eachPlane('content', (world) => {
           annotations: [],
           entityReferences: [],
         });
+        world().archivist.annotations.set(id, { annotations: [], total: 0 });
         world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
       }
       const asked = world().archivist.calls.length;
-      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/anchored-text', '/api/resources/{id}'] as const) {
+      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/annotations', '/resources/{id}/anchored-text', '/api/resources/{id}'] as const) {
         const reply = await call(world().origin, 'GET', path.replace('{id}', segment), { token });
         expect(reply.status, `${path} with ${segment}: ${why}`).toBe(404);
         expect(nonConformance('get', path, reply), `${path} with ${segment}: ${why}`).toEqual([]);
@@ -227,11 +228,11 @@ eachPlane('content', (world) => {
     }
   });
 
-  it('the pipe, the description and the anchored text answer 503 when the Archivist cannot serve them', async () => {
+  it('the pipe, the description, the annotations and the anchored text answer 503 when the Archivist cannot serve them', async () => {
     const token = await world().person('reader');
     world().archivist.mode.refusesGateway = true;
     try {
-      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/anchored-text'] as const) {
+      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/annotations', '/resources/{id}/anchored-text'] as const) {
         const reply = await call(world().origin, 'GET', path.replace('{id}', `res-${randomUUID()}`), { token });
         expect(reply.status, path).toBe(503);
         expect(nonConformance('get', path, reply), path).toEqual([]);
@@ -255,6 +256,23 @@ eachPlane('content', (world) => {
     expect(nonConformance('get', '/resources/{id}/jsonld', reply)).toEqual([]);
     expect(reply.headers.get('content-type')).toMatch(/^application\/ld\+json/);
     expect(reply.json).toEqual(description);
+  });
+
+  it('a resource\'s annotations are the record\'s answer, passed through unread and never cached, and 404 for an unknown resource', async () => {
+    const id = `res-${randomUUID()}`;
+    const held = { annotations: [], total: 0 };
+    world().archivist.annotations.set(id, held);
+    const token = await world().person('reader');
+    const reply = await call(world().origin, 'GET', `/resources/${id}/annotations`, { token });
+    expect(reply.status, reply.text).toBe(200);
+    expect(nonConformance('get', '/resources/{id}/annotations', reply)).toEqual([]);
+    expect(reply.headers.get('content-type')).toBe('application/json');
+    expect(reply.headers.get('cache-control')).toBe('no-cache');
+    expect(reply.json).toEqual(held);
+
+    const unknown = await call(world().origin, 'GET', `/resources/res-${randomUUID()}/annotations`, { token });
+    expect(unknown.status).toBe(404);
+    expect(nonConformance('get', '/resources/{id}/annotations', unknown)).toEqual([]);
   });
 
   it('the JSON-LD description of an unknown resource is a 404', async () => {

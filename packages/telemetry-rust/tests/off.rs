@@ -6,7 +6,7 @@ use opentelemetry::trace::TraceContextExt;
 use semiont::transport::TraceCarrier;
 use semiont_telemetry::{
     active_trace, active_trace_id, bus_emit, bus_recv, content_get, content_get_anchored_text,
-    content_get_graph, content_put, continued, continuing,
+    content_get_annotations, content_get_graph, content_put, continued, continuing,
 };
 
 const SENDER: &str = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
@@ -28,6 +28,7 @@ async fn with_nothing_installed_the_work_is_done_and_no_trace_travels() {
     );
     assert_eq!(content_get("res-1", true, async { 7 }).await, 7);
     assert_eq!(content_get_graph("res-1", async { 7 }).await, 7);
+    assert_eq!(content_get_annotations("res-1", async { 7 }).await, 7);
     assert_eq!(content_get_anchored_text("res-1", async { 7 }).await, 7);
 
     // A frame's own trace is handed on as it came, and is not a span here.

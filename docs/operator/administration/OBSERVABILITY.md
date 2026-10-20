@@ -41,6 +41,7 @@ reads it makes.
 | `content.put`          | client   | `content.format`, `content.size_bytes`                  | An upload |
 | `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream | A read of a resource's bytes |
 | `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
+| `content.get_annotations` | client | `resource.id`                                           | A read of a resource's annotations |
 | `content.get_anchored_text` | client | `resource.id`                                        | A read of a resource's anchored text |
 
 The gateway:
@@ -53,6 +54,7 @@ The gateway:
 | `content.put.server`   | server   | (none)                                                  | traffic | An upload |
 | `archivist.resources.record` | client | `peer.service` (`archivist`)                      | traffic | An upload forwarded to the Archivist |
 | `archivist.resources.describe` | client | `peer.service` (`archivist`)                    | traffic | A JSON-LD description asked of the Archivist |
+| `archivist.resources.annotations` | client | `peer.service` (`archivist`)                 | traffic | A resource's annotations asked of the Archivist |
 | `archivist.resources.anchored_text` | client | `peer.service` (`archivist`)               | traffic | A resource's anchored text asked of the Archivist |
 | `archivist.content.get` | client  | `peer.service` (`archivist`)                            | traffic | Bytes read from the Archivist |
 | `archivist.events.replay` | client | `peer.service` (`archivist`)                           | traffic | A scope's persisted events read from the Archivist for a replay |

@@ -436,6 +436,7 @@ names no one.
 | `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |
 | `browse:agents-requested` | `{agents}`: the roster; see below |
+| `browse:people-requested` `{dids}` | `{people}`: the profile of each DID asked after that has one, keyed by DID, from the people projection. A DID with no profile is left out. At most 500 DIDs are asked at once |
 | `browse:kb-requested` | `{name, domain, gitBranch?}`, the domain and the branch read when asked |
 | `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. A file that is a resource's content, by its storage URI, is `tracked` and carries the resource's id, entity types, annotation count and creator. Sorted by `name` in dictionary order (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
 
@@ -482,6 +483,7 @@ token was presented, `Bearer` when none was.
 | `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events": […]}`: the stream's stored events from sequence `N` on, in log order. Empty for a resource with none. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
 | `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
 | `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: what `browse:resource-requested` answers. `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/annotations` | `200`, `Content-Type: application/json`: what `browse:annotations-requested` answers, `{annotations, total}`, people named. No view, or an id that is not one: `404` `{"error":"Resource not found"}` |
 | `GET` `/resources/{id}/anchored-text` | `200`, `Content-Type: application/json`: the resource's anchored text, or why there is none; see below. A failed read: `500` `{"error":"anchored-text read failed"}` |
 | `PUT` `/resources/{id}/anchored-text` | Stores an entry for the resource's content; see below. The Smelter's |
 | `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |

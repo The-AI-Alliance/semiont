@@ -47,7 +47,8 @@ what its schema says; and a case fails otherwise, whatever it was about.
   published in, to a resource's scope and to none.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
   committed once however often it is sent, bodies changed, an annotation
-  removed, what each reads back as, the annotation a published fact carries,
+  removed, what each reads back as, a resource's annotations over HTTP as the
+  bus answers them, the annotation a published fact carries,
   and a generated resource linked from the annotation it was generated for by
   the time its creation is answered, on `yield:create` and over HTTP.
 - **The anchored-text store** (`anchored-text.test.ts`): an entry stored for
@@ -59,7 +60,7 @@ what its schema says; and a case fails otherwise, whatever it was about.
   as a service.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
   seeding, tag schemas, the listing, a resource's events, people named by
-  their profile, a directory of the working tree and the roster; and, over
+  their profile, the profiles of the people asked after, a directory of the working tree and the roster; and, over
   HTTP, anchored text as it is stored, under the stamp its writer states and
   in the store's version only, `no-map` at once for a media type whose text
   is not derived, whatever the store holds, a read held until the Smelter has

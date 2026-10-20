@@ -8,8 +8,8 @@
  * Covers:
  *   - Auth / status / health endpoints
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
- *   - A resource's description and its anchored text
- *     (`HttpContentTransport.getResourceGraph`, `getAnchoredText`)
+ *   - A resource's description, its annotations and its anchored text
+ *     (`HttpContentTransport.getResourceGraph`, `getAnnotations`, `getAnchoredText`)
  *   - Multipart upload (`HttpContentTransport.putBinary`)
  *   - `HttpTransport.subscribeToResource` ref-counting (mocks the
  *     local `actor-state-unit` module to assert add/removeChannels)
@@ -247,6 +247,34 @@ describe('HttpTransport — HTTP wire shape', () => {
       await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });
       expect(mockKy.get).toHaveBeenCalledWith(
         `${testBaseUrl}/resources/${testResourceId}/jsonld`,
+        { headers: { Authorization: 'Bearer tok-123' } },
+      );
+    });
+  });
+
+  describe('Annotations (HttpContentTransport.getAnnotations)', () => {
+    test('GETs /resources/:id/annotations and returns the parsed answer', async () => {
+      const held = { annotations: [], total: 0 };
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue(held),
+      } as never);
+
+      const result = await content.getAnnotations(testResourceId);
+      expect(result).toBe(held);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/annotations`,
+        { headers: {} },
+      );
+    });
+
+    test('sends the bearer auth header when a token is provided', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
+      } as never);
+
+      await content.getAnnotations(testResourceId, { auth: 'tok-123' as never });
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/annotations`,
         { headers: { Authorization: 'Bearer tok-123' } },
       );
     });

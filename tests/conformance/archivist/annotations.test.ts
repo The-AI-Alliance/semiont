@@ -84,6 +84,26 @@ withArchivist('an annotation', (world) => {
     expect(await grace.refused('browse:annotations-requested', { resourceId: 'e'.repeat(32) })).toBe(`Resource ${'e'.repeat(32)} not found in view storage`);
   });
 
+  it('answers a resource\'s annotations over HTTP as the bus answers them, and 404 for a resource it does not hold', async () => {
+    const id = await resource(world(), 'Listed over HTTP');
+    const grace = await world().person('grace');
+    const first = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'quick', 4) })) as { annotationId: string }).annotationId;
+    const second = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'lazy dog', 35) })) as { annotationId: string }).annotationId;
+
+    const reply = await world().http('GET', `/resources/${id}/annotations`, { route: '/resources/{id}/annotations' });
+    expect(reply.status).toBe(200);
+    expect(reply.headers.get('content-type')).toBe('application/json');
+    const listed = reply.json as { annotations: Annotation[]; total: number };
+    expect(listed.annotations.map((a) => a.id)).toEqual([first, second]);
+    expect(listed.total).toBe(2);
+    // The same answer, people named alike, as the bus gives.
+    expect(listed).toEqual(await grace.ask('browse:annotations-requested', { resourceId: id }));
+
+    const none = await world().http('GET', `/resources/${'e'.repeat(32)}/annotations`, { route: '/resources/{id}/annotations' });
+    expect(none.status).toBe(404);
+    expect(none.json).toEqual({ error: 'Resource not found' });
+  });
+
   it('records a batch once, however often it is sent', async () => {
     const id = await resource(world(), 'Committed');
     const importer = await world().person('importer');

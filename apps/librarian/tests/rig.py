@@ -25,7 +25,7 @@ from semiont.types import (
     AnchoredTextAnswer,
     Annotation,
     Motivation,
-    PeopleProjectionPeopleValue,
+    PersonProfile,
     ResourceAnnotations,
     ResourceDescriptor,
     ResourceView,
@@ -65,7 +65,7 @@ ADA: Final[JsonObject] = {"@type": "Person", "@id": ADA_ID}
 RECORDED: Final = "2020-03-04T05:06:07.000Z"
 """The moment everything a rig's builders make was recorded at, where a test states no other."""
 
-LOVELACE: Final = {ADA_ID: PeopleProjectionPeopleValue(name="Ada Lovelace", since=RECORDED)}
+LOVELACE: Final = {ADA_ID: PersonProfile(name="Ada Lovelace", since=RECORDED)}
 """A people projection in which Ada has a profile, and nobody else has."""
 
 DIMENSIONS: Final = 8
@@ -155,13 +155,13 @@ class FakeViews(Views):
 class FakePeople(People):
     """The people projection a test states. `people` is each profile, by DID, and `reads` how many times it was read."""
 
-    def __init__(self, people: Mapping[str, PeopleProjectionPeopleValue] | None = None) -> None:
-        self.people: Final[dict[str, PeopleProjectionPeopleValue]] = dict(people or {})
+    def __init__(self, people: Mapping[str, PersonProfile] | None = None) -> None:
+        self.people: Final[dict[str, PersonProfile]] = dict(people or {})
         self.reads = 0
         self.failing: Exception | None = None
 
     @override
-    async def read(self) -> Mapping[str, PeopleProjectionPeopleValue]:
+    async def read(self) -> Mapping[str, PersonProfile]:
         self.reads += 1
         await _turn(self.failing)
         return dict(self.people)

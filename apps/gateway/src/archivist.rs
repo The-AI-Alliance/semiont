@@ -1,6 +1,6 @@
 //! The gateway's calls onto the Archivist's HTTP surface
 //! (specs/src/archivist/openapi.json): an upload is stored and recorded there,
-//! bytes, a resource's JSON-LD description and its anchored text are read
+//! bytes, a resource's JSON-LD description, its annotations and its anchored text are read
 //! back, and a scope's persisted events are read for a replay. The gateway
 //! parses none of it; it forwards, and maps the answer onto its own
 //! responses. It reaches the Archivist as itself, with its service account's
@@ -20,10 +20,11 @@ use serde_json::{Value, json};
 
 /// The Archivist operations the gateway calls. The embedded Archivist
 /// document must declare each, or the gateway does not start.
-const CALLS: [(&str, &str); 5] = [
+const CALLS: [(&str, &str); 6] = [
     ("POST", "/resources"),
     ("GET", "/resources/{id}/content"),
     ("GET", "/resources/{id}/jsonld"),
+    ("GET", "/resources/{id}/annotations"),
     ("GET", "/resources/{id}/anchored-text"),
     ("GET", "/events/{resourceId}"),
 ];
@@ -186,6 +187,40 @@ impl Archivist {
             status => {
                 logging::error(
                     "Archivist description failed",
+                    client(json!({ "resourceId": resource_id, "status": status.as_u16() })),
+                );
+                Err(unavailable())
+            }
+        }
+    }
+
+    /// A resource's annotations: the Archivist's answer, streamed as it
+    /// arrives and never read; `None` when the Archivist holds no such resource.
+    pub async fn annotations(&self, resource_id: &ResourceId) -> Result<Option<Body>, ApiError> {
+        let authorization = self.authorized("resources.annotations").await?;
+        let request = self
+            .http
+            .get(format!(
+                "{}{}",
+                self.base,
+                path("/resources/{id}/annotations", resource_id)
+            ))
+            .header("authorization", authorization);
+        let response = in_client_span("resources.annotations", request.send())
+            .await
+            .map_err(|e| {
+                logging::error(
+                    "Archivist unreachable for a resource's annotations",
+                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                );
+                unavailable()
+            })?;
+        match response.status() {
+            StatusCode::OK => Ok(Some(Body::from_stream(response.bytes_stream()))),
+            StatusCode::NOT_FOUND => Ok(None),
+            status => {
+                logging::error(
+                    "Archivist annotations read failed",
                     client(json!({ "resourceId": resource_id, "status": status.as_u16() })),
                 );
                 Err(unavailable())

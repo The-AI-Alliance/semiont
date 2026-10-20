@@ -48,6 +48,7 @@ export const BUS_OPERATIONS = {
   'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
+  'browse:people-requested':             { result: 'browse:people-result',           failure: 'browse:people-failed' },
   'browse:kb-requested':                 { result: 'browse:kb-result',               failure: 'browse:kb-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
 
@@ -131,6 +132,7 @@ export const REPLY_NAMES = {
   'browse:entity-types-requested':       [],
   'browse:tag-schemas-requested':        [],
   'browse:agents-requested':             [],
+  'browse:people-requested':             [],
   'browse:kb-requested':                 [],
   'browse:directory-requested':          [],
   'frame:add-entity-type':               [],

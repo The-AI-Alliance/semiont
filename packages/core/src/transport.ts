@@ -38,6 +38,7 @@ import type { AnchoredTextAnswer } from './pdf-anchoring';
 
 type Agent = components['schemas']['Agent'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 // ── Connection state ────────────────────────────────────────────────────
 
@@ -316,6 +317,17 @@ export interface IContentTransport {
     resourceId: ResourceId,
     options?: { auth?: AccessToken },
   ): Promise<GetResourceResponse>;
+
+  /**
+   * Fetch the resource's annotations, with the people they mention named,
+   * and how many there are. The HTTP transport asks the gateway's
+   * `GET /resources/:id/annotations`, which grows without a bound and so is
+   * never a bus message.
+   */
+  getAnnotations(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<GetAnnotationsResponse>;
 
   /**
    * Fetch the resource's anchored text: the text extracted from its content,

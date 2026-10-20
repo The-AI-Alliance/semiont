@@ -60,6 +60,7 @@ async def traffic() -> tuple[Frame, str | None]:
             "annotations": [],
             "entityReferences": [],
         }
+        gateway.annotations[RESOURCE] = {"annotations": [], "total": 0}
         gateway.anchored_texts[RESOURCE] = {"kind": "not-yet"}
         await soon(reached(transport.state, lambda state: state == "open"))
         frames = transport.frames("beckon:focus")
@@ -74,6 +75,7 @@ async def traffic() -> tuple[Frame, str | None]:
         async with await transport.content.get_binary_stream(RESOURCE) as stream:
             _ = [piece async for piece in stream]
         await transport.content.get_resource_graph(RESOURCE)
+        await transport.content.get_annotations(RESOURCE)
         await transport.content.get_anchored_text(RESOURCE)
         return frame, gateway.of("POST", "/bus/emit")[0].headers.get("traceparent")
 

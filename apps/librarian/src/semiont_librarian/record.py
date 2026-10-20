@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Final, final, override
 
 from semiont.identifiers import ResourceId
-from semiont.types import PeopleProjection, PeopleProjectionPeopleValue, ResourceView
+from semiont.types import PeopleProjection, PersonProfile, ResourceView
 from semiont_service.shard import shard_path
 
 from semiont_librarian.reads import People, PeopleUnread, Views
@@ -76,7 +76,7 @@ class FilePeople(People):
     def __init__(self, state_dir: Path) -> None:
         self._path: Final = state_dir / "projections" / "__system__" / "people.json"
 
-    def _read(self) -> Mapping[str, PeopleProjectionPeopleValue]:
+    def _read(self) -> Mapping[str, PersonProfile]:
         try:
             held = _held(self._path)
             return {} if held is None else PeopleProjection.model_validate_json(held).people
@@ -84,6 +84,6 @@ class FilePeople(People):
             raise PeopleUnread(f"{self._path} is not a people projection that can be read: {failure}") from failure
 
     @override
-    async def read(self) -> Mapping[str, PeopleProjectionPeopleValue]:
+    async def read(self) -> Mapping[str, PersonProfile]:
         """Each person's profile, by their DID. Nobody, where there is no file. Raises `PeopleUnread` for a file that is no projection."""
         return await asyncio.to_thread(self._read)

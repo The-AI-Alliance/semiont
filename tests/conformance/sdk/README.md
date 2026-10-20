@@ -125,6 +125,7 @@ before it. Frames and failures are sequences: every one, in order.
 | `get` | `resource` | `{"contentType": "...", "bytes": "<base64>"}` |
 | `get-stream` | `resource`: read as a stream, to its end | the same |
 | `graph` | `resource` | the description the gateway answered |
+| `annotations` | `resource` | the annotations the gateway answered |
 | `anchored-text` | `resource` | what the gateway answered |
 | `health`, `status`, `current-user`, `protected-resource-metadata` | | what the gateway answered |
 | `media-token` | `resource` | what the gateway answered |
@@ -299,6 +300,7 @@ no other.
 | `archivist` | `replayFails` | the Archivist fails, or stops failing, the gateway's reads of a record |
 | `content` | `resource`, `mediaType`, `bytes` | the Archivist holds these bytes for the resource |
 | `description` | `resource`, `graph` | the Archivist holds this description of the resource |
+| `annotations` | `resource`, `annotations` | the Archivist holds these annotations of the resource |
 | `anchored-text` | `resource`, `answer` | the Archivist answers this for the resource's anchored text |
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
 | `refuse` | `wire`, `status`, `retryAfter`, `headers` (any other header the refusal declares, such as a 401's `WWW-Authenticate`), `body`, `times` | the proxy answers the next `times` such requests itself, as the spec lets a gateway answer |

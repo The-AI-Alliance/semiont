@@ -162,13 +162,47 @@ pub async fn resources(archivist: &Archivist, request: &Object) -> Answered {
     ))
 }
 
-pub async fn annotations(archivist: &Archivist, request: &Object) -> Answered {
-    let held = annotations_of(&view_of(archivist, required(request, "resourceId")?)?);
+/// Every annotation on a resource, its people named, and how many there
+/// are: what `browse:annotations-requested` and the annotations route answer.
+/// None for a resource with no events.
+pub fn resource_annotations(
+    archivist: &Archivist,
+    resource_id: &str,
+) -> Result<Option<Value>, Refusal> {
+    let Some(view) = archivist.held_view(resource_id)? else {
+        return Ok(None);
+    };
+    let held = annotations_of(&view);
     let total = held.len();
-    Ok(named(
+    Ok(Some(named(
         archivist,
         json!({ "annotations": held, "total": total }),
-    ))
+    )))
+}
+
+pub async fn annotations(archivist: &Archivist, request: &Object) -> Answered {
+    let resource_id = required(request, "resourceId")?;
+    resource_annotations(archivist, resource_id)?
+        .ok_or_else(|| Refusal::from(format!("Resource {resource_id} {NOT_IN_VIEWS}")))
+}
+
+/// The profiles of the people asked after, by DID. One with no profile is
+/// left out.
+pub async fn people(archivist: &Archivist, request: &Object) -> Answered {
+    let Some(dids) = request.get("dids").and_then(Value::as_array) else {
+        return Err(Refusal::from("dids is required"));
+    };
+    let profiles = tokio::task::block_in_place(|| archivist.record().projections.people())?;
+    let asked: Object = dids
+        .iter()
+        .filter_map(Value::as_str)
+        .filter_map(|did| {
+            profiles
+                .get(did)
+                .map(|profile| (did.to_owned(), profile.clone()))
+        })
+        .collect();
+    Ok(json!({ "people": asked }))
 }
 
 fn annotation_in(view: &Object, annotation_id: &str) -> Result<Value, Refusal> {

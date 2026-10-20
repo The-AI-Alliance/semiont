@@ -132,6 +132,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:people-requested",
+      "browse:people-result",
+      "browse:people-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -328,6 +331,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:people-requested",
+      "browse:people-result",
+      "browse:people-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -2416,6 +2422,50 @@
       }
     },
     {
+      "channel": "browse:people-requested",
+      "shape": "schema",
+      "schema": "BrowsePeopleRequest",
+      "validate": "BrowsePeopleRequest",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:people-result",
+      "shape": "schema",
+      "schema": "BrowsePeopleResult",
+      "validate": "BrowsePeopleResult",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:people-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "browse:kb-requested",
       "shape": "schema",
       "schema": "BrowseKbRequest",
@@ -3525,6 +3575,15 @@
       }
     },
     {
+      "request": "browse:people-requested",
+      "result": "browse:people-result",
+      "failure": "browse:people-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "request": "browse:kb-requested",
       "result": "browse:kb-result",
       "failure": "browse:kb-failed",
@@ -4024,6 +4083,7 @@
       "browse:entity-types-requested",
       "browse:events-requested",
       "browse:kb-requested",
+      "browse:people-requested",
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",

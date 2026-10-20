@@ -352,6 +352,10 @@ export type EventMap = {
   'browse:agents-result': components['schemas']['BrowseAgentsResult'];
   'browse:agents-failed': components['schemas']['CommandError'];
 
+  'browse:people-requested': components['schemas']['BrowsePeopleRequest'];
+  'browse:people-result': components['schemas']['BrowsePeopleResult'];
+  'browse:people-failed': components['schemas']['CommandError'];
+
   'browse:kb-requested': components['schemas']['BrowseKbRequest'];
   'browse:kb-result': components['schemas']['BrowseKbResult'];
   'browse:kb-failed': components['schemas']['CommandError'];
@@ -697,6 +701,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:agents-requested':          'BrowseAgentsRequest',
   'browse:agents-result':             'BrowseAgentsResult',
   'browse:agents-failed':             null,
+  'browse:people-requested':          'BrowsePeopleRequest',
+  'browse:people-result':             'BrowsePeopleResult',
+  'browse:people-failed':             null,
   'browse:kb-requested':              'BrowseKbRequest',
   'browse:kb-result':                 'BrowseKbResult',
   'browse:kb-failed':                 null,

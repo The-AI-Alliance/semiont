@@ -138,6 +138,19 @@ withArchivist('browsing', (world) => {
     expect(world().stored(id)[0]!.payload['wasAttributedTo']).toEqual([{ '@type': 'Person', '@id': lovelace.did }]);
   });
 
+  it('answers the profiles of the people asked after, and leaves out one who has none', async () => {
+    const lovelace = await world().person('lovelace-asked');
+    const reader = await world().person('reader');
+    const id = await world().created(lovelace.did, { name: 'Asked after', storageUri: 'file://listed/asked.md', content: 'asked\n' });
+    // The gateway profiles a person, from their token, when they first write.
+    await lovelace.ask('mark:update-entity-types', { resourceId: id, currentEntityTypes: [], updatedEntityTypes: ['Person'] });
+    const profiled = await reader.fact('person:profiled', (e) => e.userId === lovelace.did);
+
+    const nobody = world().world.personDid('nobody-profiled');
+    const answer = await reader.ask('browse:people-requested', { dids: [lovelace.did, nobody] });
+    expect(answer).toEqual({ people: { [lovelace.did]: { name: profiled.payload['name'], since: profiled.timestamp } } });
+  });
+
   it('records a profile when the name is new, and not when it is the name last recorded', async () => {
     const namer = await world().sidecar('namer');
     const mine = () => world().stored('__system__').filter((e) => e.type === 'person:profiled' && e.userId === namer.did).map((e) => e.payload['name']);

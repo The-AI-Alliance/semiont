@@ -25,7 +25,7 @@ from semiont.types import (
     AnchoredTextAnswer,
     Annotation,
     Motivation,
-    PeopleProjectionPeopleValue,
+    PersonProfile,
     ResourceDescriptor,
     ResourceView,
     SmeltSettledOutcome,
@@ -98,7 +98,7 @@ class Views(Protocol):
 class People(Protocol):
     """What the people of a knowledge base are called (`PeopleProjection`). Every reader of it has this member and no other."""
 
-    async def read(self) -> Mapping[str, PeopleProjectionPeopleValue]:
+    async def read(self) -> Mapping[str, PersonProfile]:
         """Each person's profile, by their DID. Nobody, where the knowledge base has no projection.
 
         Raises `PeopleUnread` where the projection cannot be read.

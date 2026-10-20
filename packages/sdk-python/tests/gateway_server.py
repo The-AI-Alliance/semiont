@@ -84,6 +84,8 @@ class GatewayServer:
         """Each resource's media type and bytes."""
         self.described: dict[str, JsonObject] = {}
         """Each resource's description."""
+        self.annotations: dict[str, JsonObject] = {}
+        """What a read of each resource's annotations is answered."""
         self.anchored_texts: dict[str, JsonObject] = {}
         """What a read of each resource's anchored text is answered."""
         self.answers: dict[str, JsonObject] = {}
@@ -170,6 +172,8 @@ class GatewayServer:
             resource, _, what = path.removeprefix("/resources/").partition("/")
             if what == "jsonld" and resource in self.described:
                 return Answer(body=_OBJECT.dump_json(self.described[resource]))
+            if what == "annotations" and resource in self.annotations:
+                return Answer(body=_OBJECT.dump_json(self.annotations[resource]))
             if what == "anchored-text" and resource in self.anchored_texts:
                 return Answer(body=_OBJECT.dump_json(self.anchored_texts[resource]))
             if what == "" and resource in self.stored:

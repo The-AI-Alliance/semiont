@@ -19,7 +19,7 @@ import pytest
 from aio import run
 from pydantic import JsonValue
 from rig import ADA, ADA_ID, LOVELACE, RECORDED, FakePeople
-from semiont.types import PeopleProjection, PeopleProjectionPeopleValue
+from semiont.types import PeopleProjection, PersonProfile
 from spec import ROOT, JsonObject, objects, only, read, why
 
 from semiont_librarian.naming import named, namer
@@ -32,7 +32,7 @@ TABLE_MEMBERS = ("$comment", "cases")
 CASE_MEMBERS = ("why", "reply", "people", "named")
 
 
-def people_of(case: JsonObject) -> Mapping[str, PeopleProjectionPeopleValue]:
+def people_of(case: JsonObject) -> Mapping[str, PersonProfile]:
     """The people a case states, as the people projection holds them: what the schema does not accept fails here."""
     return PeopleProjection.model_validate({"people": case["people"]}).people
 
@@ -77,7 +77,7 @@ def test_a_person_whose_id_names_something_every_object_has_is_named_only_by_a_p
     assert named(person, LOVELACE) == person
     assert named(person, {}) == person
     # With a profile under that very id, the person is named as any other is.
-    profiled = {identity: PeopleProjectionPeopleValue(name="A name", since=RECORDED)}
+    profiled = {identity: PersonProfile(name="A name", since=RECORDED)}
     assert named(person, profiled) == {**person, "name": "A name"}
 
 
@@ -89,7 +89,7 @@ def test_a_person_whose_id_is_not_text_is_left_as_it_is(identity: JsonValue) -> 
 
 def test_a_person_that_states_no_id_is_left_as_it_is() -> None:
     person: JsonObject = {"@type": "Person", "name": "A name it carried"}
-    profiles = {**LOVELACE, "None": PeopleProjectionPeopleValue(name="Nobody", since=RECORDED)}
+    profiles = {**LOVELACE, "None": PersonProfile(name="Nobody", since=RECORDED)}
     assert named(person, profiles) == person
 
 

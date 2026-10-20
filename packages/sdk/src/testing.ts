@@ -38,6 +38,7 @@ import { httpKb } from './session/knowledge-base';
 import { InMemorySessionStorage } from './session/session-storage';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 // The transport double's scripting surface, so a consumer test imports ONE
 // module. `FaultyTransport`'s home remains `@semiont/core/testing` — this is
@@ -55,9 +56,9 @@ export {
  * Minimal in-memory `IContentTransport`. Stores what `putBinary` receives;
  * `getBinary` throws on unknown ids the way a real transport 404s, so a
  * test that forgets to seed content fails loudly instead of returning
- * fabricated bytes. `getAnchoredText` throws for every id: nothing here
- * derives text, and an answer is a test's to give. A test that needs an
- * anchored text passes its own `content`.
+ * fabricated bytes. `getAnchoredText` and `getAnnotations` throw for every
+ * id: nothing here derives text or records annotations, and an answer is a
+ * test's to give. A test that needs one passes its own `content`.
  */
 export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
@@ -103,6 +104,9 @@ export function inMemoryContent(): IContentTransport {
     },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
       return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;
+    },
+    async getAnnotations(rId: ResourceId): Promise<GetAnnotationsResponse> {
+      throw new Error(`inMemoryContent: no annotations for ${String(rId)}`);
     },
     async getAnchoredText(rId: ResourceId): Promise<AnchoredTextAnswer> {
       throw new Error(`inMemoryContent: no anchored text for ${String(rId)}`);

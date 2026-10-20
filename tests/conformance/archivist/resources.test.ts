@@ -148,6 +148,7 @@ withArchivist('a resource', (world) => {
       ['GET', `/events/${id}?fromSequence=1`, '/events/{resourceId}'],
       ['GET', `/resources/${id}/content`, '/resources/{id}/content'],
       ['GET', `/resources/${id}/jsonld`, '/resources/{id}/jsonld'],
+      ['GET', `/resources/${id}/annotations`, '/resources/{id}/annotations'],
       ['GET', `/resources/${id}/anchored-text`, '/resources/{id}/anchored-text'],
       ['POST', '/resources', '/resources'],
     ];

@@ -643,6 +643,12 @@ class Run {
         this.world.archivist.descriptions.set(text('resource'), args['graph']);
         return;
       }
+      case 'annotations': {
+        allowed('resource', 'annotations');
+        if (!isObject(args['annotations'])) throw new Error('backend annotations needs annotations, an object');
+        this.world.archivist.annotations.set(text('resource'), args['annotations']);
+        return;
+      }
       case 'anchored-text': {
         allowed('resource', 'answer');
         if (!isObject(args['answer'])) throw new Error('backend anchored-text needs answer, an object');

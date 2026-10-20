@@ -140,6 +140,33 @@ pub async fn description(
     Ok(response)
 }
 
+/// `GET /resources/{id}/annotations`: the Archivist's answer, as it arrives.
+/// Annotations change: never cached.
+pub async fn annotations(
+    State(app): State<Arc<App>>,
+    Authenticated(_): Authenticated,
+    ResourcePath(id): ResourcePath,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    use opentelemetry::context::FutureExt;
+    let held = app
+        .archivist
+        .annotations(&id)
+        .with_context(caller_trace(&headers))
+        .await?;
+    let Some(body) = held else {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "Resource not found"));
+    };
+    let mut response = Response::new(body);
+    let out = response.headers_mut();
+    out.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    Ok(response)
+}
+
 /// `GET /resources/{id}/anchored-text`: the Archivist's answer, as it
 /// arrives. An answer of `not-yet` becomes the text: never cached.
 pub async fn anchored_text(

@@ -6,22 +6,7 @@
       "type": "object",
       "description": "Each person's current profile, keyed by their DID.",
       "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The name the person last gave."
-          },
-          "since": {
-            "type": "string",
-            "description": "The timestamp of the event that gave it."
-          }
-        },
-        "required": [
-          "name",
-          "since"
-        ],
-        "additionalProperties": false
+        "$ref": "./PersonProfile.json"
       }
     }
   },

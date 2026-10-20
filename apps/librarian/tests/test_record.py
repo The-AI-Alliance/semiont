@@ -15,7 +15,7 @@ from aio import run
 from pydantic import JsonValue
 from semiont.identifiers import ResourceId
 from semiont.model import written
-from semiont.types import PeopleProjectionPeopleValue
+from semiont.types import PersonProfile
 from semiont_service.shard import shard_path
 from spec import JsonObject
 
@@ -164,8 +164,8 @@ def test_a_file_is_read_off_the_loop_s_thread(tmp_path: Path, monkeypatch: pytes
 def test_the_people_are_read_from_the_file_the_archivist_writes_them_to(tmp_path: Path) -> None:
     put(people_path(tmp_path), PEOPLE)
     assert run(FilePeople(tmp_path).read()) == {
-        "did:web:example.org:users:ada": PeopleProjectionPeopleValue(name="Ada Lovelace", since="2020-03-04T05:06:07.000Z"),
-        "did:web:example.org:users:grace": PeopleProjectionPeopleValue(name="Grace Hopper", since="2020-03-04T05:06:08.000Z"),
+        "did:web:example.org:users:ada": PersonProfile(name="Ada Lovelace", since="2020-03-04T05:06:07.000Z"),
+        "did:web:example.org:users:grace": PersonProfile(name="Grace Hopper", since="2020-03-04T05:06:08.000Z"),
     }
 
 

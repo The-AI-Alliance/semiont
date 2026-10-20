@@ -16,7 +16,7 @@ is kept.
 from collections.abc import Callable, Mapping
 
 from pydantic import JsonValue
-from semiont.types import PeopleProjectionPeopleValue
+from semiont.types import PersonProfile
 
 from semiont_librarian.log import LOG
 from semiont_librarian.reads import People, PeopleUnread
@@ -24,7 +24,7 @@ from semiont_librarian.reads import People, PeopleUnread
 __all__ = ["named", "namer"]
 
 
-def named(reply: JsonValue, people: Mapping[str, PeopleProjectionPeopleValue]) -> JsonValue:
+def named(reply: JsonValue, people: Mapping[str, PersonProfile]) -> JsonValue:
     """`reply` with its people named: a copy, in which every person `people` has a profile of states that profile's name.
 
     A person is an object whose `@type` is `Person`, wherever in the reply

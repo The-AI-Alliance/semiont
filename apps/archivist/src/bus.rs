@@ -11,9 +11,9 @@ use semiont::bus::{Bus, operation};
 use semiont::channels::{
     BindUpdateBody, BrowseAgentsRequested, BrowseAnnotationHistoryRequested,
     BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseDirectoryRequested,
-    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowseResourceRequested,
-    BrowseResourcesRequested, BrowseTagSchemasRequested, Channel, FrameAddEntityType,
-    FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
+    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowsePeopleRequested,
+    BrowseResourceRequested, BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
+    FrameAddEntityType, FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
     MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
     MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
     YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
@@ -52,7 +52,7 @@ pub const COMMANDS: [&str; 19] = [
 
 /// The reads, and the Smelter's signal: answered as they arrive, in no
 /// particular order.
-pub const READS: [&str; 14] = [
+pub const READS: [&str; 15] = [
     BrowseResourceRequested::NAME,
     BrowseResourcesRequested::NAME,
     BrowseAnnotationsRequested::NAME,
@@ -62,6 +62,7 @@ pub const READS: [&str; 14] = [
     BrowseEntityTypesRequested::NAME,
     BrowseTagSchemasRequested::NAME,
     BrowseAgentsRequested::NAME,
+    BrowsePeopleRequested::NAME,
     BrowseKbRequested::NAME,
     BrowseDirectoryRequested::NAME,
     YieldCloneTokenRequested::NAME,
@@ -164,6 +165,7 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
         BrowseEntityTypesRequested::NAME => browse::entity_types(archivist, payload).await,
         BrowseTagSchemasRequested::NAME => browse::tag_schemas(archivist, payload).await,
         BrowseAgentsRequested::NAME => browse::agents(archivist, payload).await,
+        BrowsePeopleRequested::NAME => browse::people(archivist, payload).await,
         BrowseKbRequested::NAME => browse::knowledge_base(archivist, payload).await,
         _ => return None,
     };

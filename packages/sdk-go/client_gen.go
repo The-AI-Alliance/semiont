@@ -3011,6 +3011,20 @@ type BrowsePanelToggleEvent struct {
 	Panel string `json:"panel"`
 }
 
+// BrowsePeopleRequest Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
+type BrowsePeopleRequest struct {
+	// Dids The people asked after.
+	Dids []UserId `json:"dids"`
+}
+
+// BrowsePeopleResult What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
+type BrowsePeopleResult struct {
+	Response struct {
+		// People Each profile, keyed by DID.
+		People map[string]PersonProfile `json:"people"`
+	} `json:"response"`
+}
+
 // BrowseResourceCloseEvent Emitted when a resource is closed in the browse panel
 type BrowseResourceCloseEvent struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -5559,17 +5573,20 @@ type PdfTextItem struct {
 // PeopleProjection What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
 type PeopleProjection struct {
 	// People Each person's current profile, keyed by their DID.
-	People map[string]struct {
-		// Name The name the person last gave.
-		Name string `json:"name"`
-
-		// Since The timestamp of the event that gave it.
-		Since string `json:"since"`
-	} `json:"people"`
+	People map[string]PersonProfile `json:"people"`
 }
 
 // PersistedEventId `p-<scope>-<sequenceNumber>` — the id of a persisted event delivered on a scoped subscription. Resumable: send it back as that scope's `lastEventId`. Stable across connections, so a client dedups by it.
 type PersistedEventId = string
+
+// PersonProfile What a person last said they are called, and when: the profile a `person:profiled` event gives.
+type PersonProfile struct {
+	// Name The name the person last gave.
+	Name string `json:"name"`
+
+	// Since The timestamp of the event that gave it.
+	Since string `json:"since"`
+}
 
 // PersonProfileCommand Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
 type PersonProfileCommand struct {
@@ -14392,6 +14409,9 @@ type ClientInterface interface {
 	// GetResourceAnchoredText request
 	GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourceAnnotations request
+	GetResourceAnnotations(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetResourceJsonLd request
 	GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -14602,6 +14622,18 @@ func (c *Client) GetResourceRepresentation(ctx context.Context, id ResourceId, r
 
 func (c *Client) GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourceAnchoredTextRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourceAnnotations(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceAnnotationsRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -15077,6 +15109,40 @@ func NewGetResourceAnchoredTextRequest(server string, id ResourceId) (*http.Requ
 	return req, nil
 }
 
+// NewGetResourceAnnotationsRequest generates requests for GetResourceAnnotations
+func NewGetResourceAnnotationsRequest(server string, id ResourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/resources/%s/annotations", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetResourceJsonLdRequest generates requests for GetResourceJsonLd
 func NewGetResourceJsonLdRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
@@ -15203,6 +15269,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourceAnchoredTextWithResponse request
 	GetResourceAnchoredTextWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnchoredTextResponse, error)
+
+	// GetResourceAnnotationsWithResponse request
+	GetResourceAnnotationsWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnnotationsResponse, error)
 
 	// GetResourceJsonLdWithResponse request
 	GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error)
@@ -15570,6 +15639,33 @@ func (r GetResourceAnchoredTextResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourceAnnotationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GetAnnotationsResponse
+	JSON401      *Unauthorized
+	JSON404      *ErrorResponse
+	JSON429      *TooManyRequests
+	JSON500      *InternalError
+	JSON503      *ServiceUnavailable
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourceAnnotationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourceAnnotationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetResourceJsonLdResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -15753,6 +15849,15 @@ func (c *ClientWithResponses) GetResourceAnchoredTextWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseGetResourceAnchoredTextResponse(rsp)
+}
+
+// GetResourceAnnotationsWithResponse request returning *GetResourceAnnotationsResponse
+func (c *ClientWithResponses) GetResourceAnnotationsWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnnotationsResponse, error) {
+	rsp, err := c.GetResourceAnnotations(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceAnnotationsResponse(rsp)
 }
 
 // GetResourceJsonLdWithResponse request returning *GetResourceJsonLdResponse
@@ -16437,6 +16542,67 @@ func ParseGetResourceAnchoredTextResponse(rsp *http.Response) (*GetResourceAncho
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AnchoredTextAnswer
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourceAnnotationsResponse parses an HTTP response from a GetResourceAnnotationsWithResponse call
+func ParseGetResourceAnnotationsResponse(rsp *http.Response) (*GetResourceAnnotationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourceAnnotationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GetAnnotationsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

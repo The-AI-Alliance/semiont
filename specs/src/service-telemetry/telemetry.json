@@ -119,6 +119,23 @@
       ]
     },
     {
+      "name": "archivist.resources.annotations",
+      "services": [
+        "gateway"
+      ],
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "A resource's annotations asked of the Archivist.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    },
+    {
       "name": "archivist.resources.anchored_text",
       "services": [
         "gateway"
