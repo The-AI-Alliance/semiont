@@ -111,21 +111,22 @@ function unansweredOf(request: Request, error: Error): APIError {
  *
  * ky makes its request before any hook of its own runs, and the runtime
  * refuses to make one of a token that is no header value, or of an address
- * that is no URL or carries a credential. The refusal is thrown where ky was
- * called, so it is caught where ky is called: a request that was never made
- * got no answer (`APIError.unanswered`). `unanswered` is told of it before
- * it is thrown.
+ * that is no URL or carries a credential. ky rejects with the refusal as the
+ * runtime made it, a `TypeError`, the way `fetch` reports one. So a
+ * `TypeError` is a request that was never made, which got no answer
+ * (`APIError.unanswered`): ky's own errors are none, and by then its hooks
+ * have made each of them the error the caller is given. `unanswered` is told
+ * of it before it is thrown. Anything else is handed back as it is.
  */
 async function asked<T>(method: string, path: string, ask: () => PromiseLike<T>, unanswered?: (failure: APIError) => void): Promise<T> {
-  let answer: PromiseLike<T>;
   try {
-    answer = ask();
+    return await ask();
   } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
     const failure = APIError.unanswered(`${method} ${path}`, error);
     unanswered?.(failure);
     throw failure;
   }
-  return answer;
 }
 
 /**
