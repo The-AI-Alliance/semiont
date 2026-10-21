@@ -483,19 +483,21 @@ failure, and is the rule.
 states what is read off a knowledge graph for a main resource: what it is
 connected to, what cites it, and the entity types of the other annotations on
 it. The reference search reads the first two from the context it is given,
-and the relationship prompt is made from all three.
+and the relationship prompt is made from all three. The Worker's generation
+prompt reads all three through a reader of its own, held to the same table
+but for a connection's `bidirectional` flag, which that prompt does not state.
 
 - **A citation is a `cites` edge to the main resource from an annotation that
   an `annotation-of` edge places on a resource.** That resource cites the
   main resource, once however many of its annotations do.
-  *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_derive_views_cases.py`, `packages/core/src/__tests__/derive-views-cases.test.ts` and `apps/worker/tests/test_derive_views_cases.py`.*
 - **A connection is any other edge whose source is the main resource,**
   whatever its type, with the name and entity types of its target's node and
   the edge's `bidirectional` flag, which is false where the edge states none.
   *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
 - **The sibling entity types are those of the annotation nodes on the main
   resource, but for the focal annotation,** each once.
-  *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_derive_views_cases.py`, `packages/core/src/__tests__/derive-views-cases.test.ts` and `apps/worker/tests/test_derive_views_cases.py`.*
 
 ## The two waits
 
