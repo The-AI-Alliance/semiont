@@ -320,10 +320,13 @@ withArchivist('the facts', (world) => {
     await follower.stream.next('the last scoped fact', (m) => m.frame?.scope === id && m.id === `p-${id}-21`);
     await eventually('the last unscoped fact', 10_000, () => follower.facts().find((e) => e.resourceId === id && e.metadata.sequenceNumber === 21));
 
+    // The upload is answered with the creation's fact queued, not published,
+    // so it may reach the follower, who subscribed after the answer, first.
+    const withoutCreation = (sequences: number[]) => (sequences[0] === 1 ? sequences.slice(1) : sequences);
     const expected = Array.from({ length: 20 }, (_, i) => i + 2);
     const scoped = follower.stream.frames().filter((f) => f.scope === id).map((f) => (f.payload['metadata'] as { sequenceNumber: number }).sequenceNumber);
-    expect(scoped).toEqual(expected);
-    expect(follower.facts().filter((e) => e.resourceId === id).map((e) => e.metadata.sequenceNumber)).toEqual(expected);
+    expect(withoutCreation(scoped)).toEqual(expected);
+    expect(withoutCreation(follower.facts().filter((e) => e.resourceId === id).map((e) => e.metadata.sequenceNumber))).toEqual(expected);
     expect(world().stored(id).map((e) => e.metadata.sequenceNumber)).toEqual([1, ...expected]);
   });
 });

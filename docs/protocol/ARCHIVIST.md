@@ -198,7 +198,7 @@ number. An event type not in this table changes nothing else.
 | `person:profiled` | `people.json` records the sender's DID as `{name, since}`: the payload's `name` and the event's timestamp |
 
 **An append is four steps in order:** write the line; change the views; attach the annotation to the
-event if its type calls for it ([Enrichment](#enrichment)); publish the event
+event if its type calls for it ([Enrichment](#enrichment)); queue its fact for publishing
 ([Facts](#facts)). The changes to one resource's view are applied one event at a time.
 
 When a resource has no view, the view is built from every event of its stream, in sequence order.
@@ -469,9 +469,11 @@ A resource's event is published twice: once with no scope, and once scoped to it
 `__system__` event is published once, with no scope. Facts carry no correlation id.
 
 Events are published one at a time, in the order they were appended; the two publishes of one event
-go together. A publish that fails, after the transport's own retries, is logged and not tried again:
-the services that follow the facts catch up from the log. The number of events waiting to be
-published is reported as a gauge.
+go together. A command is answered, and an upload too, once its events are appended and their facts
+queued: the answer may arrive before the facts are published, and a subscriber who joins a
+resource's scope after the answer may still receive them. A publish that fails, after the
+transport's own retries, is logged and not tried again: the services that follow the facts catch up
+from the log. The number of events waiting to be published is reported as a gauge.
 
 ## The HTTP surface
 
