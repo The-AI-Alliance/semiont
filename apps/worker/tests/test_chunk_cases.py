@@ -33,12 +33,18 @@ class Case(BaseModel, frozen=True, extra="forbid", strict=True):
     cuts: list[StatedCut]
 
 
+class RefusedChunking(BaseModel, frozen=True, extra="forbid", strict=True):
+    why: str
+    chunking: StatedChunking
+
+
 class Table(BaseModel, frozen=True, extra="forbid", strict=True):
     comment: Annotated[str, Field(alias="$comment")]
     # The chunking used when none is given. This worker is never given none: a piece's size is its
     # unit's budget's, and then the step's. The member is read, and nothing here has a value to hold to it.
     defaults: StatedChunking
     cases: list[Case]
+    refused: list[RefusedChunking]
 
 
 TABLE: Final = Table.model_validate_json((SPEC / "text/chunk-cases.json").read_bytes())
@@ -50,6 +56,13 @@ def chunking_of(stated: StatedChunking) -> Chunking:
 
 def test_the_runner_found_the_table_s_cases() -> None:
     assert len(TABLE.cases) >= 20
+    assert len(TABLE.refused) >= 3
+
+
+@pytest.mark.parametrize("refused", TABLE.refused, ids=lambda refused: refused.why)
+def test_a_chunking_outside_its_bounds_is_refused_when_it_is_made(refused: RefusedChunking) -> None:
+    with pytest.raises(ValueError, match="cannot cut a text"):
+        chunking_of(refused.chunking)
 
 
 @pytest.mark.parametrize("case", TABLE.cases, ids=lambda case: case.why)

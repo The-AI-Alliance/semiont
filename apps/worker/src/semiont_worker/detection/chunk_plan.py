@@ -24,7 +24,7 @@ from semiont.types import UnitCursor
 from semiont.watched import Watched
 from semiont_inference.interface import InferenceLimits, StructuredReadError, TokenUsage
 
-from semiont_worker.chunking import Chunking, chunk_text, cut_chunk
+from semiont_worker.chunking import Chunking, chunk_text, cut_chunk, estimate_tokens
 from semiont_worker.detection.chunk_size import CallOutcome, SizingBounds, next_chunk_size
 from semiont_worker.failure_class import DeterministicJobError
 from semiont_worker.inference_call import INFERENCE_TIMEOUT_SECONDS, InferenceTimeoutError
@@ -37,6 +37,16 @@ OVERLAP_TOKENS: Final = 64
 A span is told from its repeats by up to 64 code points before it and 64
 after. The overlap lets a span at a cut carry both, and as much again for
 itself, into the next piece, so that one of the two pieces sees it whole.
+"""
+
+SIZE_FLOOR_TOKENS: Final = 2 * OVERLAP_TOKENS
+"""The smallest piece worth cutting smaller, in tokens: two overlaps, so that a piece at the floor is still half new text.
+
+The walk and the descent share it. The walk sizes no piece below it, unless
+the window is so cramped that a unit opens below it already. A descent halves
+no piece whose half would be at or under it: a cut-off reply there is asked
+once more instead. It is a fixed number of tokens, two of the walk's overlaps,
+and not two of whatever overlap a descent is given.
 """
 
 MAX_SUBDIVISION_DEPTH: Final = 2
@@ -201,9 +211,8 @@ def derive_detection_budget(limits: InferenceLimits, scaffold_tokens: int, types
     return DetectionBudget(
         chunking=Chunking(chunk_size=input_budget, overlap=OVERLAP_TOKENS),
         bounds=SizingBounds(
-            # Two overlaps: at the floor a piece is still half text the unit has not seen. Never above the
-            # opening size, which a cramped window can put below even that.
-            floor=min(input_budget, 2 * OVERLAP_TOKENS),
+            # Never above the opening size, which a cramped window can put below even the size floor.
+            floor=min(input_budget, SIZE_FLOOR_TOKENS),
             # Never below the opening size, which a cramped window can leave above what fits.
             ceiling=max(input_budget, capacity_input),
             output_budget=output_budget,
@@ -232,7 +241,13 @@ class AdaptiveChunk:
 
     piece: str
     size: int
-    """The size the piece was cut at, in tokens. A descent into the piece halves from this size, and not from the walk's opening size."""
+    """The size the piece was cut at, in tokens: what the unit's cursor records, for a resume to seed its next cut from.
+
+    Not what a descent into the piece halves. The piece can be much shorter than
+    the size it was cut at: the last piece of a text ends where the text does,
+    and after the walk has grown the size every piece is cut at more than the
+    one before. A descent halves the piece's own size.
+    """
     at: int
     """Where the piece starts."""
     next: int
@@ -312,28 +327,30 @@ class SubdividedCall:
 async def call_chunk_subdividing(
     label: DetectionLabel,
     chunk: str,
-    chunking: Chunking,
+    overlap: int,
     call: Callable[[str], Awaitable[ChunkCallResult]],
     on_under_report: Callable[[UnderReportedPiece], None] | None,
     on_counted: Callable[[int], None] | None,
 ) -> SubdividedCall:
     """Ask about one piece of a walk, and ask again in smaller pieces when its reply fails in a way a smaller piece can fix.
 
-    `chunk` was cut at `chunking`'s size, and `call` asks the model about the
-    piece it is given. `label` is what the descent's calls are filed under in
-    telemetry. A reply that answers is accepted. Four failures are
-    ones a smaller piece can fix: a reply that was cut off, one unreadable
+    `call` asks the model about the piece it is given, and `overlap` is what
+    each smaller piece keeps of the one before. `label` is what the descent's
+    calls are filed under in telemetry. A reply that answers is accepted. Four
+    failures are ones a smaller piece can fix: a reply that was cut off, one unreadable
     for a reason the provider did not state, one unreadable from a model that
     finished, and a call that ran out of time. Any other is raised as it was.
 
-    For one of the four the piece is cut whole at half its size, with the
+    For one of the four the piece is cut whole at half its own size, with the
     same overlap, and each smaller piece is asked about in turn, one level
-    down. It descends only if that changes what is asked. A reply cut off, or
-    unreadable for no stated reason, descends for as long as the half size is
-    over two overlaps: what a piece demands halves with its size. One that
-    ran out of time, or was unreadable from a model that finished, descends
-    two levels at most: a quarter of the piece that still fails is not
-    failing for its size.
+    down. Its own size, and never the size it was cut at: a piece shorter than
+    that would otherwise be judged too small to cut before it had been cut. A
+    reply cut off, or unreadable for no stated reason, descends for as long as
+    the half size is over the size floor: what a piece demands halves with its
+    size. One that ran out of time, or was unreadable from a model that
+    finished, descends two levels at most, and only where the piece has a half
+    to cut it at: a quarter of the piece that still fails is not failing for
+    its size, and a piece of one token has no half.
 
     A piece that does not descend is settled where it stands. A yield
     collapse is accepted with what it found, and its verdict reported. Any
@@ -348,8 +365,8 @@ async def call_chunk_subdividing(
     is kept. Both are told at once, and not when the descent ends, so what
     was accepted before a later piece failed has still been told.
     """
-    descent = _Descent(label, chunking.overlap, call, on_under_report, on_counted)
-    items = await descent.attempt(chunk, chunking.chunk_size, 0)
+    descent = _Descent(label, overlap, call, on_under_report, on_counted)
+    items = await descent.attempt(chunk, 0)
     return SubdividedCall(items=items, outcome=CallOutcome(size_failed=descent.size_failed, output_tokens=descent.output_tokens))
 
 
@@ -451,8 +468,8 @@ class _Descent:
             self._on_counted(answer.counted)
         return list(answer.items)
 
-    async def attempt(self, piece: str, chunk_size: int, depth: int) -> list[JsonValue]:
-        """What `piece`, cut at `chunk_size` and `depth` levels below the piece the descent began with, gives."""
+    async def attempt(self, piece: str, depth: int) -> list[JsonValue]:
+        """What `piece`, `depth` levels below the piece the descent began with, gives."""
         try:
             return await self._ask(piece, depth, reroll=False)
         except (DeterministicJobError, StructuredReadError, InferenceTimeoutError) as failure:
@@ -463,28 +480,31 @@ class _Descent:
             # The size was wrong, whether or not the descent below recovers the piece: the next piece of the
             # walk is not to be cut at a size this one has already paid to find too large.
             self.size_failed = True
-            half = chunk_size // 2
-            # A descent must change what is asked. A piece already within the half size is cut into itself,
-            # and the same call gives the same failure: it stands at its floor, whatever the arithmetic says.
-            smaller = chunk_text(piece, Chunking(chunk_size=half, overlap=self._overlap))
-            shrinks = smaller != [piece]
-            # By size, a piece descends for as long as its half is over two overlaps: what a piece demands
-            # halves with its size, so this ends, and a text dense with spans goes as deep as it needs.
-            if shrinks and (half > 2 * OVERLAP_TOKENS if by_size else depth < MAX_SUBDIVISION_DEPTH):
+            half = estimate_tokens(piece) // 2
+            # By size, a piece descends for as long as its half is over the size floor: what a piece demands
+            # halves with its size, so this ends, and a text dense with spans goes as deep as it needs. By
+            # depth it goes two levels at most, and only a piece with a half: a piece of one token has none,
+            # and no chunking of size none can be made, so such a piece is settled where it stands.
+            if (half > SIZE_FLOOR_TOKENS) if by_size else (depth < MAX_SUBDIVISION_DEPTH and half > 0):
                 LOG.warning(
                     "Chunk call failed at a size-shaped bound — subdividing and retrying smaller",
                     extra={"depth": depth + 1, "pieceChars": len(piece), "nextChunkSizeTokens": half, "error": str(failure)},
                 )
                 # What the failed reply carried is discarded for what the smaller pieces give.
                 collected: list[JsonValue] = []
-                for part in smaller:
-                    collected.extend(await self.attempt(part, half, depth + 1))
+                for part in chunk_text(piece, Chunking(chunk_size=half, overlap=self._overlap)):
+                    collected.extend(await self.attempt(part, depth + 1))
                 return collected
             if isinstance(failure, YieldCollapseError):
                 # Kept, and said: one piece does not discard its unit's work, and asking again gives the same collapse.
                 LOG.warning(
                     "Floor-size piece still flagged as collapsed — accepting its under-reported salvage and continuing",
-                    extra={"pieceChars": len(piece), "salvaged": len(failure.salvage), "error": str(failure)},
+                    extra={
+                        "pieceChars": len(piece),
+                        "pieceTokens": estimate_tokens(piece),
+                        "salvaged": len(failure.salvage),
+                        "error": str(failure),
+                    },
                 )
                 if self._on_under_report is not None:
                     self._on_under_report(failure.verdict)
@@ -495,6 +515,7 @@ class _Descent:
                 raise
             # At the size floor an honest reply fits, so a cut-off one is a model repeating itself: once more, and no more.
             LOG.warning(
-                "Floor-size piece truncated — re-rolling once before giving up", extra={"pieceChars": len(piece), "error": str(failure)}
+                "Floor-size piece truncated — re-rolling once before giving up",
+                extra={"pieceChars": len(piece), "pieceTokens": estimate_tokens(piece), "error": str(failure)},
             )
             return await self._ask(piece, depth, reroll=True)

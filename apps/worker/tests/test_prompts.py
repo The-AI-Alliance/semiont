@@ -103,11 +103,14 @@ ASKED: Final[dict[str, Asked]] = {
     ),
     "linking-person-count": Asked(COUNT, lambda piece: count_prompt(piece, ["Person"])),
     "linking-place-count": Asked(COUNT, lambda piece: count_prompt(piece, ["Place"])),
-    # The pieces of a long text, each asked about as a highlighting job with nothing else stated asks.
+    # The pieces of a text, and of a piece asked again smaller, each asked about as a highlighting job with nothing else stated asks.
     **{f"chunks-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
     **{f"code-points-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
-    **{f"halved-half-{n}": Asked(PASSAGES, highlighting) for n in range(1, 4)},
-    **{f"halved-rest-{n}": Asked(PASSAGES, highlighting) for n in range(1, 7)},
+    "halved-first": Asked(PASSAGES, highlighting),
+    **{f"halved-half-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
+    **{f"halved-rest-{n}": Asked(PASSAGES, highlighting) for n in range(1, 6)},
+    "unreadable-half": Asked(PASSAGES, highlighting),
+    "unreadable-quarter": Asked(PASSAGES, highlighting),
     **{f"resume-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
 }
 

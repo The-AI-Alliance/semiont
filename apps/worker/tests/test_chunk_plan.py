@@ -23,7 +23,7 @@ from semiont.types import UnitCursor
 from semiont_inference.interface import StructuredReadError, TokenUsage
 from telemetry_rows import as_the_table_writes, worker_metrics
 
-from semiont_worker.chunking import Chunking
+from semiont_worker.chunking import estimate_tokens
 from semiont_worker.detection.chunk_plan import (
     ChunkCallResult,
     ChunkCursor,
@@ -36,12 +36,11 @@ from semiont_worker.failure_class import DeterministicJobError, classify_failure
 from semiont_worker.inference_call import InferenceTimeoutError
 from semiont_worker.telemetry import DetectionLabel, DetectionOutcome
 
-# A piece its size's half still cuts in two or more, and that is over the size floor: one that can descend.
+# A piece whose own half is over the size floor, and cuts it in two or more: one that can descend.
 CHUNK: Final = "".join(f"passage {number} lorem ipsum dolor sit amet " for number in range(200))
-CHUNKING: Final = Chunking(chunk_size=1000, overlap=16)
-# A piece too small to halve: half its size is under the size floor.
+# A piece whose own half is under the size floor: cut off, it is asked once more rather than halved.
 SMALL: Final = "a" * 400
-SMALL_CHUNKING: Final = Chunking(chunk_size=8, overlap=16)
+OVERLAP: Final = 16
 
 type Call = Callable[[str], Awaitable[ChunkCallResult]]
 
@@ -148,7 +147,7 @@ def test_a_count_is_told_as_its_piece_is_accepted_though_a_later_piece_then_fail
             return ChunkCallResult(items=["x"], usage=None, counted=7)
         raise broke
 
-    assert raised_by(call_chunk_subdividing("reference", CHUNK, CHUNKING, call, None, told.append)) is broke
+    assert raised_by(call_chunk_subdividing("reference", CHUNK, OVERLAP, call, None, told.append)) is broke
     assert len(asked) == 3
     assert told == [7]
 
@@ -160,9 +159,7 @@ def test_a_piece_kept_though_under_reported_is_told_with_its_verdict_and_its_cou
     collapse = YieldCollapseError("found 1 of 4 counted mentions", ["kept"], verdict)
 
     async def scenario() -> list[JsonValue]:
-        return (
-            await call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, failing(collapse), under_reported.append, counted.append)
-        ).items
+        return (await call_chunk_subdividing("reference", SMALL, OVERLAP, failing(collapse), under_reported.append, counted.append)).items
 
     assert run(scenario()) == ["kept"]
     assert (under_reported, counted) == ([verdict], [4])
@@ -172,8 +169,8 @@ def test_a_descent_nobody_listens_to_tells_nobody() -> None:
     collapse = YieldCollapseError("found 1 of 4 counted mentions", ["kept"], UnderReportedPiece(found=1, counted=4, piece_chars=400))
 
     async def scenario() -> list[JsonValue]:
-        counted = await call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, answering(["a"], None, 3), None, None)
-        collapsed = await call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, failing(collapse), None, None)
+        counted = await call_chunk_subdividing("reference", SMALL, OVERLAP, answering(["a"], None, 3), None, None)
+        collapsed = await call_chunk_subdividing("reference", SMALL, OVERLAP, failing(collapse), None, None)
         return [*counted.items, *collapsed.items]
 
     assert run(scenario()) == ["a", "kept"]
@@ -190,33 +187,38 @@ def test_a_piece_that_descends_is_warned_of_with_its_length_the_level_and_the_si
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.DEBUG, logger="semiont_worker")
-    assert raised_by(call_chunk_subdividing("highlight", CHUNK, CHUNKING, failing_whole(CUT_OFF, CHUNK, NOTHING), None, None)) is None
+    assert raised_by(call_chunk_subdividing("highlight", CHUNK, OVERLAP, failing_whole(CUT_OFF, CHUNK, NOTHING), None, None)) is None
     (warned,) = warnings_of(caplog)
     assert warned.getMessage() == "Chunk call failed at a size-shaped bound — subdividing and retrying smaller"
     assert {key: vars(warned)[key] for key in ("depth", "pieceChars", "nextChunkSizeTokens", "error")} == {
         "depth": 1,
         "pieceChars": len(CHUNK),
-        "nextChunkSizeTokens": 500,
+        "nextChunkSizeTokens": estimate_tokens(CHUNK) // 2,
         "error": "truncated (max_tokens)",
     }
 
 
 def test_a_cut_off_piece_too_small_to_halve_is_warned_of_before_it_is_asked_about_once_more(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG, logger="semiont_worker")
-    assert raised_by(call_chunk_subdividing("highlight", SMALL, SMALL_CHUNKING, failing_once(CUT_OFF, NOTHING), None, None)) is None
+    assert raised_by(call_chunk_subdividing("highlight", SMALL, OVERLAP, failing_once(CUT_OFF, NOTHING), None, None)) is None
     (warned,) = warnings_of(caplog)
     assert warned.getMessage() == "Floor-size piece truncated — re-rolling once before giving up"
-    assert {key: vars(warned)[key] for key in ("pieceChars", "error")} == {"pieceChars": 400, "error": "truncated (max_tokens)"}
+    assert {key: vars(warned)[key] for key in ("pieceChars", "pieceTokens", "error")} == {
+        "pieceChars": 400,
+        "pieceTokens": 100,
+        "error": "truncated (max_tokens)",
+    }
 
 
 def test_a_piece_kept_though_under_reported_is_warned_of_with_what_was_kept(caplog: pytest.LogCaptureFixture) -> None:
     collapse = YieldCollapseError("found 1 of 4 counted mentions", ["kept"], UnderReportedPiece(found=1, counted=4, piece_chars=400))
     caplog.set_level(logging.DEBUG, logger="semiont_worker")
-    assert raised_by(call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, failing(collapse), None, None)) is None
+    assert raised_by(call_chunk_subdividing("reference", SMALL, OVERLAP, failing(collapse), None, None)) is None
     (warned,) = warnings_of(caplog)
     assert warned.getMessage() == "Floor-size piece still flagged as collapsed — accepting its under-reported salvage and continuing"
-    assert {key: vars(warned)[key] for key in ("pieceChars", "salvaged", "error")} == {
+    assert {key: vars(warned)[key] for key in ("pieceChars", "pieceTokens", "salvaged", "error")} == {
         "pieceChars": 400,
+        "pieceTokens": 100,
         "salvaged": 1,
         "error": "found 1 of 4 counted mentions",
     }
@@ -225,8 +227,8 @@ def test_a_piece_kept_though_under_reported_is_warned_of_with_what_was_kept(capl
 def test_nothing_is_logged_of_a_piece_that_answers_or_of_a_failure_no_smaller_piece_can_fix(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG, logger="semiont_worker")
     broke = RuntimeError("the provider went away")
-    assert raised_by(call_chunk_subdividing("highlight", CHUNK, CHUNKING, answering(["a"], None, None), None, None)) is None
-    assert raised_by(call_chunk_subdividing("highlight", CHUNK, CHUNKING, failing(broke), None, None)) is broke
+    assert raised_by(call_chunk_subdividing("highlight", CHUNK, OVERLAP, answering(["a"], None, None), None, None)) is None
+    assert raised_by(call_chunk_subdividing("highlight", CHUNK, OVERLAP, failing(broke), None, None)) is broke
     assert [record for record in caplog.records if record.name == "semiont_worker"] == []
 
 
@@ -301,7 +303,7 @@ def test_a_call_that_answers_is_counted_once_as_first_asked_with_its_proposals_a
 
     before = so_far()
     answer = answering(["a", "b"], TokenUsage(input_tokens=1200, output_tokens=340), None)
-    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("highlight", CHUNK, CHUNKING, answer, None, None))
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("highlight", CHUNK, OVERLAP, answer, None, None))
     assert raised is None
     assert made == Counter({kind: 1})
     items, read, written, timed = [(now[0] - was[0], now[1] - was[1]) for was, now in zip(before, so_far(), strict=True)]
@@ -315,7 +317,7 @@ def test_a_call_that_answers_is_counted_once_as_first_asked_with_its_proposals_a
 def test_a_call_its_provider_did_not_count_adds_no_tokens(metric_reader: InMemoryMetricReader) -> None:
     kind: Kind = ("assessment", "success", 0, False)
     before = {direction: recorded(metric_reader, "semiont.detection.call.tokens", direction).get(kind) for direction in ("input", "output")}
-    made, _ = calls_made_by(metric_reader, call_chunk_subdividing("assessment", CHUNK, CHUNKING, answering(["a"], None, None), None, None))
+    made, _ = calls_made_by(metric_reader, call_chunk_subdividing("assessment", CHUNK, OVERLAP, answering(["a"], None, None), None, None))
     assert made == Counter({kind: 1})
     assert {
         direction: recorded(metric_reader, "semiont.detection.call.tokens", direction).get(kind) for direction in ("input", "output")
@@ -331,7 +333,7 @@ def test_the_call_that_failed_and_each_smaller_one_asked_in_its_place_are_counte
             raise CUT_OFF
         return ChunkCallResult(items=["x"], usage=None, counted=None)
 
-    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("reference", CHUNK, CHUNKING, call, None, None))
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("reference", CHUNK, OVERLAP, call, None, None))
     assert raised is None
     assert len(asked) > 2
     # The call paid for and thrown away is in the count, beside the ones that replaced it one level down.
@@ -340,23 +342,21 @@ def test_the_call_that_failed_and_each_smaller_one_asked_in_its_place_are_counte
 
 def test_the_second_asking_of_a_piece_too_small_to_halve_is_marked_as_one(metric_reader: InMemoryMetricReader) -> None:
     again = ChunkCallResult(items=["ok"], usage=None, counted=None)
-    made, raised = calls_made_by(
-        metric_reader, call_chunk_subdividing("tag", SMALL, SMALL_CHUNKING, failing_once(CUT_OFF, again), None, None)
-    )
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("tag", SMALL, OVERLAP, failing_once(CUT_OFF, again), None, None))
     assert raised is None
     assert made == Counter({("tag", "truncated", 0, False): 1, ("tag", "success", 0, True): 1})
 
 
 def test_a_collapse_is_counted_as_one_and_not_as_a_cut_off_reply_though_the_piece_is_kept(metric_reader: InMemoryMetricReader) -> None:
     collapse = YieldCollapseError("found 3 of 50 counted mentions", [], UnderReportedPiece(found=3, counted=50, piece_chars=400))
-    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, failing(collapse), None, None))
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("reference", SMALL, OVERLAP, failing(collapse), None, None))
     assert raised is None
     assert made == Counter({("reference", "collapsed", 0, False): 1})
 
 
 def test_a_call_that_ran_out_of_time_is_counted_as_that_at_each_level_it_was_asked_at(metric_reader: InMemoryMetricReader) -> None:
     out_of_time = InferenceTimeoutError("bound")
-    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("comment", CHUNK, CHUNKING, failing(out_of_time), None, None))
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("comment", CHUNK, OVERLAP, failing(out_of_time), None, None))
     assert raised is out_of_time
     assert made == Counter({("comment", "timeout", depth, False): 1 for depth in (0, 1, 2)})
 
@@ -367,7 +367,7 @@ def test_a_call_that_ran_out_of_time_is_counted_as_that_at_each_level_it_was_ask
     ids=["a plain failure", "an unreadable reply no smaller piece can fix"],
 )
 def test_any_other_failure_is_counted_as_an_error(failure: Exception, metric_reader: InMemoryMetricReader) -> None:
-    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("assessment", CHUNK, CHUNKING, failing(failure), None, None))
+    made, raised = calls_made_by(metric_reader, call_chunk_subdividing("assessment", CHUNK, OVERLAP, failing(failure), None, None))
     assert raised is failure
     assert made == Counter({("assessment", "error", 0, False): 1})
 
@@ -378,7 +378,7 @@ def test_a_call_its_caller_cancelled_is_counted_as_an_error_and_the_cancellation
         return NOTHING
 
     async def scenario() -> None:
-        descent = asyncio.ensure_future(call_chunk_subdividing("tag", CHUNK, CHUNKING, never, None, None))
+        descent = asyncio.ensure_future(call_chunk_subdividing("tag", CHUNK, OVERLAP, never, None, None))
         await turns()
         descent.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -402,11 +402,11 @@ def test_what_a_descent_records_is_what_the_table_lists(metric_reader: InMemoryM
     counted = ChunkCallResult(items=["a"], usage=TokenUsage(input_tokens=9, output_tokens=3), counted=None)
     collapse = YieldCollapseError("found 0 of 9 counted mentions", [], UnderReportedPiece(found=0, counted=9, piece_chars=400))
     for work in (
-        call_chunk_subdividing("highlight", SMALL, SMALL_CHUNKING, answering(["a"], counted.usage, None), None, None),
-        call_chunk_subdividing("comment", SMALL, SMALL_CHUNKING, failing_once(CUT_OFF, counted), None, None),
-        call_chunk_subdividing("assessment", SMALL, SMALL_CHUNKING, failing(InferenceTimeoutError("bound")), None, None),
-        call_chunk_subdividing("tag", SMALL, SMALL_CHUNKING, failing(RuntimeError("away")), None, None),
-        call_chunk_subdividing("reference", SMALL, SMALL_CHUNKING, failing(collapse), None, None),
+        call_chunk_subdividing("highlight", SMALL, OVERLAP, answering(["a"], counted.usage, None), None, None),
+        call_chunk_subdividing("comment", SMALL, OVERLAP, failing_once(CUT_OFF, counted), None, None),
+        call_chunk_subdividing("assessment", SMALL, OVERLAP, failing(InferenceTimeoutError("bound")), None, None),
+        call_chunk_subdividing("tag", SMALL, OVERLAP, failing(RuntimeError("away")), None, None),
+        call_chunk_subdividing("reference", SMALL, OVERLAP, failing(collapse), None, None),
     ):
         raised_by(work)
 

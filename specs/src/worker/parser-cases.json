@@ -253,14 +253,14 @@
       }
     },
     {
-      "why": "a reply that is not JSON is refused, with its stop reason: it is not read as nothing found",
+      "why": "a reply that is not JSON is refused, with its stop reason: it is not read as nothing found. A model that finished and still cannot be read is asked about smaller pieces first, two levels down, so it is asked three times: the piece, half of it, and half of that",
       "motivation": "highlighting",
       "text": "Alice went to Paris. Bob stayed home.",
       "reply": {
         "text": "I found no highlights.",
         "stopReason": "end_turn"
       },
-      "calls": 1,
+      "calls": 3,
       "refused": { "name": "StructuredReadError", "stopReason": "end_turn" }
     },
     {
@@ -271,7 +271,7 @@
         "text": "{\"comments\": []}",
         "stopReason": "end_turn"
       },
-      "calls": 1,
+      "calls": 3,
       "refused": { "name": "StructuredReadError", "stopReason": "end_turn" }
     },
     {

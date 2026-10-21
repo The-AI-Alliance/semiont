@@ -27,10 +27,24 @@ other), and the cut is where it is.
 @final
 @dataclass(frozen=True, slots=True)
 class Chunking:
-    """How a text is cut: the size of a piece and what each cut keeps of the piece before, both in tokens."""
+    """How a text is cut: the size of a piece and what each cut keeps of the piece before, both in tokens.
+
+    Raises `ValueError` for a chunk size under 1 or an overlap under 0, when the
+    chunking is made rather than when it is first used. At a chunk size under 1
+    a cut's window is empty, so it takes nothing and names the offset it began
+    at as the next: a text cut whole with it is never done. At an overlap under
+    0 the next cut starts past where the last one ended, and the text between is
+    in no piece.
+    """
 
     chunk_size: int
     overlap: int
+
+    def __post_init__(self) -> None:
+        if self.chunk_size < 1:
+            raise ValueError(f"a chunk size of {self.chunk_size} tokens cannot cut a text: it must be at least 1")
+        if self.overlap < 0:
+            raise ValueError(f"an overlap of {self.overlap} tokens cannot cut a text: it must be at least 0")
 
 
 @final

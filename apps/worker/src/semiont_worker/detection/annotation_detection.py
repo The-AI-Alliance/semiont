@@ -19,7 +19,7 @@ from semiont.types import TagSchema, UnitCursor
 from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient
 
-from semiont_worker.chunking import Chunking, estimate_tokens
+from semiont_worker.chunking import estimate_tokens
 from semiont_worker.detection.chunk_plan import (
     DETECTION_TEMPERATURE,
     AdaptiveChunk,
@@ -107,9 +107,7 @@ async def _detect_in_pieces[M](
             assert_not_truncated(response.stop_reason, f"{label} detection", chunk.at, chunk.total_chars, output_budget)
             return ChunkCallResult(items=response.items, usage=response.usage, counted=None)
 
-        asked = await call_chunk_subdividing(
-            label, chunk.piece, Chunking(chunk_size=chunk.size, overlap=budget.chunking.overlap), call, None, None
-        )
+        asked = await call_chunk_subdividing(label, chunk.piece, budget.chunking.overlap, call, None, None)
         anchored = read(asked.items)
         await on_chunk_results(anchored.matches, ChunkCursor(next=chunk.next, size=chunk.size), anchored.dropped)
         # A boundary, where text remains. After the last piece there is none, and the unit's end is its caller's to say.
