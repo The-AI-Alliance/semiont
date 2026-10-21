@@ -91,6 +91,62 @@ def test_an_event_the_weaver_does_not_follow_changes_nothing_and_is_passed_when_
     run(scenario())
 
 
+# ── A stream that drops ────────────────────────────────────────────────
+
+
+async def turns() -> None:
+    """Give the Weaver turns enough to go on with whatever it could: what a scenario does before it says something did not happen."""
+    for _ in range(200):
+        await asyncio.sleep(0)
+
+
+def test_what_is_recorded_while_the_stream_is_down_is_applied_by_the_catch_up_when_it_opens_again() -> None:
+    async def scenario() -> None:
+        async with Rig() as rig:
+            await rig.happened(created("res-1"))
+
+            # The stream drops, and what is recorded meanwhile is never delivered.
+            rig.transport.set_state("reconnecting")
+            await rig.recorded(archived("res-1", 2), tagged("res-1", 3, "Place"))
+            reopening = asyncio.ensure_future(rig.weaver.reopened())
+            await turns()
+            assert not reopening.done()
+            assert rig.weaver.applied() == {"res-1": 1}
+
+            # It opens again: a catch-up is due, and finds the two.
+            rig.transport.set_state("connecting")
+            rig.transport.set_state("open")
+            await asyncio.wait_for(reopening, timeout=5)
+            caught_up = await rig.weaver.catch_up()
+
+            assert caught_up.events_replayed == 2
+            assert rig.weaver.applied() == {"res-1": 3}
+            await rig.same_as_the_views()
+
+    run(scenario())
+
+
+def test_drops_that_came_before_it_is_awaited_make_one_reopening() -> None:
+    async def scenario() -> None:
+        async with Rig() as rig:
+            for _ in range(2):
+                rig.transport.set_state("reconnecting")
+                rig.transport.set_state("connecting")
+                rig.transport.set_state("open")
+                await turns()
+
+            await asyncio.wait_for(rig.weaver.reopened(), timeout=5)
+            again = asyncio.ensure_future(rig.weaver.reopened())
+            await turns()
+            try:
+                assert not again.done()
+            finally:
+                again.cancel()
+                await asyncio.gather(again, return_exceptions=True)
+
+    run(scenario())
+
+
 # ── The marks ──────────────────────────────────────────────────────────
 
 
