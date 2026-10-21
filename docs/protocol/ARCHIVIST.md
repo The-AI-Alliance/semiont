@@ -271,10 +271,13 @@ an older stamp stay until the store is cleared.
 ## Commands
 
 The Archivist records what it is told on these channels. Every command carries `_userId`, the DID of
-its sender, which the gateway sets. A reply carries the command's correlation id. A reply that
-cannot be sent, as one larger than a bus message may be, is answered on the operation's failure
-channel with `{message}`, `The answer could not be sent: ` and why; a failure that cannot be sent is
-logged.
+its sender, which the gateway sets. A reply carries the command's correlation id. A reply whose JSON
+is larger than a bus message may be, `POST /bus/emit`'s `x-semiont-limits.maxBodyBytes` in the
+gateway's [API](../../specs/src/paths/bus_emit.json), is not sent: the operation's failure channel
+is answered at once, with `{message}`, `The answer could not be sent: it is <n> bytes, and a bus
+message may be <maxBodyBytes>`. Any other reply that cannot be sent, as one within that size whose
+frame is not, is answered there once the transport gives up, with `The answer could not be sent: `
+and why. A failure that cannot be sent is logged.
 
 | Command | Reply | On failure | Appends |
 |---|---|---|---|
