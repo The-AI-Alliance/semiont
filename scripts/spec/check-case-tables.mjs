@@ -280,11 +280,15 @@ const TABLES = [
   },
   // The views read off a knowledge graph: who a resource connects to, who
   // cites it, and the entity types of the annotations beside one. Run by each
-  // reader: TypeScript's (@semiont/core), which the Browser calls, and the
-  // Librarian's.
+  // reader: TypeScript's (@semiont/core), which the Browser calls, the
+  // Librarian's, and the Worker's, which its generation prompt reads.
   {
     table: 'specs/src/librarian/derive-views-cases.json',
-    runners: ['packages/core/src/__tests__/derive-views-cases.test.ts', 'apps/librarian/tests/test_derive_views_cases.py'],
+    runners: [
+      'packages/core/src/__tests__/derive-views-cases.test.ts',
+      'apps/librarian/tests/test_derive_views_cases.py',
+      'apps/worker/tests/test_derive_views_cases.py',
+    ],
   },
 ];
 
