@@ -484,7 +484,7 @@ class _Descent:
             # By size, a piece descends for as long as its half is over the size floor: what a piece demands
             # halves with its size, so this ends, and a text dense with spans goes as deep as it needs. By
             # depth it goes two levels at most, and only a piece with a half: a piece of one token has none,
-            # and cutting at a size of none would never move past the start of the text.
+            # and no chunking of size none can be made, so such a piece is settled where it stands.
             if (half > SIZE_FLOOR_TOKENS) if by_size else (depth < MAX_SUBDIVISION_DEPTH and half > 0):
                 LOG.warning(
                     "Chunk call failed at a size-shaped bound — subdividing and retrying smaller",
