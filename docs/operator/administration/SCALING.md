@@ -57,8 +57,8 @@ the projections.
 - `semiont.gather.degraded` rising with `projection` `graph` or `vectors`: the weaver or the
   smelter is not keeping up with the record. The smelter's `/health` says how far behind it
   is: `eventsWaiting` is what it has been delivered and not yet applied, `eventsFailed` what
-  it could not apply, and `streamDrops` how many times its stream dropped, each of which may
-  have cost it events that only its next start finds. The weaver's says how its repair at
+  it could not apply, and `streamDrops` how many times its stream dropped, after each of which
+  it reconciles again to find what it was not sent. The weaver's says how its repair at
   start ended and how many events it could not apply, and not how many it has waiting.
 
 ## What adding replicas does not fix

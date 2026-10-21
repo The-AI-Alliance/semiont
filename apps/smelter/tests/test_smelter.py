@@ -2445,6 +2445,96 @@ def test_a_stream_that_is_closed_has_not_dropped(tmp_path: Path, caplog: pytest.
     assert lines(caplog, logging.WARNING) == []
 
 
+async def stopped(keeping: asyncio.Future[None]) -> None:
+    """End a Smelter's keeping itself reconciled, as its service does when it is told to stop."""
+    keeping.cancel()
+    await asyncio.gather(keeping, return_exceptions=True)
+
+
+def test_a_smelter_kept_reconciled_reconciles_again_when_its_stream_opens_after_a_drop(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            rig.world.put("res-1", TEXT)
+            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
+            try:
+                await until(lambda: rig.smelter.reconcile_state.phase == "done")
+                assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+
+                # The stream drops, and what is recorded meanwhile is never delivered: the index may be behind, and
+                # says a reconcile is to be done. None begins while the stream is down.
+                rig.transport.set_state("reconnecting")
+                rig.world.put("res-2", LATER)
+                await a_while()
+                assert rig.smelter.reconcile_state == ReconcileState(phase="pending")
+                assert len(rig.asked("browse:resources-requested")) == 1
+
+                # It opens again, and a reconcile finds what was recorded while it was down.
+                rig.transport.set_state("connecting")
+                rig.transport.set_state("open")
+                await until(lambda: rig.smelter.reconcile_state.phase == "done")
+
+                assert (await rig.held()).stamps == {"res-1": stamp(TEXT), "res-2": stamp(LATER)}
+                assert len(rig.asked("browse:resources-requested")) == 2
+                assert applied(rig) == 0
+            finally:
+                await stopped(keeping)
+
+    run(scenario())
+
+
+def test_drops_while_a_reconcile_is_under_way_make_one_more_after_it(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            rig.world.put("res-1", TEXT)
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
+            try:
+                await until(lambda: len(rig.provider.asked) == 1)
+                for _ in range(3):
+                    rig.transport.set_state("reconnecting")
+                    rig.transport.set_state("connecting")
+                    rig.transport.set_state("open")
+                    await a_while()
+                # The one under way says so for itself.
+                assert rig.smelter.stream_drops == 3
+                assert rig.smelter.reconcile_state == ReconcileState(phase="running")
+
+                let_go.set()
+                await until(lambda: len(rig.asked("browse:resources-requested")) == 2 and rig.smelter.reconcile_state.phase == "done")
+                await a_while()
+
+                # Three drops while it ran, and one more reconcile after it.
+                assert len(rig.asked("browse:resources-requested")) == 2
+            finally:
+                await stopped(keeping)
+
+    run(scenario())
+
+
+def test_a_reconcile_that_fails_ends_nothing_and_the_next_drop_begins_another(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            rig.world.put("res-1", TEXT)
+            rig.failing.add("browse:resources-requested")
+            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
+            try:
+                await until(lambda: rig.smelter.reconcile_state.phase == "failed")
+                assert not keeping.done()
+
+                rig.failing.clear()
+                rig.transport.set_state("reconnecting")
+                rig.transport.set_state("connecting")
+                rig.transport.set_state("open")
+                await until(lambda: rig.smelter.reconcile_state.phase == "done")
+
+                assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            finally:
+                await stopped(keeping)
+
+    run(scenario())
+
+
 def test_reconcile_state_says_how_far_the_reconcile_of_this_start_has_got(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
