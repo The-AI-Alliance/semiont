@@ -128,13 +128,17 @@ eachWorkerService('a job that fails', (world) => {
     ['is not JSON', 'I found three passages worth highlighting.'],
     ['is JSON and not an array', '{"highlights":[{"exact":"the first program"}]}'],
     ['has nothing in it', ''],
-  ])('fails, with no class, on an answer that %s, having asked once', async (_what, response) => {
+  ])('fails, with no class, on an answer that %s, having asked about the text, its first half, and that half\'s first half', async (_what, response) => {
     const w = world();
     const agent = w.agents[0]!;
-    const { job, failure } = await failed(w, 'unreadable', [{ response }]);
+    const { job, failure } = await failed(w, 'unreadable', [{ response }, { response }, { response }]);
     unclassed(job, failure, true);
-    // The text fits one piece, so there is no smaller piece to ask for instead.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting)]);
+    // A text that fits one piece is still asked about in halves of its own size, two levels down: 98 tokens, its first paragraph of 30, and the first 15 of that.
+    expectGenerations(w.ollama.generations, [
+      generation(agent.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting),
+      generation(agent.model, 'unreadable-half', { ...HIGHLIGHT_REQUEST, num_ctx: 5704 }, FORMATS.highlighting),
+      generation(agent.model, 'unreadable-quarter', { ...HIGHLIGHT_REQUEST, num_ctx: 5687 }, FORMATS.highlighting),
+    ]);
     expect(w.commits).toEqual([]);
   });
 

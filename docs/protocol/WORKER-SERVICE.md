@@ -591,8 +591,10 @@ deterministic, so that no attempt is spent on them again.
   *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F4.** An answer that cannot be read, from a model that finished, has no
   class: one that is not JSON, one that is JSON and not an array, and one
-  with nothing in it. Over a text that fits one piece the request is made
-  once. An answer with nothing in it cannot be read whatever was asked for: a
+  with nothing in it. The job fails so only once smaller pieces have been
+  asked about as [F7](#failures) says: over a text that fits one piece, the
+  text, the first of its halves, and the first half of that, three requests
+  in all. An answer with nothing in it cannot be read whatever was asked for: a
   `yield` job whose model answers nothing fails so, and uploads nothing.
   *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F5.** An answer the model was cut off in (Ollama's `done_reason`
@@ -601,8 +603,11 @@ deterministic, so that no attempt is spent on them again.
   second time, and no more; cut off again, the job fails as deterministic.
   *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F6.** A piece that can be cut smaller is asked again in halves when its
-  answer is cut off: pieces of half the size, cut as [D4](#pieces) cuts them,
-  each asked in turn, and what they find taken together as the one piece's.
+  answer is cut off: pieces of half the piece's own size, its tokens halved
+  and rounded down, cut as [D4](#pieces) cuts them, each asked in turn, and
+  what they find taken together as the one piece's. Its own size, and never
+  the size it was cut at, which a piece can be far shorter than: a cut is
+  moved back to a break, and the last piece of a text ends where the text does.
   The batch and the cursor are the piece's, and the cursor states the size
   the piece was first cut at. A half is halved in its turn for as long as the
   half of it is over 128 tokens. The piece after one that was halved is cut at
@@ -611,8 +616,9 @@ deterministic, so that no attempt is spent on them again.
 - **F7.** A piece whose answer cannot be read, or is not had in time, is
   asked again in halves as [F6](#failures) says: one unreadable for a reason
   the provider does not state for as long as one cut off is, and any other
-  twice at most.
-  *Held by no case.*
+  twice at most, and only while the piece has a half: a piece of one token
+  has none.
+  *Held by `worker-service/failures`.*
 - **F8.** A commit the record refuses fails the job with the record's reason,
   with no class, and the unit's cursor is not said
   ([WORKER-CONTRACT A5](./WORKER-CONTRACT.md#committing-annotations)).
