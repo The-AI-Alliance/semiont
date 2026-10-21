@@ -26,7 +26,7 @@ from semiont.types import UnitCursor
 from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient
 
-from semiont_worker.chunking import Chunking, estimate_tokens
+from semiont_worker.chunking import estimate_tokens
 from semiont_worker.detection.annotation_detection import OnActivity, OnChunkResults
 from semiont_worker.detection.chunk_plan import (
     DETECTION_TEMPERATURE,
@@ -223,9 +223,7 @@ async def extract_entities(
             counted = await _counted(client, piece, response.items, entity_types) if verify_yield else None
             return ChunkCallResult(items=response.items, usage=response.usage, counted=counted)
 
-        asked = await call_chunk_subdividing(
-            "reference", chunk.piece, Chunking(chunk_size=chunk.size, overlap=budget.chunking.overlap), call, on_under_report, on_counted
-        )
+        asked = await call_chunk_subdividing("reference", chunk.piece, budget.chunking.overlap, call, on_under_report, on_counted)
 
         mentions: list[Mention] = []
         dropped = 0

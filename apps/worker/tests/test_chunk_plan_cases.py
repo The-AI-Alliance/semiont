@@ -145,7 +145,6 @@ class DescentCase(Stated, frozen=True):
     kind: Literal["descent"]
     why: str
     piece: str
-    size: int
     overlap: int
     replies: list[Answers | FailsWith]
     asked: list[tuple[int, int]]
@@ -322,9 +321,7 @@ def test_a_piece_is_asked_about_and_descended_into_as_the_table_says(case: Desce
     counted: list[int] = []
     under_reported: list[UnderReportedPiece] = []
     # A descent of the table is no kind of job's more than another's: the label is only what telemetry files its calls under.
-    descent = call_chunk_subdividing(
-        "highlight", case.piece, Chunking(chunk_size=case.size, overlap=case.overlap), call, under_reported.append, counted.append
-    )
+    descent = call_chunk_subdividing("highlight", case.piece, case.overlap, call, under_reported.append, counted.append)
     if case.raises is None:
         assert case.result is not None, "a descent case states its result, or the reply whose failure it raises"
         assert asyncio.run(descent) == SubdividedCall(
