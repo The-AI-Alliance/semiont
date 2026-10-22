@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
+	"strings"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // useraddOpts: what the flags mean once parsed. The launcher owns them
@@ -39,17 +41,17 @@ type realmAdmin struct {
 	subjectClaim string
 }
 
-// resolveRealmAdmin: this root's launcher-run Keycloak, or a refusal that says
-// which precondition failed. The sticky config, exactly as `identity sync`
-// resolves it — administering a realm the operator does not actually start
-// with would write to the wrong one.
-func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
-	// The identity an account acts under is named under the knowledge base's
-	// committed domain; without one, the gateway has no identity to run under
+// resolveRealmAdmin: the launcher-run Keycloak of the local stack started at
+// root under did, or a refusal that says which precondition failed. The sticky
+// config, exactly as `identity sync` resolves it — administering a realm the
+// operator does not actually start with would write to the wrong one.
+func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
+	// The identity an account acts under is named under the domain the stack
+	// was started with; without one, the gateway has no identity to run under
 	// either.
-	domain := committedDomain(root)
-	if domain == "" {
-		u.Fail("The knowledge base at %s declares no [site] domain in its .semiont/config, so no account can be named under it.", root)
+	domain, ok := strings.CutPrefix(did, "did:web:")
+	if !ok || domain == "" {
+		u.Fail("The local stack at %s was started with no did:web identity, so no account can be named under it.", root)
 		return realmAdmin{}, false
 	}
 	configName := configForRealm(root)
@@ -58,8 +60,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 		return realmAdmin{}, false
 	}
-	configFile := filepath.Join(root, ".semiont", "semiontconfig", configName+".toml")
-	envCfg, envName, _, err := loadConfig(configFile)
+	st, err := stack.Load(root, configName)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
@@ -68,16 +69,12 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	if !ok {
 		return realmAdmin{}, false
 	}
-	plan, err := derivePlan(envCfg, envName, configFile, kcPort)
+	plan, err := derivePlan(st, kcPort)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
-	rp, ok := plan.Roles["identity"]
-	if !ok || rp.Issuer == "" {
-		u.Fail("This knowledge base configures no identity provider — add an [identity] section before creating users.")
-		return realmAdmin{}, false
-	}
+	rp := plan.Roles["identity"]
 	// An issuer Semiont does not administer. The account is created THERE and
 	// then signs in here; nothing about this command can reach it.
 	if rp.Driver != "keycloak" {
@@ -90,7 +87,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
-	adminPass, _, ok := keycloakAdminPassword(u, root)
+	adminPass, _, ok := keycloakAdminPassword(u, rootKey(did, root))
 	if !ok {
 		return realmAdmin{}, false
 	}
@@ -107,15 +104,15 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	}
 	return realmAdmin{
 		base: base, realm: keycloakRealm(issuerPath(rp.Issuer)), token: token,
-		domain: domain, subjectClaim: envCfg.Identity.SubjectClaim,
+		domain: domain, subjectClaim: st.KnowledgeBase.Spec.Issuer.SubjectClaim,
 	}, true
 }
 
 // useraddLocal: the account decisions, in the order the flags imply. The
 // issuer holds whether a person may sign in, so `--active`/`--inactive` are
 // written there and nowhere else; absent both, an update leaves that alone.
-func useraddLocal(u *UI, o useraddOpts, password, root string) (code int, created bool) {
-	a, ok := resolveRealmAdmin(u, root)
+func useraddLocal(u *UI, o useraddOpts, password, root, did string) (code int, created bool) {
+	a, ok := resolveRealmAdmin(u, root, did)
 	if !ok {
 		return 1, false
 	}
@@ -216,7 +213,7 @@ func generatePassword() (string, error) {
 }
 
 // accountIdentity: the DID the account acts under, by the gateway's rule —
-// did:web:<domain>:users:<the value of the claim [identity] subjectClaim
+// did:web:<domain>:users:<the value of the claim spec.issuer.subjectClaim
 // names>. The launcher knows that value for the claims it sets itself: the
 // account id (sub), and the email, which is also the username. Any other claim
 // is the issuer's to fill at sign-in.

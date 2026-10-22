@@ -173,12 +173,15 @@ that exactly matches the current branch's source:
 ./scripts/ci/local-build.sh
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
-#    the full stack from the :local images just built. The --config
-#    anthropic flag avoids host-Ollama networking issues (see
+#    the full stack from the :local images just built: name them in
+#    .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
+#    and so on), and the Browser's in the machine's settings. The
+#    --config anthropic flag avoids host-Ollama networking issues (see
 #    "Gotchas" below).
 cd ../semiont-template-kb
+semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
 ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
-  SEMIONT_VERSION=local semiont start --config anthropic
+  semiont start --config anthropic
 echo password | semiont useradd --email admin@example.com
 
 # 3. Run the e2e suite (see Quick start above). The stack publishes
@@ -203,8 +206,8 @@ for inspecting cross-service traces while debugging an e2e failure
   `semiont start --config anthropic` to skip Ollama entirely.
 - **Code changes require rebuilding the `:local` images.** Rerun
   `./scripts/ci/local-build.sh`, then restart the stack with
-  `SEMIONT_VERSION=local semiont start`. Without the rebuild + restart,
-  you'll run yesterday's images with today's source.
+  `semiont start`, its documents naming the `:local` images. Without the
+  rebuild + restart, you'll run yesterday's images with today's source.
 - **SPA tracing is not wired.** Gateway / worker / smelter
   produce traces; the Browser SPA does not. End-to-end traces
   therefore start at `bus.dispatch:*` (server-side EMIT receive)

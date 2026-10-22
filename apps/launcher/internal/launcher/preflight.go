@@ -62,7 +62,7 @@ var preflightNoRedirect = &http.Client{
 // launcher-run Keycloak is localhost and for an external issuer is the
 // configured URL. Deliberately not compared against the token's `iss`: a
 // Keycloak token is stamped with the URL it was requested FROM, so the
-// services — which ask through ${KEYCLOAK_HOST} — get an `iss` matching their
+// services — which ask through the host the launcher places it at — get an `iss` matching their
 // own configuration whatever this function used. Checking it here would
 // refuse a healthy realm.
 func verifyServiceAccounts(issuerBase, audience string, secrets map[string]string) ([]serviceAccountFinding, int) {

@@ -51,11 +51,11 @@ A stack the launcher has running is a worked example of the whole contract. `sem
 
 ### What your platform provides
 
-**Configuration.** The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, whose schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). Getting those files into each container is yours: a ConfigMap, a mounted volume, or a layer you bake. With no launcher to place the daemons, every document states each address, and no service reads the TOML that [Configuration](CONFIGURATION.md) describes.
+**Configuration.** The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, whose schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). Getting those files into each container is yours: a ConfigMap, a mounted volume, or a layer you bake. With no launcher to place the daemons, every document states each address, and no service reads the stack documents that [Configuration](CONFIGURATION.md) describes.
 
-**Secrets.** Services read secrets from environment variables and from no secret store. The gateway needs `JWT_SECRET`. Every service needs its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. Inference keys and daemon passwords arrive as whatever variables your config references. Mapping them from your store (Kubernetes Secrets, Vault, a cloud's secret manager) is yours. See [Secrets](../services/SECRETS.md).
+**Secrets.** Services read secrets from environment variables and from no secret store. The gateway needs `JWT_SECRET`. Every service needs its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. Inference keys and daemon passwords arrive as whatever variables the services' documents name. Mapping them from your store (Kubernetes Secrets, Vault, a cloud's secret manager) is yours. See [Secrets](../services/SECRETS.md).
 
-**An issuer.** Every knowledge base trusts one OIDC issuer. Use the one your organization already has: set `[identity] type = "oidc"` and give each of the seven services its own client there. [What the issuer must provide](AUTHENTICATION.md#at-the-issuer) lists the claims, roles and clients. Accounts are then the issuer's to manage; `semiont useradd` administers only a Keycloak the launcher runs.
+**An issuer.** Every knowledge base trusts one OIDC issuer. Use the one your organization already has: name it at `spec.issuer.external` in the knowledge base's `knowledge-base.yaml`, with `type: oidc` and its `url` ([A deployment of its own](CONFIGURATION.md#a-deployment-of-its-own)), and give each of the seven services its own client there. [What the issuer must provide](AUTHENTICATION.md#at-the-issuer) lists the claims, roles and clients. Accounts are then the issuer's to manage; `semiont useradd` administers only a Keycloak the launcher runs.
 
 **Storage that lasts.**
 
@@ -87,7 +87,7 @@ The gateway runs as several replicas behind a load balancer once its signal plan
 }
 ```
 
-The document names the variables that hold the broker's credentials, never the credentials. A stack the launcher runs gets the same from `[signal] type = "nats"` in the knowledge base's config, which is what `semiont init` writes.
+The document names the variables that hold the broker's credentials, never the credentials. A stack the launcher runs gets the same from `signal.type: nats` in the KnowledgeBase's `spec.messaging`, which is what `semiont init` writes.
 
 With that in place:
 
@@ -100,19 +100,9 @@ A request that no service handles fails at the 30-second bus timeout rather than
 
 ## Adapting a stack
 
-The technologies in a launcher-run stack are defaults. Inference, embedding, the graph, the vector store, identity, messaging and telemetry each sit behind a driver interface, and a knowledge base's config names the driver for each. That gives two ways to fit Semiont to infrastructure you already have or prefer.
+The technologies in a launcher-run stack are defaults. Inference, embedding, the graph, the vector store, identity, messaging and telemetry each sit behind a driver interface, and a knowledge base's documents name the driver for each. That gives two ways to fit Semiont to infrastructure you already have or prefer.
 
-**Use a daemon you already run.** A section that says `platform = "external"` names a daemon somebody else runs, and states where it is. This works with the launcher too: it checks that the daemon answers and starts nothing for that role. A managed Neo4j, a shared Qdrant cluster, a model server on a GPU machine or your organization's NATS all fit this way.
-
-```toml
-[environments.<env>.graph]
-type = "neo4j"
-platform = "external"
-uri = "bolt://neo4j.example.internal:7687"
-username = "neo4j"
-password = "${MY_NEO4J_PASSWORD}"
-database = "neo4j"
-```
+**Use a daemon you already run.** A document that states a daemon at `external`, in place of an `image` and `resources`, names one somebody else runs, and says where it is and, where it takes one, which variable holds its credential: for a graph, `spec.graph.external` in `index.yaml`, with its `uri` and its `password` as `{ fromEnv: MY_NEO4J_PASSWORD }`. This works with the launcher too: it checks that the daemon answers and starts nothing for that role. A managed Neo4j, a shared Qdrant cluster, a model server on a GPU machine or your organization's NATS all fit this way. What each one's `external` holds is in its schema in [`specs/src/stack/`](../../../specs/src/stack/README.md), and [A deployment of its own](CONFIGURATION.md#a-deployment-of-its-own) walks through it.
 
 **Use a different technology.** Where the code already has a driver, select it by `type`. Where it has none, the interface is what a new driver implements, and the services that use it do not change.
 
@@ -134,7 +124,7 @@ The launcher runs Neo4j, Qdrant, Keycloak and NATS, with Ollama or Anthropic for
 Nothing in a stack has to run on infrastructure you do not control, which is what on-premises and sovereign AI deployments need:
 
 - **The record is files.** A knowledge base is a git working tree: content at its own paths and an event log of JSON lines. It lives on storage you choose, and it is readable without Semiont.
-- **Models can be local.** With Ollama serving inference and embeddings, no document, annotation or prompt is sent to a model API outside the stack. A remote API such as Anthropic's is a choice a config makes, per actor and per worker.
+- **Models can be local.** With Ollama serving inference and embeddings, no document, annotation or prompt is sent to a model API outside the stack. A remote API such as Anthropic's is a choice an Inference document makes, per actor and per job.
 - **Identity is yours.** People and services sign in at the issuer you name, and Semiont keeps no accounts of its own.
 - **Telemetry goes where you send it**, or nowhere.
 - **The images are verifiable.** Each carries a signed build provenance and a bill of materials, so you can check one before mirroring it into your own registry ([Container Images](IMAGES.md#supply-chain-verification)).
@@ -154,7 +144,7 @@ Then sign in. A sign-in exercises the issuer, the gateway's verification and the
 
 - [The service catalog](../services/OVERVIEW.md): what each image needs
 - [Container Topology](../CONTAINER-TOPOLOGY.md): how the containers connect
-- [Configuration](CONFIGURATION.md): the config schema, and choosing drivers
+- [Configuration](CONFIGURATION.md): a knowledge base's documents, and choosing drivers
 - [Scaling](SCALING.md): which services replicate
 - [Container Images](IMAGES.md): tags, and verifying an image
 - [The launcher's README](../../../apps/launcher/README.md): every verb and flag

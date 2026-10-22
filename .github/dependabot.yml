@@ -126,7 +126,8 @@ updates:
       prefix: "tests"
       include: "scope"
 
-  # Go launcher (apps/launcher): go-toml, oapi-codegen/runtime, and
+  # Go launcher (apps/launcher): go.yaml.in/yaml, santhosh-tekuri/jsonschema,
+  # oapi-codegen/runtime, and
   # packages/sdk-go through a replace directive, plus the `go`
   # directive/toolchain. Reachability-aware stdlib CVE scanning is handled by
   # govulncheck in ci.yml.

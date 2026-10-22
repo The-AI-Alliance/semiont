@@ -13,7 +13,6 @@ import (
 
 const (
 	keycloakAdminUser = "admin"
-	keycloakDatabase  = "keycloak"
 
 	// serviceRole: what a token must carry, in a FLAT `roles` array, for the
 	// gateway to mint a software-agent token for its bearer. Flat and
@@ -43,14 +42,14 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. A knowledge base that wants a different one sets
-	// `accessTokenLifespan` in its [identity] section; this is what it gets
-	// otherwise.
+	// upgrade. `semiont init` writes it into the Issuer document's
+	// spec.accessTokenLifespan, where a knowledge base that wants a different
+	// one changes it.
 	keycloakAccessTokenLifespan = 300
 )
 
-// splitIssuer: the host, port and path of an issuer URL. Not url.Parse — a
-// launcher-injected ${KEYCLOAK_HOST} is not a legal hostname to it.
+// splitIssuer: the host, port and path of an issuer URL, as a document states
+// one.
 func splitIssuer(issuer string) (host string, port int, path string, err error) {
 	rest, ok := strings.CutPrefix(issuer, "http://")
 	if !ok {
@@ -402,7 +401,7 @@ func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLif
 // an account for NAMES THEMSELVES at first login — Keycloak collects both before
 // it lets them through. That is deliberate: Keycloak composes the `name` claim
 // from these two — the display name the gateway carries and the Browser shows.
-// Identity is the DID, built from the `[identity] subjectClaim` claim; a name
+// Identity is the DID, built from the claim spec.issuer.subjectClaim names; a name
 // never is. The alternative is an administrator typing one string that
 // something then has to split, and splitting a display name on a space gets
 // "Mary Jane" and "van der Berg" wrong. Nobody here is willing to guess, so
@@ -498,10 +497,10 @@ func masterRealmOverHTTP() []string {
 // serviceClientSecrets: the per-root credential for every service client.
 // Resolved once per start — the realm import needs them, and so does the
 // preflight that checks the realm honoured them.
-func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
+func serviceClientSecrets(x keeper, kb kbRoot) (map[string]string, bool) {
 	secrets := map[string]string{}
 	for _, svc := range serviceClients {
-		secret, ok := x.serviceClientSecret(root, svc)
+		secret, ok := x.serviceClientSecret(kb, svc)
 		if !ok {
 			return nil, false
 		}
@@ -511,47 +510,49 @@ func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// its database on the [database] PostgreSQL (created there when the launcher
-// runs that PostgreSQL), the realm file to import, and the bootstrap admin
-// password. The password is per root and persisted: Keycloak creates the
-// admin on its FIRST boot only, so a regenerated value would lock the
-// console out of a realm that already exists.
+// the database the Issuer document names, on the PostgreSQL it describes
+// (created there when the launcher runs that PostgreSQL), the realm file to
+// import, and the bootstrap admin password. The password is per root and
+// persisted: Keycloak creates the admin on its FIRST boot only, so a
+// regenerated value would lock the console out of a realm that already
+// exists.
 func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
+	dbName := fc.stack.Issuer.Spec.Database.Name
 	dbHost := db.Address
 	// Authority, not presence: an external PostgreSQL is somebody's shared
 	// server, and creating a database in it is a privileged persistent
 	// change the launcher is not entitled to make.
 	if mayConfigure(db) {
 		dbHost = addr
-		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
+		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), dbName) {
 			return nil, nil, "", false
 		}
 	} else {
-		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, keycloakDatabase)
-		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, keycloakDatabase)
+		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, dbName)
+		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
 	// Resolved here and persisted per root, so the container that must PRESENT
 	// each secret reads the same value out of the same file rather than having
 	// it threaded through the start flow. Returned as well, because the
 	// preflight checks these same values against the realm that imports them.
-	secrets, ok := serviceClientSecrets(x, fc.root)
+	secrets, ok := serviceClientSecrets(x, fc.kb)
 	if !ok {
 		return nil, nil, "", false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, "", false
 	}
-	password, ok := x.identityAdminPassword(fc.root)
+	password, ok := x.identityAdminPassword(fc.kb)
 	if !ok {
 		return nil, nil, "", false
 	}
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
-		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, keycloakDatabase),
+		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
 	}, secrets, password, true
 }

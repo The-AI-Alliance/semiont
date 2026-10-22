@@ -20,8 +20,8 @@ func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(kb, ".semiont"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg := "[project]\nname = \"family\"\n[site]\ndomain = \"pingel.org\"\n"
-	if err := os.WriteFile(filepath.Join(kb, ".semiont", "config"), []byte(cfg), 0o644); err != nil {
+	cfg := "project:\n  name: family\ngit:\n  sync: false\nsite:\n  domain: pingel.org\n  siteName: Family\n"
+	if err := os.WriteFile(filepath.Join(kb, ".semiont", projectFileYAML), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -33,7 +33,11 @@ func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
 	}}
 	saveRoots(reg)
 
-	registerRootUse(kb, false, "")
+	ident, err := readKBIdentity(kb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerRootUse(kbRoot{dir: kb, ident: ident}, false, "")
 
 	got := loadRoots()
 	paths := map[string]bool{}

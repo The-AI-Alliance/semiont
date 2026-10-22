@@ -2,166 +2,135 @@ package launcher
 
 // topology.go — where a container reaches each daemon of its stack.
 //
-// Deployment topology is the launcher's to know, never the KB config's to
-// declare. A knowledge base's config says WHAT it needs: a graph, a vector
-// store, an embedding model, an issuer. WHERE those listen on this machine
-// is a fact of the start that placed them. So:
+// Deployment topology is the launcher's to know, never a document's to
+// declare. A knowledge base's documents say WHAT it needs: a graph, a vector
+// store, an embedding model, an issuer. WHERE those listen on this machine is
+// a fact of the start that placed them. So:
 //
-//   - A daemon is the launcher's to run and to place unless its section says
-//     `platform = "external"`. Its section states no address: loadConfig
-//     writes the launcher's own reference there (unstatedAddresses), which the
-//     plan reads as "the launcher places this daemon".
-//   - `platform = "external"` says somebody else runs the daemon. The section
-//     states where; it is verified, never launched, and its address reaches
-//     each service as it was written.
-//   - Each service's document states every placed address as a literal, so
-//     no container's environment says anything of where its dependencies are.
+//   - A daemon whose document states no `external` is the launcher's to run
+//     and to place: at this start's address, on its driver's port.
+//   - A daemon whose document states `external` is somebody else's, at the
+//     address it states; it is verified, never launched.
+//   - Each service's document states every address as a literal, so no
+//     container's environment says anything of where its dependencies are.
+//
+// placement is the one decider of each address, for every document the
+// launcher writes and for the dry run that shows them.
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
-	toml "github.com/pelletier/go-toml/v2"
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // keycloakRealmName: the realm of the Keycloak the launcher runs.
 const keycloakRealmName = "semiont"
 
-// topologyVars: the launcher's own references, and the address each resolves
-// to for one start — every dependency on the host address, the issuer on
-// identityHost and its port. Resolved by the launcher, in the documents it
-// writes; never set in a container's environment, and never asked of the
-// user's.
-func topologyVars(rt, addr string, issuerPort int) map[string]string {
-	vars := map[string]string{}
-	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
-		vars[name] = addr
+// placement: a start's documents and plan, and where it runs: what each
+// address in a service's document is decided from.
+type placement struct {
+	st   *stack.Stack
+	plan *launchPlan
+	rt   string
+	// addr: the address this start places the daemons it runs at.
+	addr string
+}
+
+// placed: whether the launcher runs role's daemon in this start.
+func (p placement) placed(role string) bool {
+	return p.plan.Roles[role].Presence == presenceLauncher
+}
+
+// gatewayURL: where a service that dials the gateway reaches it — this
+// start's address on the gateway's port. The publicURL is where clients
+// reach it, and is written into the gateway's own document alone.
+func (p placement) gatewayURL() string {
+	return fmt.Sprintf("http://%s:%d", p.addr, p.plan.GatewayPort)
+}
+
+// issuer: the issuer a container signs in at — the Keycloak the launcher runs
+// at the host a container reaches it by, or the issuer somebody else runs as
+// its document states it.
+func (p placement) issuer() string {
+	rp := p.plan.Roles["identity"]
+	if rp.Presence != presenceLauncher {
+		return rp.Issuer
 	}
-	vars["KEYCLOAK_HOST"] = identityHost(rt, addr)
-	vars["KEYCLOAK_PORT"] = strconv.Itoa(issuerPort)
-	return vars
+	return fmt.Sprintf("http://%s:%d/realms/%s", identityHost(p.rt, p.addr), rp.Port, keycloakRealmName)
 }
 
-// topologyNames: the names topologyVars resolves.
-var topologyNames = func() map[string]bool {
-	names := map[string]bool{}
-	for name := range topologyVars("", "", 0) {
-		names[name] = true
+// archivist: where a service that reads the record reaches the Archivist —
+// the address the KnowledgeBase states for one somebody else runs, else this
+// start's, on its descriptor's port.
+func (p placement) archivist() (host string, port int) {
+	if stated := p.st.KnowledgeBase.Spec.Archivist.Address; stated != nil {
+		return stated.Host, stated.Port
 	}
-	return names
-}()
-
-// unstatedAddress: an address key of an environment's section, and what it
-// reads as when the config leaves it unstated. The default scheme, port and
-// realm of each daemon the launcher places are stated here, from the
-// descriptors: a config names none of them.
-type unstatedAddress struct {
-	section []string // below [environments.<env>]
-	key     string
-	// types: the section `type`s under which the key is the launcher's to
-	// place; nil for a section that has no type. A missing type is "".
-	types []string
-	value func() any
+	return p.addr, semiontDescriptor("archivist").ports[0].port
 }
 
-var unstatedAddresses = []unstatedAddress{
-	{section: []string{"graph"}, key: "uri", types: []string{"neo4j"}, value: func() any {
-		return fmt.Sprintf("bolt://${NEO4J_HOST}:%d", descriptorFor("graph", "neo4j").defaultPort)
-	}},
-	{section: []string{"vectors"}, key: "host", types: []string{"qdrant"}, value: func() any { return "${QDRANT_HOST}" }},
-	{section: []string{"vectors"}, key: "port", types: []string{"qdrant"}, value: func() any {
-		return int64(descriptorFor("vectors", "qdrant").defaultPort)
-	}},
-	{section: []string{"database"}, key: "host", types: []string{"", "postgres"}, value: func() any { return "${POSTGRES_HOST}" }},
-	{section: []string{"jobs"}, key: "servers", types: []string{"jetstream"}, value: brokerReference},
-	{section: []string{"signal"}, key: "servers", types: []string{"nats"}, value: brokerReference},
-	{section: []string{"identity"}, key: "issuer", types: []string{"keycloak"}, value: func() any {
-		return "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/" + keycloakRealmName
-	}},
-	{section: []string{"embedding"}, key: "baseURL", types: []string{"ollama"}, value: ollamaReference},
-	{section: []string{"inference", "ollama"}, key: "baseURL", value: ollamaReference},
-}
-
-func brokerReference() any {
-	return fmt.Sprintf("${NATS_HOST}:%d", descriptorFor("messaging", "jetstream").defaultPort)
-}
-
-func ollamaReference() any {
-	return fmt.Sprintf("http://${OLLAMA_HOST}:%d", descriptorFor("inference", "ollama").defaultPort)
-}
-
-// placeUnstated writes the launcher's reference at every address the
-// environment's sections leave unstated. A section the config does not have is
-// not created: a daemon the config does not name is not part of the stack.
-func placeUnstated(envSection map[string]any) {
-	for _, a := range unstatedAddresses {
-		table := envSection
-		for _, name := range a.section {
-			table, _ = table[name].(map[string]any)
-		}
-		if table == nil {
-			continue
-		}
-		if a.types != nil {
-			typ, _ := table["type"].(string)
-			if !contains(a.types, typ) {
-				continue
-			}
-		}
-		if stated, ok := table[a.key]; ok && stated != "" {
-			continue
-		}
-		// A daemon somebody else runs has no address the launcher could give
-		// it: the section states one, and derivePlan refuses it if not.
-		if table["platform"] == "external" {
-			continue
-		}
-		table[a.key] = a.value()
+// graphURI: where the graph database is.
+func (p placement) graphURI() string {
+	if external := p.st.KnowledgeIndex.Spec.Graph.External; external != nil {
+		return external.Uri
 	}
+	return fmt.Sprintf("bolt://%s:%d", p.addr, p.plan.Roles["graph"].Port)
 }
 
-// resolveTopology replaces the launcher's references in a value with the
-// addresses of this start, by the placeholder rule resolveRefs follows: a set
-// variable wins, a default or not. A reference to anything else — a secret, an
-// operator's own variable — is left, default and all.
-func resolveTopology(value string, vars map[string]string) string {
-	return placeholderRe.ReplaceAllStringFunc(value, func(ref string) string {
-		name, _, _ := strings.Cut(ref[2:len(ref)-1], ":-")
-		if resolved, ok := vars[name]; ok {
-			return resolved
-		}
-		return ref
-	})
+// vectors: where the vector index is.
+func (p placement) vectors() (host string, port int) {
+	if external := p.st.KnowledgeIndex.Spec.Vectors.External; external != nil {
+		return external.Host, external.Port
+	}
+	return p.addr, p.plan.Roles["vectors"].Port
 }
 
-// placedAddresses: the addresses a start places for this config — each address
-// key the config leaves to the launcher, with the literal it resolves to — as
-// "[section] key = value" lines, for a dry run to show what the launcher
-// decided.
-func placedAddresses(cfg []byte, envName string, vars map[string]string) []string {
-	var doc map[string]any
-	if err := toml.Unmarshal(cfg, &doc); err != nil {
-		return nil
+// brokerServers: where the broker is, as its clients name it.
+func (p placement) brokerServers() string {
+	if external := p.st.KnowledgeBase.Spec.Messaging.External; external != nil {
+		return external.Servers
 	}
-	env := environmentSection(doc, envName)
-	if env == nil {
-		return nil
+	return fmt.Sprintf("%s:%d", p.addr, p.plan.Roles["messaging"].Port)
+}
+
+// ollama: an Ollama's address — the one a document states, else the
+// machine's, at this start's address.
+func (p placement) ollama(stated *string) string {
+	if stated != nil {
+		return *stated
 	}
-	placeUnstated(env)
+	return fmt.Sprintf("http://%s:%d", p.addr, descriptorFor("inference", "ollama").defaultPort)
+}
+
+// placedLines: the addresses this start places, one line for each daemon the
+// launcher runs and each service of the machine's Ollama — for a dry run to
+// show what the launcher decided.
+func (p placement) placedLines() []string {
 	var lines []string
-	for _, a := range unstatedAddresses {
-		table := env
-		for _, name := range a.section {
-			table, _ = table[name].(map[string]any)
-		}
-		written, ok := table[a.key].(string)
-		if !ok {
-			continue
-		}
-		if placed := resolveTopology(written, vars); placed != written {
-			lines = append(lines, fmt.Sprintf("[%s] %s = %v", strings.Join(a.section, "."), a.key, placed))
-		}
+	add := func(role, at string) {
+		lines = append(lines, fmt.Sprintf("%s: %s", role, at))
+	}
+	if p.placed("graph") {
+		add("graph", p.graphURI())
+	}
+	if p.placed("vectors") {
+		host, port := p.vectors()
+		add("vectors", fmt.Sprintf("%s:%d", host, port))
+	}
+	if p.placed("database") {
+		add("database", fmt.Sprintf("%s:%d", p.addr, p.plan.Roles["database"].Port))
+	}
+	if p.placed("messaging") {
+		add("messaging", p.brokerServers())
+	}
+	if p.placed("identity") {
+		add("identity", p.issuer())
+	}
+	if e := p.st.KnowledgeIndex.Spec.Embedding; e.Type == "ollama" && e.Endpoint == nil {
+		add("embedding", p.ollama(nil))
+	}
+	if rp := p.plan.Roles["inference"]; rp.Driver == "ollama" && rp.Presence == presenceHostPreferred {
+		add("inference", p.ollama(nil))
 	}
 	return lines
 }

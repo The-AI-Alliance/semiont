@@ -48,25 +48,25 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 			continue
 		}
 		gated++
-		mounts := map[string]func(x *liveExec, root string) bool{
-			"owner": func(x *liveExec, root string) bool {
-				_, ok := x.stateMounts(role, image(spec.owner, "test"), root)
+		mounts := map[string]func(x *liveExec, kb kbRoot) bool{
+			"owner": func(x *liveExec, kb kbRoot) bool {
+				_, ok := x.stateMounts(role, semiontImage(spec.owner, "test"), kb)
 				return ok
 			},
-			"unstamped": func(x *liveExec, root string) bool {
-				_, ok := x.stateMountsUnstamped(role, root)
+			"unstamped": func(x *liveExec, kb kbRoot) bool {
+				_, ok := x.stateMountsUnstamped(role, kb)
 				return ok
 			},
 		}
 		for _, first := range slices.Sorted(maps.Keys(mounts)) {
 			t.Run(role+"/"+first+"-first", func(t *testing.T) {
 				harness.Home(t)
-				root := t.TempDir()
-				if !mounts[first](&liveExec{u: NewUI(true)}, root) {
+				kb := kbRoot{dir: t.TempDir()}
+				if !mounts[first](&liveExec{u: NewUI(true)}, kb) {
 					t.Fatal("mount prep refused on a fresh data home")
 				}
 				for _, m := range spec.mounts {
-					mp := filepath.Join(spec.storeDir(root), m.sub)
+					mp := filepath.Join(spec.storeDir(kb.key()), m.sub)
 					fi, err := os.Stat(mp)
 					if err != nil {
 						t.Fatal(err)
@@ -78,7 +78,7 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 				}
 				// The mount dirs are open to every uid; what keeps other local
 				// users out is the root's state dir, which no container sees.
-				dir := stateRootDir(root)
+				dir := stateRootDir(kb.key())
 				if open := harness.OpenToOthers(t, dir); open != "" {
 					t.Errorf("%s %s — it is the only thing between other local users and a world-writable store", dir, open)
 				}

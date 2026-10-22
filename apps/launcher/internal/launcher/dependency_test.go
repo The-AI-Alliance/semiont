@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // Service dependencies are data: there is ONE start order and a set of edges
@@ -91,61 +93,6 @@ func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
 	})
 }
 
-// A requirement is the subset of edges a config cannot leave unanswered: a
-// driver requires a role the config declares, it never invents one. Exactly
-// one driver has one, and the refusal derivePlan raises is rendered FROM it —
-// so this is the only home for the sentence.
-func TestOnlyKeycloakRequiresARoleItCannotRunWithout(t *testing.T) {
-	var got []string
-	for _, d := range serviceDescriptors {
-		for _, dep := range d.needs {
-			if dep.because == "" {
-				continue
-			}
-			got = append(got, d.role+"/"+d.driver+" → "+dep.role)
-			if startRank(dep.role) < 0 {
-				t.Errorf("%s/%s requires %q, which is not a role", d.role, d.driver, dep.role)
-			}
-		}
-	}
-	assertNames(t, "requirements", got, []string{"identity/keycloak → database"})
-}
-
-// declaresRole must be able to answer for every role a requirement names —
-// its default is "not declared", so a role it does not know would refuse
-// every config that has one.
-func TestEveryRequiredRoleIsDeclarable(t *testing.T) {
-	full := &envConfig{
-		Graph: &graphCfg{}, Vectors: &vectorsCfg{}, Embedding: &embeddingCfg{},
-		Database: &databaseCfg{}, Jobs: &jobsCfg{}, Identity: &identityCfg{},
-		Inference: map[string]providerCfg{"x": {}}, Gateway: &gatewayCfg{},
-	}
-	for _, d := range serviceDescriptors {
-		for _, dep := range d.needs {
-			if dep.because == "" {
-				continue
-			}
-			if !full.declaresRole(dep.role) {
-				t.Errorf("%s/%s requires %q, but declaresRole cannot see it even in a config that declares everything — every config would be refused",
-					d.role, d.driver, dep.role)
-			}
-		}
-	}
-}
-
-// An ordering-only edge must stay ordering-only: declaring a `because` on
-// one turns a role the config may legitimately omit into a refusal.
-func TestOrderingEdgesDoNotRefuse(t *testing.T) {
-	declaresNothing := func(string) bool { return false }
-	for _, d := range serviceDescriptors {
-		dep, unmet := unmetRequirement(declaresNothing, d.role, d.driver)
-		if unmet && dep.role != "database" {
-			t.Errorf("%s/%s refuses a config that omits %q; only a driver that truly cannot run without a role may",
-				d.role, d.driver, dep.role)
-		}
-	}
-}
-
 // The declared start order is only worth anything if the start flow actually
 // walks it. flowFullStart is hand-written calls, so the proof is the
 // transcript it produces: the dry-run goldens record every `run -d --name`
@@ -198,13 +145,21 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 // no descriptor — authority zero, permission refused — and the refusal would
 // look like policy rather than a missing field.
 func TestEveryPlanRowNamesItsRole(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, nil))
-	if len(plan.Roles) == 0 {
-		t.Fatal("no roles in the derived plan")
-	}
-	for key, rp := range plan.Roles {
-		if rp.Role != key {
-			t.Errorf("plan.Roles[%q].Role = %q — mayConfigure would look up the wrong descriptor, and its refusal would read as policy rather than a missing field", key, rp.Role)
+	trustingAnOIDCIssuer := fixtureStack(t, "anthropic")
+	trustExternalIssuer(trustingAnOIDCIssuer, "oidc", "https://login.example.com/realms/acme")
+	for name, st := range map[string]*stack.Stack{
+		"ollama-gemma":       fixtureStack(t, "ollama-gemma"),
+		"anthropic":          fixtureStack(t, "anthropic"),
+		"an external issuer": trustingAnOIDCIssuer,
+	} {
+		plan := mustPlan(t, st)
+		if len(plan.Roles) == 0 {
+			t.Fatalf("%s: no roles in the derived plan", name)
+		}
+		for key, rp := range plan.Roles {
+			if rp.Role != key {
+				t.Errorf("%s: plan.Roles[%q].Role = %q — mayConfigure would look up the wrong descriptor, and its refusal would read as policy rather than a missing field", name, key, rp.Role)
+			}
 		}
 	}
 }

@@ -24,7 +24,9 @@ semiont start                       # from a KB directory; ensures the Browser o
 semiont stop --service browser      # the explicit off-switch
 ```
 
-Pin a version with `SEMIONT_VERSION`. See [apps/launcher](../../launcher/README.md) and
+The Browser runs `ghcr.io/the-ai-alliance/semiont-browser:latest`. Pin a version with
+`semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:<version>`, and return to
+`latest` with `semiont settings browser-image --unset`. See [apps/launcher](../../launcher/README.md) and
 [administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md).
 
 ## Local development

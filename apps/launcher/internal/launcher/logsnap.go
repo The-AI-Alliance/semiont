@@ -59,13 +59,13 @@ func logsReadArgs(rt, name string) []string {
 }
 
 // writeLogSnapshot writes each container's retained stdout/stderr to
-// <stateRootDir(root)>/logs/<timestamp>/<name>.log. Best-effort by design:
+// <stateRootDir(key)>/logs/<timestamp>/<name>.log. Best-effort by design:
 // an absent container, an empty capture, or a homeless root skips silently —
 // a snapshot must never block a teardown. Returns the snapshot dir and how
 // many files were written ("" and 0 when nothing was).
-func writeLogSnapshot(rt, root string, names []string) (string, int) {
-	base := stateRootDir(root)
-	if root == "" || base == "" {
+func writeLogSnapshot(rt, key string, names []string) (string, int) {
+	base := stateRootDir(key)
+	if base == "" {
 		return "", 0
 	}
 	dir := filepath.Join(base, "logs", time.Now().UTC().Format("20060102-150405Z"))

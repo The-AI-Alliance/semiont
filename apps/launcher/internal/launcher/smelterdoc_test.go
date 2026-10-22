@@ -11,68 +11,16 @@ import (
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-// The KB config a `semiont init` writes, as far as the Smelter's document
-// reads it: the gateway, the issuer, the Qdrant and the Ollama the launcher
-// places, and the two chunking numbers.
-const smelterDocFixture = `[defaults]
-environment = "local"
-
-[environments.local]
-logLevel = "debug"
-
-[environments.local.gateway]
-platform = "container"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-
-[environments.local.vectors]
-type = "qdrant"
-host = "${QDRANT_HOST}"
-port = 6333
-
-[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-baseURL = "http://${OLLAMA_HOST}:11434"
-
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-`
-
-// withoutSection: the config without one section of its environment. The
-// sections under it stay.
-func withoutSection(config, section string) string {
-	start := strings.Index(config, "[environments.local."+section+"]")
-	if start < 0 {
-		return config
-	}
-	rest := config[start+1:]
-	end := strings.Index(rest, "\n[")
-	if end < 0 {
-		return config[:start]
-	}
-	return config[:start] + rest[end+1:]
-}
-
-// withSection: the config with one section of its environment written anew,
-// or added.
-func withSection(config, section, body string) string {
-	return withoutSection(config, section) + "\n[environments.local." + section + "]\n" + body
-}
-
-// voyageEmbedding: an [embedding] section naming Voyage, with the lines given
-// after its type and model.
-func voyageEmbedding(lines ...string) string {
-	return withSection(withoutSection(smelterDocFixture, "embedding.chunking"), "embedding",
-		"type = \"voyage\"\nmodel = \"voyage-3\"\n"+strings.Join(lines, ""))
+// voyageEmbedding: st with its vectors made by Voyage's voyage-3, at Voyage's
+// own address, under the key named VOYAGE_API_KEY.
+func voyageEmbedding(st *stack.Stack) {
+	e := &st.KnowledgeIndex.Spec.Embedding
+	e.Type, e.Model, e.Endpoint = "voyage", "voyage-3", nil
+	e.ApiKey = &stack.SecretRef{FromEnv: "VOYAGE_API_KEY"}
 }
 
 func smelterDocumentFrom(t *testing.T, b []byte) semiont.SmelterConfig {
@@ -84,6 +32,15 @@ func smelterDocumentFrom(t *testing.T, b []byte) semiont.SmelterConfig {
 		t.Fatalf("the document is not a SmelterConfig: %v\n%s", err, b)
 	}
 	return doc
+}
+
+func smelterDocumentOf(t *testing.T, p placement) semiont.SmelterConfig {
+	t.Helper()
+	b, err := smelterDocument(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return smelterDocumentFrom(t, b)
 }
 
 // shapeOf reads one of a document's unions back as the shape T, refusing a
@@ -103,21 +60,16 @@ func shapeOf[T any](t *testing.T, union json.Marshaler) T {
 	return shape
 }
 
-// The document is whole and resolved: every address a literal, each union the
-// one shape its `type` names, and nothing left for the Smelter to default.
-func TestSmelterDocumentIsResolved(t *testing.T) {
-	b, err := smelterDocument(envFrom(t, smelterDocFixture), "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(b), "${") {
-		t.Errorf("the document holds an unresolved reference:\n%s", b)
-	}
-	doc := smelterDocumentFrom(t, b)
+// Every address is the placement's, each union the one shape its `type` names,
+// the numbers the KnowledgeIndex's, and the log level the KnowledgeIndex's.
+func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
+	doc := smelterDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:4000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
 	}
-	if !strings.HasSuffix(doc.Identity.Issuer, ":8080/realms/semiont") {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
 		t.Errorf("identity.issuer = %q", doc.Identity.Issuer)
 	}
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
@@ -136,7 +88,7 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
 	if doc.Chunking.ChunkSize != 512 || doc.Chunking.Overlap != 64 {
-		t.Errorf("chunking = %+v, want the config's 512 and 64", doc.Chunking)
+		t.Errorf("chunking = %+v, want the KnowledgeIndex's 512 and 64", doc.Chunking)
 	}
 	// The anchored-text store is the Archivist's: the Smelter's document names no directory of it.
 	if store := stateStores["anchored-text"]; store.owner != "archivist" || !store.unstamped {
@@ -146,196 +98,105 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
 	if doc.PdfsAtOnce != 1 {
-		t.Errorf("pdfsAtOnce = %d, want the one PDF the table's ceiling holds", doc.PdfsAtOnce)
+		t.Errorf("pdfsAtOnce = %d, want the KnowledgeIndex's 1", doc.PdfsAtOnce)
 	}
 	if doc.CursorsPath != "/tmp/semiont/smelter-cursors.json" {
 		t.Errorf("cursorsPath = %q, want the Smelter's file of the container's own disk", doc.CursorsPath)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
-		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
+	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+		t.Errorf("logLevel, logFormat = %q, %q, want the KnowledgeIndex's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
 
-// The Smelter works on a PDF at once for each 2G of the ceiling it runs with,
-// and on one however small the ceiling is: the table's 2G holds one, and an
-// environment's [memory] that gives it more lets it take more at once.
-func TestSmelterDocumentWorksOnAPdfAtOnceForEachTwoGigabytesOfItsCeiling(t *testing.T) {
-	for _, c := range []struct {
-		why, memory string
-		want        int
-	}{
-		{"the table's ceiling", "", 1},
-		{"eight gigabytes", "smelter = \"8G\"\n", 4},
-		{"five gigabytes, which hold two", "smelter = \"5G\"\n", 2},
-		{"less than two gigabytes", "smelter = \"1536M\"\n", 1},
-		{"another service's ceiling", "worker = \"8G\"\n", 1},
-	} {
-		config := smelterDocFixture
-		if c.memory != "" {
-			config = withSection(config, "memory", c.memory)
-		}
-		b, err := smelterDocument(envFrom(t, config), "container", "192.168.64.1", 8080, nil)
-		if err != nil {
-			t.Fatalf("%s: %v", c.why, err)
-		}
-		if got := smelterDocumentFrom(t, b).PdfsAtOnce; got != c.want {
-			t.Errorf("%s: pdfsAtOnce = %d, want %d", c.why, got, c.want)
-		}
+// The numbers the KnowledgeIndex states are the ones written, whatever the
+// Smelter's ceiling would give: chunks that do not overlap, and three PDFs at
+// once in a ceiling of eight gigabytes.
+func TestSmelterDocumentWritesTheNumbersTheIndexStates(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	index := &st.KnowledgeIndex.Spec
+	index.Embedding.Chunking.ChunkSize, index.Embedding.Chunking.Overlap = 300, 0
+	index.Smelter.Resources.Limits.Memory, index.Smelter.PdfsAtOnce = "8G", 3
+	doc := smelterDocumentOf(t, placed(t, st))
+	if doc.Chunking.ChunkSize != 300 || doc.Chunking.Overlap != 0 {
+		t.Errorf("chunking = %+v, want the stated 300 and 0", doc.Chunking)
 	}
-}
-
-// A number the environment states is the one written, whatever the ceiling
-// would give, and one below one is refused by its key.
-func TestSmelterDocumentWritesThePdfsAtOnceTheEnvironmentStates(t *testing.T) {
-	for _, c := range []struct {
-		why, sections string
-		want          int
-	}{
-		{"three, at the table's ceiling", "[environments.local.smelter]\npdfsAtOnce = 3\n", 3},
-		{"one, at a ceiling that would give four", "[environments.local.memory]\nsmelter = \"8G\"\n\n[environments.local.smelter]\npdfsAtOnce = 1\n", 1},
-	} {
-		b, err := smelterDocument(envFrom(t, smelterDocFixture+"\n"+c.sections), "container", "192.168.64.1", 8080, nil)
-		if err != nil {
-			t.Fatalf("%s: %v", c.why, err)
-		}
-		if got := smelterDocumentFrom(t, b).PdfsAtOnce; got != c.want {
-			t.Errorf("%s: pdfsAtOnce = %d, want %d", c.why, got, c.want)
-		}
-	}
-	_, err := smelterDocument(envFrom(t, smelterDocFixture+"\n[environments.local.smelter]\npdfsAtOnce = 0\n"), "container", "192.168.64.1", 8080, nil)
-	if err == nil || !strings.Contains(err.Error(), "smelter.pdfsAtOnce is 0") {
-		t.Fatalf("want a refusal naming smelter.pdfsAtOnce, got %v", err)
-	}
-}
-
-// The Smelter defaults nothing, so the launcher writes what the KB's config
-// leaves unstated: each chunking number, and the port of Qdrant's REST API.
-// An overlap of 0 is a value the config states, and is written as stated.
-func TestSmelterDocumentWritesWhatTheConfigLeavesUnstated(t *testing.T) {
-	unstated := withoutSection(smelterDocFixture, "embedding.chunking")
-	for _, c := range []struct {
-		why                string
-		config             string
-		chunkSize, overlap int
-	}{
-		{"no chunking section", unstated, 512, 64},
-		{"a chunk size alone", unstated + "\n[environments.local.embedding.chunking]\nchunkSize = 300\n", 300, 64},
-		{"an overlap alone", unstated + "\n[environments.local.embedding.chunking]\noverlap = 16\n", 512, 16},
-		{"chunks that do not overlap", unstated + "\n[environments.local.embedding.chunking]\nchunkSize = 300\noverlap = 0\n", 300, 0},
-	} {
-		b, err := smelterDocument(envFrom(t, c.config), "container", "192.168.64.1", 8080, nil)
-		if err != nil {
-			t.Errorf("%s: %v", c.why, err)
-			continue
-		}
-		if got := smelterDocumentFrom(t, b).Chunking; got.ChunkSize != c.chunkSize || got.Overlap != c.overlap {
-			t.Errorf("%s: chunking = %+v, want %d and %d", c.why, got, c.chunkSize, c.overlap)
-		}
-	}
-
-	b, err := smelterDocument(envFrom(t, strings.Replace(smelterDocFixture, "port = 6333\n", "", 1)), "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := shapeOf[semiont.QdrantVectorsConfig](t, smelterDocumentFrom(t, b).Vectors).Port; got != 6333 {
-		t.Errorf("a [vectors] that states no port is written port %d, want 6333", got)
+	if doc.PdfsAtOnce != 3 {
+		t.Errorf("pdfsAtOnce = %d, want the stated 3", doc.PdfsAtOnce)
 	}
 }
 
 // Voyage's key is named and never stated: the document names the variable the
-// config references, and the Smelter is handed it among the user's. An Ollama
-// is asked without a key, so its document names none. A Voyage section that
-// states no endpoint is asked at Voyage's own.
-func TestSmelterDocumentNamesVoyagesKeyAndNeverStatesIt(t *testing.T) {
-	env := envFrom(t, voyageEmbedding("apiKey = \"${VOYAGE_API_KEY}\"\n"))
-	b, err := smelterDocument(env, "container", "192.168.64.1", 8080, []string{"--env", "VOYAGE_API_KEY=the-secret"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(b), "the-secret") {
-		t.Errorf("the document states Voyage's key:\n%s", b)
-	}
+// KnowledgeIndex names, and the Smelter is handed it. An Ollama is asked
+// without a key, so its document names none. A Voyage embedding that states no
+// endpoint is asked at Voyage's own.
+func TestSmelterDocumentNamesVoyagesKey(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	voyageEmbedding(st)
+	p := placed(t, st)
 	want := semiont.VoyageEmbeddingConfig{
 		Type:      semiont.VoyageEmbeddingConfigTypeVoyage,
 		Model:     "voyage-3",
 		Endpoint:  "https://api.voyageai.com/v1/embeddings",
 		ApiKeyEnv: "VOYAGE_API_KEY",
 	}
-	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentFrom(t, b).Embedding); got != want {
+	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentOf(t, p).Embedding); got != want {
 		t.Errorf("embedding = %+v, want %+v", got, want)
 	}
-	if got := smelterNamedVars(env); len(got) != 1 || got[0] != "VOYAGE_API_KEY" {
+	if got := embeddingSecrets(p); len(got) != 1 || got[0] != "VOYAGE_API_KEY" {
 		t.Errorf("the Smelter is handed %v, want the one variable its document names", got)
 	}
-	if got := smelterNamedVars(envFrom(t, smelterDocFixture)); len(got) != 0 {
-		t.Errorf("a config whose embedding is an Ollama's names %v", got)
+	if got := embeddingSecrets(placed(t, fixtureStack(t, "ollama-gemma"))); len(got) != 0 {
+		t.Errorf("an embedding by Ollama names %v", got)
 	}
 
-	stated := envFrom(t, voyageEmbedding("endpoint = \"https://voyage.internal/v1/embeddings\"\n", "apiKey = \"${VOYAGE_API_KEY}\"\n"))
-	if b, err = smelterDocument(stated, "container", "192.168.64.1", 8080, nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentFrom(t, b).Embedding).Endpoint; got != "https://voyage.internal/v1/embeddings" {
-		t.Errorf("a stated endpoint is written %q, want it as the config states it", got)
+	st = fixtureStack(t, "ollama-gemma")
+	voyageEmbedding(st)
+	endpoint := "https://voyage.internal/v1/embeddings"
+	st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
+	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentOf(t, placed(t, st)).Embedding).Endpoint; got != endpoint {
+		t.Errorf("a stated endpoint is written %q, want it as the KnowledgeIndex states it", got)
 	}
 }
 
-// A daemon somebody else runs is where the config states it, and the document
-// states it as written. So is an Archivist an operator places by hand.
+// A daemon somebody else runs is where its document states it, and the
+// Smelter's document states it as written. So is an Archivist the
+// KnowledgeBase places.
 func TestSmelterDocumentStatesWhatSomebodyElseRunsAsWritten(t *testing.T) {
-	config := withSection(smelterDocFixture, "vectors", "platform = \"external\"\ntype = \"qdrant\"\nhost = \"qdrant.internal\"\nport = 7000\n")
-	config = strings.Replace(config, "baseURL = \"http://${OLLAMA_HOST}:11434\"\n", "platform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n", 1)
-	config = withSection(config, "archivist", "host = \"archivist.internal\"\nport = 9999\n")
-	b, err := smelterDocument(envFrom(t, config), "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := smelterDocumentFrom(t, b)
+	st := fixtureStack(t, "ollama-gemma")
+	vectors := &st.KnowledgeIndex.Spec.Vectors
+	vectors.Image, vectors.Resources = nil, nil
+	vectors.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
+	endpoint := "http://ollama.internal:11434"
+	st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
+	st.KnowledgeBase.Spec.Archivist.Address = &stack.HostPort{Host: "archivist.internal", Port: 9999}
+	doc := smelterDocumentOf(t, placed(t, st))
 	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got.Host != "qdrant.internal" || got.Port != 7000 {
-		t.Errorf("vectors = %+v, want somebody else's Qdrant as the config states it", got)
+		t.Errorf("vectors = %+v, want somebody else's Qdrant as its document states it", got)
 	}
-	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding).BaseUrl; got != "http://ollama.internal:11434" {
-		t.Errorf("embedding.baseUrl = %q, want somebody else's Ollama as the config states it", got)
+	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding).BaseUrl; got != endpoint {
+		t.Errorf("embedding.baseUrl = %q, want somebody else's Ollama as its document states it", got)
 	}
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {
-		t.Errorf("archivist = %+v, want the hand-written section", doc.Archivist)
+		t.Errorf("archivist = %+v, want the stated address", doc.Archivist)
 	}
 }
 
-// What the document cannot be written from is refused, naming what is
-// missing. A key written as a value is refused: a document carries no secret.
-func TestSmelterDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
-	for _, c := range []struct {
-		why    string
-		config string
-		names  string
-	}{
-		{"no gateway", withoutSection(smelterDocFixture, "gateway"), "publicURL"},
-		{"no identity", withoutSection(smelterDocFixture, "identity"), "identity"},
-		{"no vectors", withoutSection(smelterDocFixture, "vectors"), "[vectors]"},
-		{"a kind of index the launcher writes no document for", strings.Replace(smelterDocFixture, `type = "qdrant"`, `type = "memory"`, 1), "memory"},
-		{"no host", strings.Replace(smelterDocFixture, "host = \"${QDRANT_HOST}\"\n", "", 1), "host"},
-		{"no embedding", withoutSection(withoutSection(smelterDocFixture, "embedding.chunking"), "embedding"), "[embedding]"},
-		{"a provider the launcher writes no document for", strings.Replace(smelterDocFixture, `type = "ollama"`, `type = "openai"`, 1), "openai"},
-		{"no model", strings.Replace(smelterDocFixture, "model = \"nomic-embed-text\"\n", "", 1), "model"},
-		{"an Ollama with no address", strings.Replace(smelterDocFixture, "baseURL = \"http://${OLLAMA_HOST}:11434\"\n", "", 1), "baseURL"},
-		{"Voyage with no key", voyageEmbedding(), "embedding.apiKey"},
-		{"a key written as a value", voyageEmbedding("apiKey = \"hunter2\"\n"), "embedding.apiKey"},
-	} {
-		_, err := smelterDocument(envFrom(t, c.config), "container", "192.168.64.1", 8080, nil)
-		if err == nil || !strings.Contains(err.Error(), c.names) {
-			t.Errorf("%s: err = %v, want a refusal naming %q", c.why, err, c.names)
-		}
-		if err != nil && strings.Contains(err.Error(), "hunter2") {
-			t.Errorf("%s: the refusal repeats the key: %v", c.why, err)
-		}
+// A Voyage embedding that names no key has no document: Voyage is asked with
+// one, and a document carries no secret, only the variable that holds it.
+func TestSmelterDocumentRefusesVoyageWithNoKey(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	voyageEmbedding(st)
+	st.KnowledgeIndex.Spec.Embedding.ApiKey = nil
+	_, err := smelterDocument(placed(t, st))
+	if want := st.Files.KnowledgeIndex + ": spec.embedding.apiKey"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %v, want a refusal naming %q", err, want)
 	}
 }
 
 // The launcher mounts the document where the image's command points --config
 // (TestConfigDocumentsAreWhereTheImagesLook), and nothing else: no store, no
-// copy of the KB's config, no path, and no *_HOST variables, because the
-// document already carries every address. Its health port is the
+// copy of the KB's documents, no path, and no *_HOST variables, because its
+// own document already carries every address. Its health port is the
 // descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
@@ -343,17 +204,13 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := smelterDocument(envFrom(t, smelterDocFixture), "container", "1.2.3.4", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := smelterDocumentFrom(t, b)
+	doc := smelterDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 
 	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil), " ")
 	if want := "/stage/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's document is not mounted onto %s:\n%s", smelterDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml", anchoredTextTarget} {
+	for _, unread := range []string{"GATEWAY_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", stack.Dir, anchoredTextTarget} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the Smelter is handed %s, which it does not read:\n%s", unread, args)
 		}
@@ -380,26 +237,17 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 }
 
 // A start hands the Smelter the variable its document names and no other: it
-// reads no [graph] and no [inference], so neither the launcher's Neo4j
-// password nor a model provider's key reaches it.
+// reads no graph and no model provider, so neither the launcher's Neo4j
+// password nor a provider's key reaches it.
 func TestTheSmelterIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
-	config := voyageEmbedding("apiKey = \"${VOYAGE_API_KEY}\"\n") +
-		"\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n"
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, _, refs, err := loadConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan := &launchPlan{Roles: map[string]rolePlan{"graph": {Presence: presenceLauncher}, "messaging": {Presence: presenceLauncher}}}
-	handed := withDaemonCredentialVars(refs.ByService, plan, true)["smelter"]
+	st := fixtureStack(t, "anthropic")
+	voyageEmbedding(st)
+	p := placed(t, st)
+	handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["smelter"]
 	if len(handed) != 1 || handed[0] != "VOYAGE_API_KEY" {
 		t.Errorf("the Smelter is handed %v, want the one variable its document names", handed)
 	}
-	required, _ := refs.read("smelter")
-	if len(required) != 1 || required[0] != "VOYAGE_API_KEY" {
+	if required := secretsRead(p, "smelter"); len(required) != 1 || required[0] != "VOYAGE_API_KEY" {
 		t.Errorf("a start of the Smelter alone demands %v, want the one variable its document names", required)
 	}
 }

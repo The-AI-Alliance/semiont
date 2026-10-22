@@ -107,8 +107,8 @@ something that outlived the stack:
 - An exported `KC_BOOTSTRAP_ADMIN_PASSWORD`, or `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`, wins:
   one variable per service, never one shared by all.
 - The daemons' names (`NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER`, `NATS_PASSWORD`) are
-  the launcher's. An exported one is refused for a daemon the launcher runs, a config may not
-  reference one, and `semiont settings secret set` refuses them. A config section for a daemon the
+  the launcher's. An exported one is refused for a daemon the launcher runs, a document may not
+  name one, and `semiont settings secret set` refuses them. A document describing a daemon the
   launcher runs names no password.
 
 **Rotating a daemon's password.** Delete it from the secrets store (its file, or its field in
@@ -117,7 +117,7 @@ the 1Password item), then clear the data the daemon initialized with the old one
 
 **A store the launcher keeps no password for.** When a daemon's store holds data but the secrets
 store keeps no password for it, the data was initialized with a password the launcher does not
-have: one a config once named literally, or one that was lost. A daemon started over it would
+have, such as one that was lost. A daemon started over it would
 reject every login, so `semiont start` refuses and names the fix:
 
 ```bash
@@ -158,10 +158,10 @@ manager installed. A name the launcher keeps cannot be registered.
 scheme selects the provider from a registry, so an OS keychain or a cloud secrets manager is one
 more entry in it.
 
-A start asks only for the variables something reads: a section a service reads, or one the
-launcher resolves itself. A reference in another environment, or in a section nothing reads, is
-not asked for, and so raises no provider prompt. See
-[Configuration](../administration/CONFIGURATION.md) for the rule.
+A start asks only for the variables something reads: a variable the documents name for a service
+it starts, or one the launcher reads itself. A variable named where nothing reads it is not asked
+for, and so raises no provider prompt. See
+[Configuration](../administration/CONFIGURATION.md#secrets-in-a-document) for the rule.
 
 ### Codespace stacks
 
@@ -180,7 +180,7 @@ a value instead of pointing at one.
 
 **Only to the services that read them.** Each service is handed the variables its configuration
 document names, and no other. The
-Anthropic key in `[inference]` reaches the librarian and the worker, and no other service. They are
+Anthropic key an Inference document names reaches the librarian and the worker, and no other service. They are
 the only services that call a model, so they are also the ones that report each model's limits
 (context window, output ceiling); the archivist lists the collaborator directory from its configuration document, which names each role's provider and model and no key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the

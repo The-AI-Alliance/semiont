@@ -96,7 +96,7 @@ per key of the ring.
 
 A refused request is counted against the holder its token names, read without
 verifying it: the token's `iss`, and the claim the gateway names a holder by
-(`[identity] subjectClaim` for the trusted issuer's tokens, `did` for its
+(`identity.subjectClaim` for the trusted issuer's tokens, `did` for its
 own). A request with no token, or with one that names no holder, is counted in
 one count shared by all such requests. Each holder may have
 `refusalBurst` requests refused at once and `refusalsPerSecond` after, per

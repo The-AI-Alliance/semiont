@@ -24,14 +24,18 @@ async function launch(world: ArchivistWorld, change: Partial<ArchivistLaunch> = 
 const documentOf = (settings: ArchivistSettings) => JSON.parse(JSON.stringify(settings)) as Record<string, Record<string, unknown>>;
 
 /** A knowledge base of its own beside the world's, for a boot that must be refused. */
-function tree(config: string, git: boolean): { root: string; remove: () => void } {
+function tree(config: string | null, git: boolean): { root: string; remove: () => void } {
   const base = mkdtempSync(join(tmpdir(), 'conformance-kb-refused-'));
   const root = join(base, 'kb');
   mkdirSync(join(root, '.semiont'), { recursive: true });
-  writeFileSync(join(root, '.semiont', 'config'), config);
+  if (config !== null) writeFileSync(join(root, '.semiont', 'config.yaml'), config);
   if (git) execFileSync('git', ['init', '--quiet'], { cwd: root });
   return { root, remove: () => rmSync(base, { recursive: true, force: true }) };
 }
+
+/** A project file (.semiont/config.yaml) of the world's domain, syncing git or not. */
+const projectFile = (domain: string, sync: boolean) =>
+  `project:\n  name: Refused\ngit:\n  sync: ${sync}\nsite:\n  domain: ${JSON.stringify(domain)}\n  siteName: Refused\n`;
 
 withArchivist("the Archivist's boot", (world) => {
   it('answers /health without a token, naming the actors it hosts', async () => {
@@ -93,25 +97,25 @@ withArchivist("the Archivist's boot", (world) => {
     expect(refusal.output).toMatch(/SEMIONT_OIDC_CLIENT_SECRET/);
   });
 
-  it('refuses a knowledge base that declares no [site] domain', async () => {
-    const kb = tree('[project]\nname = "No Identity"\n', false);
+  it('refuses a knowledge base that commits no project file, and so declares no domain', async () => {
+    const kb = tree(null, false);
     try {
       const options = await launch(world());
       const refusal = await refusedArchivistBoot({ ...options, settings: { ...options.settings, root: kb.root } });
       expect(refusal.code).not.toBe(0);
-      expect(refusal.output).toMatch(/\[site\] domain/);
+      expect(refusal.output).toMatch(/site\.domain/);
     } finally {
       kb.remove();
     }
   });
 
   it('refuses a knowledge base that syncs git and is not a checkout', async () => {
-    const kb = tree(`[git]\nsync = true\n\n[site]\ndomain = ${JSON.stringify(world().world.kb.domain)}\n`, false);
+    const kb = tree(projectFile(world().world.kb.domain, true), false);
     try {
       const options = await launch(world());
       const refusal = await refusedArchivistBoot({ ...options, settings: { ...options.settings, root: kb.root } });
       expect(refusal.code).not.toBe(0);
-      expect(refusal.output).toMatch(/\[git\] sync = true/);
+      expect(refusal.output).toMatch(/git\.sync is true/);
       expect(refusal.output).toMatch(/is not a git checkout/);
     } finally {
       kb.remove();
@@ -120,7 +124,7 @@ withArchivist("the Archivist's boot", (world) => {
 
   it('stops on SIGTERM with status 0, and serves no more', async () => {
     const options = await launch(world());
-    const kb = tree(`[site]\ndomain = ${JSON.stringify(world().world.kb.domain)}\n`, false);
+    const kb = tree(projectFile(world().world.kb.domain, false), false);
     try {
       const second = await startArchivistProcess({ ...options, settings: { ...options.settings, root: kb.root } });
       expect(await second.stop()).toBe(0);

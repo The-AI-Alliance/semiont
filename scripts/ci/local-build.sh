@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Build all Semiont packages, publish to a local Verdaccio registry, and build
 # the service/browser container images against it, tagged
-# ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by `semiont start` /
-# compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
+# ghcr.io/the-ai-alliance/semiont-<svc>:local (run by `semiont start` where a
+# KB's stack documents name them; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
 # yields everything a fully-local stack needs. And it builds the Python SDK's
 # distributions (packages/sdk-python/dist), which no image installs (the
@@ -857,8 +857,8 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 # installs from the local Verdaccio; the gateway, the dispatcher, the
 # archivist, the worker, the smelter, the weaver and the librarian are built
 # from the working tree. The
-# :local tag is what `semiont start` / compose consume via
-# SEMIONT_VERSION=local (it skips the registry pull), and it is never pushed.
+# :local tag is what `semiont start` runs where a KB's stack documents name it
+# (it pulls no image tagged :local), and it is never pushed.
 #
 # For a Node image --no-cache is required for correctness, not caution: iterating republishes
 # the SAME version to Verdaccio, so the `npm install` RUN line is byte-identical
@@ -1308,7 +1308,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   echo -e "${BOLD}Rebuilt:${RESET}${IMAGES// / }"
   echo ""
   echo -e "  Restart the affected service(s) to pick them up, e.g."
-  echo -e "    ${BOLD}SEMIONT_VERSION=local <your-kb>/semiont restart${RESET}"
+  echo -e "    ${BOLD}semiont restart${RESET}  (in a KB whose .semiont/stack documents name the :local images)"
   echo ""
   echo -e "${DIM}Skipped (use a full run for these): npm build+publish, the drift and lockfile gates, Python SDK, launcher.${RESET}"
   echo ""
@@ -1320,7 +1320,7 @@ fi
 # --- Build the launcher (host binary) ---
 #
 # The semiont launcher is a static Go binary that runs on the HOST and drives
-# the :local images (SEMIONT_VERSION=local semiont start). Built inside
+# the :local images a KB's stack documents name. Built inside
 # $GO_IMAGE (derived from apps/launcher/go.mod) targeting the host platform — no
 # Go toolchain on the host, the same philosophy as the npm builds above. It
 # shares the drift gate's Go caches.
@@ -1425,10 +1425,12 @@ fi
 echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
 echo ""
 echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
-echo -e "    ${BOLD}SEMIONT_VERSION=local $REPO_ROOT/apps/launcher/dist/semiont start${RESET}"
+echo -e "    (name the ${DIM}:local${RESET} images in .semiont/stack/*.yaml, e.g. ghcr.io/the-ai-alliance/semiont-gateway:local)"
+echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local${RESET}"
+echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont start${RESET}"
 echo -e "    ${BOLD}echo password | $REPO_ROOT/apps/launcher/dist/semiont useradd --email admin@example.com${RESET}"
 echo ""
-echo -e "  (semiont start skips the registry pull for ${DIM}local${RESET} and runs these images.)"
+echo -e "  (semiont start pulls no image tagged ${DIM}:local${RESET}; it runs these.)"
 echo ""
 
 echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"

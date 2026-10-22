@@ -3,6 +3,8 @@ package launcher
 import (
 	"fmt"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // service.go — the `--service` half of the lifecycle verbs.
@@ -25,7 +27,7 @@ func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 // the three third-party roles the launcher must reach or configure: the database
 // it waits on, the Ollama it probes, and the identity provider whose
 // KC_DB_URL names the PostgreSQL by address: without it, `start --service
-// identity` builds `jdbc:postgresql://:5432/keycloak`.
+// identity` builds `jdbc:postgresql://:5432/<database>`.
 func serviceNeedsAddr(svc string) bool {
 	return isConfigConsumer(svc) || svc == "database" || svc == "inference" || svc == "identity"
 }
@@ -47,10 +49,10 @@ func digString(m map[string]any, path ...string) (string, bool) {
 // runStartService: the live `start --service` — flowOneService with
 // liveExec, plus the live-only rocket summary (skipped for the external/
 // absent no-ops, which launch nothing).
-func runStartService(u *UI, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
+func runStartService(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
 	t0 := time.Now()
-	x := &liveExec{u: u, rt: rt, version: version, root: root, plan: plan}
-	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv, restart: true}); code != 0 {
+	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan}
+	if code := flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true}); code != 0 {
 		return code
 	}
 	if _, nothing := nothingToLaunch(plan, opts.service); nothing {
@@ -65,9 +67,9 @@ func runStartService(u *UI, rt, version, root, configFile string, opts startOpti
 // renderServicePlan is --dry-run for --service: the same flow, plan mode.
 // Real root for the same reason as renderStartPlan: the state path is
 // plan-time truth; the kb mount keeps its placeholder via val().
-func renderServicePlan(rt, version, root string, opts startOptions, userEnv []string, plan *launchPlan) {
+func renderServicePlan(rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) {
 	x := &planExec{rt: rt}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: opts.configName, userEnv: userEnv, restart: true})
+	flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true})
 }

@@ -13,7 +13,7 @@
  *   - in production TypeScript and JavaScript, nothing spawns git or writes
  *     its arguments (`mv`, `rm`, `--cached`, `rev-parse`);
  *   - no schema in `specs/` gives a caller a `noGit` switch. Whether a project
- *     stages is the project's `[git] sync`, never one command's choice.
+ *     stages is the project's `git.sync`, never one command's choice.
  *
  * A test may run git to set a repository up or to read its index. Each allowed
  * file must still use what it is allowed, so an entry cannot outlive the

@@ -173,6 +173,15 @@
       "reason": "not-allowed"
     },
     {
+      "why": "a database name that is no lowercase identifier: PostgreSQL would fold it, and the issuer would ask for another",
+      "schema": "Issuer",
+      "base": "apps/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "patch": { "spec": { "database": { "name": "Keycloak" } } },
+      "verdict": "refused",
+      "at": "/spec/database/name",
+      "reason": "not-allowed"
+    },
+    {
       "why": "a database the launcher runs and somebody else's at once",
       "schema": "Issuer",
       "base": "apps/launcher/testdata/kb/.semiont/stack/issuer.yaml",

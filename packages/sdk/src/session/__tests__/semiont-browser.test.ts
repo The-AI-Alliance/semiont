@@ -653,7 +653,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // gateway was briefly down is strictly worse than the phantoms this fixes.
     for (const [label, arrange] of [
       ['the read gets no answer', () => { mockKb = async () => { throw new BusRequestError('unreachable', 'bus.timeout'); }; }],
-      ['the KB refuses to describe itself', () => { mockKb = async () => { throw new BusRequestError('no [site] domain', 'bus.rejected'); }; }],
+      ['the KB refuses to describe itself', () => { mockKb = async () => { throw new BusRequestError('no site.domain', 'bus.rejected'); }; }],
     ] as const) {
       storage = new TestStorage();
       seedKbScopedState();
@@ -1372,7 +1372,7 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
   });
 
   it('refuses to register a KB that cannot say who it is, and stores nothing', async () => {
-    mockKb = async () => { throw new BusRequestError('no [site] domain', 'bus.rejected'); };
+    mockKb = async () => { throw new BusRequestError('no site.domain', 'bus.rejected'); };
     const browser = makeBrowser();
     const { callback } = await begin(browser);
 

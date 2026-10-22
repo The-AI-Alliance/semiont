@@ -17,7 +17,7 @@ Each file runs its cases in a world of its own
 ([harness/archivist-world.ts](../harness/archivist-world.ts)):
 
 - a knowledge base's working tree, made fresh, with its committed
-  `.semiont/config`, and a git checkout unless the file is about one that is
+  `.semiont/config.yaml`, and a git checkout unless the file is about one that is
   not;
 - a state volume and an anchored-text store beside it;
 - the trusted issuer, which grants the Archivist's service account;
@@ -37,7 +37,7 @@ what its schema says; and a case fails otherwise, whatever it was about.
 
 - **Boot** (`boot.test.ts`): the health answer, every refusal to start — the
   document unnamed, unreadable, not JSON, or refused by its schema; no service
-  account; no `[site] domain`; a knowledge base that syncs git and is not a
+  account; no project file, so no `site.domain`; a knowledge base that syncs git and is not a
   checkout — and a clean stop.
 - **Resources** (`resources.test.ts`): an upload stored, recorded and
   published; the line in the log, the view, the index entry, where each is

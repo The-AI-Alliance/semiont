@@ -53,9 +53,8 @@ type StackState struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 	Runtime   string    `json:"runtime"`
 	KBRoot    string    `json:"kbRoot,omitempty"`
-	KBDid     string    `json:"kbDid,omitempty"` // did:web from .semiont/config
+	KBDid     string    `json:"kbDid,omitempty"` // did:web from .semiont/config.yaml
 	Config    string    `json:"config,omitempty"`
-	Version   string    `json:"imageVersion,omitempty"`
 	HostAddr  string    `json:"hostAddr,omitempty"`
 	Stage     string    `json:"configStage,omitempty"`
 	Ports     []int     `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release

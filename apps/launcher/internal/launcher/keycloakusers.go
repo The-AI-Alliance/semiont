@@ -4,7 +4,7 @@ package launcher
 // client/mapper/realm-settings surface. Both speak Keycloak's admin API with
 // the same bootstrap-admin token (adminToken) and the same HTTP client.
 //
-// Only Keycloak. `[identity] type = "oidc"` names an issuer Semiont does not
+// Only Keycloak. An external issuer (spec.issuer.external) is one Semiont does not
 // administer: accounts there are created at the issuer and then sign in here.
 // The caller enforces that before reaching any of this.
 

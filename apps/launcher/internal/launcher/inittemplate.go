@@ -5,9 +5,9 @@ package launcher
 // requirement; there is no listing API over raw fetches, and a clone is an
 // atomic ref) — or a local directory used directly, which is also the
 // hermetic test seam. Two hard rules: identity (the project file) is NEVER
-// copied — init's own is already written — and every copied semiontconfig
-// passes the SAME derivePlan vet as generated ones, with the WHOLE init
-// refusing pre-write on the first failure (no partial trees).
+// copied — init's own is already written — and every copied document passes
+// the SAME vet as generated ones, with the WHOLE init refusing pre-write on
+// the first failure (no partial trees).
 
 import (
 	"fmt"
@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 const defaultTemplateRepo = "https://github.com/The-AI-Alliance/semiont-template-kb"
@@ -44,51 +46,48 @@ func materializeTemplate(u *UI, src, ref string) (dir string, cleanup func(), ok
 	return tmp, func() { _ = os.RemoveAll(tmp) }, true
 }
 
-// copyTemplateConfigs vets and copies every semiontconfig toml. All-or-
-// nothing: the first vet failure removes everything this call wrote.
-func copyTemplateConfigs(u *UI, root, tplDir string) bool {
-	src := filepath.Join(tplDir, ".semiont", "semiontconfig")
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		u.Fail("The template has no .semiont/semiontconfig: %v", err)
+// copyTemplateStack vets and copies the template's .semiont/stack: the four
+// documents a knowledge base shares and each Inference document beside them,
+// vetted together before any is written (writeVettedStack).
+func copyTemplateStack(u *UI, root, tplDir string) bool {
+	src := filepath.Join(tplDir, stack.Dir)
+	if _, err := os.Stat(src); err != nil {
+		u.Fail("The template has no %s: %v", stack.Dir, err)
 		return false
 	}
-	written := []string{}
-	rollback := func() {
-		for _, p := range written {
-			_ = os.Remove(p)
-		}
-		_ = os.Remove(filepath.Join(root, ".semiont", "semiontconfig")) // rmdir if empty
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
-			continue
-		}
-		// Refuse symlinks: a template (or local dir) could symlink a .toml
-		// at an arbitrary local path, reading it into the newborn KB.
-		if e.Type()&os.ModeSymlink != 0 {
-			rollback()
-			u.Fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
-			return false
-		}
-		b, err := os.ReadFile(filepath.Join(src, e.Name()))
+	files := map[string][]byte{}
+	err := filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			rollback()
-			u.Fail("Reading template config %s: %v", e.Name(), err)
-			return false
+			return err
 		}
-		name := strings.TrimSuffix(e.Name(), ".toml")
-		if !writeVettedConfig(u, root, name, string(b)) {
-			rollback()
-			return false
+		// Refuse symlinks: a template (or local dir) could symlink a document
+		// at an arbitrary local path, reading it into the newborn KB.
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("template document %s is a symlink — refusing (a symlinked document could read arbitrary local files)", d.Name())
 		}
-		written = append(written, filepath.Join(root, ".semiont", "semiontconfig", name+".toml"))
-	}
-	if len(written) == 0 {
-		u.Fail("The template carried no semiontconfig tomls.")
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".yaml") {
+			return nil
+		}
+		rel, err := filepath.Rel(src, p)
+		if err != nil {
+			return err
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return fmt.Errorf("reading template document %s: %v", rel, err)
+		}
+		files[rel] = b
+		return nil
+	})
+	if err != nil {
+		u.Fail("%v", err)
 		return false
 	}
-	return true
+	if len(files) == 0 {
+		u.Fail("The template carried no documents in %s.", stack.Dir)
+		return false
+	}
+	return writeVettedStack(u, root, files)
 }
 
 // copyDevcontainer copies the template's .devcontainer set verbatim EXCEPT

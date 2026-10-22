@@ -582,8 +582,8 @@ fn assert_refusal(message: &str, root: &Path, why: &str) {
     assert_eq!(
         message,
         format!(
-            "The knowledge base's config says [git] sync = true, and {} is not a git checkout ({why}). \
-             Make it one (git init), or set sync = false.",
+            "The knowledge base's project file says git.sync is true, and {} is not a git checkout ({why}). \
+             Make it one (git init), or set git.sync to false.",
             root.display()
         )
     );

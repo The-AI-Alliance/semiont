@@ -69,11 +69,14 @@ Never point the suite at one: use the host bridge gateway,
 `192.168.64.1`, for both URLs. It routes to every published port and
 does not change. See [containers.md § IP refresh](containers.md#ip-refresh).
 
-## `SEMIONT_VERSION=local` is load-bearing
+## Naming the `:local` images is load-bearing
 
 `local-build.sh` builds every Semiont image as a local-only `:local`
-tag — but the KB stack consumes them only when started with
-`SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls
-the **published** images and your local code changes are invisible.
+tag — but the KB stack runs them only when its documents name them:
+`ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` in
+`.semiont/stack/*.yaml`, and the Browser's with `semiont settings
+browser-image ghcr.io/the-ai-alliance/semiont-browser:local`. An image
+still named `:latest` is pulled as **published**, and your local code
+changes are invisible.
 Forgetting this leads to "why isn't my gateway code change visible?"
 confusion. See [containers.md § Restarting the stack on new images](containers.md#restarting-the-stack-on-new-images).

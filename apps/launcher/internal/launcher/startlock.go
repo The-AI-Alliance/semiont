@@ -34,8 +34,8 @@ const startLockBudget = 30 * time.Minute
 // note is written through its own handle, whose errors are reported.
 var heldStartLock *os.File
 
-func startLockPath(root string) string {
-	dir := stateRootDir(root)
+func startLockPath(key string) string {
+	dir := stateRootDir(key)
 	if dir == "" {
 		return ""
 	}
@@ -44,8 +44,8 @@ func startLockPath(root string) string {
 
 // acquireStartLock takes the root's start lock, waiting (announced, bounded)
 // while another start holds it. ok=false: refused, message printed.
-func acquireStartLock(u *UI, root string) bool {
-	p := startLockPath(root)
+func acquireStartLock(u *UI, key string) bool {
+	p := startLockPath(key)
 	if p == "" {
 		return true // no data home: no persistent state to protect
 	}
@@ -95,8 +95,8 @@ func acquireStartLock(u *UI, root string) bool {
 
 // startInProgress reports whether another process holds the root's start
 // lock, and who — without taking it.
-func startInProgress(root string) (holder string, busy bool) {
-	p := startLockPath(root)
+func startInProgress(key string) (holder string, busy bool) {
+	p := startLockPath(key)
 	if p == "" {
 		return "", false
 	}

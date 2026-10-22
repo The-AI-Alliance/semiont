@@ -141,8 +141,9 @@ func TestWhatTheLauncherKeepsIsClosedUnderAnOpenHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	u := NewUI(true)
-	loadOrCreateJWTSecret(u, root)
-	store, ok := custodyFor(u, root)
+	kb := kbRoot{dir: root}
+	loadOrCreateJWTSecret(u, kb.key())
+	store, ok := custodyFor(u, kb.key())
 	if !ok {
 		t.Fatal("no custody store for this root")
 	}
@@ -155,8 +156,8 @@ func TestWhatTheLauncherKeepsIsClosedUnderAnOpenHome(t *testing.T) {
 	}
 	closed("the staging dir", filepath.Dir(staged))
 
-	if _, ok := x.stateMountsUnstamped("gateway", root); !ok {
+	if _, ok := x.stateMountsUnstamped("gateway", kb); !ok {
 		t.Fatal("mount prep refused")
 	}
-	closed("a root's state dir", stateRootDir(root))
+	closed("a root's state dir", stateRootDir(kb.key()))
 }

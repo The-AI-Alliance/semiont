@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.",
+  "description": "Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.",
   "properties": {
     "workers": {
       "type": "object",

@@ -29,16 +29,11 @@ import (
 const driverSemiont = "semiont"
 
 // dependency: an edge from a (role, driver) to a role it cannot come up
-// after — or, when `because` is set, cannot come up WITHOUT.
+// before. It only ORDERS the walk: the role is brought up first when the
+// stack has it. What a role cannot run WITHOUT is its document's schema's to
+// require (Issuer.json requires the Keycloak's database).
 type dependency struct {
 	role string
-	// because, when set, makes the edge a REQUIREMENT: the config must
-	// declare that role's section, and derivePlan refuses naming this reason
-	// when it does not (drivers require roles, configs declare them, and
-	// the conditionality lives in plan derivation so the graph stays
-	// static). Empty means the edge only ORDERS the walk: the role is
-	// brought up first when the config has it, and its absence is no error.
-	because string
 }
 
 // authority: what the launcher may do INSIDE a service it does not run.
@@ -225,7 +220,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// The OIDC issuer the gateway trusts, stated in config and never
 	// inferred. "keycloak" is an upstream pin like postgres — the dev-mode
 	// server, importing the realm the launcher stages, on its own database
-	// of the [database] PostgreSQL. A JVM like graph, but its image caps the
+	// of the PostgreSQL the Issuer document describes. A JVM like graph, but its image caps the
 	// heap at 70% of the container ceiling, so 1G leaves ~700M of heap —
 	// ample for one KB's realm. "oidc" is an issuer somebody else runs: the
 	// launcher verifies it and launches nothing, which is why it carries no
@@ -233,7 +228,7 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start-dev", "--import-realm"},
-		needs: []dependency{{role: "database", because: "Keycloak keeps its realm in its own database on that PostgreSQL"}},
+		needs: []dependency{{role: "database"}},
 		// The master realm always exists, so it answers for a server whose
 		// own realm this launcher has not been told about. A configured
 		// stack is probed at its issuer instead (healthEndpoint).
@@ -362,18 +357,6 @@ func dependenciesOf(role string) []dependency {
 		}
 	}
 	return out
-}
-
-// unmetRequirement: the first role this driver cannot run WITHOUT that the
-// config never declares. Ordering-only edges are not requirements —
-// their absence is a stack without that role, not a broken config.
-func unmetRequirement(declared func(role string) bool, role, driver string) (dependency, bool) {
-	for _, dep := range descriptorFor(role, driver).needs {
-		if dep.because != "" && !declared(dep.role) {
-			return dep, true
-		}
-	}
-	return dependency{}, false
 }
 
 // roleList: the roles a `--service` flag accepts, for usage and refusals.

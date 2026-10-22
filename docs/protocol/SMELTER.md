@@ -48,8 +48,9 @@ cleared, and a Smelter that starts afterwards fills it again.
 
 A Smelter reads its settings from a configuration document, the protocol's
 [`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json), at
-the path its `--config` flag names. The document is resolved: no `${VAR}` is
-left in it, and the Smelter defaults nothing it leaves out. It states the
+the path its `--config` flag names. The document is resolved: every address in
+it is literal, every credential is named by the variable that holds it, and the
+Smelter defaults nothing it leaves out. It states the
 gateway's URL; the issuer the Smelter's service account signs in at; where
 the Archivist is, for a resource's bytes; the embedding provider
 ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):

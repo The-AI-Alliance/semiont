@@ -62,7 +62,7 @@ Its startup contract is strict: each unmet requirement stops it before it listen
 | `JWT_SECRET`, or a key in it under 32 characters | `JWT_SECRET is not set …` / `JWT_SECRET must be at least 32 characters long …` |
 | `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | `… not set — this gateway has no service account …` — see below |
 | A broker credential variable the document names (`signal.userEnv`, `signal.passwordEnv`) | `/signal/userEnv names the environment variable …, which is not set` |
-| The broker, under `signal.type = "nats"` | `cannot connect to the NATS broker at …`, `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
+| The broker, under `signal.type: nats` | `cannot connect to the NATS broker at …`, `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
 | Routes and spec in agreement (a build defect, not configuration) | `The gateway's routes are not its spec's operations:` followed by each difference |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
@@ -138,7 +138,7 @@ The only thing that connects to this PostgreSQL is Keycloak, so a database failu
 Two cases where you *are* on your own:
 
 - **`semiont start --service gateway`** restarts one service without re-checking its dependencies. The gateway itself needs no database, but it does need the issuer: restart it while Keycloak is down and it cannot verify a token.
-- **A database somebody else runs** (`platform = "external"`) is checked for reachability but never waited on. The launcher does not own its lifecycle.
+- **A database somebody else runs** (`spec.database.external` in the Issuer document) is checked for reachability but never waited on. The launcher does not own its lifecycle.
 
 Semiont keeps no schema of its own here — this PostgreSQL is Keycloak's. See the [Database Guide](DATABASE.md).
 
@@ -174,7 +174,7 @@ curl -s http://localhost:7474
 
 ### Inference failures
 
-With an Anthropic config, the launcher must be able to find `ANTHROPIC_API_KEY`: exported, or registered with `semiont settings secret set ANTHROPIC_API_KEY`. With an Ollama config, the model has to be present:
+With an Anthropic Inference document, the launcher must be able to find `ANTHROPIC_API_KEY`: exported, or registered with `semiont settings secret set ANTHROPIC_API_KEY`. With an Ollama one, the model has to be present:
 
 ```bash
 curl -s http://localhost:11434/api/version
