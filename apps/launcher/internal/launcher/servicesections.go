@@ -2,96 +2,44 @@ package launcher
 
 import "sort"
 
-// launcherReads: the sections whose ${VAR} values the launcher resolves,
-// keyed by the role it resolves them for — the gateway's, the dispatcher's,
-// the Archivist's, the worker's, the Smelter's, the Weaver's and the
-// Librarian's documents, Keycloak's external PostgreSQL password, and the
-// remote-model check's key.
-// TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
-// resolving calls.
-var launcherReads = map[string][]string{
-	"gateway":    {"gateway", "identity", "archivist", "signal"},
-	"dispatcher": {"gateway", "identity", "jobs"},
-	"archivist":  {"gateway", "identity"},
-	"worker":     {"gateway", "identity", "inference"},
-	"smelter":    {"gateway", "identity", "archivist", "vectors", "embedding"},
-	"weaver":     {"gateway", "identity", "graph"},
-	"librarian":  {"gateway", "identity", "archivist", "graph", "vectors", "embedding", "inference"},
-	"identity":   {"database"},
-	"inference":  {"inference"},
-}
-
-// readSections: the sections a start of svc reads — the ones the launcher
-// resolves for it. "" is the whole stack. No service reads the KB's config.
-func readSections(svc string) []string {
-	if svc != "" {
-		return launcherReads[svc]
+// serviceSecrets: for each stack service, the variables its document names
+// (`fromEnv`), and so the ones it is handed. No service reads a knowledge
+// base's documents: a service's variables are the ones its own document names,
+// and the Archivist's names none.
+func serviceSecrets(p placement) map[string][]string {
+	return map[string][]string{
+		"gateway": gatewaySecrets(p), "dispatcher": dispatcherSecrets(p), "archivist": nil,
+		"worker": workerSecrets(p), "smelter": embeddingSecrets(p), "weaver": graphSecrets(p),
+		"librarian": librarianSecrets(p),
 	}
-	var all []string
-	for _, sections := range launcherReads {
-		all = append(all, sections...)
-	}
-	return all
 }
 
-// environmentSection: [environments.<envName>] of the parsed document.
-func environmentSection(doc any, envName string) map[string]any {
-	root, _ := doc.(map[string]any)
-	envs, _ := root["environments"].(map[string]any)
-	section, _ := envs[envName].(map[string]any)
-	return section
-}
-
-// sectionRefs: the user variables the named sections of an environment
-// reference, minus the ones the launcher resolves itself — required when any
-// reference to the name is, by placeholderRefs' rule.
-func sectionRefs(envSection map[string]any, sections []string) (required, optional []string) {
-	isRequired := map[string]bool{}
-	var walk func(v any)
-	walk = func(v any) {
-		switch t := v.(type) {
-		case string:
-			req, opt := placeholderRefs(t)
-			for _, name := range req {
-				if !launcherResolved(name) {
-					isRequired[name] = true
-				}
-			}
-			for _, name := range opt {
-				if _, named := isRequired[name]; !named && !launcherResolved(name) {
-					isRequired[name] = false
-				}
-			}
-		case map[string]any:
-			for _, vv := range t {
-				walk(vv)
-			}
-		case []any:
-			for _, vv := range t {
-				walk(vv)
+// secretsRead: the variables a start of svc reads ("" is the whole stack) —
+// each one a service it starts is handed, and each one the launcher reads
+// itself: the password of the PostgreSQL somebody else runs for the Keycloak
+// it runs, and a remote provider's key for the remote-model check. Sorted.
+func secretsRead(p placement, svc string) []string {
+	var names []string
+	add := func(found ...string) {
+		for _, name := range found {
+			if name != "" && !contains(names, name) {
+				names = append(names, name)
 			}
 		}
 	}
-	for _, sec := range sections {
-		walk(envSection[sec])
-	}
-	for name, req := range isRequired {
-		if req {
-			required = append(required, name)
-		} else {
-			optional = append(optional, name)
+	for service, secrets := range serviceSecrets(p) {
+		if svc == "" || svc == service {
+			add(secrets...)
 		}
 	}
-	sort.Strings(required)
-	sort.Strings(optional)
-	return required, optional
-}
-
-// serviceVars: for each stack service, the user variables it is handed. No
-// service reads the KB's config: a service's variables are the ones its
-// document names, and the Archivist's names none.
-func serviceVars(env *envConfig) map[string][]string {
-	return map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "smelter": smelterNamedVars(env), "weaver": weaverNamedVars(env), "librarian": librarianNamedVars(env)}
+	if svc == "" || svc == "identity" {
+		add(p.plan.Roles["identity"].ExternalDBPassword)
+	}
+	if svc == "" || svc == "inference" {
+		add(p.plan.Roles["inference"].APIKey)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // withDaemonCredentialVars adds, to each service's variables, the credential

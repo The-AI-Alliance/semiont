@@ -10,16 +10,16 @@ import "reflect"
 // the discovery document (see DiscoveryDocument). Endpoints and identity only —
 // never credentials; login remains the consumer's per-KB business.
 type DiscoveredKB struct {
-	// The KB's did:web identifier, from its committed .semiont/config — "did:web:" +
-	// the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no
-	// identity to publish, and the launcher refuses to start it rather than inventing
-	// or defaulting one. NOT unique within a document: a did names the knowledge
-	// base, not a running copy of it, so a local clone and a codespace of the same
-	// repo legitimately share one and both are published. host:port is the unique
-	// field (at most one entry per address), so consumers look up by ADDRESS and use
-	// the did to VERIFY that the copy they reached is the KB they meant — an address
-	// alone cannot say which KB is which, and an identity alone cannot say which
-	// copy.
+	// The KB's did:web identifier, from its committed .semiont/config.yaml —
+	// "did:web:" + its site.domain, verbatim. REQUIRED: a KB that declares no domain
+	// has no identity to publish, and the launcher refuses to start it rather than
+	// inventing or defaulting one. NOT unique within a document: a did names the
+	// knowledge base, not a running copy of it, so a local clone and a codespace of
+	// the same repo legitimately share one and both are published. host:port is the
+	// unique field (at most one entry per address), so consumers look up by ADDRESS
+	// and use the did to VERIFY that the copy they reached is the KB they meant — an
+	// address alone cannot say which KB is which, and an identity alone cannot say
+	// which copy.
 	Did string `json:"did"`
 
 	// Hostname the KB is reachable on from this machine (always "localhost" — local
@@ -44,7 +44,8 @@ type DiscoveredKB struct {
 	// the stack's identity
 	Repo *string `json:"repo,omitempty,omitzero"`
 
-	// Human-readable site name from the KB's .semiont/config, for display
+	// Human-readable site name from the KB's .semiont/config.yaml (site.siteName),
+	// for display
 	SiteName *string `json:"siteName,omitempty,omitzero"`
 }
 
@@ -112,9 +113,8 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 // <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
 // regenerates on every stack mutation and the Browser container mounts read-only
 // at /discovery. NOT an API endpoint: a static document fetched same-origin by
-// browsers (via the Browser's static server) or read from disk by local Node
-// consumers. An empty kbs list is meaningful ("the launcher manages nothing right
-// now") and distinct from an absent file.
+// browsers (via the Browser's static server). An empty kbs list is meaningful
+// ("the launcher manages nothing right now") and distinct from an absent file.
 type DiscoveryDocument struct {
 	// Every KB the launcher currently manages, local and forwarded
 	Kbs []DiscoveredKB `json:"kbs"`

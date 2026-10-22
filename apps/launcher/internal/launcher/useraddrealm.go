@@ -13,7 +13,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // useraddOpts: what the flags mean once parsed. The launcher owns them
@@ -49,7 +50,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	// either.
 	domain := committedDomain(root)
 	if domain == "" {
-		u.Fail("The knowledge base at %s declares no [site] domain in its .semiont/config, so no account can be named under it.", root)
+		u.Fail("The knowledge base at %s declares no site.domain in its .semiont/config.yaml, so no account can be named under it.", root)
 		return realmAdmin{}, false
 	}
 	configName := configForRealm(root)
@@ -58,8 +59,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 		return realmAdmin{}, false
 	}
-	configFile := filepath.Join(root, ".semiont", "semiontconfig", configName+".toml")
-	envCfg, envName, _, err := loadConfig(configFile)
+	st, err := stack.Load(root, configName)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
@@ -68,16 +68,12 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	if !ok {
 		return realmAdmin{}, false
 	}
-	plan, err := derivePlan(envCfg, envName, configFile, kcPort)
+	plan, err := derivePlan(st, kcPort)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
-	rp, ok := plan.Roles["identity"]
-	if !ok || rp.Issuer == "" {
-		u.Fail("This knowledge base configures no identity provider — add an [identity] section before creating users.")
-		return realmAdmin{}, false
-	}
+	rp := plan.Roles["identity"]
 	// An issuer Semiont does not administer. The account is created THERE and
 	// then signs in here; nothing about this command can reach it.
 	if rp.Driver != "keycloak" {
@@ -107,7 +103,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	}
 	return realmAdmin{
 		base: base, realm: keycloakRealm(issuerPath(rp.Issuer)), token: token,
-		domain: domain, subjectClaim: envCfg.Identity.SubjectClaim,
+		domain: domain, subjectClaim: st.KnowledgeBase.Spec.Issuer.SubjectClaim,
 	}, true
 }
 
@@ -216,7 +212,7 @@ func generatePassword() (string, error) {
 }
 
 // accountIdentity: the DID the account acts under, by the gateway's rule —
-// did:web:<domain>:users:<the value of the claim [identity] subjectClaim
+// did:web:<domain>:users:<the value of the claim spec.issuer.subjectClaim
 // names>. The launcher knows that value for the claims it sets itself: the
 // account id (sub), and the email, which is also the username. Any other claim
 // is the issuer's to fill at sign-in.

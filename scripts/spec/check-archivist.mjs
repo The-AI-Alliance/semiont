@@ -48,7 +48,7 @@ const RECORD_SCHEMAS = [
   'AnchoredTextDeclinedEntry',
 ];
 const CONFIG_SCHEMAS = ['ArchivistConfig', 'ArchivistRoster', 'ArchivistRosterRole'];
-const TABLES = ['specs/src/archivist/shard-cases.json', 'specs/src/service-config/roster-cases.json'];
+const TABLES = ['specs/src/archivist/shard-cases.json'];
 const PROTOCOL = 'docs/protocol/ARCHIVIST.md';
 
 const components = read(resolve(REPO, 'specs/src/openapi.json')).components.schemas;
@@ -111,29 +111,6 @@ for (const path of TABLES) {
 for (const { key, shard } of table(TABLES[0]) ?? []) {
   if (!/^[0-9a-f]{2}\/[0-9a-f]{2}$/.test(shard)) fail(`shard case ${JSON.stringify(key)}: ${JSON.stringify(shard)} is not <ab>/<cd>`);
 }
-if (has('ArchivistRoster')) {
-  const roster = schema('ArchivistRoster');
-  for (const { why, roster: stated } of table(TABLES[1]) ?? []) {
-    for (const group of ['workers', 'actors']) {
-      if (typeof stated?.[group] !== 'object') { fail(`roster case "${why}" has no ${group}`); continue; }
-      for (const role of Object.keys(stated[group])) {
-        if (!(role in roster.properties[group].properties)) fail(`roster case "${why}" names ${group}.${role}, which the roster does not have`);
-      }
-      for (const motivation of Object.keys((group === 'workers' && stated.workers.mark) || {})) {
-        if (!(motivation in roster.properties.workers.properties.mark.properties)) fail(`roster case "${why}" names workers.mark.${motivation}, which the roster does not have`);
-      }
-    }
-  }
-}
-if (existsSync(resolve(REPO, TABLES[1]))) {
-  const refusals = read(resolve(REPO, TABLES[1])).refusals ?? [];
-  if (refusals.length === 0) fail(`${TABLES[1]} states no refusal`);
-  for (const [index, refusal] of refusals.entries()) {
-    for (const member of ['why', 'config', 'names']) {
-      if (typeof refusal[member] !== 'string' || refusal[member] === '') fail(`roster refusal ${refusal.why ? `"${refusal.why}"` : `#${index + 1}`} has no ${member}`);
-    }
-  }
-}
 
 if (!existsSync(resolve(REPO, PROTOCOL))) {
   fail(`${PROTOCOL} is missing`);
@@ -156,4 +133,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ the Archivist is specified (${RECORD_SCHEMAS.length} file-format schemas, its configuration document, ${TABLES.length} shared tables, ${PROTOCOL})`);
+console.log(`✓ the Archivist is specified (${RECORD_SCHEMAS.length} file-format schemas, its configuration document, the shared table, ${PROTOCOL})`);

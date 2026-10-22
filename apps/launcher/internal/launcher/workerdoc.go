@@ -2,11 +2,11 @@ package launcher
 
 // workerdoc.go — the worker's configuration document: WorkerConfig in specs/,
 // the Go type generated from it (packages/sdk-go). The launcher writes it for
-// the worker it starts, resolved — every ${VAR} a value, and every job's
-// fallback applied — and mounts it where the worker's image points its
-// `--config` flag, so the worker neither parses TOML nor resolves or defaults
-// anything. Secrets are never values in it: a provider's key is a ${NAME} in
-// the KB config, and the document names NAME.
+// the worker it starts, every address a literal (placement), and mounts it
+// where the worker's image points its `--config` flag, so the worker neither
+// reads a knowledge base's documents nor resolves or defaults anything.
+// Secrets are never values in it: a provider's key is a variable the Inference
+// document names (`fromEnv`), and the document names it.
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ import (
 )
 
 // workerDocumentFile: the worker is configured by a document, not a copy of
-// the KB's config. One name, staged and mounted.
+// the KB's. One name, staged and mounted.
 const workerDocumentFile = "worker.json"
 
 // workerDocumentTarget: where the worker reads that document — the path its
@@ -45,69 +45,33 @@ func jobFilter(job string) (filter semiont.JobFilter, err error) {
 	return filter, err
 }
 
-// providerAddress: where a provider's API is reached — the address its section
-// of the environment states, resolved. An Ollama the launcher places states
-// none in the KB config, and loadConfig reads it as the launcher's own
-// reference (topology.go), which resolves here to the address of this start.
-// An Anthropic section that states none is reached where the launcher itself
-// reaches Anthropic (remoteProviderAddress). ONE decider, for the worker's
+// providerAddress: where a provider's API is reached — the baseURL its entry
+// in the Inference document states. An Ollama that states none is the
+// machine's, at this start's address; an Anthropic that states none is
+// reached where the launcher itself reaches Anthropic (remoteProviderAddress).
+// Every other provider states one: the launcher keeps no vendor's address but
+// Anthropic's, and runs no server but Ollama's. ONE decider, for the worker's
 // agents and the Librarian's two models. who names the service in a refusal.
-func providerAddress(env *envConfig, envName string, provider semiont.ArchivistRosterRoleProvider, vars map[string]string, who string) (string, error) {
-	section, declared := env.Inference[string(provider)]
-	if !declared {
-		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: %s has no address to reach %s at", envName, provider, who, provider)
+func providerAddress(p placement, provider semiont.ArchivistRosterRoleProvider, who string) (string, error) {
+	baseURL := p.st.Inference.Spec.Providers[provider].BaseURL
+	switch {
+	case provider == semiont.ArchivistRosterRoleProviderOllama:
+		return p.ollama(baseURL), nil
+	case baseURL != nil:
+		return *baseURL, nil
+	case provider == semiont.ArchivistRosterRoleProviderAnthropic:
+		return saasBase(remoteProviderAddress(p.st, string(provider))), nil
 	}
-	if provider == semiont.ArchivistRosterRoleProviderAnthropic {
-		if section.Endpoint == "" {
-			return saasBase(remoteProviderAddress(env, string(provider))), nil
-		}
-		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
-	}
-	// Every other provider is reached where its section says: the launcher keeps no vendor's address but
-	// Anthropic's, and runs no server but Ollama's.
-	if section.BaseURL == "" {
-		return "", fmt.Errorf("[environments.%s.inference.%s] states no baseURL: %s has no address to reach %s at", envName, provider, who, provider)
-	}
-	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
-	switch provider {
-	case semiont.ArchivistRosterRoleProviderGoogle:
-		return resolveRefs("inference.google.baseURL", section.BaseURL, vars)
-	case semiont.ArchivistRosterRoleProviderLlamacpp:
-		return resolveRefs("inference.llamacpp.baseURL", section.BaseURL, vars)
-	case semiont.ArchivistRosterRoleProviderOllama:
-		return resolveRefs("inference.ollama.baseURL", section.BaseURL, vars)
-	case semiont.ArchivistRosterRoleProviderOpenai:
-		return resolveRefs("inference.openai.baseURL", section.BaseURL, vars)
-	case semiont.ArchivistRosterRoleProviderTogether:
-		return resolveRefs("inference.together.baseURL", section.BaseURL, vars)
-	case semiont.ArchivistRosterRoleProviderVllm:
-		return resolveRefs("inference.vllm.baseURL", section.BaseURL, vars)
-	}
-	return "", fmt.Errorf("%s's document has no address for the provider %q", who, provider)
+	return "", planErr(p.st.Files.Inference, "spec.providers."+string(provider)+".baseURL", "is not stated: %s has no address to reach %s at", who, provider)
 }
 
-// providerKeyName: the variable holding a provider's key, as its section of
-// the environment names it; none when the section states no key.
-func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvider) (*string, error) {
-	key := env.Inference[string(provider)].APIKey
-	// Each field is written out: the census of the sections the launcher resolves reads it from the call.
-	switch provider {
-	case semiont.ArchivistRosterRoleProviderAnthropic:
-		return secretName("inference.anthropic.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderGoogle:
-		return secretName("inference.google.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderLlamacpp:
-		return secretName("inference.llamacpp.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderOllama:
-		return secretName("inference.ollama.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderOpenai:
-		return secretName("inference.openai.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderTogether:
-		return secretName("inference.together.apiKey", key)
-	case semiont.ArchivistRosterRoleProviderVllm:
-		return secretName("inference.vllm.apiKey", key)
+// providerKeyName: the variable holding a provider's key, as its entry in the
+// Inference document names it; none when it names none.
+func providerKeyName(p placement, provider semiont.ArchivistRosterRoleProvider) *string {
+	if key := p.st.Inference.Spec.Providers[provider].ApiKey; key != nil {
+		return &key.FromEnv
 	}
-	return nil, nil
+	return nil
 }
 
 // modelCatalogueTarget: where the worker's image and the Librarian's each
@@ -117,42 +81,36 @@ func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvide
 // TestModelCatalogueIsWhereTheImagesCarryIt holds this to the two Dockerfiles.
 const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
 
-// workerNamedVars: the variables the worker's document names rather than
-// resolves — the key of each provider that serves a job — and so the ones the
-// worker is handed. A key that is not exactly ${NAME} names nothing here;
-// writing the document refuses it.
-func workerNamedVars(env *envConfig) []string {
+// workerSecrets: the variables the worker's document names, and so the ones
+// the worker is handed — the key of each provider that serves a job.
+func workerSecrets(p placement) []string {
 	var names []string
-	served, _ := workerRoles(env)
-	for _, s := range served {
-		if name, _ := providerKeyName(env, s.role.Provider); name != nil && !contains(names, *name) {
+	for _, s := range servedJobs(p.st.Inference.Spec.Roster) {
+		if name := providerKeyName(p, s.role.Provider); name != nil && !contains(names, *name) {
 			names = append(names, *name)
 		}
 	}
 	return names
 }
 
-// workerBindingSection: the section that binds every job to a worker, as the
-// launcher names it for an operator to add.
-func workerBindingSection(envName string) string {
-	return fmt.Sprintf("[environments.%s.workers.default.inference]", envName)
+// workerBinding: where a roster binds jobs to a worker, as the launcher names
+// it for an operator to add one.
+func workerBinding(inference string) string {
+	return inference + " spec.roster.workers"
 }
 
-// workerAgents: the agents the worker works as, projected from the roles
-// workerRoles resolves. An agent is an engine — a provider and a model, at one
-// address, under one key — and accepts every job that engine serves: agents
-// are in the order of the first job that needs each, and an agent's filters in
-// workerJobs' order. An environment that binds no job has no agents, and is
-// refused: the document's `agents` is never empty. A full start of such an
-// environment runs no worker and writes no document (workerPlan); this is the
-// refusal of a worker asked for by name.
-func workerAgents(env *envConfig, envName string, vars map[string]string) ([]semiont.WorkerAgentConfig, error) {
-	served, err := workerRoles(env)
-	if err != nil {
-		return nil, err
-	}
+// workerAgents: the agents the worker works as, projected from the roles the
+// roster binds to jobs (servedJobs). An agent is an engine — a provider and a
+// model, at one address, under one key — and accepts every job that engine
+// serves: agents are in the order of the first job that needs each, and an
+// agent's filters in workerJobs' order. A roster that binds no job has no
+// agents, and is refused: the document's `agents` is never empty. A full start
+// of such a roster runs no worker and writes no document (workerPlan); this is
+// the refusal of a worker asked for by name.
+func workerAgents(p placement) ([]semiont.WorkerAgentConfig, error) {
+	served := servedJobs(p.st.Inference.Spec.Roster)
 	if len(served) == 0 {
-		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with a type (%s) and a model", workerBindingSection(envName), providerNames)
+		return nil, fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(p.st.Files.Inference))
 	}
 	var agents []semiont.WorkerAgentConfig
 	for _, s := range served {
@@ -160,11 +118,8 @@ func workerAgents(env *envConfig, envName string, vars map[string]string) ([]sem
 		if err != nil {
 			return nil, err
 		}
-		engine := semiont.WorkerAgentConfig{Agent: *s.role}
-		if engine.BaseUrl, err = providerAddress(env, envName, s.role.Provider, vars, "the worker"); err != nil {
-			return nil, err
-		}
-		if engine.ApiKeyEnv, err = providerKeyName(env, s.role.Provider); err != nil {
+		engine := semiont.WorkerAgentConfig{Agent: *s.role, ApiKeyEnv: providerKeyName(p, s.role.Provider)}
+		if engine.BaseUrl, err = providerAddress(p, s.role.Provider, "the worker"); err != nil {
 			return nil, err
 		}
 		at := 0
@@ -185,34 +140,20 @@ func sameEngine(a, b semiont.WorkerAgentConfig) bool {
 	return a.Agent == b.Agent && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
 }
 
-// workerDocument renders the document from the selected environment and its
-// name, the address the launcher computed, and the user's variables.
-func workerDocument(env *envConfig, envName, rt, addr string, issuerPort int, userEnv []string) ([]byte, error) {
-	if env.Gateway == nil || env.Gateway.PublicURL == "" {
-		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the worker has no gateway to reach")
-	}
-	if env.Identity == nil {
-		return nil, fmt.Errorf("the environment declares no [identity]: the worker has no issuer to sign in at")
-	}
-	vars := gatewayDialerVars(rt, addr, issuerPort, userEnv)
+// workerDocument renders the document from the start's placement. It is
+// staged only for a worker the plan runs, and derivePlan refuses a roster that
+// binds the worker a job when there is no WorkerPool document.
+func workerDocument(p placement) ([]byte, error) {
 	var doc semiont.WorkerConfig
 	var err error
-	if doc.GatewayUrl, err = resolveRefs("gateway.publicURL", env.Gateway.PublicURL, vars); err != nil {
-		return nil, err
-	}
-	if doc.Identity.Issuer, err = resolveRefs("identity.issuer", env.Identity.Issuer, vars); err != nil {
-		return nil, err
-	}
-	if doc.Agents, err = workerAgents(env, envName, vars); err != nil {
+	doc.GatewayUrl = p.gatewayURL()
+	doc.Identity.Issuer = p.issuer()
+	if doc.Agents, err = workerAgents(p); err != nil {
 		return nil, err
 	}
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
-
-	doc.LogLevel = "info"
-	if env.LogLevel != "" {
-		doc.LogLevel = semiont.LogLevel(env.LogLevel)
-	}
+	doc.LogLevel = p.st.Workers.Spec.LogLevel
 	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

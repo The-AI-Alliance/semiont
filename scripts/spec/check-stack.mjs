@@ -15,6 +15,8 @@
 //     nothing is refused by holds nothing;
 //   - a document of the launcher's fixture knowledge base does not validate,
 //     or is of no kind a schema is for;
+//   - a project file of specs/src/kb-identity/cases.json validates when its
+//     case says every reader refuses it, or does not when it says none does;
 //   - a property a schema names has no field of the launcher's generated types
 //     (apps/launcher/internal/stack/types_gen.go) tagged with its name.
 //
@@ -164,6 +166,25 @@ for (const path of fixtures) {
   else held[schema].accepted++;
 }
 
+// ── the identity cases hold to the project file's schema ───────────────────
+
+// specs/src/kb-identity/cases.json says of each project file whether every
+// reader refuses it; ProjectConfig decides that, so each case's file must
+// validate exactly when the case says it is not refused.
+const identityCases = JSON.parse(readFileSync(resolve(ROOT, 'specs/src/kb-identity/cases.json'), 'utf8')).cases;
+for (const { why, config, refused } of identityCases) {
+  if (config === null) continue;
+  let document;
+  let parsed = true;
+  try {
+    document = yaml.load(config);
+  } catch {
+    parsed = false;
+  }
+  const holds = parsed && validate('ProjectConfig', document).length === 0;
+  if (holds === refused) fail(`kb-identity case "${why}": its project file ${holds ? 'holds to' : 'does not hold to'} ProjectConfig, and the case says it is ${refused ? '' : 'not '}refused`);
+}
+
 // ── the launcher's types hold every property ───────────────────────────────
 
 // An independent count, not the generator's: every property a schema of
@@ -200,4 +221,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`  - ${failure}`);
   process.exit(1);
 }
-console.log(`✓ lint:spec-stack — ${cases.length} cases and ${fixtures.length} fixture documents agree with ${Object.keys(SCHEMAS).length} schemas`);
+console.log(`✓ lint:spec-stack — ${cases.length} cases, ${identityCases.length} identity cases and ${fixtures.length} fixture documents agree with ${Object.keys(SCHEMAS).length} schemas`);

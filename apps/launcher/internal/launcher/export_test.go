@@ -21,7 +21,7 @@ import (
 )
 
 // fakeKB builds a KB root: content at natural paths, a committed-looking event
-// log, a .semiont/config, and a .git that must NOT ride along.
+// log, a .semiont/config.yaml, and a .git that must NOT ride along.
 func fakeKB(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -36,7 +36,7 @@ func fakeKB(t *testing.T) string {
 	}
 	write("docs/overview.md", "# Overview\n")
 	write("notes/thesis.md", "# Thesis\n")
-	write(".semiont/config", "[project]\nname = \"testkb\"\n\n[site]\ndomain = \"example.org\"\n")
+	write(".semiont/config.yaml", "project:\n  name: testkb\ngit:\n  sync: false\nsite:\n  domain: example.org\n  siteName: Test KB\n")
 	write(".semiont/events/res-1/events-000001.jsonl", `{"type":"yield:created"}`+"\n")
 	write(".semiont/events/__system__/events-000001.jsonl", `{"type":"frame:entity-type-added"}`+"\n")
 	// The file-edit history. Excluded by default — the event log is the KB's
@@ -84,7 +84,7 @@ func TestExportCarriesTheDurableKBAndExcludesGit(t *testing.T) {
 	for _, want := range []string{
 		"docs/overview.md",
 		"notes/thesis.md",
-		".semiont/config",
+		".semiont/config.yaml",
 		".semiont/events/res-1/events-000001.jsonl",
 		".semiont/events/__system__/events-000001.jsonl",
 	} {
@@ -126,7 +126,7 @@ func TestExportWithGitIncludesTheRepo(t *testing.T) {
 		}
 	}
 	// The durable KB is in BOTH — the flag adds, it never substitutes.
-	for _, always := range []string{".semiont/config", ".semiont/events/res-1/events-000001.jsonl", "docs/overview.md"} {
+	for _, always := range []string{".semiont/config.yaml", ".semiont/events/res-1/events-000001.jsonl", "docs/overview.md"} {
 		if !strings.Contains(withGit, always) || !strings.Contains(without, always) {
 			t.Errorf("%q must be in both archives", always)
 		}

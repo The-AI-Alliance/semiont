@@ -50,7 +50,7 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 		gated++
 		mounts := map[string]func(x *liveExec, root string) bool{
 			"owner": func(x *liveExec, root string) bool {
-				_, ok := x.stateMounts(role, image(spec.owner, "test"), root)
+				_, ok := x.stateMounts(role, semiontImage(spec.owner, "test"), root)
 				return ok
 			},
 			"unstamped": func(x *liveExec, root string) bool {

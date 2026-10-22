@@ -1,137 +1,122 @@
 {
-  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config. Go (apps/launcher/internal/launcher: effectiveKBName, committedDomain, didWeb, kbResource) runs every case and fails on any difference; TypeScript (packages/core: kbDid and kbResource), Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry) and Python (packages/sdk-python: kb_did and kb_resource) each run every case with a domain. `config` null means the file is absent; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing either implementation.",
+  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config.yaml, the project file ProjectConfig.json holds. Go (apps/launcher/internal/launcher: readKBIdentity, effectiveKBName, committedDomain, didWeb, kbResource) and Rust (apps/archivist/record: kb::committed) run every case and fail on any difference; TypeScript (packages/core: kbDid and kbResource), Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry) and Python (packages/sdk-python: kb_did and kb_resource) each run every case with a domain. `config` null means the file is absent; `refused` true means the file does not hold to ProjectConfig.json, and every reader of it refuses it; `name` null means a refused file names nothing; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing any reader.",
   "cases": [
     {
       "why": "the shape semiont init writes",
       "dir": "arxiv-kb",
-      "config": "[project]\nname = \"ArXiv Research Papers\"\n\n[git]\nsync = true\n\n[site]\ndomain = \"the-ai-alliance.github.io:semiont-arxiv-kb\"\nsiteName = \"ArXiv Research Papers\"\n",
+      "config": "project:\n  name: \"ArXiv Research Papers\"\n\ngit:\n  sync: true\n\nsite:\n  # Permanent did:web identity for everything this KB mints.\n  domain: \"the-ai-alliance.github.io:semiont-arxiv-kb\"\n  siteName: \"ArXiv Research Papers\"\n",
+      "refused": false,
       "name": "ArXiv Research Papers",
       "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
       "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb",
       "resource": "https://the-ai-alliance.github.io/semiont-arxiv-kb"
     },
     {
-      "why": "no config file: the directory name, and no identity",
+      "why": "no project file: the directory name, and no identity",
       "dir": "bare-kb",
       "config": null,
+      "refused": false,
       "name": "bare-kb",
       "domain": null,
       "did": null,
       "resource": null
     },
     {
-      "why": "no [project] name: the directory name",
-      "dir": "nameless-kb",
-      "config": "[site]\ndomain = \"example.github.io:nameless-kb\"\n",
-      "name": "nameless-kb",
-      "domain": "example.github.io:nameless-kb",
-      "did": "did:web:example.github.io:nameless-kb",
-      "resource": "https://example.github.io/nameless-kb"
+      "why": "plain scalars, and a version, which names nothing",
+      "dir": "plain-kb",
+      "config": "project:\n  name: Plain\n  version: 0.1.0\ngit:\n  sync: false\nsite:\n  domain: example.github.io:plain-kb\n  siteName: Plain\n",
+      "refused": false,
+      "name": "Plain",
+      "domain": "example.github.io:plain-kb",
+      "did": "did:web:example.github.io:plain-kb",
+      "resource": "https://example.github.io/plain-kb"
     },
     {
-      "why": "an empty name counts as none",
-      "dir": "empty-name-kb",
-      "config": "[project]\nname = \"\"\n",
-      "name": "empty-name-kb",
-      "domain": null,
-      "did": null,
-      "resource": null
-    },
-    {
-      "why": "a key that merely starts with name, in a section above [project]",
-      "dir": "prefix-kb",
-      "config": "[graph]\nnamespace = \"other\"\n\n[project]\nname = \"The Real Name\"\n",
-      "name": "The Real Name",
-      "domain": null,
-      "did": null,
-      "resource": null
-    },
-    {
-      "why": "an inline comment is not part of the value",
+      "why": "a comment is not part of the value",
       "dir": "comment-kb",
-      "config": "[project]\nname = \"Commented\" # a note\n\n[site]\ndomain = \"example.github.io:comment-kb\" # permanent\n",
+      "config": "project:\n  name: Commented # a note\ngit:\n  sync: true\nsite:\n  domain: example.github.io:comment-kb # permanent\n  siteName: Commented\n",
+      "refused": false,
       "name": "Commented",
       "domain": "example.github.io:comment-kb",
       "did": "did:web:example.github.io:comment-kb",
       "resource": "https://example.github.io/comment-kb"
     },
     {
-      "why": "a literal string",
-      "dir": "literal-kb",
-      "config": "[project]\nname = 'Literal'\n",
-      "name": "Literal",
-      "domain": null,
-      "did": null,
-      "resource": null
-    },
-    {
-      "why": "escapes are decoded",
+      "why": "escapes in a double-quoted value are decoded",
       "dir": "escape-kb",
-      "config": "[project]\nname = \"A \\\"quoted\\\" KB\"\n",
+      "config": "project:\n  name: \"A \\\"quoted\\\" KB\"\ngit:\n  sync: true\nsite:\n  domain: example.github.io:escape-kb\n  siteName: Quoted\n",
+      "refused": false,
       "name": "A \"quoted\" KB",
-      "domain": null,
-      "did": null,
-      "resource": null
+      "domain": "example.github.io:escape-kb",
+      "did": "did:web:example.github.io:escape-kb",
+      "resource": "https://example.github.io/escape-kb"
     },
     {
-      "why": "an equals sign inside the value",
-      "dir": "equals-kb",
-      "config": "[project]\nname = \"a = b\"\n",
-      "name": "a = b",
-      "domain": null,
-      "did": null,
-      "resource": null
-    },
-    {
-      "why": "a dotted key names the same table",
-      "dir": "dotted-kb",
-      "config": "project.name = \"Dotted\"\nsite.domain = \"example.github.io:dotted-kb\"\n",
-      "name": "Dotted",
-      "domain": "example.github.io:dotted-kb",
-      "did": "did:web:example.github.io:dotted-kb",
-      "resource": "https://example.github.io/dotted-kb"
-    },
-    {
-      "why": "spaces inside a table header",
-      "dir": "spaced-kb",
-      "config": "[ project ]\nname = \"Spaced\"\n\n[ site ]\ndomain = \"example.github.io:spaced-kb\"\n",
-      "name": "Spaced",
-      "domain": "example.github.io:spaced-kb",
-      "did": "did:web:example.github.io:spaced-kb",
-      "resource": "https://example.github.io/spaced-kb"
-    },
-    {
-      "why": "the domain is the top-level [site] only, never an environment's",
-      "dir": "env-kb",
-      "config": "[project]\nname = \"Env Scoped\"\n\n[environments.local.site]\ndomain = \"localhost\"\n",
-      "name": "Env Scoped",
-      "domain": null,
-      "did": null,
-      "resource": null
-    },
-    {
-      "why": "a [site] without a domain declares no identity",
-      "dir": "nodomain-kb",
-      "config": "[project]\nname = \"No Domain\"\n\n[site]\nsiteName = \"No Domain\"\n",
-      "name": "No Domain",
-      "domain": null,
-      "did": null,
-      "resource": null
+      "why": "a flow mapping is the same mapping",
+      "dir": "flow-kb",
+      "config": "project: { name: Flow }\ngit: { sync: true }\nsite: { domain: \"example.github.io:flow-kb\", siteName: Flow }\n",
+      "refused": false,
+      "name": "Flow",
+      "domain": "example.github.io:flow-kb",
+      "did": "did:web:example.github.io:flow-kb",
+      "resource": "https://example.github.io/flow-kb"
     },
     {
       "why": "a multi-segment domain becomes a multi-segment path",
       "dir": "deep-kb",
-      "config": "[project]\nname = \"Deep\"\n\n[site]\ndomain = \"example.org:group:deep-kb\"\n",
+      "config": "project:\n  name: Deep\ngit:\n  sync: true\nsite:\n  domain: example.org:group:deep-kb\n  siteName: Deep\n",
+      "refused": false,
       "name": "Deep",
       "domain": "example.org:group:deep-kb",
       "did": "did:web:example.org:group:deep-kb",
       "resource": "https://example.org/group/deep-kb"
     },
     {
-      "why": "malformed TOML counts as no file",
+      "why": "a site without a domain is refused",
+      "dir": "nodomain-kb",
+      "config": "project:\n  name: No Domain\ngit:\n  sync: true\nsite:\n  siteName: No Domain\n",
+      "refused": true,
+      "name": null,
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "an empty name is refused",
+      "dir": "empty-name-kb",
+      "config": "project:\n  name: \"\"\ngit:\n  sync: true\nsite:\n  domain: example.github.io:empty-name-kb\n  siteName: Empty\n",
+      "refused": true,
+      "name": null,
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a sync written as text is refused",
+      "dir": "text-sync-kb",
+      "config": "project:\n  name: Text Sync\ngit:\n  sync: \"yes\"\nsite:\n  domain: example.github.io:text-sync-kb\n  siteName: Text Sync\n",
+      "refused": true,
+      "name": null,
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a key the schema does not name is refused",
+      "dir": "misspelled-kb",
+      "config": "project:\n  name: Misspelled\ngit:\n  sync: true\nsite:\n  domian: example.github.io:misspelled-kb\n  siteName: Misspelled\n",
+      "refused": true,
+      "name": null,
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a file that is not YAML is refused",
       "dir": "broken-kb",
-      "config": "[project\nname = \"Broken\"\n",
-      "name": "broken-kb",
+      "config": "project: [\n",
+      "refused": true,
+      "name": null,
       "domain": null,
       "did": null,
       "resource": null

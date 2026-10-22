@@ -183,7 +183,7 @@ func (u *UI) Stamp(event string) {
 	fmt.Println(u.Dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }
 
-// injectedCredentials: the launcher-injected variables (config.go's
+// injectedCredentials: the launcher-injected variables (support.go's
 // injectedVars) whose values are credentials. The other injected value is a
 // client id — seeing WHICH client a service presented is the first thing
 // anyone diagnosing an authentication failure wants. A census
@@ -202,12 +202,17 @@ var publicEnv = map[string]bool{
 	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true,
 }
 
+// injectedVars: the variables the launcher sets in a service's environment
+// itself, so it neither demands nor forwards them from the user's.
+var injectedVars = map[string]bool{
+	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
+}
+
 // onCommandLine: whether a variable's value may ride a container's command
 // line. Default deny: anything not known to be public — every custody value,
 // every user-forwarded value, every daemon credential — crosses through the
 // runtime's own environment instead. Derived from injectedVars rather than
-// restating it: a hand-kept copy that misses KEYCLOAK_PORT hides the one
-// number a moved issuer is about.
+// restating it.
 func onCommandLine(name string) bool {
 	return publicEnv[name] || (injectedVars[name] && !injectedCredentials[name])
 }

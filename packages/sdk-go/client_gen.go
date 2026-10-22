@@ -2561,7 +2561,7 @@ type AnnotationTarget struct {
 // AnnotationTargetType Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
 type AnnotationTargetType string
 
-// ArchivistConfig Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
+// ArchivistConfig Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
 type ArchivistConfig struct {
 	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
 	AnchoredTextDir string `json:"anchoredTextDir"`
@@ -2587,7 +2587,7 @@ type ArchivistConfig struct {
 	// Root The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it.
 	Root string `json:"root"`
 
-	// Roster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
+	// Roster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.
 	Roster ArchivistRoster `json:"roster"`
 
 	// SkipRebuild Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first.
@@ -2624,7 +2624,7 @@ type ArchivistHealth struct {
 // ArchivistHealthStatus defines model for ArchivistHealth.Status.
 type ArchivistHealthStatus string
 
-// ArchivistRoster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
+// ArchivistRoster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.
 type ArchivistRoster struct {
 	// Actors The agent serving each actor that calls a model.
 	Actors struct {
@@ -2992,7 +2992,7 @@ type BrowseKbRequest = map[string]interface{}
 
 // BrowseKbResult Result of browse:kb-requested
 type BrowseKbResult struct {
-	// Response What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.
+	// Response What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config.yaml and the working tree it holds. The only source clients use for a knowledge base's name and domain.
 	Response KbDescription `json:"response"`
 }
 
@@ -3101,7 +3101,7 @@ type BrowseTagSchemasResult struct {
 
 // BusEmitAccepted Result of publishing one event. `subscribers` is the number of observers attached to the target subject at dispatch — the GLOBAL subject for an unscoped emit, the scoped one when `scope` is set. Zero means the signal reached nobody: /bus/subscribe enforces no channel allowlist and the emit handler publishes unconditionally, so a client can emit a channel no participant subscribes to and otherwise receive a clean 202 with no way to tell. Deliberately NOT named `delivered`: this is the count at dispatch, and a subscriber may still drop the frame downstream, so the field is named after what the server can actually observe.
 type BusEmitAccepted struct {
-	// Subscribers Observers on the target subject when the event was dispatched. ABSENT means the gateway could not count: under a broker signal plane (`[signal] type = "nats"`) the event is published to a fabric whose observers the gateway cannot see. The one zero a broker plane states is a registry operation's request with a `correlationId` that reached nobody, which the broker itself reports (no responders). Never defaulted: a zero here is the claim that nobody was listening, and a gateway that did not observe that never makes it.
+	// Subscribers Observers on the target subject when the event was dispatched. ABSENT means the gateway could not count: under a broker signal plane (the KnowledgeBase document's `spec.messaging.signal.type: nats`) the event is published to a fabric whose observers the gateway cannot see. The one zero a broker plane states is a registry operation's request with a `correlationId` that reached nobody, which the broker itself reports (no responders). Never defaulted: a zero here is the claim that nobody was listening, and a gateway that did not observe that never makes it.
 	Subscribers *int `json:"subscribers,omitempty"`
 }
 
@@ -3334,7 +3334,7 @@ type DirectoryEntry struct {
 
 // DiscoveredKB One knowledge base the Semiont launcher manages on this machine, as published in the discovery document (see DiscoveryDocument). Endpoints and identity only — never credentials; login remains the consumer's per-KB business.
 type DiscoveredKB struct {
-	// Did The KB's did:web identifier, from its committed .semiont/config — "did:web:" + the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant — an address alone cannot say which KB is which, and an identity alone cannot say which copy.
+	// Did The KB's did:web identifier, from its committed .semiont/config.yaml — "did:web:" + its site.domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant — an address alone cannot say which KB is which, and an identity alone cannot say which copy.
 	Did string `json:"did"`
 
 	// Host Hostname the KB is reachable on from this machine (always "localhost" — local stacks bind locally and codespace KBs arrive through a local port forward)
@@ -3352,7 +3352,7 @@ type DiscoveredKB struct {
 	// Repo owner/name GitHub slug — present for codespace placements, where the repo is the stack's identity
 	Repo *string `json:"repo,omitempty"`
 
-	// SiteName Human-readable site name from the KB's .semiont/config, for display
+	// SiteName Human-readable site name from the KB's .semiont/config.yaml (site.siteName), for display
 	SiteName *string `json:"siteName,omitempty"`
 }
 
@@ -3371,7 +3371,7 @@ type DiscoveryDocument struct {
 // DiscoveryDocumentVersion Document schema version. Consumers MUST check it and ignore documents they do not understand.
 type DiscoveryDocumentVersion int
 
-// DispatcherConfig Everything the dispatcher reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the environment the knowledge base's config selects, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
+// DispatcherConfig Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
 type DispatcherConfig struct {
 	// GatewayUrl The URL the dispatcher reaches the gateway at: its only route to the bus.
 	GatewayUrl string `json:"gatewayUrl"`
@@ -3643,7 +3643,7 @@ type FrameAddTagSchemaCommand struct {
 	Schema TagSchema `json:"schema"`
 }
 
-// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+// GatewayConfig Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
 type GatewayConfig struct {
 	// Archivist Where the Archivist listens.
 	Archivist struct {
@@ -3666,7 +3666,7 @@ type GatewayConfig struct {
 		SubjectClaim string `json:"subjectClaim"`
 	} `json:"identity"`
 
-	// Kb The knowledge base's committed identity (`[project] name` and `[site] domain` in its .semiont/config).
+	// Kb The knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml).
 	Kb struct {
 		// Domain Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.
 		Domain string `json:"domain"`
@@ -4918,15 +4918,15 @@ type JobStoredResult1 = map[string]interface{}
 // JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 type JobType string
 
-// KbDescription What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.
+// KbDescription What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config.yaml and the working tree it holds. The only source clients use for a knowledge base's name and domain.
 type KbDescription struct {
-	// Domain The committed [site] domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that declares none is refused with browse:kb-failed.
+	// Domain The committed site.domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that commits no .semiont/config.yaml declares none, and is refused with browse:kb-failed.
 	Domain string `json:"domain"`
 
-	// GitBranch The working tree's current git branch. Absent when the knowledge base does not sync git (`[git] sync` in its committed config), and when its tree is not a git checkout.
+	// GitBranch The working tree's current git branch. Absent when the knowledge base does not sync git (`git.sync` in its committed .semiont/config.yaml), and when its tree is not a git checkout.
 	GitBranch *string `json:"gitBranch,omitempty"`
 
-	// Name The committed [project] name, or the knowledge base directory's name when none is declared.
+	// Name The committed project.name, or the knowledge base directory's name when it commits no .semiont/config.yaml.
 	Name string `json:"name"`
 }
 
@@ -4997,7 +4997,7 @@ type KnowledgeGraph_Nodes_Item struct {
 	union json.RawMessage
 }
 
-// LibrarianConfig Everything a Librarian reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the environment the knowledge base's config selects, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+// LibrarianConfig Everything a Librarian reads at boot: nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the knowledge base's stack documents, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type LibrarianConfig struct {
 	// Archivist Where the Archivist listens. The Librarian reads a resource's bytes from it, as its service account.
 	Archivist struct {
@@ -6413,7 +6413,7 @@ type SmeltSettledOutcome string
 // SmeltSettledReason Why the content was skipped.
 type SmeltSettledReason string
 
-// SmelterConfig Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+// SmelterConfig Everything a Smelter reads at boot: nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the knowledge base's stack documents, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type SmelterConfig struct {
 	// Archivist Where the Archivist listens. The Smelter reads a resource's bytes from it, and keeps the anchored-text store there, as its service account.
 	Archivist struct {
@@ -6722,7 +6722,7 @@ type WeaveRebuildCommand struct {
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 }
 
-// WeaverConfig Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+// WeaverConfig Everything a Weaver reads at boot: nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the knowledge base's stack documents, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type WeaverConfig struct {
 	// Archivist Where the Archivist listens. The Weaver reads the record by position from it, and a resource's annotations, as its service account.
 	Archivist struct {
@@ -6770,9 +6770,9 @@ type WorkerAgentConfig struct {
 	BaseUrl string `json:"baseUrl"`
 }
 
-// WorkerConfig Everything a worker reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the environment the knowledge base's config selects, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+// WorkerConfig Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type WorkerConfig struct {
-	// Agents The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. Every fallback the knowledge base's config allows is already applied, so a job no agent here accepts is not claimed by this worker.
+	// Agents The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. They are the knowledge base's Inference document's roster as it stands, with no fallback, so a job no agent here accepts is not claimed by this worker.
 	Agents []WorkerAgentConfig `json:"agents"`
 
 	// GatewayUrl The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.

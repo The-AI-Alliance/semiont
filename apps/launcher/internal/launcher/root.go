@@ -75,7 +75,7 @@ func resolveKBRoot() (path, source string, err error) {
 
 type rootEntry struct {
 	Path     string `json:"path"`
-	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
+	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config.yaml site.domain
 	SiteName string `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
 	Config   string `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
 	// KeycloakPort: sticky KEYCLOAK_PORT — what a successful start last took
@@ -88,10 +88,13 @@ type rootEntry struct {
 }
 
 type rootsRegistry struct {
-	Schema  int                  `json:"schema"`
-	Runtime string               `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
-	Secrets map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
-	Roots   []rootEntry          `json:"roots"`
+	Schema  int    `json:"schema"`
+	Runtime string `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
+	// BrowserImage: the image the machine's Browser runs, where the
+	// browser-image setting names one (browserImage).
+	BrowserImage string               `json:"browserImage,omitempty"`
+	Secrets      map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
+	Roots        []rootEntry          `json:"roots"`
 }
 
 func rootsPath() string {
@@ -171,7 +174,7 @@ func upsertRoot(reg *rootsRegistry, path string) *rootEntry {
 		path = abs
 	}
 	now := time.Now().UTC()
-	// Identity refreshes on every use — the KB's .semiont/config can change.
+	// Identity refreshes on every use — the KB's .semiont/config.yaml can change.
 	ident := loadKBIdentity(path)
 	// A moved KB re-registers its did at the new path, leaving its previous
 	// path's row a corpse nothing else removes (and a basename collision

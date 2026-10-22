@@ -11,7 +11,8 @@ package launcher
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 const identityUsage = `Usage: semiont identity sync [--root <path>] [--config <name>]
@@ -114,8 +115,7 @@ func Identity(args []string) int {
 			return 1
 		}
 	}
-	configFile := filepath.Join(configDir, configName+".toml")
-	envCfg, envName, _, err := loadConfig(configFile)
+	st, err := stack.Load(root, configName)
 	if err != nil {
 		u.Fail("%v", err)
 		return 1
@@ -124,7 +124,7 @@ func Identity(args []string) int {
 	if !ok {
 		return 1
 	}
-	plan, err := derivePlan(envCfg, envName, configFile, kcPort)
+	plan, err := derivePlan(st, kcPort)
 	if err != nil {
 		u.Fail("%v", err)
 		return 1

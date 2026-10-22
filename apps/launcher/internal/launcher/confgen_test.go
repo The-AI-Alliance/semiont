@@ -3,94 +3,116 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"unicode"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
-	toml "github.com/pelletier/go-toml/v2"
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
+// genFor: what `init --inference <inference>` builds the documents from.
+func genFor(inference string) genParams {
+	return genParams{Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding", AnthropicEndpoint: "https://api.anthropic.com"}
+}
+
+// bornStack: the documents generateStack writes for p, read as a start reads
+// them.
+func bornStack(t *testing.T, p genParams, name string) *stack.Stack {
+	t.Helper()
+	files, err := generateStack(p, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := writeStackFiles(root, files); err != nil {
+		t.Fatal(err)
+	}
+	st, err := stack.Load(root, name)
+	if err != nil {
+		t.Fatalf("--inference %s: a start does not read the generated documents: %v", p.Inference, err)
+	}
+	return st
+}
+
 // A KB born from `semiont init` must be one `semiont start` can bring up, and
-// the dispatcher's queue is JetStream: a generated config without
-// [jobs] type = "jetstream" is one the launcher refuses.
-func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
+// the dispatcher's queue is JetStream: a generated KnowledgeBase whose jobs
+// type is anything else is one the launcher refuses.
+func TestGeneratedStackSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 	for _, inference := range []string{"anthropic", "ollama"} {
-		cfg := generateSemiontconfig(genParams{
-			Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding",
-		})
-		// Parsed, not grepped: a section that exists with the wrong type is the
-		// failure worth catching, and a substring search cannot tell which
-		// section a `type` line belongs to.
-		var parsed struct {
-			Environments map[string]struct {
-				Jobs struct {
-					Type string `toml:"type"`
-				} `toml:"jobs"`
-				Signal struct {
-					Type string `toml:"type"`
-				} `toml:"signal"`
-			} `toml:"environments"`
-		}
-		if err := toml.Unmarshal([]byte(cfg), &parsed); err != nil {
-			t.Fatalf("--inference %s: the generated config does not parse: %v", inference, err)
-		}
-		local := parsed.Environments["local"]
-		if local.Jobs.Type != "jetstream" {
-			t.Errorf("--inference %s: jobs driver is %q, want \"jetstream\" — the dispatcher's queue is JetStream", inference, local.Jobs.Type)
+		m := bornStack(t, genFor(inference), inference).KnowledgeBase.Spec.Messaging
+		if m.Jobs.Type != "jetstream" {
+			t.Errorf("--inference %s: jobs driver is %q, want \"jetstream\" — the dispatcher's queue is JetStream", inference, m.Jobs.Type)
 		}
 		// The ledger's durability rides on this one: `nats` is what puts the
 		// gateway's claims and retained replies in JetStream KV on the
 		// daemon's /data store. In-process, they would live in one gateway's
 		// memory — lost on restart, shared with no replica.
-		if local.Signal.Type != "nats" {
-			t.Errorf("--inference %s: signal driver is %q, want \"nats\" — the durable, shared ledger a forked KB gets", inference, local.Signal.Type)
+		if m.Signal.Type != "nats" {
+			t.Errorf("--inference %s: signal driver is %q, want \"nats\" — the durable, shared ledger a forked KB gets", inference, m.Signal.Type)
 		}
 	}
 }
 
-// `--model-light` writes a per-job refinement as a commented example. The
-// edit it invites is uncommenting it, so uncommented it must be a section
-// that names a job and binds the lighter model: one the launcher refuses is an
-// example that breaks the config of whoever follows it.
+// `--model-light` is an example in a comment, never a binding: the document
+// still reads, every role is bound to --model, and the jobs the example names
+// are jobs the roster has — an example naming none would break the roster of
+// whoever follows it.
 func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
-	cfg := generateSemiontconfig(genParams{
-		Inference: "anthropic", Model: "a-model", ModelLight: "a-light-model", EmbeddingModel: "an-embedding",
-	})
-	var lines []string
-	uncommented := 0
-	for _, line := range strings.Split(cfg, "\n") {
-		if written, isComment := strings.CutPrefix(line, "# "); isComment && (strings.HasPrefix(written, "[") || strings.Contains(written, " = ")) {
-			line = written
-			uncommented++
-		}
-		lines = append(lines, line)
-	}
-	if uncommented == 0 {
-		t.Fatalf("the generated config holds no commented example:\n%s", cfg)
-	}
-	path := filepath.Join(t.TempDir(), "refined.toml")
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+	p := genFor("anthropic")
+	p.ModelLight = "a-light-model"
+	files, err := generateStack(p, "anthropic")
+	if err != nil {
 		t.Fatal(err)
 	}
-	env, _, _, err := loadConfig(path)
+	text := string(files[filepath.Join(stack.InferenceDir, "anthropic.yaml")])
+	inference, err := stack.Parse[stack.Inference]("anthropic.yaml", "Inference", []byte(text))
 	if err != nil {
-		t.Fatalf("the example, uncommented, is refused: %v", err)
+		t.Fatalf("the example breaks the document: %v", err)
 	}
-	for _, binding := range env.Workers {
-		if binding.Inference.Model == "a-light-model" {
-			return
+	for _, b := range rosterRoles(inference.Spec.Roster) {
+		if b.role.Model != p.Model {
+			t.Errorf("%s is bound to %s: --model-light is an example, never a binding", b.at, b.role.Model)
 		}
 	}
-	t.Errorf("the example, uncommented, binds the lighter model to no worker section: %v", env.Workers)
+	jobs := map[string]bool{}
+	for _, job := range workerJobs() {
+		jobs[job.name] = true
+	}
+	var comment []string
+	for _, line := range strings.Split(text, "\n") {
+		if example, isComment := strings.CutPrefix(line, "#"); isComment {
+			comment = append(comment, example)
+		}
+	}
+	example := strings.Join(comment, "\n")
+	if !strings.Contains(example, p.ModelLight) {
+		t.Fatalf("the document holds no example of the lighter model:\n%s", text)
+	}
+	named := 0
+	for _, word := range strings.FieldsFunc(example, func(r rune) bool { return !unicode.IsLetter(r) }) {
+		if semiont.Motivation(word).Valid() {
+			named++
+			if !jobs["mark."+word] {
+				t.Errorf("the example names %s, and the roster has no mark.%s job", word, word)
+			}
+		}
+	}
+	if named == 0 {
+		t.Errorf("the example names no job:\n%s", example)
+	}
 }
 
 // A born KB must be startable by the command `init` itself prints next.
 //
-// `init` writes <provider>.toml — anthropic.toml, ollama.toml — and `start`
-// defaults to `ollama-gemma`, which no born KB has. `start` consults the
-// root's sticky config preference first, so init records the config it wrote
-// there; with an empty preference the first command a new user is told to run
-// refuses with "Config not found" whichever provider they chose.
+// `init` writes inference/<provider>.yaml — anthropic.yaml, ollama.yaml — and
+// `start` defaults to `ollama-gemma`, which no born KB has. `start` consults
+// the root's sticky config preference first, so init records the Inference
+// document it wrote there; with an empty preference the first command a new
+// user is told to run refuses whichever provider they chose.
 func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 	home := harness.Home(t)
 	root := filepath.Join(home, "born")
@@ -106,16 +128,16 @@ func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 
 	pref := recordedConfig(root)
 	if pref == "" {
-		t.Fatal("init recorded no config preference, so `semiont start` falls through to its hardcoded default — which no born KB has a file for")
+		t.Fatal("init recorded no config preference, so `semiont start` falls through to its hardcoded default — which no born KB has a document for")
 	}
-	if _, err := os.Stat(filepath.Join(root, configDir, pref+".toml")); err != nil {
-		t.Errorf("init recorded %q as this root's config, but wrote no such file: %v", pref, err)
+	if _, err := os.Stat(filepath.Join(root, stack.InferencePath(pref))); err != nil {
+		t.Errorf("init recorded %q as this root's config, but wrote no such Inference document: %v", pref, err)
 	}
 }
 
 // `semiont init --yes` must produce a KB that starts: with no --inference and
-// no --model it writes a config all the same, or the very next command it
-// prints — `semiont start` — cannot run.
+// no --model it writes the documents all the same, or the very next command
+// it prints — `semiont start` — cannot run.
 //
 // The defaults are ollama inference on a small model: the provider that needs
 // no credential and the size that a first KB can actually pull.
@@ -137,28 +159,24 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 	if pref == "" {
 		t.Fatal("no config preference recorded — `semiont start` would fall through to its hardcoded default")
 	}
-	cfg, err := os.ReadFile(filepath.Join(root, configDir, pref+".toml"))
+	st, err := stack.Load(root, pref)
 	if err != nil {
-		t.Fatalf("init wrote no config: %v", err)
+		t.Fatalf("a start does not read the documents init wrote: %v", err)
 	}
-	for _, want := range []string{
-		"[environments.local.inference.ollama]", // no credential needed
-		"[environments.local.jobs]",             // or the dispatcher refuses
-		"[environments.local.embedding]",
-	} {
-		if !strings.Contains(string(cfg), want) {
-			t.Errorf("the bare config declares no %s", want)
-		}
+	if _, err := derivePlan(st, 8080); err != nil {
+		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
-	// It must also survive the launcher's own deriver, which is what
-	// writeVettedConfig already demands — proven by init having exited 0.
+	providers := st.Inference.Spec.Providers
+	if _, ollama := providers[semiont.ArchivistRosterRoleProviderOllama]; !ollama || len(providers) != 1 {
+		t.Errorf("the bare KB's providers are %v, want Ollama alone — no credential needed", providers)
+	}
 }
 
-// `init --inference anthropic` must write a config without a key in the
+// `init --inference anthropic` must write the documents without a key in the
 // environment. The key is needed to START, not to be born — refusing at birth
-// would leave the user with no config at all rather than one they can fill
-// in. Ollama's path gives the same answer to the same situation: it warns and
-// proceeds when it cannot verify a model.
+// would leave the user with no documents at all rather than ones they can
+// start once the key is set. Ollama's path gives the same answer to the same
+// situation: it warns and proceeds when it cannot verify a model.
 func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 	home := harness.Home(t)
 	t.Setenv("ANTHROPIC_API_KEY", "")
@@ -171,34 +189,34 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 	if code := Init([]string{"--yes", "--domain", "pingel.org:kb", "--inference", "anthropic"}); code != 0 {
 		t.Fatalf("init --inference anthropic exited %d with no ANTHROPIC_API_KEY set", code)
 	}
-	pref := recordedConfig(root)
-	cfg, err := os.ReadFile(filepath.Join(root, configDir, pref+".toml"))
+	st, err := stack.Load(root, recordedConfig(root))
 	if err != nil {
-		t.Fatalf("no config written: %v", err)
+		t.Fatalf("no documents a start reads were written: %v", err)
 	}
-	for _, want := range []string{
-		"[environments.local.inference.anthropic]",
-		`apiKey = "${ANTHROPIC_API_KEY}"`, // needed at start, not at birth
-		"[environments.local.jobs]",
-	} {
-		if !strings.Contains(string(cfg), want) {
-			t.Errorf("the config declares no %s", want)
+	// Needed at start, not at birth.
+	if key := st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic].ApiKey; key == nil || key.FromEnv != "ANTHROPIC_API_KEY" {
+		t.Errorf("the Inference document names the key as %+v, want the variable ANTHROPIC_API_KEY", key)
+	}
+	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
+		if b.role.Model == "" {
+			t.Errorf("%s was written with an empty model", b.at)
 		}
-	}
-	if strings.Contains(string(cfg), `model = ""`) {
-		t.Error("a binding was written with an empty model")
 	}
 }
 
-// A born KB names no password for a daemon the launcher runs — the launcher
-// generates and keeps those, and refuses a config that names one.
+// A born KB runs every daemon itself, and the launcher generates and keeps
+// those daemons' passwords: a start of it reads no variable but its
+// provider's key.
 func TestInitWritesNoDaemonPassword(t *testing.T) {
-	for _, inference := range []string{"anthropic", "ollama"} {
-		cfg := generateSemiontconfig(genParams{Inference: inference})
-		for _, line := range strings.Split(cfg, "\n") {
-			if strings.HasPrefix(strings.TrimSpace(line), "password") {
-				t.Errorf("--inference %s: the born config names a daemon password: %s", inference, line)
+	for inference, want := range map[string][]string{"anthropic": {"ANTHROPIC_API_KEY"}, "ollama": nil} {
+		p := placed(t, bornStack(t, genFor(inference), inference))
+		for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
+			if !p.placed(role) {
+				t.Errorf("--inference %s: the born KB has somebody else run its %s", inference, role)
 			}
+		}
+		if got := secretsRead(p, ""); !slices.Equal(got, want) {
+			t.Errorf("--inference %s: a start of the born KB reads %v, want %v", inference, got, want)
 		}
 	}
 }

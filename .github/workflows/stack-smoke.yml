@@ -55,8 +55,10 @@ jobs:
     # A ceiling, not an estimate of how long the build takes on a runner.
     timeout-minutes: 90
     env:
-      # The image tag the launcher boots: `local`, the images built below from
-      # this commit, unless the run names a published tag.
+      # The image tag the smoke writes into the stack's documents: `local`, the
+      # images built below from this commit, unless the run names a published
+      # tag. The launcher does not read this variable; smoke-stack.sh takes it
+      # as its argument.
       SEMIONT_VERSION: ${{ inputs.images || 'local' }}
     steps:
       - uses: actions/checkout@v7.0.1

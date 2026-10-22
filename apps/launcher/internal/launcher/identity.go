@@ -43,14 +43,14 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. A knowledge base that wants a different one sets
-	// `accessTokenLifespan` in its [identity] section; this is what it gets
-	// otherwise.
+	// upgrade. `semiont init` writes it into the Issuer document's
+	// spec.accessTokenLifespan, where a knowledge base that wants a different
+	// one changes it.
 	keycloakAccessTokenLifespan = 300
 )
 
-// splitIssuer: the host, port and path of an issuer URL. Not url.Parse — a
-// launcher-injected ${KEYCLOAK_HOST} is not a legal hostname to it.
+// splitIssuer: the host, port and path of an issuer URL, as a document states
+// one.
 func splitIssuer(issuer string) (host string, port int, path string, err error) {
 	rest, ok := strings.CutPrefix(issuer, "http://")
 	if !ok {
@@ -402,7 +402,7 @@ func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLif
 // an account for NAMES THEMSELVES at first login — Keycloak collects both before
 // it lets them through. That is deliberate: Keycloak composes the `name` claim
 // from these two — the display name the gateway carries and the Browser shows.
-// Identity is the DID, built from the `[identity] subjectClaim` claim; a name
+// Identity is the DID, built from the claim spec.issuer.subjectClaim names; a name
 // never is. The alternative is an administrator typing one string that
 // something then has to split, and splitting a display name on a space gets
 // "Mary Jane" and "van der Berg" wrong. Nobody here is willing to guess, so
@@ -511,7 +511,7 @@ func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// its database on the [database] PostgreSQL (created there when the launcher
+// its database on the PostgreSQL the Issuer document describes (created there when the launcher
 // runs that PostgreSQL), the realm file to import, and the bootstrap admin
 // password. The password is per root and persisted: Keycloak creates the
 // admin on its FIRST boot only, so a regenerated value would lock the

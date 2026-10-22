@@ -34,7 +34,7 @@ import (
 // MINT and KEEP — so a config may not source one from a secret provider.
 //
 // The two mechanisms meet in the container's environment: resolved values
-// are appended from the config's ${VAR} references, and custody's are
+// are appended from the variables the documents name (fromEnv), and custody's are
 // appended after them. For a name custody owns, the resolved value is
 // therefore discarded — silently, and after the provider's authorization
 // prompt has already been answered. Refusing the registration is the rule

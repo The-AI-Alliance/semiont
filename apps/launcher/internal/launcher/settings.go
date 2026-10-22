@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // setting: one setting `semiont settings` lists.
@@ -59,6 +61,8 @@ const (
 var settingsTable = []setting{
 	{name: "runtime", scope: scopeMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
 		set: setRuntime, unset: unsetRuntime},
+	{name: "browser-image", scope: scopeMachine, show: showBrowserImage, saves: []string{"rootsRegistry.BrowserImage"},
+		set: setBrowserImage, unset: unsetBrowserImage},
 	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"}},
 	{name: "secret-store", flag: "--default", scope: scopeMachine, show: showDefaultSecretStore,
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
@@ -94,8 +98,9 @@ Settings:
                                    container, docker or podman
   secret          machine          Where your own secrets come from (pointers,
                                    never values): semiont settings secret --help
-  config          knowledge base   Which config in .semiont/semiontconfig/ a
-                                   start runs
+  browser-image   machine          The image the machine's Browser runs
+  config          knowledge base   Which Inference document in
+                                   .semiont/stack/inference/ a start runs
   keycloak-port   knowledge base   The port of this knowledge base's Keycloak
   secret-store    knowledge base   Where the values the launcher generates for
                                    the knowledge base are kept: op://<vault>,
@@ -341,29 +346,55 @@ func setRuntime(u *UI, root, value string) bool {
 
 func unsetRuntime(u *UI, root string) bool { return recorded(u, setRuntimePref("")) }
 
-// loadRootConfig loads one of root's configs, refusing as a start would.
-func loadRootConfig(u *UI, root, name string) (*envConfig, bool) {
-	path := filepath.Join(root, configDir, name+".toml")
-	if _, err := os.Stat(path); err != nil {
-		u.Fail("Config not found: %s", path)
+// loadRootStack loads root's documents with its Inference document named
+// name, refusing as a start would.
+func loadRootStack(u *UI, root, name string) (*stack.Stack, bool) {
+	if _, err := os.Stat(filepath.Join(root, stack.InferencePath(name))); err != nil {
+		u.Fail("Config not found: %s", stack.InferencePath(name))
 		return nil, false
 	}
-	env, envName, _, err := loadConfig(path)
+	st, err := stack.Load(root, name)
 	if err == nil {
-		_, err = derivePlan(env, envName, path, descriptorFor("identity", "keycloak").defaultPort)
+		_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort)
 	}
 	if err != nil {
 		u.Fail("%v", err)
 		return nil, false
 	}
-	return env, true
+	return st, true
 }
 
 func setConfig(u *UI, root, value string) bool {
-	if _, ok := loadRootConfig(u, root, value); !ok {
+	if _, ok := loadRootStack(u, root, value); !ok {
 		return false
 	}
 	return recorded(u, updateRootEntry(root, func(e *rootEntry) { e.Config = value }))
+}
+
+func showBrowserImage(u *UI, root string) []settingLine {
+	if img := loadRoots().BrowserImage; img != "" {
+		return []settingLine{{img, "recorded by semiont settings"}}
+	}
+	return []settingLine{{browserImage(), "the launcher's own; set one to run another, a :local build for one"}}
+}
+
+func setBrowserImage(u *UI, root, value string) bool {
+	if !strings.Contains(value, ":") {
+		u.Fail("%q names no tag: write the image as <name>:<tag>, such as %s.", value, semiontImage("browser", "local"))
+		return false
+	}
+	return recorded(u, setBrowserImagePref(value))
+}
+
+func unsetBrowserImage(u *UI, root string) bool { return recorded(u, setBrowserImagePref("")) }
+
+func setBrowserImagePref(img string) error {
+	reg, err := readRoots()
+	if err != nil {
+		return err
+	}
+	reg.BrowserImage = img
+	return writeRoots(reg)
 }
 
 func unsetConfig(u *UI, root string) bool {
@@ -376,19 +407,18 @@ func setKeycloakPort(u *UI, root, value string) bool {
 		u.Fail("%q is not a port (1-65535).", value)
 		return false
 	}
-	// The start's own rule: a port the config does not read changes nothing,
-	// and an ineffective setting is neither silent nor remembered.
+	// The start's own rule: a port no Keycloak the launcher runs takes changes
+	// nothing, and an ineffective setting is neither silent nor remembered.
 	name := configForRealm(root)
 	if name == "" {
 		name = defaultConfigName
 	}
-	env, ok := loadRootConfig(u, root, name)
+	st, ok := loadRootStack(u, root, name)
 	if !ok {
 		return false
 	}
-	if !strings.Contains(env.Identity.Issuer, "${KEYCLOAK_PORT}") {
-		u.Fail("Config '%s' names its port literally in its [identity] issuer, so a port setting would change nothing.", name)
-		fmt.Fprintln(os.Stderr, "  Write ${KEYCLOAK_PORT} there to let it move.")
+	if st.Issuer == nil {
+		u.Fail("%s trusts an issuer somebody else runs (spec.issuer.external), so a port setting would change nothing.", st.Files.KnowledgeBase)
 		return false
 	}
 	if os.Getenv("KEYCLOAK_PORT") != "" {

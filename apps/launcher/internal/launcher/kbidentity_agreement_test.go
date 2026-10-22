@@ -8,10 +8,12 @@ import (
 )
 
 // TestKBIdentityAgreesWithTheSharedTable runs every case in
-// specs/src/kb-identity/cases.json through the launcher's readers. TypeScript
-// (packages/core kb-identity-agreement.test.ts), Rust and Python run its cases
-// that declare a domain; together they gate a mirror that spans languages and
-// cannot be generated. Absent is "" here and null in the table.
+// specs/src/kb-identity/cases.json through the launcher's readers: a project
+// file the case refuses is refused, by the reader and as a root, and every
+// other yields the identity the case states. The Archivist's reader runs the
+// same cases (apps/archivist/record kb.rs), and TypeScript, Rust and Python
+// run its cases that declare a domain; together they gate a mirror that spans
+// languages and cannot be generated. Absent is "" here and null in the table.
 func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
 	if err != nil {
@@ -22,7 +24,8 @@ func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 			Why      string  `json:"why"`
 			Dir      string  `json:"dir"`
 			Config   *string `json:"config"`
-			Name     string  `json:"name"`
+			Refused  bool    `json:"refused"`
+			Name     *string `json:"name"`
 			Domain   *string `json:"domain"`
 			Did      *string `json:"did"`
 			Resource *string `json:"resource"`
@@ -31,10 +34,7 @@ func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 	if err := json.Unmarshal(b, &table); err != nil {
 		t.Fatal(err)
 	}
-	if len(table.Cases) == 0 {
-		t.Fatal("the shared table has no cases: a gate that runs nothing passes on silence")
-	}
-
+	refused, held := 0, 0
 	orAbsent := func(s *string) string {
 		if s == nil {
 			return ""
@@ -51,11 +51,24 @@ func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 				t.Fatal(err)
 			}
 			if c.Config != nil {
-				if err := os.WriteFile(filepath.Join(root, ".semiont", "config"), []byte(*c.Config), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(root, ".semiont", projectFileYAML), []byte(*c.Config), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
-
+			if c.Refused {
+				refused++
+				if _, err := readKBIdentity(root); err == nil {
+					t.Errorf("read a project file the case refuses:\n%s", orAbsent(c.Config))
+				}
+				if _, err := resolveRootArg(root); !projectFileRefused(err) {
+					t.Errorf("a project file the case refuses was not refused as a root (%v)", err)
+				}
+				return
+			}
+			held++
+			if _, err := readKBIdentity(root); err != nil {
+				t.Fatalf("refused a project file the case reads: %v", err)
+			}
 			domain := committedDomain(root)
 			got := identity{
 				Name:     effectiveKBName(root),
@@ -63,10 +76,13 @@ func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 				Did:      (&kbIdentity{Domain: domain}).didWeb(),
 				Resource: kbResource(domain),
 			}
-			want := identity{Name: c.Name, Domain: orAbsent(c.Domain), Did: orAbsent(c.Did), Resource: orAbsent(c.Resource)}
+			want := identity{Name: orAbsent(c.Name), Domain: orAbsent(c.Domain), Did: orAbsent(c.Did), Resource: orAbsent(c.Resource)}
 			if got != want {
 				t.Errorf("got %+v, want %+v", got, want)
 			}
 		})
+	}
+	if refused == 0 || held == 0 {
+		t.Fatalf("the shared table has %d refused and %d read cases: a gate that runs nothing on one side passes on silence", refused, held)
 	}
 }

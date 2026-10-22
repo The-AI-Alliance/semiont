@@ -8,12 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-const (
-	configDir     = ".semiont/semiontconfig"
-	imageRegistry = "ghcr.io/the-ai-alliance"
-)
+const imageRegistry = "ghcr.io/the-ai-alliance"
 
 // configFreeService: services that read no KB config — --service <name>
 // needs neither a config nor a root.
@@ -64,9 +63,10 @@ Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
 the Browser (http://localhost:3000) — all in containers.
 
 Options:
-  --config <name>       Semiontconfig to use (default: this KB's recorded
-                        preference — the --config a successful start last
-                        used, kept in roots.json — else ollama-gemma)
+  --config <name>       The Inference document to use, .semiont/stack/inference/
+                        <name>.yaml (default: this KB's recorded preference —
+                        the --config a successful start last used, kept in
+                        roots.json — else ollama-gemma)
   --list-configs        List available configs and exit
   --root <path|name>    KB root to start: a directory (must contain .semiont/)
                         or the basename of a registered root (roots register on
@@ -79,7 +79,7 @@ Options:
                         OTel export is enabled iff the collector is up.
   --port <n>            Browser port (--service browser only; default 3000).
                         The one port a flag may move — every other port
-                        belongs to the KB's config
+                        belongs to the KB's documents
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
@@ -118,8 +118,6 @@ Environment:
                         and use this path (must contain .semiont/; invalid
                         values are an error, never ignored). Default: walk up
                         from the current directory looking for .semiont/.
-  SEMIONT_VERSION       Image tag to run (default: latest; 'local' uses
-                        locally-built :local images and skips the pull)
   JWT_SECRET            The gateway's token-signing key, min 32 chars (default:
                         generated ONCE per KB root and kept, so tokens survive
                         a restart). An ordered, comma-separated LIST rotates
@@ -130,16 +128,15 @@ Environment:
                         Replacing the key outright still invalidates every
                         token already issued
   KC_BOOTSTRAP_ADMIN_PASSWORD
-                        Keycloak's admin-console password, when [identity]
-                        selects keycloak (default: generated ONCE per KB root
-                        and kept — Keycloak creates the admin on its first boot
-                        only, so the value must outlive the stack). Console
-                        user: admin
-  KEYCLOAK_PORT         The issuer's port, for a config whose [identity]
-                        issuer names ${KEYCLOAK_PORT} (as semiont init writes
-                        it). Default 8080; a start that sets it records
-                        it for this KB, so later starts keep it. A codespace
-                        KB's laptop sets it over ssh when 8080 is taken there
+                        Keycloak's admin-console password, when the launcher
+                        runs the issuer (an Issuer document) (default:
+                        generated ONCE per KB root and kept — Keycloak creates
+                        the admin on its first boot only, so the value must
+                        outlive the stack). Console user: admin
+  KEYCLOAK_PORT         The port of the Keycloak the launcher runs. Default
+                        8080; a start that sets it records it for this KB, so
+                        later starts keep it. A codespace KB's laptop sets it
+                        over ssh when 8080 is taken there
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -296,49 +293,47 @@ func Start(args []string) int {
 
 	if opts.listConfigs {
 		fmt.Println("Available configs:")
-		printConfigNames()
+		printConfigNames(root)
 		return 0
 	}
-	configFile := filepath.Join(configDir, opts.configName+".toml")
+	var st *stack.Stack
 	var plan *launchPlan
-	var userVars configRefs
 	var kcPort int
 	var kcFromEnv bool
 	if configNeeded {
-		if _, err := os.Stat(configFile); err != nil {
-			u.Fail("Config not found: %s", configFile)
+		if _, err := os.Stat(filepath.Join(root, stack.InferencePath(opts.configName))); err != nil {
+			u.Fail("Config not found: %s", stack.InferencePath(opts.configName))
 			if configFrom != "" {
 				fmt.Fprintf(os.Stderr, "  ('%s' is this KB's recorded preference; pass --config to pick another — a successful start re-records it.)\n", opts.configName)
 			}
 			fmt.Println("Available configs:")
-			printConfigNames()
+			printConfigNames(root)
 			return 1
 		}
-		envCfg, envName, refs, err := loadConfig(configFile)
-		if err != nil {
+		var err error
+		if st, err = stack.Load(root, opts.configName); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		userVars = refs
 		kcSource := ""
 		var kcOK bool
 		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
 			return 1
 		}
-		if plan, err = derivePlan(envCfg, envName, configFile, kcPort); err != nil {
+		if plan, err = derivePlan(st, kcPort); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		plan.ServiceVars = withDaemonCredentialVars(refs.ByService, plan, envCfg.Signal != nil && envCfg.Signal.Type == "nats")
-		if err := refuseDaemonCredentialNames(refs, plan, opts.configName); err != nil {
+		plan.ServiceVars = withDaemonCredentialVars(serviceSecrets(placement{st: st, plan: plan}), plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
+		if err := refuseDaemonCredentialNames(placement{st: st, plan: plan}); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		if strings.Contains(envCfg.Identity.Issuer, "${KEYCLOAK_PORT}") {
+		if st.Issuer != nil {
 			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
 		} else if kcFromEnv {
 			// An ineffective setting is neither silent nor remembered.
-			u.Warn("KEYCLOAK_PORT=%d has no effect: this config's [identity] issuer names its port literally. Write ${KEYCLOAK_PORT} there to let it move.", kcPort)
+			u.Warn("KEYCLOAK_PORT=%d has no effect: %s trusts an issuer somebody else runs (spec.issuer.external).", kcPort, st.Files.KnowledgeBase)
 			kcFromEnv = false
 		}
 	}
@@ -409,31 +404,21 @@ func Start(args []string) int {
 		return 0
 	}
 
-	// Published service images are consumed by version (they ship config-free):
-	// each is pulled explicitly below (a `run` alone will NOT refresh a cached
-	// mutable tag like :latest), and the selected config TOML is bind-mounted
-	// into every container at runtime. SEMIONT_VERSION=local uses locally-built
-	// :local images and skips the pull.
-	version := os.Getenv("SEMIONT_VERSION")
-	if version == "" {
-		version = "latest"
-	}
-
 	u.Banner("Semiont Local Gateway")
 	if rootNeeded {
 		ident := loadKBIdentity(root)
 		// A KB must declare its identity to run. The launcher publishes a
 		// discovery document in which `did` is REQUIRED, so a KB with no
-		// [site] domain cannot be represented in it — and the alternatives are
+		// site.domain cannot be represented in it — and the alternatives are
 		// worse than refusing: publishing nothing makes a running KB silently
 		// undiscoverable, and defaulting the domain would give every
 		// domain-less KB on the machine one fabricated, colliding identity.
 		// An address wearing a name is precisely the confusion this rule ends.
 		if ident == nil || ident.didWeb() == "" {
 			u.Fail("This knowledge base declares no did:web identity, so it cannot be started.")
-			fmt.Fprintf(os.Stderr, "  Declare it in %s:\n", filepath.Join(root, ".semiont", "config"))
-			fmt.Fprintln(os.Stderr, "    [site]")
-			fmt.Fprintln(os.Stderr, "    domain = \"owner.github.io:repo\"")
+			fmt.Fprintf(os.Stderr, "  Declare it in %s:\n", filepath.Join(root, ".semiont", projectFileYAML))
+			fmt.Fprintln(os.Stderr, "    site:")
+			fmt.Fprintln(os.Stderr, "      domain: \"owner.github.io:repo\"")
 			fmt.Fprintln(os.Stderr, "  It is the KB's permanent identity — the same string its event log and")
 			fmt.Fprintln(os.Stderr, "  the Browser join on — and it has no safe default.")
 			return 1
@@ -457,48 +442,26 @@ func Start(args []string) int {
 			u.Log("Config: %s", u.Bold(opts.configName))
 		}
 	}
-	u.Log("Image version: %s", u.Bold(version))
-
-	// User env vars (API keys the config references, read from loadConfig's
-	// single parse) are demanded where something reads them: a service handed
-	// them, or the launcher resolving them itself (configRefs.read). The
-	// environment always wins; a registered secret source (semiont settings secret) is consulted
-	// only for vars the environment doesn't provide, with the reach
-	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
-	// reference (${NAME:-default}) takes a value only when something sets it;
-	// otherwise the launcher writes its default into the document.
+	// User env vars (the variables the documents name, `fromEnv`) are
+	// demanded where something reads them: a service handed them, or the
+	// launcher reading them itself (secretsRead). The environment always wins;
+	// a registered secret source (semiont settings secret) is consulted only
+	// for vars the environment doesn't provide, with the reach announced
+	// BEFORE it happens. Dry-run reaches for nothing.
 	var userEnv []string
 	secrets := loadRoots().Secrets
-	type userVar struct {
-		name     string
-		optional bool
-	}
 	// A role started alone reaches only for the variables it reads, so no
 	// provider prompt asks for a secret it never uses.
-	required, optional := userVars.read(opts.service)
-	var vars []userVar
-	for _, v := range required {
-		vars = append(vars, userVar{v, false})
+	var vars []string
+	if st != nil {
+		vars = secretsRead(placement{st: st, plan: plan}, opts.service)
 	}
-	for _, v := range optional {
-		vars = append(vars, userVar{v, true})
-	}
-	for _, uv := range vars {
-		v := uv.name
-		envVal, exported := os.LookupEnv(v)
-		_, registered := secrets[v]
+	for _, v := range vars {
 		if opts.dryRun {
-			if !uv.optional || exported || registered {
-				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-			}
+			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
 			continue
 		}
-		if uv.optional && exported {
-			// Set, even empty, wins over the default: the table's rule.
-			userEnv = append(userEnv, "--env", v+"="+envVal)
-			continue
-		}
-		val := envVal
+		val := os.Getenv(v)
 		if val == "" {
 			if ref, ok := secrets[v]; ok && custodyOwned(v) {
 				// A registration under a name custody owns.
@@ -524,10 +487,7 @@ func Start(args []string) int {
 			}
 		}
 		if val == "" {
-			if uv.optional {
-				continue
-			}
-			u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
 			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
 			return 1
 		}
@@ -536,9 +496,9 @@ func Start(args []string) int {
 
 	if opts.dryRun {
 		if opts.service != "" {
-			renderServicePlan(rt, version, root, opts, userEnv, plan)
+			renderServicePlan(rt, root, opts, userEnv, st, plan)
 		} else {
-			renderStartPlan(rt, version, root, opts, userEnv, plan)
+			renderStartPlan(rt, root, opts, userEnv, st, plan)
 		}
 		return 0
 	}
@@ -568,9 +528,9 @@ func Start(args []string) int {
 	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
 	if opts.service != "" {
-		code = runStartService(u, rt, version, root, configFile, opts, userEnv, plan)
+		code = runStartService(u, rt, root, opts, userEnv, st, plan)
 	} else {
-		code = runStart(u, rt, version, root, configFile, opts, userEnv, plan)
+		code = runStart(u, rt, root, opts, userEnv, st, plan)
 	}
 	if code == 0 {
 		if opts.configSet {
@@ -586,17 +546,55 @@ func Start(args []string) int {
 	return code
 }
 
-func printConfigNames() {
-	files, _ := filepath.Glob(filepath.Join(configDir, "*.toml"))
-	for _, f := range files {
-		fmt.Printf("  %s\n", strings.TrimSuffix(filepath.Base(f), ".toml"))
+// printConfigNames: the Inference documents the knowledge base at root holds,
+// each by the name --config takes.
+func printConfigNames(root string) {
+	for _, name := range stack.InferenceNames(root) {
+		fmt.Printf("  %s\n", name)
 	}
 }
 
 // --- Command builders (shared by the real run and --dry-run) ---
 
-func image(svc, version string) string {
-	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, version)
+// semiontImage: one of Semiont's own images, at a tag.
+func semiontImage(svc, tag string) string {
+	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, tag)
+}
+
+// locallyBuilt: whether an image is one built on this machine — tagged
+// `local` — which no registry holds, and so is never pulled.
+func locallyBuilt(img string) bool {
+	return strings.HasSuffix(img, ":local")
+}
+
+// browserImage: the image the Browser runs. The Browser is the machine's, not
+// a knowledge base's (D4): the machine's browser-image setting, else the
+// launcher's catalog entry for it.
+func browserImage() string {
+	if img := loadRoots().BrowserImage; img != "" {
+		return img
+	}
+	return semiontImage("browser", "latest")
+}
+
+// roleDocument: the document that says how a role of the stack runs, for a
+// message naming it.
+func roleDocument(st *stack.Stack, role string) string {
+	switch role {
+	case "graph", "vectors", "embedding", "librarian", "smelter", "weaver":
+		return st.Files.KnowledgeIndex
+	case "database":
+		return st.Files.Issuer
+	case "identity":
+		if st.Issuer != nil {
+			return st.Files.Issuer
+		}
+	case "inference":
+		return st.Files.Inference
+	case "worker":
+		return st.Files.Workers
+	}
+	return st.Files.KnowledgeBase
 }
 
 // prometheusConfig: launcher-owned, like the collector's.
@@ -686,8 +684,8 @@ const kbMountTarget = "/kb"
 // reaches bytes and the record over HTTP through the Archivist, and is
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
 // the KB's committed identity, the addresses, the issuer — mounted at the
-// path its image passes to `--config`. Resolved means no ${VAR} is left for
-// it to expand, so it is handed no *_HOST variable. What is left is that document, its own store, where its supervisor keeps its
+// path its image passes to `--config`. Resolved means every address in it is
+// a literal, so it is handed no *_HOST variable. What is left is that document, its own store, where its supervisor keeps its
 // events, its secrets, and the user's variables (the document names its
 // broker credentials by variable).
 //
@@ -696,7 +694,7 @@ const kbMountTarget = "/kb"
 // signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
-func gatewayArgs(stage, rt, addr, clientSecret, jwt, version, mem string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage, rt, addr, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":" + gatewayDocumentTarget + ":ro"}
@@ -713,7 +711,7 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version, mem string, port i
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret,
 		"--env", "JWT_SECRET="+jwt)
 	a = append(a, superviseEnv()...)
-	return append(a, image("gateway", version))
+	return append(a, img)
 }
 
 // superviseEnv is the per-run supervision opt-in: boot.sh wraps the image
@@ -738,7 +736,7 @@ func superviseEnv() []string {
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
 // same fact the gateway's event read from it relies on).
-func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
@@ -751,7 +749,7 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version, mem st
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("archivist", version))
+	return append(a, img)
 }
 
 // librarianArgs: the Librarian answers search, match and gather. It reads
@@ -761,13 +759,13 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version, mem st
 // the Archivist its route to a resource's bytes. It reads a resolved
 // configuration document (librariandoc.go) at the path its image passes to
 // `--config`, so it is handed no *_HOST variables, no path and no copy of the
-// KB's config: the document carries every address already, and names the
+// KB's documents: the document carries every address already, and names the
 // variables holding the graph database's password, the embedding provider's
-// key and each model provider's key (librarianNamedVars, and the launcher's
+// key and each model provider's key (librarianSecrets, and the launcher's
 // own for a Neo4j it runs), which arrive among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	port := strconv.Itoa(semiontDescriptor("librarian").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", port + ":" + port,
@@ -782,7 +780,7 @@ func librarianArgs(stage, rt, addr string, clientSecret, version, mem string, us
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("librarian", version))
+	return append(a, img)
 }
 
 // dispatcherArgs: the Dispatcher is a CONTROL PLANE — it owns the job queue
@@ -792,7 +790,7 @@ func librarianArgs(stage, rt, addr string, clientSecret, version, mem string, us
 // passes to `--config`, so it is handed no *_HOST variables: the document
 // carries every address already. It keeps the issuer's host entry, because it
 // signs in at the issuer by name.
-func dispatcherArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
+func dispatcherArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", "24105:24105",
 		"--volume", stage + "/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"}
@@ -803,18 +801,18 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, version, mem string, u
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("dispatcher", version))
+	return append(a, img)
 }
 
 // workerArgs: the worker claims jobs and calls the models. It mounts no piece
 // of the knowledge base and no state: the gateway is its route to the bus and
 // to a resource's bytes. It reads a resolved configuration document
 // (workerdoc.go) at the path its image passes to `--config`, so it is handed
-// no *_HOST variables and no copy of the KB's config: the document carries
+// no *_HOST variables and no copy of the KB's documents: the document carries
 // every address already, and names the variable holding each provider's key
-// (workerNamedVars), which arrives among the user's. It keeps the issuer's
+// (workerSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func workerArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
+func workerArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("worker").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", port + ":" + port,
@@ -829,7 +827,7 @@ func workerArgs(stage, rt, addr string, clientSecret, version, mem string, userE
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("worker"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("worker", version))
+	return append(a, img)
 }
 
 // smelterArgs: the Smelter derives what search reads from a resource's
@@ -839,11 +837,11 @@ func workerArgs(stage, rt, addr string, clientSecret, version, mem string, userE
 // which it writes there. Its one mount is its document. It reads
 // a resolved configuration document (smelterdoc.go) at the path its image
 // passes to `--config`, so it is handed no *_HOST variables, no path and no
-// copy of the KB's config: the document carries every address already, and
+// copy of the KB's documents: the document carries every address already, and
 // names the variable holding Voyage's key
-// (smelterNamedVars), which arrives among the user's. It keeps the issuer's
+// (embeddingSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
+func smelterArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("smelter").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", port + ":" + port,
@@ -857,7 +855,7 @@ func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, user
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("smelter"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("smelter", version))
+	return append(a, img)
 }
 
 // weaverArgs: the Weaver keeps the graph in step with the record. It mounts
@@ -866,10 +864,10 @@ func smelterArgs(stage, rt, addr string, clientSecret, version, mem string, user
 // resolved configuration document (weaverdoc.go) at the path its image passes
 // to `--config`, so it is handed no *_HOST variables and no copy of the KB's
 // config: the document carries every address already, and names the variable
-// holding the graph database's password (weaverNamedVars, and the launcher's
+// holding the graph database's password (graphSecrets, and the launcher's
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
-func weaverArgs(stage, rt, addr string, clientSecret, version, mem string, userEnv, otel []string) []string {
+func weaverArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := strconv.Itoa(semiontDescriptor("weaver").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
 		"--memory", mem, "--publish", port + ":" + port,
@@ -883,13 +881,13 @@ func weaverArgs(stage, rt, addr string, clientSecret, version, mem string, userE
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("weaver"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
-	return append(a, image("weaver", version))
+	return append(a, img)
 }
 
 // browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
-func browserArgs(version string, port int) []string {
+func browserArgs(img string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("browser").mem, "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
@@ -899,7 +897,7 @@ func browserArgs(version string, port int) []string {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
 	a = append(a, superviseEnv()...)
-	return append(a, image("browser", version))
+	return append(a, img)
 }
 
 // defaultBrowserPort: where the launcher starts the Browser unless `--port`
@@ -945,7 +943,7 @@ var sidecarSpecs = []sidecarSpec{
 
 // runStart: the live full start — flowFullStart with liveExec, plus the
 // live-only bookends (timing stamp, summary table).
-func runStart(u *UI, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
+func runStart(u *UI, rt, root string, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
 	t0 := time.Now()
 	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
 	// dry-run output must stay machine-independent (host RAM in a golden
@@ -957,7 +955,7 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 		}
 	}
 	x := &liveExec{u: u, rt: rt, plan: plan}
-	if code := flowFullStart(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
+	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, root: root, userEnv: userEnv}); code != 0 {
 		return code
 	}
 
@@ -1175,16 +1173,16 @@ func describeProcs(pids []string) string {
 }
 
 // refuseDaemonCredentialNames: the daemon-credential names are the launcher's.
-// A config may not reference one where it is read — `semiont settings secret`
+// A document may not name one where it is read — `semiont settings secret`
 // registrations are machine-wide, so a name cannot be the launcher's in one KB
 // and the user's in another — and an exported one is refused, not honoured,
 // for a daemon the launcher runs: it could only disagree with the store it was
 // meant for.
-func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config string) error {
-	required, optional := refs.read("")
-	for _, name := range append(required, optional...) {
+func refuseDaemonCredentialNames(p placement) error {
+	plan := p.plan
+	for _, name := range secretsRead(p, "") {
 		if daemonCredentialVar(name) {
-			return fmt.Errorf("config '%s' references ${%s}, which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", config, name)
+			return fmt.Errorf("the knowledge base's documents name the variable %s (fromEnv), which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", name)
 		}
 	}
 	for _, role := range []string{"graph", "database", "messaging"} {

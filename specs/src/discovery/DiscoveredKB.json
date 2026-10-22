@@ -25,11 +25,11 @@
     },
     "did": {
       "type": "string",
-      "description": "The KB's did:web identifier, from its committed .semiont/config \u2014 \"did:web:\" + the [site] domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant \u2014 an address alone cannot say which KB is which, and an identity alone cannot say which copy."
+      "description": "The KB's did:web identifier, from its committed .semiont/config.yaml \u2014 \"did:web:\" + its site.domain, verbatim. REQUIRED: a KB that declares no domain has no identity to publish, and the launcher refuses to start it rather than inventing or defaulting one. NOT unique within a document: a did names the knowledge base, not a running copy of it, so a local clone and a codespace of the same repo legitimately share one and both are published. host:port is the unique field (at most one entry per address), so consumers look up by ADDRESS and use the did to VERIFY that the copy they reached is the KB they meant \u2014 an address alone cannot say which KB is which, and an identity alone cannot say which copy."
     },
     "siteName": {
       "type": "string",
-      "description": "Human-readable site name from the KB's .semiont/config, for display"
+      "description": "Human-readable site name from the KB's .semiont/config.yaml (site.siteName), for display"
     },
     "managedBy": {
       "type": "string",

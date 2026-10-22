@@ -61,14 +61,14 @@ type prober interface {
 // recorder: the belief record: what this machine thinks is running, and how each role was
 // provided. Written as the stack comes up, read by status and by the next start.
 type recorder interface {
-	initStack(root, config, version, addr, stage string) // begin the belief record
-	recordPorts(ports []portNeed)                        // note claimed host ports in the belief record
+	initStack(root, config, addr, stage string) // begin the belief record
+	recordPorts(ports []portNeed)               // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *ServiceState         // the machine-level browser record
-	recordBrowser(id, image, version string, port int)
+	recordBrowser(id, image string, port int)
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -160,8 +160,7 @@ type liveExec struct {
 	// existing: semiont-* container names per runtime, listed once and cached
 	// for the life of the command (see present).
 	existing map[string]map[string]bool
-	version  string // SEMIONT_VERSION, for records created lazily (--service mode)
-	root     string // KB root, ditto ("" for root-free services)
+	root     string // KB root, for records created lazily (--service mode); "" for root-free services
 	// plan lets record() stamp each role's configured models without every
 	// flow having to pass them; models are config truth, so they belong to
 	// the record the same way the driver does.
@@ -315,7 +314,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 		if x.st == nil {
 			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]ServiceState{},
+				Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -358,113 +357,44 @@ const gatewayDocumentFile = "gateway.json"
 // gatewayDocumentTarget: where the gateway reads that document — the path its
 // image passes to `--config`; TestConfigDocumentsAreWhereTheImagesLook holds
 // the two together. Its own name and place: a resolved JSON artifact, not the
-// TOML it was derived from.
+// documents it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
-// stageService writes one service's config into the stage: the gateway's,
-// the dispatcher's, the Archivist's, the worker's, the Smelter's, the
-// Weaver's or the Librarian's resolved document. Every stack service has one.
+// serviceDocuments: each stack service's configuration document — the file it
+// is staged as, the name a refusal gives it, and its writer.
+var serviceDocuments = map[string]struct {
+	file, noun string
+	write      func(p placement, x *liveExec) ([]byte, error)
+}{
+	"gateway": {gatewayDocumentFile, "the gateway's", func(p placement, x *liveExec) ([]byte, error) {
+		return gatewayDocument(p, effectiveKBName(x.root), committedDomain(x.root))
+	}},
+	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", func(p placement, _ *liveExec) ([]byte, error) { return dispatcherDocument(p) }},
+	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ *liveExec) ([]byte, error) { return archivistDocument(p) }},
+	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ *liveExec) ([]byte, error) { return workerDocument(p) }},
+	"smelter":    {smelterDocumentFile, "the Smelter's", func(p placement, _ *liveExec) ([]byte, error) { return smelterDocument(p) }},
+	"weaver":     {weaverDocumentFile, "the Weaver's", func(p placement, _ *liveExec) ([]byte, error) { return weaverDocument(p) }},
+	"librarian":  {librarianDocumentFile, "the Librarian's", func(p placement, _ *liveExec) ([]byte, error) { return librarianDocument(p) }},
+}
+
+// stageService writes one service's configuration document into the stage:
+// the gateway's, the dispatcher's, the Archivist's, the worker's, the
+// Smelter's, the Weaver's or the Librarian's. Every stack service has one.
 func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool {
-	if svc == "gateway" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), x.rt, addr, fc.plan.Roles["identity"].Port, fc.plan.GatewayPort, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, gatewayDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the gateway's configuration document: %v", err)
-			return false
-		}
-		return true
+	document, ok := serviceDocuments[svc]
+	if !ok {
+		x.u.Fail("%s has no configuration document to stage", svc)
+		return false
 	}
-	if svc == "dispatcher" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = dispatcherDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, dispatcherDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the dispatcher's configuration document: %v", err)
-			return false
-		}
-		return true
+	doc, err := document.write(placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}, x)
+	if err == nil {
+		err = os.WriteFile(filepath.Join(stage, document.file), doc, 0o644)
 	}
-	if svc == "archivist" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = archivistDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, archivistDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Archivist's configuration document: %v", err)
-			return false
-		}
-		return true
+	if err != nil {
+		x.u.Fail("Writing %s configuration document: %v", document.noun, err)
+		return false
 	}
-	if svc == "worker" {
-		env, envName, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = workerDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, workerDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the worker's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "smelter" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = smelterDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, smelterDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Smelter's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "weaver" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = weaverDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, weaverDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Weaver's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "librarian" {
-		env, envName, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = librarianDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, librarianDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Librarian's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	x.u.Fail("%s has no configuration document to stage", svc)
-	return false
+	return true
 }
 
 func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
@@ -505,7 +435,7 @@ func (x *liveExec) stageMetrics(addr string) (string, bool) {
 	return stage, true
 }
 
-// stageCollector: --service collector has no document of the KB's config; it
+// stageCollector: --service collector has no document of the KB's stack; it
 // stages only the launcher-written YAML. Traces route to Jaeger
 // iff Jaeger is actually up — the otelDetect rule.
 func (x *liveExec) stageCollector(addr string) (string, bool) {
@@ -531,10 +461,10 @@ func (x *liveExec) stageOne(svc string, fc flowCtx, addr string) (string, bool) 
 	return stage, true
 }
 
-func (x *liveExec) initStack(root, config, version, addr, stage string) {
+func (x *liveExec) initStack(root, config, addr, stage string) {
 	x.st = &StackState{
 		Runtime: x.rt, KBRoot: root, KBDid: loadKBIdentity(root).didWeb(),
-		Config: config, Version: version,
+		Config:   config,
 		HostAddr: addr, Stage: stage, Services: map[string]ServiceState{},
 	}
 }
@@ -762,7 +692,7 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 		if x.st == nil {
 			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]ServiceState{},
+				Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -1042,7 +972,7 @@ func (x *liveExec) browserRecord() *ServiceState {
 	return LoadStackSet().Browser
 }
 
-func (x *liveExec) recordBrowser(id, img, version string, port int) {
+func (x *liveExec) recordBrowser(id, img string, port int) {
 	saveBrowser(&ServiceState{
 		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
 		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
@@ -1104,7 +1034,7 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 			}
 			img = rp.Image
 		} else {
-			img = image(spec.owner, fc.version)
+			img = fc.plan.Images[spec.owner]
 		}
 		if !x.resolveStoreStamp(role, img, fc.root) {
 			return false
@@ -1271,11 +1201,8 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("write <config-stage>/%s (the Librarian's configuration document: LibrarianConfig, resolved)", librarianDocumentFile)
 	x.c("write into each document the addresses this start places, as literals (launcher-placed topology):")
-	// In plan mode the context names the config; the file is under the root.
-	if cfg, err := os.ReadFile(filepath.Join(fc.root, ".semiont", "semiontconfig", fc.configFile+".toml")); err == nil {
-		for _, line := range placedAddresses(cfg, fc.plan.EnvName, topologyVars(x.rt, addr, fc.plan.Roles["identity"].Port)) {
-			x.c("  %s", line)
-		}
+	for _, line := range (placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}).placedLines() {
+		x.c("  %s", line)
 	}
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
@@ -1315,7 +1242,7 @@ func (x *planExec) stageOne(svc string, _ flowCtx, _ string) (string, bool) {
 	return "", false
 }
 
-func (x *planExec) initStack(_, _, _, _, _ string) {}
+func (x *planExec) initStack(_, _, _, _ string) {}
 
 func (x *planExec) pull(img string) bool {
 	x.p(pullArgs(x.rt, img)...)
@@ -1461,9 +1388,9 @@ func (x *planExec) dumpLogs(string, string) {}
 
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
-func (x *planExec) browserCurrent(string) bool                { return false }
-func (x *planExec) browserRecord() *ServiceState              { return nil }
-func (x *planExec) recordBrowser(string, string, string, int) {}
+func (x *planExec) browserCurrent(string) bool        { return false }
+func (x *planExec) browserRecord() *ServiceState      { return nil }
+func (x *planExec) recordBrowser(string, string, int) {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the

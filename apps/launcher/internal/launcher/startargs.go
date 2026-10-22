@@ -183,7 +183,7 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 		return opts, false, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace."
 	}
 	if opts.port != 0 && (opts.service != "browser" || opts.platform == platformCodespace) {
-		return opts, false, "--port only applies to --service browser — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port)."
+		return opts, false, "--port only applies to --service browser — every other port belongs to the KB's documents (and a codespace forwards only its KB, on an allocated port)."
 	}
 
 	// --service compatibility: flags that don't apply to the named service are

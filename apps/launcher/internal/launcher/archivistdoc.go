@@ -2,23 +2,21 @@ package launcher
 
 // archivistdoc.go — the Archivist's configuration document: ArchivistConfig
 // in specs/, the Go type generated from it (packages/sdk-go). The launcher
-// writes it for the Archivist it starts, resolved — every ${VAR} a value, and
-// every role's fallback applied — and mounts it where the Archivist's image
-// points its `--config` flag, so the Archivist neither parses the
-// environment's TOML nor resolves or defaults anything. It carries no secret.
+// writes it for the Archivist it starts, every address a literal (placement),
+// and mounts it where the Archivist's image points its `--config` flag, so the
+// Archivist neither reads a knowledge base's documents nor resolves or
+// defaults anything. It carries no secret.
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // archivistDocumentFile: the Archivist is configured by a document, not a
-// copy of the KB's config. One name, staged and mounted.
+// copy of the KB's. One name, staged and mounted.
 const archivistDocumentFile = "archivist.json"
 
 // archivistDocumentTarget: where the Archivist reads that document — the path
@@ -39,45 +37,6 @@ const stateHomeTarget = "/semiont-state"
 // working tree. The launcher is the one decider: the Archivist defaults
 // neither, and a test harness writes its own.
 var archivistStaging = struct{ flushMs, maxWaitMs int }{flushMs: 250, maxWaitMs: 2_000}
-
-// providerNames: the providers Semiont has a client for, as a refusal lists
-// them for an operator. The list itself is the spec's, which the generated
-// ArchivistRosterRoleProvider.Valid decides; TestProviderNamesAreTheSpecs
-// holds these words to it.
-const providerNames = "anthropic, google, llamacpp, ollama, openai, together or vllm"
-
-// rosterRole: one binding as the roster states it. A binding that names
-// neither a provider nor a model binds nothing; one that names half of an
-// agent, or a provider Semiont has no client for, is refused by name.
-func rosterRole(field string, b *bindingCfg) (*semiont.ArchivistRosterRole, error) {
-	if b == nil || (b.Inference.Type == "" && b.Inference.Model == "") {
-		return nil, nil
-	}
-	provider := semiont.ArchivistRosterRoleProvider(b.Inference.Type)
-	if !provider.Valid() || b.Inference.Model == "" {
-		return nil, fmt.Errorf("%s.inference must name a type (%s) and a model (got type %q, model %q)", field, providerNames, b.Inference.Type, b.Inference.Model)
-	}
-	return &semiont.ArchivistRosterRole{Provider: provider, Model: b.Inference.Model}, nil
-}
-
-// binding: the entry a role map holds under name, or none.
-func binding(m map[string]bindingCfg, name string) *bindingCfg {
-	if b, ok := m[name]; ok {
-		return &b
-	}
-	return nil
-}
-
-// firstBound: the first of the candidates that binds an agent.
-func firstBound(candidates ...func() (*semiont.ArchivistRosterRole, error)) (*semiont.ArchivistRosterRole, error) {
-	for _, candidate := range candidates {
-		role, err := candidate()
-		if role != nil || err != nil {
-			return role, err
-		}
-	}
-	return nil, nil
-}
 
 // rosterRoleType: one role, as the generated roster holds it.
 var rosterRoleType = reflect.TypeOf((*semiont.ArchivistRosterRole)(nil))
@@ -115,9 +74,8 @@ func workerJobs() []workerJob {
 	return jobs
 }
 
-// slot: where a roster's `workers` holds the role serving this job. The
-// structs above the slot are made as it is reached, so a group of jobs no one
-// serves stays absent from the roster.
+// slot: where a roster's `workers` holds the role serving this job, for a
+// roster being written. The structs above the slot are made as it is reached.
 func (job workerJob) slot(workers reflect.Value) reflect.Value {
 	for _, i := range job.at[:len(job.at)-1] {
 		group := workers.Field(i)
@@ -129,41 +87,17 @@ func (job workerJob) slot(workers reflect.Value) reflect.Value {
 	return workers.Field(job.at[len(job.at)-1])
 }
 
-// servingSections: the sections of `workers` that can serve a job, nearest
-// first: its own, each one above it, and `default`. For "mark.tagging":
-// mark.tagging, mark, default.
-func servingSections(job string) []string {
-	sections := []string{job}
-	for at := job; strings.Contains(at, "."); {
-		at = at[:strings.LastIndex(at, ".")]
-		sections = append(sections, at)
-	}
-	return append(sections, "default")
-}
-
-// workerSections: every section of `workers` that serves a job, sorted.
-func workerSections() []string {
-	var sections []string
-	for _, job := range workerJobs() {
-		for _, section := range servingSections(job.name) {
-			if !contains(sections, section) {
-				sections = append(sections, section)
-			}
+// bound: the role a roster's `workers` binds to this job; nil when it binds
+// none, or none of the group above it.
+func (job workerJob) bound(workers reflect.Value) *semiont.ArchivistRosterRole {
+	for _, i := range job.at[:len(job.at)-1] {
+		group := workers.Field(i)
+		if group.IsNil() {
+			return nil
 		}
+		workers = group.Elem()
 	}
-	sort.Strings(sections)
-	return sections
-}
-
-// servesUnder: whether a section of `workers` has sections under it, as
-// `mark` has one per motivation.
-func servesUnder(sections []string, section string) bool {
-	for _, other := range sections {
-		if strings.HasPrefix(other, section+".") {
-			return true
-		}
-	}
-	return false
+	return workers.Field(job.at[len(job.at)-1]).Interface().(*semiont.ArchivistRosterRole)
 }
 
 // servedJob: a job, and the role serving it.
@@ -172,97 +106,24 @@ type servedJob struct {
 	role *semiont.ArchivistRosterRole
 }
 
-// workerRoles: the role serving each job, in workerJobs' order, with every
-// fallback the KB's config allows applied. A job is served by its own section
-// of `workers`, else each section above it, else `workers.default`: a `mark`
-// job of a motivation by `workers.mark.<motivation>`, `workers.mark`,
-// `workers.default`, and a `yield` job by `workers.yield`, `workers.default`.
-// A job no section serves is absent. ONE resolution: the Archivist's roster
-// names these roles (archivistRoster) and the worker's document claims their
-// jobs (workerAgents), so `browse:agents` names exactly the agents the work
-// goes to. specs/src/service-config/roster-cases.json holds both to its
-// answer.
-func workerRoles(env *envConfig) ([]servedJob, error) {
-	var served []servedJob
-	for _, job := range workerJobs() {
-		var candidates []func() (*semiont.ArchivistRosterRole, error)
-		for _, section := range servingSections(job.name) {
-			candidates = append(candidates, func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("workers."+section, binding(env.Workers, section))
-			})
-		}
-		role, err := firstBound(candidates...)
-		if err != nil {
-			return nil, err
-		}
-		if role != nil {
-			served = append(served, servedJob{job: job, role: role})
-		}
-	}
-	return served, nil
-}
-
-// archivistRoster: who serves each role. A job is served as workerRoles says,
-// with every fallback the KB's config allows applied. An actor is served by
-// `actors.<actor>`, and by nothing else. ONE resolution: the Librarian's
-// document names the model each actor asks from the same binding
-// (librarianModel), so `browse:agents` names exactly the agents the Librarian
-// works as.
-func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
-	served, err := workerRoles(env)
-	if err != nil {
-		return roster, err
-	}
-	for _, s := range served {
-		s.job.slot(reflect.ValueOf(&roster.Workers).Elem()).Set(reflect.ValueOf(s.role))
-	}
-	for _, slot := range []struct {
-		role **semiont.ArchivistRosterRole
-		name string
-	}{
-		{&roster.Actors.Gatherer, "gatherer"},
-		{&roster.Actors.Matcher, "matcher"},
-	} {
-		if *slot.role, err = rosterRole("actors."+slot.name, binding(env.Actors, slot.name)); err != nil {
-			return roster, err
-		}
-	}
-	return roster, nil
-}
-
-// archivistDocument renders the document from the selected environment, the
-// address the launcher computed, and the user's variables.
-func archivistDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []string) ([]byte, error) {
-	if env.Gateway == nil || env.Gateway.PublicURL == "" {
-		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the Archivist has no gateway to reach")
-	}
-	if env.Identity == nil {
-		return nil, fmt.Errorf("the environment declares no [identity]: the Archivist has no issuer to sign in at")
-	}
-	vars := gatewayDialerVars(rt, addr, issuerPort, userEnv)
+// archivistDocument renders the document from the start's placement. Its
+// roster is the Inference document's: the worker's document claims the same
+// jobs (workerAgents), and the Librarian's names the same actors
+// (librarianModel), so `browse:agents` names exactly the agents the work goes
+// to.
+func archivistDocument(p placement) ([]byte, error) {
 	var doc semiont.ArchivistConfig
-	var err error
-	if doc.GatewayUrl, err = resolveRefs("gateway.publicURL", env.Gateway.PublicURL, vars); err != nil {
-		return nil, err
-	}
-	if doc.Identity.Issuer, err = resolveRefs("identity.issuer", env.Identity.Issuer, vars); err != nil {
-		return nil, err
-	}
+	doc.GatewayUrl = p.gatewayURL()
+	doc.Identity.Issuer = p.issuer()
 	doc.Root = kbMountTarget
 	doc.StateHome = stateHomeTarget
 	doc.AnchoredTextDir = anchoredTextTarget
-	if doc.Roster, err = archivistRoster(env); err != nil {
-		return nil, err
-	}
+	doc.Roster = p.st.Inference.Spec.Roster
 	doc.Port = semiontDescriptor("archivist").ports[0].port
 	doc.SkipRebuild = false
 	doc.Staging.FlushMs = archivistStaging.flushMs
 	doc.Staging.MaxWaitMs = archivistStaging.maxWaitMs
-
-	doc.LogLevel = "info"
-	if env.LogLevel != "" {
-		doc.LogLevel = semiont.LogLevel(env.LogLevel)
-	}
+	doc.LogLevel = p.st.KnowledgeBase.Spec.LogLevel
 	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

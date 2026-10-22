@@ -36,7 +36,7 @@ var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 // — identity travels with the KB, so a moved clone keeps its state.
 //
 // The "path-" + hash branch below is NOT a fallback for did-less KBs: `start`
-// refuses a KB that declares no [site] domain, so no start creates a
+// refuses a KB that declares no site.domain, so no start creates a
 // path-keyed directory. The branch is there because such directories can
 // exist on disk, and `clean` — the only way that data dies — must be able to
 // name them. Delete it once no such directory can plausibly remain, not
@@ -50,7 +50,7 @@ func rootKey(root string) string {
 
 // stateKeyFor derives the key from an already-known identity — the form
 // clean and status use against RECORDS (stack.json's kbDid/kbRoot), where
-// re-reading .semiont/config would answer for the wrong tree (or none, for
+// re-reading .semiont/config.yaml would answer for the wrong tree (or none, for
 // an orphan).
 func stateKeyFor(did, root string) string {
 	if d, ok := strings.CutPrefix(did, "did:web:"); ok && d != "" {

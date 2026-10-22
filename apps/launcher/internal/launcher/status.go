@@ -344,9 +344,6 @@ func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 		if i := strings.LastIndexByte(b.Image, ':'); i > 0 {
 			tag := b.Image[i+1:]
 			detail = "images " + tag + " · " + detail
-			if st := ss.Stacks["local"]; st != nil && st.Version != "" && st.Version != tag {
-				detail += " · STACK RUNS " + st.Version + " — refresh: semiont start --service browser"
-			}
 		}
 	}
 	if !healthy && p.State == "" {
@@ -400,11 +397,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			fmt.Printf("  %s\n", u.Dim("(no recorded stack — services below are discovered by name)"))
 		}
 		if st != nil {
-			note := st.Runtime
-			if st.Version != "" {
-				note += " · images " + st.Version
-			}
-			fmt.Printf("    %s\n", u.Dim(note+" · "+statePath()))
+			fmt.Printf("    %s\n", u.Dim(st.Runtime+" · "+statePath()))
 		}
 		if st != nil && st.KBRoot != "" {
 			// Named from the setting alone: status never reaches for secrets.

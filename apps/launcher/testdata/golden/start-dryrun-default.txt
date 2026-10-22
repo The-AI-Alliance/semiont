@@ -104,13 +104,13 @@ podman rm semiont-jaeger
 # write <config-stage>/weaver.json (the Weaver's configuration document: WeaverConfig, resolved)
 # write <config-stage>/librarian.json (the Librarian's configuration document: LibrarianConfig, resolved)
 # write into each document the addresses this start places, as literals (launcher-placed topology):
-#   [graph] uri = bolt://<host-addr>:7687
-#   [vectors] host = <host-addr>
-#   [database] host = <host-addr>
-#   [jobs] servers = <host-addr>:4222
-#   [identity] issuer = http://<host-addr>:8080/realms/semiont
-#   [embedding] baseURL = http://<host-addr>:11434
-#   [inference.ollama] baseURL = http://<host-addr>:11434
+#   graph: bolt://<host-addr>:7687
+#   vectors: <host-addr>:6333
+#   database: <host-addr>:5432
+#   messaging: <host-addr>:4222
+#   identity: http://<host-addr>:8080/realms/semiont
+#   embedding: http://<host-addr>:11434
+#   inference: http://<host-addr>:11434
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)

@@ -55,7 +55,7 @@ func writeDiscovery(ss *StackSet) {
 	// strongest claim available here. A codespace forward must then prove it
 	// still exists.
 	// `did` is REQUIRED in the schema, so an entry without one cannot be
-	// published at all. `start` refuses a KB that declares no [site] domain,
+	// published at all. `start` refuses a KB that declares no site.domain,
 	// which is where a user gets a fix-it they can act on; these guards are
 	// the last resort that keeps a malformed document off disk if a record
 	// without one is in the set.

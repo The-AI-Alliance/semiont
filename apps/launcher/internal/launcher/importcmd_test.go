@@ -38,11 +38,11 @@ func TestExportImportRoundTrips(t *testing.T) {
 
 	// The KB came back: identity, the event log, and content — byte-identical.
 	for rel, want := range map[string]string{
-		".semiont/config": "testkb",
+		".semiont/config.yaml":                           "testkb",
 		".semiont/events/res-1/events-000001.jsonl":      `{"type":"yield:created"}`,
 		".semiont/events/__system__/events-000001.jsonl": `{"type":"frame:entity-type-added"}`,
-		"docs/overview.md": "# Overview",
-		"notes/thesis.md":  "# Thesis",
+		"docs/overview.md":                               "# Overview",
+		"notes/thesis.md":                                "# Thesis",
 	} {
 		b, err := os.ReadFile(filepath.Join(dest, rel))
 		if err != nil {
@@ -128,8 +128,8 @@ func TestImportRefusesPathTraversal(t *testing.T) {
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "evil.tar.gz")
 	writeTarGzFixture(t, archive, map[string]string{
-		"../escaped.md":   "should never be written",
-		".semiont/config": "[project]\nname = \"x\"\n",
+		"../escaped.md":        "should never be written",
+		".semiont/config.yaml": "project:\n  name: x\n",
 	})
 	dest := filepath.Join(dir, "root")
 

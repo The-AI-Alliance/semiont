@@ -45,7 +45,7 @@ func About(args []string) int {
 	row("Website", "https://the-ai-alliance.github.io/semiont/")
 	row("Source", "https://github.com/The-AI-Alliance/semiont")
 	row("Issues", "https://github.com/The-AI-Alliance/semiont/issues")
-	row("Images", imageRegistry+" "+u.Dim("(SEMIONT_VERSION selects the tag; default latest)"))
+	row("Images", imageRegistry+" "+u.Dim("(each knowledge base's documents name the tags it runs)"))
 	row("License", "Apache-2.0")
 	row("Runtimes", runtimes)
 

@@ -235,8 +235,8 @@ export class ArchivistWorld {
     mkdirSync(dirs.stateHome, { recursive: true });
     mkdirSync(dirs.anchoredTextDir, { recursive: true });
     writeFileSync(
-      join(dirs.root, '.semiont', 'config'),
-      `[project]\nname = ${JSON.stringify(world.kb.name)}\n\n[git]\nsync = ${gitSync}\n\n[site]\ndomain = ${JSON.stringify(world.kb.domain)}\n`,
+      join(dirs.root, '.semiont', 'config.yaml'),
+      `project:\n  name: ${JSON.stringify(world.kb.name)}\ngit:\n  sync: ${gitSync}\nsite:\n  domain: ${JSON.stringify(world.kb.domain)}\n  siteName: ${JSON.stringify(world.kb.name)}\n`,
     );
     if (gitSync) execFileSync('git', ['init', '--quiet'], { cwd: dirs.root });
     options.before?.(dirs);
