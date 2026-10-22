@@ -16,7 +16,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
-use tokio::task::{AbortHandle, JoinSet};
+use tokio::task::{AbortHandle, JoinHandle, JoinSet};
 
 pub type Arguments = Map<String, Value>;
 
@@ -166,16 +166,8 @@ pub trait Driver: Send + Sync + 'static {
     fn finish(self: Arc<Self>) -> impl Future<Output = ()> + Send;
 }
 
-/// Run one operation and answer it, once.
-async fn operate<D: Driver>(
-    driver: Arc<D>,
-    running: Arc<Running>,
-    id: u64,
-    op: String,
-    args: Arguments,
-) {
-    let operation = tokio::spawn(driver.run(running.clone(), id, op, args));
-    locked(&running.callers).insert(id, operation.abort_handle());
+/// Answer the operation `id` once it ends, once.
+async fn answer(running: Arc<Running>, id: u64, operation: JoinHandle<Result<Value, Ended>>) {
     let outcome = operation.await;
     locked(&running.callers).remove(&id);
     say(match outcome {
@@ -217,7 +209,11 @@ pub async fn serve<D: Driver>(driver: D) {
             continue;
         };
         if D::OPERATIONS.contains(&op.as_str()) {
-            operations.spawn(operate(driver.clone(), running.clone(), id, op, args));
+            // Abandonable before the next line is read: an abandon that
+            // follows it finds it, whatever order the runtime runs them in.
+            let operation = tokio::spawn(driver.clone().run(running.clone(), id, op, args));
+            locked(&running.callers).insert(id, operation.abort_handle());
+            operations.spawn(answer(running.clone(), id, operation));
         } else {
             // Said at once, before the next operation is read.
             say(json!({ "id": id, "unsupported": true }));
