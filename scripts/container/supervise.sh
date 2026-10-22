@@ -79,7 +79,10 @@ note() {
 
 stopping=""
 child=""
-trap 'stopping=1; [ -n "$child" ] && kill -TERM "$child" 2>/dev/null' TERM INT
+sleeper=""
+# The pause between two lives is ended too: a TERM that lands after a death and
+# before the wait begins would otherwise be answered only when the pause is over.
+trap 'stopping=1; [ -n "$child" ] && kill -TERM "$child" 2>/dev/null; [ -n "$sleeper" ] && kill "$sleeper" 2>/dev/null' TERM INT
 
 # How a child died, as a clause of the line that says it is crash-looping.
 # An exit status above 128 is a signal's: 137 is 9, a kill, which under a
@@ -107,6 +110,8 @@ while [ -z "$stopping" ]; do
   note "starting $NAME (rapid failures so far: $rapid)"
   "$@" &
   child=$!
+  # A TERM that landed before the child was known found nothing to forward.
+  [ -n "$stopping" ] && kill -TERM "$child" 2>/dev/null
 
   # Health self-probe: arms after the FIRST success (boot readiness is the
   # launcher's gate, not ours), then kills a child that stops answering.
@@ -155,11 +160,13 @@ while [ -z "$stopping" ]; do
     short=0
     backoff=0
   fi
-  # Waited on in the background, so that a TERM is answered at once rather than when the wait is over.
+  # Waited on in the background, so that a TERM is answered at once rather than when the wait is over: the trap
+  # ends the sleep, wherever the TERM lands.
   sleep "$pause" &
   sleeper=$!
-  wait "$sleeper"
+  [ -z "$stopping" ] && wait "$sleeper"
   kill "$sleeper" 2>/dev/null
+  sleeper=""
 done
 note "stopped by TERM between lives — not restarting"
 exit 0
