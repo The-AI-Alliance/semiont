@@ -330,6 +330,57 @@ func TestReadSSEParsesFrames(t *testing.T) {
 	}
 }
 
+// The gateway takes an emit as large as maxEmitBytes and delivers it with its
+// stamps and the envelope around it: the reader takes that frame whole.
+func TestReadSSETakesAFrameCarryingTheLargestEmit(t *testing.T) {
+	filler := strings.Repeat("x", maxEmitBytes)
+	in := strings.NewReader(frame("mark:added", "cid-1", map[string]any{
+		"filler":  filler,
+		"_userId": "did:web:example.org:users:someone",
+		"_roles":  []string{"semiont-service", "semiont-worker"},
+	}))
+	out := make(chan Event, 1)
+	if err := readSSE(in, out); err != nil {
+		t.Fatalf("the reader refused a frame carrying the largest emit: %v", err)
+	}
+	close(out)
+	var payload struct {
+		Filler string `json:"filler"`
+	}
+	if err := json.Unmarshal((<-out).Payload, &payload); err != nil || payload.Filler != filler {
+		t.Fatalf("the frame's payload did not arrive whole: %d of %d bytes (%v)", len(payload.Filler), len(filler), err)
+	}
+}
+
+// A line longer than the reader takes ends the stream, and a request waiting
+// on it says so, with the limit, rather than only that the stream closed.
+func TestRequestSaysAFrameWasLongerThanTheReaderTakes(t *testing.T) {
+	f := newFakeGateway()
+	srv := f.server(t)
+	c := NewClient(srv.URL, "tok")
+	go func() {
+		for i := 0; i < 50; i++ {
+			f.mu.Lock()
+			n := len(f.emitted)
+			f.mu.Unlock()
+			if n > 0 {
+				f.replies <- "event: bus-event\ndata: " + strings.Repeat("x", maxFrameBytes) + "\n\n"
+				return
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+	}()
+	_, err := c.Request(context.Background(), "browse:resource-requested", map[string]any{}, &RequestOptions{Timeout: 10 * time.Second})
+	if err == nil {
+		t.Fatal("a frame longer than the reader takes must fail the request")
+	}
+	for _, want := range []string{"the event stream closed", fmt.Sprintf("longer than %d bytes", maxFrameBytes)} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error missing %q: %v", want, err)
+		}
+	}
+}
+
 // The routing address for correlated replies, Go side: each Client mints
 // one clientId and sends it on every subscribe and every emit.
 

@@ -306,7 +306,7 @@ type = "nats"
 
 `[signal]` selects how the gateway fans frames out to subscribers. `nats` carries them on the same broker, which also holds the gateway's record of pending replies, so that record survives a restart and is shared by every gateway replica. `in-process`, which is also what an absent section means, keeps both inside one gateway.
 
-One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue. A broker somebody else runs also needs `max_payload: 16777216` in its config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 8 MiB, and the broker's default of 1 MiB refuses one larger than that.
+One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue. A broker somebody else runs also needs `max_payload: 8388608` in its config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 4 MiB, and the broker's default of 1 MiB refuses one larger than that.
 
 ### Identity
 
