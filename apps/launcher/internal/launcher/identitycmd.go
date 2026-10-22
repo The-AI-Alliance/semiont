@@ -84,11 +84,12 @@ func Identity(args []string) int {
 	}
 
 	var root string
+	var ident *kbIdentity
 	var err error
 	if rootFlag != "" {
-		root, err = resolveRootArg(rootFlag)
+		root, ident, err = resolveRootArg(rootFlag)
 	} else {
-		root, _, err = resolveKBRoot()
+		root, _, ident, err = resolveKBRoot()
 	}
 	if err != nil {
 		u.Fail("%v", err)
@@ -97,6 +98,7 @@ func Identity(args []string) int {
 		}
 		return 1
 	}
+	kb := kbRoot{dir: root, ident: ident}
 	if err := os.Chdir(root); err != nil {
 		u.Fail("Cannot enter KB root %s: %v", root, err)
 		return 1
@@ -141,7 +143,7 @@ func Identity(args []string) int {
 		return 1
 	}
 
-	adminPass, source, ok := keycloakAdminPassword(u, root)
+	adminPass, source, ok := keycloakAdminPassword(u, kb.key())
 	if !ok {
 		return 1
 	}
@@ -154,7 +156,7 @@ func Identity(args []string) int {
 
 	secrets := map[string]string{}
 	for _, svc := range serviceClients {
-		secret, ok := loadOrCreateServiceClientSecret(u, root, svc)
+		secret, ok := loadOrCreateServiceClientSecret(u, kb.key(), svc)
 		if !ok {
 			return 1
 		}
@@ -166,7 +168,7 @@ func Identity(args []string) int {
 	u.Log("Reconciling realm %s at %s", u.Bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
-		committedResource(root), rp.AccessTokenLifespan, runningBrowserPort(),
+		kb.ident.resource(), rp.AccessTokenLifespan, runningBrowserPort(),
 		func(svc string) string { return secrets[svc] })
 	if err != nil {
 		u.Fail("%v", err)

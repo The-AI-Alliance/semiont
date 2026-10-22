@@ -70,8 +70,13 @@ func writeDiscovery(ss *StackSet) {
 				e.Port = p
 			}
 		}
-		if ident := loadKBIdentity(st.KBRoot); ident != nil {
-			e.SiteName = opt(ident.SiteName)
+		// The site name the start recorded on the root's row, as the did is
+		// the one it recorded on the stack: what was started, not what the
+		// tree says now.
+		for _, r := range loadRoots().Roots {
+			if r.Path == st.KBRoot && r.SiteName != "" {
+				e.SiteName = opt(r.SiteName)
+			}
 		}
 		claimed[e.Port] = true
 		kbs = append(kbs, e)

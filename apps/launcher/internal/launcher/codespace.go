@@ -90,7 +90,7 @@ func startCodespace(u *UI, opts startOptions) int {
 	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
-		_, _, rootErr := resolveKBRoot()
+		_, _, _, rootErr := resolveKBRoot()
 		if projectFileRefused(rootErr) {
 			u.Fail("%v", rootErr)
 			return 1
@@ -355,16 +355,16 @@ func startCodespace(u *UI, opts startOptions) int {
 // else the .semiont/ walk) — "" when not inside a clone. The cwd is context
 // every command may consult: standing in a clone says which stack is meant.
 // A clone whose config.yaml does not hold is refused, never read as no
-// clone.
-func CwdKBRoot() (string, error) {
-	root, _, err := resolveKBRoot()
+// clone; one that holds comes with its identity.
+func CwdKBRoot() (string, *kbIdentity, error) {
+	root, _, ident, err := resolveKBRoot()
 	if projectFileRefused(err) {
-		return "", err
+		return "", nil, err
 	}
 	if err != nil {
-		return "", nil
+		return "", nil, nil
 	}
-	return root, nil
+	return root, ident, nil
 }
 
 // originCodespace: the recorded codespace stack whose repo this clone's git
@@ -394,11 +394,12 @@ func originCodespace(cs []*StackState, root string) *StackState {
 // and read the slug from its origin remote.
 func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) {
 	var root string
+	var ident *kbIdentity
 	var err error
 	if opts.root != "" {
-		root, err = resolveRootArg(opts.root)
+		root, ident, err = resolveRootArg(opts.root)
 	} else {
-		root, _, err = resolveKBRoot()
+		root, _, ident, err = resolveKBRoot()
 	}
 	if err != nil {
 		u.Fail("%v", err)
@@ -422,7 +423,7 @@ func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) 
 	// This clone IS the repo we are about to launch, so its committed
 	// .semiont/config.yaml carries that KB's real did:web. Captured here and
 	// recorded, so status never has to guess an identity from a filename.
-	did = loadKBIdentity(root).didWeb()
+	did = ident.didWeb()
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {

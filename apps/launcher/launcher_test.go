@@ -4916,6 +4916,20 @@ spec:
 // noWorkerBinding: where a start names binding a job, for that roster.
 var noWorkerBinding = filepath.FromSlash(".semiont/stack/inference/no-worker.yaml") + " spec.roster.workers"
 
+// A worker asked for by name, of a roster that binds it no job, is refused
+// before anything is pulled or run, naming where a job is bound: the plan
+// names no image for a worker it does not run.
+func TestStartServiceWorkerRefusesARosterThatBindsNoJob(t *testing.T) {
+	s := newScenario(t, "container")
+	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "output", stdout+stderr, "the roster binds no job to a worker", noWorkerBinding)
+	mustNotContain(t, "argv", s.argv(t), "pull", "semiont-worker")
+}
+
 // A roster that binds no job to a worker starts everything else and no
 // worker: none is pulled, staged a document, given a port or run, and the
 // start says so once, naming where a job is bound. What reads the stack

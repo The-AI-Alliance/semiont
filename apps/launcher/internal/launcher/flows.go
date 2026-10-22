@@ -19,7 +19,7 @@ type flowCtx struct {
 	// for a start that reads none (`--service browser`).
 	stack   *stack.Stack
 	opts    startOptions
-	root    string
+	kb      kbRoot
 	userEnv []string
 	// restart: this is `start --service <role>`, not a full start. The flows
 	// are the SAME flows either way — it changes only what the banner says,
@@ -41,7 +41,7 @@ func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 		if fc.plan.Roles[role].Presence != presenceLauncher {
 			continue
 		}
-		pw, ok := x.daemonPassword(fc.root, role)
+		pw, ok := x.daemonPassword(fc.kb, role)
 		if !ok {
 			return fc, false
 		}
@@ -153,7 +153,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.banner("Preflight")
 	// Crash evidence first: the runtime's log capture is the only copy of the
 	// prior stack's story, and the stop+rm below deletes it.
-	x.snapshotLogs(fc.root, preflightNames)
+	x.snapshotLogs(fc.kb, preflightNames)
 	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
 	removed := 0
 	for _, c := range preflightNames {
@@ -191,7 +191,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if !ok {
 		return 1
 	}
-	x.initStack(fc.root, fc.opts.configName, addr, stage)
+	x.initStack(fc.kb, fc.opts.configName, addr, stage)
 	x.recordPorts(checks)
 
 	// Store stamps resolve HERE, before the first container run, so no clear
@@ -456,7 +456,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// Persistent state rides the run argv: roles in stateStores mount
 		// their per-root dir; a database refusal (data written by another
 		// image) stops the start here.
-		extra, ok := x.stateMounts(role, rp.Image, fc.root)
+		extra, ok := x.stateMounts(role, rp.Image, fc.kb)
 		if !ok {
 			return 1
 		}
@@ -509,7 +509,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
+			if !x.preflightIdentity(identityEndpoint(rp), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
@@ -579,11 +579,11 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
 		// form — nothing of this one is on this host.
 		if role == "identity" {
-			secrets, ok := serviceClientSecrets(x, fc.root)
+			secrets, ok := serviceClientSecrets(x, fc.kb)
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets, 0, false) {
+			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), secrets, 0, false) {
 				return 1
 			}
 		}
@@ -759,7 +759,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	port := fc.plan.GatewayPort
 	x.banner(startBanner(fc, "Gateway"))
 	x.say(sayLog, "http://localhost:%d", port)
-	jwt, ok := x.jwtSecret(fc.root)
+	jwt, ok := x.jwtSecret(fc.kb)
 	if !ok {
 		return 1
 	}
@@ -767,11 +767,11 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	// events log (gatewayArgs). No image stamps it. It mounts neither the
 	// Archivist's state tree nor the anchored-text store: no store is mounted
 	// by two containers.
-	extra, ok := x.stateMountsUnstamped("gateway", fc.root)
+	extra, ok := x.stateMountsUnstamped("gateway", fc.kb)
 	if !ok {
 		return 1
 	}
-	gatewayClientSecret, ok := x.serviceClientSecret(fc.root, "gateway")
+	gatewayClientSecret, ok := x.serviceClientSecret(fc.kb, "gateway")
 	if !ok {
 		return 1
 	}
@@ -812,7 +812,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	x.banner(startBanner(fc, sc.noun))
 	// No sidecar mounts a store: the Smelter keeps its anchored text on the
 	// Archivist's surface, and the worker and the Weaver keep nothing.
-	clientSecret, ok := x.serviceClientSecret(fc.root, sc.svc)
+	clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 	if !ok {
 		return 1
 	}
@@ -850,20 +850,20 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	x.banner(startBanner(fc, "Archivist"))
 	// The anchored-text store is the Archivist's alone and no image stamps
 	// it; the state tree it stamps, as the projection writer.
-	extra, ok := x.stateMountsUnstamped("anchored-text", fc.root)
+	extra, ok := x.stateMountsUnstamped("anchored-text", fc.kb)
 	if !ok {
 		return 1
 	}
-	state, ok := x.stateMounts("state", fc.plan.Images["archivist"], fc.root)
+	state, ok := x.stateMounts("state", fc.plan.Images["archivist"], fc.kb)
 	if !ok {
 		return 1
 	}
 	extra = append(extra, state...)
-	clientSecret, ok := x.serviceClientSecret(fc.root, "archivist")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "archivist")
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -888,11 +888,11 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	x.banner(startBanner(fc, "Librarian"))
 	// Its own store, for its supervisor's events log; no image stamps it. It
 	// reads the views on the bus, not from the Archivist's state tree.
-	state, ok := x.stateMountsUnstamped("librarian", fc.root)
+	state, ok := x.stateMountsUnstamped("librarian", fc.kb)
 	if !ok {
 		return 1
 	}
-	clientSecret, ok := x.serviceClientSecret(fc.root, "librarian")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "librarian")
 	if !ok {
 		return 1
 	}
@@ -922,7 +922,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 // rather than racy.
 func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Dispatcher"))
-	clientSecret, ok := x.serviceClientSecret(fc.root, "dispatcher")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "dispatcher")
 	if !ok {
 		return 1
 	}
@@ -960,6 +960,11 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.say(sayWarn, "%s is not referenced by the knowledge base's documents; nothing to launch.", svc)
 		x.note("%s: not referenced by the documents — nothing to launch", svc)
 		return 0
+	}
+	// A worker the plan does not run has no image to pull and no job to serve.
+	if svc == "worker" && !fc.plan.runs("worker") {
+		x.say(sayFail, "%v", errNoWorkerJob(fc.stack.Files.Inference))
+		return 1
 	}
 
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —

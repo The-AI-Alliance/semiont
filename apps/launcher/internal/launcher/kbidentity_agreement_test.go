@@ -60,21 +60,21 @@ func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 				if _, err := readKBIdentity(root); err == nil {
 					t.Errorf("read a project file the case refuses:\n%s", orAbsent(c.Config))
 				}
-				if _, err := resolveRootArg(root); !projectFileRefused(err) {
+				if _, _, err := resolveRootArg(root); !projectFileRefused(err) {
 					t.Errorf("a project file the case refuses was not refused as a root (%v)", err)
 				}
 				return
 			}
 			held++
-			if _, err := readKBIdentity(root); err != nil {
+			ident, err := readKBIdentity(root)
+			if err != nil {
 				t.Fatalf("refused a project file the case reads: %v", err)
 			}
-			domain := committedDomain(root)
 			got := identity{
-				Name:     effectiveKBName(root),
-				Domain:   domain,
-				Did:      (&kbIdentity{Domain: domain}).didWeb(),
-				Resource: kbResource(domain),
+				Name:     ident.name(root),
+				Domain:   ident.domain(),
+				Did:      ident.didWeb(),
+				Resource: ident.resource(),
 			}
 			want := identity{Name: orAbsent(c.Name), Domain: orAbsent(c.Domain), Did: orAbsent(c.Did), Resource: orAbsent(c.Resource)}
 			if got != want {

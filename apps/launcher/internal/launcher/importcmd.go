@@ -123,18 +123,15 @@ func Import(args []string) int {
 	if a, err := filepath.Abs(root); err == nil {
 		abs = a
 	}
-	if err := holdProjectFile(abs); err != nil {
+	id, err := holdProjectFile(abs)
+	if err != nil {
 		u.Fail("%v", err)
 		fmt.Fprintf(os.Stderr, "  The archive is extracted at %s: correct its project file there, then start it.\n", abs)
 		return 1
 	}
-	registerRootUse(abs, false, "")
+	registerRootUse(kbRoot{dir: abs, ident: id}, false, "")
 
-	id := loadKBIdentity(abs)
-	label := filepath.Base(abs)
-	if id != nil && id.Name != "" {
-		label = id.Name
-	}
+	label := id.name(abs)
 	u.Ok("Imported %s into %s %s", label, abs, u.Dim(fmt.Sprintf("(%d entries)", n)))
 	fmt.Printf("  %s\n", u.Dim("Start it:  semiont start --root "+abs))
 	fmt.Printf("  %s\n", u.Dim("Projections rebuild from the event log on that first start."))

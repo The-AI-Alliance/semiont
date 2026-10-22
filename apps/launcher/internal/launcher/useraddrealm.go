@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -40,17 +41,17 @@ type realmAdmin struct {
 	subjectClaim string
 }
 
-// resolveRealmAdmin: this root's launcher-run Keycloak, or a refusal that says
-// which precondition failed. The sticky config, exactly as `identity sync`
-// resolves it — administering a realm the operator does not actually start
-// with would write to the wrong one.
-func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
-	// The identity an account acts under is named under the knowledge base's
-	// committed domain; without one, the gateway has no identity to run under
+// resolveRealmAdmin: the launcher-run Keycloak of the local stack started at
+// root under did, or a refusal that says which precondition failed. The sticky
+// config, exactly as `identity sync` resolves it — administering a realm the
+// operator does not actually start with would write to the wrong one.
+func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
+	// The identity an account acts under is named under the domain the stack
+	// was started with; without one, the gateway has no identity to run under
 	// either.
-	domain := committedDomain(root)
-	if domain == "" {
-		u.Fail("The knowledge base at %s declares no site.domain in its .semiont/config.yaml, so no account can be named under it.", root)
+	domain, ok := strings.CutPrefix(did, "did:web:")
+	if !ok || domain == "" {
+		u.Fail("The local stack at %s was started with no did:web identity, so no account can be named under it.", root)
 		return realmAdmin{}, false
 	}
 	configName := configForRealm(root)
@@ -86,7 +87,7 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
-	adminPass, _, ok := keycloakAdminPassword(u, root)
+	adminPass, _, ok := keycloakAdminPassword(u, rootKey(did, root))
 	if !ok {
 		return realmAdmin{}, false
 	}
@@ -110,8 +111,8 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 // useraddLocal: the account decisions, in the order the flags imply. The
 // issuer holds whether a person may sign in, so `--active`/`--inactive` are
 // written there and nowhere else; absent both, an update leaves that alone.
-func useraddLocal(u *UI, o useraddOpts, password, root string) (code int, created bool) {
-	a, ok := resolveRealmAdmin(u, root)
+func useraddLocal(u *UI, o useraddOpts, password, root, did string) (code int, created bool) {
+	a, ok := resolveRealmAdmin(u, root, did)
 	if !ok {
 		return 1, false
 	}

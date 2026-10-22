@@ -329,7 +329,7 @@ git:
 site:
   # Permanent did:web identity for everything this KB mints (stamped into the
   # committed event log). Names the repo, not a deployment — a committed
-  # literal, never env-templated, never a machine address.
+  # literal, never a machine address.
   domain: %q
   siteName: %q
 `, name, !noGit, domain, siteName)
@@ -542,7 +542,7 @@ site:
 	// through to the launcher's `ollama-gemma`, which a born KB has no document
 	// for (it writes inference/<provider>.yaml). A copied template carries
 	// several and names none of them, so its preference stays empty.
-	registerRootUse(dir, false, genName)
+	registerRootUse(kbRoot{dir: dir, ident: born}, false, genName)
 	warnICloudRoot(u, dir)
 	success = true
 
@@ -566,7 +566,7 @@ site:
 	}
 	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
 	fmt.Println()
-	for _, l := range showSecretStoreSetting(u, dir) {
+	for _, l := range showSecretStoreSetting(u, kbRoot{dir: dir, ident: born}) {
 		fmt.Printf("  Secrets: %s %s\n", l.value, u.Dim("("+l.source+"; change with semiont settings secret-store)"))
 	}
 	return 0

@@ -498,10 +498,10 @@ func masterRealmOverHTTP() []string {
 // serviceClientSecrets: the per-root credential for every service client.
 // Resolved once per start — the realm import needs them, and so does the
 // preflight that checks the realm honoured them.
-func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
+func serviceClientSecrets(x keeper, kb kbRoot) (map[string]string, bool) {
 	secrets := map[string]string{}
 	for _, svc := range serviceClients {
-		secret, ok := x.serviceClientSecret(root, svc)
+		secret, ok := x.serviceClientSecret(kb, svc)
 		if !ok {
 			return nil, false
 		}
@@ -537,15 +537,15 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	// each secret reads the same value out of the same file rather than having
 	// it threaded through the start flow. Returned as well, because the
 	// preflight checks these same values against the realm that imports them.
-	secrets, ok := serviceClientSecrets(x, fc.root)
+	secrets, ok := serviceClientSecrets(x, fc.kb)
 	if !ok {
 		return nil, nil, "", false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, "", false
 	}
-	password, ok := x.identityAdminPassword(fc.root)
+	password, ok := x.identityAdminPassword(fc.kb)
 	if !ok {
 		return nil, nil, "", false
 	}

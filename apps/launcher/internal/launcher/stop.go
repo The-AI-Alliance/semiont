@@ -199,7 +199,7 @@ func Stop(args []string) int {
 		// Anything less certain still refuses: stop doesn't guess, but it
 		// also must not demand --runtime container from a user standing in
 		// the exact clone whose stack is up.
-		root, err := CwdKBRoot()
+		root, _, err := CwdKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
@@ -330,13 +330,13 @@ func Stop(args []string) int {
 	// in use, else the KB clone we're standing in. "" (neither) skips the
 	// snapshot — evidence capture is best-effort and never blocks a stop,
 	// so a clone whose project file is refused is named and skipped.
-	snapRoot := ""
+	snapRoot, snapKey := "", ""
 	if useState && st != nil && st.KBRoot != "" {
-		snapRoot = st.KBRoot
-	} else if r, err := CwdKBRoot(); err != nil {
+		snapRoot, snapKey = st.KBRoot, rootKey(st.KBDid, st.KBRoot)
+	} else if r, ident, err := CwdKBRoot(); err != nil {
 		u.Warn("No log snapshot: %v", err)
-	} else {
-		snapRoot = r
+	} else if r != "" {
+		snapRoot, snapKey = r, kbRoot{dir: r, ident: ident}.key()
 	}
 
 	if dryRun {
@@ -388,7 +388,7 @@ func Stop(args []string) int {
 			stopped[c] = runSilent(rt, "stop", c) == nil
 		}
 		if snapRoot != "" {
-			if dir, n := writeLogSnapshot(rt, snapRoot, targets); n > 0 {
+			if dir, n := writeLogSnapshot(rt, snapKey, targets); n > 0 {
 				u.Log("Snapshotted %d container log(s) %s", n, u.Dim("("+dir+")"))
 			}
 		}

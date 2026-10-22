@@ -62,8 +62,8 @@ func TestAnUnreachableStoreNamesTheVariableToSet(t *testing.T) {
 	harness.NoRuntimes(t) // and so no `op` either
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "")
-	root := t.TempDir()
-	if err := saveStoreSetting(rootKey(root), secretRef{Provider: "op", Path: "Semiont"}, true); err != nil {
+	key := rootKey("", t.TempDir())
+	if err := saveStoreSetting(key, secretRef{Provider: "op", Path: "Semiont"}, true); err != nil {
 		t.Fatal(err)
 	}
 	u := NewUI(true)
@@ -73,9 +73,9 @@ func TestAnUnreachableStoreNamesTheVariableToSet(t *testing.T) {
 		ask  func() bool
 		want string
 	}{
-		{"the token-signing key", func() bool { _, ok := loadOrCreateJWTSecret(u, root); return ok },
+		{"the token-signing key", func() bool { _, ok := loadOrCreateJWTSecret(u, key); return ok },
 			"Or export one yourself:  " + setVarHint(system, "JWT_SECRET", inlineRandomHex(system, 32))},
-		{"Keycloak's admin password", func() bool { _, ok := loadOrCreateKeycloakAdminPassword(u, root); return ok },
+		{"Keycloak's admin password", func() bool { _, ok := loadOrCreateKeycloakAdminPassword(u, key); return ok },
 			"Or export one yourself:  " + setVarHint(system, "KC_BOOTSTRAP_ADMIN_PASSWORD", inlineRandomHex(system, 16))},
 	} {
 		var ok bool

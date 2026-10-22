@@ -40,18 +40,14 @@ type custodyBackend interface {
 // reads a root's 1Password item once however many values it needs.
 var openCustody = map[string]custodyStore{}
 
-// custodyFor: root's store — the one configured for it (`semiont settings
-// secret-store`), else the filesystem. False, reported, when the configured store
-// cannot be reached or there is nowhere to keep anything: never another store
-// in its place, which would mint new values over the ones kept there.
-func custodyFor(u *UI, root string) (custodyStore, bool) {
-	return custodyForKey(u, rootKey(root))
-}
-
-// custodyForKey: custodyFor by state key. This is the lookup of a caller
-// that keeps values, so a new knowledge base adopts the machine's default
-// store here, at its first need (adoptDefaultStore).
-func custodyForKey(u *UI, key string) (custodyStore, bool) {
+// custodyFor: the store of the root key names — the one configured for it
+// (`semiont settings secret-store`), else the filesystem. False, reported,
+// when the configured store cannot be reached or there is nowhere to keep
+// anything: never another store in its place, which would mint new values
+// over the ones kept there. This is the lookup of a caller that keeps values,
+// so a new knowledge base adopts the machine's default store here, at its
+// first need (adoptDefaultStore).
+func custodyFor(u *UI, key string) (custodyStore, bool) {
 	if s, ok := openCustody[key]; ok {
 		return s, true
 	}
@@ -126,7 +122,7 @@ func custodyStoreAt(u *UI, key string, ref secretRef, configured bool) (custodyS
 			u.Fail("No home directory resolvable, so there is nowhere to keep the launcher's secrets.")
 			return custodyStore{}, false
 		}
-		return custodyStore{fileBackend{filepath.Join(d, "roots", key)}}, true
+		return custodyStore{fileBackend{stateRootDir(key)}}, true
 	}
 	s := custodyStoreNamed(key, ref, configured)
 	if p := secretProviders[ref.Provider]; !onPath(p.bin) {
@@ -141,7 +137,7 @@ func custodyStoreAt(u *UI, key string, ref secretRef, configured bool) (custodyS
 // status describes, since status never reaches for secrets.
 func custodyStoreNamed(key string, ref secretRef, configured bool) custodyStore {
 	if !configured {
-		return custodyStore{fileBackend{filepath.Join(dataDir(), "roots", key)}}
+		return custodyStore{fileBackend{stateRootDir(key)}}
 	}
 	return custodyStore{&opBackend{vault: ref.Path, title: opItemTitle(key)}}
 }

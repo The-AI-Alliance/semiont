@@ -31,12 +31,60 @@ type kbIdentity struct {
 	Domain   string // site.domain — did:web colon-path form
 }
 
+// kbRoot: a knowledge base's root as a command resolved it — its directory,
+// and the identity its project file declared when the command read it, the
+// once it does. The zero kbRoot is no knowledge base (a root-free service).
+type kbRoot struct {
+	dir   string
+	ident *kbIdentity
+}
+
+// key names the root's state directory and custody (rootKey).
+func (r kbRoot) key() string {
+	if r.dir == "" {
+		return ""
+	}
+	return rootKey(r.ident.didWeb(), r.dir)
+}
+
+// A nil *kbIdentity is a knowledge base that commits no project file: it has
+// no identity, and its name is its directory's.
+
 // didWeb renders the full did:web identifier, "" when no domain is declared.
 func (k *kbIdentity) didWeb() string {
 	if k == nil || k.Domain == "" {
 		return ""
 	}
 	return "did:web:" + k.Domain
+}
+
+// domain is the KB's permanent did:web identity as its project file declares
+// it, "" when there is none. The launcher stages this into the services that
+// describe the KB without mounting it; staging "" is deliberate — a consumer
+// that needs an identity must refuse, and a fabricated one ('localhost', the
+// dial address) is how two knowledge bases end up sharing a did.
+func (k *kbIdentity) domain() string {
+	if k == nil {
+		return ""
+	}
+	return k.Domain
+}
+
+// resource is the KB's resource identifier, "" when it declares no domain —
+// the audience half of domain.
+func (k *kbIdentity) resource() string {
+	return kbResource(k.domain())
+}
+
+// name is the name the Archivist computes for the knowledge base at root: the
+// committed project.name, else the directory basename when there is no project
+// file (docs/protocol/ARCHIVIST.md). The launcher writes it into the gateway's
+// document as `kb.name`.
+func (k *kbIdentity) name(root string) string {
+	if k == nil {
+		return filepath.Base(root)
+	}
+	return k.Name
 }
 
 // kbResource renders the KB's RESOURCE identifier: the did:web resolved to
@@ -59,15 +107,10 @@ func kbResource(domain string) string {
 	return "https://" + strings.ReplaceAll(domain, ":", "/")
 }
 
-// committedResource is the KB's resource identifier from its own committed
-// project file, "" when it declares no domain — the audience half of
-// committedDomain.
-func committedResource(root string) string {
-	return kbResource(committedDomain(root))
-}
-
 // readKBIdentity reads <root>'s project file: nil when there is none. One
 // that cannot be read, or does not hold to ProjectConfig's schema, is refused.
+// It is the one reader of the file: a command reads it once, when it resolves
+// its root, and carries what it read.
 func readKBIdentity(root string) (*kbIdentity, error) {
 	path := filepath.Join(root, ".semiont", projectFileYAML)
 	text, err := os.ReadFile(path)
@@ -78,18 +121,6 @@ func readKBIdentity(root string) (*kbIdentity, error) {
 		return nil, err
 	}
 	return yamlKBIdentity(path, text)
-}
-
-// loadKBIdentity is readKBIdentity of a root already resolved, which root
-// resolution has refused if its config.yaml does not hold, or of a root a
-// listing names; there, a refused file reads as none. A command reads its
-// identity by root many times over; P2's wiring reads it once.
-func loadKBIdentity(root string) *kbIdentity {
-	identity, err := readKBIdentity(root)
-	if err != nil {
-		return nil
-	}
-	return identity
 }
 
 // refusedProjectFile: root resolution's refusal of a root whose project file
@@ -108,20 +139,22 @@ var replacedFiles = []struct{ old, now string }{
 	{".semiont/semiontconfig", stack.Dir + "/"},
 }
 
-// holdProjectFile refuses root when it keeps a file its documents replaced,
-// or when its config.yaml cannot be read or does not hold to its schema,
-// naming each place.
-func holdProjectFile(root string) error {
+// holdProjectFile reads root's identity, refusing root when it keeps a file
+// its documents replaced, or when its config.yaml cannot be read or does not
+// hold to its schema, naming each place. Root resolution is where a command
+// reads its identity, the once it does.
+func holdProjectFile(root string) (*kbIdentity, error) {
 	for _, replaced := range replacedFiles {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(replaced.old))); err == nil {
-			return refusedProjectFile{fmt.Errorf("%s keeps %s, which no launcher reads any more: %s holds what it held (docs/operator/administration/CONFIGURATION.md). Write that, then delete %s",
+			return nil, refusedProjectFile{fmt.Errorf("%s keeps %s, which no launcher reads any more: %s holds what it held (docs/operator/administration/CONFIGURATION.md). Write that, then delete %s",
 				root, replaced.old, replaced.now, replaced.old)}
 		}
 	}
-	if _, err := readKBIdentity(root); err != nil {
-		return refusedProjectFile{err}
+	identity, err := readKBIdentity(root)
+	if err != nil {
+		return nil, refusedProjectFile{err}
 	}
-	return nil
+	return identity, nil
 }
 
 // projectFileRefused: whether err is holdProjectFile's refusal, which no
@@ -144,28 +177,4 @@ func yamlKBIdentity(where string, text []byte) (*kbIdentity, error) {
 		identity.Version = *project.Project.Version
 	}
 	return identity, nil
-}
-
-// effectiveKBName is the name the Archivist computes for this root: the
-// committed project.name, else the directory basename when there is no project
-// file (docs/protocol/ARCHIVIST.md). The launcher writes it into the
-// gateway's document as `kb.name`.
-func effectiveKBName(root string) string {
-	if id := loadKBIdentity(root); id != nil {
-		return id.Name
-	}
-	return filepath.Base(root)
-}
-
-// committedDomain is the KB's permanent did:web identity as its own project
-// file declares it, "" when there is none. The launcher stages this into the
-// services that describe the KB without mounting it; staging "" is
-// deliberate — a consumer that needs an identity must refuse, and a
-// fabricated one ('localhost', the dial address) is how two knowledge bases
-// end up sharing a did.
-func committedDomain(root string) string {
-	if id := loadKBIdentity(root); id != nil {
-		return id.Domain
-	}
-	return ""
 }

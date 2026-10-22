@@ -33,7 +33,11 @@ func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
 	}}
 	saveRoots(reg)
 
-	registerRootUse(kb, false, "")
+	ident, err := readKBIdentity(kb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerRootUse(kbRoot{dir: kb, ident: ident}, false, "")
 
 	got := loadRoots()
 	paths := map[string]bool{}

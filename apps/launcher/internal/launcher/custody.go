@@ -95,17 +95,17 @@ func daemonCredentialVar(name string) bool {
 // not have — a literal from a config, or custody lost with the store
 // kept — and a daemon started over it rejects every login, so that refuses,
 // naming the clean. It never wipes a store itself.
-func loadOrCreateDaemonPassword(u *UI, root, role string) (string, bool) {
+func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 	d := daemonPasswords[role]
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		return "", false
 	}
 	if s, ok := store.get(u, d.custody); !ok || s != "" {
 		return s, ok
 	}
-	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(root)) {
-		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(root))
+	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(key)) {
+		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(key))
 		fmt.Fprintln(os.Stderr, "  It was initialized with a password the launcher does not have (a config's literal, or one whose file was lost),")
 		fmt.Fprintln(os.Stderr, "  and the daemon would reject every login. Clear it — the launcher then generates and keeps a new one:")
 		fmt.Fprintf(os.Stderr, "    semiont clean --store %s\n", role)
@@ -177,7 +177,7 @@ const (
 // Tokens outlive the stack, which is why this one is persisted — and why the
 // per-service issuer credentials are too, since the realm that honours them
 // is written once, on first boot.
-func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
+func loadOrCreateJWTSecret(u *UI, key string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
@@ -207,7 +207,7 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	exportHint := func() {
 		fmt.Fprintln(os.Stderr, "  Or export one yourself:  "+setVarHint(systemName(), "JWT_SECRET", inlineRandomHex(systemName(), 32)))
 	}
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		exportHint()
 		return "", false
@@ -244,11 +244,11 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 // Keycloak already created: generating a password there would hand the gateway
 // a credential the realm has never seen, and the admin API would refuse it with
 // nothing to explain why.
-func keycloakAdminPassword(u *UI, root string) (secret, source string, ok bool) {
+func keycloakAdminPassword(u *UI, key string) (secret, source string, ok bool) {
 	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
 		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment", true
 	}
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		return "", "", false
 	}
@@ -276,7 +276,7 @@ func serviceClientSecretEnv(svc string) string {
 // use. The same value reaches two places — the realm document Keycloak imports
 // and the container that has to present it — so both read it from here rather
 // than passing it between them.
-func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
+func loadOrCreateServiceClientSecret(u *UI, key, svc string) (string, bool) {
 	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
 	// has. Per service rather than one for all:
 	// separate credentials are the point of this, and an override that collapsed
@@ -284,7 +284,7 @@ func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {
 		return s, true
 	}
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		return "", false
 	}
@@ -308,8 +308,8 @@ func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 // admin on its FIRST boot against an empty database and never reads the
 // variable again, so the value must outlive the stack with the database that
 // holds the admin it created — a regenerated one locks the console out.
-func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
-	s, source, ok := keycloakAdminPassword(u, root)
+func loadOrCreateKeycloakAdminPassword(u *UI, key string) (string, bool) {
+	s, source, ok := keycloakAdminPassword(u, key)
 	if !ok {
 		// The store did not answer; the environment is the other way in.
 		fmt.Fprintln(os.Stderr, "  Or export one yourself:  "+setVarHint(systemName(), "KC_BOOTSTRAP_ADMIN_PASSWORD", inlineRandomHex(systemName(), 16)))
@@ -319,7 +319,7 @@ func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
 		u.Log("Keycloak admin password: %s", u.Dim(source+" (console user: "+keycloakAdminUser+")"))
 		return s, true
 	}
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		return "", false
 	}

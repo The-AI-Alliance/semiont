@@ -58,9 +58,9 @@ type startOptions struct {
 
 var startUsage = fmt.Sprintf(`Usage: semiont start [options]
 
-Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
-(Ollama), database (PostgreSQL), the Semiont gateway, worker, smelter, weaver, and
-the Browser (http://localhost:3000) — all in containers.
+Start a local Semiont stack — the services and daemons the knowledge base's
+.semiont/stack/ documents describe, and the Browser (http://localhost:3000) —
+all in containers.
 
 Options:
   --config <name>       The Inference document to use, .semiont/stack/inference/
@@ -201,7 +201,7 @@ func Start(args []string) int {
 		// The convenience this serves is resuming a codespace from ANYWHERE;
 		// a directory that resolves to a KB root is the one place it must not
 		// apply.
-		_, _, rootErr := resolveKBRoot()
+		_, _, _, rootErr := resolveKBRoot()
 		if projectFileRefused(rootErr) {
 			u.Fail("%v", rootErr)
 			return 1
@@ -239,14 +239,15 @@ func Start(args []string) int {
 	configNeeded := opts.service == "" || !configFreeService(opts.service)
 	rootNeeded := configNeeded
 	root := ""
+	var ident *kbIdentity
 	if rootNeeded {
 		var err error
 		if opts.root != "" {
 			// --root wins over SEMIONT_ROOT and discovery: a path is
 			// validated directly, anything else resolves via the registry.
-			root, err = resolveRootArg(opts.root)
+			root, ident, err = resolveRootArg(opts.root)
 		} else {
-			root, _, err = resolveKBRoot()
+			root, _, ident, err = resolveKBRoot()
 		}
 		if err != nil {
 			u.Fail("%v", err)
@@ -273,9 +274,12 @@ func Start(args []string) int {
 		// machine seam and mutates nothing). The sticky config is recorded
 		// separately, only after the start succeeds.
 		if !opts.dryRun {
-			registerRootUse(root, opts.service == "", "")
+			registerRootUse(kbRoot{dir: root, ident: ident}, opts.service == "", "")
 		}
 	}
+	// The root as this start resolved it, with the identity it read then: the
+	// once a start reads it.
+	kb := kbRoot{dir: root, ident: ident}
 
 	// Sticky config: with no explicit --config, this KB's recorded
 	// preference (roots.json) wins over the built-in fallback. Dry-run
@@ -406,7 +410,6 @@ func Start(args []string) int {
 
 	u.Banner("Semiont Local Gateway")
 	if rootNeeded {
-		ident := loadKBIdentity(root)
 		// A KB must declare its identity to run. The launcher publishes a
 		// discovery document in which `did` is REQUIRED, so a KB with no
 		// site.domain cannot be represented in it — and the alternatives are
@@ -496,16 +499,16 @@ func Start(args []string) int {
 
 	if opts.dryRun {
 		if opts.service != "" {
-			renderServicePlan(rt, root, opts, userEnv, st, plan)
+			renderServicePlan(rt, kb, opts, userEnv, st, plan)
 		} else {
-			renderStartPlan(rt, root, opts, userEnv, st, plan)
+			renderStartPlan(rt, kb, opts, userEnv, st, plan)
 		}
 		return 0
 	}
 	// One start per KB root at a time (startlock.go), taken before the first
 	// side effect: a second start waits for the first rather than sweeping
 	// its containers out from under it.
-	if root != "" && !acquireStartLock(u, root) {
+	if root != "" && !acquireStartLock(u, kb.key()) {
 		return 1
 	}
 	// A codespace KB forward may squat on a port this start claims (a
@@ -528,13 +531,13 @@ func Start(args []string) int {
 	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
 	if opts.service != "" {
-		code = runStartService(u, rt, root, opts, userEnv, st, plan)
+		code = runStartService(u, rt, kb, opts, userEnv, st, plan)
 	} else {
-		code = runStart(u, rt, root, opts, userEnv, st, plan)
+		code = runStart(u, rt, kb, opts, userEnv, st, plan)
 	}
 	if code == 0 {
 		if opts.configSet {
-			registerRootUse(root, false, opts.configName)
+			registerRootUse(kb, false, opts.configName)
 		}
 		if opts.runtime != "" {
 			recordRuntimePref(opts.runtime)
@@ -943,7 +946,7 @@ var sidecarSpecs = []sidecarSpec{
 
 // runStart: the live full start — flowFullStart with liveExec, plus the
 // live-only bookends (timing stamp, summary table).
-func runStart(u *UI, rt, root string, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
+func runStart(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
 	t0 := time.Now()
 	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
 	// dry-run output must stay machine-independent (host RAM in a golden
@@ -954,8 +957,8 @@ func runStart(u *UI, rt, root string, opts startOptions, userEnv []string, st *s
 			u.Warn("%s", w)
 		}
 	}
-	x := &liveExec{u: u, rt: rt, plan: plan}
-	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, root: root, userEnv: userEnv}); code != 0 {
+	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan}
+	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv}); code != 0 {
 		return code
 	}
 
@@ -975,11 +978,11 @@ func runStart(u *UI, rt, root string, opts startOptions, userEnv []string, st *s
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
 		// The password is the launcher's: say where it is kept, never print
 		// it.
-		store, _ := custodyFor(u, root)
+		store, _ := custodyFor(u, kb.key())
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
 	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
-	if store, ok := custodyFor(u, root); ok {
+	if store, ok := custodyFor(u, kb.key()); ok {
 		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
 	}
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")

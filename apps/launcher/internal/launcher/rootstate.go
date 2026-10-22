@@ -44,15 +44,12 @@ var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 //
 // meta.json keeps the unsanitized truth so status and clean can always name
 // the root.
-func rootKey(root string) string {
-	return stateKeyFor(loadKBIdentity(root).didWeb(), root)
-}
-
-// stateKeyFor derives the key from an already-known identity — the form
-// clean and status use against RECORDS (stack.json's kbDid/kbRoot), where
-// re-reading .semiont/config.yaml would answer for the wrong tree (or none, for
-// an orphan).
-func stateKeyFor(did, root string) string {
+//
+// It takes the did the caller already holds: the identity a command read when
+// it resolved its root, or a record's (stack.json's kbDid/kbRoot), where
+// re-reading .semiont/config.yaml would answer for the wrong tree (or none,
+// for an orphan).
+func rootKey(did, root string) string {
 	if d, ok := strings.CutPrefix(did, "did:web:"); ok && d != "" {
 		return keyUnsafe.ReplaceAllString(d, "-")
 	}
@@ -64,13 +61,14 @@ func stateKeyFor(did, root string) string {
 	return "path-" + hex.EncodeToString(sum[:])[:12]
 }
 
-// stateRootDir: <dataDir>/roots/<key> for this KB root; "" when homeless.
-func stateRootDir(root string) string {
+// stateRootDir: <dataDir>/roots/<key> for the root key names (rootKey); ""
+// when homeless or when there is no root.
+func stateRootDir(key string) string {
 	d := dataDir()
-	if d == "" {
+	if d == "" || key == "" {
 		return ""
 	}
-	return filepath.Join(d, "roots", rootKey(root))
+	return filepath.Join(d, "roots", key)
 }
 
 // stateStoreSpec: how one infra role's container consumes its state subdir.
@@ -243,9 +241,9 @@ func storeClearArgs(sd string) []string {
 		"find", "/store", "-mindepth", "1", "-maxdepth", "1", "-exec", "rm", "-rf", "{}", "+"}
 }
 
-// storeDir: the store's directory under a root's state dir.
-func (spec stateStoreSpec) storeDir(root string) string {
-	dir := stateRootDir(root)
+// storeDir: the store's directory under the state dir of the root key names.
+func (spec stateStoreSpec) storeDir(key string) string {
+	dir := stateRootDir(key)
 	if dir == "" {
 		return ""
 	}
@@ -255,12 +253,12 @@ func (spec stateStoreSpec) storeDir(root string) string {
 // stateMountArgs renders the -v/-e run args for a role's persistent state.
 // nil for roles without a store, or when no data home resolves — the stack
 // still boots, just ephemeral.
-func stateMountArgs(role, root string) []string {
+func stateMountArgs(role, key string) []string {
 	spec, ok := stateStores[role]
 	if !ok {
 		return nil
 	}
-	sd := spec.storeDir(root)
+	sd := spec.storeDir(key)
 	if sd == "" {
 		return nil
 	}

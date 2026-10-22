@@ -104,13 +104,19 @@ func workerBinding(inference string) string {
 // model, at one address, under one key — and accepts every job that engine
 // serves: agents are in the order of the first job that needs each, and an
 // agent's filters in workerJobs' order. A roster that binds no job has no
-// agents, and is refused: the document's `agents` is never empty. A full start
-// of such a roster runs no worker and writes no document (workerPlan); this is
-// the refusal of a worker asked for by name.
+// agents, and is refused: the document's `agents` is never empty. A start of
+// such a roster runs no worker and writes no document (workerPlan), and a
+// worker asked for by name is refused before anything runs (flowOneService).
+// errNoWorkerJob: the refusal of a worker for a roster, in the Inference
+// document at inference, that binds it no job.
+func errNoWorkerJob(inference string) error {
+	return fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(inference))
+}
+
 func workerAgents(p placement) ([]semiont.WorkerAgentConfig, error) {
 	served := servedJobs(p.st.Inference.Spec.Roster)
 	if len(served) == 0 {
-		return nil, fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(p.st.Files.Inference))
+		return nil, errNoWorkerJob(p.st.Files.Inference)
 	}
 	var agents []semiont.WorkerAgentConfig
 	for _, s := range served {

@@ -49,10 +49,10 @@ func digString(m map[string]any, path ...string) (string, bool) {
 // runStartService: the live `start --service` — flowOneService with
 // liveExec, plus the live-only rocket summary (skipped for the external/
 // absent no-ops, which launch nothing).
-func runStartService(u *UI, rt, root string, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
+func runStartService(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
 	t0 := time.Now()
-	x := &liveExec{u: u, rt: rt, root: root, plan: plan}
-	if code := flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, root: root, userEnv: userEnv, restart: true}); code != 0 {
+	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan}
+	if code := flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true}); code != 0 {
 		return code
 	}
 	if _, nothing := nothingToLaunch(plan, opts.service); nothing {
@@ -67,9 +67,9 @@ func runStartService(u *UI, rt, root string, opts startOptions, userEnv []string
 // renderServicePlan is --dry-run for --service: the same flow, plan mode.
 // Real root for the same reason as renderStartPlan: the state path is
 // plan-time truth; the kb mount keeps its placeholder via val().
-func renderServicePlan(rt, root string, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) {
+func renderServicePlan(rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) {
 	x := &planExec{rt: rt}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, root: root, userEnv: userEnv, restart: true})
+	flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true})
 }

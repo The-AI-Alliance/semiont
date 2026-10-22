@@ -214,7 +214,7 @@ func Status(args []string) int {
 
 	// --root: assert the local stack belongs to that root before reporting it.
 	if rootFlag != "" {
-		want, err := resolveRootArg(rootFlag)
+		want, ident, err := resolveRootArg(rootFlag)
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
@@ -231,7 +231,7 @@ func Status(args []string) int {
 		// report so far: the gateway answers long before the sidecars do.
 		// This is the question a laptop asks a codespace before moving its
 		// issuer (askRemoteKB).
-		if holder, busy := startInProgress(want); busy {
+		if holder, busy := startInProgress(kbRoot{dir: want, ident: ident}.key()); busy {
 			u.Fail("A semiont start is running for this KB (%s) — its stack is not ready yet.", holder)
 			return 1
 		}
@@ -390,7 +390,10 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	if service == "" {
 		if st != nil && st.KBRoot != "" {
 			fmt.Printf("  %s\n", st.KBRoot)
-			if ident := loadKBIdentity(st.KBRoot); ident != nil && ident.SiteName != "" {
+			switch ident, err := readKBIdentity(st.KBRoot); {
+			case err != nil:
+				fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "⚠ "+err.Error()))
+			case ident != nil && ident.SiteName != "":
 				fmt.Printf("    %s %s\n", u.Dim(ident.didWeb()), u.Dim("— "+ident.SiteName))
 			}
 		} else if st == nil {
@@ -401,7 +404,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		}
 		if st != nil && st.KBRoot != "" {
 			// Named from the setting alone: status never reaches for secrets.
-			key := stateKeyFor(st.KBDid, st.KBRoot)
+			key := rootKey(st.KBDid, st.KBRoot)
 			if ref, configured, err := storeSettingFor(key); err != nil {
 				fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "secrets: "+err.Error()))
 			} else {
@@ -642,7 +645,7 @@ func Roots(args []string) int {
 func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 	reg := loadRoots().Roots
 	n := len(reg) + len(cs)
-	cwd, _, cwdErr := resolveKBRoot()
+	cwd, _, _, cwdErr := resolveKBRoot()
 	if projectFileRefused(cwdErr) {
 		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", cwdErr)))
 	}
@@ -704,7 +707,7 @@ func printRoots(u *UI, st *StackState) int {
 		labels[path] = append(labels[path], label)
 	}
 
-	if path, source, err := resolveKBRoot(); err == nil {
+	if path, source, _, err := resolveKBRoot(); err == nil {
 		label := "discovered from cwd"
 		if source == "SEMIONT_ROOT" {
 			label = "SEMIONT_ROOT"
@@ -740,7 +743,13 @@ func printRoots(u *UI, st *StackState) int {
 				did, site, cfg = e.Did, e.SiteName, e.Config
 			}
 		}
-		if ident := loadKBIdentity(p); ident != nil {
+		// The tree's identity, where the tree has one; a row whose root is
+		// gone keeps the one recorded on it.
+		ident, err := readKBIdentity(p)
+		if err != nil {
+			fmt.Printf("%s%s\n", indent, u.Wrap(AnsiYellow, "⚠ "+err.Error()))
+		}
+		if ident != nil {
 			did, site = ident.didWeb(), ident.SiteName
 		}
 		switch {
@@ -874,9 +883,9 @@ func printLauncherPaths(u *UI) {
 	}
 
 	rootsDir := filepath.Join(data, "roots")
-	if root, _, err := resolveKBRoot(); err == nil {
+	if root, _, ident, err := resolveKBRoot(); err == nil {
 		fmt.Println()
-		printKBPaths(u, row, more, root, rootsDir)
+		printKBPaths(u, row, more, kbRoot{dir: root, ident: ident}, rootsDir)
 	} else if projectFileRefused(err) {
 		fmt.Printf("\n  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", err)))
 	}
@@ -923,11 +932,11 @@ func printLauncherPaths(u *UI) {
 // printKBPaths: the knowledge base a command was run in — its root, which is
 // the knowledge base itself, and the directory the launcher keeps its stores
 // in, which is another place. Each store is shown by its own directory there.
-func printKBPaths(u *UI, row func(label, path, note string), more func(string), root, rootsDir string) {
-	key := rootKey(root)
+func printKBPaths(u *UI, row func(label, path, note string), more func(string), kb kbRoot, rootsDir string) {
+	root, key := kb.dir, kb.key()
 	dir := filepath.Join(rootsDir, key)
 	row("KB root", root, "")
-	if did := loadKBIdentity(root).didWeb(); did != "" {
+	if did := kb.ident.didWeb(); did != "" {
 		more(did)
 	}
 	row("its stores", dir, "")
