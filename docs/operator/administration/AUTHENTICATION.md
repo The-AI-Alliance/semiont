@@ -2,7 +2,7 @@
 
 Semiont uses **bearer-only** authentication: every request authenticates with an `Authorization: Bearer` JWT (or, for media, a short-lived `?token=`). There are **no session cookies** — the gateway carries no ambient credentials, which is what lets CORS be fully open (`*`) and a KB be hosted on the public internet.
 
-See also [Security](./SECURITY.md) for what Semiont enforces and what it leaves to the issuer and the platform, [Secrets](../services/SECRETS.md) for how secrets reach services, and [Configuration](./CONFIGURATION.md#identity) for the `[identity]` section.
+See also [Security](./SECURITY.md) for what Semiont enforces and what it leaves to the issuer and the platform, [Secrets](../services/SECRETS.md) for how secrets reach services, and [Configuration](./CONFIGURATION.md#the-issuer) for how a knowledge base names the issuer it trusts.
 
 ## Overview
 
@@ -69,7 +69,7 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, written into the realm as `accessTokenLifespan`. A knowledge base overrides it with `accessTokenLifespan` in its `[identity]` section. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the config. |
+| Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
 | Agent | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 
@@ -89,15 +89,9 @@ Disabling also stops the refresh grant, so the person cannot mint a replacement 
 
 ### The subject claim
 
-`[identity] subjectClaim` names the issuer claim a person's DID is built from:
+`spec.issuer.subjectClaim`, in the knowledge base's `knowledge-base.yaml`, names the issuer claim a person's DID is built from: `sub`, as `semiont init` writes it, is the issuer's stable identifier, and `email` names people by address.
 
-```toml
-[environments.local.identity]
-type = "keycloak"
-subjectClaim = "sub"     # the issuer's stable identifier; "email" names people by address
-```
-
-It is required — the gateway, every sidecar and `semiont start` refuse a config without it, naming the key — and it has no default: which claim identifies a person is declared per deployment, never inferred. The DID is `did:web:<site domain>:users:<claim value>`, under the same `[site] domain` the deployment mints its software agents beneath, so a person and the software working for them are peers under one authority. With `"sub"`, a changed email changes nothing about who authored what; with `"email"`, the address is the identity, and the operator has said so.
+It is required — the KnowledgeBase schema refuses a document without it, and the gateway refuses a configuration without it, naming the key — and it has no default: which claim identifies a person is declared per deployment, never inferred. The DID is `did:web:<site domain>:users:<claim value>`, under the same `site.domain` the deployment mints its software agents beneath, so a person and the software working for them are peers under one authority. With `"sub"`, a changed email changes nothing about who authored what; with `"email"`, the address is the identity, and the operator has said so.
 
 ### The trust boundary
 
@@ -164,7 +158,7 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 1. **Signature** — verified against the issuer's published JWKS.
 2. **Issuer and audience** — must match the configured issuer and this knowledge base's derived resource identity.
 3. **Expiration** — enforced by the verifier.
-4. **Subject and email** — the claim `[identity] subjectClaim` names must be present and non-empty, an `email` is required, and an `email_verified` of false is refused.
+4. **Subject and email** — the claim `subjectClaim` names must be present and non-empty, an `email` is required, and an `email_verified` of false is refused.
 5. **Principal** — built from those claims. The DID is `did:web:<site domain>:users:<subject>`, the subject being the value of the configured claim — the email is carried for display and is not part of the identity; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
 
 **What the record keeps about a person, and what it does not.** The DID is the identity, and it is all any artifact carries. The `name` is recorded separately — one line on the knowledge base's system log per name a subject has had, written by the gateway when that person acts and only when the name differs from the last one recorded — so that a reader can resolve a DID to a person from the log alone, without asking the issuer. **The email is never recorded**: it is carried on the token for display during a request and is written nowhere, which is deliberate, because an append-only log is the wrong home for a piece of personal data the display does not need. Nothing about a person is written for merely reading.
@@ -213,7 +207,7 @@ The gateway reads two credentials from its environment:
 | `JWT_SECRET` | The key ring that signs agent and media tokens, and nothing else |
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the issuer, which it uses to reach the archivist |
 
-It holds no credential on a person's behalf: it never signs anyone in, and verifies people's tokens against the issuer's published keys. The issuer a deployment trusts is named in the knowledge base's `[identity]` configuration.
+It holds no credential on a person's behalf: it never signs anyone in, and verifies people's tokens against the issuer's published keys. The issuer a deployment trusts is named in the knowledge base's `knowledge-base.yaml`, at `spec.issuer`.
 
 Nothing generates the signing key at request time, and the gateway refuses to start without one. Who supplies it depends on where the stack runs:
 
@@ -286,9 +280,9 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
-**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. Under `[identity] type = "keycloak"` the launcher creates all seven. Under `type = "oidc"` you create them at your own issuer and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — see [Maintenance](./MAINTENANCE.md) for rotation.
+**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. For the Keycloak the launcher runs, named by `spec.issuer.ref`, the launcher creates all seven. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — see [Maintenance](./MAINTENANCE.md) for rotation.
 
-`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the config. It reconciles configuration only and never touches accounts.
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
 
 ### API
 
@@ -304,7 +298,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - The token may be expired — obtain a new one from the issuer.
 - The token may be for another audience. This deployment accepts only tokens whose audience is its own derived resource identity, published at `/.well-known/oauth-protected-resource`.
 - The token's email may not be marked verified by the issuer, which is refused.
-- The token may lack the claim `[identity] subjectClaim` names; the gateway refuses it, naming the claim.
+- The token may lack the claim `subjectClaim` names; the gateway refuses it, naming the claim.
 
 **Sign-in fails at the issuer**
 - The account may be disabled there. That is where enable and disable live; `semiont useradd --active` re-enables one.
@@ -316,4 +310,4 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - [Secrets](../services/SECRETS.md): where the signing key and the service accounts' secrets are kept
 - [Deploying Semiont](./DEPLOYMENT.md): bringing an issuer of your own
 - [Database](./DATABASE.md): the PostgreSQL Keycloak uses
-- [Configuration](./CONFIGURATION.md#identity): the `[identity]` section
+- [Configuration](./CONFIGURATION.md#the-issuer): `spec.issuer`, and the Issuer document

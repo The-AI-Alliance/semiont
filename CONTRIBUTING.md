@@ -68,11 +68,14 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
    ```bash
    git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
    ```
-4. **Build your tree and run a stack on it**:
+4. **Build your tree and run a stack on it**. Name the `:local` images in the knowledge base's
+   `.semiont/stack/*.yaml` (`ghcr.io/the-ai-alliance/semiont-gateway:local`, and so on for each
+   service), and the Browser's in the machine's settings:
    ```bash
    ./scripts/ci/local-build.sh
    cd ../semiont-template-kb
-   SEMIONT_VERSION=local ../semiont/apps/launcher/dist/semiont start
+   ../semiont/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+   ../semiont/apps/launcher/dist/semiont start
    ```
 5. **Run the tests** for the part you are changing:
    ```bash

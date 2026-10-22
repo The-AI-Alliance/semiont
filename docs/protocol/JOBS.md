@@ -47,8 +47,8 @@ subscriber, not as one member of a competing group, so a second dispatcher would
 document is a [`DispatcherConfig`](../../specs/src/components/schemas/DispatcherConfig.json): the
 gateway's URL, the issuer its service account signs in at, the broker holding the queue, the port it
 answers `/health` on, the queue's clocks, and its log level and format. Its image passes
-`--config /etc/semiont/dispatcher.json`, and the launcher writes the document there, resolved from the
-knowledge base's config. Started without `--config`, or with a path that names no file, no JSON, or a
+`--config /etc/semiont/dispatcher.json`, and the launcher writes the document there, from the
+knowledge base's stack documents. Started without `--config`, or with a path that names no file, no JSON, or a
 document the schema refuses, the dispatcher writes the reason to stderr and exits with status 1 before
 it serves.
 

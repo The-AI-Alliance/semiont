@@ -12,11 +12,12 @@ none, and there is no ORM, no migration step and no schema of ours to evolve.
 
 ## Overview
 
-- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` when the launcher provisions it)
+- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` as `semiont init` names it in the Issuer document)
 - **Owner**: Keycloak. It creates and migrates its own schema on first boot.
 - **Semiont's schema**: none
-- **Why it is here at all**: `type = "keycloak"` in `[identity]` requires a `[database]` section,
-  because Keycloak needs somewhere to keep accounts, realms and sessions.
+- **Why it is here at all**: the Issuer document, which describes the Keycloak the launcher runs,
+  names a PostgreSQL in its `spec.database`, because Keycloak needs somewhere to keep accounts,
+  realms and sessions.
 
 In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container and Keycloak
 reaches it over the stack network. The launcher creates the `keycloak` database there when it runs
@@ -95,7 +96,7 @@ report itself healthy whatever state the database is in. Start at
 
 - The database is not published outside the stack network except for the port the launcher maps for
   local development.
-- The launcher generates PostgreSQL's password and keeps it; a config names none. See
+- The launcher generates PostgreSQL's password and keeps it; no document names it. See
   [Secrets](../services/SECRETS.md).
 - The passwords in here are Keycloak's to hash and hold. Semiont never sees a credential, and the
   gateway has no connection through which it could.
@@ -104,4 +105,4 @@ report itself healthy whatever state the database is in. Start at
 
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — where PostgreSQL sits among the containers
 - [Authentication](./AUTHENTICATION.md) — how identity works without a Semiont user table
-- [Configuration](./CONFIGURATION.md) — the `[database]` and `[identity]` sections
+- [Configuration](./CONFIGURATION.md#the-issuer) — the Issuer document and its `spec.database`

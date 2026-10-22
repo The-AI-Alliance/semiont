@@ -5,13 +5,14 @@ holding your documents, configuration, and startup scripts — not from the
 [semiont monorepo](https://github.com/The-AI-Alliance/semiont), which is the
 platform source (it publishes the npm packages and the container images).
 
-Every KB repo shares the same shape: configuration, the event log, and
-inference presets under `.semiont/`. The stack is run by the
-host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
+Every KB repo shares the same shape under `.semiont/`: its project file
+(`config.yaml`), the documents describing its stack (`stack/`, one Inference
+document per way of serving its models), and the event log. The stack is run
+by the host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
 (a single static binary), which *pulls* the published, attested
-`ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
-runtime — KB repos build no images of their own (see
-[Container Images](operator/administration/IMAGES.md)).
+`ghcr.io/the-ai-alliance/semiont-*` images the documents name and mounts into
+each one the configuration it writes from them — KB repos build no images of
+their own (see [Container Images](operator/administration/IMAGES.md)).
 
 On this page: the [demo knowledge bases](#demo-kbs), which arrive with content, and
 [how to run one](#running-one); the [community](#community) ones;
@@ -49,11 +50,11 @@ semiont start
 semiont useradd --email admin@example.com   # prompts for the password
 ```
 
-A demo knowledge base arrives with its identity and its configs already set, so
-there is no `semiont init` to run, and with content, so there is nothing to ingest
-before you read and annotate. A plain `semiont start` runs its local Ollama
-config, which needs no key. `semiont start --config anthropic` runs on your
-Anthropic key instead.
+A demo knowledge base arrives with its identity and its stack's documents already
+set, so there is no `semiont init` to run, and with content, so there is nothing to
+ingest before you read and annotate. A plain `semiont start` runs its local Ollama
+Inference document, which needs no key. `semiont start --config anthropic` runs on
+your Anthropic key instead.
 
 A new stack has no users, which is what `useradd` is for. Then open the browser,
 pick the knowledge base in its Knowledge Bases panel and sign in: steps 5 and 6
@@ -81,12 +82,12 @@ it listed here.
 
 ## Starting from scratch
 
-**`semiont init`** births a new KB in place — no clone required. It stamps
-the permanent did:web identity at birth (from `--domain` or your git
-origin), synthesizes a validated semiontconfig from `--inference` /
-`--model` / `--embedding` choices (or copies the template's configs with
-`--from-template`), and refuses rather than writing a config that cannot
-start:
+**`semiont init`** births a new KB in place — no clone required. It writes
+the permanent did:web identity into `.semiont/config.yaml` at birth (from
+`--domain` or your git origin), writes the stack's documents into
+`.semiont/stack/` from `--inference` / `--model` / `--embedding` choices (or
+copies the template's with `--from-template`), and refuses rather than
+writing documents that cannot start:
 
 ```bash
 semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text

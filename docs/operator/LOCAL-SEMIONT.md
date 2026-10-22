@@ -29,18 +29,18 @@ For a new one, `semiont init` creates a knowledge base in the current directory 
 
 ## Choose a config
 
-A knowledge base can ship several configs under `.semiont/semiontconfig/`, usually one per inference provider:
+A knowledge base can ship several Inference documents under `.semiont/stack/inference/`, usually one per inference provider, and `--config` names the one a start runs:
 
 ```bash
-semiont start --list-configs        # the configs this knowledge base has
+semiont start --list-configs        # the Inference documents this knowledge base has
 semiont start --config anthropic    # start on one of them
-semiont settings config anthropic   # make it this knowledge base's default
+semiont settings config anthropic   # make it this knowledge base's default on this machine
 ```
 
-- **With local models (Ollama)**, no key is needed. The first start downloads the models the config names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not.
-- **With Anthropic**, the config references `${ANTHROPIC_API_KEY}`. Tell the launcher where the key lives with `semiont settings secret set ANTHROPIC_API_KEY`, or export the variable. See [Secrets](services/SECRETS.md).
+- **With local models (Ollama)**, no key is needed. The first start downloads the models the document names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not.
+- **With Anthropic**, the document names the variable that holds the key: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`. Tell the launcher where the key lives with `semiont settings secret set ANTHROPIC_API_KEY`, or export the variable. See [Secrets](services/SECRETS.md).
 
-What a config can say is in [Configuration](administration/CONFIGURATION.md).
+What the documents can say is in [Configuration](administration/CONFIGURATION.md).
 
 ## Day to day
 
@@ -85,13 +85,13 @@ A stack's containers reach each other through your machine's own address, so the
 
 ## Where things are kept
 
-- **The knowledge base** is its own directory: content, `.semiont/config`, the configs, and the event log. See [Project Layout](PROJECT-LAYOUT.md).
+- **The knowledge base** is its own directory: content, `.semiont/config.yaml`, the stack's documents in `.semiont/stack/`, and the event log. See [Project Layout](PROJECT-LAYOUT.md).
 - **Everything a stack derives or needs to run** is outside it, in a directory the launcher keeps per knowledge base: the databases, the graph, the vectors, the job queue, the views, and the secrets the launcher generated. [Where the launcher keeps its files](../../apps/launcher/README.md#where-the-launcher-keeps-its-files) says where on each system, and `semiont status --verbose` prints the paths and what each store takes on disk.
 - **Logs** go to each container's output. `semiont logs` reads them; there are no log files to find.
 
 ## Images built from source
 
-To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and start with `SEMIONT_VERSION=local semiont start`. See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
+The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh), name the `:local` images in the documents, and name the Browser's with `semiont settings browser-image`. See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
 
 ## Related
 

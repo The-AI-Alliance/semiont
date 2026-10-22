@@ -162,7 +162,7 @@ Zero means the signal reached an empty room — worth acting on, because these c
 reply and would otherwise fail silently. A positive count is **not** delivery: a subscriber is
 a connection, not a pair of eyes.
 
-A gateway on a broker signal plane (`[signal] type = "nats"`) cannot count, so it reports no
+A gateway on a broker signal plane (`signal.type: nats`) cannot count, so it reports no
 number and the verb prints `(broadcast — no delivery confirmation)`. There, an empty room is
 indistinguishable from a full one, and `browse --browser` gates nothing.
 

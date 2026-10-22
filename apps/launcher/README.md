@@ -22,7 +22,7 @@ supported paths and the contract each one must satisfy.
 
 What the launcher adds on top of `run` is the part those platforms leave to
 you: per-root state directories with ownership stamps and mismatch rules,
-config staging and `${VAR}` delivery, the per-service issuer credentials, the discovery
+configuration staging and secret delivery, the per-service issuer credentials, the discovery
 document, explicit memory ceilings, start ordering, and readiness gates.
 
 What it deliberately is **not** is a scheduler. `semiont start` brings the
@@ -54,11 +54,12 @@ What init does:
   git origin (`<owner_lc>.github.io:<name>` — the same rule the template's
   post-fork action applies), or a prompt that says plainly this is the
   identity stamped into the committed event log.
-- **A config built, not copied**: `--inference anthropic|ollama --model <id>
-  --embedding ollama:<model>` synthesizes a full semiontconfig from the
-  launcher's own knowledge — the three-name binding roster
-  (gatherer/matcher/workers.default; per-job refinement is your edit:
-  `workers.mark`, `workers.mark.<motivation>`, `workers.yield`).
+- **Documents built, not copied**: `--inference anthropic|ollama --model <id>
+  --embedding ollama:<model>` writes the stack's documents into
+  `.semiont/stack/` from the launcher's own knowledge — the images and memory
+  of its catalog, and an Inference document whose roster binds both actors and
+  every job to the one model chosen (per-job refinement is your edit, under
+  `spec.roster.workers.mark.<motivation>` and `spec.roster.workers.yield`).
   NOTHING is mastered anywhere.
 - **Choices validated live**: with a key, Anthropic models validate against
   `/v1/models` (an unlisted id is a refusal printing what exists; no
@@ -67,11 +68,11 @@ What init does:
   registry's 404, and degrade to accept-with-warning when sources are
   unreachable — unknown is not missing.
 - **Or copy from the template, explicitly**: `--from-template [url|dir]`
-  shallow-clones and copies its semiontconfigs — each vetted, all-or-nothing
+  shallow-clones and copies its `.semiont/stack/` — vetted, all-or-nothing
   — and `--devcontainer` copies the codespace set with the display name
   rewritten to yours, making a locally-born KB `--runtime codespace`
   eligible. Identity is NEVER copied.
-- **Every config write — generated or copied — passes the plan deriver
+- **Every document write — generated or copied — passes the plan deriver
   first**: a bug or a version-skewed template is a pre-write refusal
   carrying the parser's own error, never a KB that cannot start.
 
@@ -108,14 +109,15 @@ semiont stop
   holding `http://localhost:3000` literally will not follow it.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
-  own secrets come from (`secret`), and the default store for new KBs
-  (`secret-store --default`) on this machine; and for the KB you are in (or
-  `--root`), its `config`, `keycloak-port` and `secret-store`.
+  own secrets come from (`secret`), the Browser's image (`browser-image`), and
+  the default store for new KBs (`secret-store --default`) on this machine;
+  and for the KB you are in (or `--root`), its `config` (the Inference
+  document a start runs), `keycloak-port` and `secret-store`.
   `semiont settings <name> <value>` sets one, checked as a start would check
   it, and `--unset` returns it to its default. Showing reads no secret and
   contacts no store. The Homebrew formula's caveat points a new install here;
   every command it names is checked to exist (`caveat_test.go`).
-- **`semiont settings secret` registers where config secrets come from** — pointers,
+- **`semiont settings secret` registers where the secrets a document names come from** — pointers,
   never values. `semiont settings secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
   `… set ANTHROPIC_API_KEY op://OSS/Anthropic/credential`); either form
@@ -264,7 +266,7 @@ semiont stop
 - **No secret value is ever on a container's command line**, where `ps` shows
   it to every user on the machine. A container gets `--env NAME`, and the
   value crosses through the runtime command's own environment: service-account
-  secrets, the token-signing key, forwarded config variables such as
+  secrets, the token-signing key, the variables a document names such as
   `ANTHROPIC_API_KEY`, and the databases' passwords alike. Hosts, ports, client
   ids and paths stay visible. `inspect` still shows a running container's
   environment; that is what delivering secrets as environment means.
@@ -284,13 +286,12 @@ semiont stop
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
-  (PostgreSQL)`). **A role's platform decides which verbs it has, and a role
-  need not run here.** `embedding` is a role like any other; its platform is
-  external in both shapes — `type = "ollama"` is served by the same Ollama the
-  `inference` role provides, `type = "voyage"` is remote SaaS — so it appears
-  in status (runtime `external`) and supports no start/stop, exactly as an
-  anthropic-typed `inference` or an external `graph` does. A KB with no
-  `[embedding]` section gets a `not configured` row rather than silence.
+  (PostgreSQL)`). **Who runs a role decides which verbs it has, and a role
+  need not run here.** `embedding` is a role like any other, and somebody
+  else runs it in both shapes — an `ollama` embedding is served by the same
+  Ollama the `inference` role provides, a `voyage` one is remote SaaS — so it
+  appears in status (runtime `external`) and supports no start/stop, exactly
+  as an Anthropic `inference` or an external `graph` does.
   **Exit status:** the default report spans several stacks,
   so it exits 0 whenever status itself ran — to script health, name one
   stack: `--root <path|name>`, `--repo <owner/name>`, or `--service <name>`.
@@ -350,58 +351,54 @@ semiont stop
   ([where](#where-the-launcher-keeps-its-files)). `semiont status --verbose`
   lists it under LAUNCHER PATHS. Logging is best-effort — it never blocks a
   command.
-- **The launcher derives its work from the KB's semiontconfig TOML** — the
-  file every service's configuration is written from (see
-  `docs/operator/administration/CONFIGURATION.md`). Per dependency role
-  (graph, vectors, database, inference, embedding) the config decides the
-  obligation — who runs the daemon — by the section's `platform`:
-  `platform = "external"` → somebody else runs the daemon: the section states
-  its address, and it is verified, never launched, skipped by stop and shown
-  as "external" in status; any other platform, or none → the launcher
-  provides a container (driver by `type`) and places it, and an address
-  stated there is refused, since it would be a second answer to who runs it;
-  `platform = "posix"` → host-process reuse; section absent / unreferenced →
-  nothing launched, "not configured" in status. An `oidc` issuer and a remote
-  provider (Anthropic, Voyage) are somebody else's by their type.
-  **Deployment topology is the launcher's to know, never the KB config's to
-  declare.** A config says what a knowledge base needs — a graph, a vector
+- **The launcher derives its work from the KB's documents in
+  `.semiont/stack/`** — the files every service's configuration is written
+  from (see `docs/operator/administration/CONFIGURATION.md`), each held to its
+  schema in `specs/src/stack/` before anything launches. For each daemon a
+  document describes (the graph, the vectors, the broker, the issuer's
+  database) it states who runs it, one way or the other and never both
+  (`specs/src/stack/Runner.json`): `image` and `resources` → the launcher
+  provides a container from that image and places it; `external` → somebody
+  else runs it: the document states its address, and it is verified, never
+  launched, skipped by stop and shown as "external" in status. The issuer is
+  the KnowledgeBase's `spec.issuer`: `ref` names the Issuer document of a
+  Keycloak the launcher runs, `external` an issuer somebody else runs. An
+  `ollama` provider or embedding that states no address is the machine's
+  Ollama (host-process reuse, container fallback); a remote provider
+  (Anthropic, Voyage) is somebody else's by its type.
+  **Deployment topology is the launcher's to know, never the documents' to
+  declare.** A document says what a knowledge base needs — a graph, a vector
   store, an embedding model, an issuer — and, of the daemons the launcher
-  runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
-  or `issuer` line, so the file is the same on every machine. Each service's
-  document states every address this start placed, as a literal: the
-  gateway's, the dispatcher's, the Archivist's, the worker's, the Smelter's,
-  the Weaver's and the Librarian's. A `${GATEWAY_HOST}` in a config's
-  `publicURL` is resolved there too. One address reaches a container through
-  its environment instead: the telemetry collector's
-  (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
-  config may also write a launcher-run daemon's address as the launcher's own
-  reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
-  `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
-  which reads exactly as leaving it unstated, whatever the section's platform
-  says. `semiont start --dry-run` lists what it would place.
+  runs, nothing of where they listen, so the files are the same on every
+  machine. Each service's document states every address this start placed,
+  as a literal: the gateway's, the dispatcher's, the Archivist's, the
+  worker's, the Smelter's, the Weaver's and the Librarian's. One address
+  reaches a container through its environment instead: the telemetry
+  collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). `semiont start --dry-run` lists
+  what it would place.
   **The inference driver is who performs inference per the
-  bindings, not which process the launcher runs**: any ollama-typed binding →
-  the local-Ollama shape (host-process dance, container fallback); all-remote
-  bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS
-  role that launches nothing. In that second shape the local Ollama the
-  config still needs exists solely for the embedding, so **embedding owns
-  it** — the row reads `embedding (Ollama)` with the host/container runtime,
-  the model pulls ride on it, and its launched container is embedding's to
-  stop. With ollama bindings, embedding instead rides the inference role's
-  Ollama and reports the same provider — one process is never described two
-  ways. `type = "voyage"` is remote SaaS; either way embedding has a status
-  row and start/stop belongs to whatever provides it.
-- **A config naming no vector store or no embedding provider is refused, before
-  anything launches.** Semantic search is always available, and the launcher
-  is the config's one reader, so the refusal is its own. Both sections are
-  required and `embedding` needs its `model`; the refusal happens in
-  `derivePlan`, so `--dry-run` and the `semiont init` self-vet enforce it too,
-  not just `start`. `type = "memory"` is refused with its own explanation: a
-  launcher-managed stack runs the Smelter and the Librarian as separate
-  containers, and an in-process index cannot be shared across them.
+  roster, not which process the launcher runs**: any role on `ollama` →
+  the local-Ollama shape (host-process dance, container fallback); an
+  all-remote roster (Claude throughout) → `inference (Anthropic)`, an external
+  SaaS role that launches nothing. In that second shape the local Ollama the
+  KnowledgeIndex's embedding still needs exists solely for the embedding, so
+  **embedding owns it** — the row reads `embedding (Ollama)` with the
+  host/container runtime, the model pulls ride on it, and its launched
+  container is embedding's to stop. With roles on `ollama`, embedding instead
+  rides the inference role's Ollama and reports the same provider — one
+  process is never described two ways. A `voyage` embedding is remote SaaS;
+  either way embedding has a status row and start/stop belongs to whatever
+  provides it.
+- **The KnowledgeIndex requires a vector store and an embedding model**, so a
+  document without either is refused before anything launches: semantic
+  search is always available. `semiont start`, `--dry-run` and the `semiont
+  init` self-vet read the documents alike, so each enforces it. A `memory`
+  vector store is refused with its own explanation: a launcher-managed stack
+  runs the Smelter and the Librarian as separate containers, and an
+  in-process index cannot be shared across them.
 - **The inference and embedding rows list their models.** Which models a stack
-  uses is config truth, recorded at start (the union of `actors.*` and
-  `workers.*` inference models, and `embedding.model`); whether each is pulled
+  uses is the documents' truth, recorded at start (every model the Inference
+  document's roster names, and the embedding's `model`); whether each is pulled
   is verified live against Ollama's `/api/tags` and `/api/ps`, with size,
   parameter count and quantization. A model that was never pulled is
   otherwise invisible until a worker reaches
@@ -409,7 +406,7 @@ semiont stop
   up it lists what is installed and pulls each configured model that is
   absent, over Ollama's HTTP API (one path for both a host process and the
   launcher's container — no `ollama` CLI needed on PATH). Only models Ollama
-  can actually serve are pulled: ollama-typed bindings plus an ollama
+  can actually serve are pulled: the roster's `ollama` roles plus an ollama
   embedding, never a Claude. If Ollama cannot be listed, NOTHING is pulled —
   unknown is not missing, and re-downloading gigabytes a user already has is
   the worse error. A failed pull warns and leaves the stack running rather
@@ -424,15 +421,13 @@ semiont stop
   resolves secrets. NO costs: Anthropic exposes no price list programmatically
   (the pricing page is docs-only; actual spend needs the org-level Admin API,
   a different credential). An unreachable Ollama reads `unknown`, never `missing`: ignorance
-  and a finding are different answers. Untagged config names are matched
+  and a finding are different answers. Untagged model names are matched
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.
-  Moving `database.port` moves the publish/checks/gates with it;
-  a local Ollama runs only when the config references ollama — owned by
-  inference when the bindings use it, by embedding when only the embedding
-  does. An optional `image`
-  key per role section overrides the catalog's default image — a KB can pin
-  or upgrade an infra image without a launcher release. `--dry-run` renders
+  A local Ollama runs only when the documents name ollama — owned by
+  inference when the roster uses it, by embedding when only the embedding
+  does. Every other container's `image` is its document's — a KB pins or
+  upgrades an infra image without a launcher release. `--dry-run` renders
   the derived plan.
 - **Model rows carry the platform's discovered ceilings.** The context window
   and output ceiling beside each model come from the KB: the services that
@@ -467,14 +462,17 @@ semiont stop
   directory, or the basename of a registered root — winning over
   `SEMIONT_ROOT` and cwd discovery; the KNOWLEDGE BASES status section
   lists the registry with last-used annotations.
-- **`--config` is sticky per KB**: a successful start with an explicit
-  `--config` records the name on the root's `roots.json` entry, and later
-  starts without the flag use it (banner says `Config: anthropic (recorded
-  from last start; override with --config)`; status shows it under SEMIONT
-  ROOTS). An explicit flag always wins and re-records; failed starts and
-  `--dry-run` record nothing, so a typo'd name never becomes the default.
-  The preference is per-user-per-machine — which config you run depends on
-  your API keys, so it lives in the XDG registry, never in the KB repo.
+- **`--config` is sticky per KB**: it names the Inference document a start
+  runs, `.semiont/stack/inference/<name>.yaml`. `semiont init` records the
+  one it wrote on the root's `roots.json` entry, a successful start with an
+  explicit `--config` records the name it ran, and `semiont settings config
+  <name>` sets it; later starts without the flag use it (banner says
+  `Config: anthropic (this KB's recorded config; override with --config)`;
+  status shows it under SEMIONT ROOTS). An explicit flag always wins and
+  re-records; failed starts and `--dry-run` record nothing, so a typo'd name
+  never becomes the default. The preference is per-user-per-machine — which
+  Inference document you run depends on your API keys, so it lives in the
+  XDG registry, never in the KB repo.
 - **`--runtime` is sticky machine-wide** (a top-level `runtime` field in
   `roots.json` — stacks are singleton-per-machine, so unlike `--config` the
   preference isn't per-KB): an explicit `--runtime` on a successful start is
@@ -504,8 +502,12 @@ semiont stop
   service's document afresh; a `--service` stop leaves the staged configs in
   place (the rest of the stack still mounts them); a `--service` status exits
   0/1 on that service alone.
-- `SEMIONT_VERSION` selects the service image tag (default `latest`; the
-  sentinel `local` uses locally-built `:local` images and skips pulls).
+- **The images are the documents'**: each service runs the `image` its
+  document names, and `semiont init` names `:latest`. An image tagged
+  `:local`, built on this machine by `scripts/ci/local-build.sh`, is never
+  pulled; a KB runs one by naming it. The Browser, being the machine's, runs
+  `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings
+  browser-image <image>` names another.
 
 ### Login and upload
 
@@ -745,14 +747,17 @@ appear is not evidence the cue failed.
 
 ### Memory ceilings
 
-Every container the launcher runs carries an explicit `--memory` ceiling, from
-one table in the launcher (no silent runtime defaults — Apple container would
-quietly size each per-container VM at 1G, where a JVM graph or a loaded model
-dies; docker would leave it unlimited inside its shared VM). An environment's
-`[memory]` gives any of the stack's own services another
-([Configuration](../../docs/operator/administration/CONFIGURATION.md#memory)),
-and the gateway's capacity and the Smelter's PDFs at once follow the ceiling
-each runs with, unless `[smelter] pdfsAtOnce` states the Smelter's number. The ceilings are visible in every `--dry-run` line.
+Every container the launcher runs carries an explicit `--memory` ceiling (no
+silent runtime defaults — Apple container would quietly size each
+per-container VM at 1G, where a JVM graph or a loaded model dies; docker would
+leave it unlimited inside its shared VM). A container a document describes
+runs at the `resources.limits.memory` that document states, which `semiont
+init` writes from one table in the launcher; Ollama, the telemetry containers
+and the Browser run at that table's own
+([Configuration](../../docs/operator/administration/CONFIGURATION.md#memory)).
+The gateway's capacity follows the ceiling it runs with, and the Smelter
+works on the PDFs at once its `pdfsAtOnce` states. The ceilings are visible in
+every `--dry-run` line.
 
 On Apple container specifically, ceilings approximate commitments — each one
 sizes a VM whose kernel and page cache grow into it — so a live start sums
@@ -797,21 +802,21 @@ something resident on the host, which the launcher deliberately is not.
 ### The messaging daemon
 
 A single NATS container, addressed as `--service messaging`, is part of every
-stack, and one server carries both sections that use it:
+stack, and one server carries both drivers the KnowledgeBase's
+`spec.messaging` names:
 
-- `[jobs] type = "jetstream"` is required: the dispatcher's queue is JetStream
-  (streams plus KV), so the daemon runs `-js -sd /data` with a durable state
-  mount. A config with no `[jobs]`, or one of another type, is refused.
-- `[signal] type = "nats"` moves the gateway's real-time fan-out onto core NATS
+- `jobs.type: jetstream` is the dispatcher's queue (streams plus KV), so the
+  daemon runs `-js -sd /data` with a durable state mount. Any other type is
+  refused.
+- `signal.type: nats` moves the gateway's real-time fan-out onto core NATS
   subjects on the *same* server. Signal frames are never captured — signals are
   not a record — but the gateway's correlation ledger keeps its claims in a
   JetStream KV bucket there, so this driver needs JetStream too.
 
-When the sections state a broker of your own, both must name the same
-`servers`; a start that finds them pointing at different addresses refuses,
-naming both: one role is one daemon. The
-daemon runs one way — `-js -sd /data` with the state mount — because both
-drivers use the store. `semiont status` lists it as
+A broker of your own is stated once, at `spec.messaging.external`, with its
+`servers` and the variables holding its user and password: one role is one
+daemon. The daemon runs one way — `-js -sd /data` with the state mount —
+because both drivers use the store. `semiont status` lists it as
 `messaging (NATS)`.
 
 Unlike the Semiont service processes, this is a stock third-party image, so it
@@ -850,19 +855,19 @@ the directory its stores are in, and what each store takes on disk.
 
 Local-stack databases persist across restarts. Each local semiont root gets
 its own directory, `roots/<key>` under the launcher's data home, keyed by the
-KB's did:web when `.semiont/config` declares one (identity travels with the KB, so a moved
+KB's did:web when `.semiont/config.yaml` declares one (identity travels with the KB, so a moved
 clone keeps its state), else by a hash of the root path. `start`
 bind-mounts each store's subdir into its container: PostgreSQL rows —
 Keycloak's accounts and realms, which the event log does **not** record —
 survive `stop` and restart. A `meta.json` stamp records which image wrote each store; a
-start whose config names a *different* database image over existing data
+start whose Issuer document names a *different* database image over existing data
 refuses with a fix-it line rather than risk it (Postgres data is never
 auto-deleted). Keycloak manages its own schema on first boot; Semiont applies
 no migrations of its own, because the gateway keeps no database.
 
 Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state persists the same way, with
 the opposite mismatch rule: they are *projections* of the event log, so a
-start whose config names a different image announces it is clearing the
+start whose KnowledgeIndex names a different image announces it is clearing the
 stale store and lets the normal rebuild repopulate it — freshness by
 rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
 entrypoint refuses to boot unless its `test -w` gate passes, and Apple

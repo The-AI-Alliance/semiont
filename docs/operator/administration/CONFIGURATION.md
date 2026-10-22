@@ -1,17 +1,23 @@
 # Configuration
 
-A knowledge base carries its own configuration, in two files, both committed to its repository:
+A knowledge base carries what it needs to run in its own repository, as YAML committed under `.semiont/`:
 
-| File | What it holds |
-|---|---|
-| `.semiont/config.yaml` | The knowledge base's identity: its name, whether git stages its changes, and its permanent `did:web` domain |
-| `.semiont/semiontconfig/<name>.toml` | What the knowledge base needs to run: which inference provider and models, which graph and vector store, which issuer |
+| File | What it holds | Schema |
+|---|---|---|
+| `.semiont/config.yaml` | The project file: the knowledge base's name, whether git stages its changes, and its permanent `did:web` identity | [`ProjectConfig`](../../../specs/src/kb-identity/ProjectConfig.json) |
+| `.semiont/stack/knowledge-base.yaml` | The gateway, the dispatcher, the archivist, the broker between them, and the issuer the knowledge base trusts | [`KnowledgeBase`](../../../specs/src/stack/KnowledgeBase.json) |
+| `.semiont/stack/index.yaml` | The graph, the vector store, the embedding model, and the librarian, the smelter and the weaver | [`KnowledgeIndex`](../../../specs/src/stack/KnowledgeIndex.json) |
+| `.semiont/stack/issuer.yaml` | The Keycloak the launcher runs, and the PostgreSQL it keeps its realm in | [`Issuer`](../../../specs/src/stack/Issuer.json) |
+| `.semiont/stack/workers.yaml` | The worker | [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) |
+| `.semiont/stack/inference/<name>.yaml` | The inference providers, and which provider and model serve each role | [`Inference`](../../../specs/src/stack/Inference.json) |
 
-The first is YAML, the second TOML. The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a `semiontconfig` file; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
+The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a stack document; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
 
-Secrets are in neither. They reach services as environment variables: see [Secrets](../services/SECRETS.md).
+`semiont init` writes all of them for a new knowledge base. The launcher's fixture, [`apps/launcher/testdata/kb/.semiont/`](../../../apps/launcher/testdata/kb/.semiont/), is a complete set in which every document holds to its schema.
 
-**A config says what a knowledge base needs, not where things are.** Where each daemon listens is decided by whatever starts the stack, so the same file works on every machine. The one exception is a daemon somebody else runs, which the config says with `platform = "external"`.
+Secrets are in none of them. A document names a secret by the environment variable that holds it ([Secrets in a document](#secrets-in-a-document)).
+
+**A document says what a knowledge base needs, not where things are.** Where each daemon listens is decided by whatever starts the stack, so the same documents work on every machine. The one exception is a daemon somebody else runs, which a document states at `external`.
 
 ## `.semiont/config.yaml`
 
@@ -22,354 +28,170 @@ project:
   name: "My Knowledge Base"
 
 git:
-  sync: true                # the archivist stages event-log writes with git
+  sync: true
 
 site:
-  # Permanent did:web identity for everything this KB mints (stamped into the
-  # committed event log). Names the repo, not a deployment — a committed
-  # literal, never env-templated, never a machine address.
-  domain: "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
+  domain: "example.github.io:my-kb"
   siteName: "My Knowledge Base"
 ```
 
-Its schema is [`specs/src/kb-identity/ProjectConfig.json`](../../../specs/src/kb-identity/ProjectConfig.json): `project.name`, `git.sync`, `site.domain` and `site.siteName` are required, `project.version` may be given, and nothing else may. A command run in a knowledge base whose `config.yaml` does not hold to it stops there, naming each place by its line (`status` and `roots` show the refusal instead), and the Archivist does not start on one.
+Its schema is [`ProjectConfig`](../../../specs/src/kb-identity/ProjectConfig.json). A command run in a knowledge base whose `config.yaml` does not hold to it stops there, naming each place by its line (`status` and `roots` show the refusal instead), and the Archivist does not start on one.
 
-`site.domain` is identity, not an address. It names the knowledge base in `did:web`'s colon-path form and never changes, wherever the stack runs. Every service derives from it the knowledge base's DID, the audience its tokens must carry, and the authority its people and agents are named under. It is declared here and nowhere else: `semiont start` refuses an `[environments.<name>.site]` section.
+`git.sync: true` has the Archivist stage each change it makes in git; committing and pushing are yours. `semiont init --no-git` writes `false`.
 
-## `.semiont/semiontconfig/<name>.toml`
+`site.domain` is identity, not an address. It names the knowledge base in `did:web`'s colon-path form and never changes, wherever the stack runs. Every service derives from it the knowledge base's DID, the audience its tokens must carry, and the authority its people and agents are named under. It is declared here and nowhere else.
 
-A knowledge base can have several, usually one per inference provider. `semiont start --list-configs` lists them, `--config <name>` picks one for a start, and `semiont settings config <name>` sets the knowledge base's default.
+A knowledge base with no `config.yaml` is named by its directory and has no identity, so no stack runs on it: `semiont start` cannot write the gateway's document without a `site.domain`, and the Archivist refuses to start without one.
 
-This is what `semiont init --inference anthropic --embedding ollama:nomic-embed-text` writes, with the model it bound:
+## `.semiont/stack/`
 
-```toml
-[user]
-name = ""
-email = ""
+Each file is one document in Kubernetes' resource format: `apiVersion` (always `semiont.the-ai-alliance.github.io/v1alpha1`), `kind`, `metadata.name` and `spec`. This is the fixture's `knowledge-base.yaml`:
 
-[defaults]
-environment = "local"
-
-[environments.local.gateway]
-platform = "posix"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.jobs]
-type = "jetstream"
-
-[environments.local.signal]
-type = "nats"
-
-[environments.local.graph]
-platform = "container"
-type = "neo4j"
-name = "neo4j"
-username = "neo4j"
-database = "neo4j"
-
-[environments.local.vectors]
-type = "qdrant"
-
-[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-
-[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.actors.gatherer.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-[environments.local.actors.matcher.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-[environments.local.database]
-platform = "container"
-name = "semiont"
-user = "postgres"
-
-[environments.local.identity]
-type = "keycloak"
-subjectClaim = "sub"
+```yaml
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: KnowledgeBase
+metadata:
+  name: knowledge-base
+spec:
+  logLevel: info
+  gateway:
+    image: ghcr.io/the-ai-alliance/semiont-gateway:latest
+    resources: { limits: { memory: 2G } }
+    port: 4000
+    publicURL: http://localhost:4000
+  dispatcher:
+    image: ghcr.io/the-ai-alliance/semiont-dispatcher:latest
+    resources: { limits: { memory: 2G } }
+  archivist:
+    image: ghcr.io/the-ai-alliance/semiont-archivist:latest
+    resources: { limits: { memory: 2G } }
+  messaging:
+    jobs: { type: jetstream }
+    signal: { type: in-process }
+    image: nats:<version>-alpine   # the broker version the launcher pins
+    resources: { limits: { memory: 512M } }
+  issuer:
+    ref: issuer
+    subjectClaim: sub
 ```
 
-No section names a host, and none names a password. The launcher places each daemon it runs, generates each daemon's password and keeps it, and writes the addresses into the copy of the config it gives each service.
-
-### Environments
-
-A file holds one or more named environments under `[environments.<name>]`, and `[defaults] environment` says which one runs. It is required: a config without it, or one naming an environment the file does not define, is refused. To run a different environment, edit that line or add a second file.
+The documents name one another by `metadata.name`: the KnowledgeIndex and the WorkerPool name the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`specs/src/stack/`](../../../specs/src/stack/README.md).
 
 ### Who runs each daemon
 
-For the graph, the vector store, the database, the broker, the issuer and Ollama, a section's `platform` says who runs the daemon:
+The graph, the vector store, the broker and the issuer's PostgreSQL are each one of two things:
 
-- **`platform = "external"`**: somebody else runs it. The section states where it is, and the launcher checks that it answers and starts nothing.
-- **Anything else, or no `platform`**: the launcher runs it and places it. The section states no address, and the launcher refuses one that does, because that would be a second answer to who runs the daemon.
+- **`image` and `resources`**: the launcher runs it and places it, and generates and keeps its password. The document states no address and no password.
+- **`external`**: somebody else runs it. The document states where it is and, where it takes one, names the variable that holds its credential, and the launcher checks that it answers and starts nothing.
 
-```toml
-# A Neo4j the launcher runs: no address, no password
-[environments.local.graph]
-type = "neo4j"
-username = "neo4j"
-database = "neo4j"
+Never both, and never neither: [`Runner.json`](../../../specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
 
-# A Neo4j somebody else runs: where it is, and a password from your own variable
-[environments.local.graph]
-type = "neo4j"
-platform = "external"
-uri = "bolt://neo4j.example.com:7687"
-username = "neo4j"
-password = "${MY_NEO4J_PASSWORD}"
-database = "neo4j"
-```
+The issuer is chosen the same way, one level up: the KnowledgeBase names an Issuer document the launcher runs, or states an issuer somebody else runs ([The issuer](#the-issuer)).
 
-An external address must be one the containers can reach. `localhost` inside a container is the container itself.
+### Images
 
-A section for a daemon the launcher runs may name `image`, to run a different image of the same product.
+Every container the launcher runs from a document runs the `image` that document names, as a registry names it. `semiont init` writes `ghcr.io/the-ai-alliance/semiont-<service>:latest` for each of Semiont's services, and a pinned release of each daemon. Every start pulls the images of Semiont's services, so a moving tag such as `latest` brings the newest; to run another version, name it in the document.
 
-### Gateway
+An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)).
 
-```toml
-[environments.local.gateway]
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-```
+The Browser is the machine's, not a knowledge base's, so no document names its image. It runs `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings browser-image <image>` names another, and `semiont settings browser-image --unset` returns it to that. The images of Ollama and the telemetry containers are the launcher's own.
 
-`publicURL` is the address clients reach the gateway at. The launcher sets `${GATEWAY_HOST}` itself.
+### Memory
+
+Each container a document describes is given the memory ceiling its `resources.limits.memory` states, a whole number of gigabytes or megabytes (`2G`, `512M`). `semiont init` writes 2G for each of Semiont's services. The ceilings of Ollama, the telemetry containers and the Browser are the launcher's own, and `--dry-run` shows the ceiling each container is given.
+
+Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on as many PDFs at once as the KnowledgeIndex's `spec.smelter.pdfsAtOnce` says. Deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one, so `semiont init` writes one for each 2G of the smelter's ceiling. A knowledge base of large scans is derived sooner with a larger ceiling and a larger number; more PDFs at once than the ceiling holds at 2G each is a smelter that can run out of memory.
 
 ### Inference
 
-Inference has two parts: a provider section holding credentials, and bindings that give each consumer a provider and a model.
+An Inference document says which models serve a knowledge base: in `spec.providers`, the providers a machine reaches, and in `spec.roster`, which provider and model serve each role. A knowledge base can hold several, usually one per provider, and each machine chooses one:
 
-```toml
-# Providers
-[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.inference.ollama]
-platform = "posix"
-
-# Bindings
-[environments.local.actors.gatherer.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-[environments.local.actors.matcher.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-
-# One job on a local model
-[environments.local.workers.mark.highlighting.inference]
-type = "ollama"
-model = "gemma3:4b"
+```bash
+semiont start --list-configs        # the Inference documents this knowledge base holds
+semiont start --config anthropic    # start on .semiont/stack/inference/anthropic.yaml
+semiont settings config anthropic   # make it this knowledge base's choice on this machine
 ```
 
-The two actors that call a model are the `gatherer` and the `matcher`. A worker binding names the job it serves the way a job is described: by its type, `mark` or `yield`, and for a `mark` job by its motivation.
+A start with no `--config` runs the choice recorded for the knowledge base: the one `semiont init` wrote, or the one a successful start last named, else `ollama-gemma`. A document's `metadata.name` is its file's name, and a start refuses one that differs.
 
-| Job | Served by the first of these that is bound |
-|---|---|
-| A `mark` job of one motivation: `highlighting`, `commenting`, `assessing`, `linking` or `tagging` | `workers.mark.<motivation>`, `workers.mark`, `workers.default` |
-| A `yield` job | `workers.yield`, `workers.default` |
+The roster binds each role by itself, keyed as a job is described ([`ArchivistRoster`](../../../specs/src/components/schemas/ArchivistRoster.json)): a `mark` job by its motivation, under `spec.roster.workers.mark`, a `yield` job at `spec.roster.workers.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.roster.actors`. Nothing stands in for a role the roster leaves out: a job it does not bind is served by no one, and the librarian does not start without both actors. `semiont init` binds every role to the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
 
-A job that none of its bindings covers is served by no one. A section under `workers` that names no job is refused when the config is read, and the refusal names the section: `workers.tagging`, written where `workers.mark.tagging` is meant, gives `[environments.local.workers.tagging] names no job`. A binding may also set `maxTokens`.
+The worker runs only when the roster binds a job to it, and then the knowledge base needs `workers.yaml`. With no job bound, a start skips the worker and says so.
 
-Providers can be mixed: a stronger model for the workers that reason, a lighter or local one for the high-volume ones. Every provider a binding names needs its provider section.
+A role's `provider` is one of seven, and each one a role names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../specs/src/stack/Provider.json)):
 
-A binding's `type` is one of seven providers. `semiont init` writes a config for `anthropic` or `ollama`; the other five are added by hand.
-
-| `type` | What it is | Its section states |
-|---|---|---|
-| `anthropic` | Anthropic's API | `apiKey`, and `endpoint` where it is not Anthropic's own |
-| `ollama` | An Ollama server, which the launcher runs or finds | nothing, or `baseURL` for one somebody else runs |
-| `openai` | OpenAI's API | `baseURL` and `apiKey` |
-| `google` | Google's Gemini API | `baseURL` and `apiKey` |
-| `together` | Together's API | `baseURL` and `apiKey` |
-| `vllm` | A vLLM server you run or reach | `baseURL`, and `apiKey` where the server was started with one |
-| `llamacpp` | A llama.cpp server you run or reach | `baseURL`, and `apiKey` where the server was started with one |
-
-```toml
-[environments.local.inference.openai]
-platform = "external"
-baseURL = "https://api.openai.com/v1"
-apiKey = "${OPENAI_API_KEY}"
-
-[environments.local.inference.vllm]
-platform = "external"
-baseURL = "http://vllm.internal:8000/v1"
-
-[environments.local.workers.mark.tagging.inference]
-type = "openai"
-model = "gpt-5-mini"
-
-[environments.local.workers.yield.inference]
-type = "vllm"
-model = "the-model-the-server-serves"
-```
-
-The launcher runs none of these five and keeps no address for them: a section with no `baseURL` is refused, and the refusal names the section. The `baseURL` is the address the provider's own documentation gives for its API. An `apiKey` is a `${VAR}` reference, as every secret in a config is.
+- **`anthropic`** is Anthropic's API, reached at its own address unless the entry states a `baseURL`. Its `apiKey` names the variable holding your key.
+- **`ollama`** with no `baseURL` is the machine's Ollama: the launcher uses an Ollama installed on the machine when there is one, runs one in a container when there is not, and pulls the models the roster names. With a `baseURL`, it is an Ollama somebody else runs.
+- **`openai`**, **`google`** and **`together`** are those companies' APIs, and **`vllm`** and **`llamacpp`** are servers you run or reach. Each states a `baseURL`, the address the provider's own documentation gives for its API, and the `apiKey` it takes; the launcher keeps no address for any of them, and refuses an entry with none, naming it. `semiont init` writes `anthropic` or `ollama`; these five are added by hand.
 
 OpenAI's, Google's and Together's APIs do not say what a model can take: its window, whether it holds a reply to a schema, how its reasoning is set. A model of one of them is asked with what a model catalogue says of it. The worker's image and the Librarian's each carry the catalogue, a copy of [models.dev](https://models.dev) made when the release was cut, and a service whose model the catalogue does not list refuses to start and names the model. A model newer than the release is one it does not list.
 
 **None of these five has been run against its real provider.** Each is tested against a stand-in that plays the provider's API as its documentation describes it.
 
-With any binding on Ollama, the launcher uses an Ollama installed on the machine when there is one, runs one in a container when there is not, and pulls the models the bindings name.
-
 ### Embedding
 
-Required. Semantic search is always available, so a config with no embedding provider is refused.
+The KnowledgeIndex's `spec.embedding` is the model that turns text into vectors, and it is required: semantic search is always available. Its `type` is `ollama`, served by the machine's Ollama unless it states an `endpoint`, or `voyage`, with an `apiKey`. The machine's Ollama is one process whoever asks for it: it serves inference too when the Inference document's `ollama` entry states no `baseURL`, and runs for the embeddings alone when inference is remote or somebody else's.
 
-```toml
-# Ollama, local: no key
-[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-
-# Voyage, a remote API: the key from a variable you name
-[environments.local.embedding]
-type = "voyage"
-model = "voyage-3"
-apiKey = "${MY_VOYAGE_KEY}"
-
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-```
-
-An Ollama embedding is served by the same Ollama that serves inference. On a config whose inference is all remote, Ollama runs for the embeddings alone.
-
-The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, a few PDFs at a time ([Memory](#memory)): a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`baseUrl`, `endpoint`) is no part of it.
-
-### Memory
-
-Each of the stack's services runs in a container with a memory ceiling: 2G for each, unless the environment says otherwise. `[memory]` gives a service another, as `--memory` takes it:
-
-```toml
-[environments.local.memory]
-smelter = "8G"
-```
-
-It names the gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian, and no other. The ceilings of the daemons the launcher runs (Neo4j, Qdrant, Ollama, and the rest) are its own, and so is the browser's.
-
-Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on one PDF at once for each 2G of its ceiling, and on one however little it has: deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one. A knowledge base of large scans is derived sooner with a larger ceiling, and `--dry-run` shows the ceiling each container is given.
-
-`[smelter]` states the number instead, whatever the ceiling:
-
-```toml
-[environments.local.smelter]
-pdfsAtOnce = 1
-```
-
-One keeps memory free for something else with a large ceiling. More PDFs at once than the ceiling holds at 2G each is a smelter that can run out of memory.
+The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, a few PDFs at a time ([Memory](#memory)): a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`endpoint`) is no part of it.
 
 ### Graph and vectors
 
-```toml
-[environments.local.graph]
-type = "neo4j"
-username = "neo4j"
-database = "neo4j"
-
-[environments.local.vectors]
-type = "qdrant"
-```
-
-A vector store is required: a config without `[vectors]` is refused. In a launcher-run stack the graph is Neo4j and the vector store is Qdrant. The packages have other drivers behind the same interfaces, for a stack you deploy yourself: see [Adapting a stack](DEPLOYMENT.md#adapting-a-stack). The in-memory vector store keeps its index inside one process, so no stack with separate services can use it, and the launcher refuses it.
+In a launcher-run stack the graph is Neo4j and the vector store is Qdrant. The packages have other drivers behind the same interfaces, for a stack you deploy yourself: see [Adapting a stack](DEPLOYMENT.md#adapting-a-stack). The in-memory vector store keeps its index inside one process, so no stack with separate services can use it, and the launcher refuses it.
 
 ### Job queue and signal plane
 
-```toml
-[environments.local.jobs]
-type = "jetstream"
+The KnowledgeBase's `spec.messaging` is the broker. `jobs.type` is `jetstream`, its only driver: the dispatcher's queue is NATS JetStream. `signal.type` selects how the gateway fans frames out to subscribers. `nats`, which `semiont init` writes, carries them on the same broker, which also holds the gateway's record of pending replies, so that record survives a restart and is shared by every gateway replica. `in-process` keeps both inside one gateway.
 
-[environments.local.signal]
-type = "nats"
-```
+One NATS daemon serves both. The launcher runs it from `image`, with a user and password it generates and keeps. A broker somebody else runs is stated at `spec.messaging.external`, with its `servers` and the variables holding its user and password: the schema requires the credentials, because an unauthenticated broker lets anyone who reaches it read and write the job queue. Such a broker also needs `max_payload: 8388608` in its own config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 4 MiB, and the broker's default of 1 MiB refuses one larger than that.
 
-`[jobs]` is required, and `jetstream` is its only driver: the dispatcher's queue is NATS JetStream.
+### The issuer
 
-`[signal]` selects how the gateway fans frames out to subscribers. `nats` carries them on the same broker, which also holds the gateway's record of pending replies, so that record survives a restart and is shared by every gateway replica. `in-process`, which is also what an absent section means, keeps both inside one gateway.
+The KnowledgeBase's `spec.issuer` names the one OIDC issuer the knowledge base trusts, in one of two ways:
 
-One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue. A broker somebody else runs also needs `max_payload: 8388608` in its config, as the launcher's has: a frame on the bus can be as large as the largest emit the gateway takes, 4 MiB, and the broker's default of 1 MiB refuses one larger than that.
+- **`ref`** names the Issuer document, `issuer.yaml`: a Keycloak the launcher runs, and in its `spec.database` the PostgreSQL Keycloak keeps its realm in. The realm is `semiont`, and Keycloak is published on port 8080 unless `semiont settings keycloak-port` sets another for the knowledge base. `spec.accessTokenLifespan` is how long a token the realm mints stays valid, in seconds: the window in which a disabled account can still act ([Authentication](AUTHENTICATION.md#token-lifecycle)). The PostgreSQL is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)).
+- **`external`** is an issuer somebody else runs: its `type`, `oidc` or `keycloak`, and its `url`, exactly the `iss` its tokens carry. The knowledge base then has no `issuer.yaml`, and a start refuses one beside it.
 
-### Identity
+Either way, **`subjectClaim`** names the issuer claim a person's DID is built from: `did:web:<site domain>:users:<that claim's value>`. With `sub`, which `semiont init` writes, people are named by the issuer's stable identifier, so a changed email changes nothing about who authored what. With `email`, the address is the identity.
 
-```toml
-# The Keycloak the launcher runs
-[environments.local.identity]
-type = "keycloak"
-subjectClaim = "sub"
-
-# An issuer you run
-[environments.local.identity]
-type = "oidc"
-issuer = "https://id.example.com/realms/analysts"   # exactly the token's `iss`
-subjectClaim = "sub"
-```
-
-`type` and `subjectClaim` are required, and `oidc` requires `issuer`. Nothing is defaulted.
-
-- **`subjectClaim`** names the issuer claim a person's DID is built from: `did:web:<site domain>:users:<that claim's value>`. With `"sub"`, people are named by the issuer's stable identifier, so a changed email changes nothing about who authored what. With `"email"`, the address is the identity.
-- **There is no `audience` key.** The audience a token must carry is the knowledge base's own resource identifier, derived from its `[site] domain`.
-- **`type = "keycloak"`** needs a `[database]` section, because Keycloak keeps its realm in PostgreSQL. It may also set `accessTokenLifespan`, in seconds, and `image`. `semiont settings keycloak-port` moves the port Keycloak is published on.
+**There is no audience setting.** The audience a token must carry is the knowledge base's own resource identifier, derived from its `site.domain`.
 
 What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md#at-the-issuer).
 
-### Database
+## A deployment of its own
 
-```toml
-[environments.local.database]
-name = "semiont"
-user = "postgres"
-```
+A knowledge base's documents describe the stack the launcher runs on one machine. An organization deploying the knowledge base on infrastructure of its own starts from a copy of them, and changes what it runs itself:
 
-The PostgreSQL in a stack is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)). With `type = "oidc"` the section is not needed.
+1. **Copy `.semiont/stack/`.** The project file stays as it is: the knowledge base's identity does not change with where it runs.
+2. **Trust its own issuer.** In `knowledge-base.yaml`, replace `spec.issuer.ref` with `spec.issuer.external`, giving its `type` and `url`, and delete `issuer.yaml`. Each Semiont service then needs its own client at that issuer ([What the issuer must provide](AUTHENTICATION.md#at-the-issuer)).
+3. **Use its own stores.** In `index.yaml`, give the graph and the vector store `external` in place of `image` and `resources`. What `external` holds for each is in [`KnowledgeIndex.json`](../../../specs/src/stack/KnowledgeIndex.json); the broker is its own the same way, at `spec.messaging.external` in [`KnowledgeBase.json`](../../../specs/src/stack/KnowledgeBase.json).
+4. **Keep the images the documents name, or name its own.**
 
-## Variables in a config
+The launcher runs documents like these too, and starts only what is left for it to run. On a platform with no launcher, the services' JSON documents are what you deliver: see [Deploying Semiont](DEPLOYMENT.md#what-your-platform-provides).
 
-A value may reference an environment variable as `${NAME}`, or `${NAME:-default}` to supply a default. Use them for secrets and for nothing the launcher places.
+## Secrets in a document
 
-- **`semiont start` refuses** when a `${NAME}` that something reads is set neither in your environment nor by a source registered with `semiont settings secret set`. A reference in another environment, or in a section no service reads, is not asked for.
-- **A service is handed only the variables its document names.** The Anthropic key reaches the librarian and the worker and no other service.
-- **The launcher's own names cannot be referenced**: `NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER` and `NATS_PASSWORD` belong to the daemons it runs.
+A document never holds a secret. It names one with a [`SecretRef`](../../../specs/src/stack/SecretRef.json), the environment variable the service is handed: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`.
 
-The launcher resolves every reference, by the rule specified in [`config-placeholders/cases.json`](../../../specs/src/config-placeholders/cases.json).
+- **`semiont start` refuses** when a variable that something it starts reads is set neither in your environment nor by a source registered with `semiont settings secret set`. A variable the documents name where nothing reads it is not asked for.
+- **A service is handed only the variables its own document names.** The Anthropic key reaches the librarian and the worker and no other service.
+- **The launcher's own names cannot be used**: `NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER` and `NATS_PASSWORD` belong to the daemons it runs, whose passwords it generates and keeps. A document that names one is refused.
 
 ## Environment variables
 
-The launcher reads a few of its own:
+The launcher reads its own:
 
 | Variable | Purpose |
 |---|---|
 | `SEMIONT_ROOT` | The knowledge base to act on, instead of the one found by walking up from the current directory |
-| `SEMIONT_VERSION` | The image tag to run. `latest` when unset; `local` runs images built from a checkout and pulls nothing |
 
-What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway, the dispatcher and the Archivist in [`variables.json`](../../../specs/src/service-environment/variables.json).
+`semiont start --help` lists the others a start reads. What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway, the dispatcher and the Archivist in [`variables.json`](../../../specs/src/service-environment/variables.json).
 
 ## What each service is given
 
-No service reads a `semiontconfig` file:
+No service reads a stack document:
 
-- **The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). A document names a credential by the variable that holds it, never by value. The worker's document lists the agents it works as, each with the jobs it claims: the launcher has already applied every `workers` fallback, so a worker started some other way is given the same document and reads no config of the knowledge base.
-- **The librarian's document** names the model each of its two actors asks, from `actors.matcher` and `actors.gatherer`, with the address of that model's provider and the variable that holds its key. It states two bounds, and the launcher writes each one the config leaves unstated: `make-meaning.gather.settleTimeoutMs`, how long a gather waits for the smelter, 15000 milliseconds; and `make-meaning.search.semanticFloor`, the least similarity a hit by meaning must have, 0.6. The librarian defaults neither.
+- **The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, that the launcher writes from the stack's documents and from `.semiont/config.yaml`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). A document names a credential by the variable that holds it, never by value. The worker's document lists the agents it works as, each with the jobs the roster binds to it, so a worker started some other way is given the same document and reads nothing of the knowledge base.
+- **The librarian's document** names the model each of its two actors asks, from the roster's `actors`, with the address of that model's provider and the variable that holds its key. It states two bounds, from the KnowledgeIndex's `spec.librarian`: `gather.settleTimeoutMs`, how long a gather waits for the smelter, and `search.semanticFloor`, the least similarity a hit by meaning must have. `semiont init` writes 15000 milliseconds and 0.6. The librarian defaults neither.
 
 On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.md#what-your-platform-provides)).
 
@@ -377,27 +199,32 @@ On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.
 
 The launcher walks up from the current directory looking for `.semiont/`, as `git` finds `.git/`. `SEMIONT_ROOT` overrides that, and so does `--root` on the commands that take it.
 
-## When a config is refused
+A directory that keeps `.semiont/config` or `.semiont/semiontconfig/` is refused, by `semiont start` and by every other command run in it, and the refusal names the file that holds the same now: `.semiont/config.yaml` for the first, `.semiont/stack/` for the second. Write those, as `semiont init` writes them or as the fixture has them, and delete the old ones.
 
-`semiont start` checks the config before it starts anything and as it writes each service's document, and a refusal names the section, the key and the fix. The common ones:
+## When a document is refused
+
+`semiont start` checks the documents before it starts anything and as it writes each service's document, and a refusal names the file and the field. The common ones:
 
 | It says | Do this |
 |---|---|
-| A section states an address, and the launcher places every daemon it runs | Delete the address, or add `platform = "external"` if somebody else runs the daemon |
-| A section says `platform = "external"` and states no address | Add the address |
-| A section names a password for a daemon the launcher runs | Delete it. The launcher generates and keeps that password |
-| `[defaults] environment` is missing, or names an environment the file lacks | Set it to an environment the file defines |
-| The start says the environment binds no job to a worker, and skips it | The stack runs with no worker, and no job is served. To run one, add a binding; `[environments.<env>.workers.default.inference]`, with a `type` and a `model`, covers every job. `semiont start --service worker` on such a config is refused, since it has nothing to serve |
-| A job is bound to a provider the environment has no section for, or to an Ollama with no address | Add `[environments.<env>.inference.<provider>]`, with a `baseURL` for an Ollama the launcher does not run |
-| The environment binds no model to the matcher or the gatherer | Add the binding under `[environments.<env>.actors.<actor>.inference]`, with a `type` and a `model`. The librarian cannot start without both |
-| A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
-| `[memory]` names something that is none of the stack's services, or a ceiling that is not like `"8G"` or `"512M"` | Name a service of the stack, with a ceiling as `--memory` takes it ([Memory](#memory)) |
-| `smelter.pdfsAtOnce` is below one | State one or more, or leave it out for the number the smelter's ceiling gives ([Memory](#memory)) |
+| A document does not hold to its schema, naming each place by its line | Fix each place. The schema the refusal names says what may be there |
+| A document is missing | Write it. The fixture has one of each kind |
+| `spec.knowledgeBase` or `spec.issuer.ref` names a document that is not there | Make the name agree with that document's `metadata.name` |
+| The knowledge base trusts the issuer at `spec.issuer.external`, and `issuer.yaml` describes one the launcher would run | Delete one of the two |
+| An Inference document's `metadata.name` is not its file's name | Make them the same |
+| A role's provider is one `spec.providers` says nothing of | Add `spec.providers.<provider>` |
+| `spec.providers.<provider>.baseURL` is not stated | State the address of the provider's API |
+| `spec.roster.actors.<actor>` is not bound | Bind a provider and a model. The librarian cannot start without both actors |
+| `spec.roster.workers` binds jobs to a worker, and the knowledge base has no `workers.yaml` | Write `workers.yaml`, or bind no job |
+| The start says the roster binds no job to a worker, and skips it | The stack runs with no worker, and no job is served. To run one, bind a job under `spec.roster.workers`. `semiont start --service worker` on such a roster is refused, since it has nothing to serve |
+| The documents name a variable (`fromEnv`) that is not set | Export it, or register its source with `semiont settings secret set NAME` |
+| The documents name a variable the launcher keeps for a daemon it runs | Name a variable of your own |
+| `spec.vectors.type` is `memory` | Use `qdrant` ([Graph and vectors](#graph-and-vectors)) |
 
 ## Related
 
 - [Secrets](../services/SECRETS.md): which secrets exist and how they reach services
-- [Authentication](AUTHENTICATION.md): the issuer, and what `[identity]` selects
-- [The service catalog](../services/OVERVIEW.md): the roles a config chooses drivers for
+- [Authentication](AUTHENTICATION.md): the issuer, and what `spec.issuer` selects
+- [The service catalog](../services/OVERVIEW.md): the roles the documents choose drivers for
 - [Project Layout](../PROJECT-LAYOUT.md): where these files sit in a knowledge base
 - [The launcher's README](../../../apps/launcher/README.md): `semiont init`, `settings`, and every flag

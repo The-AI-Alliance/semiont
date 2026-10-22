@@ -52,7 +52,7 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Librarian, weaver |
 | `vectors` | Qdrant | 6333 | Librarian, smelter |
 | `inference` | Ollama, or nothing when a remote API such as Anthropic does the inference | 11434 | Librarian, worker |
-| `embedding` | The same Ollama, or nothing when Voyage does the embedding | 11434 | Librarian, smelter |
+| `embedding` | The machine's Ollama (the one inference uses, when inference is on it), or nothing when Voyage does the embedding | 11434 | Librarian, smelter |
 | `collector` | OpenTelemetry Collector | 4318 (OTLP), 24110 (its own metrics) | Every service exports traces and metrics to it |
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |

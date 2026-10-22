@@ -18,10 +18,11 @@ through that lifecycle.
 **Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the
 `@semiont/*` packages to a throwaway local Verdaccio and builds **every**
 Semiont image from them as a local-only `:local` tag (plus the
-launcher binary). KB repos build nothing — the stack consumes the
-`:local` images only when started with `SEMIONT_VERSION=local semiont
-start`; without that, the launcher pulls the published images and your
-local changes are invisible.
+launcher binary). KB repos build nothing — the stack runs the `:local`
+images only when the KB's `.semiont/stack/*.yaml` documents name them
+(`ghcr.io/the-ai-alliance/semiont-<service>:local`) and the machine's
+`semiont settings browser-image` names the Browser's; an image still named
+`:latest` is pulled as published, and your local changes are invisible.
 
 So the "full rebuild" flow depends on what changed:
 
@@ -29,8 +30,8 @@ So the "full rebuild" flow depends on what changed:
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
 | `apps/browser` only | `local-build.sh` | browser |
-| `apps/librarian`, `apps/worker`, `apps/weaver`, `apps/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
-| `apps/gateway` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
+| `apps/librarian`, `apps/worker`, `apps/weaver`, `apps/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `semiont start` |
+| `apps/gateway` | `local-build.sh` | the stack: `semiont start` |
 
 ## Apple container CLI primer
 
@@ -100,14 +101,17 @@ template KB:
 
 ```sh
 cd /path/to/semiont-template-kb
+# The documents in .semiont/stack/ name the :local images, and the
+# machine's browser-image setting names the Browser's (once):
+semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
 # semiont start reads ANTHROPIC_API_KEY from env when --config anthropic.
 # Source your secrets first if it's not already exported.
-SEMIONT_VERSION=local semiont start --config anthropic
+semiont start --config anthropic
 echo password | semiont useradd --email admin@example.com
 ```
 
-The `ollama-gemma` config avoids the API-key requirement if you only
-need to exercise non-inference paths.
+The `ollama-gemma` Inference document avoids the API-key requirement if
+you only need to exercise non-inference paths.
 
 `semiont start` stops and recreates the running containers, so their IPs
 change. **That is exactly why e2e should not use them** — target the host
