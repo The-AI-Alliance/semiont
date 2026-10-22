@@ -4,35 +4,37 @@ A knowledge base carries its own configuration, in two files, both committed to 
 
 | File | What it holds |
 |---|---|
-| `.semiont/config` | The knowledge base's identity: its name and its permanent `did:web` domain |
+| `.semiont/config.yaml` | The knowledge base's identity: its name, whether git stages its changes, and its permanent `did:web` domain |
 | `.semiont/semiontconfig/<name>.toml` | What the knowledge base needs to run: which inference provider and models, which graph and vector store, which issuer |
 
-Both are TOML. The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a `semiontconfig` file; the Archivist, which mounts the repository, reads `.semiont/config` from it.
+The first is YAML, the second TOML. The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a `semiontconfig` file; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
 
 Secrets are in neither. They reach services as environment variables: see [Secrets](../services/SECRETS.md).
 
 **A config says what a knowledge base needs, not where things are.** Where each daemon listens is decided by whatever starts the stack, so the same file works on every machine. The one exception is a daemon somebody else runs, which the config says with `platform = "external"`.
 
-## `.semiont/config`
+## `.semiont/config.yaml`
 
 Written by `semiont init`:
 
-```toml
-[project]
-name = "My Knowledge Base"
+```yaml
+project:
+  name: "My Knowledge Base"
 
-[git]
-sync = true                # the archivist stages event-log writes with git
+git:
+  sync: true                # the archivist stages event-log writes with git
 
-[site]
-# Permanent did:web identity for everything this KB mints (stamped into the
-# committed event log). Names the repo, not a deployment — a committed
-# literal, never env-templated, never a machine address.
-domain = "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
-siteName = "My Knowledge Base"
+site:
+  # Permanent did:web identity for everything this KB mints (stamped into the
+  # committed event log). Names the repo, not a deployment — a committed
+  # literal, never env-templated, never a machine address.
+  domain: "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
+  siteName: "My Knowledge Base"
 ```
 
-`[site] domain` is identity, not an address. It names the knowledge base in `did:web`'s colon-path form and never changes, wherever the stack runs. Every service derives from it the knowledge base's DID, the audience its tokens must carry, and the authority its people and agents are named under. It is declared here and nowhere else: `semiont start` refuses an `[environments.<name>.site]` section.
+Its schema is [`specs/src/kb-identity/ProjectConfig.json`](../../../specs/src/kb-identity/ProjectConfig.json): `project.name`, `git.sync`, `site.domain` and `site.siteName` are required, `project.version` may be given, and nothing else may. A command run in a knowledge base whose `config.yaml` does not hold to it stops there, naming each place by its line (`status` and `roots` show the refusal instead), and the Archivist does not start on one.
+
+`site.domain` is identity, not an address. It names the knowledge base in `did:web`'s colon-path form and never changes, wherever the stack runs. Every service derives from it the knowledge base's DID, the audience its tokens must carry, and the authority its people and agents are named under. It is declared here and nowhere else: `semiont start` refuses an `[environments.<name>.site]` section.
 
 ## `.semiont/semiontconfig/<name>.toml`
 

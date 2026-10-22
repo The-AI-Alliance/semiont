@@ -2,7 +2,7 @@ package launcher
 
 // initcmd.go — `semiont init`: birth a KB locally with correct identity AT
 // birth (the template path assigns identity by post-fork rewrite — a
-// workaround this command exists to not need). Identity + .semiont/config +
+// workaround this command exists to not need). Identity + .semiont/config.yaml +
 // git + roots, the generative semiontconfig builder with a derivePlan vet
 // (confgen.go), live model validation (initmodels.go), and the explicit
 // template-copy paths (inittemplate.go) all land here.
@@ -18,7 +18,7 @@ import (
 const initUsage = `Usage: semiont init [options]
 
 Create a new Semiont KB in the current directory: its permanent identity
-(.semiont/config), a git repository (the /kb mount requires a clone), and a
+(.semiont/config.yaml), a git repository (the /kb mount requires a clone), and a
 registration in the launcher's roots.
 
 Interactive by design — every prompt has a flag twin, so callers can run it
@@ -251,19 +251,15 @@ func Init(args []string) int {
 		name = filepath.Base(dir)
 	}
 	semiontDir := filepath.Join(dir, ".semiont")
+	// reborn: --force over an existing .semiont/, which the write phase
+	// removes, and nothing before it.
+	reborn := false
 	if _, err := os.Stat(semiontDir); err == nil {
 		if !force {
 			u.Fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
 			return 1
 		}
-		// --force is a fresh birth, not a merge: remove the existing tree so
-		// no stale semiontconfig/*.toml survives beside the new identity.
-		// This is destructive by request.
-		if err := os.RemoveAll(semiontDir); err != nil {
-			u.Fail("--force: could not remove the existing .semiont/: %v", err)
-			return 1
-		}
-		u.Warn("--force: removed the existing .semiont/ — re-initializing from scratch.")
+		reborn = true
 	}
 
 	in := bufio.NewReader(os.Stdin)
@@ -315,25 +311,40 @@ func Init(args []string) int {
 			siteName = prompt("Site name", name)
 		}
 	}
-	// The template KB's exact shape, comments included. No `[project] version`
-	// (nothing bumps it) and no `adminEmail` (no reader).
-	cfg := fmt.Sprintf(`[project]
-name = %q
+	// The project file ProjectConfig states, comments included. No
+	// `project.version` (nothing bumps it). Each value is a double-quoted
+	// scalar, Go's quoting of a string being YAML's.
+	cfg := fmt.Sprintf(`project:
+  name: %q
 
-[git]
-sync = %t
+git:
+  sync: %t
 
-[site]
-# Permanent did:web identity for everything this KB mints (stamped into the
-# committed event log). Names the repo, not a deployment — a committed literal,
-# never env-templated, never a machine address.
-domain = %q
-siteName = %q
+site:
+  # Permanent did:web identity for everything this KB mints (stamped into the
+  # committed event log). Names the repo, not a deployment — a committed
+  # literal, never env-templated, never a machine address.
+  domain: %q
+  siteName: %q
 `, name, !noGit, domain, siteName)
+	// Read back by the launcher's own reader before anything is written: what
+	// it writes holds to the schema and says what it was given.
+	born, err := yamlKBIdentity(filepath.Join(".semiont", projectFileYAML), []byte(cfg))
+	if err != nil {
+		u.Fail("%v", err)
+		return 1
+	}
+	if born.Name != name || born.Domain != domain || born.SiteName != siteName {
+		u.Fail("The project file would read back as name %q, domain %q, site name %q, not as given.", born.Name, born.Domain, born.SiteName)
+		return 1
+	}
 
 	if dryRun {
 		fmt.Println("# semiont init --dry-run — what a real run would create. Nothing is written.")
-		fmt.Println("# .semiont/config:")
+		if reborn {
+			fmt.Println("# remove the existing .semiont/ (--force)")
+		}
+		fmt.Println("# .semiont/config.yaml:")
 		for _, l := range strings.Split(strings.TrimRight(cfg, "\n"), "\n") {
 			fmt.Println("#   " + l)
 		}
@@ -454,13 +465,23 @@ siteName = %q
 		u.Warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — semiont start requires a git clone, so this KB cannot run the full stack until it becomes a clone.")
 	}
 	startedWriting = true
+	if reborn {
+		// --force is a fresh birth, not a merge: remove the existing tree so
+		// no stale semiontconfig/*.toml survives beside the new identity.
+		// This is destructive by request, and done only once every decision
+		// above has held.
+		if err := os.RemoveAll(semiontDir); err != nil {
+			return fail("--force: could not remove the existing .semiont/: %v", err)
+		}
+		u.Warn("--force: removed the existing .semiont/ — re-initializing from scratch.")
+	}
 	if err := os.MkdirAll(semiontDir, 0o755); err != nil {
 		return fail("Creating .semiont/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(semiontDir, "config"), []byte(cfg), 0o644); err != nil {
-		return fail("Writing .semiont/config: %v", err)
+	if err := os.WriteFile(filepath.Join(semiontDir, projectFileYAML), []byte(cfg), 0o644); err != nil {
+		return fail("Writing .semiont/config.yaml: %v", err)
 	}
-	u.Ok(".semiont/config written %s", u.Dim("("+domain+")"))
+	u.Ok(".semiont/config.yaml written %s", u.Dim("("+domain+")"))
 
 	if genContent != "" {
 		if !writeVettedConfig(u, dir, genName, genContent) {
