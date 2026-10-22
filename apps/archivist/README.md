@@ -49,10 +49,10 @@ single-writer — the Archivist's staging driver runs it, so two processes on on
 `index.lock` contention, a hard failure rather than a retry. The Archivist owns the tree and is
 the only process that stages into it.
 
-**A knowledge base need not be a git repository.** Without `[git] sync = true` in its committed
-config the Archivist runs no git, and reports no branch. A config that says `sync = true` over a
-tree that is not a git checkout stops the Archivist at boot, naming the tree and the two ways out:
-`git init`, or `sync = false`.
+**A knowledge base need not be a git repository.** Without `git.sync: true` in its committed
+`.semiont/config.yaml` the Archivist runs no git, and reports no branch. A project file that says
+`git.sync: true` over a tree that is not a git checkout stops the Archivist at boot, naming the tree
+and the two ways out: `git init`, or `git.sync` set to `false`.
 
 ## What it owns on disk
 

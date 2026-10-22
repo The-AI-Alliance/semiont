@@ -12,48 +12,31 @@ import (
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-// The KB config a `semiont init` writes, as far as the worker's document reads
-// it: two motivations bound to one engine and `yield` to another, written in
-// an order that is not the jobs'.
-const workerDocFixture = `[defaults]
-environment = "local"
+// anthropicHaiku: Anthropic's haiku, as a roster binds it.
+func anthropicHaiku() *semiont.ArchivistRosterRole {
+	return &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
+}
 
-[environments.local]
-logLevel = "debug"
+// withAnthropic: st with the anthropic provider stated, at Anthropic's own
+// address, under the key named ANTHROPIC_API_KEY.
+func withAnthropic(st *stack.Stack) {
+	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = stack.Provider{ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+}
 
-[environments.local.gateway]
-platform = "container"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-
-[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.inference.ollama]
-platform = "posix"
-baseURL = "http://${OLLAMA_HOST}:11434"
-
-[environments.local.workers.yield.inference]
-type = "ollama"
-model = "gemma4:26b"
-
-[environments.local.workers.mark.tagging.inference]
-type = "anthropic"
-model = "claude-haiku-4-5"
-
-[environments.local.workers.mark.highlighting.inference]
-type = "anthropic"
-model = "claude-haiku-4-5"
-`
+// threeEngines: the ollama-gemma fixture with its highlighting jobs bound to
+// Anthropic's haiku — three engines, one of them first needed after another's
+// first job.
+func threeEngines(t *testing.T) *stack.Stack {
+	t.Helper()
+	st := fixtureStack(t, "ollama-gemma")
+	withAnthropic(st)
+	st.Inference.Spec.Roster.Workers.Mark.Highlighting = anthropicHaiku()
+	return st
+}
 
 func workerDocumentFrom(t *testing.T, b []byte) semiont.WorkerConfig {
 	t.Helper()
@@ -64,6 +47,15 @@ func workerDocumentFrom(t *testing.T, b []byte) semiont.WorkerConfig {
 		t.Fatalf("the document is not a WorkerConfig: %v\n%s", err, b)
 	}
 	return doc
+}
+
+func workerDocumentOf(t *testing.T, p placement) semiont.WorkerConfig {
+	t.Helper()
+	b, err := workerDocument(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return workerDocumentFrom(t, b)
 }
 
 // jobOf: the job a filter names, as the roster keys it: "mark.tagging",
@@ -134,177 +126,129 @@ func rosterServes(roster semiont.ArchivistRoster) map[string]semiont.ArchivistRo
 	return serves
 }
 
-// Resolved: every ${VAR} a value, every job's fallback applied, and each
-// provider's key named, never carried. Jobs one engine serves are one agent.
-func TestWorkerDocumentIsExactlyTheResolvedConfig(t *testing.T) {
-	b, err := workerDocument(envFrom(t, workerDocFixture), "local", "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
+// Every address is the placement's, each provider's key is named, and the log
+// level is the WorkerPool's. Jobs one engine serves are one agent.
+func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	st.Workers.Spec.LogLevel = semiont.LogLevelDebug
+	doc := workerDocumentOf(t, placed(t, st))
+	want := []string{
+		"anthropic/claude-sonnet-4-5-20250929: mark.assessing mark.linking yield",
+		"anthropic/claude-haiku-4-5-20251001: mark.commenting mark.highlighting mark.tagging",
 	}
-	const want = `{
-  "agents": [
-    {
-      "accepts": [
-        {
-          "jobType": "mark",
-          "params": {
-            "motivation": "highlighting"
-          }
-        },
-        {
-          "jobType": "mark",
-          "params": {
-            "motivation": "tagging"
-          }
-        }
-      ],
-      "agent": {
-        "model": "claude-haiku-4-5",
-        "provider": "anthropic"
-      },
-      "apiKeyEnv": "ANTHROPIC_API_KEY",
-      "baseUrl": "https://api.anthropic.com"
-    },
-    {
-      "accepts": [
-        {
-          "jobType": "yield"
-        }
-      ],
-      "agent": {
-        "model": "gemma4:26b",
-        "provider": "ollama"
-      },
-      "baseUrl": "http://192.168.64.1:11434"
-    }
-  ],
-  "gatewayUrl": "http://192.168.64.1:4000",
-  "identity": {
-    "issuer": "http://192.168.64.1:8080/realms/semiont"
-  },
-  "logFormat": "json",
-  "logLevel": "debug",
-  "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
-  "port": 24100
-}`
-	if string(b) != want {
-		t.Errorf("the document is\n%s\nwant\n%s", b, want)
+	if got := acceptedBy(t, doc); !reflect.DeepEqual(got, want) {
+		t.Errorf("agents =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
-	if doc := workerDocumentFrom(t, b); doc.Port != semiontDescriptor("worker").ports[0].port {
+	for _, agent := range doc.Agents {
+		if agent.BaseUrl != "https://api.anthropic.com" || agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, agent.ApiKeyEnv)
+		}
+	}
+	if doc.GatewayUrl != "http://192.168.64.1:4000" {
+		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
+	}
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+		t.Errorf("issuer = %q", doc.Identity.Issuer)
+	}
+	if doc.ModelCatalogue != "/usr/share/semiont/model-catalogue.json" {
+		t.Errorf("modelCatalogue = %q, want where the image carries it", doc.ModelCatalogue)
+	}
+	if doc.Port != semiontDescriptor("worker").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
+	}
+	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+		t.Errorf("log = %q %q, want the WorkerPool's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
 
 // An agent is an engine: a provider and a model. Agents are in the order of
 // the first job that needs each, an agent's filters in the jobs' order, and
-// the same config is the same document every time.
+// the same documents are the same document every time.
 func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
-	text := workerDocFixture + `
-[environments.local.workers.default.inference]
-type = "ollama"
-model = "gemma4:26b"
-
-[environments.local.workers.mark.linking.inference]
-type = "ollama"
-model = "gemma4:e2b"
-`
-	b, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
+	b, err := workerDocument(placed(t, threeEngines(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
-		"ollama/gemma4:26b: mark.assessing mark.commenting yield",
-		"anthropic/claude-haiku-4-5: mark.highlighting mark.tagging",
-		"ollama/gemma4:e2b: mark.linking",
+		"ollama/gemma4:26b: mark.assessing mark.linking yield",
+		"ollama/gemma4:e2b: mark.commenting mark.tagging",
+		"anthropic/claude-haiku-4-5-20251001: mark.highlighting",
 	}
 	if got := acceptedBy(t, workerDocumentFrom(t, b)); !reflect.DeepEqual(got, want) {
 		t.Errorf("agents =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
 	for i := 0; i < 50; i++ {
-		again, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
+		again, err := workerDocument(placed(t, threeEngines(t)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(again, b) {
-			t.Fatalf("the same config gave two documents:\n%s\nand\n%s", b, again)
+			t.Fatalf("the same documents gave two worker documents:\n%s\nand\n%s", b, again)
 		}
 	}
 }
 
-// One resolution, two projections: for every case of the shared table, the
-// agent the worker's document gives each job is the one the Archivist's roster
-// names for it, so `browse:agents` names exactly the agents that claim the
-// work.
+// One roster, two projections: the agent the worker's document gives each job
+// is the one the Archivist's roster names for it, so `browse:agents` names
+// exactly the agents that claim the work.
 func TestWorkerDocumentServesWhatTheRosterSays(t *testing.T) {
-	served := 0
-	for _, c := range readSharedRosterTable(t).Cases {
-		t.Run(c.Why, func(t *testing.T) {
-			var roster semiont.ArchivistRoster
-			dec := json.NewDecoder(bytes.NewReader(c.Roster))
-			dec.DisallowUnknownFields()
-			if err := dec.Decode(&roster); err != nil {
-				t.Fatalf("the case's roster is not an ArchivistRoster: %v", err)
-			}
-			want := rosterServes(roster)
-			served += len(want)
-
-			// A case is a roster's config, not a start's: it states no gateway
-			// and no issuer, and it writes its key as a literal, which a
-			// document refuses.
-			env := envFrom(t, c.Config)
-			env.Gateway = &gatewayCfg{PublicURL: "http://gateway.internal:4000"}
-			env.Identity = &identityCfg{Issuer: "http://issuer.internal/realms/semiont"}
-			for name, provider := range env.Inference {
-				if provider.APIKey != "" {
-					provider.APIKey = "${PROVIDER_KEY}"
-					env.Inference[name] = provider
-				}
-			}
-			b, err := workerDocument(env, "local", "container", "192.168.64.1", 8080, nil)
-			if len(want) == 0 {
-				if err == nil || !strings.Contains(err.Error(), "[environments.local.workers.default.inference]") {
-					t.Fatalf("the roster serves no job: want a refusal naming the section to add, got %v\n%s", err, b)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := documentServes(t, workerDocumentFrom(t, b)); !reflect.DeepEqual(got, want) {
-				t.Errorf("the document serves %v\nthe roster says      %v", got, want)
-			}
-		})
+	yieldAlone := func(t *testing.T) *stack.Stack {
+		st := fixtureStack(t, "ollama-gemma")
+		st.Inference.Spec.Roster.Workers.Mark = nil
+		return st
 	}
-	if served == 0 {
-		t.Fatal("no case of the shared table serves a job: a gate that compares nothing passes on silence")
+	for why, st := range map[string]func(*testing.T) *stack.Stack{
+		"the anthropic fixture":    func(t *testing.T) *stack.Stack { return fixtureStack(t, "anthropic") },
+		"the ollama-gemma fixture": func(t *testing.T) *stack.Stack { return fixtureStack(t, "ollama-gemma") },
+		"three engines":            threeEngines,
+		"yield alone":              yieldAlone,
+	} {
+		p := placed(t, st(t))
+		roster := archivistDocumentOf(t, p).Roster
+		want := rosterServes(roster)
+		if len(want) == 0 {
+			t.Fatalf("%s: the roster serves no job — this case compares nothing", why)
+		}
+		if got := documentServes(t, workerDocumentOf(t, p)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: the document serves %v\nthe roster says      %v", why, got, want)
+		}
 	}
 }
 
-// One resolution decides whether there is a worker at all: for every case of
-// the shared table, the plan runs one exactly when the case's roster serves a
-// job — which is exactly when the worker's document can be written
-// (TestWorkerDocumentServesWhatTheRosterSays).
-func TestPlanRunsAWorkerExactlyWhenTheRosterServesAJob(t *testing.T) {
-	ran, absent := 0, 0
-	for _, c := range readSharedRosterTable(t).Cases {
-		var roster semiont.ArchivistRoster
-		if err := json.Unmarshal(c.Roster, &roster); err != nil {
-			t.Fatalf("%s: the case's roster is not an ArchivistRoster: %v", c.Why, err)
+// One roster decides whether there is a worker at all: the plan runs one
+// exactly when the roster binds a job, which is exactly when the worker's
+// document can be written. A roster that binds none has no document — `agents`
+// is never empty — and the refusal names where a job is bound.
+func TestPlanRunsAWorkerExactlyWhenTheRosterBindsAJob(t *testing.T) {
+	for _, c := range []struct {
+		why   string
+		roles func(st *stack.Stack)
+		want  presence
+	}{
+		{"every job bound", func(*stack.Stack) {}, presenceLauncher},
+		{"yield alone", func(st *stack.Stack) { st.Inference.Spec.Roster.Workers.Mark = nil }, presenceLauncher},
+		{"one motivation alone", func(st *stack.Stack) {
+			st.Inference.Spec.Roster.Workers.Yield = nil
+			mark := st.Inference.Spec.Roster.Workers.Mark
+			mark.Assessing, mark.Commenting, mark.Highlighting, mark.Linking = nil, nil, nil, nil
+		}, presenceLauncher},
+		{"no job", func(st *stack.Stack) {
+			st.Inference.Spec.Roster.Workers.Mark, st.Inference.Spec.Roster.Workers.Yield = nil, nil
+		}, presenceAbsent},
+	} {
+		st := fixtureStack(t, "ollama-gemma")
+		c.roles(st)
+		p := placed(t, st)
+		if got := p.plan.Roles["worker"].Presence; got != c.want {
+			t.Errorf("%s: the plan's worker is %s, want %s", c.why, got, c.want)
 		}
-		serves := len(rosterServes(roster))
-		want := presenceAbsent
-		if serves > 0 {
-			want = presenceLauncher
-			ran++
-		} else {
-			absent++
+		_, err := workerDocument(p)
+		switch {
+		case c.want == presenceLauncher && err != nil:
+			t.Errorf("%s: the plan runs a worker, and its document is refused: %v", c.why, err)
+		case c.want == presenceAbsent && (err == nil || !strings.Contains(err.Error(), workerBinding(st.Files.Inference))):
+			t.Errorf("%s: want a refusal naming %s, got %v", c.why, workerBinding(st.Files.Inference), err)
 		}
-		if got := workerPlan(envFrom(t, c.Config)).Presence; got != want {
-			t.Errorf("%s: the roster serves %d jobs and the plan's worker is %s", c.Why, serves, got)
-		}
-	}
-	if ran == 0 || absent == 0 {
-		t.Fatalf("the shared table has %d cases with a worker and %d without: this gate needs both", ran, absent)
 	}
 }
 
@@ -334,177 +278,97 @@ func TestEveryRosterJobHasAFilter(t *testing.T) {
 	}
 }
 
-// A provider's key is a ${NAME} in the KB config; the document names NAME, and
-// the worker is handed exactly the names its document carries.
-func TestWorkerDocumentNamesAKeyAndNeverCarriesIt(t *testing.T) {
-	userEnv := []string{"--env", "ANTHROPIC_API_KEY=the-key-value"}
-	b, err := workerDocument(envFrom(t, workerDocFixture), "local", "container", "192.168.64.1", 8080, userEnv)
-	if err != nil {
-		t.Fatal(err)
+// A provider's key is the variable its entry in the Inference document names;
+// the worker's document names it, and the worker is handed exactly the names
+// its document carries. An Ollama that names no key is asked without one.
+func TestWorkerDocumentNamesAKey(t *testing.T) {
+	p := placed(t, threeEngines(t))
+	for _, agent := range workerDocumentOf(t, p).Agents {
+		switch agent.Agent.Provider {
+		case semiont.ArchivistRosterRoleProviderAnthropic:
+			if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+				t.Errorf("the anthropic agent's apiKeyEnv = %v, want the key named", agent.ApiKeyEnv)
+			}
+		default:
+			if agent.ApiKeyEnv != nil {
+				t.Errorf("the %s agent's apiKeyEnv = %q, and its provider names no key", agent.Agent.Provider, *agent.ApiKeyEnv)
+			}
+		}
 	}
-	if strings.Contains(string(b), "the-key-value") {
-		t.Fatalf("a secret value reached the document:\n%s", b)
-	}
-	doc := workerDocumentFrom(t, b)
-	if len(doc.Agents) != 2 {
-		t.Fatalf("agents = %v, want the two the fixture binds", acceptedBy(t, doc))
-	}
-	if key := doc.Agents[0].ApiKeyEnv; key == nil || *key != "ANTHROPIC_API_KEY" {
-		t.Errorf("the anthropic agent's apiKeyEnv = %v, want the key named", key)
-	}
-	if key := doc.Agents[1].ApiKeyEnv; key != nil {
-		t.Errorf("the ollama agent's apiKeyEnv = %q, and its section states no key", *key)
-	}
-	if got := workerNamedVars(envFrom(t, workerDocFixture)); strings.Join(got, ",") != "ANTHROPIC_API_KEY" {
-		t.Errorf("the worker is handed %v, want exactly the names its document carries", got)
+	if got := strings.Join(workerSecrets(p), ","); got != "ANTHROPIC_API_KEY" {
+		t.Errorf("the worker is handed %q, want exactly the names its document carries", got)
 	}
 }
 
 // The key of a provider no job is bound to is not the worker's: its document
 // does not name it, and it is not handed it.
 func TestWorkerIsHandedOnlyTheKeysItsAgentsUse(t *testing.T) {
-	text := strings.ReplaceAll(workerDocFixture, "type = \"anthropic\"\nmodel = \"claude-haiku-4-5\"", "type = \"ollama\"\nmodel = \"gemma4:e2b\"")
-	b, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
+	st := fixtureStack(t, "ollama-gemma")
+	withAnthropic(st)
+	p := placed(t, st)
+	b, err := workerDocument(p)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(b), "ANTHROPIC_API_KEY") || strings.Contains(string(b), "anthropic") {
 		t.Errorf("the document names a provider no job is bound to:\n%s", b)
 	}
-	if got := workerNamedVars(envFrom(t, text)); len(got) != 0 {
+	if got := workerSecrets(p); len(got) != 0 {
 		t.Errorf("the worker is handed %v, and its document names no key", got)
 	}
 }
 
-// A key is its provider's section's to state, whichever the provider: an
-// Ollama somebody else runs behind a key names it as Anthropic's is named.
+// A key is its provider's entry's to state, whichever the provider: an Ollama
+// somebody else runs behind a key names it as Anthropic's is named.
 func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
-	text := strings.Replace(workerDocFixture, "platform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"", "platform = \"external\"\nbaseURL = \"https://ollama.internal\"\napiKey = \"${OLLAMA_API_KEY}\"", 1)
-	if !strings.Contains(text, "OLLAMA_API_KEY") {
-		t.Fatal("the fixture's [inference.ollama] no longer reads as this test expects")
+	st := threeEngines(t)
+	baseURL := "https://ollama.internal"
+	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
+	p := placed(t, st)
+	for _, agent := range workerDocumentOf(t, p).Agents {
+		if agent.Agent.Provider != semiont.ArchivistRosterRoleProviderOllama {
+			continue
+		}
+		if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "OLLAMA_API_KEY" {
+			t.Errorf("the ollama agent %s's apiKeyEnv = %v, want the key its entry names", agent.Agent.Model, agent.ApiKeyEnv)
+		}
 	}
-	b, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, []string{"--env", "OLLAMA_API_KEY=the-ollama-key"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(b), "the-ollama-key") {
-		t.Fatalf("a secret value reached the document:\n%s", b)
-	}
-	if key := workerDocumentFrom(t, b).Agents[1].ApiKeyEnv; key == nil || *key != "OLLAMA_API_KEY" {
-		t.Errorf("the ollama agent's apiKeyEnv = %v, want the key its section states, named", key)
-	}
-	if got := workerNamedVars(envFrom(t, text)); strings.Join(got, ",") != "ANTHROPIC_API_KEY,OLLAMA_API_KEY" {
-		t.Errorf("the worker is handed %v, want exactly the names its document carries", got)
+	if got := strings.Join(workerSecrets(p), ","); got != "OLLAMA_API_KEY,ANTHROPIC_API_KEY" {
+		t.Errorf("the worker is handed %q, want exactly the names its document carries", got)
 	}
 }
 
-func TestWorkerDocumentRefusesALiteralKey(t *testing.T) {
-	text := strings.Replace(workerDocFixture, `apiKey = "${ANTHROPIC_API_KEY}"`, `apiKey = "sk-live-secret"`, 1)
-	_, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
-	if err == nil || !strings.Contains(err.Error(), "inference.anthropic.apiKey") || !strings.Contains(err.Error(), "${") {
-		t.Fatalf("want a refusal naming the field and the ${VAR} form, got %v", err)
-	}
-	if strings.Contains(err.Error(), "sk-live-secret") {
-		t.Fatalf("the refusal repeated the secret: %v", err)
-	}
-	if got := workerNamedVars(envFrom(t, text)); len(got) != 0 {
-		t.Errorf("a literal key names %v", got)
-	}
-}
-
-// A job bound to a provider the environment has no section for is refused by
-// the section's name: the worker would have no address to reach it at.
-func TestWorkerDocumentRefusesAProviderWithNoSection(t *testing.T) {
-	for _, provider := range []string{"anthropic", "ollama"} {
-		env := envFrom(t, workerDocFixture)
-		delete(env.Inference, provider)
-		_, err := workerDocument(env, "local", "container", "192.168.64.1", 8080, nil)
-		if want := "[environments.local.inference." + provider + "]"; err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("no %s section: want a refusal naming %s, got %v", provider, want, err)
+// An address a provider's entry states is the worker's, as written: a server
+// somebody else runs, or a proxy in front of Anthropic.
+func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
+	st := threeEngines(t)
+	ollama, proxy := "http://ollama.internal:11434", "https://proxy.internal/v1"
+	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &ollama}
+	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+	for _, agent := range workerDocumentOf(t, placed(t, st)).Agents {
+		want := map[semiont.ArchivistRosterRoleProvider]string{
+			semiont.ArchivistRosterRoleProviderOllama:    ollama,
+			semiont.ArchivistRosterRoleProviderAnthropic: proxy,
+		}[agent.Agent.Provider]
+		if agent.BaseUrl != want {
+			t.Errorf("%s/%s is reached at %q, want %q, as its entry states", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
 		}
 	}
 }
 
-// An environment that binds no job to a worker has no document: `agents` is
-// never empty. The refusal names the section an operator adds, in the
-// environment the start selected, and what it needs.
-func TestWorkerDocumentRefusesAnEnvironmentThatBindsNoJob(t *testing.T) {
-	unbound := workerDocFixture[:strings.Index(workerDocFixture, "[environments.local.workers")]
-	text := strings.NewReplacer(`environment = "local"`, `environment = "staging"`, "[environments.local", "[environments.staging").Replace(unbound)
-	_, err := workerDocument(envFrom(t, text), "staging", "container", "192.168.64.1", 8080, nil)
-	if err == nil {
-		t.Fatal("a document was written for a worker that serves no job")
-	}
-	for _, want := range []string{"[environments.staging.workers.default.inference]", "type", "model"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the refusal does not say %q: %v", want, err)
-		}
-	}
-}
-
-func TestWorkerDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
-	noGateway := strings.Replace(workerDocFixture, `publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`, "", 1)
-	if _, err := workerDocument(envFrom(t, noGateway), "local", "container", "192.168.64.1", 8080, nil); err == nil || !strings.Contains(err.Error(), "publicURL") {
-		t.Errorf("no publicURL: want a refusal naming it, got %v", err)
-	}
-	env := envFrom(t, workerDocFixture)
-	env.Identity = nil
-	if _, err := workerDocument(env, "local", "container", "192.168.64.1", 8080, nil); err == nil || !strings.Contains(err.Error(), "identity") {
-		t.Errorf("no [identity]: want a refusal naming it, got %v", err)
-	}
-}
-
-// A malformed binding is refused by its place in the config, as the roster
-// refuses it: the two are one resolution.
-func TestWorkerDocumentRefusesAMalformedBinding(t *testing.T) {
-	text := workerDocFixture + "\n[environments.local.workers.mark.assessing.inference]\ntype = \"mistral\"\nmodel = \"m\"\n"
-	_, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
-	if err == nil || !strings.Contains(err.Error(), "workers.mark.assessing.inference") {
-		t.Errorf("want a refusal naming the binding, got %v", err)
-	}
-}
-
-// An address a provider's section states is the worker's, as written and
-// resolved: a daemon somebody else runs, or an operator's own variable.
-func TestWorkerDocumentStatesAProvidersAddressAsItsSectionDoes(t *testing.T) {
-	text := strings.Replace(workerDocFixture, "platform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"", "platform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"", 1)
-	text = strings.Replace(text, `endpoint = "https://api.anthropic.com"`, `endpoint = "https://${ANTHROPIC_PROXY}/v1"`, 1)
-	if !strings.Contains(text, "ollama.internal") || !strings.Contains(text, "ANTHROPIC_PROXY") {
-		t.Fatal("the fixture's provider sections no longer read as this test expects")
-	}
-	b, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, []string{"--env", "ANTHROPIC_PROXY=proxy.internal"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := workerDocumentFrom(t, b)
-	if got := doc.Agents[0].BaseUrl; got != "https://proxy.internal/v1" {
-		t.Errorf("the anthropic agent's baseUrl = %q, want the stated endpoint, resolved", got)
-	}
-	if got := doc.Agents[1].BaseUrl; got != "http://ollama.internal:11434" {
-		t.Errorf("the ollama agent's baseUrl = %q, want the stated address", got)
-	}
-	if _, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil); err == nil || !strings.Contains(err.Error(), "inference.anthropic.endpoint") || !strings.Contains(err.Error(), "ANTHROPIC_PROXY") {
-		t.Errorf("an unset variable in the endpoint: want a refusal naming the field and the variable, got %v", err)
-	}
-}
-
-// An Anthropic section that states no endpoint is reached where the launcher
+// An Anthropic entry that states no baseURL is reached where the launcher
 // itself reaches Anthropic for the remote-model check: one decider.
 func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
-	cfg := []byte(strings.Replace(string(fixtureConfig(t, "anthropic.toml")), "endpoint = \"https://api.anthropic.com\"\n", "", 1))
-	if strings.Contains(string(cfg), "endpoint") {
-		t.Fatal("the fixture's [inference.anthropic] no longer reads as this test expects")
-	}
-	env, plan := loadedFrom(t, cfg)
-	rp := plan.Roles["inference"]
+	st := fixtureStack(t, "anthropic")
+	anthropic := st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic]
+	anthropic.BaseURL = nil
+	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = anthropic
+	p := placed(t, st)
+	rp := p.plan.Roles["inference"]
 	if rp.Driver != "anthropic" {
 		t.Fatalf("the fixture's inference role is %q: this test compares against the remote-model check's address", rp.Driver)
 	}
-	b, err := workerDocument(env, plan.EnvName, "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := workerDocumentFrom(t, b)
+	doc := workerDocumentOf(t, p)
 	if len(doc.Agents) == 0 {
 		t.Fatal("the fixture binds no job")
 	}
@@ -515,20 +379,15 @@ func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 	}
 }
 
-// An Ollama the launcher places states no address in the KB config: loadConfig
-// reads it as the launcher's own reference, and the document resolves that to
-// the address of this start.
+// An Ollama entry that states no baseURL is the machine's, at the address this
+// start places it.
 func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
-	env, plan := loadedFrom(t, withoutAddresses(fixtureConfig(t, "ollama-gemma.toml")))
-	b, err := workerDocument(env, plan.EnvName, "container", "192.168.64.1", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := workerDocumentFrom(t, b)
+	p := placed(t, fixtureStack(t, "ollama-gemma"))
+	doc := workerDocumentOf(t, p)
 	if len(doc.Agents) == 0 {
 		t.Fatal("the fixture binds no job")
 	}
-	want := fmt.Sprintf("http://192.168.64.1:%d", plan.Roles["inference"].Port)
+	want := fmt.Sprintf("http://192.168.64.1:%d", p.plan.Roles["inference"].Port)
 	for _, agent := range doc.Agents {
 		if agent.BaseUrl != want {
 			t.Errorf("%s/%s is reached at %q, and the launcher runs Ollama at %q", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
@@ -536,21 +395,12 @@ func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
 	}
 }
 
-// An Ollama somebody else runs is where its section says, and a section that
-// says nowhere is refused by name.
-func TestWorkerDocumentRefusesAnOllamaWithNoAddress(t *testing.T) {
-	text := strings.Replace(workerDocFixture, "platform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"", "platform = \"external\"", 1)
-	_, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
-	if err == nil || !strings.Contains(err.Error(), "[environments.local.inference.ollama]") || !strings.Contains(err.Error(), "baseURL") {
-		t.Errorf("want a refusal naming the section and the key, got %v", err)
-	}
-}
-
 // The launcher mounts the document where the image's command points --config
 // (TestConfigDocumentsAreWhereTheImagesLook), and hands the worker nothing
-// else: no copy of the KB's config, and no *_HOST variables, because the
-// document already carries every address. Its health port is the descriptor's,
-// which the document carries, the launcher publishes and the image probes.
+// else: no copy of the KB's documents, and no *_HOST variables, because its
+// own document already carries every address. Its health port is the
+// descriptor's, which the document carries, the launcher publishes and the
+// image probes.
 func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "worker", "Dockerfile"))
 	if err != nil {
@@ -561,7 +411,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml"} {
+	for _, unread := range []string{"GATEWAY_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", stack.Dir} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the worker is handed %s, which it does not read:\n%s", unread, args)
 		}
@@ -572,11 +422,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		}
 	}
 
-	b, err := workerDocument(envFrom(t, workerDocFixture), "local", "container", "1.2.3.4", 8080, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := fmt.Sprint(workerDocumentFrom(t, b).Port)
+	port := fmt.Sprint(workerDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)
 	if want := "--publish " + port + ":" + port; !strings.Contains(args, want) {
 		t.Errorf("the worker's health port is not published (%s):\n%s", want, args)
 	}

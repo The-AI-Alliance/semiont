@@ -101,7 +101,7 @@ func Clean(args []string) int {
 	if ss.refuseUnreadable(u) {
 		return 1
 	}
-	if st := ss.Stacks["local"]; st != nil && stateKeyFor(st.KBDid, st.KBRoot) == key {
+	if st := ss.Stacks["local"]; st != nil && rootKey(st.KBDid, st.KBRoot) == key {
 		u.Fail("A recorded local stack is using this state (per %s).", statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1
@@ -248,7 +248,7 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 	}
 	switch {
 	case rootArg == "":
-		root, _, err := resolveKBRoot()
+		root, _, ident, err := resolveKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
 			if !projectFileRefused(err) {
@@ -256,11 +256,11 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 			}
 			return "", "", 1
 		}
-		key = rootKey(root)
+		key = kbRoot{dir: root, ident: ident}.key()
 	default:
-		root, err := resolveRootArg(rootArg)
+		root, ident, err := resolveRootArg(rootArg)
 		if err == nil {
-			key = rootKey(root)
+			key = kbRoot{dir: root, ident: ident}.key()
 			break
 		}
 		if projectFileRefused(err) {
@@ -270,7 +270,7 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 		// A literal key must be a plain basename — anything else (".."; a
 		// path) would let RemoveAll reach outside roots/.
 		if rootArg == filepath.Base(rootArg) && rootArg != "." && rootArg != ".." {
-			if fi, statErr := os.Stat(filepath.Join(d, "roots", rootArg)); statErr == nil && fi.IsDir() {
+			if fi, statErr := os.Stat(stateRootDir(rootArg)); statErr == nil && fi.IsDir() {
 				key = rootArg
 				break
 			}
@@ -279,5 +279,5 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 		fmt.Fprintf(os.Stderr, "  (and no state key %q under %s)\n", rootArg, filepath.Join(d, "roots"))
 		return "", "", 1
 	}
-	return key, filepath.Join(d, "roots", key), 0
+	return key, stateRootDir(key), 0
 }

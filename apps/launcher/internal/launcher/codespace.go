@@ -90,7 +90,7 @@ func startCodespace(u *UI, opts startOptions) int {
 	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
-		_, _, rootErr := resolveKBRoot()
+		_, _, _, rootErr := resolveKBRoot()
 		if projectFileRefused(rootErr) {
 			u.Fail("%v", rootErr)
 			return 1
@@ -316,14 +316,10 @@ func startCodespace(u *UI, opts startOptions) int {
 	// included — but only when a container runtime exists here: codespace
 	// placement must not gain a hard local-runtime requirement.
 	if rts := installedRuntimes(); len(rts) > 0 {
-		version := os.Getenv("SEMIONT_VERSION")
-		if version == "" {
-			version = "latest"
-		}
-		bx := &liveExec{u: u, rt: rts[0], version: version}
+		bx := &liveExec{u: u, rt: rts[0]}
 		// Non-fatal: the KB is up either way; a browser failure already
 		// warned above the summary.
-		_ = flowBrowser(bx, version, 3000, false)
+		_ = flowBrowser(bx, 3000, false)
 	}
 	if httpOK("http://localhost:3000") {
 		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("http://localhost:3000"), u.Dim("(discovery-synced — this KB appears in its panel)"))
@@ -359,16 +355,16 @@ func startCodespace(u *UI, opts startOptions) int {
 // else the .semiont/ walk) — "" when not inside a clone. The cwd is context
 // every command may consult: standing in a clone says which stack is meant.
 // A clone whose config.yaml does not hold is refused, never read as no
-// clone.
-func CwdKBRoot() (string, error) {
-	root, _, err := resolveKBRoot()
+// clone; one that holds comes with its identity.
+func CwdKBRoot() (string, *kbIdentity, error) {
+	root, _, ident, err := resolveKBRoot()
 	if projectFileRefused(err) {
-		return "", err
+		return "", nil, err
 	}
 	if err != nil {
-		return "", nil
+		return "", nil, nil
 	}
-	return root, nil
+	return root, ident, nil
 }
 
 // originCodespace: the recorded codespace stack whose repo this clone's git
@@ -398,11 +394,12 @@ func originCodespace(cs []*StackState, root string) *StackState {
 // and read the slug from its origin remote.
 func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) {
 	var root string
+	var ident *kbIdentity
 	var err error
 	if opts.root != "" {
-		root, err = resolveRootArg(opts.root)
+		root, ident, err = resolveRootArg(opts.root)
 	} else {
-		root, _, err = resolveKBRoot()
+		root, _, ident, err = resolveKBRoot()
 	}
 	if err != nil {
 		u.Fail("%v", err)
@@ -424,9 +421,9 @@ func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) 
 		return "", "", 1
 	}
 	// This clone IS the repo we are about to launch, so its committed
-	// .semiont/config carries that KB's real did:web. Captured here and
+	// .semiont/config.yaml carries that KB's real did:web. Captured here and
 	// recorded, so status never has to guess an identity from a filename.
-	did = loadKBIdentity(root).didWeb()
+	did = ident.didWeb()
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
@@ -1030,7 +1027,7 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 }
 
 // reconcileDid keeps a codespace stack's recorded did:web honest against the
-// KB actually running there, by reading .semiont/config over ssh.
+// KB actually running there, by reading .semiont/config.yaml over ssh.
 //
 // It reaches out in exactly two situations, because an ssh WAKES a stopped
 // codespace — which costs money and ~20 seconds, and no reporting command may
@@ -1067,35 +1064,30 @@ func reconcileDid(u *UI, st *StackState, force bool) {
 		fmt.Fprintf(os.Stderr, "    recorded: %s\n", st.KBDid)
 		fmt.Fprintf(os.Stderr, "    running:  %s\n", remote)
 		fmt.Fprintln(os.Stderr, "    The codespace is running a different KB than when the record was made")
-		fmt.Fprintln(os.Stderr, "    (a re-created codespace, or an edited .semiont/config). Nothing was")
+		fmt.Fprintln(os.Stderr, "    (a re-created codespace, or an edited .semiont/config.yaml). Nothing was")
 		fmt.Fprintln(os.Stderr, "    changed here — delete that codespace and its record with: semiont stop --repo "+st.Codespace.Repo+" --delete")
 	}
 }
 
-// fetchRemoteDid reads the codespace's committed identity card: its
-// .semiont/config.yaml, or the TOML .semiont/config where the knowledge base
-// still has that one. Note the ABSOLUTE globbed path: `gh codespace ssh` lands
-// in /home/vscode, not the workspace, so a relative path silently fails with
-// "No such file or directory". The glob expands remotely and does not depend
-// on the workspace directory's name.
+// fetchRemoteDid reads the codespace's committed identity card, its
+// .semiont/config.yaml. Note the ABSOLUTE globbed path: `gh codespace ssh`
+// lands in /home/vscode, not the workspace, so a relative path silently fails
+// with "No such file or directory". The glob expands remotely and does not
+// depend on the workspace directory's name.
 func fetchRemoteDid(u *UI, name string) (string, bool) {
-	const yamlPath = "/workspaces/*/.semiont/" + projectFileYAML
-	const tomlPath = "/workspaces/*/.semiont/" + projectFileTOML
-	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+yamlPath+")"))
-	if out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", yamlPath); err == nil {
-		identity, err := yamlKBIdentity(yamlPath, []byte(out))
-		if err != nil {
-			u.Warn("The codespace's project file does not hold — identity left as recorded: %v", err)
-			return "", false
-		}
-		return identity.didWeb(), true
-	}
-	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", tomlPath)
+	const path = "/workspaces/*/.semiont/" + projectFileYAML
+	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+path+")"))
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", path)
 	if err != nil {
 		u.Warn("Could not read the project file over ssh — identity left as recorded.")
 		return "", false
 	}
-	return tomlKBIdentity([]byte(out)).didWeb(), true
+	identity, err := yamlKBIdentity(path, []byte(out))
+	if err != nil {
+		u.Warn("The codespace's project file does not hold — identity left as recorded: %v", err)
+		return "", false
+	}
+	return identity.didWeb(), true
 }
 
 // renderCodespacePlan is --dry-run for the codespace placement: the gh
@@ -1122,7 +1114,6 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 	fmt.Println("gh codespace ports forward 4000:<kb-port> -c <codespace>   # <codespacePort>:<localPort>; detached; pid + port recorded")
 	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
 	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config.yaml   # KB identity, when the record lacks one")
-	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config   # the TOML one, when there is no config.yaml")
 }
 
 // stopCodespace: `semiont stop` for a codespace stack. Stop halts billing
@@ -1980,7 +1971,7 @@ func forwardIssuer(u *UI, st *StackState) int {
 		}
 		if _, port, _, _ = splitIssuer(issuer); port != want {
 			u.Fail("The codespace still advertises %s after its restart on %d.", issuer, want)
-			fmt.Fprintln(os.Stderr, "  Its config's [identity] issuer names the port literally — write ${KEYCLOAK_PORT} there.")
+			fmt.Fprintln(os.Stderr, "  Its knowledge base runs no Keycloak of the launcher's at the port it is given: its KnowledgeBase trusts an issuer at spec.issuer.external.")
 			return 1
 		}
 	}

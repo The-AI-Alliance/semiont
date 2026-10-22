@@ -6,7 +6,7 @@ For what each container needs (its port, configuration, mounts and health check)
 
 ## Multi-container layout
 
-A stack the launcher runs, on the config `semiont init` writes, is:
+A stack the launcher runs, on the documents `semiont init` writes, is:
 
 - **seven service containers**: the gateway, the dispatcher, the archivist, the librarian, the worker, the smelter and the weaver;
 - **the Browser**, which serves every knowledge base on the machine;
@@ -86,7 +86,7 @@ Reading the diagram:
 
 Two mechanisms behind the gateway hub are not drawn as edges:
 
-- **The signal plane** is the fan-out behind the two bus endpoints, and it is a driver. `[signal] type = "nats"`, which `semiont init` writes, carries frames on core NATS subjects and keeps the gateway's in-flight state (the correlation ledger, and each principal's open-stream count) in JetStream key-value tables that every replica shares, so the gateway can run as several replicas. `in-process` keeps both inside one gateway's memory. The bus contract is the same either way, and no client sees the choice.
+- **The signal plane** is the fan-out behind the two bus endpoints, and it is a driver. `signal.type: nats`, in the KnowledgeBase's `spec.messaging`, which `semiont init` writes, carries frames on core NATS subjects and keeps the gateway's in-flight state (the correlation ledger, and each principal's open-stream count) in JetStream key-value tables that every replica shares, so the gateway can run as several replicas. `in-process` keeps both inside one gateway's memory. The bus contract is the same either way, and no client sees the choice.
 - **The job queue** is the dispatcher's, held in NATS JetStream. Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus. The dispatcher admits a claim only from a token carrying the worker role.
 
 One NATS daemon, the `messaging` role, serves both. The second diagram draws it.
@@ -205,7 +205,7 @@ Reading the diagram:
 - **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
 - **The gateway attaches to two things**: the broker, for the signal plane and its tables, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
 - **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway, for the bus and for bytes, and an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role.
-- **The Ollama edges show the fully local case.** On a config that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the config names Voyage.
+- **The Ollama edges show the fully local case.** On an Inference document that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the KnowledgeIndex names Voyage.
 
 Every service authenticates in two steps. It signs in at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`). It then presents that token at `POST /api/tokens/agent` with a `(provider, model)` identity and receives a token carrying a software-agent DID. The smelter presents its embedding config, the weaver `(semiont, weaver)`, the dispatcher `(semiont, dispatcher)`. The gateway verifies that token as it would a person's. The two identities are deliberate: the service account is the process, and the agent DID is the work.
 

@@ -8,6 +8,8 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // Ollama reports an untagged model as ":latest". A config naming it without
@@ -61,24 +63,15 @@ func TestCeilingCell(t *testing.T) {
 	}
 }
 
+// The ollama-gemma roster binds two models across eight roles, most of them
+// more than once.
 func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
-	env := &envConfig{
-		Actors:  map[string]bindingCfg{},
-		Workers: map[string]bindingCfg{},
-	}
-	mk := func(typ, model string) bindingCfg {
-		var b bindingCfg
-		b.Inference.Type, b.Inference.Model = typ, model
-		return b
-	}
-	env.Actors["gatherer"] = mk("ollama", "gemma4:26b")
-	env.Actors["matcher"] = mk("ollama", "gemma4:26b") // dupe
-	env.Workers["mark.tagging"] = mk("ollama", "gemma4:e2b")
-	// A mixed config lists remote models too — these ARE the models this
-	// stack performs inference with, whoever serves them — each under the
-	// provider its binding names.
-	env.Workers["yield"] = mk("anthropic", "claude-sonnet-4-5")
-	got := bindingModels(env)
+	st := fixtureStack(t, "ollama-gemma")
+	// A mixed roster lists remote models too — these ARE the models this stack
+	// performs inference with, whoever serves them — each under the provider
+	// its role names.
+	st.Inference.Spec.Roster.Workers.Yield = &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5"}
+	got := bindingModels(st)
 	want := []servedModel{
 		{Model: "claude-sonnet-4-5", Provider: "anthropic"},
 		{Model: "gemma4:26b", Provider: "ollama"},
@@ -113,29 +106,38 @@ func TestICloudZone(t *testing.T) {
 	}
 }
 
-// The vet gate is the whole safety story of config generation and template
-// copying alike: NOTHING may write a semiontconfig this launcher's own
-// deriver rejects. A refusal must also leave no file behind.
-func TestWriteVettedConfigRefusesUnstartable(t *testing.T) {
+// The vet gate is the whole safety story of document generation and template
+// copying alike: NOTHING may write documents this launcher's own reading
+// rejects. A refusal must also leave no file behind.
+func TestWriteVettedStackRefusesUnstartable(t *testing.T) {
 	root := t.TempDir()
 	u := NewUI(true)
-	bad := "[environments.local.graph]\ntype = \"janusgraph\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\n"
-	if writeVettedConfig(u, root, "bad", bad) {
-		t.Fatal("an unknown driver type passed the vet")
+	generated := func() map[string][]byte {
+		files, err := generateStack(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com"}, "anthropic")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return files
 	}
-	dir := filepath.Join(root, ".semiont", "semiontconfig")
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		t.Errorf("refusal left a file behind: %s", e.Name())
+	// A roster that binds every job, and no WorkerPool to run a worker from.
+	bad := generated()
+	delete(bad, stack.WorkerPoolFile)
+	if writeVettedStack(u, root, bad) {
+		t.Fatal("a roster binding jobs with no workers.yaml passed the vet")
+	}
+	if _, err := os.Stat(filepath.Join(root, stack.Dir)); !os.IsNotExist(err) {
+		t.Errorf("the refusal left %s behind: %v", stack.Dir, err)
 	}
 
 	// And the generator's real output passes — the same gate, both verdicts.
-	good := generateSemiontconfig(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text"})
-	if !writeVettedConfig(u, root, "good", good) {
+	good := generated()
+	if !writeVettedStack(u, root, good) {
 		t.Fatal("the generator's own output failed the vet")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "good.toml")); err != nil {
-		t.Fatalf("vetted config not placed: %v", err)
+	for path := range good {
+		if _, err := os.Stat(filepath.Join(root, stack.Dir, path)); err != nil {
+			t.Errorf("vetted document not placed: %v", err)
+		}
 	}
 }
 

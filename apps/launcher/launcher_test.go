@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
@@ -101,30 +103,30 @@ func shimDir(t *testing.T, runtimes ...string) string {
 	return dir
 }
 
-// mkKB lays out a fake KB clone with the two real config TOMLs.
+// fixtureDocuments: the fixture knowledge base's committed files, below its
+// .semiont — its project file and its stack's documents.
+var fixtureDocuments = []string{
+	"config.yaml",
+	"stack/knowledge-base.yaml", "stack/index.yaml", "stack/issuer.yaml", "stack/workers.yaml",
+	"stack/inference/anthropic.yaml", "stack/inference/ollama-gemma.yaml",
+}
+
+// mkKB lays out a fake KB clone with the fixture's documents.
 func mkKB(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	cfgDir := filepath.Join(root, ".semiont", "semiontconfig")
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
-		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "semiontconfig", name))
+	for _, name := range fixtureDocuments {
+		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(cfgDir, name), b, 0o644); err != nil {
+		target := filepath.Join(root, ".semiont", filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			t.Fatal(err)
 		}
-	}
-	// The KB's committed identity card (.semiont/config).
-	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"), b, 0o644); err != nil {
-		t.Fatal(err)
+		if err := os.WriteFile(target, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return root
 }
@@ -202,28 +204,78 @@ func (s *scenario) stageRe() *regexp.Regexp {
 }
 
 // kbFixtureResource: the resource identifier the KB fixture's committed
-// `[site] domain` yields — the same derivation kbResource performs, which
-// lives in an internal package this binary-level test cannot import.
+// site.domain yields — the same derivation kbResource performs, which lives in
+// an internal package this binary-level test cannot import.
 func kbFixtureResource(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range strings.Split(string(b), "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "domain")
-		if !ok {
-			continue
-		}
-		rest = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rest), "="))
-		domain := strings.Trim(rest, `"`)
-		if domain == "" {
-			break
-		}
-		return "https://" + strings.ReplaceAll(domain, ":", "/")
+	var project struct {
+		Site struct {
+			Domain string `yaml:"domain"`
+		} `yaml:"site"`
 	}
-	t.Fatalf("no [site] domain in the KB fixture — the preflight's audience cannot be derived")
-	return ""
+	if err := yaml.Unmarshal(b, &project); err != nil {
+		t.Fatal(err)
+	}
+	if project.Site.Domain == "" {
+		t.Fatalf("no site.domain in the KB fixture — the preflight's audience cannot be derived")
+	}
+	return "https://" + strings.ReplaceAll(project.Site.Domain, ":", "/")
+}
+
+// remoteProjectFile: a codespace's .semiont/config.yaml declaring domain, as
+// the fake runtime answers a `cat` of it over ssh.
+func remoteProjectFile(domain string) string {
+	return "project:\n  name: remote-kb\ngit:\n  sync: true\nsite:\n  domain: " + domain + "\n  siteName: Remote KB\n"
+}
+
+// writeDocument writes text as the scenario's document at path, below its
+// .semiont/stack ("index.yaml", "inference/broker.yaml").
+func writeDocument(t *testing.T, s *scenario, path, text string) {
+	t.Helper()
+	target := filepath.Join(s.kb, ".semiont", "stack", filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// fixtureDocument: the text of the fixture's document at path, below its
+// .semiont/stack.
+func fixtureDocument(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "stack", filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// deriveDocument writes the fixture's document at from into the scenario at
+// to, with each old text of edits (old, new, old, new, …) replaced by its new
+// one; an old text the document does not hold fails the test, so an edit
+// cannot silently miss.
+func deriveDocument(t *testing.T, s *scenario, from, to string, edits ...string) {
+	t.Helper()
+	text := fixtureDocument(t, from)
+	for i := 0; i+1 < len(edits); i += 2 {
+		if !strings.Contains(text, edits[i]) {
+			t.Fatalf("%s holds no %q to edit", from, edits[i])
+		}
+		text = strings.Replace(text, edits[i], edits[i+1], 1)
+	}
+	writeDocument(t, s, to, text)
+}
+
+// editDocument: deriveDocument in place.
+func editDocument(t *testing.T, s *scenario, path string, edits ...string) {
+	t.Helper()
+	deriveDocument(t, s, path, path, edits...)
 }
 
 func (s *scenario) mustLog(t *testing.T) []byte {
@@ -571,30 +623,15 @@ func lastEmit(t *testing.T, s *scenario) string {
 
 // --- start: full boots against the fake runtime ---
 
-// A knowledge base's config says what it needs and nothing of where: with
-// every address line gone, the launcher places the same stack, command for
-// command, as it does for a config that writes each address as the launcher's
-// reference. The golden is the default boot's own.
-func TestStartBootsAConfigThatStatesNoAddress(t *testing.T) {
+// A knowledge base's documents say what it needs and nothing of where: each
+// service is staged a document stating where everything is, as literals this
+// start placed.
+func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stated := regexp.MustCompile(`(?m)^(servers|uri|host|baseURL|issuer) = .*\n`)
-	if n := len(stated.FindAll(b, -1)); n < 6 {
-		t.Fatalf("the fixture config states only %d addresses: this test would prove little", n)
-	}
-	if err := os.WriteFile(p, stated.ReplaceAll(b, nil), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	checkGolden(t, "start-default-boot.argv", s.argv(t))
-	// What each service is staged states where everything is, as literals.
 	librarian := stagedFile(t, s, "librarian.json")
 	mustContain(t, "staged librarian.json", librarian,
 		`"gatewayUrl": "http://192.168.64.1:4000"`, "bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
@@ -819,23 +856,6 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
 }
 
-// movableKeycloakPort rewrites the KB's configs to name the issuer's port by
-// ${KEYCLOAK_PORT}, as a newborn KB's do, so a start takes and records it.
-func movableKeycloakPort(t *testing.T, s *scenario) {
-	t.Helper()
-	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
-		p := filepath.Join(s.kb, ".semiont", "semiontconfig", name)
-		b, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		b = []byte(strings.ReplaceAll(string(b), "${KEYCLOAK_HOST}:8080/realms", "${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms"))
-		if err := os.WriteFile(p, b, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 // The issuer's port is the launcher's to place, like its host — one Keycloak
 // port per KB, the same number on both ends, so a laptop can hold a forward
 // per codespace KB. KEYCLOAK_PORT follows the launcher's env shape: the
@@ -845,7 +865,6 @@ func movableKeycloakPort(t *testing.T, s *scenario) {
 // of the issuer its staged config states.
 func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 	s := newScenario(t, "container")
-	movableKeycloakPort(t, s)
 	keycloakRun := func(t *testing.T, argv string) string {
 		t.Helper()
 		for _, line := range strings.Split(argv, "\n") {
@@ -1005,16 +1024,35 @@ func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
 	mustContain(t, "second run's argv", second, "rm semiont-ollama", "--name semiont-ollama")
 }
 
-func TestStartLocalVersionBoot(t *testing.T) {
+// localImages: the scenario's documents naming each of Semiont's images at
+// :local, and the machine's Browser at its :local build — a developer's
+// checkout.
+func localImages(t *testing.T, s *scenario) {
+	t.Helper()
+	editDocument(t, s, "knowledge-base.yaml",
+		"semiont-gateway:latest", "semiont-gateway:local",
+		"semiont-dispatcher:latest", "semiont-dispatcher:local",
+		"semiont-archivist:latest", "semiont-archivist:local")
+	editDocument(t, s, "index.yaml",
+		"semiont-librarian:latest", "semiont-librarian:local",
+		"semiont-smelter:latest", "semiont-smelter:local",
+		"semiont-weaver:latest", "semiont-weaver:local")
+	editDocument(t, s, "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
+	if _, stderr, code := s.run(t, "settings", "browser-image", "ghcr.io/the-ai-alliance/semiont-browser:local"); code != 0 {
+		t.Fatalf("settings browser-image: exit %d\n%s", code, stderr)
+	}
+}
+
+func TestStartLocalImagesBoot(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "SEMIONT_VERSION=local")
+	localImages(t, s)
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-local-version-boot.argv", s.argv(t))
 	if strings.Contains(s.argv(t), " pull ") {
-		t.Error("SEMIONT_VERSION=local must not pull images")
+		t.Error("an image tagged :local must not be pulled")
 	}
 }
 
@@ -1027,7 +1065,7 @@ func TestStartMissingEnvVar(t *testing.T) {
 		t.Fatalf("want exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.",
+		"The knowledge base's documents name the variable ANTHROPIC_API_KEY (fromEnv), and it is not set in the environment.",
 		"register a secret source once:  semiont settings secret set ANTHROPIC_API_KEY")
 	checkGolden(t, "start-missing-env.argv", s.argv(t))
 }
@@ -1111,7 +1149,7 @@ func TestStartConfigNotFound(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr, "Config not found: "+filepath.FromSlash(".semiont/semiontconfig/nope.toml"))
+	mustContain(t, "stderr", stderr, "Config not found: "+filepath.FromSlash(".semiont/stack/inference/nope.yaml"))
 }
 
 func TestStartNoRuntime(t *testing.T) {
@@ -1180,6 +1218,23 @@ func TestStartDryRunServiceMetrics(t *testing.T) {
 	checkGolden(t, "start-dryrun-service-metrics.txt", s.norm(stdout))
 }
 
+// The Issuer document's database name is the one the realm is kept in: the
+// PostgreSQL the launcher runs creates it, the launcher makes sure of it, and
+// Keycloak connects to it.
+func TestStartKeepsTheRealmInTheDatabaseTheIssuerNames(t *testing.T) {
+	s := newScenario(t, "container")
+	editDocument(t, s, "issuer.yaml", "name: keycloak", "name: iam")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"POSTGRES_DB=iam",
+		"# create database iam on PostgreSQL if absent",
+		":5432/iam ")
+	mustNotContain(t, "stdout", stdout, "/keycloak ", "database keycloak")
+}
+
 func TestStartDryRunDefault(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
@@ -1193,9 +1248,9 @@ func TestStartDryRunDefault(t *testing.T) {
 	}
 }
 
-func TestStartDryRunLocalVersion(t *testing.T) {
+func TestStartDryRunLocalImages(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "SEMIONT_VERSION=local")
+	localImages(t, s)
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
@@ -1598,68 +1653,17 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	}
 }
 
-func TestStartRefusesAnEnvironmentSite(t *testing.T) {
-	// A knowledge base declares its identity once: [site], at the top level of
-	// its committed .semiont/config. An environment [site] would be a second
-	// answer to what the KB is called. Nothing overrides a KB's identity, so
-	// start refuses the section by name.
-	withSite := func(t *testing.T, s *scenario, site string) {
-		t.Helper()
-		writeKBConfig(t, s, "sited", stdGraph+stdVectors+stdEmbedding+stdDatabase+site)
-	}
-
-	for _, site := range []string{
-		"[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n",
-		"[environments.local.site]\nsiteName = \"Example\"\n",
-	} {
-		s := newScenario(t, "container")
-		withSite(t, s, site)
-		_, stderr, code := s.run(t, "start", "--config", "sited", "--dry-run")
-		if code != 1 {
-			t.Fatalf("an environment [site] must refuse: exit %d\n%s", code, site)
-		}
-		mustContain(t, "environment [site] refusal", stderr, "[environments.local.site]", "sited.toml")
-	}
-
-	// No environment [site] at all — every launcher-generated config — starts.
-	s := newScenario(t, "container")
-	if _, stderr, code := s.run(t, "start", "--dry-run"); code != 0 {
-		t.Fatalf("plain start: exit %d\nstderr:\n%s", code, stderr)
-	}
-}
-
-// A worker section names the jobs it serves, as a job description does. One
-// that names none would bind nothing, and the worker handed that config would
-// refuse it: start refuses it first, by name, saying what a worker section may
-// be, and launches nothing.
-func TestStartRefusesAWorkerSectionThatNamesNoJob(t *testing.T) {
-	s := newScenario(t, "container")
-	writeKBConfig(t, s, "unserved",
-		stdGraph+stdVectors+stdEmbedding+stdDatabase+
-			"[environments.local.inference.ollama]\nplatform = \"posix\"\n\n"+
-			"[environments.local.workers.default.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n"+
-			"[environments.local.workers.generation.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n")
-	_, stderr, code := s.run(t, "start", "--config", "unserved")
-	if code != 1 {
-		t.Fatalf("a worker section that names no job must refuse: exit %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "refusal", stderr, "unserved.toml", "[environments.local.workers.generation] names no job", "workers.yield")
-	if argv := s.argv(t); strings.Contains(argv, "container ") {
-		t.Errorf("a refused config still reached the runtime:\n%s", argv)
-	}
-}
-
 func TestStartRefusesKBWithoutDid(t *testing.T) {
 	// A did:web is REQUIRED. The launcher publishes a discovery document in
-	// which `did` is a required field, so a KB with no [site] domain cannot be
+	// which `did` is a required field, so a KB with no site.domain cannot be
 	// represented — and the alternative to refusing is worse than it looks:
 	// any default at all would have every such KB on a machine report one
 	// fabricated, colliding identity. An address wearing a name is the
 	// category error that keeping identity apart from address exists to
-	// prevent. Identity is declared, never defaulted.
+	// prevent. Identity is declared, never defaulted. ProjectConfig requires
+	// the domain, so a KB with no project file is the one that has none.
 	s := newScenario(t, "container")
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
-		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
+	if err := os.Remove(filepath.Join(s.kb, ".semiont", "config.yaml")); err != nil {
 		t.Fatal(err)
 	}
 	// Refused even in --dry-run: a plan for a KB that cannot be identified is
@@ -1668,11 +1672,11 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("did-less start: want exit 1, got %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "did:web", "[site]", "domain")
+	mustContain(t, "stderr", stderr, "did:web", "config.yaml", "site:", "domain")
 
 	// And the fix-it must be actionable: adding the domain makes it start.
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
-		[]byte("[project]\nname = \"No Did KB\"\n\n[site]\ndomain = \"example.github.io:no-did-kb\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config.yaml"),
+		[]byte("project:\n  name: No Did KB\ngit:\n  sync: true\nsite:\n  domain: example.github.io:no-did-kb\n  siteName: No Did KB\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
@@ -1688,14 +1692,8 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 	s := newScenario(t, "container")
 	semiont := filepath.Join(s.kb, ".semiont")
-	if err := os.Remove(filepath.Join(semiont, "config")); err != nil {
-		t.Fatal(err)
-	}
-	project, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
+	project, err := os.ReadFile(filepath.Join(semiont, "config.yaml"))
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(semiont, "config.yaml"), project, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
@@ -1716,6 +1714,30 @@ func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 		t.Fatalf("a start from a broken config.yaml: want exit 1, got %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stderr", stderr, "config.yaml", "line 7", "domian")
+}
+
+// A knowledge base still keeping a file its documents replaced — the TOML
+// project file, or the TOML configs — is refused by name, pointing at what
+// replaced it, rather than read or ignored.
+func TestStartRefusesTheFilesTheDocumentsReplaced(t *testing.T) {
+	for _, c := range []struct{ old, now string }{
+		{"config", ".semiont/config.yaml"},
+		{"semiontconfig/anthropic.toml", ".semiont/stack/"},
+	} {
+		s := newScenario(t, "container")
+		old := filepath.Join(s.kb, ".semiont", filepath.FromSlash(c.old))
+		if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(old, []byte("[project]\nname = \"old\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, stderr, code := s.run(t, "start", "--dry-run")
+		if code != 1 {
+			t.Fatalf("a KB keeping .semiont/%s: want exit 1, got %d\nstderr:\n%s", c.old, code, stderr)
+		}
+		mustContain(t, "refusal", stderr, "which no launcher reads any more", c.now)
+	}
 }
 
 // --- clean ---
@@ -2992,40 +3014,41 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 }
 
 // Start demands a variable only when something reads it: a service handed it,
-// or the launcher itself. A reference in an environment nobody selected, or in
-// a section no service lists, reaches no one and is not demanded.
+// or the launcher itself. A key of a provider no role names reaches no one and
+// is not demanded.
 func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 	s := newScenario(t, "container")
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	unread := "\n[environments.local.browser]\nurl = \"${INERT}\"\n\n[environments.other.graph]\ntype = \"neo4j\"\npassword = \"${ONLY_ELSEWHERE}\"\n"
-	if err := os.WriteFile(p, append(b, unread...), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	editDocument(t, s, "inference/ollama-gemma.yaml",
+		"    ollama: {}\n", "    ollama: {}\n    openai: { baseURL: https://api.openai.com/v1, apiKey: { fromEnv: INERT } }\n")
 	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("start demanded a variable nothing reads: exit %d\n%s", code, stderr)
 	}
+}
+
+// externalDatabase: the fixture's Issuer document with its PostgreSQL run by
+// somebody else, its password read from EXT_PG.
+func externalDatabase(t *testing.T, s *scenario) {
+	t.Helper()
+	editDocument(t, s, "issuer.yaml",
+		"    image: postgres:15.18-alpine\n    resources: { limits: { memory: 1G } }\n",
+		"    external: { host: db.example.com, port: 5432, password: { fromEnv: EXT_PG } }\n")
 }
 
 // A role started alone resolves what the launcher reads on its behalf:
 // Keycloak's external PostgreSQL password, and the key the model check sends.
 func TestStartServiceResolvesWhatTheLauncherReadsForIt(t *testing.T) {
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "external-db", stdGraph+stdVectors+stdEmbedding+
-		"[environments.local.database]\nplatform = \"external\"\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
+	externalDatabase(t, s)
 	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret", "ANTHROPIC_API_KEY=test-key")
-	for _, c := range []struct{ service, config string }{{"identity", "external-db"}, {"inference", "anthropic"}} {
+	for _, c := range []struct{ service, config string }{{"identity", "ollama-gemma"}, {"inference", "anthropic"}} {
 		if stdout, stderr, code := s.run(t, "start", "--service", c.service, "--config", c.config); code != 0 {
 			t.Errorf("start --service %s: exit %d\n%s%s", c.service, code, stdout, stderr)
 		}
 	}
 }
 
-// The remote-model check uses the key the config's [inference] apiKey
-// references, whatever the variable is called.
+// The remote-model check uses the key the Inference document's provider
+// names, whatever the variable is called.
 func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -3043,10 +3066,10 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 	t.Cleanup(func() { srv.Close() })
 
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "own-key", stdGraph+stdVectors+stdEmbedding+stdDatabase+
-		"[environments.local.inference.anthropic]\nendpoint = \"http://"+ln.Addr().String()+"\"\napiKey = \"${MY_KEY}\"\n\n"+
-		stdActors("anthropic", "claude-sonnet-4-5-20250929")+
-		"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	deriveDocument(t, s, "inference/anthropic.yaml", "inference/own-key.yaml",
+		"name: anthropic", "name: own-key",
+		"baseURL: https://api.anthropic.com", "baseURL: http://"+ln.Addr().String(),
+		"fromEnv: ANTHROPIC_API_KEY", "fromEnv: MY_KEY")
 	s.extraEnv = append(s.extraEnv, "MY_KEY=sk-mine")
 	if _, stderr, code := s.run(t, "start", "--config", "own-key"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
@@ -3054,10 +3077,10 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 	select {
 	case got := <-keys:
 		if got != "sk-mine" {
-			t.Errorf("the model check sent x-api-key %q, want the value of ${MY_KEY}", got)
+			t.Errorf("the model check sent x-api-key %q, want the value of MY_KEY", got)
 		}
 	default:
-		t.Error("the model check never ran: it looked for ANTHROPIC_API_KEY, not the variable the config names")
+		t.Error("the model check never ran: it looked for ANTHROPIC_API_KEY, not the variable the document names")
 	}
 }
 
@@ -3079,84 +3102,6 @@ func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 	}
 	if strings.Contains(stdout, "reading from 1Password") || strings.Contains(s.argv(t), "op read") {
 		t.Errorf("the smelter reached for a secret it never reads:\n%s", stdout)
-	}
-}
-
-// A ${NAME:-default} names a variable the operator may set. The launcher
-// resolves it in the document it writes: to the variable's value whenever it
-// is set, and to the default when it is not. Unset, nothing is demanded. The
-// service is handed neither: its document states the value.
-func TestStartResolvesAnOptionalReferenceOnlyWhenSet(t *testing.T) {
-	s := newScenario(t, "container", "op")
-	cfg := filepath.Join(s.kb, ".semiont", "semiontconfig", "anthropic.toml")
-	f, err := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// In a section the Librarian's document is written from: a start of one
-	// service resolves only its own sections' variables.
-	if _, err := f.WriteString("\n[environments.local.archivist]\nhost = \"${SD_OPTIONAL:-archivist.fallback}\"\n"); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
-	// started: a start of the Librarian alone, and the Archivist's host its
-	// document states.
-	started := func(step string) {
-		t.Helper()
-		if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
-			t.Fatalf("%s: exit %d\n%s", step, code, stderr)
-		}
-		if _, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); handed {
-			t.Errorf("%s: the Librarian was handed a variable its document resolves", step)
-		}
-	}
-	archivistHost := func(step, want string) {
-		t.Helper()
-		if staged := stagedFile(t, s, "librarian.json"); !strings.Contains(staged, `"host": "`+want+`"`) {
-			t.Errorf("%s: the Librarian's document does not state the Archivist at %q:\n%s", step, want, staged)
-		}
-	}
-
-	started("unset")
-	archivistHost("unset", "archivist.fallback")
-	log, _ := os.ReadFile(s.log)
-	if strings.Contains(string(log), "SD_OPTIONAL") {
-		t.Errorf("reached for an optional reference nobody set:\n%s", log)
-	}
-
-	// A registered source sets it, as it would a required one.
-	if _, stderr, code := s.run(t, "settings", "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
-		t.Fatalf("secret set: exit %d\n%s", code, stderr)
-	}
-	s.killServes(t)
-	if err := os.Truncate(s.log, 0); err != nil {
-		t.Fatal(err)
-	}
-	started("registered")
-	archivistHost("registered", "fake-op-secret")
-
-	// Set to the empty string is set, and wins over both the source and the
-	// default (the shared table's rule), so it resolves to nothing.
-	s.killServes(t)
-	if err := os.Truncate(s.log, 0); err != nil {
-		t.Fatal(err)
-	}
-	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
-	started("set empty")
-	archivistHost("set empty", "")
-
-	// The environment wins over the source.
-	s.killServes(t)
-	if err := os.Truncate(s.log, 0); err != nil {
-		t.Fatal(err)
-	}
-	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
-	started("set")
-	archivistHost("set", "from-env")
-	log, _ = os.ReadFile(s.log)
-	if strings.Contains(string(log), "op read") {
-		t.Errorf("read the source although the environment set the variable:\n%s", log)
 	}
 }
 
@@ -4035,7 +3980,7 @@ func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
 	repo := "pingel-org/foo-kb"
 
 	// Agreement: the remote config matches what the clone recorded.
-	s.extraEnv = append(s.extraEnv, "FAKERT_GH_KBCONFIG=[site]\ndomain = \"example.github.io:test-kb\"\n")
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_KBCONFIG="+remoteProjectFile("example.github.io:test-kb"))
 	stdout, stderr, code := s.run(t, "status", "--repo", repo, "--refresh")
 	if code != 0 {
 		t.Fatalf("refresh: exit %d\nstderr:\n%s", code, stderr)
@@ -4043,7 +3988,7 @@ func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
 	mustContain(t, "refresh", stdout+stderr, "KB identity confirmed", "did:web:example.github.io:test-kb")
 
 	// Drift: the codespace now answers with a different identity.
-	s.extraEnv[len(s.extraEnv)-1] = "FAKERT_GH_KBCONFIG=[site]\ndomain = \"elsewhere.org:other-kb\"\n"
+	s.extraEnv[len(s.extraEnv)-1] = "FAKERT_GH_KBCONFIG=" + remoteProjectFile("elsewhere.org:other-kb")
 	stdout, stderr, _ = s.run(t, "status", "--repo", repo, "--refresh")
 	mustContain(t, "drift", stdout+stderr,
 		"does not match the record", "did:web:example.github.io:test-kb", "did:web:elsewhere.org:other-kb")
@@ -4665,7 +4610,7 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 		"gh api /repos/"+csRepo+"/codespaces/machines",
 		"gh codespace create --repo "+csRepo+" --machine <machine>",
 		"gh codespace ports forward",
-		"cat /workspaces/*/.semiont/config")
+		"cat /workspaces/*/.semiont/config.yaml")
 	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "gh ") {
 		t.Errorf("dry-run invoked gh:\n%s", log)
 	}
@@ -4905,69 +4850,26 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-// --- config-driven boots ---
+// --- document-driven boots ---
 
-// writeKBConfig drops a variant semiontconfig into the scenario's KB.
-func writeKBConfig(t *testing.T, s *scenario, name, body string) {
+// externalGraph: the fixture's KnowledgeIndex with its Neo4j run by somebody
+// else, at uri, its password read from EXT_GRAPH.
+func externalGraph(t *testing.T, s *scenario, uri string) {
 	t.Helper()
-	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\npublicURL = \"http://${GATEWAY_HOST:-localhost}:4000\"\n\n" + stdIdentity + stdJobs
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
-	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	editDocument(t, s, "index.yaml",
+		"    image: neo4j:5.26.28-community\n    resources: { limits: { memory: 2G } }\n",
+		"    external: { uri: \""+uri+"\", password: { fromEnv: EXT_GRAPH } }\n")
 }
-
-const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
-
-// [identity] is MANDATORY: a KB without an issuer can authenticate nobody, so
-// the launcher refuses one. It rides the head rather than each body because
-// it is true of EVERY knowledge base — and because a variant missing it
-// reports the identity refusal instead of the one it was written to prove.
-// The launcher-run Keycloak, matching the testdata configs; every variant
-// names a [database], which that shape requires.
-const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\nsubjectClaim = \"sub\"\n\n"
-
-// [jobs] rides the head for the same reason: the dispatcher's queue is
-// JetStream, every `semiont init` writes this section, and the launcher refuses
-// a config without it — as it refuses one whose gateway names no publicURL,
-// the address the dispatcher dials.
-const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n"
-
-// Every config must name a vector store and an embedding provider — the
-// launcher refuses one that does not.
-// So these two are as standard as stdGraph/stdDatabase, and a variant that
-// wants no local Ollama reaches for stdEmbeddingVoyage rather than dropping
-// the section.
-const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
-const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\napiKey = \"${VOYAGE_API_KEY}\"\n\n"
-const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
-const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\n\n"
-
-// stdOllamaInference: the Ollama the launcher places, as a provider of models.
-const stdOllamaInference = "[environments.local.inference.ollama]\nplatform = \"posix\"\n\n"
-
-// stdActors: a model for each of the Librarian's two actors. A start writes
-// the Librarian's document from them, and refuses an environment that binds
-// either actor none. The provider's own section is the config's to add.
-func stdActors(provider, model string) string {
-	binding := "type = \"" + provider + "\"\nmodel = \"" + model + "\"\n\n"
-	return "[environments.local.actors.gatherer.inference]\n" + binding + "[environments.local.actors.matcher.inference]\n" + binding
-}
-
-// stdOllamaActors: both actors on a model of the Ollama the launcher places.
-var stdOllamaActors = stdOllamaInference + stdActors("ollama", "gemma4:26b")
 
 func TestStartExternalGraphBoot(t *testing.T) {
-	// A graph somebody else runs (platform = "external"), at the address the
-	// config states: verify reachability, launch no container, claim no graph
+	// A graph somebody else runs (`external`), at the address its document
+	// states: verify reachability, launch no container, claim no graph
 	// ports.
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\npassword = \"${EXT_GRAPH}\"\n\n"+
-			stdVectors+stdEmbedding+stdDatabase+stdOllamaActors)
+	externalGraph(t, s, "bolt://127.0.0.1:7777")
 	s.extraEnv = append(s.extraEnv, "EXT_GRAPH=remotepass")
 	serveHealth(t, 7777)
-	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
+	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -5010,39 +4912,50 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-gateway")
 }
 
-func TestStartMovedDBPortBoot(t *testing.T) {
-	// database.port moves the HOST side of the publish; container side stays
-	// the driver default, and every check/gate follows the config.
-	s := newScenario(t, "container")
-	writeKBConfig(t, s, "moved-db",
-		stdGraph+stdVectors+stdEmbedding+
-			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n"+
-			stdOllamaActors)
-	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
-	if code != 0 {
-		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-	}
-	mustContain(t, "stdout", stdout, "database — PostgreSQL on port 5433")
-	mustContain(t, "argv", s.argv(t), "-p 5433:5432", "nc -z -w 2 192.168.64.1 5433")
-}
-
 // --- a stack without a worker ---
 
-// noWorker: a config that binds a model to each actor and no job to a worker.
-// The section a start names for binding one is noWorkerSection.
-var noWorker = stdGraph + stdVectors + stdEmbedding + stdDatabase + stdOllamaActors
+// noWorkerRoster: an Inference document, no-worker, that binds a model to
+// each actor and no job to a worker.
+const noWorkerRoster = `apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Inference
+metadata:
+  name: no-worker
+spec:
+  providers:
+    ollama: {}
+  roster:
+    actors:
+      gatherer: { provider: ollama, model: "gemma4:26b" }
+      matcher: { provider: ollama, model: "gemma4:26b" }
+    workers: {}
+`
 
-const noWorkerSection = "[environments.local.workers.default.inference]"
+// noWorkerBinding: where a start names binding a job, for that roster.
+var noWorkerBinding = filepath.FromSlash(".semiont/stack/inference/no-worker.yaml") + " spec.roster.workers"
 
-// An environment that binds no job to a worker starts everything else and no
+// A worker asked for by name, of a roster that binds it no job, is refused
+// before anything is pulled or run, naming where a job is bound: the plan
+// names no image for a worker it does not run.
+func TestStartServiceWorkerRefusesARosterThatBindsNoJob(t *testing.T) {
+	s := newScenario(t, "container")
+	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "output", stdout+stderr, "the roster binds no job to a worker", noWorkerBinding)
+	mustNotContain(t, "argv", s.argv(t), "pull", "semiont-worker")
+}
+
+// A roster that binds no job to a worker starts everything else and no
 // worker: none is pulled, staged a document, given a port or run, and the
-// start says so once, naming the section that binds a job. What reads the
-// stack afterwards reads it as it is: status reports the worker as not
-// configured and the stack as healthy, logs follow the services that run, and
-// stop sweeps no worker.
+// start says so once, naming where a job is bound. What reads the stack
+// afterwards reads it as it is: status reports the worker as not configured
+// and the stack as healthy, logs follow the services that run, and stop sweeps
+// no worker.
 func TestStartWithoutAWorkerBoot(t *testing.T) {
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "no-worker", noWorker)
+	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
 	stdout, stderr, code := s.run(t, "start", "--config", "no-worker")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -5051,10 +4964,10 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	checkGolden(t, "start-no-worker-boot.argv", started)
 
 	mustContain(t, "stdout", stdout,
-		"worker — the environment binds no job to a worker; skipping (add "+noWorkerSection+" to run one)",
+		"worker — the roster binds no job to a worker; skipping (bind one in "+noWorkerBinding+" to run one)",
 		"🚀 Semiont stack is up")
-	if n := strings.Count(stdout+stderr, noWorkerSection); n != 1 {
-		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noWorkerSection, n, stdout, stderr)
+	if n := strings.Count(stdout+stderr, noWorkerBinding); n != 1 {
+		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noWorkerBinding, n, stdout, stderr)
 	}
 	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
 	mustContain(t, "start argv", started, "run -d --name semiont-smelter", "run -d --name semiont-weaver")
@@ -5104,11 +5017,11 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	}
 
 	// Naming one stack makes status's exit its health: a stack that runs no
-	// worker by its config is not short of one.
+	// worker by its roster is not short of one.
 	before := s.argv(t)
 	stdout, stderr, code = s.run(t, "status", "--root", s.kb)
 	if code != 0 {
-		t.Errorf("status --root: exit %d for a stack that runs everything its config asks for\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Errorf("status --root: exit %d for a stack that runs everything its documents ask for\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	workerRows := 0
 	for _, line := range strings.Split(stdout, "\n") {
@@ -5150,55 +5063,60 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 // container and no health wait for a worker, and one line saying why.
 func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "no-worker", noWorker)
+	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
 	stdout, stderr, code := s.run(t, "start", "--config", "no-worker", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
-		"# worker: the environment binds no job to a worker — nothing to launch (add "+noWorkerSection+" to run one)",
+		"# worker: the roster binds no job to a worker — nothing to launch (bind one in "+noWorkerBinding+" to run one)",
 		"run -d --name semiont-smelter", "wait: http://localhost:24101/health (30s)")
-	if n := strings.Count(plan, noWorkerSection); n != 1 {
-		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerSection, n, plan)
+	if n := strings.Count(plan, noWorkerBinding); n != 1 {
+		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerBinding, n, plan)
 	}
 	// The preflight sweep still names semiont-worker: it removes whatever an
-	// earlier start of another config left, by name.
+	// earlier start of another roster left, by name.
 	mustNotContain(t, "plan", plan, "run -d --name semiont-worker", "semiont-worker:", "worker.json", "24100")
 }
 
-// Asked for by name, a worker with no job to serve is refused, naming the
-// section that binds one, and nothing is run.
+// Asked for by name, a worker with no job to serve is refused, naming where a
+// job is bound, and nothing is run.
 func TestStartServiceWorkerIsRefusedWhenNoJobIsBound(t *testing.T) {
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "no-worker", noWorker)
+	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
 	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stderr", stderr, "the environment binds no job to a worker", noWorkerSection)
+	mustContain(t, "stderr", stderr, "the roster binds no job to a worker", noWorkerBinding)
 	mustNotContain(t, "stdout", stdout, "nothing to launch", "is up")
 	mustNotContain(t, "argv", s.argv(t), "run -d --name semiont-worker")
 }
 
+// voyageEmbedding: the fixture's KnowledgeIndex with Voyage making the
+// vectors, its key read from VOYAGE_API_KEY.
+func voyageEmbedding(t *testing.T, s *scenario) {
+	t.Helper()
+	editDocument(t, s, "index.yaml",
+		"    type: ollama\n    model: nomic-embed-text\n",
+		"    type: voyage\n    model: voyage-3\n    apiKey: { fromEnv: VOYAGE_API_KEY }\n")
+}
+
 func TestStartNoInferenceBoot(t *testing.T) {
-	// A config that references no ollama anywhere: nothing local is launched
-	// for inference — but its Claude-bound worker means inference IS
-	// configured, as an external SaaS role.
+	// A stack that names no ollama anywhere: nothing local is launched for
+	// inference — but its Claude-bound worker means inference IS configured,
+	// as an external SaaS role.
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "no-ollama",
-		stdGraph+stdVectors+stdDatabase+stdEmbeddingVoyage+
-			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
-			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
-			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	voyageEmbedding(t, s)
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key", "VOYAGE_API_KEY=test-voyage-key")
-	stdout, stderr, code := s.run(t, "start", "--config", "no-ollama")
+	stdout, stderr, code := s.run(t, "start", "--config", "anthropic")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "inference — Anthropic is remote SaaS; nothing to launch")
 	if argv := s.argv(t); strings.Contains(argv, "ollama") {
-		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
+		t.Errorf("a stack with no Ollama still touched ollama:\n%s", argv)
 	}
 
 	// status: both roles read as the remote services they are, and the report
@@ -5211,7 +5129,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	mustContain(t, "status stdout", stdout,
 		"inference (Anthropic)", "embedding (Voyage)", "external")
 	if strings.Contains(stdout, "Ollama") {
-		t.Errorf("a config referencing no Ollama still named one in status:\n%s", stdout)
+		t.Errorf("a stack referencing no Ollama still named one in status:\n%s", stdout)
 	}
 	preStop := s.argv(t)
 	if _, _, code := s.run(t, "stop"); code != 0 {
@@ -5225,10 +5143,8 @@ func TestStartNoInferenceBoot(t *testing.T) {
 func TestStartServiceExternalIsNoop(t *testing.T) {
 	// --service on an externally-provided role warns and exits 0.
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
-			stdVectors+stdEmbedding+stdDatabase)
-	stdout, stderr, code := s.run(t, "start", "--service", "graph", "--config", "external-graph")
+	externalGraph(t, s, "bolt://graph.example.com:7687")
+	stdout, stderr, code := s.run(t, "start", "--service", "graph")
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -5239,17 +5155,11 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 }
 
 func TestServiceGatewayPortFollowsConfig(t *testing.T) {
-	// --service gateway port-claims the CONFIG's gateway port, not a static 4000.
+	// --service gateway port-claims the KnowledgeBase's gateway port, not a
+	// static 4000.
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "moved-gateway",
-		stdGraph+stdVectors+stdEmbedding+stdDatabase)
-	// writeKBConfig's header pins gateway.port = 4000; rewrite it to 4001.
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "moved-gateway.toml")
-	b, _ := os.ReadFile(p)
-	if err := os.WriteFile(p, []byte(strings.Replace(string(b), "port = 4000", "port = 4001", 1)), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	stdout, _, code := s.run(t, "start", "--service", "gateway", "--config", "moved-gateway", "--dry-run")
+	editDocument(t, s, "knowledge-base.yaml", "    port: 4000\n", "    port: 4001\n")
+	stdout, _, code := s.run(t, "start", "--service", "gateway", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stdout)
 	}
@@ -5486,7 +5396,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("vanished recorded config: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config not found: "+filepath.FromSlash(".semiont/semiontconfig/gone.toml"),
+		"Config not found: "+filepath.FromSlash(".semiont/stack/inference/gone.yaml"),
 		"'gone' is this KB's recorded preference")
 }
 
@@ -6602,7 +6512,6 @@ var settingContinuation = strings.Repeat(" ", 27)
 
 func TestSettingsListsEverySetting(t *testing.T) {
 	s := newScenario(t, "container", "docker", "op")
-	movableKeycloakPort(t, s)
 	s.extraEnv = append(s.extraEnv, "KEYCLOAK_PORT=8181")
 	if _, stderr, code := s.run(t, "start", "--runtime", "docker", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -6673,7 +6582,6 @@ func TestSettingsShowsTheDefaultsOfAFreshMachine(t *testing.T) {
 
 func TestSettingsSetsAndClearsTheStickyOnes(t *testing.T) {
 	s := newScenario(t, "container", "podman")
-	movableKeycloakPort(t, s)
 	run := func(args ...string) string {
 		t.Helper()
 		stdout, stderr, code := s.run(t, args...)
@@ -6875,9 +6783,6 @@ func TestSettingsRefusesWhatAStartWould(t *testing.T) {
 		{[]string{"settings", "runtime", "docker"}, []string{"'docker' is not on PATH"}},
 		{[]string{"settings", "config", "nope"}, []string{"nope", "not found"}},
 		{[]string{"settings", "keycloak-port", "70000"}, []string{"70000", "1-65535"}},
-		// The fixture's configs name the issuer's port literally, so a port
-		// setting would change nothing: the start's own warning, as a refusal.
-		{[]string{"settings", "keycloak-port", "8282"}, []string{"names its port literally", "${KEYCLOAK_PORT}"}},
 		{[]string{"settings", "nonesuch", "x"}, []string{"Unknown setting"}},
 	} {
 		_, stderr, code := s.run(t, c.args...)
@@ -6971,14 +6876,13 @@ func TestStartServiceWorker(t *testing.T) {
 		}
 	}
 
-	// A record created lazily by a --service start carries full metadata,
-	// not just the runtime.
+	// A record created lazily by a --service start carries the root and the
+	// identity the start resolved, not just the runtime.
 	b, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
 		t.Fatalf("stack.json not written: %v", err)
 	}
 	mustContain(t, "stack.json", string(b),
-		`"imageVersion": "latest"`,
 		`"kbRoot": "`+inJSON(s.kb)+`"`,
 		`"kbDid": "did:web:example.github.io:test-kb"`)
 }
@@ -7447,12 +7351,8 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// start and marked in status, instead of surfacing as a failed job.
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929") // haiku deliberately absent
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "anthropic-meta",
-		stdGraph+stdVectors+stdDatabase+stdEmbedding+
-			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
-			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
-			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
-			"[environments.local.workers.mark.tagging.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
+	writeDocument(t, s, "inference/anthropic-meta.yaml", rosterDocument("anthropic-meta", anthropicAt(anthPort), sonnet,
+		map[string]string{"workers.mark.tagging": "{ provider: anthropic, model: claude-haiku-4-5-20251001 }"}))
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic-meta")
 	if code != 0 {
@@ -7472,34 +7372,65 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	}
 }
 
+// rosterDocument: an Inference document named name, with providers (YAML
+// lines under spec.providers), every role bound to role (a flow mapping)
+// except those overrides names ("workers.mark.tagging").
+func rosterDocument(name, providers, role string, overrides map[string]string) string {
+	at := func(path string) string {
+		if bound, ok := overrides[path]; ok {
+			return bound
+		}
+		return role
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Inference\nmetadata:\n  name: %s\nspec:\n  providers:\n%s  roster:\n    actors:\n", name, providers)
+	for _, actor := range []string{"gatherer", "matcher"} {
+		fmt.Fprintf(&b, "      %s: %s\n", actor, at("actors."+actor))
+	}
+	b.WriteString("    workers:\n      mark:\n")
+	for _, motivation := range []string{"linking", "highlighting", "assessing", "commenting", "tagging"} {
+		fmt.Fprintf(&b, "        %s: %s\n", motivation, at("workers.mark."+motivation))
+	}
+	fmt.Fprintf(&b, "      yield: %s\n", at("workers.yield"))
+	return b.String()
+}
+
+// sonnet: a role bound to Claude Sonnet.
+const sonnet = "{ provider: anthropic, model: claude-sonnet-4-5-20250929 }"
+
+// anthropicAt: the anthropic provider, reached at a local fake's port, its
+// key read from ANTHROPIC_API_KEY.
+func anthropicAt(port int) string {
+	return fmt.Sprintf("    anthropic: { baseURL: \"http://localhost:%d\", apiKey: { fromEnv: ANTHROPIC_API_KEY } }\n", port)
+}
+
 // --- semantic search is mandatory ---
 
-// A config the gateway refuses to boot must be refused HERE, before a single
+// A stack the gateway refuses to boot must be refused HERE, before a single
 // container is launched. Otherwise start brings the whole stack up and the
 // gateway dies seconds later on a file the launcher already had in its hands.
-func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
+func TestStartRefusesAStackWithNoSemanticSearch(t *testing.T) {
 	for _, c := range []struct {
-		name  string
-		body  string
-		wants []string
+		name, cut string
+		wants     []string
 	}{
 		{
 			"no-vectors",
-			stdGraph + stdEmbedding + stdDatabase,
-			[]string{"names no vector store", "[environments.local.vectors]", "nothing is defaulted"},
+			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1\n    resources: { limits: { memory: 2G } }\n",
+			[]string{"index.yaml", "/spec/vectors", "is missing"},
 		},
 		{
 			"no-embedding",
-			stdGraph + stdVectors + stdDatabase,
-			[]string{"names no embedding provider", "[environments.local.embedding]", "nothing is defaulted"},
+			"  embedding:\n    type: ollama\n    model: nomic-embed-text\n    chunking: { chunkSize: 512, overlap: 64 }\n",
+			[]string{"index.yaml", "/spec/embedding", "is missing"},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s := newScenario(t, "container")
-			writeKBConfig(t, s, c.name, c.body)
-			stdout, stderr, code := s.run(t, "start", "--config", c.name)
+			editDocument(t, s, "index.yaml", c.cut, "")
+			stdout, stderr, code := s.run(t, "start")
 			if code == 0 {
-				t.Fatalf("start accepted a config the gateway refuses to boot\nstdout:\n%s", stdout)
+				t.Fatalf("start accepted a stack the gateway refuses to boot\nstdout:\n%s", stdout)
 			}
 			mustContain(t, "refusal", stdout+stderr, c.wants...)
 			// The refusal must precede every runtime invocation — root
@@ -7642,11 +7573,7 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	t.Helper()
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "mixed",
-		stdGraph+stdVectors+stdDatabase+stdEmbedding+
-			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
-			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
-			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	writeDocument(t, s, "inference/mixed.yaml", rosterDocument("mixed", anthropicAt(anthPort), sonnet, nil))
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	s.extraEnv = append(s.extraEnv, env...)
 	if _, stderr, code := s.run(t, "start", "--config", "mixed"); code != 0 {
@@ -7681,13 +7608,8 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 	// bare although the worker reports its limits.
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "mixed-ollama",
-		stdGraph+stdVectors+stdDatabase+stdEmbedding+
-			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
-			"[environments.local.inference.ollama]\nplatform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"+
-			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
-			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
-			"[environments.local.workers.mark.highlighting.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
+	writeDocument(t, s, "inference/mixed-ollama.yaml", rosterDocument("mixed-ollama", anthropicAt(anthPort)+"    ollama: {}\n", sonnet,
+		map[string]string{"workers.mark.highlighting": `{ provider: ollama, model: "gemma4:26b" }`}))
 	s.extraEnv = append(s.extraEnv,
 		"ANTHROPIC_API_KEY=test-key",
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
@@ -8073,7 +7995,7 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 	s := newCodespaceScenario(t)
 	// The codespace's committed identity is the SAME KB as the local clone.
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_GH_KBCONFIG=[site]\ndomain = \"example.github.io:test-kb\"\n")
+		"FAKERT_GH_KBCONFIG="+remoteProjectFile("example.github.io:test-kb"))
 
 	if _, stderr, code := s.run(t, "start", "--runtime", "container"); code != 0 {
 		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
@@ -8348,12 +8270,12 @@ func TestInitInteractivePrompts(t *testing.T) {
 		`domain: "d.example.org:kb"`, `siteName: "My KB"`)
 }
 
-func TestInitGeneratesStartableConfig(t *testing.T) {
-	// The generative config builder. The strongest possible assertion is the
-	// round trip — the generated config must pass the REAL deriver: `start
-	// --dry-run --config <name>` succeeds from the newborn KB. Bindings are
-	// exactly the three-name roster; per-job refinement is the user's
-	// edit, not ours.
+func TestInitGeneratesStartableDocuments(t *testing.T) {
+	// The generative document builder. The strongest possible assertion is
+	// the round trip — the generated documents must pass the REAL loader and
+	// deriver: `start --dry-run --config <name>` succeeds from the newborn KB.
+	// The roster binds both actors and every job to the one model chosen;
+	// per-job refinement is the user's edit, not ours.
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
 	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
@@ -8367,25 +8289,31 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init: exit %d\nstderr:\n%s", code, stderr)
 	}
-	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
+	stackDir := filepath.Join(s.cwd, ".semiont", "stack")
+	inference, err := os.ReadFile(filepath.Join(stackDir, "inference", "anthropic.yaml"))
 	if err != nil {
-		t.Fatalf("generated config missing: %v", err)
+		t.Fatalf("generated Inference document missing: %v", err)
 	}
-	mustContain(t, "config", string(cfg),
-		"[environments.local.actors.gatherer.inference]",
-		"[environments.local.actors.matcher.inference]",
-		"[environments.local.workers.default.inference]",
-		`model = "claude-sonnet-4-5-20250929"`,
-		`model = "nomic-embed-text"`,
-		"${ANTHROPIC_API_KEY}")
-	for _, refinement := range []string{"workers.mark", "workers.yield"} {
-		if strings.Contains(string(cfg), refinement) {
-			t.Errorf("generator emitted a per-job refinement (%s) — those are the user's edits:\n%s", refinement, cfg)
+	mustContain(t, "inference/anthropic.yaml", string(inference),
+		"gatherer:", "matcher:", "linking:", "tagging:", "yield:",
+		"model: claude-sonnet-4-5-20250929", "provider: anthropic",
+		"fromEnv: ANTHROPIC_API_KEY")
+	if n := strings.Count(string(inference), "model: "); n != 8 {
+		t.Errorf("the roster binds %d roles, want both actors and every job (8):\n%s", n, inference)
+	}
+	index, err := os.ReadFile(filepath.Join(stackDir, "index.yaml"))
+	if err != nil {
+		t.Fatalf("generated KnowledgeIndex missing: %v", err)
+	}
+	mustContain(t, "index.yaml", string(index), "model: nomic-embed-text", "semiont-librarian:latest")
+	for _, name := range []string{"knowledge-base.yaml", "issuer.yaml", "workers.yaml"} {
+		if _, err := os.Stat(filepath.Join(stackDir, name)); err != nil {
+			t.Errorf("%s not generated: %v", name, err)
 		}
 	}
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
 	if code != 0 {
-		t.Fatalf("the generated config failed the real deriver: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Fatalf("the generated documents failed the real deriver: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	// The anthropic shape: external SaaS inference; the Ollama that exists
 	// solely for the embedding, pulling exactly the embedding model.
@@ -8405,11 +8333,11 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 	}
 	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
 	if code != 0 {
-		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("ollama documents failed the deriver: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
-	// A newborn names its issuer's port by ${KEYCLOAK_PORT}, so the laptop
-	// that forwards it can move it.
+	// A newborn's issuer is the Keycloak the launcher runs, on the port the
+	// launcher gives it, so the laptop that forwards it can move it.
 	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
 	_ = stderr
 	if !strings.Contains(stdout, "-p 8080:8080") {
@@ -8507,8 +8435,8 @@ func TestInitAnthropicPickerValidatesAgainstLiveList(t *testing.T) {
 		t.Fatalf("default pick: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "default announced", stdout+stderr, "claude-sonnet-4-9")
-	cfg, _ := os.ReadFile(filepath.Join(s2.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
-	mustContain(t, "config", string(cfg), `model = "claude-sonnet-4-9"`)
+	inference, _ := os.ReadFile(filepath.Join(s2.cwd, ".semiont", "stack", "inference", "anthropic.yaml"))
+	mustContain(t, "inference/anthropic.yaml", string(inference), "model: claude-sonnet-4-9")
 
 	// Keyless: typed model accepted, plainly marked unvalidated.
 	s3 := newScenario(t, "container")
@@ -8567,28 +8495,29 @@ func TestInitOllamaModelsValidatedByRegistry(t *testing.T) {
 	mustContain(t, "offline warning", stdout+stderr, "could not be verified")
 }
 
-// templateFixture builds a fake semiont-template-kb tree: real fixture
-// configs (the same files the parser tests trust) plus a devcontainer set
-// with the template's display name.
+// templateFixture builds a fake semiont-template-kb tree: the fixture's own
+// documents (the same files the parser tests trust) plus a devcontainer set
+// with the template's display name. includeBad names a graph store no driver
+// runs, so no document of it can start.
 func templateFixture(t *testing.T, includeBad bool) string {
 	t.Helper()
 	root := t.TempDir()
-	sc := filepath.Join(root, ".semiont", "semiontconfig")
-	if err := os.MkdirAll(sc, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"anthropic.toml", "ollama-gemma.toml"} {
-		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "semiontconfig", name))
+	for _, name := range fixtureDocuments {
+		if name == "config.yaml" {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(sc, name), b, 0o644); err != nil {
+		if includeBad && name == "stack/index.yaml" {
+			b = []byte(strings.Replace(string(b), "type: neo4j", "type: janusgraph", 1))
+		}
+		target := filepath.Join(root, ".semiont", filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if includeBad {
-		bad := "[defaults]\nenvironment = \"local\"\n\n[environments.local.graph]\ntype = \"janusgraph\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\n"
-		if err := os.WriteFile(filepath.Join(sc, "broken.toml"), []byte(bad), 0o644); err != nil {
+		if err := os.WriteFile(target, b, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -8607,18 +8536,18 @@ func templateFixture(t *testing.T, includeBad bool) string {
 		}
 	}
 	// Template identity — must NEVER reach the newborn.
-	if err := os.WriteFile(filepath.Join(root, ".semiont", "config"),
-		[]byte("[site]\ndomain = \"the-ai-alliance.github.io:semiont-template-kb\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".semiont", "config.yaml"),
+		[]byte("project:\n  name: Semiont Template KB\ngit:\n  sync: true\nsite:\n  domain: the-ai-alliance.github.io:semiont-template-kb\n  siteName: Semiont Template KB\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return root
 }
 
 func TestInitFromTemplateCopiesAndVets(t *testing.T) {
-	// The explicit template-copy path. Every fetched toml passes the SAME
-	// derivePlan vet as generated ones; identity is always init's own, never
-	// the template's; and the copied config round-trips through the real
-	// deriver.
+	// The explicit template-copy path. The template's documents pass the SAME
+	// vet as generated ones; identity is always init's own, never the
+	// template's; and the copied documents round-trip through the real
+	// loader and deriver.
 	tpl := templateFixture(t, false)
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -8628,9 +8557,12 @@ func TestInitFromTemplateCopiesAndVets(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("from-template: exit %d\nstderr:\n%s", code, stderr)
 	}
-	for _, n := range []string{"anthropic.toml", "ollama-gemma.toml"} {
-		if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", n)); err != nil {
-			t.Errorf("%s not copied: %v", n, err)
+	for _, name := range fixtureDocuments {
+		if name == "config.yaml" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", filepath.FromSlash(name))); err != nil {
+			t.Errorf("%s not copied: %v", name, err)
 		}
 	}
 	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
@@ -8639,11 +8571,11 @@ func TestInitFromTemplateCopiesAndVets(t *testing.T) {
 		t.Errorf("template identity leaked into the newborn:\n%s", cfg)
 	}
 	if _, _, code := s.run(t, "start", "--config", "anthropic", "--dry-run"); code != 0 {
-		t.Fatal("copied config failed the real deriver")
+		t.Fatal("copied documents failed the real deriver")
 	}
 
-	// A template carrying an unstartable config: the WHOLE init refuses,
-	// pre-write, with the parser's own complaint — no partial tree.
+	// A template carrying an unstartable document: the WHOLE init refuses,
+	// pre-write, with the deriver's own complaint — no partial tree.
 	tplBad := templateFixture(t, true)
 	s2 := newScenario(t, "container")
 	s2.cwd = t.TempDir()
@@ -8652,12 +8584,12 @@ func TestInitFromTemplateCopiesAndVets(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("bad template: want refusal, got %d", code)
 	}
-	mustContain(t, "parser's own error", stderr, "janusgraph")
-	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont", "semiontconfig")); !os.IsNotExist(err) {
-		t.Error("refusal left a partial semiontconfig tree")
+	mustContain(t, "the deriver's own refusal", stderr, "janusgraph")
+	if _, err := os.Stat(filepath.Join(s2.cwd, ".semiont", "stack")); !os.IsNotExist(err) {
+		t.Error("refusal left a partial .semiont/stack tree")
 	}
 
-	// Two config sources are contradictory.
+	// Two sources of documents are contradictory.
 	s3 := newScenario(t, "container")
 	s3.cwd = t.TempDir()
 	_, stderr, code = s3.run(t, "init", "--name", "kb3", "--domain", "d.io:kb3", "--yes",
@@ -8716,8 +8648,8 @@ func TestInitFromTemplateURLClones(t *testing.T) {
 		t.Fatalf("url template: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "argv", s.argv(t), "clone --depth 1")
-	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "semiontconfig", "anthropic.toml")); err != nil {
-		t.Errorf("cloned config missing: %v", err)
+	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "stack", "inference", "anthropic.yaml")); err != nil {
+		t.Errorf("cloned document missing: %v", err)
 	}
 }
 
@@ -8734,11 +8666,11 @@ func TestInitHardeningRules(t *testing.T) {
 		t.Fatalf("traversal config-name: want refusal, got %d", code)
 	}
 	mustContain(t, "traversal refused", stderr, "simple file stem")
-	if _, err := os.Stat(filepath.Join(s.cwd, "..", "escape.toml")); err == nil {
-		t.Error("traversal wrote outside the KB")
+	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "stack", "escape.yaml")); err == nil {
+		t.Error("traversal wrote outside .semiont/stack/inference")
 	}
 
-	// (2) Transactional: a failure after .semiont/config leaves NOTHING —
+	// (2) Transactional: a failure after .semiont/config.yaml leaves NOTHING —
 	// a bogus model is rejected, and the dir is rolled back so a rerun does
 	// not need --force.
 	s2 := newScenario(t, "container")
@@ -8754,19 +8686,21 @@ func TestInitHardeningRules(t *testing.T) {
 		t.Error("a failed init left a partial .semiont/ (not rolled back)")
 	}
 
-	// (3) --force removes the old tree — no stale config survives.
+	// (3) --force removes the old tree — no stale document survives.
 	s3 := newScenario(t, "container")
 	s3.cwd = t.TempDir()
-	scdir := filepath.Join(s3.cwd, ".semiont", "semiontconfig")
-	if err := os.MkdirAll(scdir, 0o755); err != nil {
+	stale := filepath.Join(s3.cwd, ".semiont", "stack", "inference", "stale.yaml")
+	if err := os.MkdirAll(filepath.Dir(stale), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(scdir, "stale.toml"), []byte("junk"), 0o644)
+	if err := os.WriteFile(stale, []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, code := s3.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--force"); code != 0 {
 		t.Fatalf("--force init failed: %d", code)
 	}
-	if _, err := os.Stat(filepath.Join(scdir, "stale.toml")); err == nil {
-		t.Error("--force left a stale config beside the new identity")
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("--force left a stale document beside the new identity")
 	}
 
 	// (3b) --force removes nothing until every decision has held: not under
@@ -8807,20 +8741,20 @@ func TestInitHardeningRules(t *testing.T) {
 		t.Errorf("devcontainer.json is invalid JSON after a quoted name: %v\n%s", err, dj)
 	}
 
-	// (5) a symlinked template config is refused.
+	// (5) a symlinked template document is refused.
 	tpl2 := templateFixture(t, false)
-	if err := os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "semiontconfig", "evil.toml")); err != nil {
+	if err := os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "stack", "inference", "evil.yaml")); err != nil {
 		t.Fatalf("this test needs a symlink in the template, and making one failed: %v", err)
 	}
 	s5 := newScenario(t, "container")
 	s5.cwd = t.TempDir()
 	_, stderr, code = s5.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--from-template", tpl2)
 	if code != 1 {
-		t.Fatalf("symlinked config: want refusal, got %d", code)
+		t.Fatalf("symlinked document: want refusal, got %d", code)
 	}
 	mustContain(t, "symlink refused", stderr, "symlink")
 
-	// (6) the generated anthropic config honors --anthropic-endpoint.
+	// (6) the generated Inference document honors --anthropic-endpoint.
 	s6 := newScenario(t, "container")
 	s6.cwd = t.TempDir()
 	anthURL := fmt.Sprintf("http://localhost:%d", serveAnthropicModels(t, "m"))
@@ -8831,8 +8765,8 @@ func TestInitHardeningRules(t *testing.T) {
 		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1"); code != 0 {
 		t.Fatalf("endpoint init: %d\n%s", code, stderr)
 	}
-	cfg, _ := os.ReadFile(filepath.Join(s6.cwd, ".semiont", "semiontconfig", "anthropic.toml"))
-	mustContain(t, "endpoint honored", string(cfg), fmt.Sprintf(`endpoint = "%s"`, anthURL))
+	inference, _ := os.ReadFile(filepath.Join(s6.cwd, ".semiont", "stack", "inference", "anthropic.yaml"))
+	mustContain(t, "endpoint honored", string(inference), "baseURL: "+anthURL)
 }
 
 func TestStatusService(t *testing.T) {
@@ -9807,16 +9741,8 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 // a variable's value (natsConfString).
 func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	s := newScenario(t, "container")
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = append(b, []byte("\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "broker.toml"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, stderr, code := s.run(t, "start", "--config", "broker"); code != 0 {
+	editDocument(t, s, "knowledge-base.yaml", "signal: { type: in-process }", "signal: { type: nats }")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
 	pw, _ := s.containerEnv(t, "semiont-dispatcher", "NATS_PASSWORD")
@@ -9840,29 +9766,6 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	}
 	mustContain(t, "the dispatcher's document", stagedFile(t, s, "dispatcher.json"), `"passwordEnv": "NATS_PASSWORD"`)
 	mustContain(t, "the gateway's document", stagedFile(t, s, "gateway.json"), `"passwordEnv": "NATS_PASSWORD"`)
-}
-
-// A config key naming a launcher-run daemon's credential is refused, naming
-// its owner: two places deciding one password is the thing we do not do.
-func TestConfigNamingALauncherRunDaemonPasswordIsRefused(t *testing.T) {
-	s := newScenario(t, "container")
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	named := strings.Replace(string(b), "username = \"neo4j\"\n", "username = \"neo4j\"\npassword = \"localpass\"\n", 1)
-	if named == string(b) {
-		t.Fatal("the fixture's [graph] has no username line to anchor on")
-	}
-	if err := os.WriteFile(p, []byte(named), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
-	if code == 0 {
-		t.Fatal("started with a config naming the password of a Neo4j the launcher runs")
-	}
-	mustContain(t, "stderr", stderr, "[environments.local.graph]", "password", "the launcher generates")
 }
 
 // An exported daemon password is refused, not honoured — it would only
@@ -9908,23 +9811,15 @@ func TestSecretSetRefusesADaemonPassword(t *testing.T) {
 }
 
 // The dispatcher's queue is JetStream: it holds no state tree for another
-// driver to write, so a config whose [jobs] selects any other driver is refused
-// at start, naming the driver it needs — before any container runs, rather
-// than surfacing as a dispatcher that exits at boot and is given up on.
+// driver to write, so a KnowledgeBase whose jobs select any other driver is
+// refused at start, naming the driver it needs — before any container runs,
+// rather than surfacing as a dispatcher that exits at boot and is given up on.
 func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 	s := newScenario(t, "container")
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = []byte(strings.Replace(string(b), "type = \"jetstream\"", "type = \"fs\"", 1))
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "fs-jobs.toml"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, stderr, code := s.run(t, "start", "--config", "fs-jobs")
+	editDocument(t, s, "knowledge-base.yaml", "jobs: { type: jetstream }", "jobs: { type: fs }")
+	_, stderr, code := s.run(t, "start")
 	if code == 0 {
-		t.Fatalf("start accepted a [jobs] driver the dispatcher cannot run")
+		t.Fatalf("start accepted a jobs driver the dispatcher cannot run")
 	}
 	mustContain(t, "fs-jobs refusal", stderr, "dispatcher", "jetstream")
 	if strings.Contains(s.argv(t), "run -d --name semiont-dispatcher") {
@@ -9932,79 +9827,11 @@ func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 	}
 }
 
-// The same-server refusal: [signal] and [jobs] share the messaging role, and
-// one role is one daemon. Two sections naming two different servers is a
-// configuration error stated at plan time, naming both sections — never
-// silently reconciled.
-func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
-	s := newScenario(t, "container")
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = append(b, []byte("\n[environments.local.signal]\ntype = \"nats\"\nservers = \"other.host:4222\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "mismatch.toml"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, stderr, code := s.run(t, "start", "--config", "mismatch")
-	if code == 0 {
-		t.Fatalf("start accepted mismatched [jobs]/[signal] servers")
-	}
-	mustContain(t, "mismatch refusal", stderr, "[jobs] and [signal] name different servers", "must match")
-}
-
-// A config whose [environments.*.identity] selects keycloak and leaves its
-// issuer to the launcher boots Keycloak after PostgreSQL and before the gateway
-// — its database created on that PostgreSQL if absent, the realm file staged
-// and imported, the bootstrap admin password per root — and every service's
-// staged config states the issuer.
-
-// writeKeycloakConfig REPLACES the KB config's [identity] section and returns
-// the config name to select with --config.
-func writeKeycloakConfig(t *testing.T, s *scenario) string {
-	t.Helper()
-	return writeConfigWithIdentity(t, s, "keycloak",
-		"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\nsubjectClaim = \"sub\"\n")
-}
-
-// writeConfigWithIdentity copies the KB's base config with its [identity]
-// section SWAPPED for the given one. Replaced, never appended: every base
-// config carries an identity, and a second table of the same name is not
-// valid TOML — the whole file is refused before any of it is read.
-func writeConfigWithIdentity(t *testing.T, s *scenario, name, identity string) string {
-	t.Helper()
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := stripTOMLTable(string(b), "[environments.local.identity]") + "\n" + identity
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return name
-}
-
-// stripTOMLTable removes one table header and the keys under it — up to the
-// next header or the end of the file.
-func stripTOMLTable(doc, header string) string {
-	var out []string
-	skipping := false
-	for _, line := range strings.Split(doc, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case trimmed == header:
-			skipping = true
-		case skipping && strings.HasPrefix(trimmed, "["):
-			skipping = false
-			out = append(out, line)
-		case !skipping:
-			out = append(out, line)
-		}
-	}
-	return strings.TrimRight(strings.Join(out, "\n"), "\n") + "\n"
-}
+// A KnowledgeBase whose issuer is the Issuer document the launcher runs — the
+// fixture's — boots Keycloak after PostgreSQL and before the gateway: its
+// database created on that PostgreSQL if absent, the realm file staged and
+// imported, the bootstrap admin password per root, and every service's
+// staged document states the issuer.
 
 // The identity path in PLAN mode: a golden for everything the
 // launched-Keycloak path narrates — the realm document's clients, the
@@ -10012,8 +9839,7 @@ func stripTOMLTable(doc, header string) string {
 // cannot describe a document other than the one it writes.
 func TestStartDryRunKeycloakIdentity(t *testing.T) {
 	s := newScenario(t, "container")
-	cfg := writeKeycloakConfig(t, s)
-	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -10028,8 +9854,7 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 	// Pinned like JWT_SECRET: a generated password is random and the golden
 	// compares argv verbatim.
 	s.extraEnv = append(s.extraEnv, "KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin")
-	cfg := writeKeycloakConfig(t, s)
-	if _, stderr, code := s.run(t, "start", "--config", cfg); code != 0 {
+	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	checkGolden(t, "start-keycloak-identity-boot.argv", s.argv(t))
@@ -10062,12 +9887,16 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 	}
 }
 
-// writeExternalIssuerConfig: an [identity] naming an issuer on a host the
-// launcher does NOT run — `type = "oidc"`, the bring-your-own-IdP shape.
-func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
+// externalIssuer: the fixture's KnowledgeBase trusting an issuer on a host the
+// launcher does NOT run — `oidc`, the bring-your-own-IdP shape — with no
+// Issuer document.
+func externalIssuer(t *testing.T, s *scenario) {
 	t.Helper()
-	return writeConfigWithIdentity(t, s, "external-oidc",
-		"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\nsubjectClaim = \"sub\"\n")
+	editDocument(t, s, "knowledge-base.yaml",
+		"    ref: issuer\n", "    external: { type: oidc, url: \"https://id.example.com/realms/semiont\" }\n")
+	if err := os.Remove(filepath.Join(s.kb, ".semiont", "stack", "issuer.yaml")); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher
@@ -10080,8 +9909,8 @@ func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
 // Reachability is not configuration.
 func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 	s := newScenario(t, "container")
-	cfg := writeExternalIssuerConfig(t, s)
-	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	externalIssuer(t, s)
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}

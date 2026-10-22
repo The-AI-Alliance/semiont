@@ -18,7 +18,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | Service | Replicas | How, and why |
 |---|---|---|
 | browser | N | Serves the UI; no server-side state. |
-| gateway | N | Behind a load balancer, once the signal plane is broker-backed (`[signal] type = "nats"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [More than one gateway](./DEPLOYMENT.md#more-than-one-gateway). |
+| gateway | N | Behind a load balancer, once the signal plane is broker-backed (`signal.type: nats`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [More than one gateway](./DEPLOYMENT.md#more-than-one-gateway). |
 | worker | N | Workers claim jobs from the dispatcher over the bus; a claim is granted once — atomic in the queue, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete, and only a token carrying the worker role may claim. The worker is the one service built to run off-host: no mount, no broker credential, only network addresses — the gateway's bus, the Archivist's byte surface, an inference provider — so a pool can live on a GPU box the rest of the stack never shares, and a worker that is not yours joins by having its client granted the worker role at the issuer. |
 | archivist | 1 | The single writer of the git-backed record, which is the system of record. This is a design invariant, not a capacity limit. |
 | weaver | 1 | Owns the graph projection: follows the record, a cursor for each resource's log and a sweep of the record at boot and on each reopened stream. Derived state — rebuildable, never authoritative. |
@@ -42,7 +42,7 @@ the projections.
   job queue (durable `/data` volume) and core subjects for the gateway's signal plane. It needs failover more
   than it needs scale; a single server serves many gateway replicas.
 - **Ollama** — local inference and embeddings. Inference concurrency, not user count, is its
-  load; the anthropic config moves LLM inference to the API and leaves embeddings local.
+  load; the anthropic Inference document moves LLM inference to the API and leaves embeddings local.
 - **The KB working tree and `.semiont/events/`** — the system of record, mounted by the
   Archivist alone. Growth here is repository growth; it survives every container replacement.
 

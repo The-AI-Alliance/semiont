@@ -155,13 +155,13 @@ func parseStoreTarget(arg string) (secretRef, bool, error) {
 
 // setSecretStore: the secret-store setting's setter. Naming a different store
 // moves every kept value into it (moveSecretStore).
-func setSecretStore(u *UI, root, value string) bool {
+func setSecretStore(u *UI, kb kbRoot, value string) bool {
 	ref, configured, err := parseStoreTarget(value)
 	if err != nil {
 		u.Fail("%v", err)
 		return false
 	}
-	key := rootKey(root)
+	key := kb.key()
 	from, ok := configuredCustody(u, key)
 	if !ok {
 		return false
@@ -178,11 +178,11 @@ func setSecretStore(u *UI, root, value string) bool {
 
 // unsetSecretStore returns a root to the default store, moving its values
 // back to the files.
-func unsetSecretStore(u *UI, root string) bool { return setSecretStore(u, root, "file") }
+func unsetSecretStore(u *UI, kb kbRoot) bool { return setSecretStore(u, kb, "file") }
 
 // setDefaultSecretStore: the store new knowledge bases adopt. It moves no
 // knowledge base's values: the default applies to new KBs only.
-func setDefaultSecretStore(u *UI, root, value string) bool {
+func setDefaultSecretStore(u *UI, kb kbRoot, value string) bool {
 	ref, configured, err := parseStoreTarget(value)
 	if err != nil {
 		u.Fail("%v", err)
@@ -195,15 +195,15 @@ func setDefaultSecretStore(u *UI, root, value string) bool {
 	return recorded(u, saveDefaultStoreSetting(ref, configured))
 }
 
-func unsetDefaultSecretStore(u *UI, root string) bool {
+func unsetDefaultSecretStore(u *UI, kb kbRoot) bool {
 	return recorded(u, saveDefaultStoreSetting(secretRef{}, false))
 }
 
 // showSecretStoreLocations: where each value is kept once generated, from the
 // setting alone — what a person or a skill needs to read one, with no store
 // contacted.
-func showSecretStoreLocations(u *UI, root string) {
-	key := rootKey(root)
+func showSecretStoreLocations(u *UI, kb kbRoot) {
+	key := kb.key()
 	ref, configured, err := storeSettingFor(key)
 	if err != nil {
 		return

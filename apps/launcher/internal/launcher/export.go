@@ -125,15 +125,16 @@ func Export(args []string) int {
 
 func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 	var root string
+	var id *kbIdentity
 	if rootFlag != "" {
-		r, err := resolveRootArg(rootFlag)
+		r, ident, err := resolveRootArg(rootFlag)
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		root = r
+		root, id = r, ident
 	} else {
-		r, src, err := resolveKBRoot()
+		r, src, ident, err := resolveKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
 			if !projectFileRefused(err) {
@@ -141,11 +142,10 @@ func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 			}
 			return 1
 		}
-		root = r
+		root, id = r, ident
 		u.Log("KB root %s %s", root, u.Dim("("+src+")"))
 	}
 
-	id := loadKBIdentity(root)
 	if output == "" {
 		output = archiveName(root, id)
 	}

@@ -9,15 +9,18 @@ package launcher
 import (
 	"fmt"
 	"strings"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 type flowCtx struct {
-	plan       *launchPlan
-	opts       startOptions
-	version    string
-	root       string
-	configFile string
-	userEnv    []string
+	plan *launchPlan
+	// stack: the knowledge base's documents the plan was derived from; nil
+	// for a start that reads none (`--service browser`).
+	stack   *stack.Stack
+	opts    startOptions
+	kb      kbRoot
+	userEnv []string
 	// restart: this is `start --service <role>`, not a full start. The flows
 	// are the SAME flows either way — it changes only what the banner says,
 	// which is the whole of what a single-service start does differently.
@@ -38,7 +41,7 @@ func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 		if fc.plan.Roles[role].Presence != presenceLauncher {
 			continue
 		}
-		pw, ok := x.daemonPassword(fc.root, role)
+		pw, ok := x.daemonPassword(fc.kb, role)
 		if !ok {
 			return fc, false
 		}
@@ -51,10 +54,23 @@ func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 	return fc, true
 }
 
+// userEnvVars: the NAME=value pairs of a start's resolved --env list.
+func userEnvVars(userEnv []string) map[string]string {
+	vars := map[string]string{}
+	for i := 0; i+1 < len(userEnv); i += 2 {
+		if userEnv[i] == "--env" {
+			if name, value, ok := strings.Cut(userEnv[i+1], "="); ok {
+				vars[name] = value
+			}
+		}
+	}
+	return vars
+}
+
 // daemonLaunchEnv: the credential a launcher-run daemon starts with, in the
 // form that daemon reads — its kept password, or, for Keycloak, PostgreSQL's:
-// kept when the launcher runs that PostgreSQL, the config's reference resolved
-// when it does not.
+// kept when the launcher runs that PostgreSQL, read from the variable the
+// Issuer document names when it does not.
 func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 	kept := func(role string) string {
 		return userEnvVars(fc.userEnv)[daemonPasswords[role].env]
@@ -70,7 +86,7 @@ func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 		if rp.ExternalDBPassword == "" {
 			return []string{"KC_DB_PASSWORD=" + kept("database")}, nil
 		}
-		pw, err := externalCredential("database.password", rp.ExternalDBPassword, fc.userEnv)
+		pw, err := userEnvValue("spec.database.external.password", rp.ExternalDBPassword, fc.userEnv)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +153,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.banner("Preflight")
 	// Crash evidence first: the runtime's log capture is the only copy of the
 	// prior stack's story, and the stop+rm below deletes it.
-	x.snapshotLogs(fc.root, preflightNames)
+	x.snapshotLogs(fc.kb, preflightNames)
 	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
 	removed := 0
 	for _, c := range preflightNames {
@@ -175,7 +191,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if !ok {
 		return 1
 	}
-	x.initStack(fc.root, fc.opts.configName, fc.version, addr, stage)
+	x.initStack(fc.kb, fc.opts.configName, addr, stage)
 	x.recordPorts(checks)
 
 	// Store stamps resolve HERE, before the first container run, so no clear
@@ -185,18 +201,25 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	x.banner("Pulling Images")
-	if fc.version == "local" {
-		x.say(sayLog, "Using locally-built %s images (skipping pull)", x.bold(":local"))
-		x.note("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
-	} else {
-		for _, svc := range stackServices {
-			if !fc.plan.runs(svc) {
-				continue
-			}
-			if !x.pull(image(svc, fc.version)) {
-				return 1
-			}
+	built, pulled := false, false
+	for _, svc := range stackServices {
+		if !fc.plan.runs(svc) {
+			continue
 		}
+		if locallyBuilt(fc.plan.Images[svc]) {
+			built = true
+			continue
+		}
+		if !x.pull(fc.plan.Images[svc]) {
+			return 1
+		}
+		pulled = true
+	}
+	if built {
+		x.say(sayLog, "Using locally-built %s images (not pulled)", x.bold(":local"))
+		x.note("images tagged :local are built on this machine — not pulled")
+	}
+	if pulled {
 		x.say(sayOK, "Images pulled")
 	}
 
@@ -234,7 +257,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}
-	// The identity provider (Keycloak, when [identity] selects it) is a
+	// The identity provider (Keycloak, when the stack has an Issuer document) is a
 	// gateway dependency too: the gateway verifies human tokens against its
 	// keys. After the database, whose PostgreSQL holds its realm.
 	if code := flowDepRole(x, "identity", fc, addr); code != 0 {
@@ -290,7 +313,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	// The Browser rides every start but belongs to no stack.
-	return flowBrowser(x, fc.version, 3000, false)
+	return flowBrowser(x, 3000, false)
 }
 
 // flowBrowser: the Browser is a MACHINE-LEVEL viewer, not a stack member.
@@ -299,7 +322,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 // stale (image identity, not tag order — tags like :latest and :local are
 // mutable) or when the restart is explicit (--service browser, the port
 // mover).
-func flowBrowser(x executor, version string, port int, forceRestart bool) int {
+func flowBrowser(x executor, port int, forceRestart bool) int {
 	// forceRestart IS the single-service case (`--service browser`, the port
 	// mover), so it is also what the heading should say.
 	if forceRestart {
@@ -307,7 +330,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 	} else {
 		x.banner("Browser")
 	}
-	desired := image("browser", version)
+	desired := browserImage()
 	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
 	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)")
 	return x.either(func() bool { return !forceRestart && x.browserCurrent(desired) },
@@ -339,10 +362,10 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			if !x.portCheck(portNeed{port, "Browser"}) {
 				return 1
 			}
-			if version != "local" && !x.pull(desired) {
+			if !locallyBuilt(desired) && !x.pull(desired) {
 				return 1
 			}
-			args := browserArgs(version, port)
+			args := browserArgs(desired, port)
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Browser failed to start.")
@@ -354,7 +377,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 				return 1
 			}
 			x.say(sayOK, "Browser on http://localhost:%d %s", port, x.dim("("+took(d)+")"))
-			x.recordBrowser(id, desired, version, port)
+			x.recordBrowser(id, desired, port)
 			return 0
 		})
 }
@@ -433,7 +456,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// Persistent state rides the run argv: roles in stateStores mount
 		// their per-root dir; a database refusal (data written by another
 		// image) stops the start here.
-		extra, ok := x.stateMounts(role, rp.Image, fc.root)
+		extra, ok := x.stateMounts(role, rp.Image, fc.kb)
 		if !ok {
 			return 1
 		}
@@ -486,7 +509,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
+			if !x.preflightIdentity(identityEndpoint(rp), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
@@ -556,11 +579,11 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
 		// form — nothing of this one is on this host.
 		if role == "identity" {
-			secrets, ok := serviceClientSecrets(x, fc.root)
+			secrets, ok := serviceClientSecrets(x, fc.kb)
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets, 0, false) {
+			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), secrets, 0, false) {
 				return 1
 			}
 		}
@@ -641,10 +664,13 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 			// LISTED for this key. anthropic only; other SaaS providers can
 			// join when their driver knows a models endpoint.
 			if rp.Driver == "anthropic" {
-				key, err := externalCredential("inference.anthropic.apiKey", rp.APIKey, fc.userEnv)
-				if err != nil {
-					x.say(sayFail, "%v", err)
-					return 1
+				key := ""
+				if rp.APIKey != "" {
+					var err error
+					if key, err = userEnvValue(fc.plan.Inference+" spec.providers.anthropic.apiKey", rp.APIKey, fc.userEnv); err != nil {
+						x.say(sayFail, "%v", err)
+						return 1
+					}
 				}
 				x.verifyRemoteModels("inference", saasBase(rp.Address, rp.Port), key, servedBy(rp.Models, "anthropic"))
 			}
@@ -733,7 +759,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	port := fc.plan.GatewayPort
 	x.banner(startBanner(fc, "Gateway"))
 	x.say(sayLog, "http://localhost:%d", port)
-	jwt, ok := x.jwtSecret(fc.root)
+	jwt, ok := x.jwtSecret(fc.kb)
 	if !ok {
 		return 1
 	}
@@ -741,15 +767,15 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	// events log (gatewayArgs). No image stamps it. It mounts neither the
 	// Archivist's state tree nor the anchored-text store: no store is mounted
 	// by two containers.
-	extra, ok := x.stateMountsUnstamped("gateway", fc.root)
+	extra, ok := x.stateMountsUnstamped("gateway", fc.kb)
 	if !ok {
 		return 1
 	}
-	gatewayClientSecret, ok := x.serviceClientSecret(fc.root, "gateway")
+	gatewayClientSecret, ok := x.serviceClientSecret(fc.kb, "gateway")
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, memoryFor(fc.plan.Memory, "gateway"), port, fc.envFor("gateway"), otel, extra...)
+	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.plan.Images["gateway"], fc.plan.Memory["gateway"], port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -765,19 +791,19 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !x.gatewayReachable(addr, port) {
 		return 1
 	}
-	x.record("gateway", id, image("gateway", fc.version), providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan), driverSemiont)
+	x.record("gateway", id, fc.plan.Images["gateway"], providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
-// flowNoWorker: the worker's place in a full start of an environment that
-// binds it no job (workerPlan). Nothing is launched: the start says why,
-// naming the section that binds one, and records the role as not here — which
-// is how status, logs and stop read a stack without it.
+// flowNoWorker: the worker's place in a full start of a roster that binds it
+// no job (workerPlan). Nothing is launched: the start says why, naming where a
+// job is bound, and records the role as not here — which is how status, logs
+// and stop read a stack without it.
 func flowNoWorker(x executor, fc flowCtx, noun string) {
-	section := workerBindingSection(fc.plan.EnvName)
+	binding := workerBinding(fc.plan.Inference)
 	x.banner(noun)
-	x.say(sayLog, "worker — the environment binds no job to a worker; skipping %s", x.dim("(add "+section+" to run one)"))
-	x.note("worker: the environment binds no job to a worker — nothing to launch (add %s to run one)", section)
+	x.say(sayLog, "worker — the roster binds no job to a worker; skipping %s", x.dim("(bind one in "+binding+" to run one)"))
+	x.note("worker: the roster binds no job to a worker — nothing to launch (bind one in %s to run one)", binding)
 	x.record("worker", "", "", providedNone, "", "")
 }
 
@@ -786,7 +812,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	x.banner(startBanner(fc, sc.noun))
 	// No sidecar mounts a store: the Smelter keeps its anchored text on the
 	// Archivist's surface, and the worker and the Weaver keep nothing.
-	clientSecret, ok := x.serviceClientSecret(fc.root, sc.svc)
+	clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 	if !ok {
 		return 1
 	}
@@ -794,11 +820,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	var args []string
 	switch sc.svc {
 	case "worker":
-		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
+		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "smelter":
-		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
+		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "weaver":
-		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, sc.svc), fc.envFor(sc.svc), otel)
+		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)
 	if !ok {
@@ -811,7 +837,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		return 1
 	}
 	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, spec.ports[0].port, x.dim("("+took(d)+")"))
-	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan), driverSemiont)
+	x.record(sc.svc, id, fc.plan.Images[sc.svc], providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -824,20 +850,20 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	x.banner(startBanner(fc, "Archivist"))
 	// The anchored-text store is the Archivist's alone and no image stamps
 	// it; the state tree it stamps, as the projection writer.
-	extra, ok := x.stateMountsUnstamped("anchored-text", fc.root)
+	extra, ok := x.stateMountsUnstamped("anchored-text", fc.kb)
 	if !ok {
 		return 1
 	}
-	state, ok := x.stateMounts("state", image("archivist", fc.version), fc.root)
+	state, ok := x.stateMounts("state", fc.plan.Images["archivist"], fc.kb)
 	if !ok {
 		return 1
 	}
 	extra = append(extra, state...)
-	clientSecret, ok := x.serviceClientSecret(fc.root, "archivist")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "archivist")
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "archivist"), fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -849,7 +875,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 		return 1
 	}
 	x.say(sayOK, "Archivist healthy (http://localhost:24103) %s", x.dim("("+took(d)+")"))
-	x.record("archivist", id, image("archivist", fc.version), providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan), driverSemiont)
+	x.record("archivist", id, fc.plan.Images["archivist"], providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -862,15 +888,15 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	x.banner(startBanner(fc, "Librarian"))
 	// Its own store, for its supervisor's events log; no image stamps it. It
 	// reads the views on the bus, not from the Archivist's state tree.
-	state, ok := x.stateMountsUnstamped("librarian", fc.root)
+	state, ok := x.stateMountsUnstamped("librarian", fc.kb)
 	if !ok {
 		return 1
 	}
-	clientSecret, ok := x.serviceClientSecret(fc.root, "librarian")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "librarian")
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "librarian"), fc.envFor("librarian"), otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -882,7 +908,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 		return 1
 	}
 	x.say(sayOK, "Librarian healthy (http://localhost:24104) %s", x.dim("("+took(d)+")"))
-	x.record("librarian", id, image("librarian", fc.version), providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan), driverSemiont)
+	x.record("librarian", id, fc.plan.Images["librarian"], providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -896,11 +922,11 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 // rather than racy.
 func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Dispatcher"))
-	clientSecret, ok := x.serviceClientSecret(fc.root, "dispatcher")
+	clientSecret, ok := x.serviceClientSecret(fc.kb, "dispatcher")
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, memoryFor(fc.plan.Memory, "dispatcher"), fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
@@ -912,7 +938,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 		return 1
 	}
 	x.say(sayOK, "Dispatcher healthy (http://localhost:24105) %s", x.dim("("+took(d)+")"))
-	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan), driverSemiont)
+	x.record("dispatcher", id, fc.plan.Images["dispatcher"], providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -927,13 +953,18 @@ func flowOneService(x executor, fc flowCtx) int {
 	svc := fc.opts.service
 	if rp, nothing := nothingToLaunch(fc.plan, svc); nothing {
 		if rp.Presence == presenceExternal {
-			x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, fc.configFile, rp.Address, rp.Port)
+			x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, roleDocument(fc.stack, svc), rp.Address, rp.Port)
 			x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", svc, rp.Address, rp.Port)
 			return 0
 		}
-		x.say(sayWarn, "%s is not referenced by %s; nothing to launch.", svc, fc.configFile)
-		x.note("%s: not referenced by the config — nothing to launch", svc)
+		x.say(sayWarn, "%s is not referenced by the knowledge base's documents; nothing to launch.", svc)
+		x.note("%s: not referenced by the documents — nothing to launch", svc)
 		return 0
+	}
+	// A worker the plan does not run has no image to pull and no job to serve.
+	if svc == "worker" && !fc.plan.runs("worker") {
+		x.say(sayFail, "%v", errNoWorkerJob(fc.stack.Files.Inference))
+		return 1
 	}
 
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
@@ -962,9 +993,13 @@ func flowOneService(x executor, fc flowCtx) int {
 	}
 
 	if isConfigConsumer(svc) || svc == "browser" {
-		if fc.version == "local" {
-			x.note("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
-		} else if !x.pull(image(svc, fc.version)) {
+		img := browserImage()
+		if svc != "browser" {
+			img = fc.plan.Images[svc]
+		}
+		if locallyBuilt(img) {
+			x.note("%s is built on this machine — not pulled", img)
+		} else if !x.pull(img) {
 			return 1
 		}
 	}
@@ -1068,7 +1103,7 @@ func flowOneService(x executor, fc flowCtx) int {
 				}
 			}
 		}
-		if code := flowBrowser(x, fc.version, bp, true); code != 0 {
+		if code := flowBrowser(x, bp, true); code != 0 {
 			return code
 		}
 	}

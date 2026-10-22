@@ -10,29 +10,9 @@ import (
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
-
-// The KB config a `semiont init` writes, as far as the dispatcher reads it.
-const dispatcherDocFixture = `[defaults]
-environment = "local"
-
-[environments.local]
-logLevel = "debug"
-
-[environments.local.gateway]
-platform = "container"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-
-[environments.local.jobs]
-type = "jetstream"
-servers = "${NATS_HOST}:4222"
-`
 
 func dispatcherDocumentFrom(t *testing.T, b []byte) semiont.DispatcherConfig {
 	t.Helper()
@@ -45,31 +25,46 @@ func dispatcherDocumentFrom(t *testing.T, b []byte) semiont.DispatcherConfig {
 	return doc
 }
 
-// Resolved: every ${VAR} a value. The gateway host is the launcher's
-// address — the one resolution the gateway's own document does not share.
-func TestDispatcherDocumentIsResolved(t *testing.T) {
-	b, err := dispatcherDocument(envFrom(t, dispatcherDocFixture), "container", "192.168.64.1", 8080, nil, false)
+func dispatcherDocumentOf(t *testing.T, p placement) semiont.DispatcherConfig {
+	t.Helper()
+	b, err := dispatcherDocument(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(b), "${") {
-		t.Fatalf("an unresolved reference reached the document:\n%s", b)
-	}
-	doc := dispatcherDocumentFrom(t, b)
-	if doc.GatewayUrl != "http://192.168.64.1:4000" {
-		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address, not the dispatcher's own container", doc.GatewayUrl)
+	return dispatcherDocumentFrom(t, b)
+}
+
+// Every address is the placement's: the gateway at this start's address on the
+// port the KnowledgeBase gives it — never its publicURL, which is where clients
+// reach it — and the broker the launcher runs, with the pair the launcher keeps
+// named. The log level is the KnowledgeBase's.
+func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Gateway.Port = 4100
+	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
+	p := placed(t, st)
+	doc := dispatcherDocumentOf(t, p)
+	if doc.GatewayUrl != "http://192.168.64.1:4100" {
+		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address on its port", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
 		t.Errorf("issuer = %q", doc.Identity.Issuer)
 	}
-	if doc.Queue.Servers != "192.168.64.1:4222" || doc.Queue.UserEnv != nil || doc.Queue.PasswordEnv != nil {
-		t.Errorf("queue = %+v, want the broker's address and no credentials", doc.Queue)
+	if doc.Queue.Servers != "192.168.64.1:4222" {
+		t.Errorf("queue.servers = %q, want the broker at the launcher's address", doc.Queue.Servers)
+	}
+	if doc.Queue.UserEnv == nil || *doc.Queue.UserEnv != "NATS_USER" ||
+		doc.Queue.PasswordEnv == nil || *doc.Queue.PasswordEnv != daemonPasswords["messaging"].env {
+		t.Errorf("queue = %+v, want the launcher broker's pair named", doc.Queue)
+	}
+	if got := dispatcherSecrets(p); len(got) != 0 {
+		t.Errorf("the dispatcher is handed %v of the user's for the launcher's broker", got)
 	}
 	if doc.Port != semiontDescriptor("dispatcher").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
-		t.Errorf("log = %q %q", doc.LogLevel, doc.LogFormat)
+	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 	if doc.Timing.TickMs != 30_000 || doc.Timing.StaleRunningMs != 30*60_000 || doc.Timing.AckWaitMs != 30_000 ||
 		doc.Timing.RetentionMs != 24*60*60_000 || doc.Timing.RetentionSweepMs != 60*60_000 ||
@@ -78,69 +73,29 @@ func TestDispatcherDocumentIsResolved(t *testing.T) {
 	}
 }
 
-// The broker the launcher runs has the pair the launcher keeps; the dispatcher
-// is handed their names.
-func TestDispatcherDocumentNamesTheLauncherBrokersPair(t *testing.T) {
-	b, err := dispatcherDocument(envFrom(t, dispatcherDocFixture), "container", "192.168.64.1", 8080, nil, true)
-	if err != nil {
-		t.Fatal(err)
+// A broker somebody else runs is where its document states it, and the
+// dispatcher is handed exactly the pair the document names.
+func TestDispatcherDocumentNamesAnExternalBrokersPair(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	externalBroker(st)
+	p := placed(t, st)
+	doc := dispatcherDocumentOf(t, p)
+	if doc.Queue.Servers != "nats.internal:4222" {
+		t.Errorf("queue.servers = %q, want the stated broker", doc.Queue.Servers)
 	}
-	doc := dispatcherDocumentFrom(t, b)
-	if doc.Queue.UserEnv == nil || *doc.Queue.UserEnv != "NATS_USER" ||
-		doc.Queue.PasswordEnv == nil || *doc.Queue.PasswordEnv != daemonPasswords["messaging"].env {
-		t.Errorf("queue = %+v, want the launcher broker's pair named", doc.Queue)
-	}
-}
-
-func TestDispatcherDocumentNamesSecretsAndNeverCarriesThem(t *testing.T) {
-	text := dispatcherDocFixture + "user = \"${BROKER_USER}\"\npassword = \"${BROKER_PASSWORD}\"\n"
-	userEnv := []string{"--env", "BROKER_USER=the-user-value", "--env", "BROKER_PASSWORD=the-password-value"}
-	b, err := dispatcherDocument(envFrom(t, text), "container", "192.168.64.1", 8080, userEnv, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, secret := range []string{"the-user-value", "the-password-value"} {
-		if strings.Contains(string(b), secret) {
-			t.Fatalf("a secret value reached the document:\n%s", b)
-		}
-	}
-	doc := dispatcherDocumentFrom(t, b)
 	if doc.Queue.UserEnv == nil || *doc.Queue.UserEnv != "BROKER_USER" || doc.Queue.PasswordEnv == nil || *doc.Queue.PasswordEnv != "BROKER_PASSWORD" {
 		t.Errorf("queue = %+v, want the credentials named", doc.Queue)
 	}
-	if got := dispatcherNamedVars(envFrom(t, text)); strings.Join(got, ",") != "BROKER_USER,BROKER_PASSWORD" {
-		t.Errorf("the dispatcher is handed %v, want exactly the names its document carries", got)
-	}
-}
-
-func TestDispatcherDocumentRefusesALiteralSecret(t *testing.T) {
-	text := dispatcherDocFixture + "password = \"hunter2\"\n"
-	_, err := dispatcherDocument(envFrom(t, text), "container", "192.168.64.1", 8080, nil, false)
-	if err == nil || !strings.Contains(err.Error(), "jobs.password") || !strings.Contains(err.Error(), "${") {
-		t.Fatalf("want a refusal naming the field and the ${VAR} form, got %v", err)
-	}
-	if strings.Contains(err.Error(), "hunter2") {
-		t.Fatalf("the refusal repeated the secret: %v", err)
-	}
-}
-
-func TestDispatcherDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
-	noGateway := strings.Replace(dispatcherDocFixture, `publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`, "", 1)
-	if _, err := dispatcherDocument(envFrom(t, noGateway), "container", "192.168.64.1", 8080, nil, false); err == nil || !strings.Contains(err.Error(), "publicURL") {
-		t.Errorf("no publicURL: want a refusal naming it, got %v", err)
-	}
-	env := envFrom(t, dispatcherDocFixture)
-	env.Identity = nil
-	if _, err := dispatcherDocument(env, "container", "192.168.64.1", 8080, nil, false); err == nil || !strings.Contains(err.Error(), "identity") {
-		t.Errorf("no [identity]: want a refusal naming it, got %v", err)
+	if got := strings.Join(dispatcherSecrets(p), ","); got != "BROKER_USER,BROKER_PASSWORD" {
+		t.Errorf("the dispatcher is handed %q, want exactly the names its document carries", got)
 	}
 }
 
 // The launcher mounts the document where the image's command points --config
 // (TestConfigDocumentsAreWhereTheImagesLook), and hands the dispatcher nothing
-// else: no *_HOST variables, because the document already carries every
-// address. Its health port is the descriptor's, which the document carries and
-// the image probes.
+// else: no *_HOST variables and no copy of the KB's documents, because its own
+// document already carries every address. Its health port is the descriptor's,
+// which the document carries and the image probes.
 func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "dispatcher", "Dockerfile"))
 	if err != nil {
@@ -151,13 +106,13 @@ func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 	if want := "/stage/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the dispatcher's document is not mounted onto %s:\n%s", dispatcherDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "NATS_HOST", "KEYCLOAK_HOST", ".semiontconfig"} {
+	for _, unread := range []string{"GATEWAY_HOST", "NATS_HOST", "KEYCLOAK_HOST", stack.Dir} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the dispatcher is handed %s, which it does not read:\n%s", unread, args)
 		}
 	}
 
-	port := fmt.Sprint(semiontDescriptor("dispatcher").ports[0].port)
+	port := fmt.Sprint(dispatcherDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)
 	for label, re := range map[string]*regexp.Regexp{
 		"EXPOSE":          regexp.MustCompile(`(?m)^EXPOSE (\d+)`),
 		"HEALTHCHECK":     regexp.MustCompile(`localhost:(\d+)/health`),

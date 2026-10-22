@@ -1,6 +1,6 @@
 # What is in a knowledge base
 
-A knowledge base is a directory managed by both `git` and Semiont. Your resource files live directly in its root, beside `.semiont/`, which holds the knowledge base's identity, its configs and its event log. All of it is meant to be committed.
+A knowledge base is a directory managed by both `git` and Semiont. Your resource files live directly in its root, beside `.semiont/`, which holds the knowledge base's identity, the documents describing its stack, and its event log. All of it is meant to be committed.
 
 This page is what an operator needs to recognize and commit. How Semiont reads and writes these files, and where everything derived from them is kept, is in [where a knowledge base lives on disk](../architecture/FILESYSTEM.md).
 
@@ -15,16 +15,21 @@ my-kb/
 │   │   │   └── events-000001.jsonl
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
-│   └── semiontconfig/                # What the knowledge base needs to run (commit)
-│       ├── anthropic.toml
-│       └── ollama-gemma.toml
+│   └── stack/                        # What the knowledge base needs to run (commit)
+│       ├── knowledge-base.yaml
+│       ├── index.yaml
+│       ├── issuer.yaml
+│       ├── workers.yaml
+│       └── inference/
+│           ├── anthropic.yaml
+│           └── ollama-gemma.yaml
 ├── README.md                         # Optional, but recommended
 └── <your content>                    # Resource files — any structure you choose
 ```
 
 ### `.semiont/config.yaml`
 
-A YAML file holding the knowledge base's name and its permanent `did:web` domain, which is stamped into every event. Commit it: it is who the knowledge base is. See [Configuration](./administration/CONFIGURATION.md#semiontconfigyaml).
+The project file: the knowledge base's name, whether git stages its changes, and its permanent `did:web` domain, which is stamped into every event. Commit it: it is who the knowledge base is. See [Configuration](./administration/CONFIGURATION.md#semiontconfigyaml).
 
 ### `.semiont/events/`
 
@@ -35,9 +40,9 @@ Two kinds of streams live under `events/`:
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
 - **The `events/__system__/` stream**, for events that have no resource, such as `frame:entity-type-added`, which registers an entity type for the whole knowledge base.
 
-### `.semiont/semiontconfig/`
+### `.semiont/stack/`
 
-One TOML file per way of running the knowledge base, usually one per inference provider (`anthropic.toml`, `ollama-gemma.toml`). Each names the models, the embedding provider, the graph, the vector store and the issuer. `semiont init` writes the first; `semiont start --config <name>` picks one. A config states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md).
+The stack's documents, each a YAML document held to its schema in [`specs/src/stack/`](../../specs/src/stack/README.md): the knowledge base's own services and the issuer it trusts (`knowledge-base.yaml`), its indexes (`index.yaml`), the Keycloak the launcher runs for it (`issuer.yaml`), its worker (`workers.yaml`), and under `inference/` one document per way of serving its models, usually one per provider. `semiont init` writes them; `semiont start --config <name>` picks the Inference document a start runs. A document states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md#semiontstack).
 
 ### Resource files
 
@@ -80,8 +85,12 @@ A knowledge base after two resources have been added:
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
 .semiont/events/__system__/events-000001.jsonl
-.semiont/semiontconfig/anthropic.toml
-.semiont/semiontconfig/ollama-gemma.toml
+.semiont/stack/index.yaml
+.semiont/stack/inference/anthropic.yaml
+.semiont/stack/inference/ollama-gemma.yaml
+.semiont/stack/issuer.yaml
+.semiont/stack/knowledge-base.yaml
+.semiont/stack/workers.yaml
 
 % git log --oneline
 9f12ab3 Add Aeschylus resources + initial annotations
@@ -102,6 +111,6 @@ semiont init
 ## Related
 
 - [Running a local stack](./LOCAL-SEMIONT.md): starting a stack for a knowledge base
-- [Configuration](./administration/CONFIGURATION.md): what the two config files hold
+- [Configuration](./administration/CONFIGURATION.md): what the project file and the stack's documents hold
 - [Where a knowledge base lives on disk](../architecture/FILESYSTEM.md): the event log, the views, and what rebuilds what
 - [Knowledge Bases](../KNOWLEDGE-BASES.md): the demo knowledge bases, and starting one of your own

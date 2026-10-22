@@ -184,8 +184,8 @@ Generate and parse W3C Decentralized Identifiers for humans and software peers:
 ```typescript
 import { userToDid, agentToDid, softwareToAgent, didToAgent } from '@semiont/core';
 
-// A person is named by the issuer claim `[identity] subjectClaim` selects,
-// under the deployment's `[site] domain`.
+// A person is named by the issuer claim the knowledge base's `subjectClaim`
+// selects, under its `site.domain`.
 userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.com' });
 // => 'did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'
 

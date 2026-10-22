@@ -22,7 +22,9 @@ import (
 // custody value survives a restart, the resolution value is re-read, and the
 // resolution value reaches no disk at all.
 
-func custodyRoot(t *testing.T) string {
+// custodyKey: the state key of a knowledge base with no project file, under
+// a home of its own.
+func custodyKey(t *testing.T) string {
 	t.Helper()
 	home := harness.Home(t)
 	t.Setenv("JWT_SECRET", "")
@@ -30,38 +32,38 @@ func custodyRoot(t *testing.T) string {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return root
+	return rootKey("", root)
 }
 
 // A custody value survives a restart: the second process gets the FIRST
 // one's value, because a fresh one would silently invalidate every token
 // already signed with it.
 func TestCustodySurvivesARestart(t *testing.T) {
-	root := custodyRoot(t)
+	key := custodyKey(t)
 	u := NewUI(false)
 
-	first, ok := loadOrCreateJWTSecret(u, root)
+	first, ok := loadOrCreateJWTSecret(u, key)
 	if !ok || first == "" {
 		t.Fatalf("no key minted: %q ok=%v", first, ok)
 	}
 	// A second process, same root: the store is the file, so this is the
 	// restart.
-	second, ok := loadOrCreateJWTSecret(u, root)
+	second, ok := loadOrCreateJWTSecret(u, key)
 	if !ok || second != first {
 		t.Errorf("a restart minted a different token-signing key (%q → %q) — every token already issued would fail to verify", first, second)
 	}
 
 	// The same property, per service account and for the realm's admin.
-	a1, _ := loadOrCreateServiceClientSecret(u, root, "weaver")
-	a2, _ := loadOrCreateServiceClientSecret(u, root, "weaver")
+	a1, _ := loadOrCreateServiceClientSecret(u, key, "weaver")
+	a2, _ := loadOrCreateServiceClientSecret(u, key, "weaver")
 	if a1 == "" || a1 != a2 {
 		t.Errorf("weaver's account credential changed across a restart (%q → %q) — the realm honours the first", a1, a2)
 	}
-	if b1, _ := loadOrCreateServiceClientSecret(u, root, "smelter"); b1 == a1 {
+	if b1, _ := loadOrCreateServiceClientSecret(u, key, "smelter"); b1 == a1 {
 		t.Error("two services share one credential; separate accounts are the point of minting them separately")
 	}
-	p1, _ := loadOrCreateKeycloakAdminPassword(u, root)
-	p2, _ := loadOrCreateKeycloakAdminPassword(u, root)
+	p1, _ := loadOrCreateKeycloakAdminPassword(u, key)
+	p2, _ := loadOrCreateKeycloakAdminPassword(u, key)
 	if p1 == "" || p1 != p2 {
 		t.Errorf("the bootstrap admin password changed across a restart (%q → %q) — the realm already exists and would refuse the new one", p1, p2)
 	}
@@ -71,11 +73,11 @@ func TestCustodySurvivesARestart(t *testing.T) {
 // own file under this root's state dir, mode 0600. Never in roots.json,
 // which holds pointers.
 func TestCustodyIsKeptPerRootAndPrivate(t *testing.T) {
-	root := custodyRoot(t)
+	key := custodyKey(t)
 	u := NewUI(false)
-	secret, _ := loadOrCreateJWTSecret(u, root)
+	secret, _ := loadOrCreateJWTSecret(u, key)
 
-	store, ok := custodyFor(u, root)
+	store, ok := custodyFor(u, key)
 	if !ok {
 		t.Fatal("no custody store for this root")
 	}
@@ -140,7 +142,7 @@ func TestResolutionIsReReadEveryTime(t *testing.T) {
 // reach no file the launcher owns — not the root's state dir, not the
 // machine registry.
 func TestResolutionValueReachesNoDisk(t *testing.T) {
-	root := custodyRoot(t)
+	key := custodyKey(t)
 	dir := t.TempDir()
 	vault := filepath.Join(dir, "value")
 	const sentinel = "resolution-sentinel-2f7c1b"
@@ -155,10 +157,10 @@ func TestResolutionValueReachesNoDisk(t *testing.T) {
 	// Mint the custody values too, so the state dir exists and is populated:
 	// the point is that the RESOLVED value is not among what got written.
 	u := NewUI(false)
-	loadOrCreateJWTSecret(u, root)
-	loadOrCreateServiceClientSecret(u, root, "weaver")
+	loadOrCreateJWTSecret(u, key)
+	loadOrCreateServiceClientSecret(u, key, "weaver")
 
-	for _, base := range []string{stateRootDir(root), filepath.Dir(rootsPath())} {
+	for _, base := range []string{stateRootDir(key), filepath.Dir(rootsPath())} {
 		if base == "" {
 			continue
 		}

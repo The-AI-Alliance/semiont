@@ -1,18 +1,18 @@
 {
   "type": "object",
-  "description": "What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.",
+  "description": "What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config.yaml and the working tree it holds. The only source clients use for a knowledge base's name and domain.",
   "properties": {
     "name": {
       "type": "string",
-      "description": "The committed [project] name, or the knowledge base directory's name when none is declared."
+      "description": "The committed project.name, or the knowledge base directory's name when it commits no .semiont/config.yaml."
     },
     "domain": {
       "type": "string",
-      "description": "The committed [site] domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that declares none is refused with browse:kb-failed."
+      "description": "The committed site.domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that commits no .semiont/config.yaml declares none, and is refused with browse:kb-failed."
     },
     "gitBranch": {
       "type": "string",
-      "description": "The working tree's current git branch. Absent when the knowledge base does not sync git (`[git] sync` in its committed config), and when its tree is not a git checkout."
+      "description": "The working tree's current git branch. Absent when the knowledge base does not sync git (`git.sync` in its committed .semiont/config.yaml), and when its tree is not a git checkout."
     }
   },
   "required": [

@@ -3,6 +3,8 @@ package launcher
 import (
 	"strings"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // Every container-bearing driver carries an explicit ceiling — the silent
@@ -34,57 +36,48 @@ func TestMemCeilingGB(t *testing.T) {
 	}
 }
 
-// The sum mirrors what a start actually runs: base services always; infra by
-// presence; ollama once whichever role provides it; traces with --observe.
+// The sum mirrors what a start actually runs: each service and daemon at the
+// ceiling its document states, the Browser and the collector at the
+// launcher's own, traces and metrics with --observe, and never the machine's
+// Ollama.
 func TestStartCeilingsGB(t *testing.T) {
-	base := startCeilingsGB(nil, startOptions{})
-	// gateway 2 + worker 2 + smelter 2 + weaver 2 + archivist 2 + librarian 2 + dispatcher 2 + browser 1 + collector 1
-	if base != 16 {
-		t.Fatalf("base ceilings = %vG, want 16G (did a service's ceiling change without this test?)", base)
+	// A start with no stack (`--service browser`): the Browser's 1G and the
+	// collector's 1G.
+	if got := startCeilingsGB(nil, startOptions{}); got != 2 {
+		t.Fatalf("a start with no stack asks %vG, want 2G", got)
 	}
-	plan := &launchPlan{Roles: map[string]rolePlan{
-		"graph":     {Driver: "neo4j", Presence: presenceLauncher},
-		"vectors":   {Driver: "qdrant", Presence: presenceLauncher},
-		"database":  {Driver: "postgres", Presence: presenceLauncher},
-		"inference": {Driver: "ollama", Presence: presenceLauncher},
-	}}
-	full := startCeilingsGB(plan, startOptions{observe: true})
-	// base 16 + graph 2 + vectors 2 + database 1 + ollama 24 + traces 1 + metrics 1
-	if full != 47 {
-		t.Fatalf("full ceilings = %vG, want 47G", full)
-	}
-	// An external inference (anthropic) runs no Ollama container.
-	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Presence: presenceExternal}
-	if got := startCeilingsGB(plan, startOptions{}); got != 21 {
-		t.Fatalf("external-inference ceilings = %vG, want 21G", got)
-	}
-	// THE DEFAULT: host-process Ollama (models get Metal on the host; the
-	// container is the fallback). Its host RAM is outside this sum — the
-	// launcher neither sets nor sees it — so the default stack is 19G too.
-	plan.Roles["inference"] = rolePlan{Driver: "ollama", Presence: presenceHostPreferred}
-	if got := startCeilingsGB(plan, startOptions{}); got != 21 {
-		t.Fatalf("host-ollama (default) ceilings = %vG, want 21G — the host process must not be counted", got)
+	// The fixture's documents: seven services at 2G; the graph and the vector
+	// store at 2G, the Keycloak and its PostgreSQL at 1G, the broker at 512M;
+	// and the Browser and the collector. Inference and embedding are the
+	// machine's Ollama, which runs on the host.
+	for _, inference := range []string{"ollama-gemma", "anthropic"} {
+		plan := mustPlan(t, fixtureStack(t, inference))
+		if got := startCeilingsGB(plan, startOptions{}); got != 22.5 {
+			t.Errorf("%s: the fixture's stack asks %vG, want 22.5G", inference, got)
+		}
+		if got := startCeilingsGB(plan, startOptions{observe: true}); got != 24.5 {
+			t.Errorf("%s: with --observe it asks %vG, want 24.5G: Jaeger's 1G and Prometheus's 1G more", inference, got)
+		}
 	}
 }
 
-// A ceiling an environment states for a stack service is the one the sum counts.
-func TestStartCeilingsCountTheCeilingsTheEnvironmentStates(t *testing.T) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, Memory: map[string]string{"smelter": "8G"}}
-	if got := startCeilingsGB(plan, startOptions{}); got != 22 {
-		t.Fatalf("ceilings with an 8G smelter = %vG, want 22G: the base 16G with the smelter's 2G made 8G", got)
+// The ceiling a document states for a service is the one the sum counts.
+func TestStartCeilingsCountTheCeilingsTheDocumentsState(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeIndex.Spec.Smelter.Resources.Limits.Memory = "8G"
+	if got := startCeilingsGB(mustPlan(t, st), startOptions{}); got != 28.5 {
+		t.Fatalf("ceilings with an 8G smelter = %vG, want 28.5G: the fixture's 22.5G with the smelter's 2G made 8G", got)
 	}
 }
 
 // A stack without a worker requests no memory for one.
 func TestStartCeilingsLeaveOutAnAbsentWorker(t *testing.T) {
-	plan := &launchPlan{Roles: map[string]rolePlan{
-		"worker": {Role: "worker", Driver: driverSemiont, Presence: presenceAbsent},
-	}}
-	without := startCeilingsGB(plan, startOptions{})
-	plan.Roles["worker"] = rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
-	with := startCeilingsGB(plan, startOptions{})
-	if want := memCeilingGB(semiontDescriptor("worker").mem); with-without != want || want == 0 {
-		t.Fatalf("ceilings with a worker %vG, without %vG: want them %vG apart", with, without, want)
+	st := fixtureStack(t, "ollama-gemma")
+	with := startCeilingsGB(mustPlan(t, st), startOptions{})
+	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
+	without := startCeilingsGB(mustPlan(t, st), startOptions{})
+	if with-without != 2 {
+		t.Fatalf("ceilings with a worker %vG, without %vG: want them the WorkerPool's 2G apart", with, without)
 	}
 }
 

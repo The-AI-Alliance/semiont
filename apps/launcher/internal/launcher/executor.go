@@ -39,7 +39,7 @@ type runner interface {
 	stopRm(name string) bool                  // teardown; reports whether anything existed
 	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
 	settle(ports ...int)                      // wait for torn-down ports to be released
-	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	snapshotLogs(kb kbRoot, names []string)   // crash evidence: capture container logs into the root's state area before a teardown deletes them
 	dumpLogs(container, svc string)           // failed health gate: show the crash where it is
 }
 
@@ -61,23 +61,23 @@ type prober interface {
 // recorder: the belief record: what this machine thinks is running, and how each role was
 // provided. Written as the stack comes up, read by status and by the next start.
 type recorder interface {
-	initStack(root, config, version, addr, stage string) // begin the belief record
-	recordPorts(ports []portNeed)                        // note claimed host ports in the belief record
+	initStack(kb kbRoot, config, addr, stage string) // begin the belief record
+	recordPorts(ports []portNeed)                    // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *ServiceState         // the machine-level browser record
-	recordBrowser(id, image, version string, port int)
+	recordBrowser(id, image string, port int)
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
 // because a regenerated one invalidates every token already issued.
 type keeper interface {
-	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
-	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
-	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
+	jwtSecret(kb kbRoot) (string, bool)                       // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(kb kbRoot) (string, bool)           // Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(kb kbRoot, svc string) (string, bool) // one service's account credential, per root
+	daemonPassword(kb kbRoot, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -91,11 +91,11 @@ type admitter interface {
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
 // database a launcher-run PostgreSQL must already carry.
 type storer interface {
-	stateMounts(role, image, root string) ([]string, bool)   // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsUnstamped(role, root string) ([]string, bool) // the same mounts for a store no image stamps
-	resolveStoreStamps(fc flowCtx) bool                      // preflight: every store's mismatch refuse/clear, before the first container run
-	createDatabase(user, name string) bool                   // a database on the launcher-run PostgreSQL, if absent
-	ollamaVolume(opts startOptions) string                   // model-cache choice (prompt is live-only)
+	stateMounts(role, image string, kb kbRoot) ([]string, bool)   // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) // the same mounts for a store no image stamps
+	resolveStoreStamps(fc flowCtx) bool                           // preflight: every store's mismatch refuse/clear, before the first container run
+	createDatabase(user, name string) bool                        // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string                        // model-cache choice (prompt is live-only)
 }
 
 // modeler: the models a role serves — pulled when absent locally, verified when remote.
@@ -160,8 +160,7 @@ type liveExec struct {
 	// existing: semiont-* container names per runtime, listed once and cached
 	// for the life of the command (see present).
 	existing map[string]map[string]bool
-	version  string // SEMIONT_VERSION, for records created lazily (--service mode)
-	root     string // KB root, ditto ("" for root-free services)
+	kb       kbRoot // the KB root and its identity; zero for root-free services
 	// plan lets record() stamp each role's configured models without every
 	// flow having to pass them; models are config truth, so they belong to
 	// the record the same way the driver does.
@@ -210,8 +209,8 @@ func (x *liveExec) present(rt string) map[string]bool {
 	return names
 }
 
-func (x *liveExec) snapshotLogs(root string, names []string) {
-	if dir, n := writeLogSnapshot(x.rt, root, names); n > 0 {
+func (x *liveExec) snapshotLogs(kb kbRoot, names []string) {
+	if dir, n := writeLogSnapshot(x.rt, kb.key(), names); n > 0 {
 		x.u.Log("Snapshotted %d container log(s) %s", n, x.u.Dim("("+dir+")"))
 	}
 }
@@ -314,8 +313,8 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 		x.st = loadLocalState()
 		if x.st == nil {
 			x.st = &StackState{
-				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]ServiceState{},
+				Runtime: x.rt, KBRoot: x.kb.dir, KBDid: x.kb.ident.didWeb(),
+				Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -358,113 +357,44 @@ const gatewayDocumentFile = "gateway.json"
 // gatewayDocumentTarget: where the gateway reads that document — the path its
 // image passes to `--config`; TestConfigDocumentsAreWhereTheImagesLook holds
 // the two together. Its own name and place: a resolved JSON artifact, not the
-// TOML it was derived from.
+// documents it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
-// stageService writes one service's config into the stage: the gateway's,
-// the dispatcher's, the Archivist's, the worker's, the Smelter's, the
-// Weaver's or the Librarian's resolved document. Every stack service has one.
+// serviceDocuments: each stack service's configuration document — the file it
+// is staged as, the name a refusal gives it, and its writer.
+var serviceDocuments = map[string]struct {
+	file, noun string
+	write      func(p placement, kb kbRoot) ([]byte, error)
+}{
+	"gateway": {gatewayDocumentFile, "the gateway's", func(p placement, kb kbRoot) ([]byte, error) {
+		return gatewayDocument(p, kb.ident.name(kb.dir), kb.ident.domain())
+	}},
+	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", func(p placement, _ kbRoot) ([]byte, error) { return dispatcherDocument(p) }},
+	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ kbRoot) ([]byte, error) { return archivistDocument(p) }},
+	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ kbRoot) ([]byte, error) { return workerDocument(p) }},
+	"smelter":    {smelterDocumentFile, "the Smelter's", func(p placement, _ kbRoot) ([]byte, error) { return smelterDocument(p) }},
+	"weaver":     {weaverDocumentFile, "the Weaver's", func(p placement, _ kbRoot) ([]byte, error) { return weaverDocument(p) }},
+	"librarian":  {librarianDocumentFile, "the Librarian's", func(p placement, _ kbRoot) ([]byte, error) { return librarianDocument(p) }},
+}
+
+// stageService writes one service's configuration document into the stage:
+// the gateway's, the dispatcher's, the Archivist's, the worker's, the
+// Smelter's, the Weaver's or the Librarian's. Every stack service has one.
 func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool {
-	if svc == "gateway" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), x.rt, addr, fc.plan.Roles["identity"].Port, fc.plan.GatewayPort, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, gatewayDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the gateway's configuration document: %v", err)
-			return false
-		}
-		return true
+	document, ok := serviceDocuments[svc]
+	if !ok {
+		x.u.Fail("%s has no configuration document to stage", svc)
+		return false
 	}
-	if svc == "dispatcher" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = dispatcherDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, dispatcherDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the dispatcher's configuration document: %v", err)
-			return false
-		}
-		return true
+	doc, err := document.write(placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}, fc.kb)
+	if err == nil {
+		err = os.WriteFile(filepath.Join(stage, document.file), doc, 0o644)
 	}
-	if svc == "archivist" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = archivistDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, archivistDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Archivist's configuration document: %v", err)
-			return false
-		}
-		return true
+	if err != nil {
+		x.u.Fail("Writing %s configuration document: %v", document.noun, err)
+		return false
 	}
-	if svc == "worker" {
-		env, envName, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = workerDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, workerDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the worker's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "smelter" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = smelterDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
-				err = os.WriteFile(filepath.Join(stage, smelterDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Smelter's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "weaver" {
-		env, _, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = weaverDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, weaverDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Weaver's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	if svc == "librarian" {
-		env, envName, _, err := loadConfig(fc.configFile)
-		if err == nil {
-			var doc []byte
-			if doc, err = librarianDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
-				err = os.WriteFile(filepath.Join(stage, librarianDocumentFile), doc, 0o644)
-			}
-		}
-		if err != nil {
-			x.u.Fail("Writing the Librarian's configuration document: %v", err)
-			return false
-		}
-		return true
-	}
-	x.u.Fail("%s has no configuration document to stage", svc)
-	return false
+	return true
 }
 
 func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
@@ -505,7 +435,7 @@ func (x *liveExec) stageMetrics(addr string) (string, bool) {
 	return stage, true
 }
 
-// stageCollector: --service collector has no document of the KB's config; it
+// stageCollector: --service collector has no document of the KB's stack; it
 // stages only the launcher-written YAML. Traces route to Jaeger
 // iff Jaeger is actually up — the otelDetect rule.
 func (x *liveExec) stageCollector(addr string) (string, bool) {
@@ -531,10 +461,10 @@ func (x *liveExec) stageOne(svc string, fc flowCtx, addr string) (string, bool) 
 	return stage, true
 }
 
-func (x *liveExec) initStack(root, config, version, addr, stage string) {
+func (x *liveExec) initStack(kb kbRoot, config, addr, stage string) {
 	x.st = &StackState{
-		Runtime: x.rt, KBRoot: root, KBDid: loadKBIdentity(root).didWeb(),
-		Config: config, Version: version,
+		Runtime: x.rt, KBRoot: kb.dir, KBDid: kb.ident.didWeb(),
+		Config:   config,
 		HostAddr: addr, Stage: stage, Services: map[string]ServiceState{},
 	}
 }
@@ -670,28 +600,23 @@ func (x *liveExec) otelDetect(addr string) []string {
 // the SAME value a full start did. Every credential the launcher hands out
 // works this way.
 //
-// root is PASSED rather than read off x, which is only populated on the
-// --service path. x.root would resolve correctly on a full start anyway —
-// start Chdir()s into the root after applying the --root > SEMIONT_ROOT > cwd
-// precedence, so an empty root falls back to cwd and lands in the same place.
-// This does not lean on that: the flow already holds the resolved root, and
-// depending on a chdir performed a few hundred lines away in another function
-// is the kind of coupling that breaks silently and keys a signing key off the
-// wrong directory.
-func (x *liveExec) jwtSecret(root string) (string, bool) {
-	return loadOrCreateJWTSecret(x.u, root)
+// kb is the flow's resolved root, passed rather than found from the working
+// directory: a key found that way keys a signing key off whatever directory
+// a chdir a few hundred lines away happened to leave.
+func (x *liveExec) jwtSecret(kb kbRoot) (string, bool) {
+	return loadOrCreateJWTSecret(x.u, kb.key())
 }
 
-func (x *liveExec) identityAdminPassword(root string) (string, bool) {
-	return loadOrCreateKeycloakAdminPassword(x.u, root)
+func (x *liveExec) identityAdminPassword(kb kbRoot) (string, bool) {
+	return loadOrCreateKeycloakAdminPassword(x.u, kb.key())
 }
 
-func (x *liveExec) serviceClientSecret(root, svc string) (string, bool) {
-	return loadOrCreateServiceClientSecret(x.u, root, svc)
+func (x *liveExec) serviceClientSecret(kb kbRoot, svc string) (string, bool) {
+	return loadOrCreateServiceClientSecret(x.u, kb.key(), svc)
 }
 
-func (x *liveExec) daemonPassword(root, role string) (string, bool) {
-	return loadOrCreateDaemonPassword(x.u, root, role)
+func (x *liveExec) daemonPassword(kb kbRoot, role string) (string, bool) {
+	return loadOrCreateDaemonPassword(x.u, kb.key(), role)
 }
 
 func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
@@ -761,8 +686,8 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 		x.st = loadLocalState()
 		if x.st == nil {
 			x.st = &StackState{
-				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]ServiceState{},
+				Runtime: x.rt, KBRoot: x.kb.dir, KBDid: x.kb.ident.didWeb(),
+				Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -1042,7 +967,7 @@ func (x *liveExec) browserRecord() *ServiceState {
 	return LoadStackSet().Browser
 }
 
-func (x *liveExec) recordBrowser(id, img, version string, port int) {
+func (x *liveExec) recordBrowser(id, img string, port int) {
 	saveBrowser(&ServiceState{
 		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
 		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
@@ -1059,10 +984,10 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 // CONTENTS for projections (rebuildable from the log). Never unlinks the
 // store dir: an attached share survives a contents-clear and is orphaned
 // forever by delete-and-recreate.
-func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
+func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 	spec := stateStores[role]
-	dir := stateRootDir(root)
-	sd := spec.storeDir(root)
+	dir := stateRootDir(key)
+	sd := spec.storeDir(key)
 	meta := loadRootMeta(dir)
 	prev := meta.Stores[role].Image
 	if prev == "" || prev == image {
@@ -1104,9 +1029,9 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 			}
 			img = rp.Image
 		} else {
-			img = image(spec.owner, fc.version)
+			img = fc.plan.Images[spec.owner]
 		}
-		if !x.resolveStoreStamp(role, img, fc.root) {
+		if !x.resolveStoreStamp(role, img, fc.kb.key()) {
 			return false
 		}
 	}
@@ -1117,24 +1042,25 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 // args that mount it. The image-mismatch split lives in resolveStoreStamp:
 // database data is user rows — refuse, fix-it names the clean command;
 // projections (vectors/graph) auto-clean and rebuild.
-func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
-	args := stateMountArgs(role, root)
+func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
+	key := kb.key()
+	args := stateMountArgs(role, key)
 	if len(args) == 0 {
 		return nil, true
 	}
 	spec := stateStores[role]
-	dir := stateRootDir(root)
+	dir := stateRootDir(key)
 	meta := loadRootMeta(dir)
 	// A full start has already resolved the stamp in preflight (this re-check
 	// no-ops on the emptied dir); single-service starts resolve here.
-	if !x.resolveStoreStamp(role, image, root) {
+	if !x.resolveStoreStamp(role, image, key) {
 		return nil, false
 	}
-	if !x.openStoreDirs(spec, root) {
+	if !x.openStoreDirs(spec, key) {
 		return nil, false
 	}
-	meta.KBRoot = root
-	meta.Did = loadKBIdentity(root).didWeb()
+	meta.KBRoot = kb.dir
+	meta.Did = kb.ident.didWeb()
 	meta.Stores[role] = storeMeta{Image: image}
 	saveRootMeta(dir, meta)
 	return args, true
@@ -1145,12 +1071,12 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 // supervisor logs. An anchored-text entry says what derived it, and a log
 // line is what happened whichever image wrote it, so no image change clears
 // either; the bind is the one stateMounts makes, without the stamp.
-func (x *liveExec) stateMountsUnstamped(role, root string) ([]string, bool) {
-	args := stateMountArgs(role, root)
+func (x *liveExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
+	args := stateMountArgs(role, kb.key())
 	if len(args) == 0 {
 		return nil, true
 	}
-	if !x.openStoreDirs(stateStores[role], root) {
+	if !x.openStoreDirs(stateStores[role], kb.key()) {
 		return nil, false
 	}
 	return args, true
@@ -1159,8 +1085,8 @@ func (x *liveExec) stateMountsUnstamped(role, root string) ([]string, bool) {
 // openStoreDirs creates a store's mount dirs with the store's mode and clamps
 // the root's state dir to owner-only. Both mount paths run it, so the mode
 // belongs to the store, not to one path's prep.
-func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
-	sd := spec.storeDir(root)
+func (x *liveExec) openStoreDirs(spec stateStoreSpec, key string) bool {
+	sd := spec.storeDir(key)
 	for _, m := range spec.mounts {
 		mp := filepath.Join(sd, m.sub)
 		if err := os.MkdirAll(mp, 0o755); err != nil {
@@ -1178,7 +1104,7 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
 	// A mount dir may be open to every uid. The root's state dir is the
 	// unmounted parent of all of them — no container sees it — so owner-only
 	// here keeps other local users from traversing to any store.
-	dir := stateRootDir(root)
+	dir := stateRootDir(key)
 	if err := ownerOnlyDir(dir); err != nil {
 		x.u.Fail("cannot keep this knowledge base's stores directory %s to its owner: %v", dir, err)
 		return false
@@ -1216,7 +1142,7 @@ type planExec struct {
 
 func (x *planExec) p(args ...string)          { fmt.Println(renderCmd(x.rt, args...)) }
 func (x *planExec) c(format string, a ...any) { fmt.Printf("# "+format+"\n", a...) }
-func (x *planExec) snapshotLogs(string, []string) {
+func (x *planExec) snapshotLogs(kbRoot, []string) {
 	x.c("snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
 }
 func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
@@ -1271,11 +1197,8 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("write <config-stage>/%s (the Librarian's configuration document: LibrarianConfig, resolved)", librarianDocumentFile)
 	x.c("write into each document the addresses this start places, as literals (launcher-placed topology):")
-	// In plan mode the context names the config; the file is under the root.
-	if cfg, err := os.ReadFile(filepath.Join(fc.root, ".semiont", "semiontconfig", fc.configFile+".toml")); err == nil {
-		for _, line := range placedAddresses(cfg, fc.plan.EnvName, topologyVars(x.rt, addr, fc.plan.Roles["identity"].Port)) {
-			x.c("  %s", line)
-		}
+	for _, line := range (placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}).placedLines() {
+		x.c("  %s", line)
 	}
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
@@ -1315,7 +1238,7 @@ func (x *planExec) stageOne(svc string, _ flowCtx, _ string) (string, bool) {
 	return "", false
 }
 
-func (x *planExec) initStack(_, _, _, _, _ string) {}
+func (x *planExec) initStack(kbRoot, string, string, string) {}
 
 func (x *planExec) pull(img string) bool {
 	x.p(pullArgs(x.rt, img)...)
@@ -1387,17 +1310,17 @@ func (x *planExec) otelDetect(string) []string {
 
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
-func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>", true }
+func (x *planExec) jwtSecret(kbRoot) (string, bool) { return "<jwt-secret>", true }
 
-func (x *planExec) identityAdminPassword(string) (string, bool) {
+func (x *planExec) identityAdminPassword(kbRoot) (string, bool) {
 	return "<keycloak-admin-password>", true
 }
 
-func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
+func (x *planExec) serviceClientSecret(_ kbRoot, svc string) (string, bool) {
 	return "<" + svc + "-client-secret>", true
 }
 
-func (x *planExec) daemonPassword(_, role string) (string, bool) {
+func (x *planExec) daemonPassword(_ kbRoot, role string) (string, bool) {
 	return "<" + daemonPasswords[role].custody + ">", true
 }
 
@@ -1461,9 +1384,9 @@ func (x *planExec) dumpLogs(string, string) {}
 
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
-func (x *planExec) browserCurrent(string) bool                { return false }
-func (x *planExec) browserRecord() *ServiceState              { return nil }
-func (x *planExec) recordBrowser(string, string, string, int) {}
+func (x *planExec) browserCurrent(string) bool        { return false }
+func (x *planExec) browserRecord() *ServiceState      { return nil }
+func (x *planExec) recordBrowser(string, string, int) {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the
@@ -1513,18 +1436,18 @@ func (x *planExec) ensureModels(base string, models []modelNeed) {
 // --dry-run computes the real state path (it is derivation, not effect) but
 // creates nothing and never refuses — the image-mismatch check reads disk,
 // a runtime fact the plan only names.
-func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
-	args := stateMountArgs(role, root)
+func (x *planExec) stateMounts(role, _ string, kb kbRoot) ([]string, bool) {
+	args := stateMountArgs(role, kb.key())
 	if len(args) > 0 {
 		x.c("%s state: %s (created if absent; reused across restarts)",
-			role, stateStores[role].storeDir(root))
+			role, stateStores[role].storeDir(kb.key()))
 	}
 	return args, true
 }
 
-func (x *planExec) stateMountsUnstamped(role, root string) ([]string, bool) {
+func (x *planExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
 	x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
-	return stateMountArgs(role, root), true
+	return stateMountArgs(role, kb.key()), true
 }
 
 func (x *planExec) resolveStoreStamps(flowCtx) bool {

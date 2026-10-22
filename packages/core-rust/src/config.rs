@@ -78,30 +78,6 @@ pub fn path_from_args(
     )))
 }
 
-/// The first line that is TOML and cannot be JSON: a table header (`[user]`,
-/// `[environments.local.gateway]`) or a `key = value` pair. A parse failure
-/// that names it says what the file is, where serde alone says only where it
-/// stopped.
-fn toml_line(text: &str) -> Option<(usize, &str)> {
-    let bare_key = |key: &str| {
-        !key.is_empty()
-            && key
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '"'))
-    };
-    text.lines().enumerate().find_map(|(index, line)| {
-        let trimmed = line.trim();
-        let header = trimmed
-            .strip_prefix('[')
-            .and_then(|rest| rest.strip_suffix(']'))
-            .is_some_and(|name| bare_key(name.trim_matches(|c| c == '[' || c == ']').trim()));
-        let pair = trimmed
-            .split_once('=')
-            .is_some_and(|(key, _)| bare_key(key.trim()));
-        (header || pair).then_some((index + 1, trimmed))
-    })
-}
-
 /// The document at `path`: read, validated against its schema, and only then
 /// deserialized into its generated type.
 pub fn read<T: DeserializeOwned>(path: &Path, document: &Document) -> Result<T, ConfigError> {
@@ -112,14 +88,8 @@ pub fn read<T: DeserializeOwned>(path: &Path, document: &Document) -> Result<T, 
             "Cannot read the {service}'s configuration document at {where_} ({e}). The launcher writes it; a {service} started another way is given one ({schema} in specs/)."
         ))
     })?;
-    let value: Value = serde_json::from_str(&text).map_err(|e| {
-        ConfigError::NotJson(match toml_line(&text) {
-            Some((number, line)) => format!(
-                "{where_} is not JSON: it looks like TOML (line {number}: `{line}`), a knowledge base's config rather than the {service}'s resolved document ({schema} in specs/, which the launcher writes as JSON): {e}"
-            ),
-            None => format!("{where_} is not JSON: {e}"),
-        })
-    })?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| ConfigError::NotJson(format!("{where_} is not JSON: {e}")))?;
     let refusals: Vec<String> = spec()
         .validator(schema)
         .iter_errors(&value)

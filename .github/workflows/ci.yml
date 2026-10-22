@@ -62,7 +62,6 @@ jobs:
           npm run lint:dependabot || fail=1
           npm run lint:broker-boundary || fail=1
           npm run lint:staging-boundary || fail=1
-          npm run lint:placeholder-readers || fail=1
           npm run lint:secure-context-apis || fail=1
           npm run lint:event-tags || fail=1
           npm run lint:spec-protocol || fail=1
@@ -2017,7 +2016,8 @@ jobs:
       - name: Vet, build and test sdk-go
         run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
 
-      # The launcher's deps are go-toml, golang.org/x/sys (the Windows build's
+      # The launcher's deps are go.yaml.in/yaml and santhosh-tekuri/jsonschema
+      # (the stack's documents and their schemas), golang.org/x/sys (the Windows build's
       # file lock, access lists and process calls), golang.org/x/term (hidden
       # input and the terminal's size) and packages/sdk-go (whose client pulls
       # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped

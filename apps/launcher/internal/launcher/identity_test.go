@@ -1,66 +1,36 @@
 package launcher
 
-// [environments.*.identity] derives the identity role. keycloak on
-// ${KEYCLOAK_HOST} is provided — launched with its database on the [database]
-// PostgreSQL; an oidc issuer is external — verified, never launched; every
-// incomplete section refuses, naming the key.
+// The identity role: the issuer the knowledge base trusts. An Issuer document
+// is a Keycloak the launcher runs, with its realm on the PostgreSQL that
+// document names; spec.issuer.external is an issuer somebody else runs —
+// verified, never launched. What the schemas cannot state is refused by the
+// plan, naming the document and the field.
 
 import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-const keycloakIdentity = `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-`
-
-// [identity] is MANDATORY. A config without it would give a stack nobody can
-// sign in to: no person, because there are no keys to verify against; no
-// sidecar, because the agent-minter refuses before it mints; and a gateway
-// that cannot reach its own record, because dialling the Archivist needs a
-// service-account token.
-func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
-	p := variantConfig(t, map[string]string{"identity": ""}) // empty drops the section
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	if _, err := derivePlan(env, envName, p, 8080); err == nil {
-		t.Fatal("a config with no identity section was accepted")
-	} else if !strings.Contains(err.Error(), "every knowledge base trusts an issuer") {
-		t.Errorf("error does not explain why: %v", err)
-	}
-}
-
-// The claim a person's DID is built from is DECLARED, never defaulted or
-// inferred: `did:web:<site domain>:users:<that claim's value>`. A section
-// without it refuses, naming the key, so no path writes a config the stack
-// cannot start.
-func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
-	p := variantConfig(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n"})
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	if _, err := derivePlan(env, envName, p, 8080); err == nil {
-		t.Fatal("an [identity] section with no subjectClaim was accepted")
-	} else if !strings.Contains(err.Error(), "subjectClaim") {
-		t.Errorf("error does not name the key: %v", err)
-	}
+// trustExternalIssuer: st trusting an issuer somebody else runs, with no
+// Issuer document — and so no PostgreSQL of the launcher's for it.
+func trustExternalIssuer(st *stack.Stack, typ, url string) {
+	st.KnowledgeBase.Spec.Issuer.Ref = nil
+	st.KnowledgeBase.Spec.Issuer.External = &stack.KnowledgeBaseIssuerExternal{Type: typ, Url: url}
+	st.Issuer = nil
 }
 
 func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": keycloakIdentity}))
+	plan := mustPlan(t, fixtureStack(t, "anthropic"))
 	checkRole(t, plan, "identity", rolePlan{
 		Presence: presenceLauncher, Driver: "keycloak",
-		Image: "quay.io/keycloak/keycloak:26.7.4", Port: 8080,
+		Image: "quay.io/keycloak/keycloak:26.7.4", Memory: "1G", Port: 8080,
 		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
 	rp := plan.Roles["identity"]
-	if rp.Issuer != "http://${KEYCLOAK_HOST}:8080/realms/semiont" {
+	if rp.Issuer != "http://localhost:8080/realms/semiont" {
 		t.Errorf("issuer not carried on the plan: %+v", rp)
 	}
 	if got := identityEndpoint(rp); got != "http://localhost:8080/realms/semiont" {
@@ -68,66 +38,51 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 	}
 }
 
+// An issuer somebody else runs is verified at the address its URL names, and
+// the PostgreSQL a Keycloak of the launcher's would keep its realm on is not
+// part of the stack.
 func TestDerivePlanIdentityOIDCExternal(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
-type = "oidc"
-issuer = "https://login.example.com/realms/acme"
-subjectClaim = "sub"
-`}))
+	st := fixtureStack(t, "anthropic")
+	trustExternalIssuer(st, "oidc", "https://login.example.com/realms/acme")
+	plan := mustPlan(t, st)
 	checkRole(t, plan, "identity", rolePlan{
 		Presence: presenceExternal, Driver: "oidc", Address: "login.example.com", Port: 443,
 	})
+	if got := plan.Roles["identity"].Issuer; got != "https://login.example.com/realms/acme" {
+		t.Errorf("issuer %q, want the URL the KnowledgeBase states", got)
+	}
+	if got := plan.Roles["database"].Presence; got != presenceAbsent {
+		t.Errorf("with no Issuer document the database is %s, want absent", got)
+	}
 }
 
 func TestDerivePlanIdentityRefusals(t *testing.T) {
 	cases := []struct {
-		name, section string
-		want          []string
+		name  string
+		state func(st *stack.Stack)
+		file  func(st *stack.Stack) string
+		want  []string
 	}{
-		{"no type",
-			"[environments.local.identity]\nissuer = \"https://login.example.com/realms/acme\"\n",
-			[]string{"identity", "\"type\""}},
-		{"unknown type",
-			"[environments.local.identity]\ntype = \"foo\"\nissuer = \"https://login.example.com\"\n",
-			[]string{"unknown type", "foo"}},
-		{"oidc without issuer",
-			"[environments.local.identity]\ntype = \"oidc\"\n",
-			[]string{"identity", "\"issuer\""}},
-		{"keycloak issuer without a realm path",
-			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080\"\nsubjectClaim = \"sub\"\n",
-			[]string{"/realms/<realm>"}},
-		{"oidc on the launcher's own reference",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/x\"\nsubjectClaim = \"sub\"\n",
-			[]string{"only the launcher's own Keycloak"}},
-		{"issuer without a scheme",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"login.example.com\"\nsubjectClaim = \"sub\"\n",
-			[]string{"http://"}},
+		{"an external issuer of an unknown type",
+			func(st *stack.Stack) { trustExternalIssuer(st, "foo", "https://login.example.com/realms/acme") },
+			func(st *stack.Stack) string { return st.Files.KnowledgeBase },
+			[]string{"spec.issuer.external.type", `"foo"`, `"keycloak"`, `"oidc"`}},
+		{"an external issuer without a scheme",
+			func(st *stack.Stack) { trustExternalIssuer(st, "oidc", "login.example.com") },
+			func(st *stack.Stack) string { return st.Files.KnowledgeBase },
+			[]string{"spec.issuer.external.url", `"login.example.com"`, "http://"}},
+		{"an Issuer document of a type the launcher does not run",
+			func(st *stack.Stack) { st.Issuer.Spec.Type = "authentik" },
+			func(st *stack.Stack) string { return st.Files.Issuer },
+			[]string{"spec.type", `"authentik"`, `"keycloak"`}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			env, envName, _, err := loadConfig(variantConfig(t, map[string]string{"identity": c.section}))
-			if err != nil {
-				t.Fatalf("loadConfig: %v", err)
-			}
-			if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil {
-				t.Fatalf("derivePlan accepted %s", c.name)
-			}
-			for _, w := range c.want {
-				if !strings.Contains(err.Error(), w) {
-					t.Errorf("error %q missing %q", err, w)
-				}
-			}
+			st := fixtureStack(t, "anthropic")
+			file := c.file(st)
+			c.state(st)
+			mustRefuse(t, st, append([]string{file + ": "}, c.want...)...)
 		})
-	}
-}
-
-func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
-	env, envName, _, err := loadConfig(variantConfig(t, map[string]string{"identity": keycloakIdentity, "database": ""}))
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil || !strings.Contains(err.Error(), "[database]") {
-		t.Fatalf("keycloak without [database] accepted, or the refusal does not name it: %v", err)
 	}
 }
 
@@ -191,69 +146,19 @@ func TestKeycloakRealmJSON(t *testing.T) {
 	}
 }
 
-// accessTokenLifespan overrides the default revocation window. Only the
-// launcher reads it, because only a realm the launcher writes has a lifespan
-// Semiont sets.
+// accessTokenLifespan sets the revocation window of the realm the launcher
+// imports. Only the launcher reads it, because only a realm the launcher
+// writes has a lifespan Semiont sets.
 func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-accessTokenLifespan = 60
-`}))
+	st := fixtureStack(t, "anthropic")
+	st.Issuer.Spec.AccessTokenLifespan = 60
+	plan := mustPlan(t, st)
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
 		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)
 	}
 	doc := string(keycloakRealmJSON("semiont", "aud", "1.2.3.4", 3000, plan.Roles["identity"].AccessTokenLifespan, nil))
 	if !strings.Contains(doc, `"accessTokenLifespan": 60`) {
 		t.Error("the realm document did not take the configured lifespan")
-	}
-}
-
-// Absent means the pinned default, and the realm says so explicitly rather
-// than omitting the key and taking whatever Keycloak defaults to.
-func TestDerivePlanIdentityLifespanDefaults(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": keycloakIdentity}))
-	if got := plan.Roles["identity"].AccessTokenLifespan; got != keycloakAccessTokenLifespan {
-		t.Errorf("absent lifespan did not fall to the default: got %d", got)
-	}
-}
-
-// Refused, not ignored, on both counts: an issuer somebody else runs sets its
-// own lifetimes, and a nonsense value silently accepted would leave an operator
-// believing they had shortened their window.
-func TestDerivePlanIdentityLifespanRefusals(t *testing.T) {
-	for _, c := range []struct{ name, section, want string }{
-		{"oidc", `[environments.local.identity]
-type = "oidc"
-issuer = "https://login.example.com/realms/acme"
-subjectClaim = "sub"
-accessTokenLifespan = 60
-`, "applies only to type"},
-		{"zero", `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-accessTokenLifespan = 0
-`, "positive number of seconds"},
-		{"negative", `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-accessTokenLifespan = -5
-`, "positive number of seconds"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			env, envName, _, err := loadConfig(variantConfig(t, map[string]string{"identity": c.section}))
-			if err != nil {
-				t.Fatalf("loadConfig: %v", err)
-			}
-			if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil {
-				t.Fatalf("accepted %s", c.name)
-			} else if !strings.Contains(err.Error(), c.want) {
-				t.Errorf("error %q missing %q", err, c.want)
-			}
-		})
 	}
 }
 

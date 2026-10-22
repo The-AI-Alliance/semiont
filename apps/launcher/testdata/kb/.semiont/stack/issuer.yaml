@@ -9,7 +9,7 @@ spec:
   accessTokenLifespan: 300
   database:
     type: postgres
-    name: semiont
+    name: keycloak
     user: postgres
     image: postgres:15.18-alpine
     resources: { limits: { memory: 1G } }

@@ -67,13 +67,13 @@ describe('starting a gateway', () => {
     ['no --config: there is no default path to fall back on', async () => ({ settings: await settings(), env: env(), args: () => [] }), /--config <path>/],
     ['a --config naming no file', async () => ({ settings: await settings(), env: env(), args: () => ['--config', join(tmpdir(), `gateway-conformance-no-document-${randomUUID()}.json`)] }), /gateway-conformance-no-document-/],
     [
-      "a knowledge base's TOML config where the JSON document belongs: the refusal names the format it got",
+      'a document that is not JSON, naming the file',
       async () => {
-        const path = join(tmpdir(), `gateway-conformance-toml-${randomUUID()}.toml`);
-        writeFileSync(path, '[user]\nname = ""\n\n[environments.local.gateway]\nport = 4000\n');
+        const path = join(tmpdir(), `gateway-conformance-not-json-${randomUUID()}.json`);
+        writeFileSync(path, 'gatewayUrl = "http://gateway"\n');
         return { settings: await settings(), env: env(), args: () => ['--config', path] };
       },
-      /gateway-conformance-toml-\S+ .*looks like TOML/,
+      /gateway-conformance-not-json-\S+ is not JSON/,
     ],
     ['a NATS plane with no servers', async () => ({ settings: await settings((s) => void (s.signal = { type: 'nats' })), env: env() }), /servers/],
     [

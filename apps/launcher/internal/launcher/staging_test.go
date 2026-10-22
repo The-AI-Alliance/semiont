@@ -24,27 +24,16 @@ func TestStagedRealmIsReachableOnlyByItsOwner(t *testing.T) {
 	}
 }
 
-// The read half, pinned against the shape a real KB commits: the identity
-// lives in `[site]` of `.semiont/config`, and the launcher is the only thing
-// that can carry it to the gateway.
-func TestParseKBIdentityReadsSiteIdentity(t *testing.T) {
-	committed := `
-[project]
-name = "Example Knowledge Base"
-version = "0.1.0"
-
-[site]
-domain = "example.org:kb"
-siteName = "Example Knowledge Base"
-`
-	id := tomlKBIdentity([]byte(committed))
-	if id == nil {
-		t.Fatal("tomlKBIdentity returned nil for a well-formed committed config")
+// The site name is a label the shared identity table does not carry
+// (specs/src/kb-identity/cases.json); this pins that the reader takes it from
+// site.siteName.
+func TestTheProjectFileNamesTheSite(t *testing.T) {
+	committed := "project:\n  name: Example Knowledge Base\n  version: 0.1.0\ngit:\n  sync: true\nsite:\n  domain: example.org:kb\n  siteName: The Example Site\n"
+	id, err := yamlKBIdentity(".semiont/config.yaml", []byte(committed))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if id.Domain != "example.org:kb" {
-		t.Errorf("Domain = %q, want the committed did:web identity", id.Domain)
-	}
-	if id.SiteName != "Example Knowledge Base" {
+	if id.SiteName != "The Example Site" {
 		t.Errorf("SiteName = %q, want the committed site name", id.SiteName)
 	}
 }

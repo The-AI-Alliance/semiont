@@ -35,7 +35,7 @@ func TestRealmConfigComesFromTheRunningStack(t *testing.T) {
 	}
 
 	// With no stack for this root, the sticky preference still answers.
-	registerRootUse(root, false, "anthropic")
+	registerRootUse(kbRoot{dir: root}, false, "anthropic")
 	if got := configForRealm(root); got != "anthropic" {
 		t.Errorf("sticky preference = %q, want %q", got, "anthropic")
 	}

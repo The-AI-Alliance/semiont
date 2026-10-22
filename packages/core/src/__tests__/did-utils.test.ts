@@ -103,7 +103,7 @@ describe('didToAgent never emits a non-URI @id', () => {
 
 describe('@semiont/core - did-utils', () => {
   // A person is named by the subject the issuer asserted — the value of the
-  // claim `[identity] subjectClaim` selects — under the DEPLOYMENT's domain.
+  // claim `identity.subjectClaim` selects — under the DEPLOYMENT's domain.
   // Which claim is not this function's concern; it names whatever subject it
   // is given.
   describe('userToDid', () => {

@@ -79,9 +79,10 @@ Run each from the knowledge base's directory.
 
 | Path in the knowledge base | Contents |
 |---|---|
-| `.semiont/config` | The knowledge base's name and its permanent `did:web` identity (committed) |
+| `.semiont/config.yaml` | The knowledge base's name and its permanent `did:web` identity (committed) |
 | `.semiont/events/` | The event log, which is the record of the knowledge base (committed) |
-| `.semiont/semiontconfig/<name>.toml` | A stack configuration: inference, graph, vectors, identity (committed; `--config` selects one) |
+| `.semiont/stack/` | The stack's documents: its services and issuer, its indexes, its worker (committed) |
+| `.semiont/stack/inference/<name>.yaml` | An Inference document: which provider and model serve each role (committed; `--config` selects one) |
 
 Everything derived from the event log (the database, the graph, the vectors, the job queue) is kept outside the knowledge base, in a directory the launcher keeps for it. `semiont status --verbose` lists those directories and their sizes. The secrets the launcher generates for a stack are kept there too, or in 1Password when `semiont settings secret-store` names a vault.
 
@@ -89,8 +90,8 @@ Everything derived from the event log (the database, the graph, the vectors, the
 
 - **Check what they need first.** The usual failures are a container runtime that is not running, and an inference key the start cannot read.
 - **`semiont status` is the first diagnostic.** It names the service that is unhealthy; `semiont logs --service <name>` says why.
-- **Configuration is in the knowledge base**, at `.semiont/semiontconfig/<name>.toml`. `semiont start --list-configs` shows the ones it has. Each service's own configuration is written from it and mounted into its container, at `~/.semiontconfig` for the librarian and under `/etc/semiont/` for the others; there is no such file on the host to edit.
+- **Configuration is in the knowledge base**, in the documents under `.semiont/stack/`. `semiont start --list-configs` shows the Inference documents it has. Each service's own configuration is written from them and mounted into its container at `/etc/semiont/<service>.json`; there is no such file on the host to edit.
 - **A change of configuration takes a restart**: `semiont stop`, then `semiont start`.
-- **The knowledge base is a git repository.** Its resources, `.semiont/config` and `.semiont/events/` are committed. Secrets never are.
+- **The knowledge base is a git repository.** Its resources, `.semiont/config.yaml`, `.semiont/stack/` and `.semiont/events/` are committed. Secrets never are: a document names the environment variable that holds one.
 - **`semiont` comes from Homebrew or the GitHub Release, never from npm.** If `which semiont` resolves to an npm install, that copy is shadowing the launcher: uninstall it.
-- **Going further.** [Running a local stack](../../../operator/LOCAL-SEMIONT.md) covers ports, the Browser and local-network access; [Configuration](../../../operator/administration/CONFIGURATION.md) covers the config file; [Troubleshooting](../../../operator/administration/TROUBLESHOOTING.md) covers what goes wrong.
+- **Going further.** [Running a local stack](../../../operator/LOCAL-SEMIONT.md) covers ports, the Browser and local-network access; [Configuration](../../../operator/administration/CONFIGURATION.md) covers the documents; [Troubleshooting](../../../operator/administration/TROUBLESHOOTING.md) covers what goes wrong.

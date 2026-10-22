@@ -75,7 +75,7 @@ file, and serves `/discovery/*` from its mount: a file or a 404, never the app.
 - **The version**: the `@semiont/browser` package version in the image.
 - **`sha-<commit>`**: the commit the image was published from.
 - **`latest`**: moved to a release when it is promoted. It is what the launcher runs unless
-  `SEMIONT_VERSION` names a version.
+  the machine's `semiont settings browser-image` names another image.
 
 A tag can be moved and a digest cannot. To pin exactly what you verified, reference the image
 by digest ([Container Images](../../../docs/operator/administration/IMAGES.md#supply-chain-verification)).

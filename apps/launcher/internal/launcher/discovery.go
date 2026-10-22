@@ -55,7 +55,7 @@ func writeDiscovery(ss *StackSet) {
 	// strongest claim available here. A codespace forward must then prove it
 	// still exists.
 	// `did` is REQUIRED in the schema, so an entry without one cannot be
-	// published at all. `start` refuses a KB that declares no [site] domain,
+	// published at all. `start` refuses a KB that declares no site.domain,
 	// which is where a user gets a fix-it they can act on; these guards are
 	// the last resort that keeps a malformed document off disk if a record
 	// without one is in the set.
@@ -70,8 +70,13 @@ func writeDiscovery(ss *StackSet) {
 				e.Port = p
 			}
 		}
-		if ident := loadKBIdentity(st.KBRoot); ident != nil {
-			e.SiteName = opt(ident.SiteName)
+		// The site name the start recorded on the root's row, as the did is
+		// the one it recorded on the stack: what was started, not what the
+		// tree says now.
+		for _, r := range loadRoots().Roots {
+			if r.Path == st.KBRoot && r.SiteName != "" {
+				e.SiteName = opt(r.SiteName)
+			}
 		}
 		claimed[e.Port] = true
 		kbs = append(kbs, e)

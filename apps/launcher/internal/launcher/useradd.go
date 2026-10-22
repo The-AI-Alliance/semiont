@@ -198,10 +198,10 @@ func Useradd(args []string) int {
 	if !ok {
 		return 1
 	}
-	localRoot := ""
+	localRoot, localDid := "", ""
 	if target == nil {
 		if local := stacks.Stacks["local"]; local != nil {
-			localRoot = local.KBRoot
+			localRoot, localDid = local.KBRoot, local.KBDid
 		}
 		if localRoot == "" {
 			u.Fail("No local stack is running, so there is no realm to administer.")
@@ -239,7 +239,7 @@ func Useradd(args []string) int {
 		}
 		return code
 	}
-	code, created := useraddLocal(u, o, password, localRoot)
+	code, created := useraddLocal(u, o, password, localRoot, localDid)
 	if code == 0 && created && !o.inactive && stdoutIsTerminal() {
 		printLines(useraddNextSteps(nil, stacks.Stacks["local"]))
 	}

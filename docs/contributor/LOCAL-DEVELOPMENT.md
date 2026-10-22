@@ -13,9 +13,12 @@ Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/
 # 1. In the repository: build the packages, all eight images, the launcher, and the Python SDK
 ./scripts/ci/local-build.sh
 
-# 2. In the knowledge base: run the stack on what you built
+# 2. In the knowledge base: run the stack on what you built. Name the :local
+#    images in .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
+#    and so on for each service), and the Browser's in the machine's settings
 cd /path/to/your-kb
-SEMIONT_VERSION=local /path/to/semiont/apps/launcher/dist/semiont start
+/path/to/semiont/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+/path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email you@example.com
 
 # 3. Change code, then rebuild only what changed (below) and start again
@@ -36,7 +39,7 @@ What a full run does:
 
 Two things make the stack use your build:
 
-- **`SEMIONT_VERSION=local`** has the launcher run the `:local` images and pull nothing. Without it you get the published ones, and your change is not in them.
+- **The `:local` images, named.** A knowledge base's documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. Write `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` of a Semiont service there, and set the Browser's, which is the machine's, with `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local`; `semiont settings browser-image --unset` returns it to the published one. A document still naming `:latest` runs the published image, and your change is not in it.
 - **The launcher you just built**, not one installed with Homebrew. The launcher and the images are released together, so a launcher from an earlier release may not match images built from your tree.
 
 ### Rebuilding one thing

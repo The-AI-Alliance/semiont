@@ -38,7 +38,7 @@ gateway's URL, the issuer, the working tree's root, the state volume, the anchor
 directory, the roster
 of who serves each role, the port of its HTTP surface, whether to skip the boot rebuild, the staging
 bounds, and its log level and format. Its image passes `--config /etc/semiont/archivist.json`, and
-the launcher writes the document there, resolved from the knowledge base's config. Started without
+the launcher writes the document there, from the knowledge base's stack documents. Started without
 `--config`, or with a path that names no file, no JSON, or a document the schema refuses, the
 Archivist writes the reason to stderr and exits with status 1 before it serves.
 
@@ -46,27 +46,27 @@ The document carries no secret. The Archivist's own account at the issuer is the
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`; without both it does not start.
 
 **What the knowledge base says of itself is read from the tree,** not from the document: the
-committed `<root>/.semiont/config`, a TOML file.
+committed project file, `<root>/.semiont/config.yaml`, held to
+[`ProjectConfig`](../../specs/src/kb-identity/ProjectConfig.json). The Archivist reads three of its
+keys:
 
-| Key | Meaning | When absent |
-|---|---|---|
-| `[project] name` | The knowledge base's name; it names the state directory | The root directory's name |
-| `[site] domain` | The knowledge base's identity: its DID is `did:web:<domain>`, and the audience of the tokens it accepts is `https://<domain>` with each `:` written `/` | The Archivist refuses to start |
-| `[git] sync` | Whether changes are staged with git. Only the literal `true` enables it | Nothing is staged, and no git runs |
+| Key | Meaning |
+|---|---|
+| `project.name` | The knowledge base's name; it names the state directory |
+| `site.domain` | The knowledge base's identity: its DID is `did:web:<domain>`, and the audience of the tokens it accepts is `https://<domain>` with each `:` written `/` |
+| `git.sync` | Whether changes are staged with git |
 
-A config file that is absent or does not parse reads as every key absent.
+A project file that is not YAML, or does not hold to its schema, is refused, each place named, and
+the Archivist does not start. A tree with no project file is named by its directory, stages nothing,
+and declares no identity, so the Archivist does not start on it either.
 
 **The roster** is who serves each role, behind `browse:agents-requested`: for a `mark` job of each
 of the five motivations, for a `yield` job, and for the two actors that call a model (`gatherer`,
-`matcher`), a provider and a model, or nothing. The Archivist applies no fallback. The knowledge
-base's config allows two — a `mark` job of a motivation without a binding is served by
-`workers.mark`, and without that by `workers.default`; a `yield` job without one by
-`workers.default` — and the launcher applies them when it writes the document. An actor is served
-by its own binding, `actors.<actor>`, and by nothing else. The launcher makes the same
-selection when it writes the agents into a worker's document and the models into the Librarian's,
-so the roster names the agents the work is routed to; `roster-cases.json`
-([specs/src/service-config](../../specs/src/service-config/roster-cases.json)) holds the launcher
-to it.
+`matcher`), a provider and a model, or nothing. The Archivist applies no fallback, and the
+launcher applies none either: the knowledge base's Inference document states the roster whole, and
+the launcher writes it into the document as it stands. It writes the same bindings into a
+worker's document as the worker's agents and into the Librarian's as its two models, so the
+roster names the agents the work is routed to.
 
 ## The record on disk
 
@@ -228,8 +228,8 @@ Staging records the working tree's changes where a person can commit them. When 
 syncs git, that is the git index; when it does not, nothing is staged and no git runs.
 
 - **At boot,** the Archivist asks git whether the root is inside a work tree. If git cannot be run or
-  answers no, the Archivist refuses to start: `The knowledge base's config says [git] sync = true,
-  and <root> is not a git checkout (<why>). Make it one (git init), or set sync = false.`
+  answers no, the Archivist refuses to start: `The knowledge base's project file says git.sync is
+  true, and <root> is not a git checkout (<why>). Make it one (git init), or set git.sync to false.`
 - **A stage is queued,** and its caller has already succeeded. Pending paths are staged together,
   each once, by one `git add`, after `staging.flushMs` with no new change and never more than
   `staging.maxWaitMs` after the oldest pending change. Staged: a registered content file, a new
@@ -573,18 +573,19 @@ The Archivist boots in this order, and a failure at any step ends the process wi
 2. Sign in: its service account's token at the issuer, exchanged at the gateway for the agent token
    it reaches the bus with, as the software agent `semiont archivist`. The token is renewed before
    it expires.
-3. Ask staging whether it can work ([Staging](#staging)).
-4. Read `[site] domain`; refuse to start without one.
-5. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
+3. Read the project file ([Configuration](#configuration)).
+4. Ask staging whether it can work ([Staging](#staging)).
+5. Refuse to start without a `site.domain`.
+6. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
    into its three projections, each begun empty; then, with the storage-uri index begun empty, for
    every stream, build the view from its events and write it, and replay its events into the
    index. A stream that fails is logged and skipped, and the rest are rebuilt. A directory of the
    log that is not a stream is noted and passed over. Then **reap:** delete every view whose
    resource has no stream.
-6. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
+7. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
    `Person`, `Organization`, `Location`, `Event`, `Concept`, `Product`, `Technology`, `Date`,
    `Author` — add it, as the knowledge base itself (`did:web:<domain>`).
-7. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
+8. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
    serve its HTTP surface.
 
 On `SIGTERM` or `SIGINT` it closes its HTTP surface, stages everything pending, and exits with

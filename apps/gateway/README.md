@@ -92,8 +92,9 @@ One document: a JSON `GatewayConfig`
 ([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path
 its `--config` flag names, bind-mounted read-only. The image passes
 `/etc/semiont/gateway.json`, where the launcher mounts the document; without
-`--config`, the gateway refuses to start. The launcher writes it resolved from the knowledge base's config and
-committed identity: no `${VAR}` is left in it, and the gateway defaults nothing.
+`--config`, the gateway refuses to start. The launcher writes it from the knowledge base's stack
+documents and its committed identity, every address in it literal and every credential named by
+the variable that holds it, and the gateway defaults nothing.
 The gateway validates it against the schema at boot, and refuses to serve —
 naming each failing field by its JSON pointer — when it does not match.
 

@@ -45,9 +45,12 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only, and
 # 1. Build all packages, publish to local Verdaccio, build every image
 ./scripts/ci/local-build.sh
 
-# 2. Run the full stack from your KB against the :local images
+# 2. Run the full stack from your KB against the :local images: name them in
+#    .semiont/stack/*.yaml (e.g. ghcr.io/the-ai-alliance/semiont-gateway:local),
+#    and the Browser's in the machine's settings
 cd /path/to/your-kb
-SEMIONT_VERSION=local /path/to/semiont/apps/launcher/dist/semiont start
+/path/to/semiont/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+/path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
 
 # 3. Iterate — edit code, rebuild only what changed:

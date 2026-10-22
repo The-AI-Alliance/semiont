@@ -36,7 +36,7 @@ A local model needs no secret: [Ollama](https://ollama.com/) runs a small one on
 
 ## 3. Create a knowledge base
 
-`semiont init` creates a KB in place, synthesizing a config it validates before writing:
+`semiont init` creates a KB in place, writing its project file and the documents that describe its stack, each validated before it is written:
 
 ```bash
 mkdir my-kb && cd my-kb

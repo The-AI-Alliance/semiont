@@ -159,7 +159,7 @@ func git(args []string) {
 	}
 	if len(args) >= 2 && args[0] == "status" && args[1] == "--porcelain" {
 		if os.Getenv("FAKERT_GIT_DIRTY") != "" {
-			fmt.Println(" M .semiont/semiontconfig/anthropic.toml")
+			fmt.Println(" M .semiont/stack/inference/anthropic.yaml")
 		}
 		return
 	}
@@ -292,7 +292,7 @@ func codespaceKeycloakPort(name string) string {
 //	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
 //	FAKERT_GH_SSH_FAIL_FIRST  ssh fails for the first n attempts, then works
 //	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
-//	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_GH_KBCONFIG      .semiont/config.yaml content for `ssh -- cat .semiont/config.yaml`
 //	FAKERT_GH_CS_SHUTTING_DOWN_LISTS  the first n `codespace list` calls report a Shutdown
 //	                        codespace as ShuttingDown — a stop GitHub has not finished
 //	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
@@ -625,17 +625,12 @@ func ghCodespace(args []string, joined string) {
 			}
 			fmt.Println("SEMIONT_KB_READY")
 		case strings.Contains(joined, ".semiont/config.yaml"):
-			// The fake's codespace holds the TOML project file, as a
-			// knowledge base not yet converted does: no config.yaml.
-			fmt.Fprintln(os.Stderr, "cat: /workspaces/*/.semiont/config.yaml: No such file or directory")
-			os.Exit(1)
-		case strings.Contains(joined, ".semiont/config"):
 			// The KB's committed identity card, as the codespace holds it.
 			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a
 			// remote did that disagrees with the recorded one.
 			body := os.Getenv("FAKERT_GH_KBCONFIG")
 			if body == "" {
-				body = "[site]\ndomain = \"example.com:remote-kb\"\n"
+				body = "project:\n  name: remote-kb\ngit:\n  sync: true\nsite:\n  domain: example.com:remote-kb\n  siteName: Remote KB\n"
 			}
 			fmt.Println(body)
 		case strings.Contains(joined, "semiont start"):

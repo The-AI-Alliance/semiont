@@ -22,40 +22,42 @@ import (
 // invariant, enforced for a full start and --service archivist
 // (requireGitClone).
 
-// resolveKBRoot returns the KB root and where it came from ("SEMIONT_ROOT"
-// or "discovered"), refusing one whose config.yaml does not hold
-// (holdProjectFile).
-func resolveKBRoot() (path, source string, err error) {
+// resolveKBRoot returns the KB root, where it came from ("SEMIONT_ROOT" or
+// "discovered") and its identity (nil when it commits no project file),
+// refusing one whose config.yaml does not hold (holdProjectFile).
+func resolveKBRoot() (path, source string, ident *kbIdentity, err error) {
 	if override := os.Getenv("SEMIONT_ROOT"); override != "" {
 		if fi, statErr := os.Stat(override); statErr != nil || !fi.IsDir() {
-			return "", "", fmt.Errorf("SEMIONT_ROOT points to non-existent directory: %s", override)
+			return "", "", nil, fmt.Errorf("SEMIONT_ROOT points to non-existent directory: %s", override)
 		}
 		if fi, statErr := os.Stat(filepath.Join(override, ".semiont")); statErr != nil || !fi.IsDir() {
-			return "", "", fmt.Errorf("SEMIONT_ROOT does not contain a .semiont/ directory: %s", override)
+			return "", "", nil, fmt.Errorf("SEMIONT_ROOT does not contain a .semiont/ directory: %s", override)
 		}
 		if abs, absErr := filepath.Abs(override); absErr == nil {
 			override = abs
 		}
-		if err := holdProjectFile(override); err != nil {
-			return "", "", err
+		ident, err := holdProjectFile(override)
+		if err != nil {
+			return "", "", nil, err
 		}
-		return override, "SEMIONT_ROOT", nil
+		return override, "SEMIONT_ROOT", ident, nil
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		return "", "", fmt.Errorf("cannot determine current directory: %v", err)
+		return "", "", nil, fmt.Errorf("cannot determine current directory: %v", err)
 	}
 	for {
 		if fi, statErr := os.Stat(filepath.Join(dir, ".semiont")); statErr == nil && fi.IsDir() {
-			if err := holdProjectFile(dir); err != nil {
-				return "", "", err
+			ident, err := holdProjectFile(dir)
+			if err != nil {
+				return "", "", nil, err
 			}
-			return dir, "discovered", nil
+			return dir, "discovered", ident, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", "", fmt.Errorf("no .semiont/ directory found in the current directory or any parent")
+			return "", "", nil, fmt.Errorf("no .semiont/ directory found in the current directory or any parent")
 		}
 		dir = parent
 	}
@@ -75,7 +77,7 @@ func resolveKBRoot() (path, source string, err error) {
 
 type rootEntry struct {
 	Path     string `json:"path"`
-	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
+	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config.yaml site.domain
 	SiteName string `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
 	Config   string `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
 	// KeycloakPort: sticky KEYCLOAK_PORT — what a successful start last took
@@ -88,10 +90,13 @@ type rootEntry struct {
 }
 
 type rootsRegistry struct {
-	Schema  int                  `json:"schema"`
-	Runtime string               `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
-	Secrets map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
-	Roots   []rootEntry          `json:"roots"`
+	Schema  int    `json:"schema"`
+	Runtime string `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
+	// BrowserImage: the image the machine's Browser runs, where the
+	// browser-image setting names one (browserImage).
+	BrowserImage string               `json:"browserImage,omitempty"`
+	Secrets      map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
+	Roots        []rootEntry          `json:"roots"`
 }
 
 func rootsPath() string {
@@ -137,12 +142,12 @@ func readRoots() (rootsRegistry, error) {
 // a non-empty config records the KB's sticky --config preference (callers
 // pass it only after the start SUCCEEDED with an explicit --config — a typo'd
 // or unlaunchable config must never become the default).
-func registerRootUse(path string, fullStart bool, config string) {
+func registerRootUse(kb kbRoot, fullStart bool, config string) {
 	if rootsPath() == "" {
 		return
 	}
 	reg := loadRoots()
-	e := upsertRoot(&reg, path)
+	e := upsertRoot(&reg, kb)
 	if fullStart {
 		e.LastStarted = e.LastUsed
 	}
@@ -155,24 +160,26 @@ func registerRootUse(path string, fullStart bool, config string) {
 // updateRootEntry changes one root's row, creating it if absent. Unlike
 // registerRootUse it is not best-effort: `semiont settings` records what a
 // person asked for, and a setting that did not save must say so.
-func updateRootEntry(path string, change func(*rootEntry)) error {
+func updateRootEntry(kb kbRoot, change func(*rootEntry)) error {
 	reg, err := readRoots()
 	if err != nil {
 		return err
 	}
-	change(upsertRoot(&reg, path))
+	change(upsertRoot(&reg, kb))
 	return writeRoots(reg)
 }
 
-// upsertRoot: path's row in reg, created if absent, with its identity
-// refreshed and its use stamped.
-func upsertRoot(reg *rootsRegistry, path string) *rootEntry {
+// upsertRoot: kb's row in reg, created if absent, with the identity the
+// command read recorded on it and its use stamped.
+func upsertRoot(reg *rootsRegistry, kb kbRoot) *rootEntry {
+	path := kb.dir
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
 	now := time.Now().UTC()
-	// Identity refreshes on every use — the KB's .semiont/config can change.
-	ident := loadKBIdentity(path)
+	// The row takes the identity on every use: the KB's .semiont/config.yaml
+	// can change between commands.
+	ident := kb.ident
 	// A moved KB re-registers its did at the new path, leaving its previous
 	// path's row a corpse nothing else removes (and a basename collision
 	// for --root). Drop rows claiming THIS did at OTHER paths that do not
@@ -327,22 +334,24 @@ func recordedConfig(path string) string {
 // resolveRootArg resolves a `--root` value: an existing directory path is
 // validated directly (strict, like SEMIONT_ROOT); anything else is looked up
 // in the registry by basename. Either way, a root whose config.yaml does not
-// hold is refused (holdProjectFile).
-func resolveRootArg(arg string) (string, error) {
+// hold is refused (holdProjectFile), and one that holds comes with its
+// identity (nil when it commits no project file).
+func resolveRootArg(arg string) (string, *kbIdentity, error) {
 	if fi, err := os.Stat(arg); err == nil && fi.IsDir() {
 		if fi, err := os.Stat(filepath.Join(arg, ".semiont")); err != nil || !fi.IsDir() {
-			return "", fmt.Errorf("--root does not contain a .semiont/ directory: %s", arg)
+			return "", nil, fmt.Errorf("--root does not contain a .semiont/ directory: %s", arg)
 		}
 		if abs, err := filepath.Abs(arg); err == nil {
 			arg = abs
 		}
-		if err := holdProjectFile(arg); err != nil {
-			return "", err
+		ident, err := holdProjectFile(arg)
+		if err != nil {
+			return "", nil, err
 		}
-		return arg, nil
+		return arg, ident, nil
 	}
 	if strings.ContainsRune(arg, os.PathSeparator) {
-		return "", fmt.Errorf("--root points to non-existent directory: %s", arg)
+		return "", nil, fmt.Errorf("--root points to non-existent directory: %s", arg)
 	}
 	reg := loadRoots()
 	var matches []string
@@ -358,20 +367,21 @@ func resolveRootArg(arg string) (string, error) {
 			known = append(known, e.Path)
 		}
 		if len(known) == 0 {
-			return "", fmt.Errorf("--root '%s' is not a directory and no roots are registered yet (roots register on start)", arg)
+			return "", nil, fmt.Errorf("--root '%s' is not a directory and no roots are registered yet (roots register on start)", arg)
 		}
-		return "", fmt.Errorf("--root '%s' matches no registered root; known roots:\n  %s", arg, strings.Join(known, "\n  "))
+		return "", nil, fmt.Errorf("--root '%s' matches no registered root; known roots:\n  %s", arg, strings.Join(known, "\n  "))
 	case 1:
 		path := matches[0]
 		if fi, err := os.Stat(filepath.Join(path, ".semiont")); err != nil || !fi.IsDir() {
-			return "", fmt.Errorf("registered root %s is missing on disk (or lost its .semiont/)", path)
+			return "", nil, fmt.Errorf("registered root %s is missing on disk (or lost its .semiont/)", path)
 		}
-		if err := holdProjectFile(path); err != nil {
-			return "", err
+		ident, err := holdProjectFile(path)
+		if err != nil {
+			return "", nil, err
 		}
-		return path, nil
+		return path, ident, nil
 	default:
-		return "", fmt.Errorf("--root '%s' is ambiguous; use a full path:\n  %s", arg, strings.Join(matches, "\n  "))
+		return "", nil, fmt.Errorf("--root '%s' is ambiguous; use a full path:\n  %s", arg, strings.Join(matches, "\n  "))
 	}
 }
 
@@ -525,7 +535,7 @@ func Forget(args []string) int {
 		}
 	}
 	if d := dataDir(); d != "" {
-		key := stateKeyFor(e.Did, e.Path)
+		key := rootKey(e.Did, e.Path)
 		if fi, err := os.Stat(filepath.Join(d, "roots", key)); err == nil && fi.IsDir() {
 			fmt.Println("  Persistent stack state remains. Remove it: semiont clean --root " + key)
 		}

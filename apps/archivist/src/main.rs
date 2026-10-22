@@ -137,7 +137,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
     );
     staging.ready().await.map_err(|e| e.to_string())?;
     let Some(domain) = committed.domain.clone() else {
-        return Err("The knowledge base's committed .semiont/config declares no [site] domain: it is the identity this knowledge base acts under, and the audience it accepts tokens for".to_owned());
+        return Err("The knowledge base commits no .semiont/config.yaml, so declares no site.domain: it is the identity this knowledge base acts under, and the audience it accepts tokens for".to_owned());
     };
 
     let state_dir = PathBuf::from(&document.state_home)

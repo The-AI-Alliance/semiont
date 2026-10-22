@@ -3,7 +3,7 @@ package launcher
 // initcmd.go — `semiont init`: birth a KB locally with correct identity AT
 // birth (the template path assigns identity by post-fork rewrite — a
 // workaround this command exists to not need). Identity + .semiont/config.yaml +
-// git + roots, the generative semiontconfig builder with a derivePlan vet
+// git + roots, the generative stack-document builder with a derivePlan vet
 // (confgen.go), live model validation (initmodels.go), and the explicit
 // template-copy paths (inittemplate.go) all land here.
 
@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 const initUsage = `Usage: semiont init [options]
@@ -34,11 +36,11 @@ With --yes and neither source, init refuses rather than guessing.
   --domain <d>        did:web domain (colon-path form, e.g. owner.github.io:repo)
   --site-name <s>     Human-readable site name (default: the project name)
   --inference <p>     Build a config: anthropic or ollama
-  --model <id>        The heavy model (gatherer, matcher, workers.default)
+  --model <id>        The model every role is bound to (both actors, every job)
   --model-light <id>  Emitted as a commented per-job example, not a binding
   --embedding <e>     ollama:<model> (voyage: not yet — no established key var)
-  --config-name <n>   Config file name (default: the provider name)
-  --from-template [s] Copy semiontconfig from the template instead of building
+  --config-name <n>   The Inference document's name (default: the provider name)
+  --from-template [s] Copy .semiont/stack from the template instead of building
                       (s: URL or local dir; default the canonical template repo;
                       every copy is vetted by the plan deriver pre-write)
   --template-ref <r>  Git ref for a URL template source (default main)
@@ -59,6 +61,10 @@ With --yes and neither source, init refuses rather than guessing.
 // exists to pick from — and deliberately the smallest thing that can serve a
 // first KB, so the pull a first start does is minutes rather than an evening.
 const defaultOllamaModel = "gemma3:270m"
+
+// defaultEmbeddingModel: the Ollama model `semiont init` embeds with when the
+// caller names none.
+const defaultEmbeddingModel = "nomic-embed-text"
 
 // Init implements `semiont init`.
 func Init(args []string) int {
@@ -196,7 +202,7 @@ func Init(args []string) int {
 	// choice below.
 	// Config-builder inputs validate BEFORE anything touches disk.
 	if fromTemplate != "" && inference != "" {
-		u.Fail("--from-template and --inference are two sources for the same configs — pick one.")
+		u.Fail("--from-template and --inference are two sources for the same documents — pick one.")
 		return 1
 	}
 	if templateRef == "" {
@@ -323,7 +329,7 @@ git:
 site:
   # Permanent did:web identity for everything this KB mints (stamped into the
   # committed event log). Names the repo, not a deployment — a committed
-  # literal, never env-templated, never a machine address.
+  # literal, never a machine address.
   domain: %q
   siteName: %q
 `, name, !noGit, domain, siteName)
@@ -359,12 +365,14 @@ site:
 			}
 			em := embModel
 			if em == "" {
-				em = "nomic-embed-text" // the same default a real run applies
+				em = defaultEmbeddingModel
 			}
-			fmt.Printf("# .semiont/semiontconfig/%s.toml — generated (%s inference, %s embedding), vetted by derivePlan before writing\n", cn, inference, em)
+			fmt.Printf("# %s/ — generated: %s, %s, %s, %s and %s (%s inference, %s embedding), vetted by the plan deriver before writing\n",
+				stack.Dir, stack.KnowledgeBaseFile, stack.KnowledgeIndexFile, stack.IssuerFile, stack.WorkerPoolFile,
+				filepath.Join(stack.InferenceDir, cn+".yaml"), inference, em)
 		}
 		if fromTemplate != "" {
-			fmt.Printf("# copy semiontconfig tomls from %s (ref %s) — each vetted by derivePlan pre-write; identity NEVER copied\n", fromTemplate, templateRef)
+			fmt.Printf("# copy %s/ from %s (ref %s) — vetted by the plan deriver pre-write; identity NEVER copied\n", stack.Dir, fromTemplate, templateRef)
 		}
 		if devcontainer {
 			fmt.Println("# copy .devcontainer from the template, display name rewritten to the KB's")
@@ -395,14 +403,15 @@ site:
 			}
 		}
 		if inference != "" && embModel == "" {
-			embModel = prompt("Embedding model (served by Ollama)", "nomic-embed-text")
+			embModel = prompt("Embedding model (served by Ollama)", defaultEmbeddingModel)
 		}
 	}
 
-	genContent, genName := "", ""
+	var genFiles map[string][]byte
+	genName := ""
 	if inference != "" {
 		if embModel == "" {
-			embModel = "nomic-embed-text"
+			embModel = defaultEmbeddingModel
 		}
 		switch inference {
 		case "anthropic":
@@ -423,10 +432,20 @@ site:
 		if genName == "" {
 			genName = inference
 		}
-		genContent = generateSemiontconfig(genParams{
+		// The name becomes a file name, and --config-name is the user's: a
+		// separator or ".." would escape .semiont/stack/inference.
+		if genName == "." || strings.ContainsAny(genName, `/\`) || strings.Contains(genName, "..") {
+			u.Fail("Config name %q must be a simple file stem (no path separators).", genName)
+			return 1
+		}
+		var err error
+		if genFiles, err = generateStack(genParams{
 			Inference: inference, Model: model, ModelLight: modelLight,
 			EmbeddingModel: embModel, AnthropicEndpoint: anthropicEndpoint,
-		})
+		}, genName); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 	}
 
 	// Template materialization is a reach that can fail — do it before the
@@ -467,7 +486,7 @@ site:
 	startedWriting = true
 	if reborn {
 		// --force is a fresh birth, not a merge: remove the existing tree so
-		// no stale semiontconfig/*.toml survives beside the new identity.
+		// no stale document survives beside the new identity.
 		// This is destructive by request, and done only once every decision
 		// above has held.
 		if err := os.RemoveAll(semiontDir); err != nil {
@@ -483,13 +502,13 @@ site:
 	}
 	u.Ok(".semiont/config.yaml written %s", u.Dim("("+domain+")"))
 
-	if genContent != "" {
-		if !writeVettedConfig(u, dir, genName, genContent) {
+	if genFiles != nil {
+		if !writeVettedStack(u, dir, genFiles) {
 			return 1
 		}
 	}
 	if tplDir != "" && fromTemplate != "" {
-		if !copyTemplateConfigs(u, dir, tplDir) {
+		if !copyTemplateStack(u, dir, tplDir) {
 			return 1
 		}
 	}
@@ -518,12 +537,12 @@ site:
 		}
 	}
 
-	// The config this KB was BORN with is its preference — otherwise the very
-	// next command init prints, `semiont start`, falls through to the
-	// hardcoded `ollama-gemma` default, which a born KB has no file for
-	// (it writes <provider>.toml). A copied template carries several configs
-	// and names none of them, so its preference stays empty.
-	registerRootUse(dir, false, genName)
+	// The Inference document this KB was BORN with is its preference —
+	// otherwise the very next command init prints, `semiont start`, falls
+	// through to the launcher's `ollama-gemma`, which a born KB has no document
+	// for (it writes inference/<provider>.yaml). A copied template carries
+	// several and names none of them, so its preference stays empty.
+	registerRootUse(kbRoot{dir: dir, ident: born}, false, genName)
 	warnICloudRoot(u, dir)
 	success = true
 
@@ -533,7 +552,7 @@ site:
 	fmt.Println("  Next steps:")
 	step := 1
 	if inference == "" {
-		fmt.Printf("    %d. %s %s\n", step, u.Bold("add a config"), u.Dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
+		fmt.Printf("    %d. %s %s\n", step, u.Bold("add a config"), u.Dim("(rerun with --inference, or write .semiont/stack/)"))
 		step++
 	}
 	// Only when the key is neither exported nor registered: telling someone
@@ -547,7 +566,7 @@ site:
 	}
 	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
 	fmt.Println()
-	for _, l := range showSecretStoreSetting(u, dir) {
+	for _, l := range showSecretStoreSetting(u, kbRoot{dir: dir, ident: born}) {
 		fmt.Printf("  Secrets: %s %s\n", l.value, u.Dim("("+l.source+"; change with semiont settings secret-store)"))
 	}
 	return 0

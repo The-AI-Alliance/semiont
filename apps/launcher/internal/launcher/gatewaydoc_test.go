@@ -6,45 +6,23 @@ import (
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-// The KB config a `semiont init` writes, as far as the gateway reads it.
-const gatewayDocFixture = `[defaults]
-environment = "local"
-
-[environments.local]
-logLevel = "debug"
-
-[environments.local.gateway]
-platform = "container"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-
-[environments.local.signal]
-type = "nats"
-servers = "${NATS_HOST}:4222"
-`
-
-func envFrom(t *testing.T, text string) *envConfig {
-	t.Helper()
-	var cfg semiontConfig
-	if err := toml.Unmarshal([]byte(text), &cfg); err != nil {
-		t.Fatalf("fixture is not valid TOML: %v", err)
+// externalBroker: st with a broker somebody else runs at nats.internal, its
+// pair named BROKER_USER and BROKER_PASSWORD.
+func externalBroker(st *stack.Stack) {
+	m := &st.KnowledgeBase.Spec.Messaging
+	m.Image, m.Resources = nil, nil
+	m.External = &stack.KnowledgeBaseMessagingExternal{
+		Servers:  "nats.internal:4222",
+		User:     stack.SecretRef{FromEnv: "BROKER_USER"},
+		Password: stack.SecretRef{FromEnv: "BROKER_PASSWORD"},
 	}
-	env := cfg.Environments[cfg.Defaults.Environment]
-	if err := resolveWorkersSection(&env, "fixture", cfg.Defaults.Environment); err != nil {
-		t.Fatal(err)
-	}
-	return &env
 }
 
-func documentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
+func gatewayDocumentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
 	t.Helper()
 	var doc semiont.GatewayConfig
 	dec := json.NewDecoder(strings.NewReader(string(b)))
@@ -55,23 +33,30 @@ func documentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
 	return doc
 }
 
-// Resolved: every ${VAR} a value — the dependency hosts are the launcher's
-// address, and GATEWAY_HOST, which the gateway never receives, takes its
-// default.
-func TestGatewayDocumentIsResolved(t *testing.T) {
-	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
+// gatewayDocumentOf: the gateway's document for p, under the example
+// knowledge base's name and domain.
+func gatewayDocumentOf(t *testing.T, p placement) semiont.GatewayConfig {
+	t.Helper()
+	b, err := gatewayDocument(p, "Example KB", "example.github.io:example-kb")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(b), "${") {
-		t.Fatalf("an unresolved reference reached the document:\n%s", b)
-	}
-	doc := documentFrom(t, b)
+	return gatewayDocumentFrom(t, b)
+}
+
+// Every address is the placement's, the publicURL is the KnowledgeBase's as
+// written, and the log level is the KnowledgeBase's.
+func TestGatewayDocumentStatesWhatThePlacementDecides(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Gateway.PublicURL = "https://kb.example.com"
+	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
+	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
+	doc := gatewayDocumentOf(t, placed(t, st))
 	if doc.Kb.Name != "Example KB" || doc.Kb.Domain != "example.github.io:example-kb" {
 		t.Errorf("kb = %+v, want the committed name and domain", doc.Kb)
 	}
-	if doc.Port != 4000 || doc.PublicUrl != "http://localhost:4000" {
-		t.Errorf("port %d, publicUrl %q", doc.Port, doc.PublicUrl)
+	if doc.Port != 4000 || doc.PublicUrl != "https://kb.example.com" {
+		t.Errorf("port %d, publicUrl %q: want the KnowledgeBase's port and its publicURL as written", doc.Port, doc.PublicUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" || doc.Identity.SubjectClaim != "sub" {
 		t.Errorf("identity = %+v", doc.Identity)
@@ -82,8 +67,8 @@ func TestGatewayDocumentIsResolved(t *testing.T) {
 	if doc.Signal.Type != "nats" || doc.Signal.Servers == nil || *doc.Signal.Servers != "192.168.64.1:4222" {
 		t.Errorf("signal = %+v", doc.Signal)
 	}
-	if doc.LogLevel != "debug" {
-		t.Errorf("logLevel = %q", doc.LogLevel)
+	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
 
@@ -101,11 +86,11 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 		{"podman", "host.containers.internal"},
 		{"podman", "172.17.0.1"},
 	} {
-		b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", c.rt, c.addr, 8080, 4000, nil, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		doc := documentFrom(t, b)
+		st := fixtureStack(t, "ollama-gemma")
+		st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
+		p := placed(t, st)
+		p.rt, p.addr = c.rt, c.addr
+		doc := gatewayDocumentOf(t, p)
 		if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/semiont" {
 			t.Errorf("%s at %s: issuer %q, want one the laptop resolves as well as the containers", c.rt, c.addr, doc.Identity.Issuer)
 		}
@@ -115,86 +100,92 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 	}
 }
 
-// Secrets are named, never carried: a broker credential is a ${NAME} in the
-// KB config, and the document names NAME.
-func TestGatewayDocumentNamesSecretsAndNeverCarriesThem(t *testing.T) {
-	text := gatewayDocFixture + "user = \"${NATS_USER}\"\npassword = \"${NATS_PASSWORD}\"\n"
-	userEnv := []string{"--env", "NATS_USER=the-user-value", "--env", "NATS_PASSWORD=the-password-value"}
-	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, userEnv, false)
+// The issuer of the Keycloak the launcher runs is at the port this start gives
+// it — else the gateway advertises one issuer and the realm stamps another.
+func TestGatewayDocumentNamesTheIssuerAtItsPort(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	plan, err := derivePlan(st, 8081)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"the-user-value", "the-password-value"} {
-		if strings.Contains(string(b), secret) {
-			t.Fatalf("a secret value reached the document:\n%s", b)
-		}
-	}
-	doc := documentFrom(t, b)
-	if doc.Signal.UserEnv == nil || *doc.Signal.UserEnv != "NATS_USER" || doc.Signal.PasswordEnv == nil || *doc.Signal.PasswordEnv != "NATS_PASSWORD" {
-		t.Errorf("signal = %+v, want the credentials named", doc.Signal)
+	doc := gatewayDocumentOf(t, placement{st: st, plan: plan, rt: "docker", addr: "172.17.0.1"})
+	if doc.Identity.Issuer != "http://keycloak.localhost:8081/realms/semiont" {
+		t.Errorf("issuer %q, want the moved port", doc.Identity.Issuer)
 	}
 }
 
-func TestGatewayDocumentRefusesALiteralSecret(t *testing.T) {
-	text := gatewayDocFixture + "password = \"hunter2\"\n"
-	_, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
-	if err == nil || !strings.Contains(err.Error(), "signal") || !strings.Contains(err.Error(), "${") {
-		t.Fatalf("want a refusal naming the field and the ${VAR} form, got %v", err)
+// Secrets are named, never carried. The broker the launcher runs has the pair
+// the launcher keeps, so the document names that pair and the gateway is handed
+// none of the user's. A broker somebody else runs has the pair its document
+// names, and the gateway is handed those two — when the signal plane rides it.
+func TestGatewayDocumentNamesTheBrokersPair(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
+	p := placed(t, st)
+	doc := gatewayDocumentOf(t, p)
+	if doc.Signal.UserEnv == nil || *doc.Signal.UserEnv != "NATS_USER" ||
+		doc.Signal.PasswordEnv == nil || *doc.Signal.PasswordEnv != daemonPasswords["messaging"].env {
+		t.Errorf("signal = %+v, want the launcher broker's pair named", doc.Signal)
 	}
-	if strings.Contains(err.Error(), "hunter2") {
-		t.Fatalf("the refusal repeated the secret: %v", err)
+	if got := gatewaySecrets(p); len(got) != 0 {
+		t.Errorf("the gateway is handed %v of the user's for the launcher's broker", got)
+	}
+
+	st = fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
+	externalBroker(st)
+	p = placed(t, st)
+	doc = gatewayDocumentOf(t, p)
+	if doc.Signal.Servers == nil || *doc.Signal.Servers != "nats.internal:4222" {
+		t.Errorf("signal = %+v, want somebody else's broker where its document states it", doc.Signal)
+	}
+	if doc.Signal.UserEnv == nil || *doc.Signal.UserEnv != "BROKER_USER" || doc.Signal.PasswordEnv == nil || *doc.Signal.PasswordEnv != "BROKER_PASSWORD" {
+		t.Errorf("signal = %+v, want the pair its document names", doc.Signal)
+	}
+	if got := strings.Join(gatewaySecrets(p), ","); got != "BROKER_USER,BROKER_PASSWORD" {
+		t.Errorf("the gateway is handed %q, want exactly the names its document carries", got)
+	}
+
+	st = fixtureStack(t, "ollama-gemma")
+	externalBroker(st)
+	p = placed(t, st)
+	doc = gatewayDocumentOf(t, p)
+	if doc.Signal.Type != "in-process" || doc.Signal.Servers != nil || doc.Signal.UserEnv != nil || doc.Signal.PasswordEnv != nil {
+		t.Errorf("signal = %+v, want the in-process plane, naming no broker", doc.Signal)
+	}
+	if got := gatewaySecrets(p); len(got) != 0 {
+		t.Errorf("an in-process gateway is handed %v", got)
 	}
 }
 
-// Absent sections are decided here and nowhere else: no [signal] is the
-// in-process plane, no logLevel is info, the log format is JSON (a KB config
-// names none), and a hand-written archivist section — a topology the
-// launcher cannot see — wins over its address.
-func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
-	text := strings.Replace(gatewayDocFixture, "[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n", "", 1)
-	text = strings.Replace(text, "logLevel = \"debug\"\n", "", 1)
-	text += "\n[environments.local.archivist]\nhost = \"archivist.internal\"\nport = 9999\n"
-	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := documentFrom(t, b)
-	if doc.Signal.Type != "in-process" || doc.Signal.Servers != nil {
-		t.Errorf("signal = %+v, want in-process", doc.Signal)
-	}
-	if doc.LogLevel != "info" {
-		t.Errorf("logLevel = %q, want info", doc.LogLevel)
-	}
-	if doc.LogFormat != semiont.LogFormatJson {
-		t.Errorf("logFormat = %q, want json", doc.LogFormat)
-	}
+// An Archivist the KnowledgeBase places — a topology the launcher cannot see —
+// is where the KnowledgeBase says.
+func TestGatewayDocumentReachesTheArchivistTheKnowledgeBaseStates(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Archivist.Address = &stack.HostPort{Host: "archivist.internal", Port: 9999}
+	doc := gatewayDocumentOf(t, placed(t, st))
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {
-		t.Errorf("archivist = %+v, want the hand-written section", doc.Archivist)
+		t.Errorf("archivist = %+v, want the stated address", doc.Archivist)
 	}
 }
 
 // The gateway's capacity follows from the memory its container is given: for
-// the 2G gateway, a gibibyte of bytes queued to its streams, and connections at
+// a 2G gateway, a gibibyte of bytes queued to its streams, and connections at
 // 20 KiB each of the other half.
 func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
-	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
-	if err != nil {
-		t.Fatal(err)
+	st := fixtureStack(t, "ollama-gemma")
+	if got := st.KnowledgeBase.Spec.Gateway.Resources.Limits.Memory; got != "2G" {
+		t.Fatalf("the fixture gives the gateway %s; this test states the capacity for 2G", got)
 	}
-	doc := documentFrom(t, b)
-	if got := semiontDescriptor("gateway").mem; got != "2G" {
-		t.Fatalf("the gateway's container is given %s; this test states the capacity for 2G", got)
-	}
+	doc := gatewayDocumentOf(t, placed(t, st))
 	if doc.Capacity.QueuedBytes != 1<<30 || doc.Capacity.Connections != 52428 {
 		t.Errorf("capacity = %+v, want 1 GiB queued and 52428 connections", doc.Capacity)
 	}
 
-	// An environment's [memory] that gives the gateway 4G gives it twice the capacity.
-	b, err = gatewayDocument(envFrom(t, gatewayDocFixture+"\n[environments.local.memory]\ngateway = \"4G\"\n"), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if doc = documentFrom(t, b); doc.Capacity.QueuedBytes != 2<<30 || doc.Capacity.Connections != 104857 {
+	// A gateway given 4G has twice the capacity.
+	st = fixtureStack(t, "ollama-gemma")
+	st.KnowledgeBase.Spec.Gateway.Resources.Limits.Memory = "4G"
+	if doc = gatewayDocumentOf(t, placed(t, st)); doc.Capacity.QueuedBytes != 2<<30 || doc.Capacity.Connections != 104857 {
 		t.Errorf("capacity at 4G = %+v, want 2 GiB queued and 104857 connections", doc.Capacity)
 	}
 }
@@ -202,38 +193,21 @@ func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
 // A KB that declares no identity gets no fabricated one: the launcher refuses
 // to write a document the gateway would refuse.
 func TestGatewayDocumentRefusesAnUndeclaredDomain(t *testing.T) {
-	if _, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "", "container", "192.168.64.1", 8080, 4000, nil, false); err == nil || !strings.Contains(err.Error(), "domain") {
+	if _, err := gatewayDocument(placed(t, fixtureStack(t, "ollama-gemma")), "Example KB", ""); err == nil || !strings.Contains(err.Error(), "domain") {
 		t.Fatalf("want a refusal naming the domain, got %v", err)
 	}
 }
 
-// The gateway's document is resolved here, so it must resolve the issuer's
-// port as it resolves the host — else the gateway advertises one issuer and
-// the realm stamps another.
-func TestGatewayDocumentResolvesTheIssuerPort(t *testing.T) {
-	text := strings.Replace(gatewayDocFixture, "${KEYCLOAK_HOST}:8080", "${KEYCLOAK_HOST}:${KEYCLOAK_PORT}", 1)
-	if text == gatewayDocFixture {
-		t.Fatal("the fixture names no ${KEYCLOAK_HOST}:8080 issuer — this test would prove nothing")
-	}
-	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "docker", "172.17.0.1", 8081, 4000, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := documentFrom(t, b).Identity.Issuer; got != "http://keycloak.localhost:8081/realms/semiont" {
-		t.Errorf("issuer %q, want the moved port", got)
-	}
-}
-
-// An external daemon's credential is the config's reference, resolved by the
-// shared rule where the launcher itself needs the value: a launcher-run
-// Keycloak dials an external PostgreSQL with the resolved password, never the
-// reference's text.
-func TestExternalCredentialResolvesByTheSharedRule(t *testing.T) {
-	got, err := externalCredential("database.password", "${EXT_PG_PASSWORD}", []string{"--env", "EXT_PG_PASSWORD=pgsecret"})
+// Where the launcher itself needs a credential a document names, it reads the
+// variable's value from the start's --env list: a launcher-run Keycloak dials an
+// external PostgreSQL with the value, never the name. An unset variable is
+// refused by name.
+func TestUserEnvValueReadsTheVariableADocumentNames(t *testing.T) {
+	got, err := userEnvValue("spec.database.external.password", "EXT_PG_PASSWORD", []string{"--env", "EXT_PG_PASSWORD=pgsecret"})
 	if err != nil || got != "pgsecret" {
-		t.Errorf("got %q, %v; want the resolved value", got, err)
+		t.Errorf("got %q, %v; want the variable's value", got, err)
 	}
-	if _, err := externalCredential("database.password", "${UNSET_PG_PASSWORD}", nil); err == nil || !strings.Contains(err.Error(), "UNSET_PG_PASSWORD") {
-		t.Errorf("an unresolvable reference must refuse, naming it; got %v", err)
+	if _, err := userEnvValue("spec.database.external.password", "UNSET_PG_PASSWORD", nil); err == nil || !strings.Contains(err.Error(), "UNSET_PG_PASSWORD") {
+		t.Errorf("an unset variable must refuse, naming it; got %v", err)
 	}
 }

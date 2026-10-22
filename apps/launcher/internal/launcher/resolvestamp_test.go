@@ -14,7 +14,7 @@ import (
 // owner's own prep would resolve the same mismatch again, mid-boot.
 func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	harness.Home(t)
-	root := t.TempDir()
+	key := rootKey("", t.TempDir())
 	// A runtime that accepts the store clear. What the clear removes is the
 	// root package's to assert (TestStateProjectionAutoCleans, through
 	// fakert); this test is about the stamp.
@@ -23,8 +23,8 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	t.Setenv("PATH", shim)
 	x := &liveExec{u: NewUI(true), rt: "container"}
 
-	dir := stateRootDir(root)
-	sd := stateStores["state"].storeDir(root)
+	dir := stateRootDir(key)
+	sd := stateStores["state"].storeDir(key)
 	if err := os.MkdirAll(sd, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	meta.Stores["state"] = storeMeta{Image: "img:old"}
 	saveRootMeta(dir, meta)
 
-	if !x.resolveStoreStamp("state", "img:new", root) {
+	if !x.resolveStoreStamp("state", "img:new", key) {
 		t.Fatal("a projection mismatch must resolve, not refuse")
 	}
 	if got := loadRootMeta(dir).Stores["state"].Image; got != "img:new" {
@@ -44,7 +44,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 
 	// The refusal path must NOT restamp: the data on disk is still the old
 	// image's, and the stamp is the record of that fact.
-	pgsd := stateStores["database"].storeDir(root)
+	pgsd := stateStores["database"].storeDir(key)
 	if err := os.MkdirAll(pgsd, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	meta.Stores["database"] = storeMeta{Image: "pg:old"}
 	saveRootMeta(dir, meta)
 
-	if x.resolveStoreStamp("database", "pg:new", root) {
+	if x.resolveStoreStamp("database", "pg:new", key) {
 		t.Fatal("a database mismatch must refuse")
 	}
 	if got := loadRootMeta(dir).Stores["database"].Image; got != "pg:old" {

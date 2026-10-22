@@ -58,8 +58,9 @@ the vector index no collection, no payload index and no point.
 
 A Librarian reads its settings from a configuration document, the protocol's
 [`LibrarianConfig`](../../specs/src/components/schemas/LibrarianConfig.json),
-at the path its `--config` flag names. The document is resolved: no `${VAR}`
-is left in it, and the Librarian defaults nothing it leaves out. It states
+at the path its `--config` flag names. The document is resolved: every address
+in it is literal, every credential is named by the variable that holds it, and
+the Librarian defaults nothing it leaves out. It states
 the gateway's URL; the issuer the Librarian's service account signs in at;
 the Archivist's host and port, for a resource's bytes; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
@@ -81,8 +82,9 @@ on; and how it logs.
 
 Whoever starts a Librarian writes the document: the launcher for the
 Librarian it starts, and anyone else to the same schema. The launcher writes
-a settle bound of 15,000 milliseconds and a semantic floor of 0.6 where the
-knowledge base's config states neither. The Librarian supplies no value.
+the settle bound and the semantic floor the knowledge base's KnowledgeIndex
+document states, which `semiont init` writes as 15,000 milliseconds and 0.6.
+The Librarian supplies no value.
 
 - **Started with no `--config`, with a path it cannot read, or with a document
   that is not the schema's, it refuses to start,** and says which. A refusal

@@ -12,67 +12,19 @@ import (
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-// The KB config a `semiont init` writes, as far as the Librarian's document
-// reads it: the gateway, the issuer, a Neo4j the launcher runs, the Qdrant and
-// the Ollama the launcher places, the two providers, and a model for each
-// actor. It states neither bound.
-const librarianDocFixture = `[defaults]
-environment = "local"
-
-[environments.local]
-logLevel = "debug"
-
-[environments.local.gateway]
-platform = "container"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-
-[environments.local.graph]
-platform = "container"
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-database = "neo4j"
-
-[environments.local.vectors]
-type = "qdrant"
-host = "${QDRANT_HOST}"
-port = 6333
-
-[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-baseURL = "http://${OLLAMA_HOST}:11434"
-
-[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.inference.ollama]
-platform = "posix"
-baseURL = "http://${OLLAMA_HOST}:11434"
-
-[environments.local.actors.matcher.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-
-[environments.local.actors.gatherer.inference]
-type = "ollama"
-model = "gemma3:4b"
-`
-
-// librarianConfig: the fixture with one section of its environment written
-// anew, or added.
-func librarianConfig(section, body string) string {
-	return withSection(librarianDocFixture, section, body)
+// mixedActors: the ollama-gemma fixture with its matcher asking Anthropic's
+// haiku, at Anthropic's own address, under the key named ANTHROPIC_API_KEY.
+// Its gatherer asks the machine's Ollama.
+func mixedActors(t *testing.T) *stack.Stack {
+	t.Helper()
+	st := fixtureStack(t, "ollama-gemma")
+	withAnthropic(st)
+	st.Inference.Spec.Roster.Actors.Matcher = anthropicHaiku()
+	return st
 }
 
 func librarianDocumentFrom(t *testing.T, b []byte) semiont.LibrarianConfig {
@@ -86,32 +38,26 @@ func librarianDocumentFrom(t *testing.T, b []byte) semiont.LibrarianConfig {
 	return doc
 }
 
-// librarianDocumentOf: the document written from a config for a Neo4j the
-// launcher runs, or the refusal.
-func librarianDocumentOf(t *testing.T, config string, userEnv ...string) ([]byte, error) {
+func librarianDocumentOf(t *testing.T, p placement) semiont.LibrarianConfig {
 	t.Helper()
-	return librarianDocument(envFrom(t, config), "local", "container", "192.168.64.1", 8080, userEnv, true)
-}
-
-// The document is whole and resolved: every address a literal, each union the
-// one shape its `type` names, each secret named and never stated, and nothing
-// left for the Librarian to default.
-func TestLibrarianDocumentIsResolved(t *testing.T) {
-	b, err := librarianDocumentOf(t, librarianDocFixture, "--env", "ANTHROPIC_API_KEY=the-secret")
+	b, err := librarianDocument(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(b), "${") {
-		t.Errorf("the document holds an unresolved reference:\n%s", b)
-	}
-	if strings.Contains(string(b), "the-secret") {
-		t.Errorf("the document states a provider's key:\n%s", b)
-	}
-	doc := librarianDocumentFrom(t, b)
+	return librarianDocumentFrom(t, b)
+}
+
+// Every address is the placement's, each union the one shape its `type` names,
+// each secret named, the bounds the KnowledgeIndex's, and the log level the
+// KnowledgeIndex's.
+func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
+	st := mixedActors(t)
+	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
+	doc := librarianDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:4000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
 	}
-	if !strings.HasSuffix(doc.Identity.Issuer, ":8080/realms/semiont") {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
 		t.Errorf("identity.issuer = %q", doc.Identity.Issuer)
 	}
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
@@ -139,49 +85,33 @@ func TestLibrarianDocumentIsResolved(t *testing.T) {
 	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	matcher := semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
-	if doc.Matcher.Agent != matcher || doc.Matcher.BaseUrl != "https://api.anthropic.com" || doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
-		t.Errorf("matcher = %+v, want %+v at Anthropic's address, its key named ANTHROPIC_API_KEY", doc.Matcher, matcher)
+	if doc.Matcher.Agent != *anthropicHaiku() || doc.Matcher.BaseUrl != "https://api.anthropic.com" || doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+		t.Errorf("matcher = %+v, want %+v at Anthropic's own address, its key named ANTHROPIC_API_KEY", doc.Matcher, *anthropicHaiku())
 	}
-	gatherer := semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderOllama, Model: "gemma3:4b"}
+	gatherer := semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderOllama, Model: "gemma4:26b"}
 	if doc.Gatherer.Agent != gatherer || doc.Gatherer.BaseUrl != "http://192.168.64.1:11434" || doc.Gatherer.ApiKeyEnv != nil {
 		t.Errorf("gatherer = %+v, want %+v at the Ollama this start places, with no key", doc.Gatherer, gatherer)
 	}
 	if doc.Gather.SettleTimeoutMs != 15_000 || doc.Search.SemanticFloor != 0.6 {
-		t.Errorf("gather, search = %+v, %+v, want the launcher's 15000 and 0.6", doc.Gather, doc.Search)
+		t.Errorf("gather, search = %+v, %+v, want the KnowledgeIndex's 15000 and 0.6", doc.Gather, doc.Search)
 	}
 	if doc.Port != semiontDescriptor("librarian").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
-		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
+	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+		t.Errorf("logLevel, logFormat = %q, %q, want the KnowledgeIndex's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
 
-// The Librarian defaults nothing, so the launcher writes each bound the KB's
-// config leaves unstated. A floor of 0 is a value the config states, and is
-// written as stated.
-func TestLibrarianDocumentWritesWhatTheConfigLeavesUnstated(t *testing.T) {
-	for _, c := range []struct {
-		why             string
-		config          string
-		settleTimeoutMs int
-		semanticFloor   float32
-	}{
-		{"no make-meaning section", librarianDocFixture, 15_000, 0.6},
-		{"a settle timeout alone", librarianConfig("make-meaning.gather", "settleTimeoutMs = 4000\n"), 4000, 0.6},
-		{"a floor alone", librarianConfig("make-meaning.search", "semanticFloor = 0.75\n"), 15_000, 0.75},
-		{"a floor of 0", librarianConfig("make-meaning.search", "semanticFloor = 0.0\n"), 15_000, 0},
-		{"both", librarianConfig("make-meaning.gather", "settleTimeoutMs = 4000\n") + "\n[environments.local.make-meaning.search]\nsemanticFloor = 1.0\n", 4000, 1},
-	} {
-		b, err := librarianDocumentOf(t, c.config)
-		if err != nil {
-			t.Errorf("%s: %v", c.why, err)
-			continue
-		}
-		if doc := librarianDocumentFrom(t, b); doc.Gather.SettleTimeoutMs != c.settleTimeoutMs || doc.Search.SemanticFloor != c.semanticFloor {
-			t.Errorf("%s: gather, search = %+v, %+v, want %d and %v", c.why, doc.Gather, doc.Search, c.settleTimeoutMs, c.semanticFloor)
-		}
+// The bounds the KnowledgeIndex states are the ones written: a floor of 0 is a
+// value, and is written as stated.
+func TestLibrarianDocumentWritesTheBoundsTheIndexStates(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.KnowledgeIndex.Spec.Librarian.Gather.SettleTimeoutMs = 4000
+	st.KnowledgeIndex.Spec.Librarian.Search.SemanticFloor = 0
+	doc := librarianDocumentOf(t, placed(t, st))
+	if doc.Gather.SettleTimeoutMs != 4000 || doc.Search.SemanticFloor != 0 {
+		t.Errorf("gather, search = %+v, %+v, want the stated 4000 and 0", doc.Gather, doc.Search)
 	}
 }
 
@@ -190,81 +120,58 @@ func TestLibrarianDocumentWritesWhatTheConfigLeavesUnstated(t *testing.T) {
 // graph the Weaver writes and searches the index the Smelter fills, with the
 // model that made its vectors.
 func TestLibrarianDocumentSharesTheWeaversGraphAndTheSmeltersIndex(t *testing.T) {
-	for _, graphRun := range []bool{true, false} {
-		config := librarianDocFixture
-		if !graphRun {
-			config = librarianConfig("graph", "platform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"semiont\"\ndatabase = \"kb\"\npassword = \"${GRAPH_PASSWORD}\"\n")
-		}
-		env := envFrom(t, config)
-		librarian, err := librarianDocument(env, "local", "container", "192.168.64.1", 8080, nil, graphRun)
-		if err != nil {
-			t.Fatal(err)
-		}
-		weaver, err := weaverDocument(env, "container", "192.168.64.1", 8080, nil, graphRun)
-		if err != nil {
-			t.Fatal(err)
-		}
-		smelter, err := smelterDocument(env, "container", "192.168.64.1", 8080, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		doc := librarianDocumentFrom(t, librarian)
-		_, weaversGraph := weaverDocumentFrom(t, weaver)
+	for why, graph := range map[string]func(*stack.Stack){
+		"the launcher's Neo4j":  func(*stack.Stack) {},
+		"somebody else's Neo4j": externalGraph,
+	} {
+		st := fixtureStack(t, "ollama-gemma")
+		graph(st)
+		p := placed(t, st)
+		doc := librarianDocumentOf(t, p)
+		_, weaversGraph := weaverDocumentOf(t, p)
 		if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph); got != weaversGraph {
-			t.Errorf("graphRun %v: the Librarian's graph is %+v, the Weaver's %+v", graphRun, got, weaversGraph)
+			t.Errorf("%s: the Librarian's graph is %+v, the Weaver's %+v", why, got, weaversGraph)
 		}
-		smelters := smelterDocumentFrom(t, smelter)
+		smelters := smelterDocumentOf(t, p)
 		if mine, theirs := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors), shapeOf[semiont.QdrantVectorsConfig](t, smelters.Vectors); mine != theirs {
-			t.Errorf("graphRun %v: the Librarian's vectors are %+v, the Smelter's %+v", graphRun, mine, theirs)
+			t.Errorf("%s: the Librarian's vectors are %+v, the Smelter's %+v", why, mine, theirs)
 		}
 		if mine, theirs := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding), shapeOf[semiont.OllamaEmbeddingConfig](t, smelters.Embedding); mine != theirs {
-			t.Errorf("graphRun %v: the Librarian's embedding is %+v, the Smelter's %+v", graphRun, mine, theirs)
+			t.Errorf("%s: the Librarian's embedding is %+v, the Smelter's %+v", why, mine, theirs)
 		}
 		if doc.Archivist.Host != smelters.Archivist.Host || doc.Archivist.Port != smelters.Archivist.Port {
-			t.Errorf("graphRun %v: the Librarian's archivist is %+v, the Smelter's %+v", graphRun, doc.Archivist, smelters.Archivist)
+			t.Errorf("%s: the Librarian's archivist is %+v, the Smelter's %+v", why, doc.Archivist, smelters.Archivist)
 		}
 	}
 }
 
-// A secret is named and never stated: the document names the variable the
-// config references, and the Librarian is handed it among the user's. An
-// Ollama is asked without a key, so a config whose every provider is an Ollama
-// names none.
-func TestLibrarianDocumentNamesItsSecretsAndNeverStatesThem(t *testing.T) {
-	config := librarianConfig("graph", "platform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"semiont\"\ndatabase = \"kb\"\npassword = \"${GRAPH_PASSWORD}\"\n")
-	config = withSection(config, "embedding", "type = \"voyage\"\nmodel = \"voyage-3\"\napiKey = \"${VOYAGE_API_KEY}\"\n")
-	env := envFrom(t, config)
-	b, err := librarianDocument(env, "local", "container", "192.168.64.1", 8080,
-		[]string{"--env", "GRAPH_PASSWORD=graph-secret", "--env", "VOYAGE_API_KEY=voyage-secret", "--env", "ANTHROPIC_API_KEY=model-secret"}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, secret := range []string{"graph-secret", "voyage-secret", "model-secret"} {
-		if strings.Contains(string(b), secret) {
-			t.Errorf("the document states a secret (%s):\n%s", secret, b)
-		}
-	}
-	doc := librarianDocumentFrom(t, b)
+// A secret is named and never stated: the document names the variable each
+// document names, and the Librarian is handed exactly those. An Ollama is
+// asked without a key, so a roster whose every actor asks an Ollama names
+// none, and two actors under one key are handed it once.
+func TestLibrarianDocumentNamesItsSecrets(t *testing.T) {
+	st := mixedActors(t)
+	externalGraph(st)
+	voyageEmbedding(st)
+	p := placed(t, st)
+	doc := librarianDocumentOf(t, p)
 	if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph).PasswordEnv; got != "GRAPH_PASSWORD" {
-		t.Errorf("graph.passwordEnv = %q, want the variable the config references", got)
+		t.Errorf("graph.passwordEnv = %q, want the variable the KnowledgeIndex names", got)
 	}
 	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, doc.Embedding).ApiKeyEnv; got != "VOYAGE_API_KEY" {
-		t.Errorf("embedding.apiKeyEnv = %q, want the variable the config references", got)
+		t.Errorf("embedding.apiKeyEnv = %q, want the variable the KnowledgeIndex names", got)
 	}
 	if doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
-		t.Errorf("matcher.apiKeyEnv = %v, want the variable the config references", doc.Matcher.ApiKeyEnv)
+		t.Errorf("matcher.apiKeyEnv = %v, want the variable the Inference document names", doc.Matcher.ApiKeyEnv)
 	}
-	if got, want := strings.Join(librarianNamedVars(env), " "), "GRAPH_PASSWORD VOYAGE_API_KEY ANTHROPIC_API_KEY"; got != want {
+	if got, want := strings.Join(librarianSecrets(p), " "), "GRAPH_PASSWORD VOYAGE_API_KEY ANTHROPIC_API_KEY"; got != want {
 		t.Errorf("the Librarian is handed %q, want the variables its document names, %q", got, want)
 	}
 
-	ollamaAlone := librarianConfig("actors.matcher.inference", "type = \"ollama\"\nmodel = \"gemma3:4b\"\n")
-	if got := librarianNamedVars(envFrom(t, ollamaAlone)); len(got) != 0 {
-		t.Errorf("a config whose every provider is an Ollama names %v", got)
+	if got := librarianSecrets(placed(t, fixtureStack(t, "ollama-gemma"))); len(got) != 0 {
+		t.Errorf("a roster whose every actor asks an Ollama names %v", got)
 	}
-	// Two actors under one key are handed it once.
-	bothAnthropic := librarianConfig("actors.gatherer.inference", "type = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n")
-	if got := librarianNamedVars(envFrom(t, bothAnthropic)); len(got) != 1 || got[0] != "ANTHROPIC_API_KEY" {
+	if got := librarianSecrets(placed(t, fixtureStack(t, "anthropic"))); len(got) != 1 || got[0] != "ANTHROPIC_API_KEY" {
 		t.Errorf("two actors under one key are handed %v, want the one variable", got)
 	}
 }
@@ -273,16 +180,11 @@ func TestLibrarianDocumentNamesItsSecretsAndNeverStatesThem(t *testing.T) {
 // one decider, so a model the worker and the Librarian share is one agent at
 // one address.
 func TestLibrarianModelsAreReachedWhereTheWorkersAgentsAre(t *testing.T) {
-	config := librarianDocFixture +
-		"\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n" +
-		"\n[environments.local.workers.yield.inference]\ntype = \"ollama\"\nmodel = \"gemma3:4b\"\n"
-	env := envFrom(t, config)
-	b, err := librarianDocumentOf(t, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := librarianDocumentFrom(t, b)
-	agents, err := workerAgents(env, "local", gatewayDialerVars("container", "192.168.64.1", 8080, nil))
+	st := mixedActors(t)
+	st.Inference.Spec.Roster.Workers.Mark.Tagging = anthropicHaiku()
+	p := placed(t, st)
+	doc := librarianDocumentOf(t, p)
+	agents, err := workerAgents(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,17 +200,8 @@ func TestLibrarianModelsAreReachedWhereTheWorkersAgentsAre(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Fatalf("the fixture binds no worker to the %s's model %+v: this test would compare nothing", actor, model.Agent)
+			t.Fatalf("no worker is bound to the %s's model %+v: this test would compare nothing", actor, model.Agent)
 		}
-	}
-
-	// An Anthropic section that states no endpoint is reached at Anthropic's own.
-	unstated := strings.Replace(librarianDocFixture, "endpoint = \"https://api.anthropic.com\"\n", "", 1)
-	if b, err = librarianDocumentOf(t, unstated); err != nil {
-		t.Fatal(err)
-	}
-	if got := librarianDocumentFrom(t, b).Matcher.BaseUrl; got != "https://api.anthropic.com" {
-		t.Errorf("a section that states no endpoint is reached at %q, want Anthropic's own address", got)
 	}
 }
 
@@ -316,97 +209,60 @@ func TestLibrarianModelsAreReachedWhereTheWorkersAgentsAre(t *testing.T) {
 // Archivist's document names and the model the Librarian's document names are
 // one binding.
 func TestLibrarianModelsAreTheRostersActors(t *testing.T) {
-	env := envFrom(t, librarianDocFixture)
-	roster, err := archivistRoster(env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := librarianDocumentOf(t, librarianDocFixture)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := librarianDocumentFrom(t, b)
+	p := placed(t, mixedActors(t))
+	roster := archivistDocumentOf(t, p).Roster
+	doc := librarianDocumentOf(t, p)
 	if roster.Actors.Matcher == nil || *roster.Actors.Matcher != doc.Matcher.Agent {
 		t.Errorf("the roster's matcher is %+v, the Librarian's %+v", roster.Actors.Matcher, doc.Matcher.Agent)
 	}
 	if roster.Actors.Gatherer == nil || *roster.Actors.Gatherer != doc.Gatherer.Agent {
 		t.Errorf("the roster's gatherer is %+v, the Librarian's %+v", roster.Actors.Gatherer, doc.Gatherer.Agent)
 	}
-	// A worker's binding serves no actor.
-	workersAlone := withoutSection(librarianDocFixture, "actors.matcher.inference") +
-		"\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n"
-	if _, err := librarianDocumentOf(t, workersAlone); err == nil || !strings.Contains(err.Error(), "[environments.local.actors.matcher.inference]") {
-		t.Errorf("workers.default served the matcher: err = %v, want a refusal naming the actor's own section", err)
-	}
 }
 
-// What the document cannot be written from is refused, naming what is
-// missing. A secret written as a value is refused: a document carries no
-// secret.
+// What the document cannot be written from is refused, naming the document and
+// the field: an actor the roster binds no model to, whatever the workers are
+// bound to, and a Voyage embedding that names no key.
 func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
-	externalGraph := func(password string) string {
-		return librarianConfig("graph", "platform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"semiont\"\ndatabase = \"kb\"\n"+password)
-	}
 	for _, c := range []struct {
-		why      string
-		config   string
-		graphRun bool
-		names    string
+		why   string
+		vary  func(st *stack.Stack)
+		names func(st *stack.Stack) string
 	}{
-		{"no gateway", withoutSection(librarianDocFixture, "gateway"), true, "publicURL"},
-		{"no identity", withoutSection(librarianDocFixture, "identity"), true, "identity"},
-		{"no graph", withoutSection(librarianDocFixture, "graph"), true, "[graph]"},
-		{"a graph kept in memory", strings.Replace(librarianDocFixture, `type = "neo4j"`, `type = "memory"`, 1), true, "[graph] type \"memory\""},
-		{"no graph database named", strings.Replace(librarianDocFixture, "database = \"neo4j\"\n", "", 1), true, "database"},
-		{"somebody else's Neo4j with no password", externalGraph(""), false, "graph.password"},
-		{"a graph password written as a value", externalGraph("password = \"hunter2\"\n"), false, "graph.password"},
-		{"no vectors", withoutSection(librarianDocFixture, "vectors"), true, "[vectors]"},
-		{"an index kept in memory", strings.Replace(librarianDocFixture, `type = "qdrant"`, `type = "memory"`, 1), true, "[vectors] type \"memory\""},
-		{"no embedding", withoutSection(librarianDocFixture, "embedding"), true, "[embedding]"},
-		{"an embedding provider the launcher writes no document for", librarianConfig("embedding", "type = \"openai\"\nmodel = \"m\"\n"), true, "openai"},
-		{"Voyage with no key", librarianConfig("embedding", "type = \"voyage\"\nmodel = \"voyage-3\"\n"), true, "embedding.apiKey"},
-		{"no matcher", withoutSection(librarianDocFixture, "actors.matcher.inference"), true, "[environments.local.actors.matcher.inference]"},
-		{"no gatherer", withoutSection(librarianDocFixture, "actors.gatherer.inference"), true, "[environments.local.actors.gatherer.inference]"},
-		{"half an agent", librarianConfig("actors.matcher.inference", "type = \"anthropic\"\n"), true, "actors.matcher.inference"},
-		{"a provider Semiont has no client for", librarianConfig("actors.gatherer.inference", "type = \"mistral\"\nmodel = \"m\"\n"), true, "actors.gatherer.inference"},
-		{"a provider with no section", withoutSection(librarianDocFixture, "inference.anthropic"), true, "[environments.local.inference.anthropic]"},
-		{"an Ollama with no address", strings.Replace(librarianDocFixture, "platform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"", "platform = \"external\"", 1), true, "[environments.local.inference.ollama]"},
-		{"a model provider's key written as a value", strings.Replace(librarianDocFixture, `apiKey = "${ANTHROPIC_API_KEY}"`, `apiKey = "hunter2"`, 1), true, "inference.anthropic.apiKey"},
-		{"a gather that waits no time", librarianConfig("make-meaning.gather", "settleTimeoutMs = 0\n"), true, "make-meaning.gather.settleTimeoutMs"},
-		{"a floor above every similarity", librarianConfig("make-meaning.search", "semanticFloor = 1.5\n"), true, "make-meaning.search.semanticFloor"},
+		{"no matcher", func(st *stack.Stack) { st.Inference.Spec.Roster.Actors.Matcher = nil },
+			func(st *stack.Stack) string { return st.Files.Inference + ": spec.roster.actors.matcher" }},
+		{"no gatherer", func(st *stack.Stack) { st.Inference.Spec.Roster.Actors.Gatherer = nil },
+			func(st *stack.Stack) string { return st.Files.Inference + ": spec.roster.actors.gatherer" }},
+		{"Voyage with no key", func(st *stack.Stack) { voyageEmbedding(st); st.KnowledgeIndex.Spec.Embedding.ApiKey = nil },
+			func(st *stack.Stack) string { return st.Files.KnowledgeIndex + ": spec.embedding.apiKey" }},
 	} {
-		_, err := librarianDocument(envFrom(t, c.config), "local", "container", "192.168.64.1", 8080, nil, c.graphRun)
-		if err == nil || !strings.Contains(err.Error(), c.names) {
-			t.Errorf("%s: err = %v, want a refusal naming %q", c.why, err, c.names)
-		}
-		if err != nil && strings.Contains(err.Error(), "hunter2") {
-			t.Errorf("%s: the refusal repeats the secret: %v", c.why, err)
+		st := fixtureStack(t, "ollama-gemma")
+		c.vary(st)
+		_, err := librarianDocument(placed(t, st))
+		if want := c.names(st); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v, want a refusal naming %q", c.why, err, want)
 		}
 	}
 }
 
 // The launcher mounts the document where the image's command points --config
 // (TestConfigDocumentsAreWhereTheImagesLook). It hands the Librarian nothing
-// else: no copy of the KB's config, no path, and no *_HOST variables, because
-// the document already carries every address. Its health port is the
-// descriptor's, which the document carries, the launcher publishes and the
+// else: no copy of the KB's documents, no path, and no *_HOST variables,
+// because its own document already carries every address. Its health port is
+// the descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "librarian", "Dockerfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "container", "1.2.3.4", 8080, nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := librarianDocumentFrom(t, b)
+	doc := librarianDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 
 	args := strings.Join(librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil), " ")
 	if want := "/stage/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Librarian's document is not mounted onto %s:\n%s", librarianDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "NEO4J_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", "XDG_STATE_HOME", "JWT_SECRET", ".semiontconfig", ".toml"} {
+	for _, unread := range []string{"GATEWAY_HOST", "NEO4J_HOST", "QDRANT_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", "XDG_STATE_HOME", "JWT_SECRET", stack.Dir} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the Librarian is handed %s, which it does not read:\n%s", unread, args)
 		}
@@ -433,30 +289,25 @@ func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
 }
 
 // A start hands the Librarian the variables its document names and no other:
-// the launcher's Neo4j password, each provider's key, and nothing a section it
-// does not read references.
+// the launcher's Neo4j password, the embedding's key and each actor's
+// provider's key — never the pair of a broker it does not dial.
 func TestTheLibrarianIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
-	config := withSection(librarianDocFixture, "embedding", "type = \"voyage\"\nmodel = \"voyage-3\"\napiKey = \"${VOYAGE_API_KEY}\"\n") +
-		"\n[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.internal:4222\"\nuser = \"${BROKER_USER}\"\npassword = \"${BROKER_PASSWORD}\"\n"
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, _, refs, err := loadConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan := &launchPlan{Roles: map[string]rolePlan{"graph": {Presence: presenceLauncher}, "messaging": {Presence: presenceLauncher}}}
-	handed := strings.Join(withDaemonCredentialVars(refs.ByService, plan, true)["librarian"], " ")
+	st := mixedActors(t)
+	voyageEmbedding(st)
+	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
+	externalBroker(st)
+	p := placed(t, st)
+	handed := strings.Join(withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["librarian"], " ")
 	if want := "VOYAGE_API_KEY ANTHROPIC_API_KEY " + daemonPasswords["graph"].env; handed != want {
 		t.Errorf("the Librarian is handed %q, want the variables its document names, %q", handed, want)
 	}
-	required, _ := refs.read("librarian")
-	if got, want := strings.Join(required, " "), "ANTHROPIC_API_KEY VOYAGE_API_KEY"; got != want {
+	if got, want := strings.Join(secretsRead(p, "librarian"), " "), "ANTHROPIC_API_KEY VOYAGE_API_KEY"; got != want {
 		t.Errorf("a start of the Librarian alone demands %q, want %q", got, want)
 	}
-	plan.Roles["graph"] = rolePlan{Presence: presenceExternal}
-	if handed := withDaemonCredentialVars(refs.ByService, plan, true)["librarian"]; contains(handed, daemonPasswords["graph"].env) {
+
+	externalGraph(st)
+	p = placed(t, st)
+	if handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["librarian"]; contains(handed, daemonPasswords["graph"].env) {
 		t.Errorf("for somebody else's Neo4j the Librarian is handed the launcher's password: %v", handed)
 	}
 }

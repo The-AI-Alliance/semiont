@@ -41,8 +41,9 @@ table states.
 
 A Weaver reads its settings from a configuration document, the protocol's
 [`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the
-path its `--config` flag names. The document is resolved: no `${VAR}` is left
-in it, and the Weaver defaults nothing it leaves out. It states the gateway's
+path its `--config` flag names. The document is resolved: every address in it
+is literal, every credential is named by the variable that holds it, and the
+Weaver defaults nothing it leaves out. It states the gateway's
 URL; the issuer the Weaver's service account signs in at; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the environment

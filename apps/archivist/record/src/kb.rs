@@ -1,6 +1,5 @@
 //! What a knowledge base says of itself: its committed project file,
-//! `.semiont/config.yaml`, held to `specs/src/kb-identity/ProjectConfig.json`,
-//! or the TOML `.semiont/config` where a knowledge base still has that one.
+//! `.semiont/config.yaml`, held to `specs/src/kb-identity/ProjectConfig.json`.
 
 use serde_json::Value;
 use std::path::Path;
@@ -12,25 +11,31 @@ const PROJECT_CONFIG_SCHEMA: &str =
 /// The keys of the committed project file the Archivist reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Committed {
-    /// The project's name, or the root directory's name where a TOML file
-    /// names none.
+    /// The project's name, or the root directory's name where the knowledge
+    /// base commits no project file.
     pub name: String,
-    /// The site's domain: the knowledge base's identity.
+    /// The site's domain: the knowledge base's identity. None only where the
+    /// knowledge base commits no project file.
     pub domain: Option<String>,
-    /// Whether changes are staged in git: true only when it is the literal
-    /// `true`.
+    /// Whether changes are staged in git.
     pub git_sync: bool,
 }
 
-/// The committed project file of the tree at `root`. A `config.yaml` that does
-/// not hold to its schema is refused, each place named. Without one, the TOML
-/// file is read, and a TOML file that is absent or does not parse reads as
-/// every key absent.
+/// The committed project file of the tree at `root`. One that does not hold to
+/// its schema is refused, each place named; a tree without one is named by its
+/// directory, and declares no identity.
 pub fn committed(root: &Path) -> Result<Committed, String> {
     let yaml = root.join(".semiont").join("config.yaml");
     match std::fs::read_to_string(&yaml) {
         Ok(text) => from_yaml(&yaml, &text),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(from_toml(root)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Committed {
+            name: root
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .ok_or_else(|| format!("{} names no directory", root.display()))?,
+            domain: None,
+            git_sync: false,
+        }),
         Err(e) => Err(format!("Cannot read {}: {e}", yaml.display())),
     }
 }
@@ -65,39 +70,14 @@ fn from_yaml(path: &Path, text: &str) -> Result<Committed, String> {
             .map(str::to_owned)
             .ok_or_else(|| format!("{where_} states no {section}.{key}"))
     };
+    let git_sync = document["git"]["sync"]
+        .as_bool()
+        .ok_or_else(|| format!("{where_} states no git.sync"))?;
     Ok(Committed {
         name: text_at("project", "name")?,
         domain: Some(text_at("site", "domain")?),
-        git_sync: document["git"]["sync"].as_bool() == Some(true),
+        git_sync,
     })
-}
-
-fn from_toml(root: &Path) -> Committed {
-    let table = std::fs::read_to_string(root.join(".semiont").join("config"))
-        .ok()
-        .and_then(|text| text.parse::<toml::Table>().ok())
-        .unwrap_or_default();
-    let text = |section: &str, key: &str| {
-        table
-            .get(section)
-            .and_then(|s| s.get(key))
-            .and_then(|v| v.as_str())
-            .filter(|v| !v.is_empty())
-            .map(str::to_owned)
-    };
-    Committed {
-        name: text("project", "name").unwrap_or_else(|| {
-            root.file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        }),
-        domain: text("site", "domain"),
-        git_sync: table
-            .get("git")
-            .and_then(|s| s.get("sync"))
-            .and_then(|v| v.as_bool())
-            == Some(true),
-    }
 }
 
 #[cfg(test)]
@@ -105,57 +85,75 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn tree(files: &[(&str, &str)]) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("kb-{}", uuid::Uuid::new_v4()));
+    fn tree(dir: &str, config: Option<&str>) -> PathBuf {
+        let root = std::env::temp_dir()
+            .join(format!("kb-{}", uuid::Uuid::new_v4()))
+            .join(dir);
         std::fs::create_dir_all(root.join(".semiont")).unwrap();
-        for (name, text) in files {
-            std::fs::write(root.join(".semiont").join(name), text).unwrap();
+        if let Some(text) = config {
+            std::fs::write(root.join(".semiont").join("config.yaml"), text).unwrap();
         }
         root
     }
 
+    /// Every case of specs/src/kb-identity/cases.json, as the launcher runs
+    /// them: a project file the case refuses is refused, and every other
+    /// yields the name and domain the case states.
+    #[test]
+    fn every_identity_case_is_read_as_it_says() {
+        let table: Value =
+            serde_json::from_str(include_str!("../../../../specs/src/kb-identity/cases.json"))
+                .unwrap();
+        let (mut refused, mut read) = (0, 0);
+        for case in table["cases"].as_array().expect("the table has cases") {
+            let why = case["why"].as_str().expect("a case says why");
+            let root = tree(
+                case["dir"].as_str().expect("a case names its directory"),
+                case["config"].as_str(),
+            );
+            let got = committed(&root);
+            if case["refused"]
+                .as_bool()
+                .expect("a case says whether it is refused")
+            {
+                refused += 1;
+                assert!(
+                    got.is_err(),
+                    "{why}: read a project file the case refuses: {got:?}"
+                );
+                continue;
+            }
+            read += 1;
+            let got =
+                got.unwrap_or_else(|e| panic!("{why}: refused a project file the case reads: {e}"));
+            assert_eq!(Some(got.name.as_str()), case["name"].as_str(), "{why}");
+            assert_eq!(got.domain.as_deref(), case["domain"].as_str(), "{why}");
+        }
+        assert!(
+            refused > 0 && read > 0,
+            "the table has {refused} refused and {read} read cases: a gate that runs nothing on one side passes on silence"
+        );
+    }
+
     const YAML: &str = "project:\n  name: Test Knowledge Base\ngit:\n  sync: true\nsite:\n  domain: example.github.io:test-kb\n  siteName: Test Knowledge Base\n";
-    const TOML: &str = "[project]\nname = \"Other\"\n\n[git]\nsync = false\n\n[site]\ndomain = \"example.org:other\"\n";
-
-    #[test]
-    fn config_yaml_is_read_before_the_toml() {
-        let root = tree(&[("config.yaml", YAML), ("config", TOML)]);
-        assert_eq!(
-            committed(&root),
-            Ok(Committed {
-                name: "Test Knowledge Base".to_owned(),
-                domain: Some("example.github.io:test-kb".to_owned()),
-                git_sync: true,
-            })
-        );
-    }
-
-    #[test]
-    fn the_toml_is_read_where_there_is_no_config_yaml() {
-        let root = tree(&[("config", TOML)]);
-        assert_eq!(
-            committed(&root),
-            Ok(Committed {
-                name: "Other".to_owned(),
-                domain: Some("example.org:other".to_owned()),
-                git_sync: false,
-            })
-        );
-    }
 
     #[test]
     fn a_config_yaml_that_does_not_hold_is_refused_naming_where() {
         let misspelled = YAML.replace("  domain:", "  domian:");
-        let root = tree(&[("config.yaml", &misspelled)]);
+        let root = tree("misspelled-kb", Some(&misspelled));
         let refusal = committed(&root).expect_err("a misspelled domain must be refused");
         assert!(refusal.contains("/site"), "{refusal}");
         assert!(refusal.contains("domian"), "{refusal}");
     }
 
     #[test]
-    fn a_sync_written_as_text_is_refused() {
-        let root = tree(&[("config.yaml", &YAML.replace("sync: true", "sync: \"yes\""))]);
-        let refusal = committed(&root).expect_err("a sync written as text must be refused");
-        assert!(refusal.contains("/git/sync"), "{refusal}");
+    fn git_sync_is_read() {
+        let root = tree(
+            "unsynced-kb",
+            Some(&YAML.replace("sync: true", "sync: false")),
+        );
+        assert!(!committed(&root).unwrap().git_sync);
+        let root = tree("synced-kb", Some(YAML));
+        assert!(committed(&root).unwrap().git_sync);
     }
 }

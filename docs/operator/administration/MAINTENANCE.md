@@ -25,7 +25,7 @@ git add .semiont/events && git commit -m "events"
 git push
 ```
 
-With `[git] sync = true` in `.semiont/config`, the archivist stages each event-log write as it makes it; committing and pushing are yours. Once committed, git's object hashes make tampering evident. Untracked event files are not disposable. If events seem to be missing, check git history before concluding anything was lost ([Troubleshooting](TROUBLESHOOTING.md#missing-documents-after-a-restart)).
+With `git.sync: true` in `.semiont/config.yaml`, the archivist stages each event-log write as it makes it; committing and pushing are yours. Once committed, git's object hashes make tampering evident. Untracked event files are not disposable. If events seem to be missing, check git history before concluding anything was lost ([Troubleshooting](TROUBLESHOOTING.md#missing-documents-after-a-restart)).
 
 To copy a whole knowledge base out, or bring one back, see [Backup](BACKUP.md). The stack's PostgreSQL holds the issuer's accounts and nothing of the knowledge base: back it up separately ([Database](DATABASE.md)).
 
@@ -35,9 +35,10 @@ There is no schema migration: the gateway holds no database, and Keycloak manage
 
 ```bash
 semiont stop
-semiont start                             # pulls the current images
-SEMIONT_VERSION=<version> semiont start   # or a version you name
+semiont start      # pulls the images the documents name
 ```
+
+The documents in `.semiont/stack/` name each service's image. With the `:latest` tags `semiont init` writes, every start pulls the current release. To run a version you name, write that tag into each Semiont `image` in the documents, and into the Browser's with `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:<version>` ([Configuration](CONFIGURATION.md#images)).
 
 Upgrade the launcher as well (`brew upgrade semiont`): the launcher and the images share one version.
 
@@ -51,7 +52,7 @@ semiont logs --service gateway
 Two things a start may do on an upgrade:
 
 - **Clear and rebuild a derived store.** When the image behind the graph, the vectors, the views or the anchored text has changed, the launcher says it is clearing that store, and the service that owns it rebuilds it from the event log.
-- **Refuse over the database.** PostgreSQL's data is never cleared for you. If a config names a different database image than the one that wrote the data, the start refuses and names the fix ([Troubleshooting](TROUBLESHOOTING.md#an-image-version-mismatch-on-start)).
+- **Refuse over the database.** PostgreSQL's data is never cleared for you. If the Issuer document names a different database image than the one that wrote the data, the start refuses and names the fix ([Troubleshooting](TROUBLESHOOTING.md#an-image-version-mismatch-on-start)).
 
 If the start refuses at the identity preflight, the realm was created by an older launcher: `semiont identity sync` brings it up to date ([Troubleshooting](TROUBLESHOOTING.md#semiont-start-refuses-at-the-identity-preflight)).
 

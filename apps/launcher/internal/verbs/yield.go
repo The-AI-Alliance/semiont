@@ -188,7 +188,7 @@ options:
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.
 		var err error
-		if root, err = launcher.CwdKBRoot(); err != nil {
+		if root, _, err = launcher.CwdKBRoot(); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
@@ -209,7 +209,7 @@ options:
 		root = local.KBRoot
 		if root == "" {
 			var err error
-			if root, err = launcher.CwdKBRoot(); err != nil {
+			if root, _, err = launcher.CwdKBRoot(); err != nil {
 				u.Fail("%v", err)
 				return 1
 			}

@@ -7,10 +7,10 @@
  *   Person:         did:web:<domain>:users:<subject>
  *   Software:       did:web:<domain>:agents:<provider>:<model>
  *
- * `<domain>` is the deployment's `[site] domain` — one identity, with its
+ * `<domain>` is the knowledge base's `site.domain` — one identity, with its
  * people and software peers named beneath it. A person's `<subject>` is the
- * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded:
- * which claim is declared per deployment, never inferred here, and the
+ * value of the issuer claim the knowledge base's `subjectClaim` selects,
+ * URI-encoded: which claim is declared per deployment, never inferred here, and the
  * person's email is a fact about them, not their name.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
@@ -29,10 +29,10 @@ type Agent = components['schemas']['Agent'];
 
 /**
  * The knowledge base's own did:web identity, from its committed
- * `[site] domain`, which the gateway states in the description it serves.
+ * `site.domain`, which the gateway states in the description it serves.
  *
  * Format: `did:web:<domain>` — the domain **verbatim, never encoded**. The
- * config already stores it in did:web colon-path form
+ * project file already stores it in did:web colon-path form
  * (`the-ai-alliance.github.io:semiont-caselaw-kb`), so encoding those colons
  * would mint a string nothing else in the system produces. The launcher
  * mints the identical string in Go (`kbconfig.go` `didWeb()`), and the two
@@ -61,7 +61,7 @@ export function kbDid(domain: string): string {
  * makes the value stable across every host, port and proxy it is reached
  * through, which is the whole reason `aud` can be checked at all.
  *
- * Derived from the SAME committed `[site] domain` as `kbDid`, so the two
+ * Derived from the SAME committed `site.domain` as `kbDid`, so the two
  * cannot drift; the launcher mints the identical string in Go
  * (`kbconfig.go` `kbResource`) and the two MUST agree byte-for-byte.
  */

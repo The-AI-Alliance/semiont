@@ -1,114 +1,72 @@
 package launcher
 
-// The executable spec for derivePlan, the pure function from a parsed config
-// to the launcher's plan: for the two real template configs it must derive
-// the plan pinned here, field for field, and for variant configs the
-// documented alternatives.
-// Fixtures for the real configs are the same files the black-box suite uses
-// (testdata/kb — copies of the template KB's own TOMLs); variants are inline.
+// The executable spec for derivePlan, the pure function from a knowledge
+// base's documents to the launcher's plan: for the fixture's two Inference
+// documents it must derive the plan pinned here, field for field, and for
+// variants of them the documented alternatives. The fixture is the one the
+// black-box suite reads (testdata/kb); each variant is a fresh copy of it,
+// changed as a document would state the change.
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-func loadFixtureEnv(t *testing.T, name string) (*envConfig, string) {
+func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 	t.Helper()
-	env, envName, _, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
-	if err != nil {
-		t.Fatalf("loading fixture %s: %v", name, err)
-	}
-	return env, envName
-}
-
-func writeVariant(t *testing.T, content string) string {
-	t.Helper()
-	p := filepath.Join(t.TempDir(), "variant.toml")
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-// variantConfig is a minimal but complete config for variant tests; sections
-// are replaced via the replace map (empty string = drop the section).
-func variantConfig(t *testing.T, replace map[string]string) string {
-	t.Helper()
-	sections := map[string]string{
-		"graph": `[environments.local.graph]
-platform = "container"
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-`,
-		"vectors": `[environments.local.vectors]
-type = "qdrant"
-host = "${QDRANT_HOST}"
-port = 6333
-`,
-		"database": `[environments.local.database]
-platform = "container"
-host = "${POSTGRES_HOST}"
-port = 5432
-name = "semiont"
-user = "postgres"
-`,
-		"embedding": `[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-baseURL = "http://${OLLAMA_HOST}:11434"
-`,
-		"identity": `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-subjectClaim = "sub"
-`,
-		"inference": `[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-`,
-		"jobs": `[environments.local.jobs]
-type = "jetstream"
-servers = "${NATS_HOST}:4222"
-`,
-	}
-	for k, v := range replace {
-		if v == "" {
-			delete(sections, k)
-			continue
-		}
-		sections[k] = v
-	}
-	var b strings.Builder
-	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n")
-	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference", "identity", "jobs", "signal"} {
-		if s, ok := sections[k]; ok {
-			b.WriteString(s + "\n")
-		}
-	}
-	return writeVariant(t, b.String())
-}
-
-func mustDerive(t *testing.T, path string) *launchPlan {
-	t.Helper()
-	env, envName, _, err := loadConfig(path)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	plan, err := derivePlan(env, envName, path, 8080)
+	plan, err := derivePlan(st, 8080)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
 	return plan
+}
+
+// mustRefuse derives and requires a refusal naming the given fragments. The
+// message is the deliverable here: documents the stack cannot run must be
+// refused BEFORE anything is launched, and saying where is the whole value.
+func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
+	t.Helper()
+	plan, err := derivePlan(st, 8080)
+	if err == nil {
+		t.Fatalf("derivePlan accepted documents the stack cannot run: %+v", plan.Roles)
+	}
+	for _, w := range want {
+		if !strings.Contains(err.Error(), w) {
+			t.Errorf("refusal missing %q; got: %v", w, err)
+		}
+	}
+}
+
+// asSomebodyElses: st with role's daemon stated as somebody else's —
+// `external` in place of `image` and `resources`, as the schema has it.
+func asSomebodyElses(st *stack.Stack, role string) {
+	switch role {
+	case "graph":
+		g := &st.KnowledgeIndex.Spec.Graph
+		g.Image, g.Resources = nil, nil
+		g.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.example.com:9999", Password: stack.SecretRef{FromEnv: "EXT_GRAPH_PASSWORD"}}
+	case "vectors":
+		v := &st.KnowledgeIndex.Spec.Vectors
+		v.Image, v.Resources = nil, nil
+		v.External = &stack.HostPort{Host: "vectors.example.com", Port: 6334}
+	case "database":
+		d := &st.Issuer.Spec.Database
+		d.Image, d.Resources = nil, nil
+		d.External = &stack.IssuerDatabaseExternal{Host: "db.example.com", Port: 5433, Password: stack.SecretRef{FromEnv: "EXT_DB_PASSWORD"}}
+	case "messaging":
+		m := &st.KnowledgeBase.Spec.Messaging
+		m.Image, m.Resources = nil, nil
+		m.External = &stack.KnowledgeBaseMessagingExternal{Servers: "nats.example.com:4223",
+			User: stack.SecretRef{FromEnv: "EXT_NATS_USER"}, Password: stack.SecretRef{FromEnv: "EXT_NATS_PASSWORD"}}
+	default:
+		panic("no daemon of the fixture is " + role)
+	}
 }
 
 func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
@@ -129,6 +87,9 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if got.Image != want.Image {
 		t.Errorf("%s image: got %q want %q", role, got.Image, want.Image)
 	}
+	if got.Memory != want.Memory {
+		t.Errorf("%s memory: got %q want %q", role, got.Memory, want.Memory)
+	}
 	if got.Port != want.Port {
 		t.Errorf("%s port: got %d want %d", role, got.Port, want.Port)
 	}
@@ -143,35 +104,30 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	}
 }
 
-// Both real template configs derive exactly the plan pinned here.
+// Both of the fixture's Inference documents derive exactly the plan pinned
+// here.
 func TestDerivePlanTemplateConfigs(t *testing.T) {
-	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
+	ollama := descriptorFor("inference", "ollama").image
+	for _, name := range []string{"ollama-gemma", "anthropic"} {
 		t.Run(name, func(t *testing.T) {
-			env, envName, _, err := loadConfig(filepath.Join("..", "..", "testdata", "kb", ".semiont", "semiontconfig", name))
-			if err != nil {
-				t.Fatalf("loadConfig: %v", err)
-			}
-			plan, err := derivePlan(env, envName, name, 8080)
-			if err != nil {
-				t.Fatalf("derivePlan: %v", err)
-			}
+			plan := mustPlan(t, fixtureStack(t, name))
 			checkRole(t, plan, "graph", rolePlan{
 				Presence: presenceLauncher, Driver: "neo4j",
-				Image: "neo4j:5.26.28-community", Port: 7687,
+				Image: "neo4j:5.26.28-community", Memory: "2G", Port: 7687,
 				User: "neo4j", Env: []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
 			})
 			checkRole(t, plan, "vectors", rolePlan{
 				Presence: presenceLauncher, Driver: "qdrant",
-				Image: "qdrant/qdrant:v1.19.1", Port: 6333,
+				Image: "qdrant/qdrant:v1.19.1", Memory: "2G", Port: 6333,
 			})
-			// embedding: with ollama-typed bindings, the inference role runs
-			// the Ollama and embedding rides along (external + shares). With
+			// embedding: with ollama bindings, the inference role runs the
+			// Ollama and embedding rides along (external, sharing it). With
 			// all-remote bindings, embedding OWNS the host-process dance —
 			// that Ollama exists for it alone.
-			if name == "anthropic.toml" {
+			if name == "anthropic" {
 				checkRole(t, plan, "embedding", rolePlan{
 					Presence: presenceHostPreferred, Driver: "ollama",
-					Image: "ollama/ollama", Port: 11434,
+					Image: ollama, Port: 11434,
 					Models: []servedModel{{Model: "nomic-embed-text", Provider: "ollama"}},
 				})
 			} else {
@@ -180,22 +136,22 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 					Address: "localhost", Port: 11434,
 					Models: []servedModel{{Model: "nomic-embed-text", Provider: "ollama"}},
 				})
+				if got := plan.Roles["embedding"].SharesOllamaWith; got != "inference" {
+					t.Errorf("the embedding shares the Ollama of %q, want the inference role's", got)
+				}
 			}
 			checkRole(t, plan, "database", rolePlan{
 				Presence: presenceLauncher, Driver: "postgres",
-				Image: "postgres:15.18-alpine", Port: 5432,
-				Env: []string{"POSTGRES_DB=semiont"},
+				Image: "postgres:15.18-alpine", Memory: "1G", Port: 5432,
+				Env: []string{"POSTGRES_DB=keycloak"},
 			})
-			// Both templates use ollama embedding, so inference is needed in
-			// both — host-process preferred with container fallback (the
-			// config's platform="posix" made explicit).
-			// The inference driver is WHO PERFORMS INFERENCE per the
-			// bindings, not which process the launcher runs. ollama-gemma
-			// binds ollama → the local-Ollama shape. anthropic binds Claude
-			// throughout → an external SaaS role; the Ollama that config
-			// still needs exists solely for the embedding, and the embedding
-			// owns it (asserted below).
-			if name == "anthropic.toml" {
+			// The inference driver is WHO PERFORMS INFERENCE per the roster,
+			// not which process the launcher runs. ollama-gemma binds ollama →
+			// the local-Ollama shape. anthropic binds Claude throughout → an
+			// external SaaS role, whose key the remote-model check reads; the
+			// Ollama it still needs exists solely for the embedding, and the
+			// embedding owns it (above).
+			if name == "anthropic" {
 				checkRole(t, plan, "inference", rolePlan{
 					Presence: presenceExternal, Driver: "anthropic",
 					Address: "api.anthropic.com", Port: 443,
@@ -204,31 +160,32 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 						{Model: "claude-sonnet-4-5-20250929", Provider: "anthropic"},
 					},
 				})
+				if got := plan.Roles["inference"].APIKey; got != "ANTHROPIC_API_KEY" {
+					t.Errorf("the remote-model check reads the key from %q, want the variable the provider names", got)
+				}
 			} else {
 				checkRole(t, plan, "inference", rolePlan{
 					Presence: presenceHostPreferred, Driver: "ollama",
-					Image: "ollama/ollama", Port: 11434,
+					Image: ollama, Port: 11434,
 					Models: []servedModel{
 						{Model: "gemma4:26b", Provider: "ollama"},
 						{Model: "gemma4:e2b", Provider: "ollama"},
 					},
 				})
 			}
-			// Only what OLLAMA can serve is pullable — the anthropic config's
-			// Claude models are not in this list even though its inference
-			// role is ollama-driven.
+			// Only what OLLAMA can serve is pullable — the anthropic roster's
+			// Claude models are not in this list.
 			wantPull := []string{"gemma4:26b", "gemma4:e2b", "nomic-embed-text"}
-			if name == "anthropic.toml" {
+			if name == "anthropic" {
 				wantPull = []string{"nomic-embed-text"}
 			}
 			if strings.Join(modelNames(plan.OllamaModels), ",") != strings.Join(wantPull, ",") {
 				t.Errorf("ollama models: got %v want %v", modelNames(plan.OllamaModels), wantPull)
 			}
 			// Each model carries the ROLE that asked for it, so a failed pull
-			// can name what stops working. Note the anthropic config: its
-			// inference runs on Claude, so the ONE ollama-served model is
-			// embedding-only — a set that crosses no role boundary, unlike
-			// ollama-gemma's.
+			// can name what stops working. The anthropic roster's inference
+			// runs on Claude, so its ONE ollama-served model is embedding-only
+			// — a set that crosses no role boundary, unlike ollama-gemma's.
 			wantRoles := map[string][]string{
 				"gemma4:26b":       {roleInference},
 				"gemma4:e2b":       {roleInference},
@@ -249,74 +206,119 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 	}
 }
 
-func TestDerivePlanExternalGraph(t *testing.T) {
-	p := variantConfig(t, map[string]string{"graph": `[environments.local.graph]
-platform = "external"
-type = "neo4j"
-uri = "bolt://graph.example.com:9999"
-username = "neo4j"
-password = "s3cret"
-`})
-	plan := mustDerive(t, p)
-	checkRole(t, plan, "graph", rolePlan{
-		Presence: presenceExternal, Driver: "neo4j",
-		Address: "graph.example.com", Port: 9999,
+// A daemon whose document states `external` is somebody else's: verified at
+// the address it states, never launched, and given no image or memory.
+func TestDerivePlanExternalDaemons(t *testing.T) {
+	for _, c := range []struct {
+		role string
+		want rolePlan
+	}{
+		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}},
+		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}},
+		{"database", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}},
+		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}},
+	} {
+		t.Run(c.role, func(t *testing.T) {
+			st := fixtureStack(t, "anthropic")
+			asSomebodyElses(st, c.role)
+			checkRole(t, mustPlan(t, st), c.role, c.want)
+		})
+	}
+}
+
+// The Keycloak the launcher runs keeps its realm on a PostgreSQL somebody else
+// runs, and signs in to it with the password the variable the Issuer document
+// names holds.
+func TestTheLaunchersKeycloakReadsAnExternalDatabasesPasswordFromItsVariable(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	asSomebodyElses(st, "database")
+	if got := mustPlan(t, st).Roles["identity"].ExternalDBPassword; got != "EXT_DB_PASSWORD" {
+		t.Errorf("the Keycloak reads its database's password from %q, want the variable the Issuer document names", got)
+	}
+	if got := mustPlan(t, fixtureStack(t, "anthropic")).Roles["identity"].ExternalDBPassword; got != "" {
+		t.Errorf("a launcher-run PostgreSQL's password is the launcher's, and the plan reads it from %q", got)
+	}
+}
+
+// A daemon the launcher runs is run from the image its document names, with
+// the memory it states — the plan carries both, and both reach the argv the
+// runtime sees.
+func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	graphImage, dbImage := "neo4j:6.0.1-community", "postgres:17.2-alpine"
+	st.KnowledgeIndex.Spec.Graph.Image = &graphImage
+	st.KnowledgeIndex.Spec.Graph.Resources.Limits.Memory = "4G"
+	st.Issuer.Spec.Database.Image = &dbImage
+	plan := mustPlan(t, st)
+	if got := plan.Roles["graph"]; got.Image != graphImage || got.Memory != "4G" {
+		t.Errorf("graph runs from %q with %q, want %s with 4G", got.Image, got.Memory, graphImage)
+	}
+	if got := plan.Roles["database"].Image; got != dbImage {
+		t.Errorf("database image: got %q", got)
+	}
+	args := providedRunArgs("graph", plan.Roles["graph"])
+	if args[len(args)-1] != graphImage {
+		t.Errorf("run argv image: got %q", args[len(args)-1])
+	}
+	if at := slices.Index(args, "--memory"); at < 0 || args[at+1] != "4G" {
+		t.Errorf("run argv %v does not give the graph its document's 4G", args)
+	}
+}
+
+// A voyage embedding and no ollama binding: nothing asks for the local
+// Ollama, so the launcher launches nothing for either role. Voyage is remote
+// SaaS — still external, still a role. No endpoint is normal there, so the
+// driver's own host and TLS port stand in.
+func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	e := &st.KnowledgeIndex.Spec.Embedding
+	e.Type, e.Model, e.ApiKey = "voyage", "voyage-3", &stack.SecretRef{FromEnv: "VOYAGE_API_KEY"}
+	plan := mustPlan(t, st)
+	checkRole(t, plan, "embedding", rolePlan{
+		Presence: presenceExternal, Driver: "voyage",
+		Address: voyageHost, Port: 443,
+		Models: []servedModel{{Model: "voyage-3", Provider: "voyage"}}, // voyage is remote: nothing to install
 	})
-}
-
-func TestDerivePlanMovedPort(t *testing.T) {
-	p := variantConfig(t, map[string]string{"database": `[environments.local.database]
-host = "${POSTGRES_HOST}"
-port = 5433
-name = "semiont"
-user = "postgres"
-`})
-	plan := mustDerive(t, p)
-	if got := plan.Roles["database"]; got.Port != 5433 || got.Presence != presenceLauncher {
-		t.Errorf("moved port: got %+v", got)
+	// The roster binds Claude, so inference is a configured EXTERNAL role, not
+	// an absent one, and a voyage embedding must not drag Ollama in either.
+	checkRole(t, plan, "inference", rolePlan{
+		Presence: presenceExternal, Driver: "anthropic",
+		Address: "api.anthropic.com", Port: 443,
+		Models: []servedModel{
+			{Model: "claude-haiku-4-5-20251001", Provider: "anthropic"},
+			{Model: "claude-sonnet-4-5-20250929", Provider: "anthropic"},
+		},
+	})
+	if len(plan.OllamaModels) != 0 {
+		t.Errorf("Ollama is asked to serve %v", modelNames(plan.OllamaModels))
 	}
-}
-
-// mustRefuse derives and requires a refusal naming the given fragments. The
-// message is the deliverable here: a config the gateway will not boot must be
-// refused BEFORE anything is launched, and saying so is the whole value.
-func mustRefuse(t *testing.T, path string, want ...string) {
-	t.Helper()
-	env, envName, _, err := loadConfig(path)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	plan, err := derivePlan(env, envName, path, 8080)
-	if err == nil {
-		t.Fatalf("derivePlan accepted a config the gateway refuses to boot: %+v", plan.Roles)
-	}
-	for _, w := range want {
-		if !strings.Contains(err.Error(), w) {
-			t.Errorf("refusal missing %q; got: %v", w, err)
+	for role, rp := range plan.Roles {
+		if rp.Presence == presenceHostPreferred {
+			t.Errorf("%s runs an Ollama nothing asks for", role)
 		}
 	}
 }
 
-// Semantic search is always available and nothing about it is defaulted, so
-// the launcher refuses a config naming no vector store or no embedding
-// provider, before it launches a container.
-func TestDerivePlanRefusesAConfigNamingNoVectorStore(t *testing.T) {
-	mustRefuse(t, variantConfig(t, map[string]string{"vectors": ""}),
-		"names no vector store", "[environments.local.vectors]", "nothing is defaulted")
+// A roster that binds nothing performs no inference, and the Ollama an ollama
+// embedding still needs is the embedding's own, run from the catalog's image.
+func TestDerivePlanWithNothingBoundRunsNoInference(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	st.Inference.Spec.Roster = semiont.ArchivistRoster{}
+	plan := mustPlan(t, st)
+	if got := plan.Roles["inference"].Presence; got != presenceAbsent {
+		t.Errorf("no bindings: inference should be absent, got %v", got)
+	}
+	checkRole(t, plan, "embedding", rolePlan{
+		Presence: presenceHostPreferred, Driver: "ollama",
+		Image: descriptorFor("inference", "ollama").image, Port: 11434,
+		Models: []servedModel{{Model: "nomic-embed-text", Provider: "ollama"}},
+	})
 }
 
-func TestDerivePlanRefusesAConfigNamingNoEmbeddingProvider(t *testing.T) {
-	mustRefuse(t, variantConfig(t, map[string]string{"embedding": ""}),
-		"names no embedding provider", "[environments.local.embedding]", "nothing is defaulted")
-}
-
-// A provider without a model is the same gap one level down: the launcher
-// requires both.
-func TestDerivePlanRefusesAnEmbeddingWithoutAModel(t *testing.T) {
-	mustRefuse(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
-type = "ollama"
-baseURL = "http://${OLLAMA_HOST}:11434"
-`}), "[environments.local.embedding]", `missing required key "model"`)
+func TestDerivePlanUnknownType(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	st.KnowledgeIndex.Spec.Graph.Type = "janusgraph"
+	mustRefuse(t, st, st.Files.KnowledgeIndex+": spec.graph.type", `"janusgraph"`, "neo4j")
 }
 
 // `memory` is unusable in a launcher-managed stack, which runs the Smelter
@@ -324,336 +326,61 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 // as an "unknown driver" is not: the operator would be told the value does
 // not exist.
 func TestDerivePlanExplainsWhyMemoryIsNotAvailableHere(t *testing.T) {
-	mustRefuse(t, variantConfig(t, map[string]string{"vectors": `[environments.local.vectors]
-type = "memory"
-`}), "separate containers", `type = "qdrant"`)
+	st := fixtureStack(t, "anthropic")
+	st.KnowledgeIndex.Spec.Vectors.Type = "memory"
+	mustRefuse(t, st, st.Files.KnowledgeIndex+": spec.vectors.type", "separate containers", `Use "qdrant"`)
 }
 
-func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
-	// A voyage embedding and no ollama-typed binding: nothing in the config
-	// references the local Ollama, so the launcher launches nothing for
-	// either role. Voyage is remote SaaS — still external, still a role; the
-	// platform is what differs, not its standing. No baseURL is normal there,
-	// so the driver's own host and TLS port stand in.
-	plan := mustDerive(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
-platform = "external"
-type = "voyage"
-model = "voyage-3"
-`}))
-	checkRole(t, plan, "embedding", rolePlan{
-		Presence: presenceExternal, Driver: "voyage",
-		Address: "api.voyageai.com", Port: 443,
-		Models: []servedModel{{Model: "voyage-3", Provider: "voyage"}}, // voyage is remote: nothing to install
-	})
-	// The fixture's worker binds Claude, so inference is a configured
-	// EXTERNAL role, not an absent one, and a voyage embedding must not drag
-	// Ollama in either.
-	checkRole(t, plan, "inference", rolePlan{
-		Presence: presenceExternal, Driver: "anthropic",
-		Address: "api.anthropic.com", Port: 443,
-		Models: []servedModel{{Model: "claude-sonnet-4-5-20250929", Provider: "anthropic"}},
-	})
-}
-
-func TestDerivePlanUnknownType(t *testing.T) {
-	p := variantConfig(t, map[string]string{"graph": `[environments.local.graph]
-type = "janusgraph"
-uri = "bolt://${NEO4J_HOST}:7687"
-`})
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	_, err = derivePlan(env, envName, p, 8080)
-	if err == nil || !strings.Contains(err.Error(), "janusgraph") || !strings.Contains(err.Error(), "neo4j") {
-		t.Errorf("unknown type must name the offender and the known drivers, got: %v", err)
-	}
-}
-
-// A graph the launcher runs needs the username it provisions the container
-// with. (Its address is not a key the config owes: unstated, the launcher
-// places it.)
-func TestDerivePlanMissingRequiredKey(t *testing.T) {
-	p := variantConfig(t, map[string]string{"graph": `[environments.local.graph]
-type = "neo4j"
-`})
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	_, err = derivePlan(env, envName, p, 8080)
-	if err == nil || !strings.Contains(err.Error(), "graph") || !strings.Contains(err.Error(), "username") {
-		t.Errorf("missing key must name section and key, got: %v", err)
-	}
-}
-
-func TestLoadConfigErrors(t *testing.T) {
-	if _, _, _, err := loadConfig(writeVariant(t, "not [ valid toml")); err == nil {
-		t.Error("invalid TOML must error")
-	}
-	if _, _, _, err := loadConfig(writeVariant(t, "[defaults]\nenvironment = \"prod\"\n")); err == nil || !strings.Contains(err.Error(), "prod") {
-		t.Errorf("missing environment block must name it, got: %v", err)
-	}
-}
-
-func TestRequiredVarsFromParse(t *testing.T) {
-	p := writeVariant(t, `[defaults]
-environment = "local"
-
-[environments.local.gateway]
-platform = "posix"
-port = 4000
-
-[environments.local.inference.anthropic]
-platform = "external"
-# commented-out refs are not requirements: apiKey = "${PHANTOM_KEY}"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.graph]
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-
-[environments.other.database]
-host = "${OTHER_ENV_VAR}"
-`)
-	_, _, vars, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	required, _ := vars.read("")
-	got := strings.Join(required, ",")
-	if got != "ANTHROPIC_API_KEY" {
-		t.Errorf("required vars: got %q — want the real ref, minus injected (${NEO4J_HOST}), comment phantoms (${PHANTOM_KEY}) and another environment's ref (${OTHER_ENV_VAR}), which nothing reads", got)
-	}
-}
-
-func TestDerivePlanImageOverride(t *testing.T) {
-	// The config's optional image key wins over the catalog default — a KB
-	// can pin or upgrade an infra image without a launcher release.
-	p := variantConfig(t, map[string]string{
-		"graph": `[environments.local.graph]
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-image = "neo4j:6.0.1-community"
-`,
-		"database": `[environments.local.database]
-host = "${POSTGRES_HOST}"
-name = "semiont"
-image = "postgres:17.2-alpine"
-`,
-	})
-	plan := mustDerive(t, p)
-	if got := plan.Roles["graph"].Image; got != "neo4j:6.0.1-community" {
-		t.Errorf("graph image: got %q", got)
-	}
-	if got := plan.Roles["database"].Image; got != "postgres:17.2-alpine" {
-		t.Errorf("database image: got %q", got)
-	}
-	// Unset override: catalog default (the parity everything else relies on).
-	if got := plan.Roles["vectors"].Image; got != "qdrant/qdrant:v1.19.1" {
-		t.Errorf("vectors default image: got %q", got)
-	}
-	// The override flows into the argv the runtime sees.
-	args := providedRunArgs("graph", plan.Roles["graph"])
-	if args[len(args)-1] != "neo4j:6.0.1-community" {
-		t.Errorf("run argv image: got %q", args[len(args)-1])
-	}
-}
-
-func TestDerivePlanInferenceImageOverride(t *testing.T) {
-	// Replacing the inference section drops the fixture's Claude worker too,
-	// so NO bindings remain: inference is not configured, and the Ollama the
-	// embedding still needs is the embedding's own — the image override
-	// follows the Ollama, wherever it lives.
-	p := variantConfig(t, map[string]string{"inference": `[environments.local.inference.ollama]
-platform = "posix"
-baseURL = "http://${OLLAMA_HOST}:11434"
-image = "ollama/ollama:0.9.5"
-`})
-	plan := mustDerive(t, p)
-	if got := plan.Roles["inference"].Presence; got != presenceAbsent {
-		t.Errorf("no bindings: inference should be absent, got %v", got)
-	}
-	if got := plan.Roles["embedding"].Image; got != "ollama/ollama:0.9.5" {
-		t.Errorf("embedding (ollama owner) image: got %q", got)
-	}
-	// And with an ollama-typed WORKER added back, the override lands on
-	// inference — the role that owns the Ollama then.
-	p2 := variantConfig(t, map[string]string{"inference": `[environments.local.inference.ollama]
-platform = "posix"
-baseURL = "http://${OLLAMA_HOST}:11434"
-image = "ollama/ollama:0.9.5"
-
-[environments.local.workers.default.inference]
-type = "ollama"
-model = "gemma4:26b"
-`})
-	plan2 := mustDerive(t, p2)
-	if got := plan2.Roles["inference"].Image; got != "ollama/ollama:0.9.5" {
-		t.Errorf("inference image: got %q", got)
-	}
-}
-
-// The dispatcher's queue is JetStream: the plan refuses a [jobs] of any other
-// type, or none at all.
-func TestPlanRequiresAJetStreamJobsSection(t *testing.T) {
-	for label, jobs := range map[string]string{
-		"fs":      "[environments.local.jobs]\ntype = \"fs\"\nservers = \"${NATS_HOST}:4222\"\n",
-		"no type": "[environments.local.jobs]\nservers = \"${NATS_HOST}:4222\"\n",
-		"none":    "",
+// The dispatcher's queue is JetStream, and the signal plane is in-process or
+// on that broker: the plan refuses any other type of either.
+func TestPlanRefusesAMessagingTypeItHasNoDriverFor(t *testing.T) {
+	for _, c := range []struct {
+		field string
+		state func(m *stack.KnowledgeBaseMessaging)
+		want  []string
+	}{
+		{"spec.messaging.jobs.type", func(m *stack.KnowledgeBaseMessaging) { m.Jobs.Type = "fs" },
+			[]string{`"fs"`, "dispatcher's queue is JetStream", `write "jetstream"`}},
+		{"spec.messaging.signal.type", func(m *stack.KnowledgeBaseMessaging) { m.Signal.Type = "redis" },
+			[]string{`"redis"`, `"in-process"`, `"nats"`}},
 	} {
-		_, err := planForBroker(t, "", jobs)
-		if err == nil {
-			t.Fatalf("%s: accepted", label)
-		}
-		for _, want := range []string{"[environments.local.jobs]", `type = "jetstream"`, "dispatcher's queue is JetStream"} {
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("%s: the refusal does not name %s: %v", label, want, err)
-			}
-		}
+		st := fixtureStack(t, "anthropic")
+		c.state(&st.KnowledgeBase.Spec.Messaging)
+		mustRefuse(t, st, append([]string{st.Files.KnowledgeBase + ": " + c.field}, c.want...)...)
 	}
 }
 
 // ── Broker credentials ──────────────────────────────────────────────────────
 //
-// [signal] and [jobs] name ONE daemon, so their credentials reconcile the way
-// their servers do: a disagreement is a config error, never a silent
-// choice between them. The credential reaches the daemon as its own
-// environment — the shape the graph role uses for NEO4J_AUTH and the database
-// role for POSTGRES_PASSWORD — because nats-server reads none by itself and
-// argv would put it in every process listing.
+// The broker the launcher runs is always authenticated, with the pair the
+// launcher generates and keeps: pointed at the authorization block, its pair
+// added at launch as the daemon's own environment, because nats-server reads
+// none by itself and argv would put it in every process listing. That the
+// pair reaches the daemon and both clients is proven end to end
+// (TestLauncherRunBrokerIsAuthenticated). A broker somebody else runs is
+// given nothing: its pair is the KnowledgeBase's, for its clients.
 
-func planForBroker(t *testing.T, signal, jobs string) (*launchPlan, error) {
-	t.Helper()
-	p := variantConfig(t, map[string]string{"signal": signal, "jobs": jobs})
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	return derivePlan(env, envName, p, 8080)
-}
-
-const brokerSignal = `[environments.local.signal]
-type = "nats"
-servers = "${NATS_HOST}:4222"
-user = "semiont"
-password = "broker-pw"
-`
-
-const brokerJobs = `[environments.local.jobs]
-type = "jetstream"
-servers = "${NATS_HOST}:4222"
-user = "semiont"
-password = "broker-pw"
-`
-
-// The broker the launcher runs has the pair the launcher generates and keeps;
-// a config naming one is a second place deciding it. That the pair reaches the
-// daemon and both clients is proven end to end
-// (TestLauncherRunBrokerIsAuthenticated).
-func TestConfigNamedPairIsRefusedForTheLauncherRunBroker(t *testing.T) {
-	_, err := planForBroker(t, brokerSignal, brokerJobs)
-	if err == nil || !strings.Contains(err.Error(), "the launcher generates") {
-		t.Fatalf("a config naming the launcher-run broker's pair was not refused: %v", err)
-	}
-}
-
-// With no pair configured, the launcher-run broker is authenticated all the
-// same: pointed at the authorization block, its pair added at launch.
 func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
-	plan, err := planForBroker(t,
-		"[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n",
-		"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n")
-	if err != nil {
-		t.Fatalf("derivePlan: %v", err)
-	}
-	rp := plan.Roles["messaging"]
+	rp := mustPlan(t, fixtureStack(t, "anthropic")).Roles["messaging"]
 	if !slices.Contains(rp.CmdExtra, "-c") || !slices.Contains(rp.CmdExtra, natsConfPath) {
 		t.Fatalf("CmdExtra = %v, want -c %s", rp.CmdExtra, natsConfPath)
 	}
 	if len(rp.Env) != 0 {
 		t.Fatalf("the plan carries a credential (%v); the pair is added at launch", rp.Env)
 	}
-}
 
-// For a broker somebody else runs, the config supplies the pair, and the two
-// sections naming one daemon must agree.
-func TestBrokerCredentialsMustAgreeAcrossSections(t *testing.T) {
-	external := func(section string) string {
-		return strings.Replace(strings.ReplaceAll(section, "${NATS_HOST}", "nats.example.com"), "type = ", "platform = \"external\"\ntype = ", 1)
-	}
-	brokerSignal, brokerJobs := external(brokerSignal), external(brokerJobs)
-	_, err := planForBroker(t, brokerSignal,
-		strings.Replace(brokerJobs, `password = "broker-pw"`, `password = "a-different-one"`, 1))
-	if err == nil {
-		t.Fatal("two sections naming different broker passwords was accepted")
-	}
-	if !strings.Contains(err.Error(), "one role is one daemon") {
-		t.Errorf("error does not explain why: %v", err)
-	}
-
-	if _, err := planForBroker(t, brokerSignal,
-		strings.Replace(brokerJobs, `user = "semiont"`, `user = "someone-else"`, 1)); err == nil {
-		t.Fatal("two sections naming different broker users was accepted")
+	st := fixtureStack(t, "anthropic")
+	asSomebodyElses(st, "messaging")
+	if extra := mustPlan(t, st).Roles["messaging"].CmdExtra; len(extra) != 0 {
+		t.Errorf("a broker somebody else runs is given %v", extra)
 	}
 }
 
-// Half a credential is a misconfiguration that would otherwise present as an
-// authorization failure at boot, with nothing naming the cause. The refusal
-// points at the section that holds the half.
-func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
-	const signal = "[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n"
-	const jobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n"
-	for section, c := range map[string]struct{ signal, jobs string }{
-		"signal": {signal + "user = \"semiont\"\n", jobs},
-		"jobs":   {signal, jobs + "user = \"semiont\"\n"},
-	} {
-		_, err := planForBroker(t, c.signal, c.jobs)
-		if err == nil {
-			t.Fatalf("%s: a user with no password was accepted", section)
-		}
-		for _, want := range []string{"[environments.local." + section + "]", "incomplete"} {
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("%s: the refusal does not name %s: %v", section, want, err)
-			}
-		}
-	}
-}
-
-// A broker somebody else runs, configured with no pair, would be used
-// unauthenticated: anyone who reaches it reads and writes the job queue and
-// the signal plane. Semiont's clients authenticate by username and password
-// only, so the pair is required.
-func TestAnExternalBrokerWithNoPairIsRefused(t *testing.T) {
-	_, err := planForBroker(t,
-		"[environments.local.signal]\nplatform = \"external\"\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
-		"[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n")
-	if err == nil {
-		t.Fatal("an external broker with no user or password was accepted")
-	}
-	for _, want := range []string{"[environments.local.jobs]", `"user"`, `"password"`} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the refusal does not name %s: %v", want, err)
-		}
-	}
-}
-
-// An issuer names its port by ${KEYCLOAK_PORT}, and the plan carries the
-// number this launch resolved — what Keycloak publishes on, what the port
-// check guards, and what the realm is reached at.
+// The plan carries the port this launch gives the Keycloak it runs — what
+// Keycloak publishes on, what the port check guards, and what the realm is
+// reached at.
 func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
-	p := variantConfig(t, map[string]string{"identity": `[environments.local.identity]
-type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont"
-subjectClaim = "sub"
-`})
-	env, envName, _, err := loadConfig(p)
-	if err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-	plan, err := derivePlan(env, envName, p, 8081)
+	plan, err := derivePlan(fixtureStack(t, "anthropic"), 8081)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -661,8 +388,8 @@ subjectClaim = "sub"
 	if rp.Presence != presenceLauncher || rp.Port != 8081 {
 		t.Errorf("identity = %s on %d, want launcher-run on 8081", rp.Presence, rp.Port)
 	}
-	if rp.Issuer != "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont" {
-		t.Errorf("issuer %q — the plan keeps the config's reference; services resolve it", rp.Issuer)
+	if rp.Issuer != "http://localhost:8081/realms/semiont" {
+		t.Errorf("issuer %q, want the realm on this launch's port", rp.Issuer)
 	}
 }
 
@@ -673,7 +400,7 @@ subjectClaim = "sub"
 // A role bound to somebody else's service claims nothing — this start binds
 // nothing for it.
 func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, nil))
+	plan := mustPlan(t, fixtureStack(t, "anthropic"))
 	checked := portNumbers(planPortChecks(plan, true))
 	for _, role := range startOrder {
 		if rp, planned := plan.Roles[role]; planned && rp.Presence != presenceLauncher {
@@ -687,26 +414,25 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 	}
 }
 
-// The worker is a role of the plan like any other the config decides: run by
-// the launcher when the environment binds a job to one, absent when it binds
-// none. An actor's binding binds no job.
+// The worker is a role of the plan like any other the documents decide: run
+// by the launcher when the roster binds a job to one, from the image and with
+// the memory the WorkerPool states; absent when it binds none. An actor's
+// binding binds no job.
 func TestPlanRunsAWorkerOnlyWhenAJobIsBound(t *testing.T) {
-	const provider = `[environments.local.inference.anthropic]
-platform = "external"
-endpoint = "https://api.anthropic.com"
-apiKey = "${ANTHROPIC_API_KEY}"
-`
+	claude := &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
 	for _, c := range []struct {
-		why       string
-		inference string
-		want      presence
+		why  string
+		bind func(r *semiont.ArchivistRoster)
+		want presence
 	}{
-		{"workers.default binds every job", provider + "\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceLauncher},
-		{"one job is bound", provider + "\n[environments.local.workers.yield.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceLauncher},
-		{"only an actor is bound", provider + "\n[environments.local.actors.gatherer.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceAbsent},
-		{"nothing is bound", "", presenceAbsent},
+		{"every job is bound", func(r *semiont.ArchivistRoster) {}, presenceLauncher},
+		{"one job is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{}; r.Workers.Yield = claude }, presenceLauncher},
+		{"only an actor is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{}; r.Actors.Gatherer = claude }, presenceAbsent},
+		{"nothing is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{} }, presenceAbsent},
 	} {
-		plan := mustDerive(t, variantConfig(t, map[string]string{"inference": c.inference}))
+		st := fixtureStack(t, "anthropic")
+		c.bind(&st.Inference.Spec.Roster)
+		plan := mustPlan(t, st)
 		worker, planned := plan.Roles["worker"]
 		if !planned {
 			t.Fatalf("%s: the plan carries no worker", c.why)
@@ -717,26 +443,36 @@ apiKey = "${ANTHROPIC_API_KEY}"
 		if _, ours := lookupDescriptor(worker.Role, worker.Driver); !ours {
 			t.Errorf("%s: the worker's row names (%q, %q), which is no descriptor", c.why, worker.Role, worker.Driver)
 		}
+		_, imaged := plan.Images["worker"]
+		_, sized := plan.Memory["worker"]
+		if run := c.want == presenceLauncher; imaged != run || sized != run {
+			t.Errorf("%s: the plan gives the worker an image (%v) and memory (%v), and runs it: %v", c.why, imaged, sized, run)
+		}
 	}
 }
 
-// A binding the roster refuses is still a binding: the worker is wanted, and
-// the fault is refused where its document is written.
-func TestPlanRunsTheWorkerOfAMalformedBinding(t *testing.T) {
-	env := envFrom(t, "[defaults]\nenvironment = \"local\"\n\n[environments.local.workers.yield.inference]\ntype = \"mistral\"\nmodel = \"m\"\n")
-	if _, err := workerRoles(env); err == nil {
-		t.Fatal("the fixture's binding is not refused: this test would prove nothing")
-	}
-	if got := workerPlan(env).Presence; got != presenceLauncher {
-		t.Errorf("the worker of a malformed binding is %s, want launcher-run: its document refuses the binding by name", got)
+// A knowledge base with no workers.yaml runs no worker, so a roster that binds
+// a job to one is refused, naming both documents.
+func TestPlanRefusesAJobBoundToAWorkerTheKnowledgeBaseHasNot(t *testing.T) {
+	st := fixtureStack(t, "anthropic")
+	st.Workers = nil
+	mustRefuse(t, st, st.Files.Inference+": spec.roster.workers", st.Files.Workers)
+
+	st = fixtureStack(t, "anthropic")
+	st.Workers = nil
+	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
+	if got := mustPlan(t, st).Roles["worker"].Presence; got != presenceAbsent {
+		t.Errorf("a roster binding no job, with no workers.yaml, plans the worker %s", got)
 	}
 }
 
 // A stack without a worker claims everything a stack with one does but the
 // worker's port, in the same order.
 func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
-	bound := mustDerive(t, variantConfig(t, nil))
-	unbound := mustDerive(t, variantConfig(t, map[string]string{"inference": ""}))
+	bound := mustPlan(t, fixtureStack(t, "anthropic"))
+	st := fixtureStack(t, "anthropic")
+	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
+	unbound := mustPlan(t, st)
 	var want []int
 	for _, port := range portNumbers(planPortChecks(bound, true)) {
 		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
@@ -755,7 +491,7 @@ func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 // `start --service worker` claims the worker's own port: the launcher's fiat,
 // which the descriptor carries and the plan does not.
 func TestServicePortNeedsOfTheWorkerAreItsDescriptors(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, nil))
+	plan := mustPlan(t, fixtureStack(t, "anthropic"))
 	got := servicePortNeeds("worker", plan, startOptions{})
 	if want := stackPortNeeds("worker"); !slices.Equal(got, want) {
 		t.Errorf("--service worker claims %v, want %v", got, want)
@@ -766,8 +502,8 @@ func TestServicePortNeedsOfTheWorkerAreItsDescriptors(t *testing.T) {
 // so every stack-level claim such a stop can know must be in it: one it
 // misses is a survivor nobody reports, and the next start fails on it.
 func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
-	// The config sets these roles' ports and may bind them to somebody
-	// else's service, and a stop with no record reads no config.
+	// The documents set these roles' ports and may bind them to somebody
+	// else's service, and a stop with no record reads no document.
 	configOwned := []string{"gateway", "graph", "vectors", "database", "identity"}
 	for _, role := range startOrder {
 		if slices.Contains(configOwned, role) {
@@ -779,4 +515,60 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Each document says where its own Ollama is: the KnowledgeIndex's
+// embedding.endpoint the embedding's, the Inference document's
+// providers.ollama.baseURL inference's. The two share the machine's Ollama only
+// when neither states one, and the plan, the worker's document, the dry run's
+// placed lines and the models the machine's Ollama pulls agree on where each is.
+func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
+	somewhere := "http://ollama.example.org:11500"
+	ollama := semiont.ArchivistRosterRoleProviderOllama
+
+	t.Run("the embedding's is somebody else's", func(t *testing.T) {
+		st := fixtureStack(t, "ollama-gemma")
+		st.KnowledgeIndex.Spec.Embedding.Endpoint = &somewhere
+		p := placed(t, st)
+		if rp := p.plan.Roles["inference"]; rp.Presence != presenceHostPreferred || rp.Address != "" {
+			t.Errorf("inference is not on the machine's Ollama: %+v", rp)
+		}
+		if rp := p.plan.Roles["embedding"]; rp.Presence != presenceExternal || rp.Address != "ollama.example.org" || rp.Port != 11500 || rp.SharesOllamaWith != "" {
+			t.Errorf("the embedding is not somebody else's at its endpoint: %+v", rp)
+		}
+		if at, err := providerAddress(p, ollama, "the worker"); err != nil || at != p.ollama(nil) {
+			t.Errorf("the worker reaches its models at %q (%v), and the plan runs them on the machine's Ollama, %s", at, err, p.ollama(nil))
+		}
+		lines := p.placedLines()
+		if !slices.Contains(lines, "inference: "+p.ollama(nil)) || slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "embedding:") }) {
+			t.Errorf("the placed lines are %q", lines)
+		}
+		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"gemma4:26b", "gemma4:e2b"}) {
+			t.Errorf("the machine's Ollama pulls %v: the roster's models, and not the embedding's, which somebody else's Ollama serves", got)
+		}
+	})
+
+	t.Run("inference's is somebody else's", func(t *testing.T) {
+		st := fixtureStack(t, "ollama-gemma")
+		provider := st.Inference.Spec.Providers[ollama]
+		provider.BaseURL = &somewhere
+		st.Inference.Spec.Providers[ollama] = provider
+		p := placed(t, st)
+		if rp := p.plan.Roles["inference"]; rp.Presence != presenceExternal || rp.Address != "ollama.example.org" || rp.Port != 11500 {
+			t.Errorf("inference is not somebody else's at its baseURL: %+v", rp)
+		}
+		if rp := p.plan.Roles["embedding"]; rp.Presence != presenceHostPreferred || rp.SharesOllamaWith != "" || rp.Image == "" {
+			t.Errorf("the embedding does not run the machine's Ollama itself: %+v", rp)
+		}
+		if at, err := providerAddress(p, ollama, "the worker"); err != nil || at != somewhere {
+			t.Errorf("the worker reaches its models at %q (%v), not at the stated %s", at, err, somewhere)
+		}
+		lines := p.placedLines()
+		if !slices.Contains(lines, "embedding: "+p.ollama(nil)) || slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "inference:") }) {
+			t.Errorf("the placed lines are %q", lines)
+		}
+		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"nomic-embed-text"}) {
+			t.Errorf("the machine's Ollama pulls %v: the embedding's model, and none of the roster's, which somebody else's Ollama serves", got)
+		}
+	})
 }

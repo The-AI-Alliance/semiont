@@ -76,7 +76,7 @@ async fn person(
 ) -> Result<Principal, String> {
     let claims = issuer.verify(token).await?;
     let subject = claims.get(subject_claim).and_then(Value::as_str).filter(|s| !s.is_empty()).ok_or_else(|| {
-        format!("Token carries no \"{subject_claim}\" claim — the claim this knowledge base names its people by ([identity] subjectClaim)")
+        format!("Token carries no \"{subject_claim}\" claim — the claim this knowledge base names its people by (identity.subjectClaim)")
     })?;
     let email = claims
         .get("email")

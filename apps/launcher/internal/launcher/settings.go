@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // setting: one setting `semiont settings` lists.
@@ -23,17 +25,17 @@ type setting struct {
 	flag  string
 	scope string
 	// show: the value in effect and where it came from, one line per value.
-	show func(u *UI, root string) []settingLine
+	show func(u *UI, kb kbRoot) []settingLine
 	// saves: where the setting is kept — the census's denominator
 	// (TestEverySavedPreferenceIsASetting).
 	saves []string
 	// set records a value, validated as a start would validate it, so a
 	// value a start would refuse is never recorded. unset returns the
 	// setting to its default.
-	set   func(u *UI, root, value string) bool
-	unset func(u *UI, root string) bool
+	set   func(u *UI, kb kbRoot, value string) bool
+	unset func(u *UI, kb kbRoot) bool
 	// detail: printed beneath the setting when it is shown alone.
-	detail func(u *UI, root string)
+	detail func(u *UI, kb kbRoot)
 }
 
 type settingLine struct{ value, source string }
@@ -59,6 +61,8 @@ const (
 var settingsTable = []setting{
 	{name: "runtime", scope: scopeMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
 		set: setRuntime, unset: unsetRuntime},
+	{name: "browser-image", scope: scopeMachine, show: showBrowserImage, saves: []string{"rootsRegistry.BrowserImage"},
+		set: setBrowserImage, unset: unsetBrowserImage},
 	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"}},
 	{name: "secret-store", flag: "--default", scope: scopeMachine, show: showDefaultSecretStore,
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
@@ -94,16 +98,18 @@ Settings:
                                    container, docker or podman
   secret          machine          Where your own secrets come from (pointers,
                                    never values): semiont settings secret --help
-  config          knowledge base   Which config in .semiont/semiontconfig/ a
-                                   start runs
+  browser-image   machine          The image the machine's Browser runs
+  config          knowledge base   Which Inference document in
+                                   .semiont/stack/inference/ a start runs
   keycloak-port   knowledge base   The port of this knowledge base's Keycloak
   secret-store    knowledge base   Where the values the launcher generates for
                                    the knowledge base are kept: op://<vault>,
                                    one 1Password item per knowledge base, or
-                                   file, the default:
-                                   plain files, not secure: for development only. Setting it moves every
-                                   kept value, and refuses a store that already
-                                   holds this knowledge base's values.
+                                   file, the default, which is plain files,
+                                   not secure: for development only. Setting
+                                   it moves every kept value, and refuses a
+                                   store that already holds this knowledge
+                                   base's values.
   secret-store --default
                   machine          The store a new knowledge base adopts at its
                                    first start: one with no setting and nothing
@@ -163,18 +169,20 @@ func Settings(args []string) int {
 	}
 
 	root := ""
+	var ident *kbIdentity
 	var rootErr error
 	if rootArg != "" {
-		root, rootErr = resolveRootArg(rootArg)
+		root, ident, rootErr = resolveRootArg(rootArg)
 	} else {
-		root, _, rootErr = resolveKBRoot()
+		root, _, ident, rootErr = resolveKBRoot()
 	}
 	if rootErr != nil && (rootArg != "" || projectFileRefused(rootErr)) {
 		u.Fail("%v", rootErr)
 		return 1
 	}
+	kb := kbRoot{dir: root, ident: ident}
 	if value != "" || unset {
-		return changeSetting(u, rows[0], root, rootErr, value, unset)
+		return changeSetting(u, rows[0], kb, rootErr, value, unset)
 	}
 
 	for _, scope := range []string{scopeMachine, scopeKB} {
@@ -198,18 +206,18 @@ func Settings(args []string) int {
 			fmt.Printf("%s %s\n", u.Bold("This knowledge base"), u.Dim(root))
 		}
 		for _, s := range inScope {
-			for _, l := range s.show(u, root) {
+			for _, l := range s.show(u, kb) {
 				fmt.Print(settingRowText(u, strings.TrimSpace(s.name+" "+s.flag), l))
 			}
 			if name != "" && s.detail != nil {
-				s.detail(u, root)
+				s.detail(u, kb)
 			}
 		}
 	}
 	return 0
 }
 
-func showRuntime(u *UI, root string) []settingLine {
+func showRuntime(u *UI, kb kbRoot) []settingLine {
 	if rec := loadRoots().Runtime; rec != "" {
 		if !onPath(rec) {
 			return []settingLine{{rec, "recorded, but not on PATH: a start auto-detects"}}
@@ -222,7 +230,7 @@ func showRuntime(u *UI, root string) []settingLine {
 	return []settingLine{{"auto-detect", "the default; no runtime is on PATH"}}
 }
 
-func showSecretSources(u *UI, root string) []settingLine {
+func showSecretSources(u *UI, kb kbRoot) []settingLine {
 	sources := loadRoots().Secrets
 	if len(sources) == 0 {
 		return []settingLine{{"none registered", "semiont settings secret set <VAR>"}}
@@ -239,15 +247,15 @@ func showSecretSources(u *UI, root string) []settingLine {
 	return out
 }
 
-func showConfig(u *UI, root string) []settingLine {
-	if rec := recordedConfig(root); rec != "" {
+func showConfig(u *UI, kb kbRoot) []settingLine {
+	if rec := recordedConfig(kb.dir); rec != "" {
 		return []settingLine{{rec, "recorded by init, a start with --config, or semiont settings"}}
 	}
 	return []settingLine{{defaultConfigName, "the default"}}
 }
 
-func showKeycloakPort(u *UI, root string) []settingLine {
-	port, source, fromEnv, ok := keycloakPort(u, root)
+func showKeycloakPort(u *UI, kb kbRoot) []settingLine {
+	port, source, fromEnv, ok := keycloakPort(u, kb.dir)
 	switch {
 	case !ok:
 		return []settingLine{{os.Getenv("KEYCLOAK_PORT"), "KEYCLOAK_PORT in the environment is not a port"}}
@@ -259,8 +267,8 @@ func showKeycloakPort(u *UI, root string) []settingLine {
 	return []settingLine{{strconv.Itoa(port), "recorded by a start with KEYCLOAK_PORT, or semiont settings"}}
 }
 
-func showSecretStoreSetting(u *UI, root string) []settingLine {
-	key := rootKey(root)
+func showSecretStoreSetting(u *UI, kb kbRoot) []settingLine {
+	key := kb.key()
 	ref, configured, err := storeSettingFor(key)
 	switch {
 	case err != nil:
@@ -275,7 +283,7 @@ func showSecretStoreSetting(u *UI, root string) []settingLine {
 	return []settingLine{{custodyStoreNamed(key, ref, false).describe(), source}}
 }
 
-func showDefaultSecretStore(u *UI, root string) []settingLine {
+func showDefaultSecretStore(u *UI, kb kbRoot) []settingLine {
 	def, set, err := defaultStoreSetting()
 	switch {
 	case err != nil:
@@ -287,7 +295,7 @@ func showDefaultSecretStore(u *UI, root string) []settingLine {
 }
 
 // changeSetting sets or unsets one setting.
-func changeSetting(u *UI, s setting, root string, rootErr error, value string, unset bool) int {
+func changeSetting(u *UI, s setting, kb kbRoot, rootErr error, value string, unset bool) int {
 	switch {
 	case value != "" && unset:
 		u.Fail("Give %s a value or --unset, not both.", s.name)
@@ -301,14 +309,14 @@ func changeSetting(u *UI, s setting, root string, rootErr error, value string, u
 	}
 	ok := false
 	if unset {
-		ok = s.unset(u, root)
+		ok = s.unset(u, kb)
 	} else {
-		ok = s.set(u, root, value)
+		ok = s.set(u, kb, value)
 	}
 	if !ok {
 		return 1
 	}
-	for _, l := range s.show(u, root) {
+	for _, l := range s.show(u, kb) {
 		u.Ok("%s: %s %s", s.name, l.value, u.Dim("("+l.source+")"))
 	}
 	return 0
@@ -332,71 +340,96 @@ func setRuntimePref(rt string) error {
 	return writeRoots(reg)
 }
 
-func setRuntime(u *UI, root, value string) bool {
+func setRuntime(u *UI, kb kbRoot, value string) bool {
 	if _, ok := SelectRuntime(u, value); !ok {
 		return false
 	}
 	return recorded(u, setRuntimePref(value))
 }
 
-func unsetRuntime(u *UI, root string) bool { return recorded(u, setRuntimePref("")) }
+func unsetRuntime(u *UI, kb kbRoot) bool { return recorded(u, setRuntimePref("")) }
 
-// loadRootConfig loads one of root's configs, refusing as a start would.
-func loadRootConfig(u *UI, root, name string) (*envConfig, bool) {
-	path := filepath.Join(root, configDir, name+".toml")
-	if _, err := os.Stat(path); err != nil {
-		u.Fail("Config not found: %s", path)
+// loadRootStack loads root's documents with its Inference document named
+// name, refusing as a start would.
+func loadRootStack(u *UI, root, name string) (*stack.Stack, bool) {
+	if _, err := os.Stat(filepath.Join(root, stack.InferencePath(name))); err != nil {
+		u.Fail("Config not found: %s", stack.InferencePath(name))
 		return nil, false
 	}
-	env, envName, _, err := loadConfig(path)
+	st, err := stack.Load(root, name)
 	if err == nil {
-		_, err = derivePlan(env, envName, path, descriptorFor("identity", "keycloak").defaultPort)
+		_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort)
 	}
 	if err != nil {
 		u.Fail("%v", err)
 		return nil, false
 	}
-	return env, true
+	return st, true
 }
 
-func setConfig(u *UI, root, value string) bool {
-	if _, ok := loadRootConfig(u, root, value); !ok {
+func setConfig(u *UI, kb kbRoot, value string) bool {
+	if _, ok := loadRootStack(u, kb.dir, value); !ok {
 		return false
 	}
-	return recorded(u, updateRootEntry(root, func(e *rootEntry) { e.Config = value }))
+	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.Config = value }))
 }
 
-func unsetConfig(u *UI, root string) bool {
-	return recorded(u, updateRootEntry(root, func(e *rootEntry) { e.Config = "" }))
+func showBrowserImage(u *UI, kb kbRoot) []settingLine {
+	if img := loadRoots().BrowserImage; img != "" {
+		return []settingLine{{img, "recorded by semiont settings"}}
+	}
+	return []settingLine{{browserImage(), "the launcher's own; set one to run another, a :local build for one"}}
 }
 
-func setKeycloakPort(u *UI, root, value string) bool {
+func setBrowserImage(u *UI, kb kbRoot, value string) bool {
+	if !strings.Contains(value, ":") {
+		u.Fail("%q names no tag: write the image as <name>:<tag>, such as %s.", value, semiontImage("browser", "local"))
+		return false
+	}
+	return recorded(u, setBrowserImagePref(value))
+}
+
+func unsetBrowserImage(u *UI, kb kbRoot) bool { return recorded(u, setBrowserImagePref("")) }
+
+func setBrowserImagePref(img string) error {
+	reg, err := readRoots()
+	if err != nil {
+		return err
+	}
+	reg.BrowserImage = img
+	return writeRoots(reg)
+}
+
+func unsetConfig(u *UI, kb kbRoot) bool {
+	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.Config = "" }))
+}
+
+func setKeycloakPort(u *UI, kb kbRoot, value string) bool {
 	port, err := strconv.Atoi(value)
 	if err != nil || port < 1 || port > 65535 {
 		u.Fail("%q is not a port (1-65535).", value)
 		return false
 	}
-	// The start's own rule: a port the config does not read changes nothing,
-	// and an ineffective setting is neither silent nor remembered.
-	name := configForRealm(root)
+	// The start's own rule: a port no Keycloak the launcher runs takes changes
+	// nothing, and an ineffective setting is neither silent nor remembered.
+	name := configForRealm(kb.dir)
 	if name == "" {
 		name = defaultConfigName
 	}
-	env, ok := loadRootConfig(u, root, name)
+	st, ok := loadRootStack(u, kb.dir, name)
 	if !ok {
 		return false
 	}
-	if !strings.Contains(env.Identity.Issuer, "${KEYCLOAK_PORT}") {
-		u.Fail("Config '%s' names its port literally in its [identity] issuer, so a port setting would change nothing.", name)
-		fmt.Fprintln(os.Stderr, "  Write ${KEYCLOAK_PORT} there to let it move.")
+	if st.Issuer == nil {
+		u.Fail("%s trusts an issuer somebody else runs (spec.issuer.external), so a port setting would change nothing.", st.Files.KnowledgeBase)
 		return false
 	}
 	if os.Getenv("KEYCLOAK_PORT") != "" {
 		u.Warn("KEYCLOAK_PORT is set in this environment, and wins over the setting while it is.")
 	}
-	return recorded(u, updateRootEntry(root, func(e *rootEntry) { e.KeycloakPort = port }))
+	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.KeycloakPort = port }))
 }
 
-func unsetKeycloakPort(u *UI, root string) bool {
-	return recorded(u, updateRootEntry(root, func(e *rootEntry) { e.KeycloakPort = 0 }))
+func unsetKeycloakPort(u *UI, kb kbRoot) bool {
+	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.KeycloakPort = 0 }))
 }

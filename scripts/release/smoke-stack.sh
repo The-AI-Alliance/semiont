@@ -9,7 +9,8 @@
 # built from this checkout, apps/launcher/dist/semiont (scripts/ci/local-build.sh
 # builds it beside the :local images), never whatever `semiont` is on PATH,
 # which is usually a release; the script refuses when the binary is missing or
-# older than the source it builds from. The IMAGES are the tag given here. So a
+# older than the source it builds from. The IMAGES are the tag given here,
+# written into the stack's documents init made. So a
 # launcher change is testable against the images people actually run,
 # publishing nothing.
 #
@@ -21,16 +22,18 @@
 # the product through a browser.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
-# did:web domain, then `start` with no --config, so init's defaults and the
-# config a new KB records are what boot. A new KB that could not start is the
-# defect this check found on its first run.
+# did:web domain, then `start` with no --config, so the documents init writes
+# and the Inference document it records are what boot. A new KB that could not
+# start is the defect this check found on its first run.
 #
 # THE RUN LEAVES NOTHING BEHIND. The launcher keeps a KB's daemon state and
 # secrets under a key derived from its domain, and the domain here is the same
 # on every run, so a run's state is the next run's unless it goes. A run cleans
 # that state before it boots (whatever an interrupted run left) and on exit
-# stops the stack, cleans the state, forgets the KB in the launcher's registry,
-# and removes the KB directory it made (never one SMOKE_KB names).
+# stops the stack, unsets the browser-image setting (a setting of the
+# machine's own is not restored: a local run leaves the catalog's Browser),
+# cleans the state, forgets the KB in the launcher's registry, and removes the
+# KB directory it made (never one SMOKE_KB names).
 #
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
@@ -69,13 +72,10 @@ ok()    { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
 bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-# Selects the image tag. Without it the launcher takes `latest`, which is the
-# right default and the wrong thing to assume when the point is to name a set.
-export SEMIONT_VERSION="$IMAGES"
-
 cleanup() {
   cd / || return
   "$SEMIONT" stop --runtime "$RUNTIME" >/dev/null 2>&1
+  "$SEMIONT" settings browser-image --unset >/dev/null 2>&1
   "$SEMIONT" clean --root "$KB" >/dev/null 2>&1
   "$SEMIONT" forget "$KB" >/dev/null 2>&1
   [ -z "${SMOKE_KB:-}" ] && rm -rf "$(dirname "$KB")"
@@ -96,6 +96,23 @@ if "$SEMIONT" clean --root "$KB" >/dev/null; then
   ok "no state from an earlier run remains"
 else
   bad "clean refused the state an earlier run left"; exit 1
+fi
+# The images are the documents' to name: init names :latest, and the run names
+# the set it was given, as a person choosing a release would. The Browser is
+# the machine's, so its image is the machine's browser-image setting, unset
+# again on exit.
+for doc in "$KB"/.semiont/stack/*.yaml; do
+  sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$IMAGES#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
+done
+if [ "$IMAGES" = latest ] || ! grep -q 'ghcr.io/the-ai-alliance/semiont-[a-z]*:latest' "$KB"/.semiont/stack/*.yaml; then
+  ok "the documents name the :$IMAGES images"
+else
+  bad "a document still names a :latest image"; exit 1
+fi
+if "$SEMIONT" settings browser-image "ghcr.io/the-ai-alliance/semiont-browser:$IMAGES" >/dev/null; then
+  ok "the Browser runs :$IMAGES"
+else
+  bad "the browser-image setting refused :$IMAGES"; exit 1
 fi
 
 head_ "Boot from :$IMAGES on $RUNTIME"

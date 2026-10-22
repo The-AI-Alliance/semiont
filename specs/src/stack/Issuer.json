@@ -44,8 +44,8 @@
             },
             "name": {
               "type": "string",
-              "minLength": 1,
-              "description": "The database's name."
+              "pattern": "^[a-z_][a-z0-9_]{0,62}$",
+              "description": "The database the issuer keeps its realm in: a lowercase PostgreSQL identifier, as PostgreSQL itself names an unquoted one. On a PostgreSQL the launcher runs, the launcher creates it; on one somebody else runs (`external`), it must already exist there."
             },
             "user": {
               "type": "string",
