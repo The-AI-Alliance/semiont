@@ -1,0 +1,61 @@
+{
+  "title": "WorkerPool",
+  "type": "object",
+  "description": "The workers that do a knowledge base's jobs. A worker needs only the Gateway, and an issuer's token with the worker's role; it can run anywhere, as many as are wanted.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "WorkerPool"
+    },
+    "metadata": {
+      "$ref": "./Metadata.json"
+    },
+    "spec": {
+      "type": "object",
+      "description": "The workers, and the knowledge base whose jobs they do.",
+      "properties": {
+        "knowledgeBase": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "description": "The name of the KnowledgeBase document whose jobs the workers do."
+        },
+        "logLevel": {
+          "$ref": "../components/schemas/LogLevel.json"
+        },
+        "worker": {
+          "type": "object",
+          "description": "The Worker.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            }
+          },
+          "required": [
+            "image",
+            "resources"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "knowledgeBase",
+        "logLevel",
+        "worker"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

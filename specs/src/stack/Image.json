@@ -1,0 +1,6 @@
+{
+  "title": "Image",
+  "type": "string",
+  "minLength": 1,
+  "description": "The container image a service runs, as a registry names it: `ghcr.io/the-ai-alliance/semiont-gateway:latest`."
+}

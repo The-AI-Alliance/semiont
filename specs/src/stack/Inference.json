@@ -1,0 +1,50 @@
+{
+  "title": "Inference",
+  "type": "object",
+  "description": "The models a machine uses for a knowledge base: the providers it reaches, and which provider and model serve each role. A knowledge base's repository may carry several, one for each provider, and a machine chooses one.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Inference"
+    },
+    "metadata": {
+      "$ref": "./Metadata.json"
+    },
+    "spec": {
+      "type": "object",
+      "description": "The providers, and who serves each role.",
+      "properties": {
+        "providers": {
+          "type": "object",
+          "description": "Each provider a role names, and how it is reached.",
+          "propertyNames": {
+            "$ref": "../components/schemas/ArchivistRosterRole.json#/properties/provider"
+          },
+          "additionalProperties": {
+            "$ref": "./Provider.json"
+          },
+          "minProperties": 1
+        },
+        "roster": {
+          "$ref": "../components/schemas/ArchivistRoster.json",
+          "description": "The provider and model serving each role: every job a worker does, and each Librarian actor that asks a model."
+        }
+      },
+      "required": [
+        "providers",
+        "roster"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}
