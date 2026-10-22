@@ -21,7 +21,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | gateway | N | Behind a load balancer, once the signal plane is broker-backed (`[signal] type = "nats"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [More than one gateway](./DEPLOYMENT.md#more-than-one-gateway). |
 | worker | N | Workers claim jobs from the dispatcher over the bus; a claim is granted once — atomic in the queue, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete, and only a token carrying the worker role may claim. The worker is the one service built to run off-host: no mount, no broker credential, only network addresses — the gateway's bus, the Archivist's byte surface, an inference provider — so a pool can live on a GPU box the rest of the stack never shares, and a worker that is not yours joins by having its client granted the worker role at the issuer. |
 | archivist | 1 | The single writer of the git-backed record, which is the system of record. This is a design invariant, not a capacity limit. |
-| weaver | 1 | Owns the graph projection: checkpointed catch-up from the record at boot, then live tailing. Derived state — rebuildable, never authoritative. |
+| weaver | 1 | Owns the graph projection: follows the record, a cursor for each resource's log and a sweep of the record at boot and on each reopened stream. Derived state — rebuildable, never authoritative. |
 | smelter | 1 | Owns the vector and anchored-text projections, same shape as the weaver. |
 | librarian | 1 | A reader over the indices the projectors maintain; it owns no store. |
 | dispatcher | 1 | Owns the job queue and answers `job:*`. It subscribes to the bus as a fan-out client, so a second would also receive every `job:create` and create a second job record; the launcher runs one. |
@@ -55,11 +55,12 @@ the projections.
   gathers ask is the bottleneck — give it more resources. The librarian reports no time of
   its own for a search or a gather.
 - `semiont.gather.degraded` rising with `projection` `graph` or `vectors`: the weaver or the
-  smelter is not keeping up with the record. The smelter's `/health` says how far behind it
-  is: `eventsWaiting` is what it has been delivered and not yet applied, `eventsFailed` what
-  it could not apply, and `streamDrops` how many times its stream dropped, after each of which
-  it reconciles again to find what it was not sent. The weaver's says how its repair at
-  start ended and how many events it could not apply, and not how many it has waiting.
+  smelter is not keeping up with the record. The smelter's `/health` says how it follows the
+  record, under `following`: whether its sweep is done, how many resources' logs a failing
+  event has stopped until the next sweep, and `streamDrops`, how many times its stream
+  dropped, after each of which it sweeps the record for what it was not sent. The weaver's says
+  the same under `following`, and how its reconcile ended; neither says how many events it has
+  waiting.
 
 ## What adding replicas does not fix
 

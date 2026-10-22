@@ -31,7 +31,7 @@ from semiont.transport import ConnectionState, Frame
 from semiont.types import ExtractedText, ExtractionDeclined, SmeltSettledReason
 from semiont_service.content import Content
 from semiont_vectors.mock import deterministic_vector
-from semiont_vectors.store import AnnotationStamp, Declined, EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, Declined, EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
 from semiont_smelter.chunking import Chunking, chunk_text
@@ -373,8 +373,7 @@ def test_an_event_that_gives_a_resource_new_bytes_indexes_it_again(kind: str, tm
 def test_nothing_in_an_events_payload_changes_what_is_indexed(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
-            rig.world.put("res-1", TEXT)
-            rig.world.tag("res-1", "Person")
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.tag("res-1", "Person"))
             updated = rig.world.put("res-1", LATER)
             # The event states another checksum, another type and other entity types than the record holds.
             types: list[JsonValue] = ["Nobody"]
@@ -386,7 +385,7 @@ def test_nothing_in_an_events_payload_changes_what_is_indexed(tmp_path: Path) ->
             held = await rig.held()
             assert held.stamps == {"res-1": stamp(LATER, "Person")}
             assert held.chunks == {"res-1": (LATER.decode(),)}
-            assert signals(rig) == [indexed("res-1", LATER)]
+            assert signals(rig) == [indexed("res-1", TEXT), indexed("res-1", LATER)]
 
     run(scenario())
 
@@ -611,7 +610,7 @@ def test_mark_removed_takes_the_annotations_point_out_and_removing_one_that_is_n
             assert left.annotations == {"ann-2": AnnotationPoint("res-1", "the first program", (), False)}
 
             # Its point is gone, and it is removed again: an event the Smelter applies, and one that changes nothing.
-            await rig.happened(removed)
+            await rig.happened(rig.world.unannotate("res-1", "ann-1"))
 
             assert await rig.held() == left
             assert applied(rig) == 5
@@ -644,16 +643,18 @@ def test_a_tag_added_or_removed_rewrites_the_entity_types_on_the_points_and_asks
 def test_a_tag_on_a_resource_with_no_points_leaves_it_with_none(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
-            # The Smelter missed the resource's making, and has no points of it.
-            rig.world.put("res-1", TEXT)
+            # Its bytes could not be read when it was made: nothing was decided of it, and it has no points.
+            rig.world.unread.add("res-1")
+            await rig.happened(rig.world.put("res-1", TEXT))
 
             await rig.happened(rig.world.tag("res-1", "Person"))
 
             assert await rig.index.count() == 0
             assert rig.provider.asked == []
-            assert applied(rig) == 1
+            assert applied(rig) == 2
 
             # Its entity types are written when it is next indexed.
+            rig.world.unread.discard("res-1")
             await rig.happened(rig.world.put("res-1", LATER))
 
             assert (await rig.held()).stamps == {"res-1": stamp(LATER, "Person")}
@@ -862,16 +863,16 @@ def test_an_annotation_takes_the_mark_of_pixels_from_its_resources_points_and_wo
         document, reads = scanned(7, "Ada", "Lovelace", "wrote", "it")
         async with Rig(tmp_path, pdfs={SCAN: document}, reads=reads) as rig:
             await rig.happened(rig.world.put("scan-1", SCAN, "application/pdf"), rig.world.annotate("scan-1", "ann-1", "Ada Lovelace"))
-            # The same scan under another name, which the Smelter has made no points of: there is no mark to read.
-            rig.world.put("scan-2", SCAN, "application/pdf")
-            await rig.happened(rig.world.annotate("scan-2", "ann-2", "Ada Lovelace"))
+            # The same scan under another name, whose bytes could not be read: it has no points, and there is no mark to read.
+            rig.world.unread.add("scan-2")
+            await rig.happened(rig.world.put("scan-2", SCAN, "application/pdf"), rig.world.annotate("scan-2", "ann-2", "Ada Lovelace"))
 
             assert (await rig.held()).annotations == {
                 "ann-1": AnnotationPoint("scan-1", "Ada Lovelace", (), True),
                 "ann-2": AnnotationPoint("scan-2", "Ada Lovelace", (), False),
             }
-            # The bytes were read once, for the resource that was indexed, and for neither annotation.
-            assert rig.world.read_of == ["scan-1"]
+            # The bytes were asked for once for each resource, and for neither annotation, and opened once.
+            assert rig.world.read_of == ["scan-1", "scan-2"]
             assert rig.reader.opened == [SCAN]
 
     run(scenario())
@@ -1069,7 +1070,9 @@ def test_an_event_delivered_twice_in_a_row_changes_nothing_the_second_time(tmp_p
     run(scenario())
 
 
-def test_an_event_that_fails_is_logged_and_passed_by_and_the_next_is_applied(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_an_event_that_fails_stops_its_resources_record_until_the_next_sweep_and_holds_up_no_other(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             await rig.happened(rig.world.put("res-2", TEXT))
@@ -1081,12 +1084,21 @@ def test_an_event_that_fails_is_logged_and_passed_by_and_the_next_is_applied(tmp
             assert (await rig.held()).stamps == {"res-2": stamp(TEXT, "Person")}
             assert signals(rig) == [indexed("res-2", TEXT)]
             assert applied(rig) == 2
+            assert rig.smelter.following["stopped"] == 1
 
+            # The resource's next event waits where its record stopped, though the provider answers again.
             rig.provider.failing = False
             await rig.happened(rig.world.put("res-1", LATER))
 
+            assert (await rig.held()).stamps == {"res-2": stamp(TEXT, "Person")}
+            assert applied(rig) == 2
+
+            # The next sweep takes the resource's record on from where it stopped: both its events, in order.
+            await rig.reopened()
+
             assert (await rig.held()).stamps == {"res-2": stamp(TEXT, "Person"), "res-1": stamp(LATER)}
-            assert applied(rig) == 3
+            assert applied(rig) == 4
+            assert rig.smelter.following["stopped"] == 0
 
     with caplog.at_level(logging.ERROR, logger="semiont_smelter"):
         run(scenario())
@@ -1098,12 +1110,12 @@ def test_an_event_that_fails_is_logged_and_passed_by_and_the_next_is_applied(tmp
 
 def test_planned_work_takes_its_turn_among_a_resources_events_and_puts_back_nothing_a_later_event_changed(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with Rig(tmp_path) as rig:
-            # A resource the Smelter missed the making of, which its start plans to index.
-            rig.world.put("res-1", TEXT)
-            let_go = asyncio.Event()
-            rig.provider.held = let_go
-            reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+        rig = Rig(tmp_path)
+        # A resource the record holds and no cursor names: the Smelter's start is a reconcile, which plans to index it.
+        rig.world.put("res-1", TEXT)
+        let_go = asyncio.Event()
+        rig.provider.held = let_go
+        async with rig:
             await until(lambda: len(rig.provider.asked) == 1)
 
             # The planned work is in the provider's hands with the bytes it read. New bytes are recorded, and their event arrives.
@@ -1112,8 +1124,7 @@ def test_planned_work_takes_its_turn_among_a_resources_events_and_puts_back_noth
             assert rig.world.read_of == ["res-1"]
 
             let_go.set()
-            await reconciling
-            await rig.settled()
+            await rig.started()
 
             held = await rig.held()
             assert held.stamps == {"res-1": stamp(LATER)}
@@ -1639,7 +1650,10 @@ def test_a_resource_archived_after_a_reconcile_read_is_not_indexed_by_it_and_nei
             held = await rig.held()
             assert set(held.stamps) == {"pdf-held"}
             assert held.annotations == {}
-            assert rig.world.read_of == ["pdf-held", "pdf-held"]
+            # The archiving showed the Smelter the resource's record it had missed: its making was taken, and its bytes
+            # read, while the document's read was held, and the archiving took its points out. The reconcile read none
+            # of its bytes.
+            assert rig.world.read_of == ["res-1", "pdf-held", "pdf-held"]
             # The document was indexed. The archived resource is none of the four things an indexing comes to.
             assert (summary.resources_embedded, summary.resources_unavailable, summary.resources_failed) == (1, 0, 0)
             assert summary.resources_skipped == {}
@@ -1681,8 +1695,17 @@ def test_a_point_whose_annotation_the_catalog_does_not_have_is_taken_out_in_its_
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
-            # The annotation is removed, and the Smelter misses the event: its start plans to take the point out.
-            rig.world.unannotate("res-1", "ann-1")
+            # The index holds a point on the resource for an annotation the record has never had: one a lost write left
+            # behind. Its start plans to take it out.
+            stray = AnnotationPayload(
+                annotation_id=AnnotationId("ann-9"),
+                resource_id=ResourceId("res-1"),
+                motivation="highlighting",
+                entity_types=(),
+                exact_text="a quote of nothing",
+                machine_read=False,
+            )
+            await rig.index.upsert_annotation_vector(deterministic_vector("a quote of nothing", DIMENSIONS), stray)
             let_go = asyncio.Event()
             rig.provider.held = let_go
             # New bytes for the resource, whose indexing is held in the provider's hands when the reconcile begins.
@@ -1693,13 +1716,13 @@ def test_a_point_whose_annotation_the_catalog_does_not_have_is_taken_out_in_its_
             await a_while()
 
             # The point is still there: taking it out waits its turn behind the resource's event.
-            assert set((await rig.held()).annotations) == {"ann-1"}
+            assert set((await rig.held()).annotations) == {"ann-1", "ann-9"}
 
             let_go.set()
             await reconciling
             await rig.settled()
 
-            assert (await rig.held()).annotations == {}
+            assert set((await rig.held()).annotations) == {"ann-1"}
 
     run(scenario())
 
@@ -2335,70 +2358,145 @@ def test_events_processed_counts_the_events_applied_since_this_start(tmp_path: P
     run(scenario())
 
 
-def test_events_failed_counts_each_event_delivered_that_could_not_be_applied(tmp_path: Path) -> None:
+def test_an_event_whose_payload_is_not_its_events_is_refused_taken_as_nothing_and_its_resource_goes_on(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             await rig.happened(rig.world.put("res-1", TEXT))
-            assert rig.smelter.events_failed == 0
 
-            # One event fails at the provider, and then two that wait for one turn fail together.
-            rig.provider.failing = True
-            await rig.happened(rig.world.put("res-2", LATER))
-            await rig.happened(
-                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"), rig.world.annotate("res-1", "ann-2", "the first program")
-            )
+            # The record says an annotation was added, and its payload holds no annotation.
+            added = rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+            nothing: JsonObject = {}
+            await rig.happened({**added, "payload": nothing}, rig.world.tag("res-1", "Person"))
 
-            assert rig.smelter.events_failed == 3
+            assert (await rig.held()).annotations == {}
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT, "Person")}
+            assert rig.smelter.following["refused"] == 1
+            assert rig.smelter.following["stopped"] == 0
+            assert applied(rig) == 2
 
-            # A frame that carries no recorded event, and an event that names no resource, are passed by: each is one more.
-            rig.provider.failing = False
-            unnamed = {name: value for name, value in rig.world.tag("res-1", "Person").items() if name != "resourceId"}
-            rig.transport.deliver(Frame(channel="yield:created", payload={"type": "yield:created"}))
-            await rig.happened(unnamed)
-
-            assert rig.smelter.events_failed == 5
-            assert rig.smelter.events_waiting == 0
-            assert applied(rig) == 1
-
-    run(scenario())
+    with caplog.at_level(logging.ERROR, logger="semiont_smelter"):
+        run(scenario())
+    (refused,) = lines(caplog, logging.ERROR)
+    assert (refused["type"], refused["resourceId"], refused["sequenceNumber"]) == ("mark:added", "res-1", 2)
 
 
-def test_events_waiting_counts_what_was_delivered_and_is_neither_applied_nor_failed_yet(tmp_path: Path) -> None:
+def test_a_frame_on_a_channel_of_the_record_that_carries_no_recorded_event_is_said_and_passed_by(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
-            assert rig.smelter.events_waiting == 0
-            let_go = asyncio.Event()
-            rig.provider.held = let_go
-            rig.deliver(rig.world.put("res-1", TEXT))
-            await until(lambda: len(rig.provider.asked) == 1)
+            rig.transport.deliver(Frame(channel="yield:created", payload={"type": "yield:created"}))
+            await rig.happened(rig.world.put("res-1", TEXT))
 
-            # The first is in the provider's hands. One waits behind it in its resource's lane, and two wait together for one turn.
-            rig.deliver(
-                rig.world.tag("res-1", "Person"),
-                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
-                rig.world.annotate("res-1", "ann-2", "the first program"),
-            )
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            assert applied(rig) == 1
 
-            assert rig.smelter.events_waiting == 4
-            assert applied(rig) == 0
+    with caplog.at_level(logging.ERROR, logger="semiont_smelter"):
+        run(scenario())
+    (unread,) = lines(caplog, logging.ERROR)
+    assert unread["channel"] == "yield:created"
 
-            let_go.set()
-            await rig.settled()
 
-            assert rig.smelter.events_waiting == 0
+# ── Following the record ───────────────────────────────────────────────
+
+
+def test_an_event_delivered_after_a_gap_has_what_the_stream_missed_read_from_the_record_and_taken_first_in_order(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            # Two events its stream misses.
+            rig.world.tag("res-1", "Person")
+            rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+
+            await rig.happened(rig.world.put("res-1", LATER))
+
+            held = await rig.held()
+            assert held.stamps == {"res-1": stamp(LATER, "Person")}
+            assert held.annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+            # Every event of the record, once, in its order: no reconcile was asked to find them.
             assert applied(rig) == 4
-
-            # One that fails waits no longer either.
-            rig.provider.held = None
-            rig.provider.failing = True
-            await rig.happened(rig.world.put("res-2", LATER))
-
-            assert (rig.smelter.events_waiting, rig.smelter.events_failed, applied(rig)) == (0, 1, 4)
+            assert rig.asked("browse:resources-requested") == []
 
     run(scenario())
 
 
-def test_stream_drops_counts_each_time_its_stream_drops_and_says_so(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_an_event_of_a_kind_it_does_nothing_with_is_taken_as_nothing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            moved = rig.world.recorded("yield:moved", "res-1")
+
+            await rig.happened(moved, rig.world.tag("res-1", "Person"))
+
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT, "Person")}
+            assert applied(rig) == 2
+            assert rig.smelter.following["refused"] == 0
+            # Missed, it is a gap all the same, read from the record and taken as nothing.
+            rig.world.recorded("yield:moved", "res-1")
+            await rig.happened(rig.world.untag("res-1", "Person"))
+
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            assert applied(rig) == 3
+
+    run(scenario())
+
+
+def test_a_start_with_no_cursor_is_a_reconcile_and_then_follows_from_the_last_event_the_record_held(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        rig = Rig(tmp_path)
+        rig.world.put("res-1", TEXT)
+        rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+        async with rig:
+            await rig.started()
+
+            state = rig.smelter.reconcile_state
+            assert state.summary == came_to(embedded=1, annotations=1, eligible=1, indexed=1)
+            # What the record held was mended by the reconcile, and none of its events was taken.
+            assert applied(rig) == 0
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+
+            # What is recorded from then on is taken.
+            await rig.happened(rig.world.tag("res-1", "Person"))
+
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT, "Person")}
+            assert applied(rig) == 1
+            assert len(rig.asked("browse:resources-requested")) == 1
+
+    run(scenario())
+
+
+def test_a_smelter_started_again_with_its_cursors_takes_what_was_recorded_since_and_plans_nothing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as first:
+            await first.happened(first.world.put("res-1", TEXT), first.world.put("res-2", LATER))
+
+        # Recorded while no Smelter ran, of a resource its cursors name.
+        first.world.tag("res-1", "Person")
+        first.world.put("res-2", NEWER)
+
+        async with Rig(tmp_path, after=first) as later:
+            await later.started()
+
+            assert (await later.held()).stamps == {"res-1": stamp(TEXT, "Person"), "res-2": stamp(NEWER)}
+            assert applied(later) == 2
+            # Each was taken: no resource was without a cursor, and there was nothing to reconcile.
+            assert later.smelter.reconcile_state == ReconcileState(phase="pending")
+            assert later.asked("browse:resources-requested") == []
+
+    run(scenario())
+
+
+# ── Health ─────────────────────────────────────────────────────────────
+
+
+def follower_lines(caplog: pytest.LogCaptureFixture, level: int) -> list[dict[str, object]]:
+    """The facts of each line the follower the Smelter is built on logged at `level`, in order."""
+    return [dict(vars(record)) for record in caplog.records if record.name == "semiont_service.follower" and record.levelno == level]
+
+
+def test_each_drop_of_its_stream_is_counted_and_said(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     async def becomes(rig: Rig, *states: ConnectionState) -> None:
         for state in states:
             rig.transport.set_state(state)
@@ -2407,28 +2505,29 @@ def test_stream_drops_counts_each_time_its_stream_drops_and_says_so(tmp_path: Pa
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             await a_while()
-            assert rig.smelter.stream_drops == 0
+            assert rig.smelter.following["streamDrops"] == 0
 
             # It drops, is down for long enough to be called degraded, and opens again: one drop, counted when it dropped.
             await becomes(rig, "reconnecting")
-            assert rig.smelter.stream_drops == 1
+            assert rig.smelter.following["streamDrops"] == 1
             await becomes(rig, "degraded", "connecting", "open")
-            assert rig.smelter.stream_drops == 1
+            assert rig.smelter.following["streamDrops"] == 1
 
             # One that drops and opens again before the Smelter has looked is a drop too: open, and open again.
             rig.transport.set_state("reconnecting")
             rig.transport.set_state("connecting")
             rig.transport.set_state("open")
             await a_while()
-            assert rig.smelter.stream_drops == 2
+            assert rig.smelter.following["streamDrops"] == 2
 
             # A token that is refused ends the stream as a drop does.
             await becomes(rig, "reconnecting", "unauthenticated")
-            assert rig.smelter.stream_drops == 3
+            assert rig.smelter.following["streamDrops"] == 3
+            await rig.settled()
 
-    with caplog.at_level(logging.WARNING, logger="semiont_smelter"):
+    with caplog.at_level(logging.WARNING, logger="semiont_service.follower"):
         run(scenario())
-    assert [said["streamDrops"] for said in lines(caplog, logging.WARNING)] == [1, 2, 3]
+    assert [said["streamDrops"] for said in follower_lines(caplog, logging.WARNING)] == [1, 2, 3]
 
 
 def test_a_stream_that_is_closed_has_not_dropped(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
@@ -2438,99 +2537,95 @@ def test_a_stream_that_is_closed_has_not_dropped(tmp_path: Path, caplog: pytest.
             rig.transport.set_state("closed")
             await a_while()
 
-            assert rig.smelter.stream_drops == 0
+            assert rig.smelter.following["streamDrops"] == 0
 
-    with caplog.at_level(logging.WARNING, logger="semiont_smelter"):
+    with caplog.at_level(logging.WARNING, logger="semiont_service.follower"):
         run(scenario())
-    assert lines(caplog, logging.WARNING) == []
+    assert follower_lines(caplog, logging.WARNING) == []
 
 
-async def stopped(keeping: asyncio.Future[None]) -> None:
-    """End a Smelter's keeping itself reconciled, as its service does when it is told to stop."""
-    keeping.cancel()
-    await asyncio.gather(keeping, return_exceptions=True)
-
-
-def test_a_smelter_kept_reconciled_reconciles_again_when_its_stream_opens_after_a_drop(tmp_path: Path) -> None:
+def test_what_is_recorded_while_its_stream_is_down_is_taken_by_the_sweep_when_it_opens_again(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
-            rig.world.put("res-1", TEXT)
-            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
-            try:
-                await until(lambda: rig.smelter.reconcile_state.phase == "done")
-                assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            await rig.happened(rig.world.put("res-1", TEXT))
+            listed = rig.world.listings
 
-                # The stream drops, and what is recorded meanwhile is never delivered: the index may be behind, and
-                # says a reconcile is to be done. None begins while the stream is down.
-                rig.transport.set_state("reconnecting")
-                rig.world.put("res-2", LATER)
-                await a_while()
-                assert rig.smelter.reconcile_state == ReconcileState(phase="pending")
-                assert len(rig.asked("browse:resources-requested")) == 1
+            # The stream drops, and what is recorded meanwhile is never delivered. Nothing is swept while it is down.
+            rig.transport.set_state("reconnecting")
+            await a_while()
+            rig.world.tag("res-1", "Person")
+            rig.world.put("res-2", LATER)
+            await a_while()
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            assert rig.world.listings == listed
 
-                # It opens again, and a reconcile finds what was recorded while it was down.
-                rig.transport.set_state("connecting")
-                rig.transport.set_state("open")
-                await until(lambda: rig.smelter.reconcile_state.phase == "done")
+            # It opens again, and a sweep takes what was recorded while it was down: an event missed of a resource it
+            # follows, and a resource that is new to it.
+            rig.transport.set_state("connecting")
+            rig.transport.set_state("open")
+            await rig.settled()
 
-                assert (await rig.held()).stamps == {"res-1": stamp(TEXT), "res-2": stamp(LATER)}
-                assert len(rig.asked("browse:resources-requested")) == 2
-                assert applied(rig) == 0
-            finally:
-                await stopped(keeping)
+            assert rig.world.listings == listed + 1
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT, "Person"), "res-2": stamp(LATER)}
+            assert applied(rig) == 3
+            # A sweep takes what was missed: no reconcile is asked to find it.
+            assert rig.asked("browse:resources-requested") == []
+            assert rig.smelter.following["sweep"] == "done"
 
     run(scenario())
 
 
-def test_drops_while_a_reconcile_is_under_way_make_one_more_after_it(tmp_path: Path) -> None:
+def test_drops_while_a_sweep_is_under_way_make_one_more_after_it(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
-            rig.world.put("res-1", TEXT)
+            await rig.happened(rig.world.put("res-1", TEXT))
+            rig.transport.set_state("reconnecting")
+            await a_while()
+            rig.world.put("res-1", LATER)
             let_go = asyncio.Event()
             rig.provider.held = let_go
-            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
-            try:
-                await until(lambda: len(rig.provider.asked) == 1)
-                for _ in range(3):
-                    rig.transport.set_state("reconnecting")
-                    rig.transport.set_state("connecting")
-                    rig.transport.set_state("open")
-                    await a_while()
-                # The one under way says so for itself.
-                assert rig.smelter.stream_drops == 3
-                assert rig.smelter.reconcile_state == ReconcileState(phase="running")
+            listed = rig.world.listings
 
-                let_go.set()
-                await until(lambda: len(rig.asked("browse:resources-requested")) == 2 and rig.smelter.reconcile_state.phase == "done")
+            # The sweep at the reopening takes the new bytes, and is held in the provider's hands.
+            rig.transport.set_state("connecting")
+            rig.transport.set_state("open")
+            await until(lambda: len(rig.provider.asked) == 2)
+            for _ in range(3):
+                rig.transport.set_state("reconnecting")
+                rig.transport.set_state("connecting")
+                rig.transport.set_state("open")
                 await a_while()
+            assert rig.smelter.following["sweep"] == "running"
+            assert rig.world.listings == listed + 1
 
-                # Three drops while it ran, and one more reconcile after it.
-                assert len(rig.asked("browse:resources-requested")) == 2
-            finally:
-                await stopped(keeping)
+            let_go.set()
+            await rig.settled()
+
+            # Three drops while it ran, and one more sweep after it.
+            assert rig.world.listings == listed + 2
+            assert rig.smelter.following["streamDrops"] == 4
+            assert (await rig.held()).stamps == {"res-1": stamp(LATER)}
 
     run(scenario())
 
 
-def test_a_reconcile_that_fails_ends_nothing_and_the_next_drop_begins_another(tmp_path: Path) -> None:
+def test_a_start_whose_reconcile_fails_is_said_and_begun_again(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with Rig(tmp_path) as rig:
-            rig.world.put("res-1", TEXT)
-            rig.failing.add("browse:resources-requested")
-            keeping = asyncio.ensure_future(rig.smelter.keep_reconciled())
-            try:
-                await until(lambda: rig.smelter.reconcile_state.phase == "failed")
-                assert not keeping.done()
+        rig = Rig(tmp_path)
+        rig.world.put("res-1", TEXT)
+        rig.failing.add("browse:resources-requested")
+        async with rig:
+            await until(lambda: rig.smelter.following["sweep"] == "due")
+            assert rig.smelter.reconcile_state.phase == "failed"
 
-                rig.failing.clear()
-                rig.transport.set_state("reconnecting")
-                rig.transport.set_state("connecting")
-                rig.transport.set_state("open")
-                await until(lambda: rig.smelter.reconcile_state.phase == "done")
+            # The Archivist answers again. The start is begun again by the loop's clock, and is a reconcile again.
+            rig.failing.clear()
+            await hurried(rig.smelter.swept())
+            await rig.settled()
 
-                assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
-            finally:
-                await stopped(keeping)
+            assert rig.smelter.reconcile_state.phase == "done"
+            assert (await rig.held()).stamps == {"res-1": stamp(TEXT)}
+            assert rig.smelter.following["sweep"] == "done"
 
     run(scenario())
 
@@ -2561,12 +2656,13 @@ def test_reconcile_state_says_how_far_the_reconcile_of_this_start_has_got(tmp_pa
 
 def test_the_work_of_reconcile_and_of_a_rebuild_is_not_counted_among_the_events_processed(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
-            rig.world.put("res-1", TEXT)
-            rig.world.put("pdf-1", PDF, "application/pdf")
-            rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
-
-            await rig.smelter.reconcile()
+        rig = Rig(tmp_path, pdfs={PDF: WRITTEN})
+        rig.world.put("res-1", TEXT)
+        rig.world.put("pdf-1", PDF, "application/pdf")
+        rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+        async with rig:
+            # Its start is a reconcile: no cursor names a resource of the record.
+            await rig.started()
             rebuild(rig, "c-1")
             await rig.settled()
 

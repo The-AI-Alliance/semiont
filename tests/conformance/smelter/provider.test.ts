@@ -129,7 +129,7 @@ eachSmelter('a Smelter, asking its embedding provider', (world) => {
       world().output.slice(said).find((line) => line.includes('ollama') && line.includes(EMBEDDING_MODEL) && line.includes('500') && line.includes('slice')),
     );
 
-    // The failure is passed by: what is recorded next is indexed.
+    // The failure stops that resource's log alone: what is recorded next, of another resource, is indexed.
     const next = await world().created('A text recorded after a request for another text failed.', 'text/plain', { name: 'Recorded after the refusal' });
     expect(await world().settled(next)).toMatchObject({ outcome: 'indexed' });
     // Nothing is decided of the resource whose request failed, and it has no points: not those of the chunks its first request embedded.

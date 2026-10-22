@@ -475,8 +475,8 @@ Events are published one at a time, in the order they were appended; the two pub
 go together. A command is answered, and an upload too, once its events are appended and their facts
 queued: the answer may arrive before the facts are published, and a subscriber who joins a
 resource's scope after the answer may still receive them. A publish that fails, after the
-transport's own retries, is logged and not tried again: the services that follow the facts catch up
-from the log. The number of events waiting to be published is reported as a gauge.
+transport's own retries, is logged and not tried again: the services that follow the record read
+what they missed from the log, by position (`GET /events/{resourceId}`). The number of events waiting to be published is reported as a gauge.
 
 ## The HTTP surface
 

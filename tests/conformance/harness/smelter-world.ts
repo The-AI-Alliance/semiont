@@ -27,6 +27,7 @@ import { startOllamaEmbed, type StandInEmbedder } from './ollama-embed';
 import { QDRANT_PORT, vectorIndex, type VectorIndex } from './qdrant';
 import { SERVICE_ROLE } from './roles';
 import {
+  CURSORS,
   refusedSmelterBoot,
   startSmelter,
   type SmelterEnvironment,
@@ -142,12 +143,16 @@ export class SmelterWorld {
 
   /**
    * Start the Smelter, as this world launches one or as a case changes that,
-   * and wait until its reconcile has ended, however it ended. With `until`
-   * `serving`, wait only until its health answers: its reconcile may still be
-   * at work, and `reconciled()` waits for it.
+   * and wait until its start has ended, however it ended. Each start is of a
+   * container made again, as every `semiont start` makes one: no cursor of an
+   * earlier start is left, so every resource the record holds is started by a
+   * reconcile (SMELTER.md § Reconcile). With `until` `serving`, wait only
+   * until its health answers: its reconcile may still be at work, and
+   * `reconciled()` waits for it.
    */
-  async start(change: Change = {}, until: 'serving' | 'reconciled' = 'reconciled'): Promise<void> {
+  async start(change: Change = {}, until: 'serving' | 'started' = 'started'): Promise<void> {
     if (this.smelterProcess) throw new Error('a Smelter is already running in this world');
+    rmSync(join(this.launch(change).home, CURSORS), { force: true });
     this.smelterProcess = await startSmelter(this.launch(change), until);
   }
 

@@ -99,9 +99,9 @@ Each derived store has one owner, and that owner recovers it from the record:
 | Store | Owner | How it recovers |
 |---|---|---|
 | Views | Archivist | Rebuilds them from the event log every time it starts, before it serves a request |
-| Graph | Weaver | Catches up from its checkpoint at startup; `weave:rebuild` is the full rebuild |
-| Vectors | Smelter | Reconciles against the catalog at startup: re-embeds what is missing or stale, purges orphans. An index made by another embedding model, or cut by other numbers, is cleared and filled again whole |
-| Anchored text | Smelter, in a store the Archivist keeps | Reconciles against the catalog at startup: derives again the text of each PDF whose bytes have no entry under the stamp it states, and stores it on the Archivist's surface. `smelt:rebuild-anchors` derives what is missing for one resource or for all |
+| Graph | Weaver | Follows the record from cursors on its container's own disk: at startup it sweeps the record and takes what it missed, then reconciles the graph against the views; `weave:rebuild` is the full rebuild |
+| Vectors | Smelter | Follows the record from cursors on its container's own disk; a resource it starts with no cursor (every one, in a new container) it starts by reconciling against the catalog: re-embeds what is missing or stale, purges orphans. An index made by another embedding model, or cut by other numbers, is cleared and filled again whole, and its cursors forgotten |
+| Anchored text | Smelter, in a store the Archivist keeps | Reconciles against the catalog where it starts with no cursor: derives again the text of each PDF whose bytes have no entry under the stamp it states, and stores it on the Archivist's surface. `smelt:rebuild-anchors` derives what is missing for one resource or for all |
 
 The procedures are the operator's: [backing up and restoring](../operator/administration/BACKUP.md)
 and [rebuilding derived state](../operator/administration/MAINTENANCE.md#rebuilding-derived-state).

@@ -1,35 +1,29 @@
-"""What a Smelter reads of the record: the catalog of what is not archived, a resource's entity types, and a resource's annotations.
+"""What a Smelter reads of the record beside its events: the catalog of what is not archived, a resource's entity types and annotations.
 
 It reads the catalog and a resource's description from the Archivist, over
 the bus (`docs/protocol/SMELTER.md` § What it follows), and a resource's
 annotations from the Archivist's own `GET /resources/{id}/annotations`, as its
 service account: their number follows the document's, so they are no bus
 read. It opens no file of the record. A resource's bytes are another read,
-and no part of this (`semiont_service.content`).
+and no part of this (`semiont_service.content`), and so is the record read by
+position (`semiont_service.follower`).
 """
 
 import asyncio
-from typing import Final, Protocol, final
+from typing import Final, final
 
 from semiont.bus import Bus
 from semiont.identifiers import ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, BROWSE_RESOURCES_REQUESTED
 from semiont.resources import resource_entity_types
-from semiont.types import Annotation, BrowseResourceRequest, GetAnnotationsResponse, ResourceDescriptor
+from semiont.types import Annotation, BrowseResourceRequest, ResourceDescriptor
 from semiont_service import catalog
+from semiont_service.archivist import AnnotationReads
 
-__all__ = ["READ", "AnnotationReads", "Record"]
+__all__ = ["READ", "Record"]
 
 READ: Final = (BROWSE_RESOURCES_REQUESTED, BROWSE_RESOURCE_REQUESTED)
 """The operations a Smelter awaits: its stream names their replies."""
-
-
-class AnnotationReads(Protocol):
-    """What reads a resource's annotations: the Archivist's own surface is one (`semiont_service.archivist.Archivist`)."""
-
-    async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
-        """Every annotation on a resource, as the record's view holds them. Raises `AnnotationsUnread` where they were not read."""
-        ...
 
 
 @final

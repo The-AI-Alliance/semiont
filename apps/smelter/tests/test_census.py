@@ -23,13 +23,13 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
+from semiont.channels import PERSISTED_EVENT_TYPES
 from spec import PACKAGE, ROOT, SDK
 
 from semiont_smelter.config import SERVICE
 from semiont_smelter.ocr_engine import OcrEngine
 from semiont_smelter.pdf_reader import PdfReader
 from semiont_smelter.pdfium import PdfiumReader
-from semiont_smelter.recorded import FOLLOWED
 from semiont_smelter.scripted import ScriptedOcrEngine, ScriptedPdfReader
 from semiont_smelter.tesseract import TesseractEngine
 
@@ -52,8 +52,7 @@ SURFACE = {
     "anchored_text_store": ["AnchoredTextStore", "AnchoredTexts", "StoreFailed"],
     "chunking": ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"],
     "log": ["LOG", "failure_said", "words_of"],
-    "recorded": ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"],
-    "record": ["READ", "AnnotationReads", "Record"],
+    "record": ["READ", "Record"],
     "reconcile": [
         "Embed",
         "EmbedAnnotation",
@@ -199,19 +198,21 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
         assert not set(importing(rf"semiont_smelter\.{module}")) & kept_by, module
 
 
-def test_the_events_it_follows_are_the_ones_the_protocol_lists_and_each_does_something() -> None:
+def test_the_events_it_does_something_with_are_the_ones_the_protocol_lists_and_each_has_its_case() -> None:
     page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
-    rule = re.search(r"\*\*It follows eleven recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
-    assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter follows"
-    assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
-    assert len(FOLLOWED) == len(set(FOLLOWED)) == 11
-    # What each does is one `match` over the event's type: an event that is followed and has no case there is
-    # delivered, handed to its lane, and fails.
+    rule = re.search(r"\*\*Eleven events of the record do something:\*\*(.*?)\*Held by", page, re.DOTALL)
+    assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter does something with"
+    listed = re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))
+    assert len(listed) == len(set(listed)) == 11
+    # What each does is one `match` over the event's type. An event of the record that has no case there is taken
+    # as nothing: one the page lists and the match lacks would be passed by without a word.
     source = (SRC / "smelter.py").read_text(encoding="utf-8")
     applying = source[source.index("    async def _apply(") : source.index("    # ── Indexing a resource")]
     stated = re.findall(r"^            case (.+):$", applying, re.MULTILINE)
     cases = [name for line in stated for name in re.findall(r'"([a-z]+:[a-z-]+)"', line)]
-    assert sorted(cases) == sorted(FOLLOWED)
+    assert sorted(cases) == sorted(listed)
+    # Each is an event of the record, by the registry's list.
+    assert set(cases) <= set(PERSISTED_EVENT_TYPES)
 
 
 def test_a_resource_that_is_not_indexed_is_concluded_in_one_place() -> None:
@@ -247,12 +248,16 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
     # It asks for a store and a provider by what its configuration states, in the one module that reads that.
     assert importing(r"semiont_vectors\.factory") == ["service.py"]
     assert importing("qdrant_client") == []
-    # What the Smelter asks of the Archivist that is not the SDK's: a resource's bytes and its annotations, by the
-    # reader every Python service has (`semiont_service.archivist`), made by the module that starts the service; and the
-    # anchored-text store the Archivist keeps, by the store alone, as the same account.
+    # What the Smelter asks of the Archivist that is not the SDK's: a resource's bytes, its annotations and the record by
+    # position, by the reader every Python service has (`semiont_service.archivist`), made by the module that starts the
+    # service and named, for what reads annotations, by the modules that are handed it; and the anchored-text store the
+    # Archivist keeps, by the store alone, as the same account.
     assert importing("httpx") == ["anchored_text_store.py"]
-    assert importing(r"semiont_service\.archivist") == ["anchored_text_store.py", "service.py"]
+    assert importing(r"semiont_service\.archivist") == ["anchored_text_store.py", "record.py", "service.py", "smelter.py"]
     assert importing(r"semiont_service\.content") == ["smelter.py"]
+    # It follows the record as every follower of it does: the Smelter holds the follower, and the service its cursors' file.
+    assert importing(r"semiont_service\.follower") == ["service.py"]
+    assert naming("from semiont_service import follower") == ["smelter.py"]
 
 
 def test_it_writes_the_index_and_the_store_and_says_three_things_and_nothing_else() -> None:

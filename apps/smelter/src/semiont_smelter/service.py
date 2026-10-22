@@ -17,12 +17,13 @@ It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
 as the agent its embedding provider and its model name, reaches its vector
 index, which asks its provider how wide a vector is where the index has to be
 made, makes the index again where it was made by another model or cut another
-way, follows the record, opens its health port, and then runs reconcile,
-which it runs again each time its stream of the record opens after a drop. A
-reconcile that fails is said, in the log and at the health port, and does
-not end the service: ending it would make the index no fresher, and would
-take away the one thing still applying what arrives. Told to stop, it stops
-applying, closes what it holds open, and exits with status 0.
+way, and forgets its cursors where it did, follows the record, and opens its
+health port. Once its stream first opens it starts following, and a resource
+no cursor names is started by a reconcile. A reconcile that fails is said, in
+the log and at the health port, and does not end the service: ending it would
+make the index no fresher, and would take away the one thing still applying
+what arrives. The follower starts it again. Told to stop, it stops applying,
+closes what it holds open, writes its cursors, and exits with status 0.
 """
 
 import asyncio
@@ -32,16 +33,18 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Final, final
 
 from pydantic import JsonValue
 from semiont.bus import reply_channels_for
-from semiont.channels import SMELT_REBUILD_ANCHORS
+from semiont.channels import PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import SmelterConfig
 from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
+from semiont_service.follower import Cursors
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -57,7 +60,6 @@ from semiont_smelter.index_stamp import hold_to, stamp_of
 from semiont_smelter.log import LOG, words_of
 from semiont_smelter.pdfium import PdfiumReader
 from semiont_smelter.record import READ
-from semiont_smelter.recorded import FOLLOWED
 from semiont_smelter.smelter import Smelter
 from semiont_smelter.stamp import current_stamp
 from semiont_smelter.telemetry import points_held
@@ -65,8 +67,9 @@ from semiont_smelter.tesseract import TesseractEngine
 
 __all__ = ["CHANNELS", "boot", "main"]
 
-CHANNELS: Final[tuple[str, ...]] = (*FOLLOWED, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
-"""What the Smelter's stream names: the events it follows, the command it answers, and the replies of what it asks."""
+CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
+"""What the Smelter's stream names: every event of the record, as every follower of it receives them, the command it answers, and
+the replies of what it asks."""
 
 
 @final
@@ -83,8 +86,8 @@ class _Started:
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
     config = read_smelter_config(config_path_of(SERVICE, arguments))
-    # What is written from the document's level: the service's own code, the vector stores' and the SDK's.
-    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_vectors", "semiont"))
+    # What is written from the document's level: the service's own code, the follower's it is built on, the vector stores' and the SDK's.
+    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_service", "semiont_vectors", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
     provider = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # The index is as wide as the model's vectors, which the store asks the provider when it has to make the index.
@@ -117,10 +120,8 @@ def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp,
     return {
         "status": "ok",
         "stream": transport.state.value,
-        "streamDrops": smelter.stream_drops,
+        "following": smelter.following,
         "eventsProcessed": smelter.events_processed,
-        "eventsFailed": smelter.events_failed,
-        "eventsWaiting": smelter.events_waiting,
         "reconcile": smelter.reconcile_state.said(),
         "index": index,
     }
@@ -145,6 +146,11 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         stamp = stamp_of(config)
         made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
+        cursors = Cursors(Path(config.cursors_path))
+        if made_anew:
+            # An index made anew holds nothing the cursors say was taken: every resource is started by a reconcile.
+            cursors.keep({})
+            LOG.info("The index was made anew: the cursors are forgotten, and every resource is started by a reconcile")
         try:
             async with (
                 Archivist(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
@@ -157,6 +163,8 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                     provider=started.provider,
                     content=content,
                     annotations=content,
+                    logs=content,
+                    cursors=cursors,
                     extractor=PdfExtractor(reader=reader, engine=engine),
                     anchored=anchored,
                     transport=transport,
@@ -170,10 +178,9 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})
 
-                    # Begun once it is following and its health answers: what was recorded while no Smelter ran is
-                    # found, and what is recorded meanwhile is applied as it arrives. It reconciles again each time its
-                    # stream opens after a drop, since what was recorded meanwhile was never delivered.
-                    running = [asyncio.ensure_future(smelter.keep_reconciled())]
+                    # The Smelter follows from here on by itself: it starts once its stream first opens, and sweeps
+                    # the record each time the stream opens after a drop.
+                    running: list[asyncio.Future[None]] = []
                     if exporting is not None:
                         running.append(asyncio.ensure_future(exporting.sample_the_loop()))
                         size = exporting.sample(

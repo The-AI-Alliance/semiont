@@ -391,7 +391,10 @@ export class LibrarianWorld {
     return code;
   }
 
-  /** Start the Smelter and wait until its reconcile has ended: it then holds in the index what the record held when it started. */
+  /**
+   * Start the Smelter and wait until its first sweep of the record is done, the reconcile it starts a resource with no cursor by
+   * among it: it then holds in the index what the record held when it started.
+   */
   async startSmelter(): Promise<void> {
     if (this.smelterProcess) throw new Error('a Smelter is already running in this world');
     this.smelterProcess = await startSmelter(this.parts.smelter);

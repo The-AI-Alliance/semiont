@@ -56,8 +56,9 @@ Each file runs its cases in a world of its own
 - the anchored-text store, which the Archivist keeps: the Smelter states its
   stamp and stores its entries on the Archivist's surface and mounts none of
   it, and the suite reads the Archivist's files;
-- the Smelter, started with its settings and its environment, and waited for
-  until its reconcile has ended.
+- the Smelter, started with its settings and its environment, its cursors
+  kept in a file of its home, and waited for until its start has swept the
+  record.
 
 **Nothing is recorded but through the Archivist.** A case uploads, updates,
 archives, tags and annotates as a person, so the Smelter is given the events
@@ -91,15 +92,19 @@ the index, and starts it again; and the requests that measure the model are
 among those the provider records for that start. A case that wants only what came after some point
 marks the point (`provider.mark()`) and asks for what was sent since.
 
-**Reconcile runs after health answers.** A world's `start()` waits until the
-reconcile has ended. A case about what happens while it runs starts the
-Smelter to `serving` only, and waits on `reconciled()`.
+**Each start is of a container made again.** A world's `start()` takes away
+the cursors an earlier start kept, as every `semiont start` does, so a
+Smelter starts every resource the record holds by a reconcile, which runs
+after health answers; `start()` waits until the start has swept the record.
+A case about what happens while the reconcile runs starts the Smelter to
+`serving` only, and waits on `reconciled()`.
 
 ## What it checks
 
 - **As a process** (`boot.test.ts`): what its health reports, on a knowledge
-  base with nothing in it and after events and a reconcile; that an event
-  recorded while its reconcile runs is applied then; a clean stop; every
+  base with nothing in it, of a reconcile with nothing to mend, and after
+  events and a reconcile; that an event recorded while its start's reconcile
+  runs is applied then; a clean stop; every
   refusal to start, without either half of its service account, without the
   directory of the anchored-text store, and without each setting it is told;
   and that a provider answering 404 as it starts is asked again.
@@ -129,8 +134,8 @@ Smelter to `serving` only, and waits on `reconciled()`.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
   128, each text given the vector that came back for it; one request at a
   time; a provider that says it is busy, which is asked again; and a request
-  that fails, which leaves its resource with no points until the Smelter next
-  starts.
+  that fails, which leaves its resource with no points, and holds up no other
+  resource, until the Smelter next starts.
 - **What it exports** (`telemetry.test.ts`): told where to export, a Smelter
   exports under its own name every row
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
