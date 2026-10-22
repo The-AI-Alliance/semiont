@@ -2,8 +2,9 @@
 
 What every Python service of [Semiont][semiont] does to be one: read its
 configuration document, answer for its health, write its log, and export its
-telemetry. A service that follows the record also takes from it the order it
-works in, and how it reads the catalog of resources. What more than one
+telemetry. A service that follows the record also takes from it how it
+follows the record, the order it works in, and how it reads the catalog of
+resources. What more than one
 service needs of a knowledge base is here too: a resource's bytes read from
 the Archivist, where a file of the record is filed, and what white space is.
 The [Worker][worker], the [Weaver][weaver] and the [Smelter][smelter] are
@@ -22,11 +23,12 @@ It runs on asyncio and requires Python 3.12 or later. It is checked by
 
 | Module | What it does | What the service hands it |
 | --- | --- | --- |
-| `semiont_service.archivist` | Reads a resource's bytes from the Archivist's own route, as the service's account, and says what kept them from being read | Its word for itself, the Archivist's address, and its account |
+| `semiont_service.archivist` | Reads a resource's bytes and its annotations from the Archivist's own routes, and the record by position, as the service's account, and says what kept each from being read | Its word for itself, the Archivist's address, and its account |
 | `semiont_service.catalog` | Reads the catalog of resources whole from the Archivist, a page at a time, and asks for a page again while the Archivist is not there to answer | Its bus, what tells it the service is stopping, and whether it wants the archived resources |
 | `semiont_service.config` | Finds the document `--config` names, reads it as a shape of the protocol and refuses what is not one, and reads the service's account from its environment | Its word for itself, the shape, its arguments and its environment |
 | `semiont_service.connect` | Waits for what a service connects to as it starts, one minute and no longer, and refuses the start saying what did not answer | What it connects to, in the words the refusal names it by, and the connecting it waits for |
 | `semiont_service.content` | Says what a reader of a resource's bytes is, what it answers and how it fails, so that what a service does with the bytes knows no address | Nothing: a service is handed a reader |
+| `semiont_service.follower` | Follows the record by one rule: a cursor for each log, moved by one, a delivered event taken as a hint, and a sweep at the start and at each reopening of the stream, the cursors kept in a file | The record's reader, how its projection takes a run of a log's events and forgets a log, which logs it follows, how a log with no cursor starts, and the cursors' file |
 | `semiont_service.health` | Answers `GET /health`, and nothing else, on the service's port | What the endpoint says, asked afresh for each request |
 | `semiont_service.lanes` | Does what is put on a lane one piece at a time, in the order it was put there, with the lanes working beside each other, and does one piece of work with no lane working | The lane of each piece of work, which is a resource's id for a service that follows the record |
 | `semiont_service.log` | Writes the process's log to stdout, an event a line, as JSON or plainly, from the level the document names | Its word for itself, and the names of the loggers that are its own |

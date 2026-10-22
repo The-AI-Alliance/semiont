@@ -527,7 +527,8 @@ def test_an_event_delivered_twice_in_a_row_changes_nothing_the_second_time(histo
                 await twice.happened(event, event)
                 assert await twice.held() == await once.held()
 
-            assert twice.smelter.events_processed == 2 * len(history.changes)
+            # The second of each is at its resource's cursor, and is dropped.
+            assert twice.smelter.events_processed == len(history.changes)
             assert indexed(await twice.held()) == folded(history.changes).index()
 
     in_a_home(scenario)
@@ -584,9 +585,12 @@ def test_a_reconcile_mends_what_was_missed_and_fills_a_cleared_index_and_a_secon
             assert indexed(await rig.held()) == whole
             await nothing_is_left_to_mend(rig, said)
 
-        # The index was cleared while the Smelter was stopped: it starts with a new one, and the store it had.
+        # The index was cleared while the Smelter was stopped: it starts with a new one, and the store it had. Its cursors
+        # are forgotten with the index, and its start is a reconcile.
         async with Rig(home, pdfs=PDFS, after=rig, index=MemoryVectorStore()) as later:
-            filled = await later.smelter.reconcile()
+            await later.started()
+            filled = later.smelter.reconcile_state.summary
+            assert filled is not None
             assert filled.resources_embedded == len(whole.resources)
             assert filled.annotations_embedded == len(whole.annotations)
             assert indexed(await later.held()) == whole

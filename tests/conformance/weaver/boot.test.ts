@@ -1,14 +1,14 @@
 /**
  * How a Weaver starts, answers for itself and stops (WEAVER.md § Boot, §
  * Health, § Stopping): what its health reports, what it refuses to start
- * without, and that a pass it cannot finish does not end it.
+ * without, and that a reconcile it cannot finish does not end it.
  */
 import { expect, it } from 'vitest';
 import { eachWeaver } from '../harness/weaver-world';
 import { uploaded } from './support';
 
 eachWeaver('a Weaver, as a process', (world) => {
-  it('reports at its health port how its two boot passes ended, and how many events it could not apply', async () => {
+  it('reports at its health port how it follows the record and how its reconcile ended', async () => {
     const id = await uploaded(world(), 'Counted');
     await world().caughtUp(id);
     await world().restart();
@@ -16,9 +16,7 @@ eachWeaver('a Weaver, as a process', (world) => {
     const health = await world().weaver.health();
 
     expect(health.status).toBe('ok');
-    expect(health.applyFailures).toBe(0);
-    expect(health.catchUp.phase).toBe('done');
-    expect(Object.keys(health.catchUp.summary!).sort()).toEqual(['eventsFailed', 'eventsReplayed', 'parityPending', 'resourcesChecked', 'resourcesRebuilt']);
+    expect(health.following).toEqual({ sweep: 'done', stopped: 0, refused: 0, streamDrops: 0 });
     expect(health.reconcile.phase).toBe('done');
     expect(Object.keys(health.reconcile.summary!).sort()).toEqual(['divergent', 'healFailures', 'healed', 'orphaned', 'resourcesChecked']);
     expect(health.reconcile.summary!['resourcesChecked']).toBeGreaterThanOrEqual(1);

@@ -1,7 +1,8 @@
 /**
  * How a Weaver brings the graph back in line with the record (WEAVER.md §
- * Catch-up, § Reconcile, § Rebuild): what it missed while it was down, what
- * was lost from the graph behind its back, and what it is asked to rebuild.
+ * What it follows, § What it has applied, § Reconcile, § Rebuild): what it
+ * missed while it was down, what was lost from the graph behind its back, and
+ * what it is asked to rebuild.
  */
 import { expect, it } from 'vitest';
 import { intendedGraphAnnotation } from '../harness/graph-codec';
@@ -33,8 +34,8 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     await world().start();
 
     const health = await world().weaver.health();
-    // Its checkpoint says how far it had got: the three events recorded since are all it replays.
-    expect(health.catchUp).toMatchObject({ phase: 'done', summary: { eventsReplayed: 3, eventsFailed: 0, parityPending: 0 } });
+    // Its cursors say how far it had got: its first sweep takes what was recorded since.
+    expect(health.following).toMatchObject({ sweep: 'done', stopped: 0, refused: 0 });
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 0 } });
     await asTheRecordSays(world(), during);
     await asTheRecordSays(world(), before);
@@ -50,9 +51,9 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
 
     await world().replace();
 
+    // A Weaver made again has no cursors: its first sweep takes every log from its first event.
     const health = await world().weaver.health();
-    expect(health.catchUp).toMatchObject({ phase: 'done', summary: { eventsFailed: 0 } });
-    expect(health.catchUp.summary!['eventsReplayed']).toBeGreaterThanOrEqual(2);
+    expect(health.following).toMatchObject({ sweep: 'done', stopped: 0, refused: 0 });
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 0 } });
     expect(byId(await world().graph.annotationsOn(id))).toEqual(held);
   });
@@ -69,8 +70,8 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     await world().start();
 
     const health = await world().weaver.health();
-    // Its checkpoint says the event was applied, so catch-up replays nothing: reconcile is what finds it.
-    expect(health.catchUp).toMatchObject({ phase: 'done', summary: { eventsReplayed: 0 } });
+    // Its cursor says the event was taken, so its sweep takes nothing: reconcile is what finds it.
+    expect(health.following).toMatchObject({ sweep: 'done', stopped: 0 });
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 1, healed: 1, healFailures: 0, orphaned: 0 } });
     await asTheRecordSays(world(), id);
     // Rebuilt from the record, it is dated as the record dates it, not when it was rebuilt.

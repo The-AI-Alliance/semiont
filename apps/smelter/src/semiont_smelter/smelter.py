@@ -1,28 +1,28 @@
-"""The Smelter: what follows the record, keeps the vector index and the anchored-text store in step with it, and repairs what it missed.
+"""The Smelter: what follows the record, keeps the vector index and the anchored-text store in step with it, and repairs what either lost.
 
 `docs/protocol/SMELTER.md` states what it does, rule by rule. Held with
-`async with`: it follows the record from the way in to the way out. Its two
-other pieces of work are asked of it: `keep_reconciled`, which a service runs
-from its start, and which reconciles then and again each time its stream of
-the record opens after a drop; and a rebuild of anchored text, which it
-answers when it is commanded on `smelt:rebuild-anchors`.
+`async with`: it follows the record from the way in to the way out, by the
+rule every follower of the record keeps (`semiont_service.follower`): it
+starts once its stream first opens, and sweeps the record each time the
+stream opens after a drop. A resource the record holds and no cursor names
+at its start is started by a reconcile. Its other piece of work is asked of
+it: a rebuild of anchored text, which it answers when it is commanded on
+`smelt:rebuild-anchors`.
 
-It reaches four things, each handed to it: the index and the embedding
+It reaches five things, each handed to it: the index and the embedding
 provider (`semiont_vectors`), a resource's bytes (`semiont_service.content`),
-the anchored-text store the Archivist keeps (`semiont_smelter.anchored_text_store`),
-and everything else through the transport. It opens no file and knows no
-address.
+the record read by position and the file its cursors are kept in
+(`semiont_service.follower`), the anchored-text store the Archivist keeps
+(`semiont_smelter.anchored_text_store`), and everything else through the
+transport. It knows no address.
 
-**The order it works in.** Every frame the transport delivers is taken as it
-is delivered, whatever its channel. A resource's events are applied one at a
-time, in the order they arrived, in a lane of the resource's own
-(`semiont_service.lanes`), and the lanes work beside each other. Nothing is
-held back: an event is applied when its lane reaches it. One thing is
-gathered: the `mark:added` events of a resource that are waiting for their
-turn together, with no other event of the resource between them, have one
-turn, so that the texts they quote are embedded in one batch. Nothing waits
-for more of them to arrive. The work a start plans, and a rebuild's, takes
-its turn in the same lanes.
+**The order it works in.** A resource's events are taken one run at a time,
+in the order of the record, in a lane of the resource's own, and the lanes
+work beside each other (`semiont_service.follower`). Within a run, the
+`mark:added` events that follow one another have one turn, so that the texts
+they quote are embedded in one batch, and every other event has a turn of
+its own. Nothing waits for more of them to arrive. The work a start plans,
+and a rebuild's, takes its turn in the same lanes.
 
 **As many PDFs at a time as it is told.** A PDF's text is read or derived,
 and the PDF is indexed or its anchored text derived, in a PDF turn, of which
@@ -52,7 +52,6 @@ anchored-text entry is filed under it, and `smelt:settled` states it.
 """
 
 import asyncio
-import contextlib
 import hashlib
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
@@ -88,9 +87,9 @@ from semiont.types import (
     SmeltSettledReason,
     StoredEventResponse,
 )
-from semiont.watched import reached
+from semiont_service import follower
+from semiont_service.archivist import AnnotationReads
 from semiont_service.content import Content, ContentReads, ContentUnread
-from semiont_service.lanes import Lanes
 from semiont_service.observability import resident_bytes
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
@@ -114,10 +113,12 @@ from semiont_smelter.reconcile import (
     plan_reconcile,
     quotes_text,
 )
-from semiont_smelter.record import AnnotationReads, Record
-from semiont_smelter.recorded import stored_event
+from semiont_smelter.record import Record
 
 __all__ = ["ReconcileState", "Smelter"]
+
+_FOLLOWS: Final[frozenset[follower.Followed]] = frozenset({"resources"})
+"""The logs of the record a Smelter follows: every resource's. The knowledge base's own holds nothing the index is made of."""
 
 _WAVE: Final = 8
 """How many pieces of planned work are under way at once: a start that finds an empty index must not ask everything of the provider at once.
@@ -239,6 +240,32 @@ class _Piece:
 
 
 @final
+@dataclass(frozen=True, slots=True)
+class _Took:
+    """What taking one turn of a run came to: how many of its events were applied, and how many refused as recorded.
+
+    An event of a kind the Smelter does nothing with is neither: it is taken as nothing.
+    """
+
+    applied: int
+    refused: int
+
+
+_NOTHING: Final = _Took(applied=0, refused=0)
+
+
+def _turns(run: Sequence[StoredEventResponse]) -> list[list[StoredEventResponse]]:
+    """A run's events by turn, in order: the `mark:added` events that follow one another have one, and every other event one of its own."""
+    turns: list[list[StoredEventResponse]] = []
+    for event in run:
+        if event.type == MARK_ADDED.name and turns and turns[-1][0].type == MARK_ADDED.name:
+            turns[-1].append(event)
+        else:
+            turns.append([event])
+    return turns
+
+
+@final
 class _Delivered(FrameSink):
     """Where a Smelter's transport delivers every frame: to the Smelter, as each is delivered."""
 
@@ -257,15 +284,16 @@ def _checksum(data: bytes) -> str:
 
 @final
 class Smelter:
-    """A Smelter over `index`, asking `provider` for vectors, `content` for bytes and `annotations` for a resource's annotations, and
-    reaching the knowledge base through `transport`.
+    """A Smelter over `index`, asking `provider` for vectors, `content` for bytes and `annotations` for a resource's annotations,
+    reading the record by position from `logs` and keeping its cursors in `cursors`, and reaching the knowledge base through
+    `transport`.
 
     The index is connected and the transport's stream names what a Smelter
     reads before it is entered. `pdfs_at_once` is how many PDFs it works on
-    at once. Nothing it was handed is closed on the way
-    out: each is whoever made it's to close. The way out ends what it follows
-    and what its lanes are doing. It does not end a reconcile: whoever began
-    one cancels it first.
+    at once. Nothing it was handed is closed on the way out: each is
+    whoever made it's to close. The way out ends what it follows and what
+    its lanes are doing, and writes its cursors. It does not end a reconcile
+    it was asked for: whoever began one cancels it first.
     """
 
     def __init__(
@@ -275,6 +303,8 @@ class Smelter:
         provider: EmbeddingProvider,
         content: ContentReads,
         annotations: AnnotationReads,
+        logs: follower.Record,
+        cursors: follower.Cursors,
         extractor: PdfExtractor,
         anchored: AnchoredTexts,
         transport: Transport,
@@ -289,26 +319,28 @@ class Smelter:
         self._transport: Final = transport
         self._chunking: Final = chunking
         self._bus: Final = Bus(transport)
-        self._lanes: Final = Lanes()
         self._stopping: Final = asyncio.Event()
         self._record: Final = Record(self._bus, annotations, self._stopping)
+        self._following: Final = follower.Follower(
+            record=logs,
+            take=self._take,
+            forget=self._forget,
+            follows=_FOLLOWS,
+            with_no_cursor=follower.OwnStart(start=self._start_by_reconciling),
+            cursors=cursors,
+        )
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
+        self._reconciling: Final = asyncio.Lock()
+        """Held by a reconcile from its first read to its summary: one asked for while another runs waits for it."""
         self._draining: Final = asyncio.Lock()
         """Held while planned work is done: a reconcile's and a rebuild's are never done at once."""
         self._pdf_turns: Final = asyncio.Semaphore(pdfs_at_once)
         """One held by each PDF that is worked on: from reading its bytes until its points or its anchored text are written."""
         self._doing: Final[list[asyncio.Task[None]]] = []
-        self._gathering: Final[dict[str, list[StoredEventResponse]]] = {}
-        """By lane, the `mark:added` events that are waiting for one turn: one that arrives while they wait joins them."""
         self._moved: set[ResourceId] | None = None
-        """The resources an event has arrived for since the reconcile under way began to read. `None` while none is under way."""
+        """The resources an event has been taken of since the reconcile under way began to read. `None` while none is under way."""
         self._events_processed = 0
-        self._events_failed = 0
-        self._events_waiting = 0
-        self._stream_drops = 0
         self._reconcile = ReconcileState(phase="pending")
-        self._due: Final = asyncio.Event()
-        """Set when the stream drops: what was recorded until it opened again is the next reconcile's to find."""
 
     # ── From the way in to the way out ─────────────────────────────────
 
@@ -318,7 +350,8 @@ class Smelter:
         self._transport.bridge_into(_Delivered(self))
         loop = asyncio.get_running_loop()
         self._doing.append(loop.create_task(self._answer_rebuilds()))
-        self._doing.append(loop.create_task(self._count_stream_drops()))
+        # It starts following once its stream first opens, and sweeps the record each time the stream opens after a drop.
+        self._doing.append(loop.create_task(self._following.watch(self._transport.state)))
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
@@ -326,143 +359,127 @@ class Smelter:
         for task in self._doing:
             task.cancel()
         await asyncio.gather(*self._doing, return_exceptions=True)
-        await self._lanes.aclose()
+        await self._following.aclose()
 
     # ── What it says of itself ─────────────────────────────────────────
 
     @property
     def events_processed(self) -> int:
-        """How many recorded events it has applied since it started. Planned work is not counted."""
+        """How many events of the record it has applied since it started: of the kinds it does something with, and not refused.
+
+        Planned work is not counted.
+        """
         return self._events_processed
 
     @property
-    def events_failed(self) -> int:
-        """How many of the events delivered to it since it started it could not apply: each was logged and passed by."""
-        return self._events_failed
-
-    @property
-    def events_waiting(self) -> int:
-        """How many recorded events were delivered to it and wait to be applied, those being applied now among them."""
-        return self._events_waiting
-
-    @property
-    def stream_drops(self) -> int:
-        """How many times its stream of the record has dropped since it was first seen open.
-
-        Nothing recorded while its stream is down is delivered to it when
-        the stream opens again: a stream that names no scope is given no
-        replay (`docs/protocol/TRANSPORT-HTTP.md` § Event id and
-        resumption). What it missed is found by the reconcile it runs when
-        the stream opens again (`keep_reconciled`).
-        """
-        return self._stream_drops
+    def following(self) -> dict[str, JsonValue]:
+        """How it follows the record, as its health answers it (`semiont_service.follower`)."""
+        return self._following.said()
 
     @property
     def reconcile_state(self) -> ReconcileState:
-        """How far the latest reconcile has got. `pending` from a drop of its stream until the reconcile that follows it begins."""
+        """How far the latest reconcile has got. `pending` until one begins."""
         return self._reconcile
 
+    async def swept(self) -> None:
+        """Wait until a sweep of the record has taken each resource up to what the record held: its start's reconcile among it."""
+        await self._following.swept()
+
     async def settled(self) -> None:
-        """Wait until every command it was sent is answered and every event it was handed applied.
+        """Wait until every command it was sent is answered and every event it was handed taken.
 
         What a test waits on. Nothing of the service does: a Smelter that is
         following is never done.
         """
         await self._commanded.join()
-        await self._lanes.settled()
+        await self._following.settled()
 
     # ── Following ──────────────────────────────────────────────────────
 
-    async def _count_stream_drops(self) -> None:
-        """Count each time the stream drops, say so in the log, and make a reconcile due. A closed stream has ended, and not dropped.
-
-        Until that reconcile begins the index may be behind the record, and
-        `reconcile_state` says it is to be done. One under way at the drop
-        says so for itself, and another follows it.
-        """
-        was_open = False
-        async for state in self._transport.state:
-            if state == "closed":
-                return
-            # A state that was open and is open again was something else between the two looks.
-            if was_open:
-                self._stream_drops += 1
-                LOG.warning(
-                    "The stream of the record dropped: what is recorded until it opens again is found by a reconcile when it does",
-                    extra={"streamDrops": self._stream_drops},
-                )
-                self._due.set()
-                if self._reconcile.phase != "running":
-                    self._reconcile = ReconcileState(phase="pending")
-            was_open = state == "open"
-
     def delivered(self, frame: Frame) -> None:
-        """Take a frame the transport delivered: a followed event goes to its resource's lane, and a rebuild command waits its turn.
-
-        A `mark:added` joins those of its resource that are waiting for
-        their turn, where there are any and no other event of the resource
-        has arrived since.
-        """
+        """Take a frame the transport delivered: an event of the record is a hint for the follower, and a rebuild command waits its turn."""
         if frame.channel == SMELT_REBUILD_ANCHORS.name:
             self._commanded.put_nowait(frame)
             return
         try:
-            event = stored_event(frame)
+            event = follower.recorded(frame)
         except ValidationError as unread:
-            LOG.error("A frame on a followed channel is not a recorded event", extra={"channel": frame.channel, "error": words_of(unread)})
-            self._events_failed += 1
+            # The record holds the event: the follower reads it there if a later one shows it was missed.
+            LOG.error(
+                "A frame on a channel of the record carries no recorded event", extra={"channel": frame.channel, "error": words_of(unread)}
+            )
             return
-        if event is None:
-            return
-        if event.resource_id is None:
-            # Every event a Smelter follows is a resource's. One that names none says nothing it can act on.
-            LOG.error("A followed event names no resource, and was passed by", extra={"type": event.type, "eventId": event.id})
-            self._events_failed += 1
-            return
-        resource = event.resource_id
+        if event is not None:
+            self._following.delivered(event)
+
+    async def _start_by_reconciling(self, resources: frozenset[str]) -> None:
+        """Start the resources that have no cursor by a reconcile (`docs/protocol/SMELTER.md` § Reconcile).
+
+        A reconcile that fails is raised, and the follower starts them again.
+        """
+        LOG.info("Starting by a reconcile the resources the record holds and no cursor names", extra={"resources": len(resources)})
+        await self.reconcile()
+
+    async def _take(self, run: Sequence[StoredEventResponse]) -> int:
+        """Take a run of one resource's events, in order (`semiont_service.follower`), and answer how many it refused as recorded.
+
+        A turn that fails is logged once for each of its events, and stops
+        the run where it is: what was taken before it stays taken, and the
+        resource's later events wait for the next sweep.
+        """
+        resource = run[0].resource_id
+        if resource is None:
+            raise ValueError("an event of the knowledge base's own log was handed to a Smelter, which follows the resources' logs alone")
         if self._moved is not None:
             self._moved.add(resource)
-        self._events_waiting += 1
-        waiting = self._gathering.get(resource)
-        if event.type == "mark:added" and waiting is not None:
-            waiting.append(event)
-            return
-        together = [event]
-        if event.type == "mark:added":
-            self._gathering[resource] = together
-        else:
-            # An event of another kind ends the gathering: a `mark:added` that arrives after it is applied after it.
-            self._gathering.pop(resource, None)
-        self._lanes.put(resource, partial(self._apply_in_turn, resource, together))
+        taken = refused = 0
+        for turn in _turns(run):
+            try:
+                took = await self._apply(resource, turn)
+            except Exception as failure:
+                for event in turn:
+                    LOG.error(
+                        "Smelter failed to process event",
+                        extra={
+                            "type": event.type,
+                            "resourceId": resource,
+                            "sequenceNumber": event.metadata.sequence_number,
+                            **failure_said(failure),
+                        },
+                    )
+                raise follower.Unfinished(taken=taken, refused=refused) from failure
+            taken += len(turn)
+            refused += took.refused
+            self._events_processed += took.applied
+        return refused
 
-    async def _apply_in_turn(self, resource: ResourceId, together: list[StoredEventResponse]) -> None:
-        """Apply, in their lane, the events that have one turn: one event, or the `mark:added` events that waited for it together.
+    async def _forget(self, log: str) -> None:
+        """Take out every point of a resource and of the annotations on it, before its record is taken again from its first event."""
+        resource = ResourceId(log)
+        await self._index.delete_resource_vectors(resource)
+        await self._index.delete_annotation_vectors_for_resource(resource)
+        LOG.info("Took out a resource's points, to take its record again from its first event", extra={"resourceId": resource})
 
-        What fails is logged, counted and passed by, once for each event:
-        what it missed is found when the Smelter next starts.
-        """
-        if self._gathering.get(resource) is together:
-            # Their turn has come: one that arrives from here on waits for a turn of its own.
-            del self._gathering[resource]
-        try:
-            await self._apply(resource, together)
-        except Exception as failure:
-            for event in together:
-                LOG.error("Smelter failed to process event", extra={"type": event.type, "resourceId": resource, **failure_said(failure)})
-            self._events_failed += len(together)
-            return
-        finally:
-            # Applied, failed or cancelled: none of them waits any longer.
-            self._events_waiting -= len(together)
-        self._events_processed += len(together)
+    def _refused(self, event: StoredEventResponse, unread: ValidationError) -> None:
+        """Say that a recorded event was refused: its payload is not its event's. It is taken as nothing."""
+        LOG.error(
+            "A recorded event was refused: its payload is not its event's",
+            extra={
+                "type": event.type,
+                "resourceId": event.resource_id,
+                "sequenceNumber": event.metadata.sequence_number,
+                "error": words_of(unread),
+            },
+        )
 
-    async def _apply(self, resource: ResourceId, together: Sequence[StoredEventResponse]) -> None:
+    async def _apply(self, resource: ResourceId, together: Sequence[StoredEventResponse]) -> _Took:
         """Do what an event does (`docs/protocol/SMELTER.md` § What each event does).
 
-        `together` is the events of one turn, which are of one type: one
-        event, but for `mark:added`. Which resource or annotation changed is
-        all that is taken from an event. What a resource's points are made
-        of is read afresh.
+        `together` is one turn of a run: one event, or the `mark:added`
+        events that follow one another. Which resource or annotation changed
+        is all that is taken from an event. What a resource's points are
+        made of is read afresh. An event of any other kind is taken as
+        nothing, and one whose payload is not its event's is refused.
         """
         event = together[0]
         match event.type:
@@ -480,20 +497,38 @@ class Smelter:
                 await self._index_resource(resource)
                 await self._index_annotations(resource, await self._record.annotations(resource))
             case "mark:added":
-                annotations = [MARK_ADDED.event(added).annotation for added in together]
+                annotations: list[Annotation] = []
+                for added in together:
+                    try:
+                        annotations.append(MARK_ADDED.event(added).annotation)
+                    except ValidationError as unread:
+                        self._refused(added, unread)
                 # An annotation has a point only on a resource of the catalog, which an archived one is not: a start
                 # takes such a point out, so none is made here. One that quotes no text has no point whatever its
                 # resource is, and nothing is asked for it.
                 if any(quotes_text(annotation) for annotation in annotations) and not await self._record.archived(resource):
                     await self._index_annotations(resource, annotations)
+                return _Took(applied=len(annotations), refused=len(together) - len(annotations))
             case "mark:body-updated":
-                await self._restamp_annotations(resource, [MARK_BODY_UPDATED.event(event).annotation_id])
+                try:
+                    changed = MARK_BODY_UPDATED.event(event).annotation_id
+                except ValidationError as unread:
+                    self._refused(event, unread)
+                    return _Took(applied=0, refused=1)
+                await self._restamp_annotations(resource, [changed])
             case "mark:removed":
-                await self._unindex_annotation(MARK_REMOVED.event(event).annotation_id)
+                try:
+                    removed = MARK_REMOVED.event(event).annotation_id
+                except ValidationError as unread:
+                    self._refused(event, unread)
+                    return _Took(applied=0, refused=1)
+                await self._unindex_annotation(removed)
             case "mark:entity-tag-added" | "mark:entity-tag-removed":
                 await self._restamp(resource)
             case _:
-                raise ValueError(f"{event.type} is no event a Smelter follows")
+                # The record holds more kinds of event than an index is made of.
+                return _NOTHING
+        return _Took(applied=1, refused=0)
 
     # ── Indexing a resource ────────────────────────────────────────────
 
@@ -741,52 +776,37 @@ class Smelter:
 
     # ── Reconcile ──────────────────────────────────────────────────────
 
-    async def keep_reconciled(self) -> None:
-        """Reconcile now, and again each time the stream of the record opens after a drop. It never ends: whoever begins it cancels it.
-
-        A pass begins once the stream is open, since what it reads of the
-        record is asked over it. However many drops come while a pass is
-        under way, one more pass follows it. A pass that fails has said so,
-        in the log and in `reconcile_state`, and ends nothing: the next drop
-        begins another.
-        """
-        while True:
-            await reached(self._transport.state, lambda state: state == "open")
-            # Before anything is read: a drop from here on is one this pass may not have seen past.
-            self._due.clear()
-            with contextlib.suppress(Exception):
-                await self.reconcile()
-            await self._due.wait()
-
     async def reconcile(self) -> ReconcileSummary:
-        """Find what was missed while the Smelter was not running or its stream was down, and what either store lost, and mend it.
+        """Find where the index and the anchored-text store differ from the catalog, and mend it: how a resource with no cursor starts.
 
         `docs/protocol/SMELTER.md` § Reconcile states the rule.
 
         Run once it is following, so that nothing falls between what this
-        reads and what arrives. What it plans is done in the lanes, in turn
-        with what arrives, and a resource's bytes are read afresh when its
+        reads and what is taken. What it plans is done in the lanes, in turn
+        with what is taken, and a resource's bytes are read afresh when its
         turn comes: what was planned from an old read never puts back bytes
         a later event replaced. A piece planned for a resource that an event
-        has arrived for since this began to read asks the record again at
+        has been taken of since this began to read asks the record again at
         its turn, and is not done where the record no longer wants it.
 
-        Raises what it failed with, having said so in `reconcile_state`.
+        Raises what it failed with, having said so in `reconcile_state`. One
+        asked for while another runs waits for it.
         """
-        self._reconcile = ReconcileState(phase="running")
-        # Before anything is read: an event that arrives from here on may be one the reads did not see.
-        self._moved = set()
-        try:
-            summary = await self._reconciled()
-        except Exception as failure:
-            self._reconcile = ReconcileState(phase="failed", error=str(failure))
-            LOG.error("Reconcile failed", extra={"error": words_of(failure)})
-            raise
-        finally:
-            self._moved = None
-        self._reconcile = ReconcileState(phase="done", summary=summary)
-        LOG.info("Reconcile complete", extra=summary.said())
-        return summary
+        async with self._reconciling:
+            self._reconcile = ReconcileState(phase="running")
+            # Before anything is read: an event taken from here on may be one the reads did not see.
+            self._moved = set()
+            try:
+                summary = await self._reconciled()
+            except Exception as failure:
+                self._reconcile = ReconcileState(phase="failed", error=str(failure))
+                LOG.error("Reconcile failed", extra={"error": words_of(failure)})
+                raise
+            finally:
+                self._moved = None
+            self._reconcile = ReconcileState(phase="done", summary=summary)
+            LOG.info("Reconcile complete", extra=summary.said())
+            return summary
 
     async def _reconciled(self) -> ReconcileSummary:
         # The index is read before the catalog: a resource indexed while this runs is then never taken for one
@@ -902,12 +922,12 @@ class Smelter:
     # ── Planned work, looked at again ──────────────────────────────────
 
     def _moved_since_planned(self, resource: ResourceId) -> bool:
-        """Whether an event of this resource has arrived since the reconcile under way began to read.
+        """Whether an event of this resource has been taken since the reconcile under way began to read.
 
-        What was planned for a resource no event has arrived for is still
-        what the record wants: an event that arrives later takes its turn
-        after the piece, and mends what the piece did. What was planned for
-        one an event has arrived for may be of a record that has moved.
+        What was planned for a resource no event has been taken of is still
+        what the record wants: an event taken later takes its turn after the
+        piece, and mends what the piece did. What was planned for one an
+        event has been taken of may be of a record that has moved.
         """
         return self._moved is not None and resource in self._moved
 
@@ -973,11 +993,9 @@ class Smelter:
             return came
 
     async def _do(self, piece: _Piece) -> _Concluded | _Failed | _Unwanted | None:
-        """Do one piece of planned work in its lane. One that fails is logged, as an event that fails is, and answered as failed."""
-        # It takes its turn as an event of another kind does: a `mark:added` that arrives after it is applied after it.
-        self._gathering.pop(piece.lane, None)
+        """Do one piece of planned work in its lane, among the resource's runs. One that fails is logged and answered as failed."""
         try:
-            return await self._lanes.run(piece.lane, piece.work)
+            return await self._following.in_turn(piece.lane, piece.work)
         except Exception as failure:
             LOG.error("Smelter failed to do planned work", extra={"kind": piece.kind, "about": piece.lane, **failure_said(failure)})
             return _FAILED

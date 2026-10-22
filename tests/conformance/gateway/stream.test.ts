@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import { storedEvent } from '../harness/archivist';
 import { call, nonConformance } from '../harness/http';
-import { identifiers, operationFor, spec } from '../harness/spec';
+import { archivistSpec, identifiers, operationFor, spec } from '../harness/spec';
 import type { BusStream } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
@@ -274,7 +274,7 @@ eachPlane('subscribing', (world) => {
     // An event with no `type`: were it read on trust, it would match no
     // subscribed channel and be dropped without a word.
     const { type: _untyped, ...event } = storedEvent(PERSISTED, 'res-gap-5', 2);
-    world().archivist.mode.replayAnswer = { events: [event] };
+    world().archivist.mode.replayAnswer = { events: [event], lastSequence: 2 };
     try {
       const stream = await world().open(token, { clientId: randomUUID(), scoped: [{ scope: 'res-gap-5', channels: [PERSISTED], lastEventId: 'p-res-gap-5-1' }] });
       await stream.next('the first ping', (m) => m.event === 'ping');
@@ -288,6 +288,20 @@ eachPlane('subscribing', (world) => {
     const offSpec = world().archivist.violations.splice(0);
     expect(offSpec).toHaveLength(1);
     expect(offSpec[0]).toMatch(/GET \/events\/res-gap-5: 200 body does not match the declared schema/);
+  });
+
+  it('a replay longer than one answer of the Archivist is read an answer at a time, and delivered whole and in order', async () => {
+    const scope = `res-${randomUUID()}`;
+    const longest = archivistSpec().limits('get', '/events/{resourceId}')['maxEvents']!;
+    const last = longest + 3;
+    world().archivist.events.set(scope, Array.from({ length: last }, (_, i) => storedEvent(PERSISTED, scope, i + 1)));
+    const reads = () => world().archivist.calls.filter((c) => c.path.startsWith(`/events/${scope}?`)).map((c) => c.path);
+    const stream = await world().open(await world().person('resumer'), { clientId: randomUUID(), scoped: [{ scope, channels: [PERSISTED], lastEventId: `p-${scope}-1` }] });
+    await stream.next('the first ping', (m) => m.event === 'ping');
+    const replayed = stream.messages.filter((m) => m.event === 'bus-event' && m.frame?.channel === PERSISTED).map((m) => m.id);
+    expect(replayed).toEqual(Array.from({ length: last - 1 }, (_, i) => `p-${scope}-${i + 2}`));
+    expect(stream.frames('bus:resume-gap')).toEqual([]);
+    expect(reads()).toEqual([`/events/${scope}?fromSequence=2`, `/events/${scope}?fromSequence=${longest + 2}`]);
   });
 
   it('live frames arriving during a replay follow it, less any the replay already delivered', async () => {

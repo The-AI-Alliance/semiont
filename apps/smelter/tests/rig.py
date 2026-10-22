@@ -2,9 +2,10 @@
 
 What stands in for the Archivist is `World`: what the knowledge base holds,
 which a test changes as the Archivist does when something is recorded. Each
-change answers the event the Archivist records of it. A test that delivers
-the event is a Smelter that was following when it happened, and one that
-does not is a Smelter that missed it.
+change records an event, and answers it. A test that delivers the event is a
+Smelter that was following when it happened, and one that does not is a
+Smelter whose stream missed it: the Smelter reads it from the record when a
+later event of the resource shows the gap, or when it next sweeps the record.
 
 A checksum here is what the Archivist writes: the SHA-256 of the bytes, in
 lower-case hex. The catalog states it of each resource's bytes as they are.
@@ -12,7 +13,7 @@ lower-case hex. The catalog states it of each resource's bytes as they are.
 
 import asyncio
 import hashlib
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -22,9 +23,10 @@ from pydantic import JsonValue, TypeAdapter
 from semiont.identifiers import ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
-from semiont.types import ExtractionOutcome, GetAnnotationsResponse
-from semiont_service.archivist import AnnotationsUnread
+from semiont.types import ExtractionOutcome, GetAnnotationsResponse, StoredEventResponse
+from semiont_service.archivist import AnnotationReads, AnnotationsUnread
 from semiont_service.content import Content, ContentReads, ContentUnread
+from semiont_service.follower import Cursors, Record
 from semiont_vectors.embedding import EmbeddingProvider, EmbeddingProviderError
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.mock import MockEmbeddingProvider, deterministic_vector
@@ -36,7 +38,6 @@ from semiont_smelter.chunking import Chunking
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.ocr_engine import Box, OcrLine, OcrParagraph, OcrRead, OcrWord
 from semiont_smelter.pdf_reader import Matrix, PdfEncrypted, PdfUnreadable, Pixels, Run
-from semiont_smelter.record import AnnotationReads
 from semiont_smelter.scripted import ScriptedDocument, ScriptedImage, ScriptedOcrEngine, ScriptedPage, ScriptedPdfReader
 from semiont_smelter.smelter import Smelter
 
@@ -52,6 +53,15 @@ WHOLE_PAGE: Final[Matrix] = (612.0, 0.0, 0.0, 792.0, 0.0, 0.0)
 def checksum_of(data: bytes) -> str:
     """The checksum of some bytes, as the Archivist writes one."""
     return hashlib.sha256(data).hexdigest()
+
+
+async def turns_until(holds: Callable[[], bool]) -> None:
+    """Give the loop turns until `holds` holds: a hundred, and fail where it does not by then."""
+    for _ in range(100):
+        if holds():
+            return
+        await asyncio.sleep(0)
+    raise AssertionError("it did not come to hold within a hundred turns of the loop")
 
 
 # ── Stating a PDF ──────────────────────────────────────────────────────
@@ -92,13 +102,14 @@ def scanned(mark: int, *words: str) -> tuple[ScriptedDocument, Mapping[bytes, Oc
 
 
 @final
-class World(ContentReads, AnnotationReads):
-    """What the knowledge base holds, as the Archivist answers it: each resource's bytes and description, and the annotations on it.
+class World(ContentReads, AnnotationReads, Record):
+    """What the knowledge base holds, as the Archivist answers it: each resource's record, bytes and description, and its annotations.
 
-    It is also what reads a resource's bytes and its annotations for the
-    Smelter. `unread` names the resources whose bytes cannot be read,
-    `read_of` every resource whose bytes were asked for, in order, and
-    `annotations_of` every resource whose annotations were.
+    It is also what reads a resource's bytes, its annotations and the record
+    by position for the Smelter. `unread` names the resources whose bytes
+    cannot be read, `read_of` every resource whose bytes were asked for, in
+    order, `annotations_of` every resource whose annotations were, and
+    `listings` how many times the record's logs were listed.
     """
 
     def __init__(self) -> None:
@@ -110,7 +121,9 @@ class World(ContentReads, AnnotationReads):
         self.unread: Final[set[str]] = set()
         self.read_of: Final[list[str]] = []
         self.annotations_of: Final[list[str]] = []
-        self._recorded: Final[dict[str, int]] = {}
+        self.events: Final[dict[str, list[JsonObject]]] = {}
+        """Each resource's record: the events recorded of it, in order."""
+        self.listings = 0
 
     @override
     async def read(self, resource_id: ResourceId) -> Content:
@@ -132,15 +145,26 @@ class World(ContentReads, AnnotationReads):
         on_it: list[JsonValue] = [*self.annotations.get(resource_id, [])]
         return GetAnnotationsResponse.model_validate({"annotations": on_it, "total": len(on_it)})
 
+    @override
+    async def logs(self) -> Mapping[str, int]:
+        self.listings += 1
+        return {resource: len(events) for resource, events in self.events.items()}
+
+    @override
+    async def after(self, log: str, sequence: int) -> Sequence[StoredEventResponse]:
+        # A real read waits on a request, and so gives up its turn.
+        await asyncio.sleep(0)
+        return [StoredEventResponse.model_validate(event) for event in self.events[log][sequence:]]
+
     def last_sequence(self, resource: str) -> int:
         """The sequence number of the last event the Archivist recorded of a resource."""
-        return self._recorded[resource]
+        return len(self.events[resource])
 
     def _event(self, kind: str, resource: str, payload: JsonObject) -> JsonObject:
         """The event the Archivist records of a change, at the next place in its resource's record."""
-        sequence = self._recorded.get(resource, 0) + 1
-        self._recorded[resource] = sequence
-        return {
+        events = self.events.setdefault(resource, [])
+        sequence = len(events) + 1
+        event: JsonObject = {
             "id": f"evt-{resource}-{sequence}-{kind}",
             "type": kind,
             "timestamp": "2020-03-04T05:06:07.000Z",
@@ -150,6 +174,8 @@ class World(ContentReads, AnnotationReads):
             "payload": payload,
             "metadata": {"sequenceNumber": sequence},
         }
+        events.append(event)
+        return event
 
     def _types(self, resource: str) -> list[str]:
         stated = self.described[resource].get("entityTypes")
@@ -198,10 +224,14 @@ class World(ContentReads, AnnotationReads):
         return self._event("yield:cloned", resource, cloned)
 
     def forget(self, resource: str) -> None:
-        """Take a resource and its annotations out of the knowledge base, with no event: a resource that is gone."""
+        """Take a resource and its annotations out of the knowledge base, with no event: a resource that is gone. Its record stays."""
         del self.described[resource]
         self.content.pop(resource, None)
         self.annotations.pop(resource, None)
+
+    def recorded(self, kind: str, resource: str) -> JsonObject:
+        """Record an event of a kind that changes nothing an index is made of: a resource moved in the tree, a job's lifecycle."""
+        return self._event(kind, resource, {})
 
     def tag(self, resource: str, entity_type: str) -> JsonObject:
         self._set_types(resource, [*self._types(resource), entity_type])
@@ -429,13 +459,20 @@ class PlayedStore(AnchoredTexts):
 class Rig:
     """Held with `async with`: a Smelter that is following from the way in to the way out.
 
-    `home` is the directory of its anchored-text store. `pdfs` is the
-    documents its reader of PDFs opens, by their bytes, and `reads` what its
-    OCR engine reads of an image, by the image's pixels. `after` is an
-    earlier life of the Smelter, whose knowledge base, index and store go
-    on: a Smelter that was stopped and started. `index` is the index it
-    starts with, in place of the one it would have: an index that was
-    cleared while the Smelter was stopped is a new one.
+    `home` is the directory of its anchored-text store, and its cursors are
+    kept in a directory of their own inside it. `pdfs` is the documents its
+    reader of PDFs opens, by their bytes, and `reads` what its OCR engine
+    reads of an image, by the image's pixels. `after` is an earlier life of
+    the Smelter, whose knowledge base, index, store and cursors go on: a
+    Smelter that was stopped and started in the same container. `index` is
+    the index it starts with, in place of the one it would have: an index
+    that was cleared while the Smelter was stopped is a new one, and a new
+    one has the Smelter forget its cursors, as its service does.
+
+    The way in waits until the Smelter's start has listed the record: what
+    the knowledge base holds by then is what its start takes, and what a
+    test records after that is new to it. A knowledge base a test fills
+    before the way in is one the Smelter starts over.
     """
 
     def __init__(
@@ -462,11 +499,16 @@ class Rig:
         """The operations that are answered with a failure of the Archivist's own."""
         self.transport: Final = FaultyTransport(make_response=self._answer)
         self.transport.refuse_when(self._refuse)
+        self.cursors: Final[Path] = home / "follower" / "cursors.json" if after is None else after.cursors
+        if index is not None:
+            Cursors(self.cursors).keep({})
         self.smelter: Final = Smelter(
             index=self.index,
             provider=self.provider,
             content=self.world,
             annotations=self.world,
+            logs=self.world,
+            cursors=Cursors(self.cursors),
             extractor=PdfExtractor(reader=self.reader, engine=self.engine),
             anchored=self.store,
             transport=self.transport,
@@ -476,7 +518,10 @@ class Rig:
 
     async def __aenter__(self) -> Self:
         await self.index.connect()
+        listed = self.world.listings
         await self.smelter.__aenter__()
+        # The rig's stream is open from the first: the Smelter's start lists the record at its first turns.
+        await turns_until(lambda: self.world.listings > listed)
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
@@ -519,6 +564,18 @@ class Rig:
     async def happened(self, *events: JsonObject) -> None:
         """Events that were recorded while the Smelter was following: delivered, and applied."""
         self.deliver(*events)
+        await self.settled()
+
+    async def started(self) -> None:
+        """Wait until the Smelter's start has taken what the record held, its reconcile of what had no cursor among it, and has settled."""
+        await self.smelter.swept()
+        await self.settled()
+
+    async def reopened(self) -> None:
+        """Drop the Smelter's stream and open it again, and wait until the sweep that follows has taken what the record holds."""
+        for state in ("reconnecting", "connecting", "open"):
+            self.transport.set_state(state)
+            await asyncio.sleep(0)
         await self.settled()
 
     async def settled(self) -> None:

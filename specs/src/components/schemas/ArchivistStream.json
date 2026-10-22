@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.",
+  "properties": {
+    "resourceId": {
+      "$ref": "./ResourceId.json"
+    },
+    "lastSequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The sequence number of the stream's last event when it was read: 0 for a stream with none."
+    }
+  },
+  "required": [
+    "resourceId",
+    "lastSequence"
+  ],
+  "additionalProperties": false
+}

@@ -99,8 +99,11 @@ func TestWeaverDocumentIsResolved(t *testing.T) {
 	if graph != want {
 		t.Errorf("graph = %+v, want %+v", graph, want)
 	}
-	if doc.CheckpointPath != weaverCheckpointPath {
-		t.Errorf("checkpointPath = %q, want %q", doc.CheckpointPath, weaverCheckpointPath)
+	if doc.CursorsPath != "/tmp/semiont/weaver-cursors.json" {
+		t.Errorf("cursorsPath = %q, want the Weaver's file of the container's own disk", doc.CursorsPath)
+	}
+	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
+		t.Errorf("archivist = %+v, want where this start places the Archivist", doc.Archivist)
 	}
 	if doc.Port != semiontDescriptor("weaver").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)

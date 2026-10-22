@@ -41,7 +41,7 @@ Each file runs its cases in a world of its own
   and the trusted issuer, which grants the Weaver's service account;
 - a real neo4j, cleared when the world is made;
 - the Weaver, started with its settings and its environment, and waited for
-  until both of its boot passes have ended.
+  until its first sweep of the record is done and its reconcile has ended.
 
 **Nothing is recorded but through the Archivist.** A case uploads as a person,
 asks for annotations as a person, and commits a job's work as a worker; the
@@ -68,9 +68,9 @@ A Weaver is given its settings as its configuration document (`WeaverConfig`),
 which the harness writes
 ([harness/weaver-process.ts](../harness/weaver-process.ts)) into a home
 directory of the world's own, and names on its command (`--config`). The
-document says where the Weaver keeps its checkpoint: a temporary directory
-inside that home. A Weaver stopped and started again finds what it kept; one
-that is replaced starts with nothing.
+document says where the Archivist listens and where the Weaver keeps its
+cursors: a temporary directory inside that home. A Weaver stopped and started
+again finds what it kept; one that is replaced starts with nothing.
 
 ## What it checks
 
@@ -79,10 +79,11 @@ that is replaced starts with nothing.
   worker for, each held to what the graph is to hold of the Archivist's view;
   who each is by, the software that made it, and when it was changed; a
   resource's date and attribution; a resource followed through archiving, its
-  entity types and an annotation's removal; what it says it has applied; and
+  entity types and an annotation's removal; how far it says it has taken
+  each resource's stream; and
   that its own reconcile finds nothing to repair in a graph it has just built.
 - **Bringing the graph back** (`repair.test.ts`): what was recorded while it
-  was down, with its checkpoint and with nothing kept; what was lost from the
+  was down, with its cursors and with nothing kept; what was lost from the
   graph behind its back, and a graph that was cleaned whole; a rebuild of one
   resource, which leaves another resource's link to it alone; and a rebuild of
   everything.

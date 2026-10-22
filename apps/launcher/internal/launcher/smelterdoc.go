@@ -193,6 +193,7 @@ func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []
 	if doc.PdfsAtOnce, err = smelterPdfsAtOnce(env); err != nil {
 		return nil, err
 	}
+	doc.CursorsPath = cursorsPath("smelter")
 	doc.Port = semiontDescriptor("smelter").ports[0].port
 
 	doc.LogLevel = "info"

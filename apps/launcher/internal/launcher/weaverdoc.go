@@ -25,11 +25,15 @@ const weaverDocumentFile = "weaver.json"
 // the two together.
 const weaverDocumentTarget = "/etc/semiont/weaver.json"
 
-// weaverCheckpointPath: where the Weaver keeps its marks, in its container's
-// own temporary directory. The Weaver mounts no state: its marks are never a
-// correctness input, and a Weaver that finds none applies the whole record
-// again and ends with the same graph.
-const weaverCheckpointPath = "/tmp/semiont/weaver-checkpoint.json"
+// cursorsPath: where a follower of the record — the Weaver, the Smelter —
+// keeps its cursors, in its container's own temporary directory. ONE decider
+// for both documents. Never under the knowledge base's .semiont (ruled
+// 2026-10-21): a cursor is never a correctness input, so losing the file,
+// as every `semiont start` does when it makes the container again, costs
+// time and never correctness. The service mounts no state for it.
+func cursorsPath(service string) string {
+	return "/tmp/semiont/" + service + "-cursors.json"
+}
 
 // weaverNamedVars: the variables the Weaver's document names rather than
 // resolves — the graph database's password, where the KB config references
@@ -92,7 +96,9 @@ func graphConfig(env *envConfig, vars map[string]string, graphRun bool, who stri
 }
 
 // weaverDocument renders the document from the selected environment, the
-// address the launcher computed, and the user's variables.
+// address the launcher computed, and the user's variables. The Archivist is
+// where this start places it, and a hand-written archivist section wins
+// (archivistAddress): the Weaver reads the record by position there.
 func weaverDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []string, graphRun bool) ([]byte, error) {
 	if env.Gateway == nil || env.Gateway.PublicURL == "" {
 		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the Weaver has no gateway to reach")
@@ -109,10 +115,13 @@ func weaverDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []s
 	if doc.Identity.Issuer, err = resolveRefs("identity.issuer", env.Identity.Issuer, vars); err != nil {
 		return nil, err
 	}
+	if doc.Archivist.Host, doc.Archivist.Port, err = archivistAddress(env, addr, vars); err != nil {
+		return nil, err
+	}
 	if doc.Graph, err = graphConfig(env, vars, graphRun, "the Weaver"); err != nil {
 		return nil, err
 	}
-	doc.CheckpointPath = weaverCheckpointPath
+	doc.CursorsPath = cursorsPath("weaver")
 	doc.Port = semiontDescriptor("weaver").ports[0].port
 
 	doc.LogLevel = "info"

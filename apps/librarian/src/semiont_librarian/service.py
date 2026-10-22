@@ -54,7 +54,7 @@ from semiont_graph.factory import create_graph_reader
 from semiont_graph.interface import GraphReader
 from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
 from semiont_inference.interface import InferenceClient
-from semiont_service.archivist import ArchivistContent
+from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.health import bind_health
@@ -199,7 +199,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
             await connected("vector index", started.vectors.connect())
             LOG.info("Vector index ready", extra={"type": config.vectors.type})
             async with (
-                ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
+                Archivist(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Librarian(
                     record=BusRecord(Bus(transport)),

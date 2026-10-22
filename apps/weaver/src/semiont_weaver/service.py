@@ -15,12 +15,13 @@ everything it writes is its log, on stdout.
 
 It starts in the order `docs/protocol/WEAVER.md` § Boot states: it signs in
 as the agent `(semiont, weaver)`, connects to the graph database, follows the
-record, opens its health port, and then runs its two boot passes, catch-up
-and reconcile. It runs catch-up again each time its stream of the record
-opens after a drop. A pass that fails is said, in the log and at the health port,
-and does not end the service: ending it would make the graph no fresher, and
-would take away the one thing still applying what arrives. Told to stop, it
-stops applying, closes what it holds open, and exits with status 0.
+record, opens its health port, and once its first sweep of the record is done
+runs reconcile. Following, it sweeps the record again each time its stream
+opens after a drop (`semiont_service.follower`). A reconcile that fails is
+said, in the log and at the health port, and does not end the service: ending
+it would make the graph no fresher, and would take away the one thing still
+applying what arrives. Told to stop, it stops applying, closes what it holds
+open, and exits with status 0.
 """
 
 import asyncio
@@ -34,26 +35,26 @@ from typing import Final, final
 
 from pydantic import JsonValue
 from semiont.bus import reply_channels_for
-from semiont.channels import WEAVE_REBUILD
+from semiont.channels import PERSISTED_EVENT_TYPES, WEAVE_REBUILD
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import WeaverConfig
 from semiont_graph.factory import create_graph_database
 from semiont_graph.interface import GraphDatabase
+from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
+from semiont_service.follower import Cursors
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 
-from semiont_weaver.checkpoint import Checkpoint
 from semiont_weaver.config import SERVICE, graph_password_of, read_weaver_config
 from semiont_weaver.history import READ
 from semiont_weaver.log import LOG
-from semiont_weaver.recorded import FOLLOWED
-from semiont_weaver.weaver import CaughtUp, Reconciled, Weaver, words_of
+from semiont_weaver.weaver import Reconciled, Weaver, words_of
 
-CHANNELS: Final[tuple[str, ...]] = (*FOLLOWED, WEAVE_REBUILD.name, *reply_channels_for(*READ))
-"""What the Weaver's stream names: the events it follows, the command it answers, and the replies of what it asks."""
+CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, WEAVE_REBUILD.name, *reply_channels_for(*READ))
+"""What the Weaver's stream names: every event of the record, the command it answers, and the replies of what it asks."""
 
 _PROVIDER: Final = "semiont"
 _MODEL: Final = "weaver"
@@ -73,8 +74,8 @@ class _Started:
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
     config = read_weaver_config(config_path_of(SERVICE, arguments))
-    # What is written from the document's level: the service's own code, the graph stores' and the SDK's.
-    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_graph", "semiont"))
+    # What is written from the document's level: the service's own code, the graph stores', the shared package's and the SDK's.
+    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_graph", "semiont_service", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
     graph = create_graph_database(config.graph, password=graph_password_of(config, environment))
     return _Started(config=config, credential=credential, graph=graph)
@@ -114,37 +115,35 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     for told in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(told, told_to_stop.set)
 
-    catch_up: _Pass = {"phase": "pending"}
     reconcile: _Pass = {"phase": "pending"}
+    account = ServiceToken(started.credential)
 
-    async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=ServiceToken(started.credential)) as agent:
+    async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         await connected("graph database", started.graph.connect())
         LOG.info("Graph database ready", extra={"type": config.graph.type})
         try:
             async with (
+                Archivist(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as archivist,
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
-                Weaver(started.graph, transport, transport.content, Checkpoint(Path(config.checkpoint_path))) as weaver,
+                Weaver(
+                    started.graph, transport, record=archivist, annotations=archivist, cursors=Cursors(Path(config.cursors_path))
+                ) as weaver,
             ):
                 LOG.info("Following the record")
                 health = await _listening(
                     config.port,
-                    lambda: {"status": "ok", "applyFailures": weaver.apply_failures, "catchUp": catch_up, "reconcile": reconcile},
+                    lambda: {"status": "ok", "following": weaver.follower.said(), "reconcile": reconcile},
                 )
                 try:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})
 
                     async def passes() -> None:
-                        # Run once it is following, so that what changed while no Weaver ran is brought back in step,
-                        # and then what the graph lost that no event will touch again.
-                        await _run_pass("catch-up", lambda: _said(weaver.catch_up()), catch_up)
+                        # Once the first sweep has brought the graph in step with the record: what the graph lost that no
+                        # event will touch again.
+                        await weaver.follower.swept()
                         await _run_pass("reconcile", lambda: _said(weaver.reconcile()), reconcile)
-                        # What is recorded while its stream is down is never delivered: each time the stream opens
-                        # after a drop, a catch-up finds it.
-                        while True:
-                            await weaver.reopened()
-                            await _run_pass("catch-up", lambda: _said(weaver.catch_up()), catch_up)
 
                     passing = asyncio.ensure_future(passes())
                     sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
@@ -168,7 +167,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
             await started.graph.disconnect()
 
 
-async def _said(passing: Awaitable[CaughtUp | Reconciled]) -> dict[str, JsonValue]:
+async def _said(passing: Awaitable[Reconciled]) -> dict[str, JsonValue]:
     """What a pass did, as the health endpoint reports it."""
     return (await passing).said()
 

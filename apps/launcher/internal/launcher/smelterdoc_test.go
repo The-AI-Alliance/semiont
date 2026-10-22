@@ -148,6 +148,9 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 	if doc.PdfsAtOnce != 1 {
 		t.Errorf("pdfsAtOnce = %d, want the one PDF the table's ceiling holds", doc.PdfsAtOnce)
 	}
+	if doc.CursorsPath != "/tmp/semiont/smelter-cursors.json" {
+		t.Errorf("cursorsPath = %q, want the Smelter's file of the container's own disk", doc.CursorsPath)
+	}
 	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
 	}

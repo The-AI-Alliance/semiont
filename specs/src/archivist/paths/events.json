@@ -1,0 +1,37 @@
+{
+  "get": {
+    "operationId": "listStreams",
+    "summary": "Every stream of the event log, and where each stands",
+    "description": "Every stream the event log holds, each resource's and `__system__`, with the sequence number of its last event. A service that follows the record reads it as it starts and each time its stream opens again, and reads on only the streams that moved.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The streams.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ArchivistStreamsResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "500": {
+        "description": "The event log could not be read.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

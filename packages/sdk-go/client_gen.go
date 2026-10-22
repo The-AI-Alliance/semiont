@@ -2606,9 +2606,12 @@ type ArchivistConfig struct {
 	StateHome string `json:"stateHome"`
 }
 
-// ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+// ArchivistEventsResponse A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.
 type ArchivistEventsResponse struct {
 	Events []StoredEventResponse `json:"events"`
+
+	// LastSequence The sequence number of the stream's last event when it was read: 0 for a stream with none. More events follow the page while its last event's number is below it.
+	LastSequence int `json:"lastSequence"`
 }
 
 // ArchivistHealth The Archivist's liveness answer: it serves, and the actors it hosts.
@@ -2668,6 +2671,20 @@ type ArchivistRosterRole struct {
 
 // ArchivistRosterRoleProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 type ArchivistRosterRoleProvider string
+
+// ArchivistStream One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.
+type ArchivistStream struct {
+	// LastSequence The sequence number of the stream's last event when it was read: 0 for a stream with none.
+	LastSequence int `json:"lastSequence"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+}
+
+// ArchivistStreamsResponse Every stream of the event log, `__system__` among them, each with the sequence number of its last event, in no order: the Archivist's answer to `GET /events`.
+type ArchivistStreamsResponse struct {
+	Streams []ArchivistStream `json:"streams"`
+}
 
 // AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
 type AssessingJobParams struct {
@@ -3290,6 +3307,9 @@ type CreateResourceResponse struct {
 	// ResourceId The id of the newly created resource, as the record minted it.
 	ResourceId ResourceId `json:"resourceId"`
 }
+
+// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+type CursorsPath = string
 
 // DirEntry defines model for DirEntry.
 type DirEntry struct {
@@ -6410,6 +6430,9 @@ type SmelterConfig struct {
 		Overlap int `json:"overlap"`
 	} `json:"chunking"`
 
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	CursorsPath CursorsPath `json:"cursorsPath"`
+
 	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
 	Embedding EmbeddingConfig `json:"embedding"`
 
@@ -6701,10 +6724,16 @@ type WeaveRebuildCommand struct {
 
 // WeaverConfig Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type WeaverConfig struct {
-	// CheckpointPath The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again.
-	CheckpointPath string `json:"checkpointPath"`
+	// Archivist Where the Archivist listens. The Weaver reads the record by position from it, and a resource's annotations, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
 
-	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds.
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	CursorsPath CursorsPath `json:"cursorsPath"`
+
+	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus.
 	GatewayUrl string `json:"gatewayUrl"`
 
 	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.

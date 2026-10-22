@@ -1,5 +1,5 @@
 {
-  "$comment": "What the Weaver's fold does to the graph, as every implementation of the Weaver must do it: a history of recorded events, and the graph it leaves. Semiont's Weaver (semiont_weaver, in apps/weaver) runs every case, and another implementation would. `history` is the events as the Weaver is given them, in the order they are delivered, each as the bus carries a recorded event (a StoredEventResponse, with the payload the bus registry names for its channel): an event that appears twice is delivered twice. `graph` is what the graph then holds, as a store answers it: its `resources` and its `annotations` (each as the graph's annotation codec says the graph holds it, which is not all a view holds). Resources, annotations and a resource's entity types are sets: no order of theirs is stated. `applied` is the sequence the Weaver has applied up to for each resource, which it also signals on `weave:applied`; it never passes an event that was not applied. `refused` is how many events the Weaver did not apply, where there are any. The graph says what the record says: a resource's date and an updated annotation's `modified` are the moments their events were recorded, and who a thing is by is who its event records, so that a check of the graph against the record's views finds nothing to repair in a graph the fold has just built. What a rebuild, a catch-up and a reconcile do are not here: they are the service's, and its suite's. Add a case here before changing an implementation.",
+  "$comment": "What the Weaver's fold does to the graph, as every implementation of the Weaver must do it: a history of recorded events, and the graph it leaves. Semiont's Weaver (semiont_weaver, in apps/weaver) runs every case, and another implementation would. `history` is the events as the Weaver is given them, in the order they are delivered, each as the bus carries a recorded event (a StoredEventResponse, with the payload the bus registry names for its channel): an event that appears twice is delivered twice. `graph` is what the graph then holds, as a store answers it: its `resources` and its `annotations` (each as the graph's annotation codec says the graph holds it, which is not all a view holds). Resources, annotations and a resource's entity types are sets: no order of theirs is stated. `applied` is, for each resource, the last event of its log the Weaver has taken, which it also signals on `weave:applied`: a Weaver follows the record (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame), and an event the graph cannot take as recorded is taken as nothing. `refused` is how many such events there were, where there are any. The graph says what the record says: a resource's date and an updated annotation's `modified` are the moments their events were recorded, and who a thing is by is who its event records, so that a check of the graph against the record's views finds nothing to repair in a graph the fold has just built. What a rebuild, a catch-up and a reconcile do are not here: they are the service's, and its suite's. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a created resource is in the graph as its event records it: named and typed by the payload, dated when the event was recorded and not when it was applied, and by the parties the record derived, here the one that asked and the software that did the work",
@@ -106,7 +106,9 @@
         "resources": [],
         "annotations": []
       },
-      "applied": {},
+      "applied": {
+        "res-1": 1
+      },
       "refused": 1
     },
     {
@@ -542,7 +544,7 @@
       }
     },
     {
-      "why": "an annotation recorded with no creator is refused: the graph makes none up, the event is not applied, and the applied mark does not pass it",
+      "why": "an annotation recorded with no creator is refused: the graph makes none up, and the event is taken as nothing, and counted",
       "history": [
         {
           "id": "evt-12",
@@ -617,12 +619,12 @@
         "annotations": []
       },
       "applied": {
-        "res-1": 1
+        "res-1": 2
       },
       "refused": 1
     },
     {
-      "why": "a refused event is refused alone: of three annotations added in one burst, the one with no creator is not applied, the two beside it are, and the applied mark stops before the refused one",
+      "why": "a refused event is refused alone: of three annotations added in one burst, the one with no creator is not applied, the two beside it are, and the resource's log is taken past all three",
       "history": [
         {
           "id": "evt-14",
@@ -780,7 +782,7 @@
         ]
       },
       "applied": {
-        "res-1": 2
+        "res-1": 4
       },
       "refused": 1
     },

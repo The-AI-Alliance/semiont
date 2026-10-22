@@ -2,12 +2,13 @@
 
 What the Smelter does: the process a smelter image runs. It keeps two stores
 in step with the record: a vector index, which the Librarian searches, and a
-store of anchored text, which the Archivist serves. It follows the recorded
-events that change what either holds. For a resource it reads the bytes, gets
-their text, cuts it into chunks, has each chunk embedded and puts them in the
-index, and says what it decided. For an annotation it embeds the text the
-annotation quotes. When it starts, and each time its stream of the record
-opens after a drop, it repairs what it missed and what either store lost. What the record is, and what the Archivist answers, is
+store of anchored text, which the Archivist serves. It follows the record,
+and does something with the events that change what either store holds. For
+a resource it reads the bytes, gets their text, cuts it into chunks, has each
+chunk embedded and puts them in the index, and says what it decided. For an
+annotation it embeds the text the annotation quotes. A resource it has no
+cursor for when it starts it starts by a reconcile, which repairs what either
+store lost. What the record is, and what the Archivist answers, is
 [ARCHIVIST.md](./ARCHIVIST.md); what the bus carries is
 [EVENT-BUS.md](./EVENT-BUS.md).
 
@@ -57,8 +58,10 @@ variable that holds its key, for a provider that takes one); the vector index
 ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json): its
 kind, and what that kind needs to be reached); the two numbers a text is cut
 by, a chunk's size and how far one chunk overlaps the next; how many PDFs it
-works on at once; the port its
-health answers on; and how it logs.
+works on at once; the file it keeps its cursors in
+([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json): a file
+of its own disk, never of the knowledge base); the port its health answers
+on; and how it logs.
 Whoever starts a Smelter writes it: the launcher for the Smelter it starts,
 and anyone else to the same schema.
 
@@ -68,7 +71,8 @@ and anyone else to the same schema.
   value found there. *Held by `apps/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
   vector database's host, the embedding provider's kind, model or address,
-  or how many PDFs it works on at once, it refuses to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  how many PDFs it works on at once, or the file of its cursors, it refuses
+  to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An index that lives in one process's memory is refused.** Nothing else
   could search it. *Held by `apps/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
@@ -83,14 +87,38 @@ and anyone else to the same schema.
 
 A Smelter signs in as its service account and works as an agent named by its
 embedding provider and its model, so that two Smelters that embed with
-different models are different agents. It reaches the record through the
-gateway, and reads bytes from the Archivist.
+different models are different agents. It reaches the bus through the
+gateway, and reads bytes, annotations and the record by position from the
+Archivist.
 
-- **It follows eleven recorded events:** `yield:created`, `yield:cloned`,
-  `yield:updated`, `yield:representation-added`, `mark:archived`,
-  `mark:unarchived`, `mark:added`, `mark:body-updated`, `mark:removed`,
-  `mark:entity-tag-added` and `mark:entity-tag-removed`.
-  *Held by `apps/smelter/tests/test_census.py`.*
+- **It follows the record as every follower of the record does**
+  ([TRANSPORT-CONTRACT.md § What repairs a passing frame](./TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)):
+  a cursor for each resource's log, moved only by one; a delivered event
+  taken as a hint, a gap read from the Archivist's `GET /events/{id}`; every
+  event of the record received; a sweep, from the Archivist's `GET /events`,
+  at its start and each time its stream opens after a drop; a refused event
+  taken as nothing and counted, and a failed one stopping its resource's log
+  until the next sweep. It follows the resources' logs, and not
+  `__system__`: the knowledge base's own events change nothing either store
+  is made of. Its cursors are kept in the file its document names.
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+- **Eleven events of the record do something:** `yield:created`,
+  `yield:cloned`, `yield:updated`, `yield:representation-added`,
+  `mark:archived`, `mark:unarchived`, `mark:added`, `mark:body-updated`,
+  `mark:removed`, `mark:entity-tag-added` and `mark:entity-tag-removed`
+  ([What each event does](#what-each-event-does)). Every other event is taken
+  as nothing. *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
+- **A resource no cursor names when it starts is started by a reconcile**
+  ([Reconcile](#reconcile)), and followed from its last event as the record
+  listed it before the reconcile read anything. One first met after the
+  start is a new one, and is taken from its first event. An index made
+  anew at boot has the Smelter forget its cursors, so that every resource
+  is started by a reconcile.
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
+- **A resource's events are taken a run at a time,** and within a run the
+  `mark:added` events that follow one another have one turn, whose quotes are
+  embedded in one batch ([Order](#order)).
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It reads what the record holds from the Archivist, over the bus:** a
   resource's description (`browse:resource-requested`) and the catalog of
   resources that are not archived (`browse:resources-requested`, 200 to a
@@ -108,8 +136,8 @@ gateway, and reads bytes from the Archivist.
   ([What it decides](#what-it-decides)).
   *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It writes the vector index, and the anchored-text store through the
-  Archivist, and nothing else.** It records nothing, no event is its, and it
-  writes no file.
+  Archivist, and its cursors' file, and nothing else.** It records nothing,
+  and no event is its.
   *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
 
 ## What each event does
@@ -210,26 +238,29 @@ entity types from its description as the Archivist answers it then.
 
 ### Order
 
-- **The events of one resource are applied one at a time, in the order they
-  arrive.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_lanes.py`.*
-- **The `mark:added` events of one resource that are waiting for their turn
-  together have one turn,** where no other event of the resource arrived
-  between them: the texts they quote are embedded in one batch, and the
-  Archivist is asked once whether the resource is archived. Nothing waits for
-  more to arrive, and one that arrives once the turn has begun waits for a
-  turn of its own. Where the turn fails, each of its events is logged and
-  passed by.
+- **The events of one resource are applied one at a time, in the order of
+  its record.**
+  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_follow_cases.py`.*
+- **The `mark:added` events that follow one another in a run of a resource's
+  events have one turn:** the texts they quote are embedded in one batch, and
+  the Archivist is asked once whether the resource is archived. Nothing waits
+  for more to arrive, and one that arrives once the turn has begun is taken
+  in a run of its own. Where the turn fails, each of its events is logged.
   *Held by `apps/smelter/tests/test_smelter.py`.*
 - **The events of different resources are applied in no fixed order,** and
   the index ends the same either way.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
-- **An event delivered twice in a row changes nothing the second time.**
+- **An event delivered again is dropped:** it is at or below its resource's
+  cursor.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
-- **An event that fails is logged and passed by.** The events of other
-  resources are applied, and what was missed is found when the Smelter next
-  starts ([Reconcile](#reconcile)).
+- **An event that fails is logged, and stops its resource's log where it
+  is,** until the next sweep takes the log on from there. The events of
+  other resources are applied, and its health says how many logs are stopped
+  (`following`, [Health](#health)).
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
+- **An event whose payload is not its event's is refused:** it is logged,
+  taken as nothing and counted, and the resource's later events are applied.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **The work a start plans, and a rebuild's, takes its turn among a
   resource's events as an event does.** So it never puts back what a later
   event changed. Taking out an annotation's point takes its turn among the
@@ -418,7 +449,10 @@ A Smelter asks one provider for its vectors: an Ollama
 
 A Smelter starts in this order: it reads its settings; signs in; reaches its
 embedding provider and its vector database; holds the index to what it makes
-one by; subscribes to what it follows; opens its health port; runs reconcile.
+one by, and forgets its cursors where it made the index again; subscribes to
+every event of the record; opens its health port. Once its stream first
+opens it sweeps the record, and a resource no cursor names is started by a
+reconcile.
 
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
@@ -427,41 +461,42 @@ one by; subscribes to what it follows; opens its health port; runs reconcile.
   configured with, or states nothing, is made again:** emptied, and as wide
   as the provider's vectors are then, before anything is followed. A warning
   in the log says what the index stated and what the Smelter makes one by,
-  its [health](#health) says that this start made the index again, and the
-  reconcile of that start indexes every resource and every annotation
-  again. An index that holds nothing and states nothing is given its stamp
+  its [health](#health) says that this start made the index again, it
+  forgets its cursors, and so every resource is started by a reconcile,
+  which indexes every resource and every annotation again. An index that holds nothing and states nothing is given its stamp
   with no warning. The stamp says what made the vectors, and nothing of
   whether the index holds what the record holds now: the record, the index's
   collections and the anchored-text store are kept apart, one may be restored
   or cleared without the others, and no stamp says so. That is the
   reconcile's to find.
   *Held by `apps/smelter/tests/test_index_stamp.py` and `smelter/reconcile`.*
-- **Its health answers before reconcile begins,** and events recorded from
-  then on are applied as they arrive, while reconcile runs.
+- **Its health answers while a start's reconcile runs,** and events recorded
+  from then on are applied as they arrive.
   *Held by `smelter/boot`.*
 - **A reconcile that fails does not end the Smelter.** The failure is logged
-  and reported in its [health](#health), and the Smelter goes on applying
-  what arrives.
+  and reported in its [health](#health), the Smelter goes on applying what
+  arrives, and the start is begun again, a second later and then twice as
+  long each time, up to a minute.
   *Held by `apps/smelter/tests/test_smelter.py`.*
 
 ## Reconcile
 
-Reconcile finds what the Smelter missed while it was not running or its
-stream of the record was down, and what either store has lost. It compares three things: what the index holds, what
-the catalog says the knowledge base holds, and which bytes the anchored-text
-store has an entry for.
+Reconcile is how a Smelter starts the resources it has no cursor for: it
+finds what either store has lost, or never held. It compares three things:
+what the index holds, what the catalog says the knowledge base holds, and
+which bytes the anchored-text store has an entry for. What its stream missed
+within a life it never needs to find: the record has it, and the Smelter
+reads it there ([What it follows](#what-it-follows)).
 [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states
 the work it plans for each difference, and is the rule; this section says it
 in prose.
 
-- **It runs when the Smelter starts, and again each time its stream of the
-  record opens after a drop.** What is recorded while the stream is down is
-  never delivered to it ([Health](#health)), so reconcile is what finds it.
-  None begins while the stream is down, since what it reads of the record is
-  asked over the stream. However many drops come while one is under way, one
-  more follows it. One that fails ends nothing, and the next drop begins
-  another.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+- **It runs when the Smelter starts with a resource no cursor names:** after
+  every `semiont start`, whose container keeps no cursor, and after an index
+  was made anew. A Smelter started again with its cursors takes what was
+  recorded since, and runs none. A reconcile asked for while another runs
+  waits for it.
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **It reads the index before it reads the catalog,** so that a resource
   indexed while it runs is never taken for one that should not be there.
   *Held by `apps/smelter/tests/test_smelter.py`.*
@@ -565,15 +600,16 @@ A Smelter's health answers for the Smelter alone, and from what it holds: to
 answer, it asks nothing of the gateway, of its embedding provider or of its
 vector database. Whether each of those is up is its own to say, and whoever
 runs the stack watches each for that. What only the Smelter knows is here:
-whether events reach it, what became of those that did, how its reconcile
-ended, and what its index is made by. Its index is as the record says, as far
-as the Smelter knows, when `stream` is `open`; `eventsFailed` and
-`eventsWaiting` are 0; and `reconcile` is `done`, with nothing failed and
-nothing unavailable in its summary.
+whether events reach it, how far it has followed the record, how its
+reconcile ended, and what its index is made by. Its index is as the record
+says, as far as the Smelter knows, when `stream` is `open`; `following` says
+the sweep is `done` and no log is stopped; and `reconcile` is `done`, with
+nothing failed and nothing unavailable in its summary, or `pending`, where
+every resource had a cursor at its start.
 
 - **`GET /health`, on the port its document states, answers `200` with a JSON
-  object of eight members:** `status`, `stream`, `streamDrops`,
-  `eventsProcessed`, `eventsFailed`, `eventsWaiting`, `reconcile` and `index`.
+  object of six members:** `status`, `stream`, `following`,
+  `eventsProcessed`, `reconcile` and `index`.
   *Held by `smelter/boot`.*
 - **`status` is `ok` whenever the Smelter answers.** It says that the process
   is up and answering, and nothing else: a Smelter whose stream is down, or
@@ -587,21 +623,22 @@ nothing unavailable in its summary.
   and no report on the gateway: a Smelter whose token was refused is
   `unauthenticated` at a gateway that serves everyone else.
   *Held by `smelter/boot`, for a stream that is open.*
-- **`streamDrops` is the number of times that stream has dropped since the
-  Smelter started,** and each drop is logged as a warning. What is recorded
-  while the stream is down is not delivered when it opens again: the stream
-  names no scope, and the gateway gives a stream what it missed for a scope
-  alone
+- **`following` is how far it has followed the record,** as every follower
+  of the record says it: `sweep`, the latest sweep's phase (`pending` before
+  its stream first opens, `running`, `done`, or `due` where the record could
+  not be listed, or its start's reconcile failed, and the sweep is tried
+  again); `stopped`, how many resources' logs a failed taking has stopped
+  until the next sweep; `refused`, how many events it refused as recorded;
+  and `streamDrops`, how many times its stream has dropped since it started,
+  each logged as a warning. What is recorded while the stream is down is not
+  delivered when it opens again: the stream names no scope, and the gateway
+  gives a stream what it missed for a scope alone
   ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
-  So a drop makes a reconcile due: `reconcile` says `pending` from the drop
-  until the reconcile that follows it begins, once the stream is open again
-  ([Reconcile](#reconcile)).
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  The sweep at the reopening takes it from the record.
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/boot`.*
 - **`eventsProcessed` is the number of events it has applied since it
-  started, `eventsFailed` the number delivered to it that it could not apply,
-  and `eventsWaiting` the number delivered to it that are neither yet.** A
-  frame on a followed channel that carries no event, and an event that names
-  no resource, are counted as failed.
+  started:** events of the eleven kinds that do something, and not refused.
+  An event taken as nothing is not counted.
   *Held by `apps/smelter/tests/test_smelter.py`, and by `smelter/boot` for a Smelter that was delivered nothing.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
@@ -618,8 +655,8 @@ nothing unavailable in its summary.
 
 ## Stopping
 
-- **On SIGTERM a Smelter stops applying, closes what it holds open, and exits
-  with status 0.** *Held by `smelter/boot`.*
+- **On SIGTERM a Smelter stops applying, closes what it holds open, writes its
+  cursors, and exits with status 0.** *Held by `smelter/boot`.*
 
 ## Telemetry
 

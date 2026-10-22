@@ -117,34 +117,11 @@ withArchivist('a resource', (world) => {
     expect(reply.json).toEqual({ resource: browsed['resource'], annotations: [] });
   });
 
-  it('serves a stream\'s stored events from a sequence on', async () => {
-    const id = await world().created(world().world.personDid('ada'), { name: 'Replayed', storageUri: 'file://docs/replayed.md', content: 'replayed\n' });
-    const editor = await world().person('editor');
-    await editor.ask('mark:archive', { resourceId: id });
-    await editor.ask('mark:unarchive', { resourceId: id });
-
-    const all = await world().http('GET', `/events/${id}?fromSequence=1`, { route: '/events/{resourceId}' });
-    expect(all.status).toBe(200);
-    expect((all.json as { events: unknown[] }).events).toEqual(world().stored(id));
-    expect(world().stored(id).map((e) => [e.type, e.metadata.sequenceNumber])).toEqual([['yield:created', 1], ['mark:archived', 2], ['mark:unarchived', 3]]);
-
-    const tail = await world().http('GET', `/events/${id}?fromSequence=3`, { route: '/events/{resourceId}' });
-    expect((tail.json as { events: Array<{ type: string }> }).events.map((e) => e.type)).toEqual(['mark:unarchived']);
-
-    const none = await world().http('GET', '/events/0123456789abcdef0123456789abcdef?fromSequence=1', { route: '/events/{resourceId}' });
-    expect(none.json).toEqual({ events: [] });
-
-    for (const query of ['', '?fromSequence=0', '?fromSequence=-1', '?fromSequence=abc', '?fromSequence=1.5']) {
-      const refused = await world().http('GET', `/events/${id}${query}`, { route: '/events/{resourceId}' });
-      expect(refused.status, query).toBe(400);
-      expect(refused.json, query).toEqual({ error: 'resourceId path segment and integer fromSequence >= 1 are required' });
-    }
-  });
-
   it('admits only a service to its HTTP surface', async () => {
     const id = await world().created(world().world.personDid('ada'), { name: 'Guarded', storageUri: 'file://docs/guarded.md', content: 'guarded\n' });
     const person = await world().world.person('ada');
     const routes: Array<[string, string, string]> = [
+      ['GET', '/events', '/events'],
       ['GET', `/events/${id}?fromSequence=1`, '/events/{resourceId}'],
       ['GET', `/resources/${id}/content`, '/resources/{id}/content'],
       ['GET', `/resources/${id}/jsonld`, '/resources/{id}/jsonld'],

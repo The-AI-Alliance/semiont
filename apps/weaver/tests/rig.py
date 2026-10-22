@@ -1,10 +1,11 @@
 """A Weaver for a test: a real one, over a transport a test scripts and a graph in the process.
 
 What stands in for the Archivist is the test itself: it says what the record
-holds, and the rig answers the Weaver's three reads from that: two over the
-bus, and a resource's annotations through the content transport. The catalog
-and each resource's annotations are answered as a view holds them, which here
-is what a second graph, folded from the same record, holds.
+holds, and the rig answers the Weaver's reads from that: the catalog over the
+bus, and the record by position and a resource's annotations as the
+Archivist's own surface does. The catalog and each resource's annotations are
+answered as a view holds them, which here is what a second graph, folded from
+the same record, holds.
 """
 
 import asyncio
@@ -19,13 +20,14 @@ from pydantic import JsonValue
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.testing import FaultyTransport
-from semiont.transport import Content, ContentStream, ContentTransport, Frame, PutBinaryRequest, Upload
-from semiont.types import AnchoredTextAnswer, GetAnnotationsResponse, GetResourceResponse, StoredEventResponse
+from semiont.transport import Frame
+from semiont.types import GetAnnotationsResponse, StoredEventResponse
 from semiont_graph.interface import ResourceQuery
 from semiont_graph.memory import MemoryGraphDatabase
+from semiont_service.archivist import AnnotationReads
+from semiont_service.follower import Cursors, Record, RecordUnread
 from spec import JsonObject
 
-from semiont_weaver.checkpoint import Checkpoint
 from semiont_weaver.fold import apply
 from semiont_weaver.weaver import Weaver
 
@@ -102,36 +104,47 @@ def added(resource: str, sequence: int, annotation: str, *body: JsonValue, **fie
 
 
 @final
-class ViewsContent(ContentTransport):
-    """The content transport, answering a resource's annotations as `views` holds them when they are asked for, and refusing the rest."""
+class Kept(Record):
+    """The record a test says, read by position as the Archivist's surface answers it. While `unanswered` it is not there."""
+
+    def __init__(self, record: Mapping[str, list[JsonObject]]) -> None:
+        self._record: Final = record
+        self.unanswered = False
+
+    def _there(self) -> None:
+        if self.unanswered:
+            raise RecordUnread("the Archivist did not answer for the record: nothing answers")
+
+    @override
+    async def logs(self) -> Mapping[str, int]:
+        self._there()
+        return {resource: _sequence_of(events[-1]) for resource, events in self._record.items() if events}
+
+    @override
+    async def after(self, log: str, sequence: int) -> Sequence[StoredEventResponse]:
+        self._there()
+        return [StoredEventResponse.model_validate(stored) for stored in self._record.get(log, []) if _sequence_of(stored) > sequence]
+
+
+def _sequence_of(stored: JsonObject) -> int:
+    metadata = stored["metadata"]
+    assert isinstance(metadata, dict)
+    sequence = metadata["sequenceNumber"]
+    assert isinstance(sequence, int)
+    return sequence
+
+
+@final
+class ViewsAnnotations(AnnotationReads):
+    """A resource's annotations, answered as `views` holds them when they are asked for."""
 
     def __init__(self, views: MemoryGraphDatabase) -> None:
         self._views: Final = views
 
     @override
-    def put_binary(self, request: PutBinaryRequest) -> Upload:
-        raise AssertionError("the Weaver uploaded, which it is not to")
-
-    @override
-    async def get_binary(self, resource_id: ResourceId) -> Content:
-        raise AssertionError("the Weaver read bytes, which it is not to")
-
-    @override
-    async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
-        raise AssertionError("the Weaver read bytes, which it is not to")
-
-    @override
-    async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
-        raise AssertionError("the Weaver read a description as linked data, which it is not to")
-
-    @override
-    async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+    async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
         annotations = await self._views.get_resource_annotations(resource_id)
         return GetAnnotationsResponse(annotations=annotations, total=len(annotations))
-
-    @override
-    async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
-        raise AssertionError("the Weaver read anchored text, which it is not to")
 
 
 @final
@@ -139,7 +152,7 @@ class Rig:
     """Held with `async with`: a Weaver that is following from the way in to the way out."""
 
     def __init__(self, *, kept: Path | None = None, after: "Rig | None" = None) -> None:
-        """`kept` is where the Weaver keeps its marks. `after` is an earlier life of it, whose record, views and graph go on."""
+        """`kept` is where the Weaver keeps its cursors. `after` is an earlier life of it, whose record, views and graph go on."""
         self.graph: Final[MemoryGraphDatabase] = MemoryGraphDatabase() if after is None else after.graph
         self.record: Final[dict[str, list[JsonObject]]] = {} if after is None else after.record
         """What the record holds: each resource's events, in the order they were recorded."""
@@ -147,16 +160,20 @@ class Rig:
         """What the record's views hold, as far as a Weaver reads them."""
         self.unanswered: Final[set[str]] = set()
         """The operations nobody answers: each is refused as a peer that is not there."""
+        self.archivist: Final = Kept(self.record)
         self.transport: Final = FaultyTransport(make_response=self._answer)
         self.transport.refuse_when(self._refuse)
         self._home: Final = tempfile.TemporaryDirectory()
-        self.kept: Final = Path(self._home.name) / "marks.json" if kept is None else kept
-        self.weaver: Final = Weaver(self.graph, self.transport, ViewsContent(self.views), Checkpoint(self.kept))
+        self.kept: Final = Path(self._home.name) / "cursors.json" if kept is None else kept
+        self.weaver: Final = Weaver(
+            self.graph, self.transport, record=self.archivist, annotations=ViewsAnnotations(self.views), cursors=Cursors(self.kept)
+        )
 
     async def __aenter__(self) -> Self:
         await self.graph.connect()
         await self.views.connect()
         await self.weaver.__aenter__()
+        await self.settled()
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
@@ -187,13 +204,23 @@ class Rig:
         self.deliver(*events)
         await self.settled()
 
+    async def dropped(self) -> None:
+        """The stream drops: what is recorded until it opens again is never delivered."""
+        self.transport.set_state("reconnecting")
+        await self.settled()
+
+    async def reopened(self) -> None:
+        """The stream opens again after a drop, and the Weaver sweeps the record."""
+        self.transport.set_state("connecting")
+        self.transport.set_state("open")
+        await self.settled()
+
     def _refuse(self, operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
         del payload
         return {"code": "peer-unavailable", "message": "nothing answers"} if operation in self.unanswered else None
 
     def _answer(self, operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | None:
         # The two graphs are in the process, and their reads wait on nothing: each is run to its end here.
-        resource = payload.get("resourceId")
         if operation == "browse:resources-requested":
             offset, limit = payload.get("offset"), payload.get("limit")
             assert isinstance(offset, int)
@@ -201,21 +228,22 @@ class Rig:
             listing = _now(self.views.list_resources(ResourceQuery(offset=offset, limit=limit)))
             resources: list[JsonValue] = [written(held) for held in listing.resources]
             return {"resources": resources, "total": listing.total, "offset": offset, "limit": limit}
-        assert isinstance(resource, str), operation
-        if operation == "browse:events-requested":
-            events: list[JsonValue] = [{**stored, "agent": ADA} for stored in self.record.get(resource, [])]
-            return {"events": events, "total": len(events), "resourceId": resource}
         raise AssertionError(f"the Weaver asked {operation}, which it is not to")
 
     # ── What the Weaver did ────────────────────────────────────────────
 
     async def settled(self) -> None:
-        """Wait until the Weaver has applied every event delivered so far, signalled what it applied, and answered what it was commanded."""
+        """Wait until the Weaver has taken every event delivered so far, signalled what it took, and answered what it was commanded."""
         for _ in range(3):
-            # A command is taken up a turn or two after it is delivered, and a reply is delivered a turn after it is sent.
+            # A command is taken up a turn or two after it is delivered, and a reply is delivered a turn after it is sent;
+            # the follower is told of a change of the stream's state a turn after it is made.
             for _ in range(20):
                 await asyncio.sleep(0)
             await self.weaver.settled()
+
+    def applied(self) -> dict[str, int]:
+        """Each resource's cursor, as the Weaver kept them: the last event of its log it has taken. What a settled Weaver holds."""
+        return Cursors(self.kept).held()
 
     async def same_as_the_views(self) -> None:
         """The graph holds what the record's views hold: every resource, and every annotation of each."""
@@ -227,7 +255,7 @@ class Rig:
             assert in_graph == [written(annotation) for annotation in await self.views.get_resource_annotations(resource.id)]
 
     def signalled(self) -> dict[str, list[int]]:
-        """Each resource's marks, as the Weaver signalled them on `weave:applied`, in the order it did."""
+        """How far each resource's log was taken, as the Weaver signalled it on `weave:applied`, in the order it did."""
         marks: dict[str, list[int]] = {}
         for frame in self.transport.emitted:
             if frame.channel == "weave:applied":
