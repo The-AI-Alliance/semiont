@@ -4,6 +4,9 @@
 //
 //   packages/sdk-go/bus/channels_gen.go   channel constants + payload metadata
 //   packages/sdk-go/bus/operations_gen.go the request→{result,failure} map
+//   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client
+//   packages/sdk-go/bus/limits_gen.go     the largest emit, from
+//                                         specs/src/paths/bus_emit.json
 //
 // Payload STRUCTS are not generated here: the OpenAPI schemas a channel
 // carries already have Go types in packages/sdk-go/client_gen.go. What Go
@@ -168,12 +171,32 @@ ${opRows.join('\n')}
 }
 `;
 
+// ── limits_gen.go ──────────────────────────────────────────────────────
+const EMIT = resolve(ROOT, 'specs/src/paths/bus_emit.json');
+const maxEmitBytes = JSON.parse(readFileSync(EMIT, 'utf8')).post['x-semiont-limits']?.maxBodyBytes;
+if (!Number.isInteger(maxEmitBytes) || maxEmitBytes <= 0) {
+  throw new Error(`${EMIT}: POST /bus/emit states no x-semiont-limits.maxBodyBytes`);
+}
+
+const limitsGo = `// Code generated from specs/src/paths/bus_emit.json — DO NOT EDIT.
+//
+// Regenerate: node scripts/bus/generate-go.mjs
+
+package bus
+
+// maxEmitBytes is POST /bus/emit's x-semiont-limits.maxBodyBytes: the largest
+// body the gateway takes, and so the largest payload a frame on the event
+// stream carries.
+const maxEmitBytes = ${maxEmitBytes}
+`;
+
 mkdirSync(OUT_DIR, { recursive: true });
 let drift = 0;
 for (const [name, text] of [
   ['channels_gen.go', channelsGo],
   ['operations_gen.go', operationsGo],
   ['bridged_gen.go', bridgedGo],
+  ['limits_gen.go', limitsGo],
 ]) {
   const path = resolve(OUT_DIR, name);
   const current = existsSync(path) ? readFileSync(path, 'utf8') : '';

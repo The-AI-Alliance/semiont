@@ -207,7 +207,7 @@ const natsConfPath = "/etc/nats/semiont.conf"
 // nats-server reads no credential from the environment by itself, which is why
 // this file has to exist at all.
 //
-// max_payload is 16 MiB, twice the largest emit the gateway takes
+// max_payload is 8 MiB, twice the largest emit the gateway takes
 // (`x-semiont-limits.maxBodyBytes` of POST /bus/emit), so a frame and the
 // envelope it is published in always fit. The broker's default is 1 MiB, and a
 // broker that takes less than the gateway refuses the publish of an emit the
@@ -219,7 +219,7 @@ authorization {
   user: $NATS_USER
   password: $NATS_PASSWORD
 }
-max_payload: 16777216
+max_payload: 8388608
 `)
 }
 

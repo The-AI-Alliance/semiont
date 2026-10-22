@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -225,12 +226,19 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	return sub, nil
 }
 
+// maxFrameBytes is the longest line of the event stream the reader takes. A
+// frame carries a payload as large as the largest emit, with the gateway's
+// stamps and the envelope around it: twice the largest emit is room for both,
+// as the broker the launcher runs is given.
+const maxFrameBytes = 2 * maxEmitBytes
+
 // readSSE parses the frame format: `event:`/`data:`/`id:` lines, dispatched
 // on a blank line. Only `bus-event` frames carry events; `ping` keep-alives
-// are discarded.
+// are discarded. A line longer than maxFrameBytes ends the stream with an
+// error that says so.
 func readSSE(r interface{ Read([]byte) (int, error) }, out chan<- Event) error {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // events can carry whole resources
+	sc.Buffer(make([]byte, 0, 64*1024), maxFrameBytes)
 	var name, data, id string
 	flush := func() {
 		defer func() { name, data, id = "", "", "" }()
@@ -268,7 +276,11 @@ func readSSE(r interface{ Read([]byte) (int, error) }, out chan<- Event) error {
 		}
 	}
 	flush()
-	return sc.Err()
+	err := sc.Err()
+	if errors.Is(err, bufio.ErrTooLong) {
+		return fmt.Errorf("a line of the event stream is longer than %d bytes, the most this reader takes", maxFrameBytes)
+	}
+	return err
 }
 
 // StatusError is the gateway refusing a bus call at the HTTP layer — a
@@ -378,6 +390,9 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 			return nil, fmt.Errorf("%s timed out after %s (no reply on %s or %s)", op, timeout, spec.Result, spec.Failure)
 		case ev, open := <-sub.Events:
 			if !open {
+				if err := sub.Err(); err != nil {
+					return nil, fmt.Errorf("%s: the event stream closed before a reply arrived: %w", op, err)
+				}
 				return nil, fmt.Errorf("%s: the event stream closed before a reply arrived", op)
 			}
 			if correlationOf(ev) != correlationID {

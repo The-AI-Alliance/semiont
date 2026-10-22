@@ -76,7 +76,7 @@
       }
     },
     "x-semiont-limits": {
-      "maxBodyBytes": 8388608,
+      "maxBodyBytes": 4194304,
       "claimSeconds": 900,
       "emitsPerPrincipal": {
         "baseline": {

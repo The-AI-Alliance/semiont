@@ -23,7 +23,7 @@ it does have.
 | Package | Holds | Generated from |
 |---|---|---|
 | `semiont` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled |
-| [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations. `Transport`, and `Client`, its implementation over HTTP | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json), and two hand-written files |
+| [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations. `Transport`, and `Client`, its implementation over HTTP | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json), and two hand-written files |
 | `bustest` | `Fake`, a `bus.Transport` with no server, for tests | hand-written |
 | [`mediatypes`](#the-mediatypes-package) | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
 
@@ -107,7 +107,10 @@ Two files are hand-written. `transport.go` states what a consumer needs of the
 bus as the `Transport` interface: `BaseURL`, `Emit`, `Subscribe` and
 `Request`. `client.go` is `Client`, its implementation over HTTP:
 `POST /bus/emit`, the event stream of `POST /bus/subscribe`, and the
-correlated request and reply.
+correlated request and reply. The stream's reader takes a line twice as long as
+the largest emit the gateway takes, room for the payload and the envelope a
+frame carries it in; a longer line ends the stream, and a request waiting on it
+fails saying so.
 
 `bustest.Fake` implements `bus.Transport` in process. It records every `Emit`
 and `Request` with its payload, and answers each request with the reply the
