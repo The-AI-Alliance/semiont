@@ -308,7 +308,7 @@ pub async fn tag_schemas(archivist: &Archivist, _: &Object) -> Answered {
 /// `yield` job, then the actors.
 pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
     const ACTORS: [&str; 2] = ["gatherer", "matcher"];
-    let Some(domain) = kb::committed(&archivist.root).domain else {
+    let Some(domain) = kb::committed(&archivist.root)?.domain else {
         return Err("The knowledge base's committed .semiont/config declares no [site] domain, and agent DIDs are minted under it — the same domain /api/tokens/agent mints worker DIDs from (no topology fallback)".into());
     };
     let unreadable = |error: serde_json::Error| Refusal::from(error.to_string());
@@ -374,7 +374,7 @@ pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
 }
 
 pub async fn knowledge_base(archivist: &Archivist, _: &Object) -> Answered {
-    let Some(domain) = kb::committed(&archivist.root).domain else {
+    let Some(domain) = kb::committed(&archivist.root)?.domain else {
         return Err("The committed .semiont/config declares no [site] domain".into());
     };
     let branch = archivist

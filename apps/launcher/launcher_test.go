@@ -1682,6 +1682,42 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/postgres")
 }
 
+// A knowledge base whose project file is .semiont/config.yaml starts from it;
+// one whose config.yaml does not hold to its schema is refused, each place
+// named at its line, even in --dry-run.
+func TestStartReadsTheYAMLProjectFile(t *testing.T) {
+	s := newScenario(t, "container")
+	semiont := filepath.Join(s.kb, ".semiont")
+	if err := os.Remove(filepath.Join(semiont, "config")); err != nil {
+		t.Fatal(err)
+	}
+	project, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(semiont, "config.yaml"), project, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("a start from config.yaml: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/postgres")
+
+	broken := strings.Replace(string(project), "  domain:", "  domian:", 1)
+	if broken == string(project) {
+		t.Fatal("the fixture's config.yaml states no domain to misspell")
+	}
+	if err := os.WriteFile(filepath.Join(semiont, "config.yaml"), []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "start", "--dry-run")
+	if code != 1 {
+		t.Fatalf("a start from a broken config.yaml: want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "config.yaml", "line 7", "domian")
+}
+
 // --- clean ---
 
 // seedStateDir fabricates a populated per-root state dir with all three

@@ -59,22 +59,28 @@ func (r *Refused) Error() string {
 // ProjectConfig. A document that does not hold to its schema is refused with
 // every place it does not.
 func Read[T any](path, kindName string) (T, error) {
-	var out T
 	text, err := os.ReadFile(path)
 	if err != nil {
-		return out, err
+		var none T
+		return none, err
 	}
+	return Parse[T](path, kindName, text)
+}
+
+// Parse is Read of a document already in hand; where names it in a refusal.
+func Parse[T any](where, kindName string, text []byte) (T, error) {
+	var out T
 	refusals, instance, err := check(kindName, text)
 	if err != nil {
-		return out, fmt.Errorf("%s: %v", path, err)
+		return out, fmt.Errorf("%s: %v", where, err)
 	}
 	if len(refusals) > 0 {
-		return out, &Refused{File: path, Kind: kindName, Refusals: refusals}
+		return out, &Refused{File: where, Kind: kindName, Refusals: refusals}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(instance))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&out); err != nil {
-		return out, fmt.Errorf("%s: %v", path, err)
+		return out, fmt.Errorf("%s: %v", where, err)
 	}
 	return out, nil
 }

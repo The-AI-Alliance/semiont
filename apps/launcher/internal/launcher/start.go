@@ -415,6 +415,13 @@ func Start(args []string) int {
 
 	u.Banner("Semiont Local Gateway")
 	if rootNeeded {
+		// A config.yaml that does not hold to its schema is refused as it
+		// stands, every place named, rather than read as a knowledge base
+		// with no identity.
+		if err := checkProjectFile(root); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 		ident := loadKBIdentity(root)
 		// A KB must declare its identity to run. The launcher publishes a
 		// discovery document in which `did` is REQUIRED, so a KB with no

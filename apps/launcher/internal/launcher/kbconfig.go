@@ -1,13 +1,15 @@
 package launcher
 
-// kbconfig.go — the read-side of `.semiont/config`, the KB's committed
-// identity card: [project] name/version, [git] sync, and [site] — whose
-// `domain` is the permanent did:web identity everything the KB mints is
-// stamped with (a committed literal naming the repo, never a machine
-// address; see the DID/site.domain history before treating it as one).
-// The launcher consumes identity for DISPLAY and the roots registry only —
-// best-effort throughout: a KB without this file (or with a partial one)
-// must never break a command.
+// kbconfig.go — the read-side of a knowledge base's project file, its
+// committed identity card: `.semiont/config.yaml` (ProjectConfig, in
+// specs/src/kb-identity), or the TOML `.semiont/config` where a knowledge base
+// still has that one. Its project name and version, git sync, and site —
+// whose `domain` is the permanent did:web identity everything the KB mints is
+// stamped with (a committed literal naming the repo, never a machine address;
+// see the DID/site.domain history before treating it as one). The launcher
+// consumes identity for DISPLAY and the roots registry best-effort: a KB
+// without the file must never break a command. A start refuses a
+// config.yaml that does not hold to its schema (checkProjectFile).
 
 import (
 	"os"
@@ -15,6 +17,16 @@ import (
 	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+)
+
+// projectFileYAML and projectFileTOML: the project file, and the TOML one a
+// knowledge base not yet converted still has. The first is read when it is
+// there.
+const (
+	projectFileYAML = "config.yaml"
+	projectFileTOML = "config"
 )
 
 type kbIdentity struct {
@@ -58,14 +70,44 @@ func committedResource(root string) string {
 	return kbResource(committedDomain(root))
 }
 
-// loadKBIdentity reads <root>/.semiont/config. nil when absent or unreadable
-// — identity is display metadata, not launch instructions.
+// loadKBIdentity reads <root>'s project file. nil when it is absent, or does
+// not read — identity is display metadata here, and a start refuses a
+// config.yaml that does not hold (checkProjectFile).
 func loadKBIdentity(root string) *kbIdentity {
-	b, err := os.ReadFile(filepath.Join(root, ".semiont", "config"))
+	semiont := filepath.Join(root, ".semiont")
+	if text, err := os.ReadFile(filepath.Join(semiont, projectFileYAML)); err == nil {
+		return yamlKBIdentity(filepath.Join(semiont, projectFileYAML), text)
+	}
+	b, err := os.ReadFile(filepath.Join(semiont, projectFileTOML))
 	if err != nil {
 		return nil
 	}
-	return parseKBIdentity(b)
+	return tomlKBIdentity(b)
+}
+
+// checkProjectFile refuses <root>'s .semiont/config.yaml when it is there and
+// does not hold to ProjectConfig's schema, naming each place it does not.
+func checkProjectFile(root string) error {
+	path := filepath.Join(root, ".semiont", projectFileYAML)
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	_, err := stack.Read[stack.ProjectConfig](path, "ProjectConfig")
+	return err
+}
+
+// yamlKBIdentity reads a config.yaml already in hand. nil when it does not
+// hold to its schema.
+func yamlKBIdentity(where string, text []byte) *kbIdentity {
+	project, err := stack.Parse[stack.ProjectConfig](where, "ProjectConfig", text)
+	if err != nil {
+		return nil
+	}
+	identity := &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}
+	if project.Project.Version != nil {
+		identity.Version = *project.Project.Version
+	}
+	return identity
 }
 
 // effectiveKBName is the name the Archivist computes for this root: the
@@ -79,10 +121,10 @@ func effectiveKBName(root string) string {
 	return filepath.Base(root)
 }
 
-// parseKBIdentity is the same read with the file already in hand — the
+// tomlKBIdentity reads the TOML project file already in hand — the
 // codespace path gets these bytes over ssh rather than off this disk, and
 // must interpret them identically.
-func parseKBIdentity(b []byte) *kbIdentity {
+func tomlKBIdentity(b []byte) *kbIdentity {
 	var raw struct {
 		Project struct {
 			Name    string `toml:"name"`

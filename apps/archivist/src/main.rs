@@ -126,7 +126,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
 
     // What the knowledge base says of itself is read from its tree.
     let root = PathBuf::from(&document.root);
-    let committed = kb::committed(&root);
+    let committed = kb::committed(&root)?;
     let staging = staging_for(
         &root,
         committed.git_sync,

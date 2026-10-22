@@ -17,6 +17,9 @@ components:
     ahash - MIT OR Apache-2.0
     aho-corasick - Unlicense OR MIT
     allocator-api2 - MIT OR Apache-2.0
+    annotate-snippets - MIT OR Apache-2.0
+    anstyle - MIT OR Apache-2.0
+    arraydeque - MIT OR Apache-2.0
     atomic-waker - Apache-2.0 OR MIT
     axum - MIT
     axum-core - MIT
@@ -47,6 +50,7 @@ components:
     elliptic-curve - Apache-2.0 OR MIT
     email_address - MIT
     encoding_rs - (Apache-2.0 OR MIT) AND BSD-3-Clause
+    encoding_rs_io - MIT OR Apache-2.0
     equivalent - Apache-2.0 OR MIT
     errno - MIT OR Apache-2.0
     fancy-regex - MIT
@@ -65,6 +69,7 @@ components:
     futures-util - MIT OR Apache-2.0
     generic-array - MIT
     getrandom - MIT OR Apache-2.0
+    granit-parser - MIT OR Apache-2.0
     group - MIT OR Apache-2.0
     hashbrown - MIT OR Apache-2.0
     hkdf - MIT OR Apache-2.0
@@ -106,6 +111,7 @@ components:
     mime - MIT OR Apache-2.0
     mio - MIT
     multer - MIT
+    nohash-hasher - Apache-2.0 OR MIT
     num - MIT OR Apache-2.0
     num-bigint - MIT OR Apache-2.0
     num-bigint-dig - MIT OR Apache-2.0
@@ -163,6 +169,7 @@ components:
     serde_path_to_error - MIT OR Apache-2.0
     serde_spanned - MIT OR Apache-2.0
     serde_urlencoded - MIT OR Apache-2.0
+    serde-saphyr - MIT OR Apache-2.0
     sha2 - MIT OR Apache-2.0
     signal-hook-registry - MIT OR Apache-2.0
     signature - Apache-2.0 OR MIT
@@ -199,6 +206,7 @@ components:
     typenum - MIT OR Apache-2.0
     unicode-general-category - Apache-2.0
     unicode-normalization - MIT OR Apache-2.0
+    unicode-width - MIT OR Apache-2.0
     untrusted - ISC
     url - MIT OR Apache-2.0
     utf8_iter - Apache-2.0 OR MIT

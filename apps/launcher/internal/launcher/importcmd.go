@@ -125,7 +125,7 @@ func Import(args []string) int {
 	}
 	registerRootUse(abs, false, "")
 
-	id := readKBIdentity(abs)
+	id := loadKBIdentity(abs)
 	label := filepath.Base(abs)
 	if id != nil && id.Name != "" {
 		label = id.Name

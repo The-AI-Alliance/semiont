@@ -143,7 +143,7 @@ func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 		u.Log("KB root %s %s", root, u.Dim("("+src+")"))
 	}
 
-	id := readKBIdentity(root)
+	id := loadKBIdentity(root)
 	if output == "" {
 		output = archiveName(root, id)
 	}
@@ -434,16 +434,6 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		return 0, 0, nil, err
 	}
 	return count, total, changed, nil
-}
-
-// readKBIdentity reads .semiont/config for the marker. Best-effort: a KB with
-// an unreadable config still exports, it just carries less provenance.
-func readKBIdentity(root string) *kbIdentity {
-	b, err := os.ReadFile(filepath.Join(root, ".semiont", "config"))
-	if err != nil {
-		return nil
-	}
-	return parseKBIdentity(b)
 }
 
 func archiveName(root string, id *kbIdentity) string {
