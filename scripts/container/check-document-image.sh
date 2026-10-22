@@ -12,8 +12,9 @@
 #      Prompt is START_BOUND_MS, from spawning its command to its exit,
 #      measured inside the container.
 #
-# Run by local-build.sh after it builds such an image, and by the image
-# publish workflow before it pushes.
+# Run by local-build.sh once every image is built, so nothing else builds
+# while it times the refusal, and by the image publish workflow before it
+# pushes.
 set -eu
 
 SERVICE="${1:?usage: check-document-image.sh <service> <image> [runtime]}"
@@ -26,9 +27,14 @@ if [ -z "$COMMAND" ]; then
   exit 1
 fi
 
-# The gateway image's start bound (check-gateway-image.sh): a refusal reads
-# one file and exits, and takes no longer than a start.
-START_BOUND_MS=300
+# The gateway image's start bound, read from check-gateway-image.sh, which
+# states it and why: a refusal reads one file and exits, and takes no longer
+# than a start.
+START_BOUND_MS=$(sed -n 's/^START_BOUND_MS=\([0-9][0-9]*\)$/\1/p' "$(dirname "$0")/check-gateway-image.sh")
+if [ -z "$START_BOUND_MS" ]; then
+  echo "✗ $(dirname "$0")/check-gateway-image.sh states no START_BOUND_MS"
+  exit 1
+fi
 
 # As root: the promise covers the whole image, including what the image's own
 # user cannot read (as that user, find stops at /root).

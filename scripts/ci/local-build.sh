@@ -1061,11 +1061,9 @@ fi
 # but the inline kind, so a docker-container builder does the three builds,
 # and --load puts each image in docker's store where the stack boots it. All
 # three read the cache; none writes it. The write is one more build of the
-# gateway's Dockerfile after the batch, wholly from the builder's own cache,
-# that outputs nothing but the layers: a write during the batch made the
-# gateway finish a minute after the other two, so its image check, which
-# bounds the gateway's start at 300 ms, ran beside the two builds that start
-# when a slot frees, and measured 329 ms. The three share one builder stage,
+# gateway's Dockerfile after the batch and the Rust images' timed checks,
+# wholly from the builder's own cache, that outputs nothing but the layers:
+# nothing builds while those checks time a start. The three share one builder stage,
 # which lint:rust-images holds to the same text and BuildKit compiles once.
 # The new cache is written beside the old and swapped in, so the directory
 # holds one run's layers and does not grow.
@@ -1088,7 +1086,7 @@ fi
 # however they overlap. Build output goes to a per-image log; a failure tails it and
 # stops the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
-PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=(); DONE=()
+PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=(); DONE=(); TIMED=()
 next=0
 running=0
 # Stop the builds still running rather than leaving them to grind against
@@ -1098,6 +1096,27 @@ stop_builds() {
   for k in "${!PIDS[@]}"; do
     [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
   done
+}
+# image_promises <name> <tag>: what the built image of <name> promises. The
+# Rust images carry no source and start (or refuse) quickly, and a Python
+# service's image carries every library it can be configured for and refuses
+# by name, and the smelter's reads a scanned page with no network, or they are
+# not built.
+image_promises() {
+  case "$1" in
+    gateway)              "$REPO_ROOT/scripts/container/check-gateway-image.sh" "$2" "$RT" ;;
+    dispatcher|archivist) "$REPO_ROOT/scripts/container/check-document-image.sh" "$1" "$2" "$RT" ;;
+    worker|smelter|weaver|librarian) "$REPO_ROOT/scripts/container/check-python-image.sh" "$1" "$2" "$RT" ;;
+    *)                    true ;;
+  esac
+}
+# image_kept <index>: a build whose image keeps its promises is recorded as
+# built, so an unchanged image is not built again.
+image_kept() {
+  local idx=${IMGS[$1]}
+  if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
+    state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
+  fi
 }
 # A cold npm install inside these builds runs for MINUTES with nothing on
 # stdout, and --no-cache means every run pays it. That silence reads as a
@@ -1163,25 +1182,19 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
     beat=$(date +%s)
     rm -f "${LOGS[$j]}"
-    # The Rust images carry no source and start (or refuse) quickly, and a
-    # Python service's image carries every library it can be configured for and
-    # refuses by name, and the smelter's reads a scanned page with no network,
-    # or they are not built.
+    # The Rust images' checks time a start on this machine: they wait for the
+    # batch (below).
     case "${NAMES[$j]}" in
-      gateway)               kept=("$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT") ;;
-      dispatcher|archivist)  kept=("$REPO_ROOT/scripts/container/check-document-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
-      worker|smelter|weaver|librarian) kept=("$REPO_ROOT/scripts/container/check-python-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
-      *)                     kept=(true) ;;
+      gateway|dispatcher|archivist)
+        TIMED+=("$j")
+        continue ;;
     esac
-    if ! "${kept[@]}"; then
+    if ! image_promises "${NAMES[$j]}" "${TAGS[$j]}"; then
       fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
       stop_builds
       exit 1
     fi
-    idx=${IMGS[$j]}
-    if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
-      state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
-    fi
+    image_kept "$j"
   done
   if [ "$running" -gt 0 ]; then
     now=$(date +%s)
@@ -1199,8 +1212,21 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
   fi
 done
 
-# This run's layers are written now, after the batch, and replace the last
-# run's: see --layer-cache above.
+# The Rust images' checks bound how soon each starts, or refuses, timed on
+# this machine (START_BOUND_MS in check-gateway-image.sh), so they run once
+# nothing else builds. A gateway image from the layer cache is built in
+# seconds; checked then, beside the Python images still building, its 100 ms
+# start measured 330 ms.
+for j in ${TIMED[@]+"${TIMED[@]}"}; do
+  if ! image_promises "${NAMES[$j]}" "${TAGS[$j]}"; then
+    fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
+    exit 1
+  fi
+  image_kept "$j"
+done
+
+# This run's layers are written now, after the batch and its checks, and
+# replace the last run's: see --layer-cache above.
 if [[ -n "$LAYER_CACHE" ]]; then
   step "Writing the Rust images' layers for the next run"
   EXPORT_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN")
