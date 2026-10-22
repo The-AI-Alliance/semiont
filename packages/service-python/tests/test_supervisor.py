@@ -67,10 +67,13 @@ class Supervised:
         return [line for _, line in list(self.lines) if holds(line)]
 
     def ended(self) -> int:
-        """How the supervisor exited, once it has."""
-        status = self.process.wait(timeout=_LONGEST_WAIT)
-        self._reading.join(timeout=5)
-        return status
+        """How the supervisor exited, once it has.
+
+        Its last lines may still be on their way: a `sleep` it began holds
+        its output open a while after it has gone. Wait for a line with
+        `when`, never for the output to close.
+        """
+        return self.process.wait(timeout=_LONGEST_WAIT)
 
     def close(self) -> None:
         """Stop it, if it is still running, and take away what it wrote under the name it was given."""
@@ -84,6 +87,7 @@ def test_a_child_that_dies_within_seconds_of_its_start_five_times_is_given_up_on
     supervised = Supervised("exit 3")
     try:
         assert supervised.ended() == 1
+        supervised.when(lambda line: "gave up: 5 rapid failures" in line)
         lives = supervised.said(lambda line: f"starting {supervised.name} (" in line)
         assert len(lives) == 5
         assert supervised.said(lambda line: "gave up: 5 rapid failures" in line)
@@ -113,7 +117,7 @@ def test_a_child_that_dies_within_a_minute_of_its_start_is_crash_looping_and_wai
         supervised.process.send_signal(signal.SIGTERM)
         assert supervised.ended() == 0
         assert time.monotonic() - told < 3
-        assert supervised.said(lambda line: "stopped by TERM between lives" in line)
+        supervised.when(lambda line: "stopped by TERM between lives" in line)
         assert second < told
 
         # The restart count counts the lives alone: no other line names the start of the service.
