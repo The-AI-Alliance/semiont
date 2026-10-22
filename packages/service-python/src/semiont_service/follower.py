@@ -101,7 +101,7 @@ def recorded(frame: Frame) -> StoredEventResponse | None:
     """
     if frame.channel not in _PERSISTED:
         return None
-    event = CHANNELS[frame.channel].decode(frame.payload)
+    event = CHANNELS[frame.channel].decode(dict(frame.payload))
     if not isinstance(event, StoredEventResponse):
         raise TypeError(f"{frame.channel} carries a {type(event).__name__}, not a stored event")
     return event

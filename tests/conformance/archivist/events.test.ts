@@ -97,12 +97,16 @@ withArchivist('the record read by position', (world) => {
   it('reads `__system__` as it reads a resource\'s stream', async () => {
     const curator = await world().person('curator');
     expect(await curator.ask('frame:add-entity-type', { tag: 'Positioned' })).toEqual({});
-    const stored = world().stored('__system__');
-    const last = lastOnDisk('__system__');
-    expect(stored.at(-1)).toMatchObject({ type: 'frame:entity-type-added', payload: { entityType: 'Positioned' } });
 
-    expect(await readOn('__system__', 1)).toEqual(stored);
-    expect(await page('__system__', last)).toEqual({ events: [stored.at(-1)], lastSequence: last });
+    // The knowledge base's own stream goes on beside the case (a person is profiled as they first act): what the
+    // read gave is the stream on disk as far as the read went.
+    const read = await readOn('__system__', 1);
+    expect(read).toEqual(world().stored('__system__').slice(0, read.length));
+    const positioned = read.find((e) => e.type === 'frame:entity-type-added' && e.payload['entityType'] === 'Positioned');
+    expect(positioned).toBeDefined();
+    const from = await page('__system__', sequenceOf(positioned!));
+    expect(from.events[0]).toEqual(positioned);
+    expect(from.lastSequence).toBeGreaterThanOrEqual(sequenceOf(positioned!));
   });
 
   it('lists every stream, `__system__` among them, with the sequence number of its last event', async () => {
@@ -119,7 +123,7 @@ withArchivist('the record read by position', (world) => {
     expect(listed.size).toBe(streams.length);
     expect(listed.get(once)).toBe(1);
     expect(listed.get(twice)).toBe(2);
-    expect(listed.get('__system__')).toBe(lastOnDisk('__system__'));
+    expect(listed.get('__system__')).toBeGreaterThan(0);
 
     // Every stream the log holds on disk, and no other, each where its files say it stands.
     const events = dirname(world().streamDir('__system__'));
@@ -130,6 +134,10 @@ withArchivist('the record read by position', (world) => {
         .flatMap((ab) => readdirSync(join(events, ab)).flatMap((cd) => readdirSync(join(events, ab, cd)))),
     ];
     expect([...listed.keys()].sort()).toEqual(onDisk.sort());
-    for (const [stream, lastSequence] of listed) expect(lastSequence, stream).toBe(lastOnDisk(stream));
+    // The knowledge base's own stream goes on beside the case: it stands at least where it was listed.
+    for (const [stream, lastSequence] of listed) {
+      if (stream === '__system__') expect(lastSequence).toBeLessThanOrEqual(lastOnDisk(stream));
+      else expect(lastSequence, stream).toBe(lastOnDisk(stream));
+    }
   });
 });
