@@ -25,7 +25,7 @@ READ: Final = (BROWSE_RESOURCES_REQUESTED, BROWSE_RESOURCE_REQUESTED)
 
 
 class AnnotationReads(Protocol):
-    """What reads a resource's annotations: the Archivist's own surface is one (`semiont_service.archivist.ArchivistContent`)."""
+    """What reads a resource's annotations: the Archivist's own surface is one (`semiont_service.archivist.Archivist`)."""
 
     async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
         """Every annotation on a resource, as the record's view holds them. Raises `AnnotationsUnread` where they were not read."""

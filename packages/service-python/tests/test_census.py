@@ -224,7 +224,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # catalog whole. So are what reads a resource's bytes and the reader that asks the Archivist for them and for its
     # annotations, what white space is, and how long a start waits for what it connects to.
     stated_here = {
-        "archivist.py": ("class ArchivistContent", "class Authorizes", "class AnnotationsUnread"),
+        "archivist.py": ("class Archivist(", "class Authorizes", "class AnnotationsUnread"),
         "catalog.py": ("_UNTIL_THE_ARCHIVIST_ANSWERS", "bus.peer-unavailable"),
         "config.py": ("def config_path_of(", "def read_config", "def service_account_of(", "def set_in("),
         "connect.py": ("def connected", "_CONNECT_SECONDS"),

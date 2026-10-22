@@ -10,7 +10,8 @@ lane of its own (`lanes`), and reads the catalog of resources whole when it
 starts (`catalog`). A service that connects to a store as it starts gives it
 one minute to answer, and refuses to start on one that does not (`connect`). A service that reads a resource's
 bytes is handed a reader of them (`content`), and the one that asks the
-Archivist is here (`archivist`). What white space is (`white_space`) is the
+Archivist, for them, for a resource's annotations and for the record by
+position, is here (`archivist`). What white space is (`white_space`) is the
 same for every service, and is stated here.
 
 A service is known by one word in lower case, as its image and its container

@@ -1,4 +1,4 @@
-//! The Archivist's HTTP surface: its health, a stream's stored events, a
+//! The Archivist's HTTP surface: its health, its event log read by position, a
 //! resource's content, description and anchored text, and the upload that
 //! stores content and records it.
 
@@ -23,31 +23,32 @@ use tokio::io::AsyncReadExt;
 pub struct Surface {
     pub archivist: Arc<Archivist>,
     pub verifier: IssuerVerifier,
-    pub limits: BodyLimits,
+    pub limits: Limits,
 }
 
-/// The most each operation that takes a JSON body is sent, as the
-/// Archivist's API states it (`x-semiont-limits.maxBodyBytes`).
-pub struct BodyLimits {
+/// The limits the Archivist's API states (`x-semiont-limits`): the most each
+/// operation that takes a JSON body is sent, and the most events one answer
+/// of a stream holds.
+pub struct Limits {
     anchored_text: usize,
     stamp: usize,
+    events: usize,
 }
 
-impl BodyLimits {
+impl Limits {
     /// Read from the Archivist's API document; one it does not state is a
     /// document the Archivist was not built against, and it does not start.
-    pub fn of(document: &Value) -> Result<BodyLimits, String> {
-        let limit = |path: &str, method: &str| -> Result<usize, String> {
-            document["paths"][path][method]["x-semiont-limits"]["maxBodyBytes"]
+    pub fn of(document: &Value) -> Result<Limits, String> {
+        let limit = |path: &str, method: &str, key: &str| -> Result<usize, String> {
+            document["paths"][path][method]["x-semiont-limits"][key]
                 .as_u64()
-                .and_then(|bytes| usize::try_from(bytes).ok())
-                .ok_or_else(|| {
-                    format!("the Archivist's API states no maxBodyBytes for {method} {path}")
-                })
+                .and_then(|limit| usize::try_from(limit).ok())
+                .ok_or_else(|| format!("the Archivist's API states no {key} for {method} {path}"))
         };
-        Ok(BodyLimits {
-            anchored_text: limit("/resources/{id}/anchored-text", "put")?,
-            stamp: limit("/anchored-text/stamp", "put")?,
+        Ok(Limits {
+            anchored_text: limit("/resources/{id}/anchored-text", "put", "maxBodyBytes")?,
+            stamp: limit("/anchored-text/stamp", "put", "maxBodyBytes")?,
+            events: limit("/events/{resourceId}", "get", "maxEvents")?,
         })
     }
 }
@@ -126,24 +127,42 @@ async fn events(
             "resourceId path segment and integer fromSequence >= 1 are required",
         );
     };
-    match surface.archivist.events(&resource_id) {
-        Ok(events) => {
-            let from_there: Vec<Object> = events
-                .into_iter()
-                .filter(|e| {
-                    e["metadata"]["sequenceNumber"]
-                        .as_u64()
-                        .is_some_and(|n| n >= from)
-                })
-                .collect();
-            json_reply(StatusCode::OK, json!({ "events": from_there }))
-        }
+    match surface
+        .archivist
+        .events_from(&resource_id, from, surface.limits.events)
+    {
+        Ok((events, last)) => json_reply(
+            StatusCode::OK,
+            json!({ "events": events, "lastSequence": last }),
+        ),
         Err(refusal) => {
             logging::error(
                 "Event read failed",
                 json!({ "component": "archivist", "resourceId": resource_id, "error": refusal.message }),
             );
             error(StatusCode::INTERNAL_SERVER_ERROR, "event read failed")
+        }
+    }
+}
+
+async fn streams(State(surface): Shared, headers: HeaderMap) -> Response {
+    if let Some(refusal) = refusal(&surface, &headers).await {
+        return refusal;
+    }
+    match surface.archivist.streams() {
+        Ok(streams) => {
+            let listed: Vec<Value> = streams
+                .into_iter()
+                .map(|(stream, last)| json!({ "resourceId": stream, "lastSequence": last }))
+                .collect();
+            json_reply(StatusCode::OK, json!({ "streams": listed }))
+        }
+        Err(refusal) => {
+            logging::error(
+                "Stream listing failed",
+                json!({ "component": "archivist", "error": refusal.message }),
+            );
+            error(StatusCode::INTERNAL_SERVER_ERROR, "stream listing failed")
         }
     }
 }
@@ -636,6 +655,7 @@ async fn state_anchored_text_stamp(State(surface): Shared, request: Request) -> 
 pub fn router(surface: Arc<Surface>) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/events", get(streams))
         .route("/events/{resourceId}", get(events))
         .route("/resources", post(upload))
         .route("/resources/{id}/content", get(content))

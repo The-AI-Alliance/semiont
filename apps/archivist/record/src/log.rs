@@ -5,7 +5,7 @@ use crate::shard::shard_path;
 use crate::{Object, RecordError, SYSTEM, failed, ids};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 /// How many events a file of a stream holds.
@@ -196,6 +196,85 @@ impl Log {
         Ok((streams, notes))
     }
 
+    /// A stream's events from sequence `from` on, in log order, and at most
+    /// `at_most` of them. The files before the one that holds `from` are not
+    /// read: of each, only the first event is.
+    pub fn read_from(
+        &self,
+        stream: &str,
+        from: u64,
+        at_most: usize,
+    ) -> Result<Stream, RecordError> {
+        let dir = self.stream_dir(stream)?;
+        let files = self.files(&dir)?;
+        let mut start = 0;
+        for (index, &number) in files.iter().enumerate() {
+            match Log::first_sequence(&dir.join(file_name(number)))? {
+                Some(first) if first <= from => start = index,
+                Some(_) => break,
+                None => {}
+            }
+        }
+        let mut read = Stream {
+            events: Vec::new(),
+            unread: Vec::new(),
+        };
+        for &number in &files[start..] {
+            Log::read_file(&dir.join(file_name(number)), &mut read)?;
+            read.events
+                .retain(|event| sequence_of(event).is_some_and(|sequence| sequence >= from));
+            if read.events.len() >= at_most {
+                break;
+            }
+        }
+        read.events.truncate(at_most);
+        Ok(read)
+    }
+
+    /// The sequence number of a file's first event, read no further than
+    /// that event. None for a file that holds none.
+    fn first_sequence(path: &Path) -> Result<Option<u64>, RecordError> {
+        let file = match std::fs::File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(failed("failed to read event log entry", path, error)),
+        };
+        for line in std::io::BufReader::new(file).lines() {
+            let line =
+                line.map_err(|error| failed("failed to read event log entry", path, error))?;
+            if let Ok(Value::Object(event)) = serde_json::from_str::<Value>(line.trim())
+                && event.get("type").is_some_and(Value::is_string)
+            {
+                return Ok(sequence_of(&event));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The sequence number of a stream's last event: 0 for a stream with none.
+    pub fn last_sequence(&self, stream: &str) -> Result<u64, RecordError> {
+        if let Some(position) = self.positions.get(stream) {
+            return Ok(position.sequence);
+        }
+        self.last_on_disk(&self.stream_dir(stream)?)
+    }
+
+    /// The last sequence number a stream's files hold: read from its last
+    /// file back to the first that holds an event. 0 for none.
+    fn last_on_disk(&self, dir: &Path) -> Result<u64, RecordError> {
+        for number in self.files(dir)?.into_iter().rev() {
+            let mut read = Stream {
+                events: Vec::new(),
+                unread: Vec::new(),
+            };
+            Log::read_file(&dir.join(file_name(number)), &mut read)?;
+            if let Some(found) = read.events.iter().filter_map(sequence_of).max() {
+                return Ok(found);
+            }
+        }
+        Ok(0)
+    }
+
     /// Where a stream stands on disk: its last event's sequence number, its
     /// last file, and that file's lines. A last file that does not end with
     /// a newline is ended with one, so the next event is a line of its own.
@@ -204,18 +283,7 @@ impl Log {
         let Some(&last) = files.last() else {
             return Ok(None);
         };
-        let mut sequence = 0;
-        for &number in files.iter().rev() {
-            let mut read = Stream {
-                events: Vec::new(),
-                unread: Vec::new(),
-            };
-            Log::read_file(&dir.join(file_name(number)), &mut read)?;
-            if let Some(found) = read.events.iter().filter_map(sequence_of).max() {
-                sequence = found;
-                break;
-            }
-        }
+        let sequence = self.last_on_disk(dir)?;
         let path = dir.join(file_name(last));
         let text = std::fs::read_to_string(&path)
             .map_err(|e| failed("failed to read event log entry", &path, e))?;
@@ -342,6 +410,56 @@ mod tests {
         assert_eq!(
             appended.expect("the event is appended").event["metadata"],
             json!({ "sequenceNumber": 2 })
+        );
+    }
+
+    #[test]
+    fn a_stream_is_read_from_a_sequence_across_its_files_and_stands_at_its_last_event() {
+        let root = std::env::temp_dir().join(format!("semiont-log-{}", uuid::Uuid::new_v4()));
+        let log = Log::new(&root);
+        let stream = "a-long-stream";
+        let dir = log.stream_dir(stream).expect("a stream is filed by its id");
+        std::fs::create_dir_all(&dir).expect("the stream's directory is made");
+        let lines = |sequences: std::ops::RangeInclusive<u64>| -> String {
+            sequences
+                .map(|n| {
+                    json!({ "type": MarkArchived::NAME, "metadata": { "sequenceNumber": n } })
+                        .to_string()
+                        + "\n"
+                })
+                .collect()
+        };
+        // A first file that begins with a line that is no event, and two more.
+        std::fs::write(
+            dir.join(file_name(1)),
+            format!("not an event\n{}", lines(1..=3)),
+        )
+        .expect("the first file is written");
+        std::fs::write(dir.join(file_name(2)), lines(4..=6)).expect("the second file is written");
+        std::fs::write(dir.join(file_name(3)), lines(7..=7)).expect("the third file is written");
+
+        let read = |from: u64, at_most: usize| -> Vec<u64> {
+            log.read_from(stream, from, at_most)
+                .expect("the stream is read")
+                .events
+                .iter()
+                .filter_map(super::sequence_of)
+                .collect()
+        };
+        let last = log.last_sequence(stream);
+        let nowhere = log.last_sequence("no-such-stream");
+        let (from_the_first, across, to_the_end, past_the_end) =
+            (read(1, 2), read(3, 3), read(5, 10), read(8, 10));
+        std::fs::remove_dir_all(&root).expect("the test's directory is removed");
+
+        assert_eq!(from_the_first, [1, 2]);
+        assert_eq!(across, [3, 4, 5]);
+        assert_eq!(to_the_end, [5, 6, 7]);
+        assert_eq!(past_the_end, Vec::<u64>::new());
+        assert_eq!(last.expect("the stream stands somewhere"), 7);
+        assert_eq!(
+            nowhere.expect("a stream that is not there stands at none"),
+            0
         );
     }
 }

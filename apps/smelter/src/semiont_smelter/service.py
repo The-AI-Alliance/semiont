@@ -39,7 +39,7 @@ from semiont.bus import reply_channels_for
 from semiont.channels import SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import SmelterConfig
-from semiont_service.archivist import ArchivistContent
+from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.connect import connected
 from semiont_service.health import Health, bind_health
@@ -147,7 +147,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (
-                ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
+                Archivist(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
                 AnchoredTextStore(
                     SERVICE, host=config.archivist.host, port=config.archivist.port, account=account, stamp=anchored_stamp
                 ) as anchored,

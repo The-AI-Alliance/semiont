@@ -167,6 +167,41 @@ impl Archivist {
     pub fn system_events(&self) -> Result<Vec<Object>, Refusal> {
         self.events(SYSTEM)
     }
+
+    /// A stream's events from sequence `from` on, at most `at_most` of them,
+    /// and the sequence number of its last event, read together.
+    pub fn events_from(
+        &self,
+        stream: &str,
+        from: u64,
+        at_most: usize,
+    ) -> Result<(Vec<Object>, u64), Refusal> {
+        Ok(tokio::task::block_in_place(|| {
+            let record = self.record();
+            let read = record.log.read_from(stream, from, at_most)?;
+            let last = record.log.last_sequence(stream)?;
+            Ok::<_, semiont_archivist_record::RecordError>((read.events, last))
+        })?)
+    }
+
+    /// Every stream of the log, the knowledge base's own among them, each
+    /// with the sequence number of its last event.
+    pub fn streams(&self) -> Result<Vec<(String, u64)>, Refusal> {
+        Ok(tokio::task::block_in_place(|| {
+            let record = self.record();
+            let (mut streams, _) = record.log.streams()?;
+            if record.log.stream_dir(SYSTEM)?.is_dir() {
+                streams.push(SYSTEM.to_owned());
+            }
+            streams
+                .into_iter()
+                .map(|stream| {
+                    let last = record.log.last_sequence(&stream)?;
+                    Ok((stream, last))
+                })
+                .collect::<Result<Vec<_>, semiont_archivist_record::RecordError>>()
+        })?)
+    }
 }
 
 /// A text field of a payload, when it holds one that is not empty.

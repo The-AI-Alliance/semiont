@@ -28,7 +28,7 @@ from semiont.errors import SemiontError, SignInError
 from semiont.identifiers import ResourceId
 from semiont.types import GetAnnotationsResponse, StoredEventResponse
 
-from semiont_service.archivist import AnnotationsUnread, ArchivistContent, Authorizes
+from semiont_service.archivist import AnnotationsUnread, Archivist, Authorizes
 from semiont_service.content import Content, ContentUnread
 from semiont_service.follower import SYSTEM, RecordUnread
 
@@ -125,7 +125,7 @@ async def read_of(says: Said, *, account: Account | None = None) -> tuple[Conten
     asking = Account() if account is None else account
     async with (
         PlayedArchivist(says) as archivist,
-        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=asking) as content,
+        Archivist(SERVICE, host="127.0.0.1", port=archivist.port, account=asking) as content,
     ):
         return await content.read(RESOURCE), archivist
 
@@ -215,7 +215,7 @@ def test_an_archivist_that_hangs_up_or_is_not_there_is_unread() -> None:
     async def scenario() -> None:
         assert (await unread(Said(hang_up=True))).startswith("the Archivist did not answer for the bytes of res-1: ")
         # Nothing listens at this port.
-        async with ArchivistContent(SERVICE, host="127.0.0.1", port=1, account=Account()) as content:
+        async with Archivist(SERVICE, host="127.0.0.1", port=1, account=Account()) as content:
             with pytest.raises(ContentUnread, match="the Archivist did not answer for the bytes of res-1: "):
                 await content.read(RESOURCE)
 
@@ -228,7 +228,7 @@ def test_an_account_that_cannot_sign_in_is_unread_names_the_service_and_the_arch
         refused = Account(refused=SignInError("exchange", f"Client-credentials grant for semiont-{service} failed (HTTP 401)"))
         async with (
             PlayedArchivist(Said()) as archivist,
-            ArchivistContent(service, host="127.0.0.1", port=archivist.port, account=refused) as content,
+            Archivist(service, host="127.0.0.1", port=archivist.port, account=refused) as content,
         ):
             with pytest.raises(ContentUnread, match=rf"the {service} could not sign in") as failure:
                 await content.read(RESOURCE)
@@ -242,7 +242,7 @@ def test_an_account_that_cannot_sign_in_is_unread_names_the_service_and_the_arch
 
 def test_a_reader_that_is_not_held_open_reads_nothing() -> None:
     async def scenario() -> None:
-        content = ArchivistContent(SERVICE, host="127.0.0.1", port=1, account=Account())
+        content = Archivist(SERVICE, host="127.0.0.1", port=1, account=Account())
         with pytest.raises(RuntimeError, match="hold it with `async with`"):
             await content.read(RESOURCE)
 
@@ -253,7 +253,7 @@ async def annotations_of(says: Said) -> tuple[GetAnnotationsResponse, PlayedArch
     """What the reader hands over of one answer to a read of annotations, and the Archivist that gave it."""
     async with (
         PlayedArchivist(says) as archivist,
-        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as content,
+        Archivist(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as content,
     ):
         return await content.read_annotations(RESOURCE), archivist
 
@@ -336,7 +336,7 @@ async def logs_of(says: Said) -> tuple[Mapping[str, int], PlayedArchivist]:
     """What the reader hands over of one answer to a listing of the streams, and the Archivist that gave it."""
     async with (
         PlayedArchivist(says) as archivist,
-        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
+        Archivist(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
     ):
         return await record.logs(), archivist
 
@@ -345,7 +345,7 @@ async def after_of(says: Said, log: str, sequence: int) -> tuple[Sequence[Stored
     """What the reader hands over of one answer to a read of a log after `sequence`, and the Archivist that gave it."""
     async with (
         PlayedArchivist(says) as archivist,
-        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
+        Archivist(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
     ):
         return await record.after(log, sequence), archivist
 
@@ -420,7 +420,7 @@ def test_a_record_the_archivist_does_not_answer_for_or_the_account_cannot_ask_fo
         refused = Account(refused=SignInError("exchange", "Client-credentials grant for semiont-weaver failed (HTTP 401)"))
         async with (
             PlayedArchivist(Said()) as archivist,
-            ArchivistContent("weaver", host="127.0.0.1", port=archivist.port, account=refused) as record,
+            Archivist("weaver", host="127.0.0.1", port=archivist.port, account=refused) as record,
         ):
             said = await record_unread(record.after("res-1", 0))
             assert said.startswith("the events of res-1 were not asked for: the weaver could not sign in ")
