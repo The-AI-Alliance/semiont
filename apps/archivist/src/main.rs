@@ -172,6 +172,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
     let (facts, published) = tokio::sync::mpsc::unbounded_channel::<Object>();
     let port = document.port;
     let issuer = document.identity.issuer.clone();
+    let largest_bus_message = bus::largest_message(&semiont_core::spec::spec().document)?;
     let archivist = Arc::new(Archivist::new(
         document,
         root,
@@ -179,6 +180,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
         record,
         staging.clone(),
         facts,
+        largest_bus_message,
     ));
 
     // The vocabulary a knowledge base begins with, added as itself.

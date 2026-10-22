@@ -201,7 +201,11 @@ withArchivist('browsing', (world) => {
     const answer = await reader.request('browse:directory-requested', { path: 'wide' }, 10_000);
     expect(answer.ok).toBe(false);
     expect(answer.payload['path']).toBe('wide');
-    expect(answer.payload['message']).toMatch(/^The answer could not be sent: /);
+    const busMessageBytes = spec().limits('post', '/bus/emit')['maxBodyBytes']!;
+    const said = /^The answer could not be sent: it is (\d+) bytes, and a bus message may be (\d+)$/.exec(String(answer.payload['message']));
+    expect(said, String(answer.payload['message'])).not.toBeNull();
+    expect(Number(said![2])).toBe(busMessageBytes);
+    expect(Number(said![1])).toBeGreaterThan(busMessageBytes);
   });
 
   it('answers anchored text from the store, under the stamp its writer states', async () => {
