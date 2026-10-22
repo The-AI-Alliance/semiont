@@ -442,7 +442,10 @@ type IssuerDatabase struct {
 	// The database's driver: `postgres`.
 	Type string `json:"type"`
 
-	// The database's name.
+	// The database the issuer keeps its realm in: a lowercase PostgreSQL
+	// identifier, as PostgreSQL itself names an unquoted one. On a PostgreSQL
+	// the launcher runs, the launcher creates it; on one somebody else runs
+	// (`external`), it must already exist there.
 	Name string `json:"name"`
 
 	// The user the issuer signs in as.

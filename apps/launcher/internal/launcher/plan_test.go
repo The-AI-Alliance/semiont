@@ -143,7 +143,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			checkRole(t, plan, "database", rolePlan{
 				Presence: presenceLauncher, Driver: "postgres",
 				Image: "postgres:15.18-alpine", Memory: "1G", Port: 5432,
-				Env: []string{"POSTGRES_DB=semiont"},
+				Env: []string{"POSTGRES_DB=keycloak"},
 			})
 			// The inference driver is WHO PERFORMS INFERENCE per the roster,
 			// not which process the launcher runs. ollama-gemma binds ollama →

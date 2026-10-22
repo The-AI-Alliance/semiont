@@ -13,7 +13,6 @@ import (
 
 const (
 	keycloakAdminUser = "admin"
-	keycloakDatabase  = "keycloak"
 
 	// serviceRole: what a token must carry, in a FLAT `roles` array, for the
 	// gateway to mint a software-agent token for its bearer. Flat and
@@ -511,26 +510,28 @@ func serviceClientSecrets(x keeper, kb kbRoot) (map[string]string, bool) {
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// its database on the PostgreSQL the Issuer document describes (created there when the launcher
-// runs that PostgreSQL), the realm file to import, and the bootstrap admin
-// password. The password is per root and persisted: Keycloak creates the
-// admin on its FIRST boot only, so a regenerated value would lock the
-// console out of a realm that already exists.
+// the database the Issuer document names, on the PostgreSQL it describes
+// (created there when the launcher runs that PostgreSQL), the realm file to
+// import, and the bootstrap admin password. The password is per root and
+// persisted: Keycloak creates the admin on its FIRST boot only, so a
+// regenerated value would lock the console out of a realm that already
+// exists.
 func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
+	dbName := fc.stack.Issuer.Spec.Database.Name
 	dbHost := db.Address
 	// Authority, not presence: an external PostgreSQL is somebody's shared
 	// server, and creating a database in it is a privileged persistent
 	// change the launcher is not entitled to make.
 	if mayConfigure(db) {
 		dbHost = addr
-		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
+		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), dbName) {
 			return nil, nil, "", false
 		}
 	} else {
-		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, keycloakDatabase)
-		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, keycloakDatabase)
+		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, dbName)
+		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
 	// Resolved here and persisted per root, so the container that must PRESENT
@@ -551,7 +552,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	}
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
-		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, keycloakDatabase),
+		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
 	}, secrets, password, true
 }

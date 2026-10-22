@@ -27,7 +27,7 @@ func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 // the three third-party roles the launcher must reach or configure: the database
 // it waits on, the Ollama it probes, and the identity provider whose
 // KC_DB_URL names the PostgreSQL by address: without it, `start --service
-// identity` builds `jdbc:postgresql://:5432/keycloak`.
+// identity` builds `jdbc:postgresql://:5432/<database>`.
 func serviceNeedsAddr(svc string) bool {
 	return isConfigConsumer(svc) || svc == "database" || svc == "inference" || svc == "identity"
 }

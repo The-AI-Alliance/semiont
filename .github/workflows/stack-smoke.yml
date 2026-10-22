@@ -57,9 +57,8 @@ jobs:
     env:
       # The image tag the smoke writes into the stack's documents: `local`, the
       # images built below from this commit, unless the run names a published
-      # tag. The launcher does not read this variable; smoke-stack.sh takes it
-      # as its argument.
-      SEMIONT_VERSION: ${{ inputs.images || 'local' }}
+      # tag. smoke-stack.sh takes it as its argument.
+      IMAGES: ${{ inputs.images || 'local' }}
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -75,7 +74,7 @@ jobs:
       # key missed it. lint:workflows holds every path the Dockerfiles copy to a
       # pattern of this key.
       - name: Restore the Rust images' layers
-        if: env.SEMIONT_VERSION == 'local'
+        if: env.IMAGES == 'local'
         uses: actions/cache@v6.1.0
         with:
           path: ${{ runner.temp }}/rust-image-layers
@@ -84,19 +83,19 @@ jobs:
             ${{ runner.os }}-rust-image-layers-
 
       - name: Build the packages, images and launcher from this commit
-        if: env.SEMIONT_VERSION == 'local'
+        if: env.IMAGES == 'local'
         # The stack boots under docker, the engine that builds the images, so
         # they are not copied into the runner's podman as well.
         run: scripts/ci/local-build.sh --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-go@v7.0.0
-        if: env.SEMIONT_VERSION != 'local'
+        if: env.IMAGES != 'local'
         with:
           go-version-file: apps/launcher/go.mod
 
       - name: Build the launcher from this commit
         # Where the smoke script runs it from.
-        if: env.SEMIONT_VERSION != 'local'
+        if: env.IMAGES != 'local'
         run: cd apps/launcher && go build -o dist/semiont .
 
       - name: Boot a stack and check it
@@ -105,4 +104,4 @@ jobs:
         # 1.8 GB of image plus two small models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
-        run: scripts/release/smoke-stack.sh "$SEMIONT_VERSION"
+        run: scripts/release/smoke-stack.sh "$IMAGES"

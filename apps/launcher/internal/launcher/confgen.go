@@ -120,7 +120,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	identity := descriptorFor("identity", "keycloak")
 	issuer.Spec.Image, issuer.Spec.Resources = identity.image, limits(identity.mem)
 	issuer.Spec.AccessTokenLifespan = keycloakAccessTokenLifespan
-	issuer.Spec.Database.Type, issuer.Spec.Database.Name, issuer.Spec.Database.User = "postgres", "semiont", "postgres"
+	issuer.Spec.Database.Type, issuer.Spec.Database.Name, issuer.Spec.Database.User = "postgres", "keycloak", "postgres"
 	issuer.Spec.Database.Image, issuer.Spec.Database.Resources = daemon("database", "postgres")
 
 	var workers stack.WorkerPool

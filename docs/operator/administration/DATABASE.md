@@ -20,9 +20,11 @@ none, and there is no ORM, no migration step and no schema of ours to evolve.
   realms and sessions.
 
 In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container and Keycloak
-reaches it over the stack network. The launcher creates the `keycloak` database there when it runs
-PostgreSQL itself; against an external PostgreSQL that database must already exist, and the launcher
-says so at start.
+reaches it over the stack network. Keycloak keeps its realm in the database `spec.database.name`
+names, `keycloak` as `semiont init` writes it. The launcher creates that database when it runs
+PostgreSQL itself; against an external PostgreSQL it must already exist, and the launcher says so at
+start. Renaming it on a store that already holds a realm points Keycloak at an empty database: its
+accounts stay in the old one.
 
 ## Where accounts live
 
@@ -77,7 +79,7 @@ semiont logs --service identity
 
 Usual causes: PostgreSQL is not up yet; its data was initialized with a password the launcher no
 longer has ([Secrets](../services/SECRETS.md#values-the-launcher-keeps)); or it is a PostgreSQL
-somebody else runs, where the `keycloak` database was never created.
+somebody else runs, where the database `spec.database.name` names was never created.
 
 ### Connection refused or timeouts
 

@@ -1218,6 +1218,23 @@ func TestStartDryRunServiceMetrics(t *testing.T) {
 	checkGolden(t, "start-dryrun-service-metrics.txt", s.norm(stdout))
 }
 
+// The Issuer document's database name is the one the realm is kept in: the
+// PostgreSQL the launcher runs creates it, the launcher makes sure of it, and
+// Keycloak connects to it.
+func TestStartKeepsTheRealmInTheDatabaseTheIssuerNames(t *testing.T) {
+	s := newScenario(t, "container")
+	editDocument(t, s, "issuer.yaml", "name: keycloak", "name: iam")
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"POSTGRES_DB=iam",
+		"# create database iam on PostgreSQL if absent",
+		":5432/iam ")
+	mustNotContain(t, "stdout", stdout, "/keycloak ", "database keycloak")
+}
+
 func TestStartDryRunDefault(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
