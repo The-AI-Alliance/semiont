@@ -1,0 +1,20 @@
+{
+  "title": "HostPort",
+  "type": "object",
+  "description": "Where somebody else's daemon listens.",
+  "properties": {
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A host name or address the stack's containers can reach."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port it listens on."
+    }
+  },
+  "required": ["host", "port"],
+  "additionalProperties": false
+}

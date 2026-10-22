@@ -1,0 +1,6 @@
+{
+  "title": "ApiVersion",
+  "type": "string",
+  "const": "semiont.the-ai-alliance.github.io/v1alpha1",
+  "description": "The group and version of Semiont's kinds. The group names who defines a kind, under the domain the knowledge bases' DIDs use; which knowledge base a document is about is said inside it."
+}

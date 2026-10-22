@@ -90,7 +90,12 @@ func startCodespace(u *UI, opts startOptions) int {
 	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
-		if _, _, err := resolveKBRoot(); err == nil || opts.root != "" {
+		_, _, rootErr := resolveKBRoot()
+		if projectFileRefused(rootErr) {
+			u.Fail("%v", rootErr)
+			return 1
+		}
+		if rootErr == nil || opts.root != "" {
 			var code int
 			if repo, repoDid, code = repoFromRoot(u, opts); code != 0 {
 				return code
@@ -353,12 +358,17 @@ func startCodespace(u *UI, opts startOptions) int {
 // CwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
 // else the .semiont/ walk) — "" when not inside a clone. The cwd is context
 // every command may consult: standing in a clone says which stack is meant.
-func CwdKBRoot() string {
+// A clone whose config.yaml does not hold is refused, never read as no
+// clone.
+func CwdKBRoot() (string, error) {
 	root, _, err := resolveKBRoot()
-	if err != nil {
-		return ""
+	if projectFileRefused(err) {
+		return "", err
 	}
-	return root
+	if err != nil {
+		return "", nil
+	}
+	return root, nil
 }
 
 // originCodespace: the recorded codespace stack whose repo this clone's git
@@ -396,7 +406,9 @@ func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) 
 	}
 	if err != nil {
 		u.Fail("%v", err)
-		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
+		if !projectFileRefused(err) {
+			fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
+		}
 		return "", "", 1
 	}
 	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
@@ -1060,20 +1072,30 @@ func reconcileDid(u *UI, st *StackState, force bool) {
 	}
 }
 
-// fetchRemoteDid reads the codespace's committed identity card. Note the
-// ABSOLUTE globbed path: `gh codespace ssh` lands in /home/vscode, not the
-// workspace, so a relative path silently fails with "No such file or
-// directory". The glob expands remotely and does not depend on the workspace
-// directory's name.
+// fetchRemoteDid reads the codespace's committed identity card: its
+// .semiont/config.yaml, or the TOML .semiont/config where the knowledge base
+// still has that one. Note the ABSOLUTE globbed path: `gh codespace ssh` lands
+// in /home/vscode, not the workspace, so a relative path silently fails with
+// "No such file or directory". The glob expands remotely and does not depend
+// on the workspace directory's name.
 func fetchRemoteDid(u *UI, name string) (string, bool) {
-	const cfgPath = "/workspaces/*/.semiont/config"
-	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
-	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", cfgPath)
+	const yamlPath = "/workspaces/*/.semiont/" + projectFileYAML
+	const tomlPath = "/workspaces/*/.semiont/" + projectFileTOML
+	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+yamlPath+")"))
+	if out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", yamlPath); err == nil {
+		identity, err := yamlKBIdentity(yamlPath, []byte(out))
+		if err != nil {
+			u.Warn("The codespace's project file does not hold — identity left as recorded: %v", err)
+			return "", false
+		}
+		return identity.didWeb(), true
+	}
+	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", tomlPath)
 	if err != nil {
-		u.Warn("Could not read .semiont/config over ssh — identity left as recorded.")
+		u.Warn("Could not read the project file over ssh — identity left as recorded.")
 		return "", false
 	}
-	return parseKBIdentity([]byte(out)).didWeb(), true
+	return tomlKBIdentity([]byte(out)).didWeb(), true
 }
 
 // renderCodespacePlan is --dry-run for the codespace placement: the gh
@@ -1099,7 +1121,8 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 	}
 	fmt.Println("gh codespace ports forward 4000:<kb-port> -c <codespace>   # <codespacePort>:<localPort>; detached; pid + port recorded")
 	fmt.Println("# wait: http://localhost:<kb-port>/api/health (600s)")
-	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config   # KB identity, when the record lacks one")
+	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config.yaml   # KB identity, when the record lacks one")
+	fmt.Println("gh codespace ssh -c <codespace> -- cat /workspaces/*/.semiont/config   # the TOML one, when there is no config.yaml")
 }
 
 // stopCodespace: `semiont stop` for a codespace stack. Stop halts billing

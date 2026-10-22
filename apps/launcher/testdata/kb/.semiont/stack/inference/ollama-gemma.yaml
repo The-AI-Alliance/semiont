@@ -1,0 +1,19 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Inference
+metadata:
+  name: ollama-gemma
+spec:
+  providers:
+    ollama: {}
+  roster:
+    actors:
+      gatherer: { provider: ollama, model: "gemma4:26b" }
+      matcher: { provider: ollama, model: "gemma4:26b" }
+    workers:
+      mark:
+        linking: { provider: ollama, model: "gemma4:26b" }
+        highlighting: { provider: ollama, model: "gemma4:e2b" }
+        assessing: { provider: ollama, model: "gemma4:26b" }
+        commenting: { provider: ollama, model: "gemma4:e2b" }
+        tagging: { provider: ollama, model: "gemma4:e2b" }
+      yield: { provider: ollama, model: "gemma4:26b" }

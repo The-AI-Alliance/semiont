@@ -18,14 +18,17 @@
  *    scripts/ci/install-nats-server.sh.
  * 4. The line is read out of go.mod in one place, scripts/ci/nats-version.sh.
  *
- * Three files state the version beside go.mod, and each is held to it by
+ * Four places state the version beside go.mod, and each is held to it by
  * something that is not this check:
  *
  * - apps/launcher/go.sum, which Go writes from go.mod;
  * - the launcher's descriptor of the broker, whose image tag
  *   TestBrokerPairIsReadByTheLaunchedBrokersParser holds to the module;
  * - the launcher's golden files, which its tests compare with what the
- *   descriptor makes it print.
+ *   descriptor makes it print;
+ * - the stack documents of the launcher's fixture knowledge base, which name
+ *   the broker's image as every knowledge base's documents do, and which
+ *   TestTheFixtureStackNamesTheDescriptorsImages holds to the descriptor.
  *
  * A document may state the oldest broker a suite runs on ("2.10 or later").
  * That is a floor and not the version, and nothing here reads it.
@@ -51,6 +54,8 @@ const DERIVED = 'apps/launcher/go.sum';
 /** Where the launcher states the image it runs, and where its tests keep what that prints: the launcher's tests hold both. */
 const DESCRIPTOR = 'apps/launcher/internal/launcher/descriptors.go';
 const GOLDEN = 'apps/launcher/testdata/golden/';
+/** The fixture knowledge base's stack documents: the launcher's tests hold their images to the descriptor. */
+const FIXTURE_STACK = 'apps/launcher/testdata/kb/.semiont/stack/';
 
 /** Rule 2: a `nats` image's tag. A host and its port (`nats:4222`) is not one: a tag has a dot or a variant. */
 const IMAGE_TAG = /\bnats:[0-9]+(?:\.[0-9]|-[a-z])/;
@@ -99,7 +104,7 @@ for (const file of files) {
   }
   if (text.includes('\u0000')) continue; // not text
   read += 1;
-  const statesTheImage = file === DESCRIPTOR || file.startsWith(GOLDEN);
+  const statesTheImage = file === DESCRIPTOR || file.startsWith(GOLDEN) || file.startsWith(FIXTURE_STACK);
   const statesTheModule = file === OWNER || file === DERIVED;
 
   text.split('\n').forEach((line, index) => {

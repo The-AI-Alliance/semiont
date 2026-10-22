@@ -650,6 +650,9 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 	reg := loadRoots().Roots
 	n := len(reg) + len(cs)
 	cwd, _, cwdErr := resolveKBRoot()
+	if projectFileRefused(cwdErr) {
+		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", cwdErr)))
+	}
 	if cwdErr == nil {
 		known := false
 		for _, e := range reg {
@@ -714,9 +717,10 @@ func printRoots(u *UI, st *StackState) int {
 			label = "SEMIONT_ROOT"
 		}
 		add(path, label)
-	} else if os.Getenv("SEMIONT_ROOT") != "" {
-		// Strictness without failing the report: an invalid override is
-		// surfaced, not silently ignored.
+	} else if os.Getenv("SEMIONT_ROOT") != "" || projectFileRefused(err) {
+		// Strictness without failing the report: an invalid override, or a
+		// clone whose project file is refused, is surfaced, not silently
+		// ignored.
 		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", err)))
 	}
 	if st != nil && st.KBRoot != "" {
@@ -880,6 +884,8 @@ func printLauncherPaths(u *UI) {
 	if root, _, err := resolveKBRoot(); err == nil {
 		fmt.Println()
 		printKBPaths(u, row, more, root, rootsDir)
+	} else if projectFileRefused(err) {
+		fmt.Printf("\n  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", err)))
 	}
 
 	entries, err := os.ReadDir(rootsDir)

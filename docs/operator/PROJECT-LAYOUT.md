@@ -9,7 +9,7 @@ This page is what an operator needs to recognize and commit. How Semiont reads a
 ```
 my-kb/
 ├── .semiont/
-│   ├── config                        # Name and permanent identity (commit)
+│   ├── config.yaml                   # Name and permanent identity (commit)
 │   ├── events/                       # Event log (commit)
 │   │   ├── __system__/               # System-scoped events (entity types, etc.)
 │   │   │   └── events-000001.jsonl
@@ -22,9 +22,9 @@ my-kb/
 └── <your content>                    # Resource files — any structure you choose
 ```
 
-### `.semiont/config`
+### `.semiont/config.yaml`
 
-A TOML file holding the knowledge base's name and its permanent `did:web` domain, which is stamped into every event. Commit it: it is who the knowledge base is. See [Configuration](./administration/CONFIGURATION.md#semiontconfig).
+A YAML file holding the knowledge base's name and its permanent `did:web` domain, which is stamped into every event. Commit it: it is who the knowledge base is. See [Configuration](./administration/CONFIGURATION.md#semiontconfigyaml).
 
 ### `.semiont/events/`
 
@@ -76,7 +76,7 @@ A knowledge base after two resources have been added:
 .semiont  authors  data  README.md
 
 % find .semiont -type f | sort
-.semiont/config
+.semiont/config.yaml
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
 .semiont/events/__system__/events-000001.jsonl

@@ -1,0 +1,33 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: KnowledgeIndex
+metadata:
+  name: index
+spec:
+  knowledgeBase: knowledge-base
+  logLevel: info
+  graph:
+    type: neo4j
+    username: neo4j
+    database: neo4j
+    image: neo4j:5.26.28-community
+    resources: { limits: { memory: 2G } }
+  vectors:
+    type: qdrant
+    image: qdrant/qdrant:v1.19.1
+    resources: { limits: { memory: 2G } }
+  embedding:
+    type: ollama
+    model: nomic-embed-text
+    chunking: { chunkSize: 512, overlap: 64 }
+  librarian:
+    image: ghcr.io/the-ai-alliance/semiont-librarian:latest
+    resources: { limits: { memory: 2G } }
+    gather: { settleTimeoutMs: 15000 }
+    search: { semanticFloor: 0.6 }
+  smelter:
+    image: ghcr.io/the-ai-alliance/semiont-smelter:latest
+    resources: { limits: { memory: 2G } }
+    pdfsAtOnce: 1
+  weaver:
+    image: ghcr.io/the-ai-alliance/semiont-weaver:latest
+    resources: { limits: { memory: 2G } }

@@ -1,0 +1,21 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Inference
+metadata:
+  name: anthropic
+spec:
+  providers:
+    anthropic:
+      baseURL: https://api.anthropic.com
+      apiKey: { fromEnv: ANTHROPIC_API_KEY }
+  roster:
+    actors:
+      gatherer: { provider: anthropic, model: claude-sonnet-4-5-20250929 }
+      matcher: { provider: anthropic, model: claude-sonnet-4-5-20250929 }
+    workers:
+      mark:
+        linking: { provider: anthropic, model: claude-sonnet-4-5-20250929 }
+        highlighting: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+        assessing: { provider: anthropic, model: claude-sonnet-4-5-20250929 }
+        commenting: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+        tagging: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+      yield: { provider: anthropic, model: claude-sonnet-4-5-20250929 }

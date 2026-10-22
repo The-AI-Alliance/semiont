@@ -1,0 +1,10 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: WorkerPool
+metadata:
+  name: workers
+spec:
+  knowledgeBase: knowledge-base
+  logLevel: info
+  worker:
+    image: ghcr.io/the-ai-alliance/semiont-worker:latest
+    resources: { limits: { memory: 2G } }

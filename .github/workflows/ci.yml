@@ -74,6 +74,7 @@ jobs:
           npm run lint:spec-reference-forms || fail=1
           npm run lint:spec-offset-units || fail=1
           npm run lint:spec-reply-bounds || fail=1
+          npm run lint:spec-stack || fail=1
           npm run openapi:lint || fail=1
           npm run lint:service-environment || fail=1
           npm run lint:telemetry-doc || fail=1
@@ -1872,6 +1873,14 @@ jobs:
         run: |
           node scripts/spec/generate-sign-in-go.mjs --check
           node scripts/spec/generate-oauth-clients-go.mjs --check
+
+      # A knowledge base's documents (specs/src/stack, and the project file's
+      # schema in specs/src/kb-identity) → the launcher's types for them and the
+      # schema text it validates them against (apps/launcher/internal/stack).
+      # lint:spec-stack, in the Census job, holds every property of the schemas
+      # to a field of the generated types.
+      - name: Knowledge base documents vs the launcher's generated Go
+        run: node scripts/spec/generate-stack-go.mjs --check
 
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client

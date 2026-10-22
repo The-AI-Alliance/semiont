@@ -1,0 +1,31 @@
+{
+  "title": "Metadata",
+  "type": "object",
+  "description": "What names a document, as Kubernetes names an object. Documents refer to one another by `name`.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "description": "The document's name: lower-case letters, digits and `-`, beginning and ending with a letter or digit. It names the document, never the knowledge base."
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "description": "The Kubernetes namespace the document belongs in. The launcher reads none."
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Kubernetes labels. The launcher reads none."
+    },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Kubernetes annotations. The launcher reads none."
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

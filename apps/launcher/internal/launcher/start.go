@@ -205,6 +205,10 @@ func Start(args []string) int {
 		// a directory that resolves to a KB root is the one place it must not
 		// apply.
 		_, _, rootErr := resolveKBRoot()
+		if projectFileRefused(rootErr) {
+			u.Fail("%v", rootErr)
+			return 1
+		}
 		if cs := codespaceStacks(ss); rootErr != nil && ss.Stacks["local"] == nil && len(cs) > 0 {
 			if len(cs) > 1 {
 				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
@@ -249,7 +253,9 @@ func Start(args []string) int {
 		}
 		if err != nil {
 			u.Fail("%v", err)
-			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
+			if !projectFileRefused(err) {
+				fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
+			}
 			return 1
 		}
 		// The git-clone invariant: the Archivist mounts the clone at /kb and

@@ -199,7 +199,11 @@ func Stop(args []string) int {
 		// Anything less certain still refuses: stop doesn't guess, but it
 		// also must not demand --runtime container from a user standing in
 		// the exact clone whose stack is up.
-		root := CwdKBRoot()
+		root, err := CwdKBRoot()
+		if err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 		localHere := st != nil && st.KBRoot != "" && st.KBRoot == root
 		if !localHere {
 			if st == nil {
@@ -324,11 +328,14 @@ func Stop(args []string) int {
 
 	// Where a log snapshot would land: the recorded root when the record is
 	// in use, else the KB clone we're standing in. "" (neither) skips the
-	// snapshot — evidence capture is best-effort and never blocks a stop.
+	// snapshot — evidence capture is best-effort and never blocks a stop,
+	// so a clone whose project file is refused is named and skipped.
 	snapRoot := ""
 	if useState && st != nil && st.KBRoot != "" {
 		snapRoot = st.KBRoot
-	} else if r := CwdKBRoot(); r != "" {
+	} else if r, err := CwdKBRoot(); err != nil {
+		u.Warn("No log snapshot: %v", err)
+	} else {
 		snapRoot = r
 	}
 

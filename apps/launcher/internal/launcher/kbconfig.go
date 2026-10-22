@@ -1,20 +1,34 @@
 package launcher
 
-// kbconfig.go — the read-side of `.semiont/config`, the KB's committed
-// identity card: [project] name/version, [git] sync, and [site] — whose
-// `domain` is the permanent did:web identity everything the KB mints is
-// stamped with (a committed literal naming the repo, never a machine
-// address; see the DID/site.domain history before treating it as one).
-// The launcher consumes identity for DISPLAY and the roots registry only —
-// best-effort throughout: a KB without this file (or with a partial one)
-// must never break a command.
+// kbconfig.go — the read-side of a knowledge base's project file, its
+// committed identity card: `.semiont/config.yaml` (ProjectConfig, in
+// specs/src/kb-identity), or the TOML `.semiont/config` where a knowledge base
+// still has that one. Its project name and version, git sync, and site —
+// whose `domain` is the permanent did:web identity everything the KB mints is
+// stamped with (a committed literal naming the repo, never a machine address;
+// see the DID/site.domain history before treating it as one). A KB without
+// the file must never break a command. A root whose config.yaml does not
+// hold to its schema is no root: root resolution refuses it, every place
+// named, so no command runs in one.
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+)
+
+// projectFileYAML and projectFileTOML: the project file, and the TOML one a
+// knowledge base not yet converted still has. The first is read when it is
+// there.
+const (
+	projectFileYAML = "config.yaml"
+	projectFileTOML = "config"
 )
 
 type kbIdentity struct {
@@ -58,14 +72,74 @@ func committedResource(root string) string {
 	return kbResource(committedDomain(root))
 }
 
-// loadKBIdentity reads <root>/.semiont/config. nil when absent or unreadable
-// — identity is display metadata, not launch instructions.
+// readKBIdentity reads <root>'s project file: config.yaml when it is there,
+// else the TOML. nil when there is neither, or the TOML does not parse, as
+// the kb-identity cases state. A config.yaml that cannot be read, or does not
+// hold to ProjectConfig's schema, is refused.
+func readKBIdentity(root string) (*kbIdentity, error) {
+	semiont := filepath.Join(root, ".semiont")
+	path := filepath.Join(semiont, projectFileYAML)
+	text, err := os.ReadFile(path)
+	if err == nil {
+		return yamlKBIdentity(path, text)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	b, err := os.ReadFile(filepath.Join(semiont, projectFileTOML))
+	if err != nil {
+		return nil, nil
+	}
+	return tomlKBIdentity(b), nil
+}
+
+// loadKBIdentity is readKBIdentity of a root already resolved, which root
+// resolution has refused if its config.yaml does not hold, or of a root a
+// listing names; there, a refused file reads as none. A command reads its
+// identity by root many times over; P2's wiring reads it once.
 func loadKBIdentity(root string) *kbIdentity {
-	b, err := os.ReadFile(filepath.Join(root, ".semiont", "config"))
+	identity, err := readKBIdentity(root)
 	if err != nil {
 		return nil
 	}
-	return parseKBIdentity(b)
+	return identity
+}
+
+// refusedProjectFile: root resolution's refusal of a root whose config.yaml
+// cannot be read or does not hold to its schema, as against its finding no
+// root.
+type refusedProjectFile struct{ error }
+
+func (r refusedProjectFile) Unwrap() error { return r.error }
+
+// holdProjectFile refuses root when its config.yaml cannot be read or does
+// not hold to its schema, naming each place.
+func holdProjectFile(root string) error {
+	if _, err := readKBIdentity(root); err != nil {
+		return refusedProjectFile{err}
+	}
+	return nil
+}
+
+// projectFileRefused: whether err is holdProjectFile's refusal, which no
+// caller reads as "not inside a knowledge base".
+func projectFileRefused(err error) bool {
+	var refused refusedProjectFile
+	return errors.As(err, &refused)
+}
+
+// yamlKBIdentity reads a config.yaml already in hand, refusing one that does
+// not hold to its schema.
+func yamlKBIdentity(where string, text []byte) (*kbIdentity, error) {
+	project, err := stack.Parse[stack.ProjectConfig](where, "ProjectConfig", text)
+	if err != nil {
+		return nil, err
+	}
+	identity := &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}
+	if project.Project.Version != nil {
+		identity.Version = *project.Project.Version
+	}
+	return identity, nil
 }
 
 // effectiveKBName is the name the Archivist computes for this root: the
@@ -79,10 +153,10 @@ func effectiveKBName(root string) string {
 	return filepath.Base(root)
 }
 
-// parseKBIdentity is the same read with the file already in hand — the
+// tomlKBIdentity reads the TOML project file already in hand — the
 // codespace path gets these bytes over ssh rather than off this disk, and
 // must interpret them identically.
-func parseKBIdentity(b []byte) *kbIdentity {
+func tomlKBIdentity(b []byte) *kbIdentity {
 	var raw struct {
 		Project struct {
 			Name    string `toml:"name"`

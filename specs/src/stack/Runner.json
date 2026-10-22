@@ -1,0 +1,37 @@
+{
+  "title": "Runner",
+  "type": "object",
+  "description": "Who runs a daemon: the launcher, from `image` with `resources`, or somebody else, reached at `external`. Exactly one of the two.",
+  "oneOf": [
+    {
+      "required": [
+        "image",
+        "resources"
+      ],
+      "not": {
+        "required": [
+          "external"
+        ]
+      }
+    },
+    {
+      "required": [
+        "external"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "image"
+            ]
+          },
+          {
+            "required": [
+              "resources"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

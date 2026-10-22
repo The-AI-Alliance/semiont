@@ -91,7 +91,9 @@ func Identity(args []string) int {
 	}
 	if err != nil {
 		u.Fail("%v", err)
-		fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
+		if !projectFileRefused(err) {
+			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
+		}
 		return 1
 	}
 	if err := os.Chdir(root); err != nil {

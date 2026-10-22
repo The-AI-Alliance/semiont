@@ -1,0 +1,277 @@
+{
+  "title": "KnowledgeIndex",
+  "type": "object",
+  "description": "What a knowledge base's record is indexed into, and the services that keep and read the indexes: the Weaver's graph, the Smelter's vectors and anchored text, and the Librarian that answers from them. Each can be rebuilt from the record.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "KnowledgeIndex"
+    },
+    "metadata": {
+      "$ref": "./Metadata.json"
+    },
+    "spec": {
+      "type": "object",
+      "description": "The indexes, the services that keep and read them, and the knowledge base they index.",
+      "properties": {
+        "knowledgeBase": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "description": "The name of the KnowledgeBase document whose record this indexes."
+        },
+        "logLevel": {
+          "$ref": "../components/schemas/LogLevel.json"
+        },
+        "graph": {
+          "type": "object",
+          "description": "The graph store the Weaver writes and the Librarian reads.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The graph store's driver: `neo4j`."
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The user the services sign in to the store as."
+            },
+            "database": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Which of the store's databases holds the graph."
+            },
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "external": {
+              "type": "object",
+              "description": "A graph store somebody else runs.",
+              "properties": {
+                "uri": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Where it listens: `bolt://host:port`."
+                },
+                "password": {
+                  "$ref": "./SecretRef.json"
+                }
+              },
+              "required": [
+                "uri",
+                "password"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "username",
+            "database"
+          ],
+          "allOf": [
+            {
+              "$ref": "./Runner.json"
+            }
+          ],
+          "additionalProperties": false
+        },
+        "vectors": {
+          "type": "object",
+          "description": "The vector store the Smelter writes and the Librarian reads.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The vector store's driver: `qdrant`."
+            },
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "external": {
+              "$ref": "./HostPort.json",
+              "description": "A vector store somebody else runs."
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "allOf": [
+            {
+              "$ref": "./Runner.json"
+            }
+          ],
+          "additionalProperties": false
+        },
+        "embedding": {
+          "type": "object",
+          "description": "The model that turns text into vectors. Vectors made by one model are not comparable with another's, so the model is the index's.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Who serves the model: `ollama`, or `voyage`."
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The model, as its provider names it."
+            },
+            "chunking": {
+              "type": "object",
+              "description": "How a text is cut before it is embedded.",
+              "properties": {
+                "chunkSize": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The size of a piece."
+                },
+                "overlap": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "How much of one piece the next repeats."
+                }
+              },
+              "required": [
+                "chunkSize",
+                "overlap"
+              ],
+              "additionalProperties": false
+            },
+            "endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Where the provider's API is reached. An Ollama the machine runs is stated by no endpoint."
+            },
+            "apiKey": {
+              "$ref": "./SecretRef.json"
+            }
+          },
+          "required": [
+            "type",
+            "model",
+            "chunking"
+          ],
+          "additionalProperties": false
+        },
+        "librarian": {
+          "type": "object",
+          "description": "The Librarian: it answers gathers and searches from the indexes.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "gather": {
+              "type": "object",
+              "description": "How a gather waits.",
+              "properties": {
+                "settleTimeoutMs": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "How long a gather waits for the Smelter to settle a resource, in milliseconds."
+                }
+              },
+              "required": [
+                "settleTimeoutMs"
+              ],
+              "additionalProperties": false
+            },
+            "search": {
+              "type": "object",
+              "description": "What a search by meaning keeps.",
+              "properties": {
+                "semanticFloor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "The least similarity a hit by meaning must have."
+                }
+              },
+              "required": [
+                "semanticFloor"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "image",
+            "resources",
+            "gather",
+            "search"
+          ],
+          "additionalProperties": false
+        },
+        "smelter": {
+          "type": "object",
+          "description": "The Smelter: it writes the vectors and the anchored text.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "pdfsAtOnce": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "How many PDFs it works on at once. A page of a scan held for OCR is large; one for each 2G of its memory is a reading of what fits."
+            }
+          },
+          "required": [
+            "image",
+            "resources",
+            "pdfsAtOnce"
+          ],
+          "additionalProperties": false
+        },
+        "weaver": {
+          "type": "object",
+          "description": "The Weaver: it writes the graph.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            }
+          },
+          "required": [
+            "image",
+            "resources"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "knowledgeBase",
+        "logLevel",
+        "graph",
+        "vectors",
+        "embedding",
+        "librarian",
+        "smelter",
+        "weaver"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

@@ -69,6 +69,7 @@ ring = "0.17.14"
 rustls = { version = "0.23.46", default-features = false }
 serde = "1.0.229"
 serde_json = "1.0.151"
+serde-saphyr = "2.0.0"
 socket2 = "0.6.5"
 tikv-jemalloc-ctl = "0.7.0"
 tikv-jemallocator = "0.7.0"

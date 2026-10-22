@@ -1,0 +1,118 @@
+{
+  "title": "Issuer",
+  "type": "object",
+  "description": "An issuer the launcher runs, and the database it keeps its realm in. A knowledge base trusts it by naming this document; one trusting somebody else's issuer has no Issuer document.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Issuer"
+    },
+    "metadata": {
+      "$ref": "./Metadata.json"
+    },
+    "spec": {
+      "type": "object",
+      "description": "The issuer, and the database it keeps its realm in.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer's driver: `keycloak`."
+        },
+        "image": {
+          "$ref": "./Image.json"
+        },
+        "resources": {
+          "$ref": "./Resources.json"
+        },
+        "accessTokenLifespan": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long a token the realm mints stays valid, in seconds: the window in which a disabled account can still act."
+        },
+        "database": {
+          "type": "object",
+          "description": "The database the issuer keeps its realm in.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The database's driver: `postgres`."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The database's name."
+            },
+            "user": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The user the issuer signs in as."
+            },
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "external": {
+              "type": "object",
+              "description": "A database somebody else runs.",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A host name or address the issuer can reach."
+                },
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "description": "The port it listens on."
+                },
+                "password": {
+                  "$ref": "./SecretRef.json"
+                }
+              },
+              "required": [
+                "host",
+                "port",
+                "password"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "user"
+          ],
+          "allOf": [
+            {
+              "$ref": "./Runner.json"
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "image",
+        "resources",
+        "accessTokenLifespan",
+        "database"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

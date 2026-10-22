@@ -1682,6 +1682,42 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/postgres")
 }
 
+// A knowledge base whose project file is .semiont/config.yaml starts from it;
+// one whose config.yaml does not hold to its schema is refused, each place
+// named at its line, even in --dry-run.
+func TestStartReadsTheYAMLProjectFile(t *testing.T) {
+	s := newScenario(t, "container")
+	semiont := filepath.Join(s.kb, ".semiont")
+	if err := os.Remove(filepath.Join(semiont, "config")); err != nil {
+		t.Fatal(err)
+	}
+	project, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(semiont, "config.yaml"), project, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("a start from config.yaml: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/postgres")
+
+	broken := strings.Replace(string(project), "  domain:", "  domian:", 1)
+	if broken == string(project) {
+		t.Fatal("the fixture's config.yaml states no domain to misspell")
+	}
+	if err := os.WriteFile(filepath.Join(semiont, "config.yaml"), []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "start", "--dry-run")
+	if code != 1 {
+		t.Fatalf("a start from a broken config.yaml: want exit 1, got %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "config.yaml", "line 7", "domian")
+}
+
 // --- clean ---
 
 // seedStateDir fabricates a populated per-root state dir with all three
@@ -8192,9 +8228,9 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 // --- semiont init ---
 
 func TestInitBirthsIdentity(t *testing.T) {
-	// Flag-driven birth, prompt-free: .semiont/config carries the exact
-	// identity, git init + stage happen, the root registers, and a second
-	// init refuses without --force.
+	// Flag-driven birth, prompt-free: .semiont/config.yaml carries the exact
+	// identity, and no TOML project file is written; git init + stage
+	// happen, the root registers, and a second init refuses without --force.
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
 	stdout, stderr, code := s.run(t, "init",
@@ -8203,18 +8239,21 @@ func TestInitBirthsIdentity(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	cfg, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
 	if err != nil {
-		t.Fatalf(".semiont/config not written: %v", err)
+		t.Fatalf(".semiont/config.yaml not written: %v", err)
 	}
-	mustContain(t, ".semiont/config", string(cfg),
-		`name = "family-kb"`,
-		`domain = "pingel-org.github.io:family-kb"`,
-		`siteName = "Family KB"`,
-		`sync = true`)
+	mustContain(t, ".semiont/config.yaml", string(cfg),
+		`name: "family-kb"`,
+		`domain: "pingel-org.github.io:family-kb"`,
+		`siteName: "Family KB"`,
+		`sync: true`)
+	if _, err := os.Stat(filepath.Join(s.cwd, ".semiont", "config")); !os.IsNotExist(err) {
+		t.Errorf("init wrote the TOML project file beside config.yaml (%v)", err)
+	}
 	// Two fields the fleet's KBs do not carry, so a born KB must not either:
 	// `version` is bumped by nothing, and `adminEmail` reaches no reader.
-	for _, dead := range []string{"version =", "adminEmail"} {
+	for _, dead := range []string{"version:", "adminEmail"} {
 		if strings.Contains(string(cfg), dead) {
 			t.Errorf("init wrote %q — the fleet's committed configs carry neither:\n%s", dead, cfg)
 		}
@@ -8244,9 +8283,9 @@ func TestInitIdentityLadderAndRefusals(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("origin-derived init: exit %d\nstderr:\n%s", code, stderr)
 	}
-	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
 	// Owner lowercased (Pages hosts are lowercase); repo name kept as-is.
-	mustContain(t, "derived did", string(cfg), `domain = "pingel-org.github.io:family-kb"`)
+	mustContain(t, "derived did", string(cfg), `domain: "pingel-org.github.io:family-kb"`)
 	mustContain(t, "derivation announced", stdout+stderr, "pingel-org.github.io:family-kb")
 
 	// No --domain, no origin, --yes: refuse and say why.
@@ -8267,8 +8306,8 @@ func TestInitNoGitAndDryRun(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init --no-git: exit %d\nstderr:\n%s", code, stderr)
 	}
-	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
-	mustContain(t, "config", string(cfg), `sync = false`)
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
+	mustContain(t, "config", string(cfg), `sync: false`)
 	mustContain(t, "consequences", stdout+stderr, "--no-git")
 	for _, line := range strings.Split(s.argv(t), "\n") {
 		if strings.HasPrefix(line, "git ") && (strings.Contains(line, " init") || strings.Contains(line, " add")) {
@@ -8284,7 +8323,7 @@ func TestInitNoGitAndDryRun(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init --dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "plan", stdout, ".semiont/config", "git init")
+	mustContain(t, "plan", stdout, ".semiont/config.yaml", "git init")
 	if _, err := os.Stat(filepath.Join(s3.cwd, ".semiont")); !os.IsNotExist(err) {
 		t.Error("--dry-run wrote .semiont/")
 	}
@@ -8304,9 +8343,9 @@ func TestInitInteractivePrompts(t *testing.T) {
 		t.Fatalf("interactive init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "identity warning shown", stdout, "permanent")
-	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
 	mustContain(t, "prompted values", string(cfg),
-		`domain = "d.example.org:kb"`, `siteName = "My KB"`)
+		`domain: "d.example.org:kb"`, `siteName: "My KB"`)
 }
 
 func TestInitGeneratesStartableConfig(t *testing.T) {
@@ -8594,8 +8633,8 @@ func TestInitFromTemplateCopiesAndVets(t *testing.T) {
 			t.Errorf("%s not copied: %v", n, err)
 		}
 	}
-	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config"))
-	mustContain(t, "identity is init's own", string(cfg), `domain = "d.io:kb"`)
+	cfg, _ := os.ReadFile(filepath.Join(s.cwd, ".semiont", "config.yaml"))
+	mustContain(t, "identity is init's own", string(cfg), `domain: "d.io:kb"`)
 	if strings.Contains(string(cfg), "semiont-template-kb") {
 		t.Errorf("template identity leaked into the newborn:\n%s", cfg)
 	}
@@ -8728,6 +8767,30 @@ func TestInitHardeningRules(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(scdir, "stale.toml")); err == nil {
 		t.Error("--force left a stale config beside the new identity")
+	}
+
+	// (3b) --force removes nothing until every decision has held: not under
+	// --dry-run, and not when init refuses before it writes.
+	reborn := newScenario(t, "container")
+	reborn.cwd = t.TempDir()
+	events := filepath.Join(reborn.cwd, ".semiont", "events")
+	if err := os.MkdirAll(events, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(events, "kept.jsonl"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := reborn.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--force", "--dry-run"); code != 0 {
+		t.Fatalf("--force --dry-run failed: %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(events, "kept.jsonl")); err != nil {
+		t.Errorf("--force --dry-run removed the existing .semiont/: %v", err)
+	}
+	if _, _, code := reborn.run(t, "init", "--name", "kb", "--yes", "--force"); code != 1 {
+		t.Fatalf("--force with no domain: want refusal, got %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(events, "kept.jsonl")); err != nil {
+		t.Errorf("--force removed the existing .semiont/ before refusing: %v", err)
 	}
 
 	// (4) devcontainer name with a quote stays valid JSON.

@@ -624,6 +624,11 @@ func ghCodespace(args []string, joined string) {
 				return
 			}
 			fmt.Println("SEMIONT_KB_READY")
+		case strings.Contains(joined, ".semiont/config.yaml"):
+			// The fake's codespace holds the TOML project file, as a
+			// knowledge base not yet converted does: no config.yaml.
+			fmt.Fprintln(os.Stderr, "cat: /workspaces/*/.semiont/config.yaml: No such file or directory")
+			os.Exit(1)
 		case strings.Contains(joined, ".semiont/config"):
 			// The KB's committed identity card, as the codespace holds it.
 			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a

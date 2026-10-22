@@ -4,7 +4,7 @@ package launcher
 // The mechanism is a shallow `git clone` (git is already a launcher
 // requirement; there is no listing API over raw fetches, and a clone is an
 // atomic ref) — or a local directory used directly, which is also the
-// hermetic test seam. Two hard rules: identity (.semiont/config) is NEVER
+// hermetic test seam. Two hard rules: identity (the project file) is NEVER
 // copied — init's own is already written — and every copied semiontconfig
 // passes the SAME derivePlan vet as generated ones, with the WHOLE init
 // refusing pre-write on the first failure (no partial trees).

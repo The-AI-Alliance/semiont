@@ -1,0 +1,14 @@
+{
+  "title": "Provider",
+  "type": "object",
+  "description": "How an inference provider is reached.",
+  "properties": {
+    "baseURL": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the provider's API is reached. Anthropic's own API, and an Ollama the machine runs, are stated by no baseURL."
+    },
+    "apiKey": { "$ref": "./SecretRef.json" }
+  },
+  "additionalProperties": false
+}

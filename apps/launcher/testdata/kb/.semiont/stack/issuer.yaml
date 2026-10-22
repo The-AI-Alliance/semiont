@@ -1,0 +1,15 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Issuer
+metadata:
+  name: issuer
+spec:
+  type: keycloak
+  image: quay.io/keycloak/keycloak:26.7.4
+  resources: { limits: { memory: 1G } }
+  accessTokenLifespan: 300
+  database:
+    type: postgres
+    name: semiont
+    user: postgres
+    image: postgres:15.18-alpine
+    resources: { limits: { memory: 1G } }

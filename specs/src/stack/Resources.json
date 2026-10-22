@@ -1,0 +1,22 @@
+{
+  "title": "Resources",
+  "type": "object",
+  "description": "What a container is given, in Kubernetes' spelling.",
+  "properties": {
+    "limits": {
+      "type": "object",
+      "description": "The most a container may use.",
+      "properties": {
+        "memory": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*[GM]$",
+          "description": "The memory ceiling: a whole number of gigabytes or megabytes, `8G` or `512M`."
+        }
+      },
+      "required": ["memory"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["limits"],
+  "additionalProperties": false
+}

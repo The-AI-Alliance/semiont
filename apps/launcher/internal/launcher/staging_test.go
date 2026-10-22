@@ -37,9 +37,9 @@ version = "0.1.0"
 domain = "example.org:kb"
 siteName = "Example Knowledge Base"
 `
-	id := parseKBIdentity([]byte(committed))
+	id := tomlKBIdentity([]byte(committed))
 	if id == nil {
-		t.Fatal("parseKBIdentity returned nil for a well-formed committed config")
+		t.Fatal("tomlKBIdentity returned nil for a well-formed committed config")
 	}
 	if id.Domain != "example.org:kb" {
 		t.Errorf("Domain = %q, want the committed did:web identity", id.Domain)

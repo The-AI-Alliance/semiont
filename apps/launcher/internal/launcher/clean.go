@@ -251,7 +251,9 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 		root, _, err := resolveKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
-			fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont clean --root <path|name|key>")
+			if !projectFileRefused(err) {
+				fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont clean --root <path|name|key>")
+			}
 			return "", "", 1
 		}
 		key = rootKey(root)
@@ -260,6 +262,10 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 		if err == nil {
 			key = rootKey(root)
 			break
+		}
+		if projectFileRefused(err) {
+			u.Fail("%v", err)
+			return "", "", 1
 		}
 		// A literal key must be a plain basename — anything else (".."; a
 		// path) would let RemoveAll reach outside roots/.

@@ -1,0 +1,238 @@
+{
+  "title": "KnowledgeBase",
+  "type": "object",
+  "description": "A knowledge base's record and the services that keep it: the Gateway, the Dispatcher, the Archivist, and the broker between them. They live and die with the knowledge base.",
+  "properties": {
+    "apiVersion": {
+      "$ref": "./ApiVersion.json"
+    },
+    "kind": {
+      "type": "string",
+      "const": "KnowledgeBase"
+    },
+    "metadata": {
+      "$ref": "./Metadata.json"
+    },
+    "spec": {
+      "type": "object",
+      "description": "The knowledge base's services, and how each runs.",
+      "properties": {
+        "logLevel": {
+          "$ref": "../components/schemas/LogLevel.json"
+        },
+        "gateway": {
+          "type": "object",
+          "description": "The Gateway: where every client and every service reaches the knowledge base.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "The port the Gateway is published on."
+            },
+            "publicURL": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Where clients reach the Gateway: the server its API document names. A service of the stack reaches it where the launcher places it, on `port`."
+            }
+          },
+          "required": [
+            "image",
+            "resources",
+            "port",
+            "publicURL"
+          ],
+          "additionalProperties": false
+        },
+        "dispatcher": {
+          "type": "object",
+          "description": "The Dispatcher: it hands queued jobs to workers.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            }
+          },
+          "required": [
+            "image",
+            "resources"
+          ],
+          "additionalProperties": false
+        },
+        "archivist": {
+          "type": "object",
+          "description": "The Archivist: it keeps the knowledge base's record in its working tree.",
+          "properties": {
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "address": {
+              "$ref": "./HostPort.json",
+              "description": "Where the stack's services reach the Archivist, when that is somewhere the launcher cannot see. Absent, they reach it where the launcher places it."
+            }
+          },
+          "required": [
+            "image",
+            "resources"
+          ],
+          "additionalProperties": false
+        },
+        "messaging": {
+          "type": "object",
+          "description": "The broker the job queue and the signal plane share: the launcher's, run from `image`, or somebody else's, at `external`.",
+          "properties": {
+            "jobs": {
+              "type": "object",
+              "description": "The Dispatcher's queue.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The queue's driver: `jetstream`."
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "signal": {
+              "type": "object",
+              "description": "The Gateway's signal plane.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "`in-process`, one Gateway on its own fabric, or `nats`, on the broker."
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "image": {
+              "$ref": "./Image.json"
+            },
+            "resources": {
+              "$ref": "./Resources.json"
+            },
+            "external": {
+              "type": "object",
+              "description": "A broker somebody else runs.",
+              "properties": {
+                "servers": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Where it listens: `host:port`."
+                },
+                "user": {
+                  "$ref": "./SecretRef.json"
+                },
+                "password": {
+                  "$ref": "./SecretRef.json"
+                }
+              },
+              "required": [
+                "servers",
+                "user",
+                "password"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "jobs",
+            "signal"
+          ],
+          "allOf": [
+            {
+              "$ref": "./Runner.json"
+            }
+          ],
+          "additionalProperties": false
+        },
+        "issuer": {
+          "type": "object",
+          "description": "The issuer the knowledge base trusts: an Issuer document the launcher runs, named by `ref`, or somebody else's, at `external`.",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+              "description": "The name of the Issuer document."
+            },
+            "external": {
+              "type": "object",
+              "description": "An issuer somebody else runs.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "`oidc`, or `keycloak`."
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The URL in its tokens' `iss` claim."
+                }
+              },
+              "required": [
+                "type",
+                "url"
+              ],
+              "additionalProperties": false
+            },
+            "subjectClaim": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The claim a person's DID is built from: did:web:<site domain>:users:<its value>."
+            }
+          },
+          "required": [
+            "subjectClaim"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "ref"
+              ]
+            },
+            {
+              "required": [
+                "external"
+              ]
+            }
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "logLevel",
+        "gateway",
+        "dispatcher",
+        "archivist",
+        "messaging",
+        "issuer"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

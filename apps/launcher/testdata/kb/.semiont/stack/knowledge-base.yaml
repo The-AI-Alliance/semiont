@@ -1,0 +1,25 @@
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: KnowledgeBase
+metadata:
+  name: knowledge-base
+spec:
+  logLevel: info
+  gateway:
+    image: ghcr.io/the-ai-alliance/semiont-gateway:latest
+    resources: { limits: { memory: 2G } }
+    port: 4000
+    publicURL: http://localhost:4000
+  dispatcher:
+    image: ghcr.io/the-ai-alliance/semiont-dispatcher:latest
+    resources: { limits: { memory: 2G } }
+  archivist:
+    image: ghcr.io/the-ai-alliance/semiont-archivist:latest
+    resources: { limits: { memory: 2G } }
+  messaging:
+    jobs: { type: jetstream }
+    signal: { type: in-process }
+    image: nats:2.15.1-alpine
+    resources: { limits: { memory: 512M } }
+  issuer:
+    ref: issuer
+    subjectClaim: sub
