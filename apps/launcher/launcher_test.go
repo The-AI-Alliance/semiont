@@ -1065,7 +1065,7 @@ func TestStartMissingEnvVar(t *testing.T) {
 		t.Fatalf("want exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.",
+		"The knowledge base's documents name the variable ANTHROPIC_API_KEY (fromEnv), and it is not set in the environment.",
 		"register a secret source once:  semiont settings secret set ANTHROPIC_API_KEY")
 	checkGolden(t, "start-missing-env.argv", s.argv(t))
 }
@@ -6876,14 +6876,13 @@ func TestStartServiceWorker(t *testing.T) {
 		}
 	}
 
-	// A record created lazily by a --service start carries full metadata,
-	// not just the runtime.
+	// A record created lazily by a --service start carries the root and the
+	// identity the start resolved, not just the runtime.
 	b, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
 		t.Fatalf("stack.json not written: %v", err)
 	}
 	mustContain(t, "stack.json", string(b),
-		`"imageVersion": "latest"`,
 		`"kbRoot": "`+inJSON(s.kb)+`"`,
 		`"kbDid": "did:web:example.github.io:test-kb"`)
 }

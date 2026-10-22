@@ -54,10 +54,11 @@ func memCeilingGB(m string) float64 {
 
 // startCeilingsGB sums the --memory ceilings THIS start will actually
 // request. The list mirrors the flow: the stack's services the plan runs, at
-// the ceilings their documents state (launchPlan.Memory), and the Browser;
-// provided infra roles at the ceilings theirs state; traces rides --observe;
-// one Ollama runs when either the inference or the embedding role provides it
-// as a container.
+// the ceilings their documents state (launchPlan.Memory), and the Browser and
+// the collector; the daemons the launcher runs at the ceilings theirs state;
+// traces and metrics ride --observe. The machine's Ollama is not counted: it
+// is the host's when the host has one, and only a fallback container when it
+// does not.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
 	if plan != nil {
@@ -82,11 +83,6 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 		if rp := plan.Roles[role]; rp.Presence == presenceLauncher {
 			sum += memCeilingGB(rp.Memory)
 		}
-	}
-	inf, emb := plan.Roles["inference"], plan.Roles["embedding"]
-	if (inf.Driver == "ollama" && inf.Presence == presenceLauncher) ||
-		(emb.Driver == "ollama" && emb.Presence == presenceLauncher) {
-		sum += memCeilingGB(descriptorFor("inference", "ollama").mem)
 	}
 	return sum
 }
