@@ -121,12 +121,31 @@ func check(kindName string, text []byte) ([]Refusal, []byte, error) {
 	if !errors.As(invalid, &refused) {
 		return nil, nil, invalid
 	}
-	return refusalsOf(refused, &document), instance, nil
+	refusals, err := refusalsOf(refused, &document, parsed)
+	if err != nil {
+		return nil, nil, err
+	}
+	return refusals, instance, nil
+}
+
+// compiledSchemas: the compiler holding every schema file, and each kind's
+// schema compiled from it. The compiler compiles a schema within a file on
+// demand (propertyNamesPlace), one at a time.
+type compiledSchemas struct {
+	kinds map[string]*jsonschema.Schema
+	mu    sync.Mutex
+	with  *jsonschema.Compiler
+}
+
+func (c *compiledSchemas) compile(url string) (*jsonschema.Schema, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.with.Compile(url)
 }
 
 // compiled: each kind's schema, compiled once from the text schemas_gen.go
 // carries, under the path its relative references resolve against.
-var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
+var compiled = sync.OnceValues(func() (*compiledSchemas, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.DefaultDraft(jsonschema.Draft2020)
 	for path, text := range schemaFiles {
@@ -138,13 +157,13 @@ var compiled = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 			return nil, err
 		}
 	}
-	schemas := map[string]*jsonschema.Schema{}
+	schemas := &compiledSchemas{kinds: map[string]*jsonschema.Schema{}, with: compiler}
 	for name, path := range schemaOf {
 		schema, err := compiler.Compile(schemaURL(path))
 		if err != nil {
 			return nil, err
 		}
-		schemas[name] = schema
+		schemas.kinds[name] = schema
 	}
 	return schemas, nil
 })
@@ -156,7 +175,7 @@ func schemaFor(kindName string) (*jsonschema.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	schema, known := schemas[kindName]
+	schema, known := schemas.kinds[kindName]
 	if !known {
 		return nil, fmt.Errorf("no kind of document is named %q", kindName)
 	}
@@ -167,8 +186,10 @@ var english = message.NewPrinter(language.English)
 
 // refusalsOf: each place a validation error tree refuses, named as the cases
 // name them. Under a `oneOf` it names the choice, not each branch's misses.
-func refusalsOf(root *jsonschema.ValidationError, document *yaml.Node) []Refusal {
+func refusalsOf(root *jsonschema.ValidationError, document *yaml.Node, instance any) ([]Refusal, error) {
 	var refusals []Refusal
+	var unplaced error
+	placed := map[string]bool{}
 	add := func(location []string, reason, detail string) {
 		refusals = append(refusals, Refusal{At: pointer(location), Reason: reason, Line: lineOf(document, location), Detail: detail})
 	}
@@ -185,7 +206,12 @@ func refusalsOf(root *jsonschema.ValidationError, document *yaml.Node) []Refusal
 				add(append(append([]string{}, location...), field), "missing-required", fmt.Sprintf("%q is missing", field))
 			}
 		case *kind.PropertyNames:
-			add(append(append([]string{}, location...), k.Property), "not-allowed", fmt.Sprintf("%q is not a name this map takes", k.Property))
+			object, err := propertyNamesPlace(e, k.Property, instance, placed)
+			if err != nil {
+				unplaced = errors.Join(unplaced, err)
+				return
+			}
+			add(append(object, k.Property), "not-allowed", fmt.Sprintf("%q is not a name this map takes", k.Property))
 			return
 		case *kind.Type:
 			add(location, "wrong-type", fmt.Sprintf("wants %s, and is %s", strings.Join(k.Want, " or "), k.Got))
@@ -206,7 +232,85 @@ func refusalsOf(root *jsonschema.ValidationError, document *yaml.Node) []Refusal
 		}
 	}
 	walk(root)
-	return refusals
+	if unplaced != nil {
+		return nil, unplaced
+	}
+	return refusals, nil
+}
+
+// propertyNamesPlace: the object a propertyNames refusal of name is made in.
+// The library gives this kind of error a location that later siblings
+// overwrite (santhosh-tekuri/jsonschema#276), so only its depth is kept: the
+// object is the one at that depth that holds the name and whose own schema,
+// the keyword's parent, refuses it. placed holds the objects already given
+// to an earlier refusal of the same name by the same keyword.
+func propertyNamesPlace(e *jsonschema.ValidationError, name string, instance any, placed map[string]bool) ([]string, error) {
+	objectSchema, isKeyword := strings.CutSuffix(e.SchemaURL, "/propertyNames")
+	if !isKeyword {
+		return nil, fmt.Errorf("a refusal of the name %q comes from %s, which is no propertyNames keyword", name, e.SchemaURL)
+	}
+	schemas, err := compiled()
+	if err != nil {
+		return nil, err
+	}
+	schema, err := schemas.compile(objectSchema)
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	var visit func(value any, path []string) bool
+	visit = func(value any, path []string) bool {
+		switch v := value.(type) {
+		case map[string]any:
+			if len(path) == len(e.InstanceLocation) {
+				key := objectSchema + " " + name + " " + pointer(path)
+				if _, holds := v[name]; holds && !placed[key] && refusesName(schema.Validate(v), name) {
+					placed[key] = true
+					found = path
+					return true
+				}
+				return false
+			}
+			for field, inner := range v {
+				if visit(inner, append(append([]string{}, path...), field)) {
+					return true
+				}
+			}
+		case []any:
+			for i, inner := range v {
+				if visit(inner, append(append([]string{}, path...), strconv.Itoa(i))) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !visit(instance, []string{}) {
+		return nil, fmt.Errorf("the name %q is refused by %s, and no object of the document at depth %d holds it", name, e.SchemaURL, len(e.InstanceLocation))
+	}
+	return found, nil
+}
+
+// refusesName: whether a validation error refuses name as a propertyNames
+// keyword does.
+func refusesName(err error, name string) bool {
+	var refused *jsonschema.ValidationError
+	if !errors.As(err, &refused) {
+		return false
+	}
+	var refuses func(*jsonschema.ValidationError) bool
+	refuses = func(e *jsonschema.ValidationError) bool {
+		if k, ok := e.ErrorKind.(*kind.PropertyNames); ok && k.Property == name {
+			return true
+		}
+		for _, cause := range e.Causes {
+			if refuses(cause) {
+				return true
+			}
+		}
+		return false
+	}
+	return refuses(refused)
 }
 
 // pointer: a JSON pointer of the tokens of a location.

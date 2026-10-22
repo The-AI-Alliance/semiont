@@ -89,34 +89,44 @@ func documentOf(t *testing.T, c stackCase) []byte {
 
 // Every shared case is accepted, or refused where and for the reason it
 // says, as lint:spec-stack holds it to the same schemas; and a refusal names
-// the line it is on.
+// the line it is on. Each case is read many times: the validator visits a
+// map's fields in Go's random order, and a place it names wrongly in one
+// order (santhosh-tekuri/jsonschema#276) must not pass by chance.
 func TestEveryCaseIsReadAsItSays(t *testing.T) {
+	const readings = 32
 	for _, c := range readCases(t) {
 		t.Run(c.Why, func(t *testing.T) {
-			refusals, err := Check(c.Schema, documentOf(t, c))
-			if err != nil {
-				t.Fatal(err)
-			}
-			switch c.Verdict {
-			case "accepted":
-				if len(refusals) > 0 {
-					t.Fatalf("refused, and the case says it is accepted: %+v", refusals)
-				}
-			case "refused":
-				found := false
-				for _, refusal := range refusals {
-					if refusal.Line < 1 {
-						t.Errorf("a refusal names no line: %+v", refusal)
-					}
-					found = found || (refusal.At == c.At && refusal.Reason == c.Reason)
-				}
-				if !found {
-					t.Fatalf("not refused at %s for %s: %+v", c.At, c.Reason, refusals)
-				}
-			default:
-				t.Fatalf("the case's verdict %q is neither accepted nor refused", c.Verdict)
+			for range readings {
+				readAsItSays(t, c)
 			}
 		})
+	}
+}
+
+func readAsItSays(t *testing.T, c stackCase) {
+	t.Helper()
+	refusals, err := Check(c.Schema, documentOf(t, c))
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch c.Verdict {
+	case "accepted":
+		if len(refusals) > 0 {
+			t.Fatalf("refused, and the case says it is accepted: %+v", refusals)
+		}
+	case "refused":
+		found := false
+		for _, refusal := range refusals {
+			if refusal.Line < 1 {
+				t.Errorf("a refusal names no line: %+v", refusal)
+			}
+			found = found || (refusal.At == c.At && refusal.Reason == c.Reason)
+		}
+		if !found {
+			t.Fatalf("not refused at %s for %s: %+v", c.At, c.Reason, refusals)
+		}
+	default:
+		t.Fatalf("the case's verdict %q is neither accepted nor refused", c.Verdict)
 	}
 }
 

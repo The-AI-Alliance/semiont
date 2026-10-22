@@ -41,11 +41,13 @@ func TestTheYAMLProjectFileReadsAsTheTOMLDoes(t *testing.T) {
 		if c.Config == nil {
 			continue
 		}
+		// A case whose TOML does not parse has no YAML to be written as; a
+		// config.yaml that is not YAML is TestAProjectFileThatIsNotYAMLIsRefused.
+		var sections map[string]any
+		if toml.Unmarshal([]byte(*c.Config), &sections) != nil {
+			continue
+		}
 		t.Run(c.Why, func(t *testing.T) {
-			var sections map[string]any
-			if err := toml.Unmarshal([]byte(*c.Config), &sections); err != nil {
-				t.Fatal(err)
-			}
 			text, err := yaml.Marshal(sections)
 			if err != nil {
 				t.Fatal(err)
