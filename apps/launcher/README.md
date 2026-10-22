@@ -774,9 +774,13 @@ starts each service under a small in-container supervisor: it restarts a
 crashed process, kills one that stops answering its health endpoint after
 having answered it at least once, and gives up rather than looping when a
 process dies on boot five times in a row — a deterministic refusal should be
-visible, not buried under restarts. `semiont.process.restarts` carries the
-count, so a service that is quietly flapping shows up in metrics instead of
-only in logs.
+visible, not buried under restarts. A process that boots and then dies within
+a minute of its start is crash-looping: each such death says so in the log,
+with how it died (a kill under a memory ceiling is almost always running out
+of memory), and the next start waits twice as long as the last, up to a
+minute. It is not given up on, since it may be making progress between
+deaths. `semiont.process.restarts` carries the count, so a service that is
+quietly flapping shows up in metrics instead of only in logs.
 
 Every stack the launcher starts gets it, **codespace stacks included**: inside
 a codespace, its own launcher starts the stack locally, exactly as on a

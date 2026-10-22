@@ -16,7 +16,8 @@ everything it writes is its log, on stdout.
 It starts in the order `docs/protocol/WEAVER.md` § Boot states: it signs in
 as the agent `(semiont, weaver)`, connects to the graph database, follows the
 record, opens its health port, and then runs its two boot passes, catch-up
-and reconcile. A pass that fails is said, in the log and at the health port,
+and reconcile. It runs catch-up again each time its stream of the record
+opens after a drop. A pass that fails is said, in the log and at the health port,
 and does not end the service: ending it would make the graph no fresher, and
 would take away the one thing still applying what arrives. Told to stop, it
 stops applying, closes what it holds open, and exits with status 0.
@@ -80,18 +81,19 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
 
 
 type _Pass = dict[str, JsonValue]
-"""One boot pass, as the health endpoint reports it: its `phase`, and its `summary` or its `error`."""
+"""One pass, as the health endpoint reports its latest run: its `phase`, and its `summary` or its `error`."""
 
 
 async def _run_pass(name: str, run: Callable[[], Awaitable[dict[str, JsonValue]]], state: _Pass) -> None:
-    """Run one boot pass, and say in `state` how it went. It raises nothing but its being cancelled."""
+    """Run one pass, and say in `state` how it went: of this run alone. It raises nothing but its being cancelled."""
+    state.clear()
     state["phase"] = "running"
     try:
         summary = await run()
     except Exception as failure:
         state["phase"], state["error"] = "failed", words_of(failure)
         # The one alarm that a pass failed: the health endpoint carries the failed phase and answers `ok` all the same.
-        LOG.error("Boot pass failed: continuing with a graph that may be behind", extra={"pass": name, "error": words_of(failure)})
+        LOG.error("Pass failed: continuing with a graph that may be behind", extra={"pass": name, "error": words_of(failure)})
     else:
         state["phase"], state["summary"] = "done", summary
 
@@ -138,6 +140,11 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                         # and then what the graph lost that no event will touch again.
                         await _run_pass("catch-up", lambda: _said(weaver.catch_up()), catch_up)
                         await _run_pass("reconcile", lambda: _said(weaver.reconcile()), reconcile)
+                        # What is recorded while its stream is down is never delivered: each time the stream opens
+                        # after a drop, a catch-up finds it.
+                        while True:
+                            await weaver.reopened()
+                            await _run_pass("catch-up", lambda: _said(weaver.catch_up()), catch_up)
 
                     passing = asyncio.ensure_future(passes())
                     sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())

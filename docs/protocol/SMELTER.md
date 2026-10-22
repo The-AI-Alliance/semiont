@@ -6,8 +6,8 @@ store of anchored text, which the Archivist serves. It follows the recorded
 events that change what either holds. For a resource it reads the bytes, gets
 their text, cuts it into chunks, has each chunk embedded and puts them in the
 index, and says what it decided. For an annotation it embeds the text the
-annotation quotes. When it starts, it repairs what it missed and what either
-store lost. What the record is, and what the Archivist answers, is
+annotation quotes. When it starts, and each time its stream of the record
+opens after a drop, it repairs what it missed and what either store lost. What the record is, and what the Archivist answers, is
 [ARCHIVIST.md](./ARCHIVIST.md); what the bus carries is
 [EVENT-BUS.md](./EVENT-BUS.md).
 
@@ -446,14 +446,22 @@ one by; subscribes to what it follows; opens its health port; runs reconcile.
 
 ## Reconcile
 
-Reconcile finds what the Smelter missed while it was not running, and what
-either store has lost. It compares three things: what the index holds, what
+Reconcile finds what the Smelter missed while it was not running or its
+stream of the record was down, and what either store has lost. It compares three things: what the index holds, what
 the catalog says the knowledge base holds, and which bytes the anchored-text
 store has an entry for.
 [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states
 the work it plans for each difference, and is the rule; this section says it
 in prose.
 
+- **It runs when the Smelter starts, and again each time its stream of the
+  record opens after a drop.** What is recorded while the stream is down is
+  never delivered to it ([Health](#health)), so reconcile is what finds it.
+  None begins while the stream is down, since what it reads of the record is
+  asked over the stream. However many drops come while one is under way, one
+  more follows it. One that fails ends nothing, and the next drop begins
+  another.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It reads the index before it reads the catalog,** so that a resource
   indexed while it runs is never taken for one that should not be there.
   *Held by `apps/smelter/tests/test_smelter.py`.*
@@ -559,8 +567,8 @@ vector database. Whether each of those is up is its own to say, and whoever
 runs the stack watches each for that. What only the Smelter knows is here:
 whether events reach it, what became of those that did, how its reconcile
 ended, and what its index is made by. Its index is as the record says, as far
-as the Smelter knows, when `stream` is `open`; `streamDrops`, `eventsFailed`
-and `eventsWaiting` are 0; and `reconcile` is `done`, with nothing failed and
+as the Smelter knows, when `stream` is `open`; `eventsFailed` and
+`eventsWaiting` are 0; and `reconcile` is `done`, with nothing failed and
 nothing unavailable in its summary.
 
 - **`GET /health`, on the port its document states, answers `200` with a JSON
@@ -585,9 +593,10 @@ nothing unavailable in its summary.
   names no scope, and the gateway gives a stream what it missed for a scope
   alone
   ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
-  The index of a Smelter that reports a drop may be behind the record, and is
-  brought up to it when the Smelter next starts ([Reconcile](#reconcile)).
-  *Held by `apps/smelter/tests/test_smelter.py`, for the count and the warning.*
+  So a drop makes a reconcile due: `reconcile` says `pending` from the drop
+  until the reconcile that follows it begins, once the stream is open again
+  ([Reconcile](#reconcile)).
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **`eventsProcessed` is the number of events it has applied since it
   started, `eventsFailed` the number delivered to it that it could not apply,
   and `eventsWaiting` the number delivered to it that are neither yet.** A
@@ -597,7 +606,7 @@ nothing unavailable in its summary.
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
-- **`reconcile` is how far the reconcile of this start has got:** a `phase`
+- **`reconcile` is how far the latest reconcile has got:** a `phase`
   (`pending`, `running`, `done` or `failed`), with the pass's `summary` when
   it is done, or its `error` when it failed.
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*

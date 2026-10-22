@@ -17,7 +17,8 @@ It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
 as the agent its embedding provider and its model name, reaches its vector
 index, which asks its provider how wide a vector is where the index has to be
 made, makes the index again where it was made by another model or cut another
-way, follows the record, opens its health port, and then runs reconcile. A
+way, follows the record, opens its health port, and then runs reconcile,
+which it runs again each time its stream of the record opens after a drop. A
 reconcile that fails is said, in the log and at the health port, and does
 not end the service: ending it would make the index no fresher, and would
 take away the one thing still applying what arrives. Told to stop, it stops
@@ -125,14 +126,6 @@ def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp,
     }
 
 
-async def _reconciled(smelter: Smelter) -> None:
-    """Run the reconcile of this start. One that fails has said so, in the log and in what the health endpoint reports, and ends nothing."""
-    try:
-        await smelter.reconcile()
-    except Exception as failure:
-        LOG.error("Reconcile failed: continuing with an index that may be behind", extra={"error": words_of(failure)})
-
-
 async def _serve(started: _Started, exporting: Exporting | None) -> None:
     """Follow the record until the process is told to stop. `exporting` is the process's telemetry, where it exports any."""
     config = started.config
@@ -177,9 +170,10 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})
 
-                    # Run once it is following and its health answers: what was recorded while no Smelter ran is
-                    # found, and what is recorded meanwhile is applied as it arrives.
-                    running = [asyncio.ensure_future(_reconciled(smelter))]
+                    # Begun once it is following and its health answers: what was recorded while no Smelter ran is
+                    # found, and what is recorded meanwhile is applied as it arrives. It reconciles again each time its
+                    # stream opens after a drop, since what was recorded meanwhile was never delivered.
+                    running = [asyncio.ensure_future(smelter.keep_reconciled())]
                     if exporting is not None:
                         running.append(asyncio.ensure_future(exporting.sample_the_loop()))
                         size = exporting.sample(

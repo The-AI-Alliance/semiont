@@ -70,7 +70,9 @@ It reads its document, signs in, reaches the vector index, begins following the 
 its health port, and then reconciles: it compares what the index holds, what the catalog says
 the knowledge base holds, and which bytes the anchored-text store has an entry for, and does
 the work that brings them together. So an index that was cleared, an anchored-text store that
-was cleared, and events recorded while no Smelter ran are each mended by starting it. `/health`
+was cleared, and events recorded while no Smelter ran are each mended by starting it. It
+reconciles again each time its stream of the record opens after a drop: nothing recorded while
+the stream was down is sent to it afterwards, so that is how it finds what it missed. `/health`
 reports how the reconcile ended, and what it came to. Beside that it says what only the
 Smelter knows: the state of its stream of the record and how many times that has dropped, how
 many events it has applied, could not apply and has waiting, and what its index is made by.

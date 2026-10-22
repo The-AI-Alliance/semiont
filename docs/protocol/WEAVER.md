@@ -3,7 +3,8 @@
 What the Weaver does: the process a weaver image runs. It keeps a graph
 database in step with the record. It follows the recorded events that change
 what the graph holds, applies each to the graph, says how far it has got, and,
-when it starts, repairs what it missed and what the graph lost. What the
+when it starts, repairs what it missed and what the graph lost. Each time its
+stream of the record opens after a drop, it catches up again. What the
 record is, and what the Archivist answers, is [ARCHIVIST.md](./ARCHIVIST.md);
 what the bus carries is [EVENT-BUS.md](./EVENT-BUS.md).
 
@@ -208,8 +209,19 @@ catch-up; runs reconcile.
 
 ## Catch-up
 
-Catch-up applies what was recorded while the Weaver was not running.
+Catch-up applies what was recorded while the Weaver was not running, or while
+its stream of the record was down.
 
+- **It runs when the Weaver starts, and again each time its stream of the
+  record opens after a drop.** What is recorded while the stream is down is
+  never delivered when it opens again: the stream names no scope, and the
+  gateway gives a stream what it missed for a scope alone
+  ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
+  None begins while the stream is down, since what it reads of the record is
+  asked over the stream, and however many drops come before one begins, one
+  runs for them. Each drop is logged as a warning. `catchUp` in its
+  [health](#health) is the latest run's.
+  *Held by `apps/weaver/tests/test_weaver.py`.*
 - **For every resource of the catalog, it reads the resource's events and
   applies those above its mark.** With a checkpoint that is what was recorded
   since; with none it is everything. *Held by `weaver/repair`.*

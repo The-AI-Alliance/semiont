@@ -3,8 +3,9 @@
 `docs/protocol/WEAVER.md` states what it does, rule by rule. Held with
 `async with`: it follows the record from the way in to the way out. Its three
 other pieces of work are asked of it: `catch_up` and `reconcile`, which a
-service runs once when it starts, and a rebuild, which it also answers when
-it is commanded on `weave:rebuild`.
+service runs once when it starts, and `catch_up` again each time its stream
+of the record opens after a drop (`reopened`), and a rebuild, which it also
+answers when it is commanded on `weave:rebuild`.
 
 It reaches two things: the graph, through the store it is given, and
 everything else through the transport and the content transport it is given.
@@ -26,6 +27,7 @@ from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.transport import ContentTransport, Frame, FrameSink, Transport
 from semiont.types import CommandError, ResourceDescriptor, StoredEventResponse, WeaveApplied
+from semiont.watched import reached
 from semiont_graph.codec import intended_graph_annotation
 from semiont_graph.interface import GraphDatabase
 from semiont_service.lanes import Lanes
@@ -144,6 +146,8 @@ class Weaver:
         self._signals: Final[asyncio.Queue[WeaveApplied]] = asyncio.Queue()
         self._commanded: Final[asyncio.Queue[Frame]] = asyncio.Queue()
         self._doing: Final[list[asyncio.Task[None]]] = []
+        self._dropped: Final = asyncio.Event()
+        """Set when the stream drops: what was recorded until it opened again is the next catch-up's to find."""
 
     # ── From the way in to the way out ─────────────────────────────────
 
@@ -152,7 +156,8 @@ class Weaver:
         # one stream, in the order of delivery.
         self._transport.bridge_into(_Delivered(self))
         loop = asyncio.get_running_loop()
-        self._doing.extend(loop.create_task(work) for work in (self._answer_rebuilds(), self._signal(), self._keep_marks()))
+        works = (self._answer_rebuilds(), self._signal(), self._keep_marks(), self._watch_the_stream())
+        self._doing.extend(loop.create_task(work) for work in works)
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
@@ -271,6 +276,35 @@ class Weaver:
             LOG.warning("The marks could not be kept", extra={"error": words_of(failure)})
 
     # ── Catch-up ───────────────────────────────────────────────────────
+
+    async def _watch_the_stream(self) -> None:
+        """Note each time the stream drops, and say so in the log. A closed stream has ended, and not dropped.
+
+        Nothing recorded while the stream is down is delivered when it opens
+        again: a stream that names no scope is given no replay
+        (`docs/protocol/TRANSPORT-HTTP.md` § Event id and resumption). A
+        catch-up is what finds it (`reopened`).
+        """
+        was_open = False
+        async for state in self._transport.state:
+            if state == "closed":
+                return
+            # A state that was open and is open again was something else between the two looks.
+            if was_open:
+                LOG.warning("The stream of the record dropped: what is recorded until it opens again is found by a catch-up when it does")
+                self._dropped.set()
+            was_open = state == "open"
+
+    async def reopened(self) -> None:
+        """Return once the stream of the record has dropped since this last returned, and is open again: a catch-up is then due.
+
+        However many drops come before it is awaited, it returns once for
+        them. It waits for the stream to be open, since what a catch-up reads
+        of the record is asked over it.
+        """
+        await self._dropped.wait()
+        await reached(self._transport.state, lambda state: state == "open")
+        self._dropped.clear()
 
     async def catch_up(self) -> CaughtUp:
         """Apply what was recorded while the Weaver was not running (`docs/protocol/WEAVER.md` § Catch-up).

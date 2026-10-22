@@ -2,9 +2,10 @@
 
 `docs/protocol/SMELTER.md` states what it does, rule by rule. Held with
 `async with`: it follows the record from the way in to the way out. Its two
-other pieces of work are asked of it: `reconcile`, which a service runs once
-when it starts, and a rebuild of anchored text, which it answers when it is
-commanded on `smelt:rebuild-anchors`.
+other pieces of work are asked of it: `keep_reconciled`, which a service runs
+from its start, and which reconciles then and again each time its stream of
+the record opens after a drop; and a rebuild of anchored text, which it
+answers when it is commanded on `smelt:rebuild-anchors`.
 
 It reaches four things, each handed to it: the index and the embedding
 provider (`semiont_vectors`), a resource's bytes (`semiont_service.content`),
@@ -51,6 +52,7 @@ anchored-text entry is filed under it, and `smelt:settled` states it.
 """
 
 import asyncio
+import contextlib
 import hashlib
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
@@ -86,6 +88,7 @@ from semiont.types import (
     SmeltSettledReason,
     StoredEventResponse,
 )
+from semiont.watched import reached
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.lanes import Lanes
 from semiont_service.observability import resident_bytes
@@ -304,6 +307,8 @@ class Smelter:
         self._events_waiting = 0
         self._stream_drops = 0
         self._reconcile = ReconcileState(phase="pending")
+        self._due: Final = asyncio.Event()
+        """Set when the stream drops: what was recorded until it opened again is the next reconcile's to find."""
 
     # ── From the way in to the way out ─────────────────────────────────
 
@@ -347,13 +352,14 @@ class Smelter:
         Nothing recorded while its stream is down is delivered to it when
         the stream opens again: a stream that names no scope is given no
         replay (`docs/protocol/TRANSPORT-HTTP.md` § Event id and
-        resumption). What it missed is found when it next starts.
+        resumption). What it missed is found by the reconcile it runs when
+        the stream opens again (`keep_reconciled`).
         """
         return self._stream_drops
 
     @property
     def reconcile_state(self) -> ReconcileState:
-        """How far the reconcile of this start has got."""
+        """How far the latest reconcile has got. `pending` from a drop of its stream until the reconcile that follows it begins."""
         return self._reconcile
 
     async def settled(self) -> None:
@@ -368,7 +374,12 @@ class Smelter:
     # ── Following ──────────────────────────────────────────────────────
 
     async def _count_stream_drops(self) -> None:
-        """Count each time the stream drops, and say so in the log. A stream that is closed has not dropped: it has ended."""
+        """Count each time the stream drops, say so in the log, and make a reconcile due. A closed stream has ended, and not dropped.
+
+        Until that reconcile begins the index may be behind the record, and
+        `reconcile_state` says it is to be done. One under way at the drop
+        says so for itself, and another follows it.
+        """
         was_open = False
         async for state in self._transport.state:
             if state == "closed":
@@ -377,9 +388,12 @@ class Smelter:
             if was_open:
                 self._stream_drops += 1
                 LOG.warning(
-                    "The stream of the record dropped: what is recorded until it opens again is not delivered to this Smelter",
+                    "The stream of the record dropped: what is recorded until it opens again is found by a reconcile when it does",
                     extra={"streamDrops": self._stream_drops},
                 )
+                self._due.set()
+                if self._reconcile.phase != "running":
+                    self._reconcile = ReconcileState(phase="pending")
             was_open = state == "open"
 
     def delivered(self, frame: Frame) -> None:
@@ -727,8 +741,25 @@ class Smelter:
 
     # ── Reconcile ──────────────────────────────────────────────────────
 
+    async def keep_reconciled(self) -> None:
+        """Reconcile now, and again each time the stream of the record opens after a drop. It never ends: whoever begins it cancels it.
+
+        A pass begins once the stream is open, since what it reads of the
+        record is asked over it. However many drops come while a pass is
+        under way, one more pass follows it. A pass that fails has said so,
+        in the log and in `reconcile_state`, and ends nothing: the next drop
+        begins another.
+        """
+        while True:
+            await reached(self._transport.state, lambda state: state == "open")
+            # Before anything is read: a drop from here on is one this pass may not have seen past.
+            self._due.clear()
+            with contextlib.suppress(Exception):
+                await self.reconcile()
+            await self._due.wait()
+
     async def reconcile(self) -> ReconcileSummary:
-        """Find what was missed while the Smelter was not running, and what either store lost, and mend it.
+        """Find what was missed while the Smelter was not running or its stream was down, and what either store lost, and mend it.
 
         `docs/protocol/SMELTER.md` § Reconcile states the rule.
 
