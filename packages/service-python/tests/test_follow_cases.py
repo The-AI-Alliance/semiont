@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, JsonValue
 from semiont.types import StoredEventResponse
 from spec import SPEC, objects, read, text
 
-from semiont_service.follower import SYSTEM, Cursors, Followed, Follower, FromTheFirst, OwnStart, Refused, WithNoCursor, log_of
+from semiont_service.follower import SYSTEM, Cursors, Followed, Follower, FromTheFirst, OwnStart, Unfinished, WithNoCursor, log_of
 
 type How = Literal["applied", "nothing", "refused"]
 """How an event was taken: applied by the fold, applied as nothing (the fold has no use for its type), or refused as recorded."""
@@ -131,15 +131,23 @@ class Projector:
         self._refuses: Final = frozenset(fold.refuses)
         self._failing: Final = {(log, sequence): times for log, sequence, times in fold.fails}
 
-    async def take(self, event: StoredEventResponse) -> None:
-        place = (log_of(event), event.metadata.sequence_number)
-        if place in self._failing and self._failing[place] > 0:
-            self._failing[place] -= 1
-            raise ConnectionError(f"the store did not answer for {place}")
-        how: How = "refused" if place in self._refuses else "applied" if event.type in self._uses else "nothing"
-        self.taken.setdefault(place[0], []).append((place[1], how))
-        if how == "refused":
-            raise Refused(f"{place} is refused as recorded")
+        self.forgotten: Final[list[str]] = []
+
+    async def take(self, run: Sequence[StoredEventResponse]) -> int:
+        """Take a run an event at a time, and answer how many it refused. A taking that fails stops the run where it is."""
+        refused = 0
+        for taken, event in enumerate(run):
+            place = (log_of(event), event.metadata.sequence_number)
+            if place in self._failing and self._failing[place] > 0:
+                self._failing[place] -= 1
+                raise Unfinished(taken=taken, refused=refused) from ConnectionError(f"the store did not answer for {place}")
+            how: How = "refused" if place in self._refuses else "applied" if event.type in self._uses else "nothing"
+            self.taken.setdefault(place[0], []).append((place[1], how))
+            refused += how == "refused"
+        return refused
+
+    async def forget(self, log: str) -> None:
+        self.forgotten.append(log)
 
     async def start_own_way(self, logs: frozenset[str]) -> None:
         self.started_own_way.update(logs)
@@ -178,15 +186,16 @@ def test_a_follower_takes_each_log_as_the_table_states(case: Case, tmp_path: Pat
         kept = Kept(case.record)
         projector = Projector(case.fold)
         cursors = Cursors(tmp_path / "cursors.json")
-        for log, sequence in case.cursors.items():
-            cursors.move(log, sequence)
+        cursors.keep(case.cursors)
         with_no_cursor: WithNoCursor
         match case.with_no_cursor:
             case "from-the-first":
                 with_no_cursor = FromTheFirst()
             case "own-start":
                 with_no_cursor = OwnStart(projector.start_own_way)
-        follower = Follower(record=kept, take=projector.take, follows=case.follows, with_no_cursor=with_no_cursor, cursors=cursors)
+        follower = Follower(
+            record=kept, take=projector.take, forget=projector.forget, follows=case.follows, with_no_cursor=with_no_cursor, cursors=cursors
+        )
         for step in case.steps:
             match step:
                 case Start():
@@ -204,6 +213,8 @@ def test_a_follower_takes_each_log_as_the_table_states(case: Case, tmp_path: Pat
         assert follower.refused == sum(how == "refused" for taken in case.taken.values() for _, how in taken)
         assert follower.stopped == case.stopped
         assert projector.started_own_way == case.started_own_way
+        # No case rewinds the record, so no log is forgotten.
+        assert projector.forgotten == []
         await follower.aclose()
         # The cursors are on disk: a follower made again after a restart starts from them.
         assert Cursors(tmp_path / "cursors.json").held() == case.cursors_after

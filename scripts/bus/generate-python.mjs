@@ -118,6 +118,7 @@ __all__ = [
     "BRIDGED_CHANNELS",
     "CHANNELS",
     "CHANNEL_NAMES",
+    "PERSISTED_EVENT_TYPES",
     "RESOURCE_SCOPED_CHANNELS",
 ${payloads
   .map((p) => p.constant)
@@ -154,6 +155,13 @@ ${names(bridged)}
 # The channels a resource's scope carries: what holding a resource adds to a client's stream.
 RESOURCE_SCOPED_CHANNELS: Final[tuple[ChannelName, ...]] = (
 ${names(scoped)}
+)
+
+# The channels of the events of the record, each named for the event it carries: every event the event log
+# holds. A follower of the record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What repairs
+# a passing frame).
+PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
+${names(reg.channels.filter((c) => c.event).map((c) => c.channel))}
 )
 `;
 
