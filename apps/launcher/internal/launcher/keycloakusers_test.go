@@ -246,7 +246,7 @@ func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) in
 }
 
 // The account block names the identity the person will act under — the DID the
-// gateway builds from the claim [identity] subjectClaim names — rather than the
+// gateway builds from the claim identity.subjectClaim names — rather than the
 // realm's bare account id, which nothing else in Semiont shows.
 func TestUseraddNamesTheIdentityItCreated(t *testing.T) {
 	for _, c := range []struct{ claim, want string }{
