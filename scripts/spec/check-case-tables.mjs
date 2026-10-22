@@ -2,7 +2,8 @@
 // lint:spec-case-tables — the case tables that state what a worker does to a
 // text and to a model's reply, what a bus log shows of a payload, what the
 // graph holds of an annotation and a resource and what the Weaver's fold does
-// to it, what a point of the vector index is and what the index answers, the
+// to it, how a follower of the record takes each log, what a point of the
+// vector index is and what the index answers, the
 // work a Smelter's start plans and what each kind of PDF becomes, what the
 // Librarian answers from what it reads, the origin of a knowledge base's
 // gateway, and the runners each must have.
@@ -48,7 +49,7 @@
 //     was), and the Librarian's text around a selection. The two tables of what text a resource's bytes are, the two
 //     readers' tables (an annotation's and a resource's), the table of
 //     failure classes, the bus log's table, the graph codecs' table, the
-//     Weaver's fold table, the two tables of the vector index, the
+//     Weaver's fold table, the follower's table, the two tables of the vector index, the
 //     Smelter's two, the Librarian's other seven and the gateway's origin
 //     count nothing and state no offset, and are held to
 //     nothing about their characters.
@@ -62,7 +63,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter', 'specs/src/librarian', 'specs/src/session'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/follower', 'specs/src/vectors', 'specs/src/smelter', 'specs/src/librarian', 'specs/src/session'];
 
 /**
  * Each table, and the files that run it.
@@ -216,6 +217,14 @@ const TABLES = [
   {
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
+  },
+  // How a follower of the record takes each log: a cursor that moves by one,
+  // a delivered event taken as a hint, and a sweep at the start and at each
+  // reopening of its stream. Run by the shared follower (semiont_service),
+  // which the Weaver and the Smelter follow the record with.
+  {
+    table: 'specs/src/follower/follow-cases.json',
+    runners: ['packages/service-python/tests/test_follow_cases.py'],
   },
   // What a point of the vector index is. Run by the stores
   // (semiont_vectors), which write the points and search them, and whose

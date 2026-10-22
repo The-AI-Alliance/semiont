@@ -97,6 +97,7 @@ def test_the_walk_found_the_project() -> None:
         "config.py",
         "connect.py",
         "content.py",
+        "follower.py",
         "health.py",
         "lanes.py",
         "log.py",
@@ -219,15 +220,16 @@ def test_it_is_the_services_own_code_and_every_python_service_is_built_on_it() -
 def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # What a service is called and its one logger are its own, and so is what of its document only it has: a service
     # has a `config.py` and a `log.py`. How a document is read and how a log is written are stated here and nowhere else,
-    # and so are the order a service does each resource's work in and how it reads the catalog whole. So are what
-    # reads a resource's bytes and the reader that asks the Archivist for them and for its annotations, what white space
-    # is, and how long a start waits for what it connects to.
+    # and so are how a service follows the record, the order it does each resource's work in and how it reads the
+    # catalog whole. So are what reads a resource's bytes and the reader that asks the Archivist for them and for its
+    # annotations, what white space is, and how long a start waits for what it connects to.
     stated_here = {
         "archivist.py": ("class ArchivistContent", "class Authorizes", "class AnnotationsUnread"),
         "catalog.py": ("_UNTIL_THE_ARCHIVIST_ANSWERS", "bus.peer-unavailable"),
         "config.py": ("def config_path_of(", "def read_config", "def service_account_of(", "def set_in("),
         "connect.py": ("def connected", "_CONNECT_SECONDS"),
         "content.py": ("class ContentReads", "class ContentUnread"),
+        "follower.py": ("class Follower",),
         "health.py": ("def bind_health(",),
         "lanes.py": ("class Lanes",),
         "log.py": ("def configure(", "logging.Formatter"),
@@ -244,6 +246,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
             for marks in stated_here.values():
                 for mark in marks:
                     assert mark not in source, f"{path.relative_to(ROOT)} states {mark}, which is semiont_service's"
+        assert not list((service / "src").rglob("follower.py")), service.name
         assert not list((service / "src").rglob("health.py")), service.name
         assert not list((service / "src").rglob("lanes.py")), service.name
         assert not list((service / "src").rglob("observability.py")), service.name

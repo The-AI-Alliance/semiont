@@ -182,6 +182,32 @@ repairs a drop by asking:
 - **A job's follower** asks for the job's status when the job has been
   silent ([JOBS.md](./JOBS.md#following-a-job)).
   *Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`.*
+- **A follower of the record**, a service that keeps a projection of the
+  record (the Weaver's graph, the Smelter's vector index), reads the record
+  by position. The record is a set of logs, one for each resource and
+  `__system__`, each numbered from 1 with no holes
+  ([ARCHIVIST.md](./ARCHIVIST.md#the-event-log)). The follower keeps a
+  **cursor** for each log it follows: the last event of it taken.
+  - A cursor moves by one, by taking the event right after it: applying it,
+    or applying it as nothing where the projection has no use for its type.
+  - A delivered event is a hint. At or below the cursor it is dropped; right
+    after it, it is taken; further on, the log is read from the record after
+    the cursor, and what is read is taken in order. No event is applied out
+    of its log's order.
+  - A follower receives every event of the record of a log it follows, so a
+    gap is always a miss.
+  - At its start, and each time its stream opens after a drop, it sweeps:
+    each log it follows is taken up to what the record holds.
+  - An event the projection refuses as recorded is taken as nothing, and
+    counted. One whose taking fails for a passing reason (the store did not
+    answer) stops its log where it is: the cursor stays, the log's later
+    events wait, and the next sweep takes the log on from there.
+  - A log with no cursor at the start is started the projection's own way:
+    from its first event, or as the projection rebuilds itself, and then from
+    the log's last event as it was before. A log first met after the start
+    is a new one, and is taken from its first event.
+
+  *Held by `specs/src/follower/follow-cases.json`, run by `packages/service-python/tests/test_follow_cases.py`.*
 
 A row of the refresh table whose trigger is a passing channel may only
 refetch, and `reopened` refetches whatever it does: the table's generator
