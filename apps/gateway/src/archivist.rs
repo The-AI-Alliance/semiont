@@ -315,7 +315,9 @@ impl Archivist {
         Ok((Body::from_stream(response.bytes_stream()), media_type))
     }
 
-    /// A resource's persisted events from `from_sequence`, inclusive. An
+    /// A resource's persisted events from `from_sequence`, inclusive: one
+    /// answer of the Archivist's after another, each from the sequence after
+    /// the last event of the one before, until the stream's last event. An
     /// answer that is not the ArchivistEventsResponse the spec declares is a
     /// failure: read on trust, it would drop an event it could not route.
     pub async fn replay(
@@ -323,13 +325,36 @@ impl Archivist {
         resource_id: &str,
         from_sequence: u64,
     ) -> Result<Vec<Value>, String> {
+        let mut events = Vec::new();
+        let mut from = from_sequence;
+        loop {
+            let (answered, last) = self.events_from(resource_id, from).await?;
+            let reached = answered
+                .last()
+                .and_then(|event| event["metadata"]["sequenceNumber"].as_u64());
+            events.extend(answered);
+            match reached {
+                Some(sequence) if sequence < from => {
+                    return Err(format!(
+                        "Archivist replay answer from {from} ends at {sequence}, before it"
+                    ));
+                }
+                Some(sequence) if sequence < last => from = sequence + 1,
+                _ => return Ok(events),
+            }
+        }
+    }
+
+    /// One answer of the Archivist's to a read of a resource's stream from
+    /// `from`: its events, and the sequence number of the stream's last.
+    async fn events_from(&self, resource_id: &str, from: u64) -> Result<(Vec<Value>, u64), String> {
         let authorization = self
             .token
             .authorization()
             .await
             .map_err(|error| error.to_string())?;
         let url = format!(
-            "{}{}?fromSequence={from_sequence}",
+            "{}{}?fromSequence={from}",
             self.base,
             path("/events/{resourceId}", resource_id)
         );
@@ -346,7 +371,7 @@ impl Archivist {
         if !status.is_success() {
             return Err(format!("Archivist replay read failed: {}", status.as_u16()));
         }
-        let answer: Value = response
+        let mut answer: Value = response
             .json()
             .await
             .map_err(|e| format!("Archivist replay answer is not JSON: {e}"))?;
@@ -355,6 +380,11 @@ impl Archivist {
                 "Archivist replay answer is not an ArchivistEventsResponse: {problems}"
             ));
         }
-        Ok(answer["events"].as_array().cloned().unwrap_or_default())
+        let (Value::Array(events), Some(last)) =
+            (answer["events"].take(), answer["lastSequence"].as_u64())
+        else {
+            return Err("Archivist replay answer holds no events or no lastSequence".to_owned());
+        };
+        Ok((events, last))
     }
 }

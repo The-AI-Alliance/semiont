@@ -76,17 +76,16 @@ def test_a_history_leaves_the_graph_the_table_states(case: JsonObject) -> None:
             await rig.settled()
 
             async def as_stated() -> None:
-                assert rig.weaver.applied() == applied
-                assert rig.weaver.apply_failures == refused
+                assert rig.applied() == applied
+                assert rig.weaver.follower.refused == refused
                 assert await held(rig.graph) == expected
                 signalled = rig.signalled()
-                assert {resource: max(marks) for resource, marks in signalled.items()} == applied
-                # The mark only rises, and is signalled each time it does.
-                assert all(marks == sorted(set(marks)) for marks in signalled.values())
+                assert {resource: max(taken) for resource, taken in signalled.items()} == applied
+                # How far a log was taken only rises, and is signalled each time it does.
+                assert all(taken == sorted(set(taken)) for taken in signalled.values())
 
             await as_stated()
-            # And it stays so: a mark that passes a refused event, or an event applied a second time, would show
-            # only after the graph first matched.
+            # And it stays so: an event taken a second time would show only after the graph first matched.
             await asyncio.sleep(0.05)
             await rig.settled()
             await as_stated()

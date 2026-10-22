@@ -13,6 +13,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
+from semiont.channels import PERSISTED_EVENT_TYPES
 from semiont.http import Credential
 from semiont_service.config import Refused
 from semiont_vectors.ollama import OllamaEmbeddingProvider
@@ -42,6 +43,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "vectors": QDRANT,
     "chunking": {"chunkSize": 512, "overlap": 64},
     "pdfsAtOnce": 1,
+    "cursorsPath": "/tmp/semiont/smelter-cursors.json",
     "port": 24101,
     "logLevel": "warn",
     "logFormat": "simple",
@@ -77,27 +79,18 @@ def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> N
     assert isinstance(started.index, QdrantVectorStore)
 
 
-def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies_of_what_it_asks() -> None:
-    assert sorted(CHANNELS) == sorted(
-        [
-            "yield:created",
-            "yield:cloned",
-            "yield:updated",
-            "yield:representation-added",
-            "mark:archived",
-            "mark:unarchived",
-            "mark:added",
-            "mark:body-updated",
-            "mark:removed",
-            "mark:entity-tag-added",
-            "mark:entity-tag-removed",
-            "smelt:rebuild-anchors",
-            "browse:resources-result",
-            "browse:resources-failed",
-            "browse:resource-result",
-            "browse:resource-failed",
-        ]
+def test_its_stream_names_every_event_of_the_record_the_command_it_answers_and_the_replies_of_what_it_asks() -> None:
+    # Every event of the record, as every follower of it receives them: a gap in a resource's sequence numbers is then
+    # always an event it missed, and never one of a kind it does nothing with.
+    named = (
+        *PERSISTED_EVENT_TYPES,
+        "smelt:rebuild-anchors",
+        "browse:resources-result",
+        "browse:resources-failed",
+        "browse:resource-result",
+        "browse:resource-failed",
     )
+    assert named == CHANNELS
     assert len(CHANNELS) == len(set(CHANNELS))
 
 
@@ -154,8 +147,9 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
         ({**DOCUMENT, "embedding": lacking(OLLAMA, "baseUrl")}, "baseUrl"),
         ({**DOCUMENT, "chunking": {"chunkSize": 512}}, "overlap"),
         (without("chunking"), "chunking"),
+        (without("cursorsPath"), "cursorsPath"),
     ],
-    ids=["gatewayUrl", "issuer", "archivist", "host", "port", "model", "baseUrl", "overlap", "chunking"],
+    ids=["gatewayUrl", "issuer", "archivist", "host", "port", "model", "baseUrl", "overlap", "chunking", "cursorsPath"],
 )
 def test_nothing_the_document_leaves_out_is_supplied_and_each_is_refused_by_name(
     tmp_path: Path, document: dict[str, JsonValue], missing: str

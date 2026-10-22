@@ -197,7 +197,7 @@ client-credentials grant, kept until shortly before it expires:
 | `GET /resources/{id}/jsonld` | `GET /resources/{id}/jsonld` |
 | `GET /resources/{id}/annotations` | `GET /resources/{id}/annotations`, streamed back unread |
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
-| `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse` |
+| `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse`, an answer at a time until the stream's `lastSequence` |
 
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.

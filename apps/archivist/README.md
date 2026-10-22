@@ -87,7 +87,8 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | `GET /resources/:id/anchored-text/stored?contentChecksum=…` | the entry stored for the resource's content, as stored, at once; 404 when there is none, 409 when the resource's content has another checksum | the Smelter, before it derives a text |
 | `GET /anchored-text/entries` | the checksums the store holds entries of, under the stamp stated | the Smelter, when it starts |
 | `PUT /anchored-text/stamp` | states the stamp the store's entries are taken under | the Smelter, when it starts |
-| `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
+| `GET /events` | every stream of the event log, `__system__` among them, each with the sequence number of its last event | a service that follows the record, when it starts and each time its stream opens again |
+| `GET /events/:resourceId?fromSequence=N` | one stream's events from a sequence number, at most `maxEvents` of them, and the sequence number of its last event; `__system__` is the knowledge base's own stream | the gateway, when a client resumes its subscription with a `lastEventId`; a service that follows the record, for what its stream did not deliver |
 
 The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
 status each route answers and its body — a missing resource's bytes are a 404 whose `code` is

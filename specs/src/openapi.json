@@ -864,6 +864,12 @@
       "ArchivistEventsResponse": {
         "$ref": "components/schemas/ArchivistEventsResponse.json"
       },
+      "ArchivistStream": {
+        "$ref": "components/schemas/ArchivistStream.json"
+      },
+      "ArchivistStreamsResponse": {
+        "$ref": "components/schemas/ArchivistStreamsResponse.json"
+      },
       "ArchivistHealth": {
         "$ref": "components/schemas/ArchivistHealth.json"
       },
@@ -977,6 +983,9 @@
       },
       "WorkerAgentConfig": {
         "$ref": "components/schemas/WorkerAgentConfig.json"
+      },
+      "CursorsPath": {
+        "$ref": "components/schemas/CursorsPath.json"
       },
       "WeaverConfig": {
         "$ref": "components/schemas/WeaverConfig.json"

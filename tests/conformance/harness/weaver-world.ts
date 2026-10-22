@@ -36,24 +36,20 @@ export const WEAVER_CLIENT = 'semiont-weaver';
 /** The variable the Weaver's settings name for the graph database's password. */
 const GRAPH_PASSWORD = 'NEO4J_PASSWORD';
 
-/**
- * The recorded events a Weaver follows (WEAVER.md § What it follows). Every
- * other event of a resource's stream passes it by, and moves no mark of its.
- */
-export const FOLLOWED: readonly string[] = [
-  'yield:created',
-  'mark:archived',
-  'mark:unarchived',
-  'mark:added',
-  'mark:removed',
-  'mark:body-updated',
-  'mark:entity-tag-added',
-  'mark:entity-tag-removed',
-];
-
 export interface Applied {
   resourceId: string;
   sequenceNumber: number;
+}
+
+/**
+ * The sequence of the last event of a resource's stream. A Weaver follows the
+ * record whole (WEAVER.md § What it follows): it signals how far it took a
+ * resource's stream up to its last event, whatever that event's type.
+ */
+export function lastOf(stored: readonly StoredEvent[], resourceId: string): number {
+  const last = stored[stored.length - 1];
+  if (last === undefined) throw new Error(`the record holds no event of ${resourceId}`);
+  return last.metadata.sequenceNumber;
 }
 
 /** An annotation's row, with the names its tag edges go to. */
@@ -188,7 +184,12 @@ export class WeaverWorld {
       kb,
       new GraphReader(hand, at.database),
       service,
-      { gatewayUrl: kb.world.origin, issuer: kb.world.issuer.origin, graph: { ...at, passwordEnv: GRAPH_PASSWORD } },
+      {
+        gatewayUrl: kb.world.origin,
+        issuer: kb.world.issuer.origin,
+        archivist: { host: '127.0.0.1', port: kb.settings.port },
+        graph: { ...at, passwordEnv: GRAPH_PASSWORD },
+      },
       { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [GRAPH_PASSWORD]: password },
       mkdtempSync(join(tmpdir(), 'conformance-weaver-')),
       signals,
@@ -276,16 +277,14 @@ export class WeaverWorld {
     );
   }
 
-  /** The sequence of the last event a Weaver follows in a resource's stream, as the record holds it now. */
-  lastFollowed(resourceId: string): number {
-    const followed = this.kb.stored(resourceId).filter((event) => FOLLOWED.includes(event.type));
-    if (followed.length === 0) throw new Error(`the record holds no event a Weaver follows for ${resourceId}`);
-    return followed[followed.length - 1]!.metadata.sequenceNumber;
+  /** The sequence of the last event of a resource's stream, as the record holds it now: a Weaver takes every one. */
+  last(resourceId: string): number {
+    return lastOf(this.kb.stored(resourceId), resourceId);
   }
 
-  /** Wait until the Weaver has applied everything it follows of what the record holds for each of `resourceIds`. */
+  /** Wait until the Weaver has taken everything the record holds for each of `resourceIds`. */
   async caughtUp(...resourceIds: string[]): Promise<void> {
-    for (const resourceId of resourceIds) await this.applied(resourceId, this.lastFollowed(resourceId));
+    for (const resourceId of resourceIds) await this.applied(resourceId, this.last(resourceId));
   }
 
   /** The record's events of one type for a resource, oldest first. */

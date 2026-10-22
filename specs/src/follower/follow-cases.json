@@ -1,0 +1,252 @@
+{
+  "$comment": "How a follower of the record takes each log of the record it follows, as docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame states it: a cursor for each log that moves by one, a delivered event taken as a hint, and a sweep at the start and at each reopening of the stream. Semiont's follower (semiont_service.follower, in packages/service-python), which the Weaver and the Smelter follow the record with, runs every case. `record` is each log of the record and the type of each of its events, in order: the first is its event 1. A log is a resource's, named by the resource, or `__system__`. `fold` is what the projector does with an event: `uses` the types it applies (an event of any other type is taken as nothing), `refuses` the events it refuses as recorded, each `[log, sequence]` (taken as nothing, and counted), and `fails` the events whose taking fails for a passing reason, each `[log, sequence, times]`: the first `times` takings of it fail. `follows` is the logs followed: `resources`, every resource's, and `__system__` where it is named. `cursors` is each log's cursor at the start; a log with none has no cursor. `withNoCursor` is how the projector starts a log that has no cursor at the start: `from-the-first`, taking it from its first event, or `own-start`, the projector's own way, which goes on from the log's last event as it then is. The follower is made, with its stream open, before the first step. `steps` are done in order, each let settle before the next: `start` (the follower starts, and sweeps), `deliver` `[log, sequence]` (the record's event is delivered, live; one before `start` is delivered before the start's sweep reaches its log), `record` `[log, type]` (an event is added to the record, and not delivered), `drop` and `reopen` (the stream drops, and opens again). `taken` is, for each log, every event taken, in order, each `[sequence, how]`: `applied`, `nothing` or `refused`. A log nothing was taken of is not named. `cursorsAfter` is each log's cursor at the end, `stopped` the logs a failed taking has stopped, and `startedOwnWay` the logs started the projector's own way.",
+  "cases": [
+    {
+      "why": "a start takes what the record holds after each cursor, in order: an event of a type the fold does not use is taken as nothing, and taking it moves the cursor all the same",
+      "record": { "res-1": ["yield:created", "mark:added", "yield:updated", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [{ "start": true }],
+      "taken": { "res-1": [[2, "applied"], [3, "nothing"], [4, "applied"]] },
+      "cursorsAfter": { "res-1": 4 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "an event delivered right after the cursor is taken",
+      "record": { "res-1": ["yield:created", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 2 },
+      "withNoCursor": "from-the-first",
+      "steps": [{ "start": true }, { "record": ["res-1", "mark:added"] }, { "deliver": ["res-1", 3] }],
+      "taken": { "res-1": [[3, "applied"]] },
+      "cursorsAfter": { "res-1": 3 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "an event delivered again, or at or below the cursor, is dropped: it was taken already",
+      "record": { "res-1": ["yield:created", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 2 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["res-1", "mark:removed"] },
+        { "deliver": ["res-1", 3] },
+        { "deliver": ["res-1", 3] },
+        { "deliver": ["res-1", 2] }
+      ],
+      "taken": { "res-1": [[3, "applied"]] },
+      "cursorsAfter": { "res-1": 3 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "the race: two events recorded while nothing listened, and a later one delivered before the start's sweep reaches the log. The delivered event is a hint: what the record holds after the cursor is taken first, in order, and nothing is skipped",
+      "record": { "res-1": ["yield:created", "mark:added", "mark:added", "mark:added", "mark:added", "yield:updated", "mark:removed"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 4 },
+      "withNoCursor": "from-the-first",
+      "steps": [{ "deliver": ["res-1", 7] }, { "start": true }],
+      "taken": { "res-1": [[5, "applied"], [6, "nothing"], [7, "applied"]] },
+      "cursorsAfter": { "res-1": 7 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "an event delivered past the next one, with the stream open, is a gap: the events before it are read from the record and taken first, and the ones delivered late are dropped",
+      "record": { "res-1": ["yield:created"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["res-1", "mark:added"] },
+        { "record": ["res-1", "yield:updated"] },
+        { "record": ["res-1", "mark:added"] },
+        { "deliver": ["res-1", 4] },
+        { "deliver": ["res-1", 2] },
+        { "deliver": ["res-1", 3] }
+      ],
+      "taken": { "res-1": [[2, "applied"], [3, "nothing"], [4, "applied"]] },
+      "cursorsAfter": { "res-1": 4 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "what is recorded while the stream is down is never delivered: the sweep at its reopening takes it, for every log",
+      "record": { "res-1": ["yield:created"], "res-2": ["yield:created"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1, "res-2": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "drop": true },
+        { "record": ["res-1", "mark:added"] },
+        { "record": ["res-2", "yield:updated"] },
+        { "reopen": true }
+      ],
+      "taken": { "res-1": [[2, "applied"]], "res-2": [[2, "nothing"]] },
+      "cursorsAfter": { "res-1": 2, "res-2": 2 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "an event the fold refuses as recorded is taken as nothing and counted, and the log goes on",
+      "record": { "res-1": ["yield:created", "mark:added", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [["res-1", 2]], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [{ "start": true }],
+      "taken": { "res-1": [[2, "refused"], [3, "applied"]] },
+      "cursorsAfter": { "res-1": 3 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "an event whose taking fails for a passing reason stops its log where it is: the events after it wait, a delivered one too, and the next sweep takes the log on from there",
+      "record": { "res-1": ["yield:created", "mark:added", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [["res-1", 2, 1]] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["res-1", "mark:added"] },
+        { "deliver": ["res-1", 4] },
+        { "drop": true },
+        { "reopen": true }
+      ],
+      "taken": { "res-1": [[2, "applied"], [3, "applied"], [4, "applied"]] },
+      "cursorsAfter": { "res-1": 4 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "a delivered event whose taking fails stops its log as one a sweep read does: the cursor stays, and the sweep at the reopening takes it",
+      "record": { "res-1": ["yield:created"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [["res-1", 2, 1]] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["res-1", "mark:added"] },
+        { "deliver": ["res-1", 2] },
+        { "drop": true },
+        { "reopen": true }
+      ],
+      "taken": { "res-1": [[2, "applied"]] },
+      "cursorsAfter": { "res-1": 2 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "a log a failed taking has stopped stays stopped until a sweep takes it on, and stops no other log",
+      "record": { "res-1": ["yield:created", "mark:added"], "res-2": ["yield:created"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [["res-1", 2, 99]] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1, "res-2": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["res-1", "mark:added"] },
+        { "deliver": ["res-1", 3] },
+        { "record": ["res-2", "mark:added"] },
+        { "deliver": ["res-2", 2] }
+      ],
+      "taken": { "res-2": [[2, "applied"]] },
+      "cursorsAfter": { "res-1": 1, "res-2": 2 },
+      "stopped": ["res-1"],
+      "startedOwnWay": []
+    },
+    {
+      "why": "`__system__` is a log like any other, and one the follower does not follow is neither delivered to its fold nor given a cursor",
+      "record": { "res-1": ["yield:created"], "__system__": ["frame:entity-type-added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed", "frame:entity-type-added"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["__system__", "frame:entity-type-added"] },
+        { "deliver": ["__system__", 2] }
+      ],
+      "taken": {},
+      "cursorsAfter": { "res-1": 1 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "`__system__`, where it is followed, is taken as a resource's log is: by its own cursor, a gap filled from the record",
+      "record": { "res-1": ["yield:created"], "__system__": ["frame:entity-type-added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed", "frame:entity-type-added"], "refuses": [], "fails": [] },
+      "follows": ["resources", "__system__"],
+      "cursors": { "res-1": 1, "__system__": 1 },
+      "withNoCursor": "from-the-first",
+      "steps": [
+        { "start": true },
+        { "record": ["__system__", "person:profiled"] },
+        { "record": ["__system__", "frame:entity-type-added"] },
+        { "deliver": ["__system__", 3] }
+      ],
+      "taken": { "__system__": [[2, "nothing"], [3, "applied"]] },
+      "cursorsAfter": { "res-1": 1, "__system__": 3 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "a log with no cursor at the start is taken from its first event by a projector that starts so",
+      "record": { "res-1": ["yield:created", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": {},
+      "withNoCursor": "from-the-first",
+      "steps": [{ "start": true }],
+      "taken": { "res-1": [[1, "applied"], [2, "applied"]] },
+      "cursorsAfter": { "res-1": 2 },
+      "stopped": [],
+      "startedOwnWay": []
+    },
+    {
+      "why": "a log with no cursor at the start is started the projector's own way by one that starts so, and is followed from its last event as it then was",
+      "record": { "res-1": ["yield:created", "mark:added"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": {},
+      "withNoCursor": "own-start",
+      "steps": [{ "start": true }, { "record": ["res-1", "mark:added"] }, { "deliver": ["res-1", 3] }],
+      "taken": { "res-1": [[3, "applied"]] },
+      "cursorsAfter": { "res-1": 3 },
+      "stopped": [],
+      "startedOwnWay": ["res-1"]
+    },
+    {
+      "why": "a log first met after the start is a new one: it is taken from its first event, and never started the projector's own way",
+      "record": { "res-1": ["yield:created"] },
+      "fold": { "uses": ["yield:created", "mark:added", "mark:removed"], "refuses": [], "fails": [] },
+      "follows": ["resources"],
+      "cursors": { "res-1": 1 },
+      "withNoCursor": "own-start",
+      "steps": [
+        { "start": true },
+        { "record": ["res-2", "yield:created"] },
+        { "record": ["res-2", "mark:added"] },
+        { "deliver": ["res-2", 2] }
+      ],
+      "taken": { "res-2": [[1, "applied"], [2, "applied"]] },
+      "cursorsAfter": { "res-1": 1, "res-2": 2 },
+      "stopped": [],
+      "startedOwnWay": []
+    }
+  ]
+}

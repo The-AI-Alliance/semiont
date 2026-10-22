@@ -3,7 +3,7 @@
   "info": {
     "title": "Semiont Archivist",
     "version": "0.1.0",
-    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and replay a resource's events; and what the Smelter calls to keep the anchored-text store. Everything else reaches the Archivist over the bus.",
+    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions and the text extracted from its content, and read the event log by position, to replay a resource's events and to follow the record; and what the Smelter calls to keep the anchored-text store. Everything else reaches the Archivist over the bus.",
     "license": {
       "name": "Apache-2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -26,6 +26,9 @@
   "paths": {
     "/health": {
       "$ref": "paths/health.json"
+    },
+    "/events": {
+      "$ref": "paths/events.json"
     },
     "/events/{resourceId}": {
       "$ref": "paths/events_{resourceId}.json"
@@ -85,6 +88,12 @@
       },
       "ArchivistHealth": {
         "$ref": "../components/schemas/ArchivistHealth.json"
+      },
+      "ArchivistStream": {
+        "$ref": "../components/schemas/ArchivistStream.json"
+      },
+      "ArchivistStreamsResponse": {
+        "$ref": "../components/schemas/ArchivistStreamsResponse.json"
       },
       "CreateResourceResponse": {
         "$ref": "../components/schemas/CreateResourceResponse.json"

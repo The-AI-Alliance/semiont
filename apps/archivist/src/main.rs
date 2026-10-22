@@ -256,7 +256,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
     let surface = Arc::new(surface::Surface {
         archivist: archivist.clone(),
         verifier: IssuerVerifier::new(issuer, kb_resource(&domain), KEY_TIMINGS, http),
-        limits: surface::BodyLimits::of(&semiont_core::spec::spec().archivist)?,
+        limits: surface::Limits::of(&semiont_core::spec::spec().archivist)?,
     });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await

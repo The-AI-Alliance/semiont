@@ -1,8 +1,8 @@
 # semiont-smelter
 
-**Turns content into retrievable material.** It follows the recorded events that change what
-the vector index holds, gets the text of what changed, cuts it, has it embedded, and keeps the
-index in step with the record. It also derives the text of a PDF, with where each word is on
+**Turns content into retrievable material.** It follows the record, and for the events that
+change what the vector index holds it gets the text of what changed, cuts it, has it embedded,
+and keeps the index in step with the record. It also derives the text of a PDF, with where each word is on
 its page, and keeps that.
 
 | | |
@@ -66,20 +66,22 @@ could not do.
 
 ## When it starts
 
-It reads its document, signs in, reaches the vector index, begins following the record, opens
-its health port, and then reconciles: it compares what the index holds, what the catalog says
-the knowledge base holds, and which bytes the anchored-text store has an entry for, and does
-the work that brings them together. So an index that was cleared, an anchored-text store that
-was cleared, and events recorded while no Smelter ran are each mended by starting it. It
-reconciles again each time its stream of the record opens after a drop: nothing recorded while
-the stream was down is sent to it afterwards, so that is how it finds what it missed. `/health`
-reports how the reconcile ended, and what it came to. Beside that it says what only the
-Smelter knows: the state of its stream of the record and how many times that has dropped, how
-many events it has applied, could not apply and has waiting, and what its index is made by.
-It answers for itself alone, and asks nothing of the gateway or the vector database to answer.
+It reads its document, signs in, reaches the vector index, begins following the record, and
+opens its health port. It follows the record as every follower of it does: a cursor for each
+resource's log, kept in the file its document names on the container's own disk, and a sweep
+of the record at its start and each time its stream opens after a drop, which takes what the
+stream did not deliver. A resource no cursor names at its start, as after every `semiont start`,
+is started by a reconcile: it compares what the index holds, what the catalog says the
+knowledge base holds, and which bytes the anchored-text store has an entry for, and does the
+work that brings them together. So an index that was cleared, and an anchored-text store that
+was cleared, are each mended by starting it; an index made anew has it forget its cursors.
+`/health` reports how it follows the record (the sweep, the logs a failure has stopped, the
+events refused, the stream's drops), how many events it has applied, how the reconcile ended
+and what it came to, and what its index is made by. It answers for itself alone, and asks
+nothing of the gateway or the vector database to answer.
 
 **A reconcile that fails does not end the service.** The failure is said in the log and at
-`/health`, and the Smelter goes on applying what arrives.
+`/health`, the Smelter goes on applying what arrives, and its start is begun again.
 
 **The index is made as wide as the model's vectors.** Where the index has to be made, the
 Smelter asks its provider for one vector to learn the width. A provider that is still
@@ -153,20 +155,20 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | Module | What it is |
 | --- | --- |
 | `service.py`, `config.py` | The process: what it is started with, what it refuses to start on, the order it starts in, how it stops |
-| `smelter.py` | The Smelter: what each recorded event does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
+| `smelter.py` | The Smelter: how it takes a run of a resource's events, what each does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
 | `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
 | `index_stamp.py` | What made the index, which the index states: an index made by another model, or cut another way, is made again when the Smelter starts |
 | `telemetry.py` | The number of points the index holds, as the gauge of it reads it |
-| `recorded.py`, `record.py` | The eleven events it follows, and what it reads of the record over the bus |
+| `record.py` | What it reads of the record over the bus: the catalog and a resource's description |
 | `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
 | `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |
 | `anchored_text_store.py`, `stamp.py` | The Archivist's anchored-text store as the Smelter keeps it, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
 
-What reads a resource's bytes and its annotations, the reader that asks the Archivist for them,
-and what white space is are every Python service's, in
-[`semiont-service`](../../packages/service-python/README.md) (`content`, `archivist`,
-`white_space`).
+How it follows the record, what reads a resource's bytes and its annotations, the reader that
+asks the Archivist for them and for the record by position, and what white space is are every
+Python service's, in [`semiont-service`](../../packages/service-python/README.md) (`follower`,
+`content`, `archivist`, `white_space`).
 
 ```sh
 uv sync --locked

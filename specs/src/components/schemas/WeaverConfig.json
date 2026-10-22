@@ -5,7 +5,7 @@
     "gatewayUrl": {
       "type": "string",
       "minLength": 1,
-      "description": "The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds."
+      "description": "The URL the Weaver reaches the gateway at: its route to the bus."
     },
     "identity": {
       "type": "object",
@@ -22,13 +22,31 @@
       ],
       "additionalProperties": false
     },
+    "archivist": {
+      "type": "object",
+      "description": "Where the Archivist listens. The Weaver reads the record by position from it, and a resource's annotations, as its service account.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "additionalProperties": false
+    },
     "graph": {
       "$ref": "./GraphConfig.json"
     },
-    "checkpointPath": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again."
+    "cursorsPath": {
+      "$ref": "./CursorsPath.json"
     },
     "port": {
       "type": "integer",
@@ -46,8 +64,9 @@
   "required": [
     "gatewayUrl",
     "identity",
+    "archivist",
     "graph",
-    "checkpointPath",
+    "cursorsPath",
     "port",
     "logLevel",
     "logFormat"

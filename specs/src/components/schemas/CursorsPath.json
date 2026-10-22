@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "minLength": 1,
+  "description": "The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness."
+}

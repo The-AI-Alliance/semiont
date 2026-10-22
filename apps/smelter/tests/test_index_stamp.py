@@ -27,6 +27,7 @@ def configured(embedding: dict[str, str], chunk_size: int, overlap: int) -> Smel
             "vectors": {"type": "qdrant", "host": "127.0.0.1", "port": 1},
             "chunking": {"chunkSize": chunk_size, "overlap": overlap},
             "pdfsAtOnce": 1,
+            "cursorsPath": "/tmp/semiont/smelter-cursors.json",
             "port": 24101,
             "logLevel": "warn",
             "logFormat": "simple",

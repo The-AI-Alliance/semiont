@@ -168,6 +168,7 @@ __all__ = [
     "BRIDGED_CHANNELS",
     "CHANNELS",
     "CHANNEL_NAMES",
+    "PERSISTED_EVENT_TYPES",
     "RESOURCE_SCOPED_CHANNELS",
     "BECKON_FOCUS",
     "BECKON_HOVER",
@@ -1272,6 +1273,32 @@ RESOURCE_SCOPED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "mark:entity-tag-removed",
     "mark:archived",
     "mark:unarchived",
+    "job:started",
+    "job:assigned",
+    "job:completed",
+    "job:failed",
+)
+
+# The channels of the events of the record, each named for the event it carries: every event the event log
+# holds. A follower of the record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What repairs
+# a passing frame).
+PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
+    "yield:created",
+    "yield:cloned",
+    "yield:updated",
+    "yield:moved",
+    "yield:representation-added",
+    "yield:representation-removed",
+    "mark:added",
+    "mark:removed",
+    "mark:body-updated",
+    "mark:entity-tag-added",
+    "mark:entity-tag-removed",
+    "mark:archived",
+    "mark:unarchived",
+    "frame:entity-type-added",
+    "frame:tag-schema-added",
+    "person:profiled",
     "job:started",
     "job:assigned",
     "job:completed",

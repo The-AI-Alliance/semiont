@@ -55,6 +55,8 @@ __all__ = [
     "ArchivistRosterRoleProvider",
     "ArchivistRosterWorkers",
     "ArchivistRosterWorkersMark",
+    "ArchivistStream",
+    "ArchivistStreamsResponse",
     "AssessingJobParams",
     "AssessingJobParamsTone",
     "AttributedEvent",
@@ -135,6 +137,7 @@ __all__ = [
     "ContextualSummaryResponseRelevantFields",
     "CreateAnnotationRequest",
     "CreateResourceResponse",
+    "CursorsPath",
     "DirEntry",
     "DirectoryEntry",
     "DiscoveredKB",
@@ -416,6 +419,7 @@ __all__ = [
     "WeaveApplied",
     "WeaveRebuildCommand",
     "WeaverConfig",
+    "WeaverConfigArchivist",
     "WeaverConfigIdentity",
     "WorkerAgentConfig",
     "WorkerConfig",
@@ -2322,10 +2326,42 @@ class ResourceUpload(WireModel, frozen=True):
 
 class ArchivistEventsResponse(WireModel, frozen=True):
     """
-    The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+    A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.
     """
 
     events: list[StoredEventResponse]
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the stream's last event when it was read: 0 for a stream with none. More events follow the page while its last event's number is below it.",
+            ge=0,
+        ),
+    ]
+
+
+class ArchivistStream(WireModel, frozen=True, extra="forbid"):
+    """
+    One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.
+    """
+
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the stream's last event when it was read: 0 for a stream with none.",
+            ge=0,
+        ),
+    ]
+
+
+class ArchivistStreamsResponse(WireModel, frozen=True, extra="forbid"):
+    """
+    Every stream of the event log, `__system__` among them, each with the sequence number of its last event, in no order: the Archivist's answer to `GET /events`.
+    """
+
+    streams: list[ArchivistStream]
 
 
 class ArchivistHealth(WireModel, frozen=True):
@@ -2648,6 +2684,15 @@ type LogFormat = Annotated[
     Literal["json", "simple"],
     Field(
         description="How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON."
+    ),
+]
+
+
+type CursorsPath = Annotated[
+    str,
+    Field(
+        description="The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.",
+        min_length=1,
     ),
 ]
 
@@ -3557,6 +3602,15 @@ class WeaverConfigIdentity(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
+
+
+class WeaverConfigArchivist(WireModel, frozen=True, extra="forbid"):
+    """
+    Where the Archivist listens. The Weaver reads the record by position from it, and a resource's annotations, as its service account.
+    """
+
+    host: Annotated[str, Field(min_length=1)]
+    port: Annotated[int, Field(ge=1, le=65535)]
 
 
 class SmelterConfigIdentity(WireModel, frozen=True, extra="forbid"):
@@ -5906,20 +5960,14 @@ class WeaverConfig(WireModel, frozen=True, extra="forbid"):
         str,
         Field(
             alias="gatewayUrl",
-            description="The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds.",
+            description="The URL the Weaver reaches the gateway at: its route to the bus.",
             min_length=1,
         ),
     ]
     identity: WeaverConfigIdentity
+    archivist: WeaverConfigArchivist
     graph: GraphConfig
-    checkpoint_path: Annotated[
-        str,
-        Field(
-            alias="checkpointPath",
-            description="The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again.",
-            min_length=1,
-        ),
-    ]
+    cursors_path: Annotated[CursorsPath, Field(alias="cursorsPath")]
     port: Annotated[
         int,
         Field(description="The port the Weaver answers `/health` on.", ge=1, le=65535),
@@ -5954,6 +6002,7 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
             ge=1,
         ),
     ]
+    cursors_path: Annotated[CursorsPath, Field(alias="cursorsPath")]
     port: Annotated[
         int,
         Field(description="The port the Smelter answers `/health` on.", ge=1, le=65535),

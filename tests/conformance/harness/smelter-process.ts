@@ -21,6 +21,9 @@ import { call } from './http';
 /** The port every Smelter the harness starts is told to answer its health on (SMELTER.md § Health). */
 export const SMELTER_HEALTH_PORT = 24101;
 
+/** The file, in a Smelter's home, it is told to keep its cursors in (SMELTER.md § Settings). */
+export const CURSORS = 'cursors.json';
+
 /**
  * What a Smelter is told (SMELTER.md § Settings). Every member the page says
  * a Smelter refuses to start without may be left out, for the case that
@@ -70,14 +73,19 @@ export interface SmelterHealth {
   status: string;
   /** The state of its own stream of the record. */
   stream: string;
-  /** The number of times its stream has dropped since it started. */
-  streamDrops: number;
+  /** How far it has followed the record, as every follower of the record says it. */
+  following: {
+    /** The latest sweep's phase: `due` where it could not list the record, or its start's reconcile failed, and is tried again. */
+    sweep: 'pending' | 'running' | 'done' | 'due';
+    /** How many resources' logs a failed taking has stopped until the next sweep. */
+    stopped: number;
+    /** How many events it refused as recorded. */
+    refused: number;
+    /** The number of times its stream has dropped since it started. */
+    streamDrops: number;
+  };
   /** The number of events it has applied since it started. */
   eventsProcessed: number;
-  /** The number of events delivered to it that it could not apply. */
-  eventsFailed: number;
-  /** The number of events delivered to it that are neither applied nor failed yet. */
-  eventsWaiting: number;
   reconcile: { phase: 'pending' | 'running' | 'done' | 'failed'; summary?: ReconcileSummary; error?: string };
   /** What it holds its index to, and whether this start made the index again. */
   index: {
@@ -116,11 +124,12 @@ const stated = (members: Record<string, unknown>): Record<string, unknown> =>
 /**
  * The settings as the protocol's configuration document states them
  * (`SmelterConfig`). A setting a case left out is a member left out, which
- * the document's reader refuses by name. No case changes the health port or
- * how the Smelter logs: the port is the harness's one, and the log is written
- * as a person reads it.
+ * the document's reader refuses by name. No case changes the health port,
+ * how the Smelter logs or where its cursors are: the port is the harness's
+ * one, the log is written as a person reads it, and the cursors are a file of
+ * the process's own home (`CURSORS`).
  */
-function document(settings: SmelterSettings): string {
+function document(settings: SmelterSettings, home: string): string {
   return JSON.stringify(
     stated({
       gatewayUrl: settings.gatewayUrl,
@@ -130,6 +139,7 @@ function document(settings: SmelterSettings): string {
       vectors: stated({ type: settings.vectors.type, host: settings.vectors.host, port: settings.vectors.port }),
       chunking: settings.chunking,
       pdfsAtOnce: settings.pdfsAtOnce,
+      cursorsPath: join(home, CURSORS),
       port: SMELTER_HEALTH_PORT,
       logLevel: 'info',
       logFormat: 'simple',
@@ -156,7 +166,7 @@ async function launch({ command, settings, env, home }: SmelterLaunch): Promise<
   }
   mkdirSync(home, { recursive: true });
   const config = join(home, 'smelter.json');
-  writeFileSync(config, document(settings));
+  writeFileSync(config, document(settings, home));
   const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const [program, ...prefix] = command;
@@ -168,15 +178,20 @@ async function launch({ command, settings, env, home }: SmelterLaunch): Promise<
   return { child, output, exited };
 }
 
-/** Whether a health says its reconcile has ended. One that reports no reconcile says no such thing, and its Smelter is waited out. */
-const ended = (health: SmelterHealth) => health.reconcile?.phase === 'done' || health.reconcile?.phase === 'failed';
+/**
+ * Whether a health says its start has ended: the sweep its stream's first
+ * opening began has taken what the record held, a reconcile of what no cursor
+ * named among it, or has failed and is due again. One that reports no sweep
+ * says no such thing, and its Smelter is waited out.
+ */
+const started = (health: SmelterHealth) => health.following?.sweep === 'done' || health.following?.sweep === 'due';
 
 /**
  * Start a Smelter and wait until its health answers and, unless `until` is
- * `serving`, its reconcile has ended, however it ended: a case reads how.
+ * `serving`, its start has ended, however it ended: a case reads how.
  * Fails with its output when it exits instead.
  */
-export async function startSmelter(options: SmelterLaunch, until: 'serving' | 'reconciled' = 'reconciled', bootMs = 120_000): Promise<SmelterProcess> {
+export async function startSmelter(options: SmelterLaunch, until: 'serving' | 'started' = 'started', bootMs = 120_000): Promise<SmelterProcess> {
   const { child, output, exited } = await launch(options);
   let gone = false;
   void exited.then(() => {
@@ -186,7 +201,7 @@ export async function startSmelter(options: SmelterLaunch, until: 'serving' | 'r
   for (;;) {
     if (gone) throw new Error(`the Smelter exited before serving (code ${child.exitCode}):\n${output.join('\n')}`);
     const health = await healthOf();
-    if (health && (until === 'serving' || ended(health))) break;
+    if (health && (until === 'serving' || started(health))) break;
     if (Date.now() > deadline) {
       child.kill('SIGKILL');
       throw new Error(`the Smelter did not finish starting in time:\n${output.join('\n')}`);

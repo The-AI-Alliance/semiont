@@ -95,6 +95,14 @@ def test_a_channel_of_the_record_names_its_event_s_own_payload_and_no_other_chan
     assert set(scoped) <= set(recorded)
 
 
+def test_the_events_of_the_record_are_the_registry_s_in_its_order_each_a_channel_that_carries_a_stored_event() -> None:
+    of_the_record = [text(stated["channel"], "a channel's name") for stated in STATED if "event" in stated]
+    assert of_the_record, "the registry names no event of the record: this reads nothing"
+    assert list(channels.PERSISTED_EVENT_TYPES) == of_the_record
+    for name in channels.PERSISTED_EVENT_TYPES:
+        assert type(BY_NAME[name]) in (RecordedChannel, ScopedChannel), name
+
+
 STORED: dict[str, JsonValue] = {
     "id": "0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11",
     "timestamp": "2026-10-01T12:00:00.000Z",

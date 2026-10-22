@@ -29,6 +29,8 @@ export interface WeaverService {
 export interface WeaverSettings {
   gatewayUrl: string;
   issuer: string;
+  /** Where the Archivist listens: the Weaver reads the record by position there. */
+  archivist: { host: string; port: number };
   /** The graph database. Its password is the environment's, under `passwordEnv`. */
   graph: { type?: 'neo4j' | 'memory'; uri: string; username: string; database: string; passwordEnv: string };
 }
@@ -39,17 +41,24 @@ export interface WeaverEnvironment {
   [name: string]: string | undefined;
 }
 
-/** One of the two passes a Weaver runs when it starts, as its health reports it. */
+/** The pass a Weaver runs once its first sweep of the record is done, as its health reports it. */
 export interface BootPass {
   phase: 'pending' | 'running' | 'done' | 'failed';
   summary?: Record<string, number>;
   error?: string;
 }
 
+/** How it follows the record, as its health reports it (WEAVER.md § Health). */
+export interface Following {
+  sweep: 'pending' | 'running' | 'done' | 'due';
+  stopped: number;
+  refused: number;
+  streamDrops: number;
+}
+
 export interface WeaverHealth {
   status: string;
-  applyFailures: number;
-  catchUp: BootPass;
+  following: Following;
   reconcile: BootPass;
 }
 
@@ -75,7 +84,7 @@ export interface WeaverProcess {
 
 /**
  * The settings as the protocol's configuration document states them
- * (`WeaverConfig`). The Weaver keeps its marks in the temporary directory the
+ * (`WeaverConfig`). The Weaver keeps its cursors in the temporary directory the
  * harness names, which outlives a process as the home directory does.
  */
 function document(settings: WeaverSettings, service: WeaverService, temporary: string): string {
@@ -83,8 +92,9 @@ function document(settings: WeaverSettings, service: WeaverService, temporary: s
   return JSON.stringify({
     gatewayUrl: settings.gatewayUrl,
     identity: { issuer: settings.issuer },
+    archivist: settings.archivist,
     graph: type === 'memory' ? { type: 'memory' } : { type: 'neo4j', ...reached },
-    checkpointPath: join(temporary, 'weaver-checkpoint.json'),
+    cursorsPath: join(temporary, 'weaver-cursors.json'),
     port: service.healthPort,
     logLevel: 'info',
     logFormat: 'simple',
@@ -121,9 +131,9 @@ async function healthOf(origin: string): Promise<WeaverHealth | undefined> {
 const settled = (pass: BootPass | undefined) => pass?.phase === 'done' || pass?.phase === 'failed';
 
 /**
- * Start a Weaver and wait until its health answers and both of its boot passes
- * have ended, however they ended: a case reads how. Fails with its output when
- * it exits instead.
+ * Start a Weaver and wait until its health answers, its first sweep of the
+ * record is done and its reconcile has ended, however it ended: a case reads
+ * how. Fails with its output when it exits instead.
  */
 export async function startWeaver(options: WeaverLaunch, bootMs = 120_000): Promise<WeaverProcess> {
   const { child, output, exited } = launch(options);
@@ -136,7 +146,7 @@ export async function startWeaver(options: WeaverLaunch, bootMs = 120_000): Prom
   for (;;) {
     if (gone) throw new Error(`the Weaver exited before serving (code ${child.exitCode}):\n${output.join('\n')}`);
     const health = await healthOf(origin);
-    if (health && settled(health.catchUp) && settled(health.reconcile)) break;
+    if (health && health.following.sweep === 'done' && settled(health.reconcile)) break;
     if (Date.now() > deadline) {
       child.kill('SIGKILL');
       throw new Error(`the Weaver did not finish starting in time:\n${output.join('\n')}`);
