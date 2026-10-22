@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	toml "github.com/pelletier/go-toml/v2"
@@ -15,8 +16,8 @@ import (
 
 // Every case of specs/src/kb-identity/cases.json whose project file, written
 // as config.yaml, holds to ProjectConfig's schema reads to the identity the
-// table states, as the TOML does; one that does not hold is refused, not read
-// as a knowledge base with less identity.
+// table states, as the TOML does; one that does not hold is refused as a
+// root, not read as a knowledge base with less identity.
 func TestTheYAMLProjectFileReadsAsTheTOMLDoes(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
 	if err != nil {
@@ -61,11 +62,11 @@ func TestTheYAMLProjectFileReadsAsTheTOMLDoes(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(refusals) > 0 {
-				if loadKBIdentity(root) != nil {
+				if _, err := readKBIdentity(root); err == nil {
 					t.Errorf("a config.yaml that does not hold to its schema read as an identity:\n%s", text)
 				}
-				if checkProjectFile(root) == nil {
-					t.Errorf("a config.yaml that does not hold to its schema was not refused:\n%s", text)
+				if _, err := resolveRootArg(root); !projectFileRefused(err) {
+					t.Errorf("a config.yaml that does not hold to its schema was not refused as a root (%v):\n%s", err, text)
 				}
 				return
 			}
@@ -80,8 +81,8 @@ func TestTheYAMLProjectFileReadsAsTheTOMLDoes(t *testing.T) {
 			if got := effectiveKBName(root); got != c.Name {
 				t.Errorf("name: got %q, want %q", got, c.Name)
 			}
-			if err := checkProjectFile(root); err != nil {
-				t.Errorf("refused a config.yaml that holds: %v", err)
+			if _, err := resolveRootArg(root); err != nil {
+				t.Errorf("refused a root whose config.yaml holds: %v", err)
 			}
 		})
 	}
@@ -115,8 +116,10 @@ func TestTheYAMLProjectFileIsReadBeforeTheTOML(t *testing.T) {
 	}
 }
 
-// A config.yaml that does not hold is refused by the start check, naming the
-// line of each place, and is no identity for display.
+// A root whose config.yaml does not hold is refused however a command finds
+// it — by --root, by SEMIONT_ROOT, from the working directory — naming the
+// line of each place, and the working directory's refusal is no "not inside
+// a knowledge base".
 func TestABrokenProjectFileIsRefusedAtItsLine(t *testing.T) {
 	root := t.TempDir()
 	semiont := filepath.Join(root, ".semiont")
@@ -127,12 +130,10 @@ func TestABrokenProjectFileIsRefusedAtItsLine(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(semiont, projectFileYAML), []byte(yamlFile), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if loadKBIdentity(root) != nil {
-		t.Error("a broken config.yaml read as an identity")
-	}
+	_, err := resolveRootArg(root)
 	var refused *stack.Refused
-	if err := checkProjectFile(root); !errors.As(err, &refused) {
-		t.Fatalf("a broken config.yaml must be refused, and the check said %v", err)
+	if !errors.As(err, &refused) {
+		t.Fatalf("--root of a broken config.yaml must be refused by its schema, and resolving it said %v", err)
 	}
 	lines := map[string]int{}
 	for _, refusal := range refused.Refusals {
@@ -140,5 +141,35 @@ func TestABrokenProjectFileIsRefusedAtItsLine(t *testing.T) {
 	}
 	if lines["unknown-field /site/domian"] != 6 || lines["missing-required /site/domain"] != 5 {
 		t.Errorf("the misspelled domain is on line 6, in the site on line 5: %+v", refused.Refusals)
+	}
+
+	t.Setenv("SEMIONT_ROOT", root)
+	if _, _, err := resolveKBRoot(); !errors.As(err, &refused) {
+		t.Errorf("SEMIONT_ROOT naming a broken config.yaml must be refused, and resolving it said %v", err)
+	}
+	if found, err := CwdKBRoot(); !projectFileRefused(err) {
+		t.Errorf("the working directory's broken config.yaml read as %q, %v: a refusal, not \"not inside a clone\"", found, err)
+	}
+
+	t.Setenv("SEMIONT_ROOT", "")
+	t.Chdir(semiont)
+	if _, _, err := resolveKBRoot(); !errors.As(err, &refused) {
+		t.Errorf("a broken config.yaml found from the working directory must be refused, and resolving it said %v", err)
+	}
+}
+
+// A config.yaml that is not YAML at all is refused as a root, as one that
+// does not hold to its schema is.
+func TestAProjectFileThatIsNotYAMLIsRefused(t *testing.T) {
+	root := t.TempDir()
+	semiont := filepath.Join(root, ".semiont")
+	if err := os.MkdirAll(semiont, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(semiont, projectFileYAML), []byte("project: [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveRootArg(root); !projectFileRefused(err) || !strings.Contains(err.Error(), projectFileYAML) {
+		t.Errorf("a config.yaml that is not YAML must be refused as a root, naming it, and resolving it said %v", err)
 	}
 }

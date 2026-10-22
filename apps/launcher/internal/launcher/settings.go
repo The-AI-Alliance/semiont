@@ -169,7 +169,7 @@ func Settings(args []string) int {
 	} else {
 		root, _, rootErr = resolveKBRoot()
 	}
-	if rootArg != "" && rootErr != nil {
+	if rootErr != nil && (rootArg != "" || projectFileRefused(rootErr)) {
 		u.Fail("%v", rootErr)
 		return 1
 	}

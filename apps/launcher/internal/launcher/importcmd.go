@@ -123,6 +123,11 @@ func Import(args []string) int {
 	if a, err := filepath.Abs(root); err == nil {
 		abs = a
 	}
+	if err := holdProjectFile(abs); err != nil {
+		u.Fail("%v", err)
+		fmt.Fprintf(os.Stderr, "  The archive is extracted at %s: correct its project file there, then start it.\n", abs)
+		return 1
+	}
 	registerRootUse(abs, false, "")
 
 	id := loadKBIdentity(abs)

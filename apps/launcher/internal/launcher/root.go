@@ -23,7 +23,8 @@ import (
 // (requireGitClone).
 
 // resolveKBRoot returns the KB root and where it came from ("SEMIONT_ROOT"
-// or "discovered").
+// or "discovered"), refusing one whose config.yaml does not hold
+// (holdProjectFile).
 func resolveKBRoot() (path, source string, err error) {
 	if override := os.Getenv("SEMIONT_ROOT"); override != "" {
 		if fi, statErr := os.Stat(override); statErr != nil || !fi.IsDir() {
@@ -35,6 +36,9 @@ func resolveKBRoot() (path, source string, err error) {
 		if abs, absErr := filepath.Abs(override); absErr == nil {
 			override = abs
 		}
+		if err := holdProjectFile(override); err != nil {
+			return "", "", err
+		}
 		return override, "SEMIONT_ROOT", nil
 	}
 
@@ -44,6 +48,9 @@ func resolveKBRoot() (path, source string, err error) {
 	}
 	for {
 		if fi, statErr := os.Stat(filepath.Join(dir, ".semiont")); statErr == nil && fi.IsDir() {
+			if err := holdProjectFile(dir); err != nil {
+				return "", "", err
+			}
 			return dir, "discovered", nil
 		}
 		parent := filepath.Dir(dir)
@@ -319,7 +326,8 @@ func recordedConfig(path string) string {
 
 // resolveRootArg resolves a `--root` value: an existing directory path is
 // validated directly (strict, like SEMIONT_ROOT); anything else is looked up
-// in the registry by basename.
+// in the registry by basename. Either way, a root whose config.yaml does not
+// hold is refused (holdProjectFile).
 func resolveRootArg(arg string) (string, error) {
 	if fi, err := os.Stat(arg); err == nil && fi.IsDir() {
 		if fi, err := os.Stat(filepath.Join(arg, ".semiont")); err != nil || !fi.IsDir() {
@@ -327,6 +335,9 @@ func resolveRootArg(arg string) (string, error) {
 		}
 		if abs, err := filepath.Abs(arg); err == nil {
 			arg = abs
+		}
+		if err := holdProjectFile(arg); err != nil {
+			return "", err
 		}
 		return arg, nil
 	}
@@ -354,6 +365,9 @@ func resolveRootArg(arg string) (string, error) {
 		path := matches[0]
 		if fi, err := os.Stat(filepath.Join(path, ".semiont")); err != nil || !fi.IsDir() {
 			return "", fmt.Errorf("registered root %s is missing on disk (or lost its .semiont/)", path)
+		}
+		if err := holdProjectFile(path); err != nil {
+			return "", err
 		}
 		return path, nil
 	default:

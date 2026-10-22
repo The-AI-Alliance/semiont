@@ -136,7 +136,9 @@ func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 		r, src, err := resolveKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
-			fmt.Fprintln(os.Stderr, "  Name one:  semiont export --root <path|name>")
+			if !projectFileRefused(err) {
+				fmt.Fprintln(os.Stderr, "  Name one:  semiont export --root <path|name>")
+			}
 			return 1
 		}
 		root = r

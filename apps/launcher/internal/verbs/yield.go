@@ -187,7 +187,11 @@ options:
 		key = "codespace:" + target.Codespace.Repo
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.
-		root = launcher.CwdKBRoot()
+		var err error
+		if root, err = launcher.CwdKBRoot(); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 		if root == "" {
 			u.Fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Codespace.Repo)
 			fmt.Fprintln(os.Stderr, "  Run it from inside the clone.")
@@ -204,7 +208,11 @@ options:
 		key = "local"
 		root = local.KBRoot
 		if root == "" {
-			root = launcher.CwdKBRoot()
+			var err error
+			if root, err = launcher.CwdKBRoot(); err != nil {
+				u.Fail("%v", err)
+				return 1
+			}
 		}
 		if root == "" {
 			// A record can lack KBRoot; refuse plainly rather than let the

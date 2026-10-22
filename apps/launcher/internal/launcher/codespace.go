@@ -90,7 +90,12 @@ func startCodespace(u *UI, opts startOptions) int {
 	repo, repoDid := opts.repo, ""
 	cs := codespaceStacks(ss)
 	if repo == "" {
-		if _, _, err := resolveKBRoot(); err == nil || opts.root != "" {
+		_, _, rootErr := resolveKBRoot()
+		if projectFileRefused(rootErr) {
+			u.Fail("%v", rootErr)
+			return 1
+		}
+		if rootErr == nil || opts.root != "" {
 			var code int
 			if repo, repoDid, code = repoFromRoot(u, opts); code != 0 {
 				return code
@@ -353,12 +358,17 @@ func startCodespace(u *UI, opts startOptions) int {
 // CwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
 // else the .semiont/ walk) — "" when not inside a clone. The cwd is context
 // every command may consult: standing in a clone says which stack is meant.
-func CwdKBRoot() string {
+// A clone whose config.yaml does not hold is refused, never read as no
+// clone.
+func CwdKBRoot() (string, error) {
 	root, _, err := resolveKBRoot()
-	if err != nil {
-		return ""
+	if projectFileRefused(err) {
+		return "", err
 	}
-	return root
+	if err != nil {
+		return "", nil
+	}
+	return root, nil
 }
 
 // originCodespace: the recorded codespace stack whose repo this clone's git
@@ -396,7 +406,9 @@ func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) 
 	}
 	if err != nil {
 		u.Fail("%v", err)
-		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
+		if !projectFileRefused(err) {
+			fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
+		}
 		return "", "", 1
 	}
 	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
@@ -1071,7 +1083,12 @@ func fetchRemoteDid(u *UI, name string) (string, bool) {
 	const tomlPath = "/workspaces/*/.semiont/" + projectFileTOML
 	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+yamlPath+")"))
 	if out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", yamlPath); err == nil {
-		return yamlKBIdentity(yamlPath, []byte(out)).didWeb(), true
+		identity, err := yamlKBIdentity(yamlPath, []byte(out))
+		if err != nil {
+			u.Warn("The codespace's project file does not hold — identity left as recorded: %v", err)
+			return "", false
+		}
+		return identity.didWeb(), true
 	}
 	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", tomlPath)
 	if err != nil {
