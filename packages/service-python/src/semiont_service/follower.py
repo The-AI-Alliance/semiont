@@ -35,6 +35,7 @@ __all__ = [
     "FromTheFirst",
     "OwnStart",
     "Record",
+    "RecordUnread",
     "Refused",
     "Take",
     "WithNoCursor",
@@ -60,15 +61,23 @@ def log_of(event: StoredEventResponse) -> str:
     return SYSTEM if event.resource_id is None else event.resource_id
 
 
+@final
+class RecordUnread(Exception):
+    """The record could not be read: the account could not sign in, or the record's keeper did not answer or refused. A passing failure."""
+
+
 class Record(Protocol):
-    """The record, as a follower reads it: by position."""
+    """The record, as a follower reads it: by position. Each read raises `RecordUnread` where the record was not read."""
 
     async def logs(self) -> Mapping[str, int]:
         """Every log the record has, each with the sequence of its last event."""
         ...
 
     async def after(self, log: str, sequence: int) -> Sequence[StoredEventResponse]:
-        """A log's events after `sequence`, in order."""
+        """The first of a log's events after `sequence`, in order: as many as one read holds, at least one where there are any.
+
+        None where the log has none after `sequence`. A follower that wants more reads again after the last one it was given.
+        """
         ...
 
 

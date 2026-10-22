@@ -480,7 +480,7 @@ from the log. The number of events waiting to be published is reported as a gaug
 
 ## The HTTP surface
 
-The Archivist serves six routes on its port. Every route but `/health` requires `Authorization:
+The Archivist serves these routes on its port. Every route but `/health` requires `Authorization:
 Bearer <token>`: a token of the knowledge base's issuer, for the knowledge base's audience, whose
 flat `roles` claim includes `semiont-service`. Every refusal is `401` with body
 `{"error":"unauthorized"}` and a `WWW-Authenticate` header: `Bearer error="invalid_token"` when a
@@ -489,7 +489,8 @@ token was presented, `Bearer` when none was.
 | Route | Answers |
 |---|---|
 | `GET` `/health` | `200` `{"status":"ok","actors":["stower","browser","cloneTokenManager"]}`. It answers once the Archivist has booted |
-| `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events": […]}`: the stream's stored events from sequence `N` on, in log order. Empty for a resource with none. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
+| `GET` `/events` | `200` `{"streams":[{"resourceId":…,"lastSequence":n},…]}`: every stream of the log, `__system__` among them, each with the sequence number of its last event (0 for a stream with none), in no order. A failed read: `500` `{"error":"stream listing failed"}` |
+| `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events":[…],"lastSequence":n}`: the stream's stored events from sequence `N` on, in log order, at most the operation's `x-semiont-limits.maxEvents` of them, and the sequence number of the stream's last event (0 for a stream with none). A reader that wants more asks again from the sequence after the last event it was given, until it has the last. The id `__system__` reads the knowledge base's own stream. A stream that is not there has no events. Only the files that hold events from `N` on are read. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
 | `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
 | `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: `{resource, annotations}` from the view, built from the log if there is none, people named. `404` `{"error":"Resource not found"}` |
 | `GET` `/resources/{id}/annotations` | `200`, `Content-Type: application/json`: `{annotations, total}` in the view's order, people named. No view, or an id that is not one: `404` `{"error":"Resource not found"}` |
@@ -498,11 +499,11 @@ token was presented, `Bearer` when none was.
 | `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |
 | `GET` `/anchored-text/entries` | `200` `{"checksums":[…]}`: the checksum of every entry stored under the stamp stated, in no order. The Smelter's |
 | `PUT` `/anchored-text/stamp` | States the stamp, an [`AnchoredTextStamp`](../../specs/src/components/schemas/AnchoredTextStamp.json): `204`. A body that is not one: `400`. The Smelter's |
+| `POST` `/resources` | Stores content and records it; see below |
 
 A body larger than its operation's `x-semiont-limits.maxBodyBytes` in the
 [API](../../specs/src/archivist/openapi.json) is `413`: refused unread when its `Content-Length`
 says so, and otherwise once more than that has arrived.
-| `POST` `/resources` | Stores content and records it; see below |
 
 Any other request is `404` with no body.
 

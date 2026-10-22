@@ -42,9 +42,9 @@ what its schema says; and a case fails otherwise, whatever it was about.
 - **Resources** (`resources.test.ts`): an upload stored, recorded and
   published; the line in the log, the view, the index entry, where each is
   filed; the descriptor `browse:resource` answers, with the sequence number of
-  the resource's last event; the content, the description and the event
-  replay over HTTP, and who
-  is admitted to them and to the anchored text; every upload refused; new
+  the resource's last event; the content and the description over HTTP, and
+  who is admitted to them, to the event log and to the anchored text; every
+  upload refused; new
   content, archive and unarchive, entity types; and the order facts are
   published in, to a resource's scope and to none.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
@@ -76,6 +76,11 @@ what its schema says; and a case fails otherwise, whatever it was about.
   completion recorded of another verb than the stream records for its job, a
   worker's writes attributed to whoever the job was assigned for, and every
   refusal of a write that cites no job, the wrong job, or the wrong generator.
+- **The record read by position** (`events.test.ts`): a stream's events from
+  a sequence number on, a page at a time, across the files it is kept in, each
+  answer with the sequence number of the stream's last event; `__system__`
+  read as a resource's stream is; and every stream listed with its last
+  sequence number.
 - **The record across restarts** (`record.test.ts`): sequence numbers after a
   stop and after a crash, every view and projection rebuilt from the log, a
   wrong view corrected and an orphan reaped, the rebuild skipped when the

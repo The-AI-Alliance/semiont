@@ -7,12 +7,15 @@ what it hands over of each answer, and that whatever keeps the bytes from
 being read is a `ContentUnread` that says what it was, and names the service
 that could not sign in by the word the service handed in. A resource's
 annotations are read the same way, from its annotations route, and whatever
-keeps them from being read is an `AnnotationsUnread`.
+keeps them from being read is an `AnnotationsUnread`. So is the record, by
+position: every stream with the sequence number of its last event, and one
+answer's worth of a stream's events after a sequence number. Whatever keeps it
+from being read is a `RecordUnread`.
 """
 
 import asyncio
 import json
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from types import TracebackType
@@ -20,12 +23,14 @@ from typing import Final, Self, final, override
 
 import pytest
 from aio import run
+from pydantic import JsonValue
 from semiont.errors import SemiontError, SignInError
 from semiont.identifiers import ResourceId
-from semiont.types import GetAnnotationsResponse
+from semiont.types import GetAnnotationsResponse, StoredEventResponse
 
 from semiont_service.archivist import AnnotationsUnread, ArchivistContent, Authorizes
 from semiont_service.content import Content, ContentUnread
+from semiont_service.follower import SYSTEM, RecordUnread
 
 RESOURCE: Final = ResourceId("res-1")
 TOKEN: Final = "Bearer the-services-own-token"
@@ -301,3 +306,124 @@ def test_annotations_answered_with_any_other_failing_status_are_unread_and_state
 def test_an_answer_that_is_no_list_of_annotations_is_unread() -> None:
     said = run(annotations_unread(Said(headers={"Content-Type": "application/json"}, body=b'{"total": 1}')))
     assert said.startswith("the Archivist's answer for the annotations of res-1 is no list of annotations: ")
+
+
+type JsonObject = dict[str, JsonValue]
+
+
+def stored(log: str, sequence: int) -> JsonObject:
+    """An event of a log, as the record holds it: `__system__`'s name no resource."""
+    event: JsonObject = {
+        "type": "mark:archived",
+        "userId": "did:web:example.org:users:ada",
+        "version": 1,
+        "payload": {},
+        "id": f"{log}-{sequence}",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "metadata": {"sequenceNumber": sequence},
+    }
+    if log != SYSTEM:
+        event["resourceId"] = log
+    return event
+
+
+def answered(body: JsonObject) -> Said:
+    """The Archivist's answer of `body`, as JSON."""
+    return Said(headers={"Content-Type": "application/json"}, body=json.dumps(body).encode("utf-8"))
+
+
+async def logs_of(says: Said) -> tuple[Mapping[str, int], PlayedArchivist]:
+    """What the reader hands over of one answer to a listing of the streams, and the Archivist that gave it."""
+    async with (
+        PlayedArchivist(says) as archivist,
+        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
+    ):
+        return await record.logs(), archivist
+
+
+async def after_of(says: Said, log: str, sequence: int) -> tuple[Sequence[StoredEventResponse], PlayedArchivist]:
+    """What the reader hands over of one answer to a read of a log after `sequence`, and the Archivist that gave it."""
+    async with (
+        PlayedArchivist(says) as archivist,
+        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=Account()) as record,
+    ):
+        return await record.after(log, sequence), archivist
+
+
+async def record_unread(read: Awaitable[object]) -> str:
+    """What the reader says of an answer that gives it nothing of the record."""
+    with pytest.raises(RecordUnread) as failure:
+        await read
+    return str(failure.value)
+
+
+def test_the_streams_are_asked_for_as_the_account_and_each_handed_over_with_its_last_sequence() -> None:
+    async def scenario() -> None:
+        streams: JsonObject = {"streams": [{"resourceId": "res-1", "lastSequence": 3}, {"resourceId": SYSTEM, "lastSequence": 7}]}
+        logs, archivist = await logs_of(answered(streams))
+        (asked,) = archivist.asked
+        assert (asked.method, asked.path) == ("GET", "/events")
+        assert asked.headers["authorization"] == TOKEN
+        assert logs == {"res-1": 3, SYSTEM: 7}
+
+    run(scenario())
+
+
+@pytest.mark.parametrize("log", ["res-1", SYSTEM])
+def test_a_log_is_read_from_the_sequence_after_the_one_given_and_one_answer_is_handed_over(log: str) -> None:
+    async def scenario() -> None:
+        page: list[JsonValue] = [stored(log, 4), stored(log, 5)]
+        events, archivist = await after_of(answered({"events": page, "lastSequence": 9}), log, 3)
+        (asked,) = archivist.asked
+        assert (asked.method, asked.path) == ("GET", f"/events/{log}?fromSequence=4")
+        assert asked.headers["authorization"] == TOKEN
+        assert list(events) == [StoredEventResponse.model_validate(event) for event in page]
+
+    run(scenario())
+
+
+def test_a_log_with_none_after_the_sequence_is_read_as_none() -> None:
+    async def scenario() -> None:
+        events, _ = await after_of(answered({"events": [], "lastSequence": 3}), "res-1", 3)
+        assert list(events) == []
+
+    run(scenario())
+
+
+@pytest.mark.parametrize("status", [401, 404, 500, 503])
+def test_the_record_answered_with_a_failing_status_is_unread_and_states_the_status(status: int) -> None:
+    async def scenario() -> None:
+        failed = answered({"error": "it could not be read"})
+        failing = Said(status=status, headers=failed.headers, body=failed.body)
+        assert await record_unread(logs_of(failing)) == f"the Archivist answered {status} for the streams of the record"
+        assert await record_unread(after_of(failing, "res-1", 0)) == f"the Archivist answered {status} for the events of res-1"
+
+    run(scenario())
+
+
+def test_an_answer_that_is_no_listing_or_no_page_is_unread() -> None:
+    async def scenario() -> None:
+        listing = await record_unread(logs_of(answered({"logs": []})))
+        assert listing.startswith("the Archivist's answer for the streams of the record is no list of streams: ")
+        page = await record_unread(after_of(answered({"events": []}), "res-1", 0))
+        assert page.startswith("the Archivist's answer for the events of res-1 is no page of events: ")
+
+    run(scenario())
+
+
+def test_a_record_the_archivist_does_not_answer_for_or_the_account_cannot_ask_for_is_unread() -> None:
+    async def scenario() -> None:
+        unlisted = await record_unread(logs_of(Said(hang_up=True)))
+        assert unlisted.startswith("the Archivist did not answer for the streams of the record: ")
+        unread_page = await record_unread(after_of(Said(hang_up=True), "res-1", 0))
+        assert unread_page.startswith("the Archivist did not answer for the events of res-1: ")
+        refused = Account(refused=SignInError("exchange", "Client-credentials grant for semiont-weaver failed (HTTP 401)"))
+        async with (
+            PlayedArchivist(Said()) as archivist,
+            ArchivistContent("weaver", host="127.0.0.1", port=archivist.port, account=refused) as record,
+        ):
+            said = await record_unread(record.after("res-1", 0))
+            assert said.startswith("the events of res-1 were not asked for: the weaver could not sign in ")
+            assert archivist.asked == []
+
+    run(scenario())

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Every stream of the event log, `__system__` among them, each with the sequence number of its last event, in no order: the Archivist's answer to `GET /events`.",
+  "properties": {
+    "streams": {
+      "type": "array",
+      "items": {
+        "$ref": "./ArchivistStream.json"
+      }
+    }
+  },
+  "required": [
+    "streams"
+  ],
+  "additionalProperties": false
+}

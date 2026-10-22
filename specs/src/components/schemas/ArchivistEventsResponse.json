@@ -1,15 +1,21 @@
 {
   "type": "object",
-  "description": "The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.",
+  "description": "A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.",
   "properties": {
     "events": {
       "type": "array",
       "items": {
         "$ref": "StoredEventResponse.json"
       }
+    },
+    "lastSequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The sequence number of the stream's last event when it was read: 0 for a stream with none. More events follow the page while its last event's number is below it."
     }
   },
   "required": [
-    "events"
+    "events",
+    "lastSequence"
   ]
 }

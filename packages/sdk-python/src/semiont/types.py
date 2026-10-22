@@ -55,6 +55,8 @@ __all__ = [
     "ArchivistRosterRoleProvider",
     "ArchivistRosterWorkers",
     "ArchivistRosterWorkersMark",
+    "ArchivistStream",
+    "ArchivistStreamsResponse",
     "AssessingJobParams",
     "AssessingJobParamsTone",
     "AttributedEvent",
@@ -2322,10 +2324,42 @@ class ResourceUpload(WireModel, frozen=True):
 
 class ArchivistEventsResponse(WireModel, frozen=True):
     """
-    The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+    A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.
     """
 
     events: list[StoredEventResponse]
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the stream's last event when it was read: 0 for a stream with none. More events follow the page while its last event's number is below it.",
+            ge=0,
+        ),
+    ]
+
+
+class ArchivistStream(WireModel, frozen=True, extra="forbid"):
+    """
+    One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.
+    """
+
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    last_sequence: Annotated[
+        int,
+        Field(
+            alias="lastSequence",
+            description="The sequence number of the stream's last event when it was read: 0 for a stream with none.",
+            ge=0,
+        ),
+    ]
+
+
+class ArchivistStreamsResponse(WireModel, frozen=True, extra="forbid"):
+    """
+    Every stream of the event log, `__system__` among them, each with the sequence number of its last event, in no order: the Archivist's answer to `GET /events`.
+    """
+
+    streams: list[ArchivistStream]
 
 
 class ArchivistHealth(WireModel, frozen=True):

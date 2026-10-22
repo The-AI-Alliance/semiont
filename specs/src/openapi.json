@@ -864,6 +864,12 @@
       "ArchivistEventsResponse": {
         "$ref": "components/schemas/ArchivistEventsResponse.json"
       },
+      "ArchivistStream": {
+        "$ref": "components/schemas/ArchivistStream.json"
+      },
+      "ArchivistStreamsResponse": {
+        "$ref": "components/schemas/ArchivistStreamsResponse.json"
+      },
       "ArchivistHealth": {
         "$ref": "components/schemas/ArchivistHealth.json"
       },

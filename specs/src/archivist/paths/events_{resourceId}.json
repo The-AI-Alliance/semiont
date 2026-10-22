@@ -1,19 +1,22 @@
 {
   "get": {
     "operationId": "getResourceEvents",
-    "summary": "One resource's events from one sequence number",
-    "description": "The events of one resource whose sequence number is at least `fromSequence`, in log order. The one read of the event log this surface serves, and deliberately narrow: a range of one resource, never the whole log. The gateway calls it to replay a scope a subscriber resumes, asking from the sequence after the last one the subscriber saw.",
+    "summary": "One stream's events from one sequence number, a page at a time",
+    "description": "The events of one stream whose sequence number is at least `fromSequence`, in log order: at most `x-semiont-limits.maxEvents` of them, with the sequence number of the stream's last event. A reader that wants every event from there asks again from the sequence after the last one it was given, until it has the last. A stream is a resource's, or `__system__`, the knowledge base's own. The one read of the event log by position this surface serves: the gateway reads it to replay a scope a subscriber resumes, and a service that follows the record reads it to take what its stream did not deliver.",
     "security": [
       {
         "serviceAccount": []
       }
     ],
+    "x-semiont-limits": {
+      "maxEvents": 1000
+    },
     "parameters": [
       {
         "name": "resourceId",
         "in": "path",
         "required": true,
-        "description": "The resource, percent-encoded.",
+        "description": "The resource whose stream is read, or `__system__` for the knowledge base's own; percent-encoded.",
         "schema": {
           "$ref": "../../components/schemas/ResourceId.json"
         }
@@ -31,7 +34,7 @@
     ],
     "responses": {
       "200": {
-        "description": "The events, possibly none.",
+        "description": "The events, possibly none, and the stream's last sequence number.",
         "content": {
           "application/json": {
             "schema": {
@@ -54,7 +57,7 @@
         "$ref": "../responses/Unauthorized.json"
       },
       "500": {
-        "description": "The log could not be read.",
+        "description": "The stream could not be read.",
         "content": {
           "application/json": {
             "schema": {

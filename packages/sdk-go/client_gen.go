@@ -2606,9 +2606,12 @@ type ArchivistConfig struct {
 	StateHome string `json:"stateHome"`
 }
 
-// ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+// ArchivistEventsResponse A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.
 type ArchivistEventsResponse struct {
 	Events []StoredEventResponse `json:"events"`
+
+	// LastSequence The sequence number of the stream's last event when it was read: 0 for a stream with none. More events follow the page while its last event's number is below it.
+	LastSequence int `json:"lastSequence"`
 }
 
 // ArchivistHealth The Archivist's liveness answer: it serves, and the actors it hosts.
@@ -2668,6 +2671,20 @@ type ArchivistRosterRole struct {
 
 // ArchivistRosterRoleProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
 type ArchivistRosterRoleProvider string
+
+// ArchivistStream One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.
+type ArchivistStream struct {
+	// LastSequence The sequence number of the stream's last event when it was read: 0 for a stream with none.
+	LastSequence int `json:"lastSequence"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+}
+
+// ArchivistStreamsResponse Every stream of the event log, `__system__` among them, each with the sequence number of its last event, in no order: the Archivist's answer to `GET /events`.
+type ArchivistStreamsResponse struct {
+	Streams []ArchivistStream `json:"streams"`
+}
 
 // AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
 type AssessingJobParams struct {

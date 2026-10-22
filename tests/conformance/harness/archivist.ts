@@ -166,6 +166,8 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     anchoredTextFails: false,
   };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
+  /** The most events one answer to `GET /events/{resourceId}` holds, as the Archivist's API states it. */
+  const eventsPerAnswer = archivistSpec().limits('get', '/events/{resourceId}')['maxEvents']!;
   const uploadRequired = archivistSpec().schema('ResourceUpload')['required'] as string[];
 
   const authorize = async (req: IncomingMessage): Promise<JWTPayload | undefined> => {
@@ -295,7 +297,10 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         if (mode.replayDelayMs > 0) await new Promise((r) => setTimeout(r, mode.replayDelayMs));
         if (mode.replayFails) return json(500, { error: 'event read failed' });
         if (mode.replayAnswer !== undefined) return json(200, mode.replayAnswer);
-        return json(200, { events: (events.get(id) ?? []).filter((e) => e.metadata.sequenceNumber >= from) });
+        const stream = events.get(id) ?? [];
+        const lastSequence = stream.reduce((last, e) => Math.max(last, e.metadata.sequenceNumber), 0);
+        const page = stream.filter((e) => e.metadata.sequenceNumber >= from).slice(0, eventsPerAnswer);
+        return json(200, { events: page, lastSequence });
       }
 
       violations.push(`the stand-in Archivist serves no ${operation.method.toUpperCase()} ${operation.path}, which the gateway called`);
