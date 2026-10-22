@@ -266,11 +266,11 @@ class Weaver:
         # Each annotation is held to what the codec says the graph is to hold of the record's, and not to the
         # record's itself: the graph is no copy, and a view holds what the graph was never given.
         for annotation in in_graph:
-            recorded_one = of_record[annotation.id]
-            if recorded_one.creator is None:
+            recorded = of_record[annotation.id]
+            if recorded.creator is None:
                 # One the graph cannot hold at all. Named as that, and not raised out of a routine check.
                 return "annotation-creator-unrecorded"
-            if written(annotation) != written(intended_graph_annotation(recorded_one)):
+            if written(annotation) != written(intended_graph_annotation(recorded)):
                 return "annotation-content-mismatch"
         return None
 

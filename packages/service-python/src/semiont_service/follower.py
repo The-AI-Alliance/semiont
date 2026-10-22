@@ -562,7 +562,9 @@ class Follower:
 
         async def retaken(log: str) -> None:
             nonlocal taken
-            taken += await self._lanes.run(log, partial(self._take_up_to, log, None))
+            # Awaited first: `taken += await …` would read `taken` before the wait, and lose what the others added meanwhile.
+            this_log = await self._lanes.run(log, partial(self._take_up_to, log, None))
+            taken += this_log
 
         await self._each(list(listed), retaken)
         return Retaken(taken=taken, stopped=any(log in self._stopped for log in listed))

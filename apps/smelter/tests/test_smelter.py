@@ -2616,7 +2616,8 @@ def test_a_start_whose_reconcile_fails_is_said_and_begun_again(tmp_path: Path) -
         rig.failing.add("browse:resources-requested")
         async with rig:
             await until(lambda: rig.smelter.following["sweep"] == "due")
-            assert rig.smelter.reconcile_state.phase == "failed"
+            # Read as the health answers it: a check of `.phase` here would hold it to "failed" for a type checker after the wait.
+            assert rig.smelter.reconcile_state.said()["phase"] == "failed"
 
             # The Archivist answers again. The start is begun again by the loop's clock, and is a reconcile again.
             rig.failing.clear()

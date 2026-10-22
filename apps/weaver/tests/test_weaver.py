@@ -221,7 +221,11 @@ def test_a_stopped_log_holds_no_other_resource_s(monkeypatch: pytest.MonkeyPatch
 def test_an_event_the_graph_cannot_take_as_recorded_is_taken_as_nothing_and_counted() -> None:
     async def scenario() -> None:
         async with Rig() as rig:
-            await rig.happened(created("res-1"), added("res-1", 2, "ann-nobodys", creator=None), tagged("res-1", 3, "Place"))
+            await rig.happened(created("res-1"))
+            # The record holds an annotation with no creator, which the views' fold refuses as the Weaver's does: it is
+            # put in the record alone, and found there when the event after it shows the gap.
+            rig.record["res-1"].append(added("res-1", 2, "ann-nobodys", creator=None))
+            await rig.happened(tagged("res-1", 3, "Place"))
             assert rig.applied() == {"res-1": 3}
             assert rig.weaver.follower.refused == 1
             assert await rig.graph.get_annotation(AnnotationId("ann-nobodys")) is None
