@@ -46,7 +46,7 @@ import { startSmelter, type SmelterLaunch, type SmelterProcess } from './smelter
 import { errorsOf, registry, spec } from './spec';
 import type { BusStream } from './stream';
 import { startWeaver, type WeaverLaunch, type WeaverProcess } from './weaver-process';
-import { FOLLOWED } from './weaver-world';
+import { lastOf } from './weaver-world';
 
 /** The service accounts of the three services, at the issuer. */
 export const LIBRARIAN_CLIENT = 'semiont-librarian';
@@ -263,7 +263,7 @@ export class LibrarianWorld {
       smelterEmbedder,
       weaver: {
         service: weaverService,
-        settings: { gatewayUrl, issuer, graph },
+        settings: { gatewayUrl, issuer, archivist, graph },
         env: { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.weaver, [GRAPH_PASSWORD]: graphDatabase.password },
         home: mkdtempSync(join(tmpdir(), 'conformance-librarian-weaver-')),
       },
@@ -561,17 +561,15 @@ export class LibrarianWorld {
   }
 
   /**
-   * Wait until the Weaver signals that it has applied everything it follows
-   * of what the record holds now for each of `resourceIds`: the graph then
-   * holds each resource and its annotations as the record does.
+   * Wait until the Weaver signals that it has taken everything the record
+   * holds now for each of `resourceIds`: the graph then holds each resource
+   * and its annotations as the record does.
    */
   async woven(...resourceIds: string[]): Promise<void> {
     for (const resourceId of resourceIds) {
-      const followed = this.kb.stored(resourceId).filter((event) => FOLLOWED.includes(event.type));
-      const last = followed[followed.length - 1];
-      if (last === undefined) throw new Error(`the record holds no event a Weaver follows for ${resourceId}`);
-      await eventually(`weave:applied for ${resourceId} to reach ${last.metadata.sequenceNumber}`, 20_000, () =>
-        this.appliedSignals(resourceId).find((signal) => signal.sequenceNumber >= last.metadata.sequenceNumber),
+      const last = lastOf(this.kb.stored(resourceId), resourceId);
+      await eventually(`weave:applied for ${resourceId} to reach ${last}`, 20_000, () =>
+        this.appliedSignals(resourceId).find((signal) => signal.sequenceNumber >= last),
       );
     }
   }

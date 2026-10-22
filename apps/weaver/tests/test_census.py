@@ -11,8 +11,8 @@ imports what a store is, what the graph is to hold, and the one function
 that makes a store, and no store. It requires no database's client: each is
 an extra, and its image asks for every one.
 
-What it copies from the protocol, it copies under a gate: the events it
-follows are the ones the protocol's page lists. How its document is read, how
+What it copies from the protocol, it copies under a gate: the events its
+fold applies are the ones the protocol's page lists. How its document is read, how
 its log is written and what exports its telemetry are every Python service's,
 in the package the service is built on (`packages/service-python`).
 """
@@ -25,7 +25,7 @@ from pydantic import JsonValue, TypeAdapter
 from spec import PROJECT, ROOT, SDK
 
 from semiont_weaver.config import SERVICE
-from semiont_weaver.recorded import FOLLOWED
+from semiont_weaver.recorded import FOLDED
 
 SRC = PROJECT / "src/semiont_weaver"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
@@ -199,18 +199,18 @@ def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -
 def test_nothing_in_the_fold_or_the_weaver_reads_a_clock_or_derives_who_a_thing_is_by() -> None:
     # The graph says what the record says: every date in it is one an event carried, and who a thing is by is
     # who its event records. A fold that read the time would date everything again at every rebuild.
-    for module in ("fold.py", "weaver.py", "recorded.py", "marks.py", "history.py"):
+    for module in ("fold.py", "weaver.py", "recorded.py", "history.py"):
         source = (SRC / module).read_text(encoding="utf-8")
         assert not re.search(r"\bdatetime\b|\btime\.time\b|\.now\(|\.utcnow\(", source), f"{module} reads a clock"
         assert not re.search(r"\buser_id\b|userId", source), f"{module} reads who sent an event"
 
 
-def test_the_events_it_follows_are_the_ones_the_protocol_lists() -> None:
+def test_the_events_its_fold_applies_are_the_ones_the_protocol_lists() -> None:
     page = (ROOT / "docs/protocol/WEAVER.md").read_text(encoding="utf-8")
-    rule = re.search(r"\*\*It follows eight recorded events:\*\*(.*?)\. Every other event", page, re.DOTALL)
-    assert rule is not None, "docs/protocol/WEAVER.md no longer lists what a Weaver follows"
-    assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
-    assert len(FOLLOWED) == 8
+    rule = re.search(r"\*\*Its fold applies eight recorded events:\*\*(.*?)\. Every other event", page, re.DOTALL)
+    assert rule is not None, "docs/protocol/WEAVER.md no longer lists what a Weaver's fold applies"
+    assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLDED)
+    assert len(FOLDED) == 8
 
 
 def naming(text: str) -> list[str]:
@@ -219,27 +219,26 @@ def naming(text: str) -> list[str]:
 
 
 def test_it_opens_no_file_of_the_record() -> None:
-    # It reads history from the Archivist, over the bus and through the gateway. What touches a file is the module that keeps its marks,
-    # and the one that reads the process's environment and names where the marks go.
+    # It reads the record from the Archivist, over the bus and by its own surface. What touches a file is the one module that reads
+    # the process's environment and names where the cursors go: the shared follower keeps them.
     touching = sorted(
         str(path.relative_to(SRC))
         for path in SRC.rglob("*.py")
         if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
     )
-    assert touching == ["checkpoint.py", "service.py"]
+    assert touching == ["service.py"]
 
 
-def test_the_marks_have_one_writer_and_the_signal_one_emitter() -> None:
-    # A mark says everything at or below it was applied. One module holds the marks and decides what raises
-    # one, and one line says a mark on the bus: a second of either could say what the first would not.
-    assert naming("_applied[") == ["marks.py"]
+def test_the_signal_has_one_emitter() -> None:
+    # `weave:applied` says how far a resource's log was taken. One line says it on the bus: a second could say what
+    # the first would not.
     assert naming("WEAVE_APPLIED") == ["weaver.py"]
     assert (SRC / "weaver.py").read_text(encoding="utf-8").count("emit(WEAVE_APPLIED") == 1
 
 
-def test_the_fold_has_a_rule_for_each_event_followed_and_for_no_other() -> None:
+def test_the_fold_has_a_rule_for_each_event_it_applies_and_for_no_other() -> None:
     cases = re.findall(r'^        case "([a-z]+:[a-z-]+)":', (SRC / "fold.py").read_text(encoding="utf-8"), re.MULTILINE)
-    assert sorted(cases) == sorted(FOLLOWED)
+    assert sorted(cases) == sorted(FOLDED)
 
 
 def test_reconcile_holds_an_annotation_to_what_the_codec_says_and_to_no_list_of_its_own() -> None:

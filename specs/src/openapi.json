@@ -984,6 +984,9 @@
       "WorkerAgentConfig": {
         "$ref": "components/schemas/WorkerAgentConfig.json"
       },
+      "CursorsPath": {
+        "$ref": "components/schemas/CursorsPath.json"
+      },
       "WeaverConfig": {
         "$ref": "components/schemas/WeaverConfig.json"
       },

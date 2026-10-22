@@ -206,9 +206,10 @@ async def held(graph: GraphDatabase) -> Held:
 
 
 async def as_the_record_says(rig: Rig, history: History) -> None:
-    """The Weaver applied every event, to the last of each resource; and its graph is the views' and the reference's."""
-    assert rig.weaver.apply_failures == 0
-    assert rig.weaver.applied() == history.last()
+    """The Weaver took every event, to the last of each resource, and refused none; and its graph is the views' and the reference's."""
+    assert rig.weaver.follower.refused == 0
+    assert rig.weaver.follower.stopped == frozenset()
+    assert rig.applied() == history.last()
     await rig.same_as_the_views()
     assert await held(rig.graph) == folded(history.recorded)
 
@@ -223,10 +224,10 @@ def test_however_a_history_is_delivered_the_graph_is_what_the_record_says(histor
             await rig.settled()
 
             await as_the_record_says(rig, history)
-            # Each resource's mark was signalled as it rose, to its last event and never back.
+            # How far each resource's log was taken was signalled as it rose, to its last event and never back.
             signalled = rig.signalled()
-            assert {resource: max(marks) for resource, marks in signalled.items()} == history.last()
-            assert all(marks == sorted(set(marks)) for marks in signalled.values())
+            assert {resource: max(taken) for resource, taken in signalled.items()} == history.last()
+            assert all(taken == sorted(set(taken)) for taken in signalled.values())
             # And the Weaver's own check of the graph against the record finds nothing to repair in it.
             assert (await rig.weaver.reconcile()).divergent == 0
 
@@ -245,7 +246,7 @@ def test_a_rebuild_of_everything_leaves_the_graph_the_history_left(history: Hist
             rebuilt = await rig.weaver.rebuild_all()
             await rig.settled()
 
-            assert rebuilt.failed == 0
+            assert not rebuilt.stopped
             await as_the_record_says(rig, history)
 
     run(scenario())
@@ -260,13 +261,9 @@ def test_a_weaver_that_kept_nothing_applies_the_record_again_and_ends_with_the_s
             first.deliver(*history.as_delivered())
             await first.settled()
 
-        # A second life of it, over the same graph, with no marks from the first: as a new container has.
+        # A second life of it, over the same graph, with no cursors from the first: as a new container has. Its start
+        # sweeps the record, and takes every log from its first event again.
         async with Rig(after=first) as second:
-            caught_up = await second.weaver.catch_up()
-            await second.settled()
-
-            assert caught_up.events_failed == 0
-            assert caught_up.parity_pending == 0
             await as_the_record_says(second, history)
 
     run(scenario())

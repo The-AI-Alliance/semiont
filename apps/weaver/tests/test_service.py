@@ -13,6 +13,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
+from semiont.channels import PERSISTED_EVENT_TYPES
 from semiont.http import Credential
 from semiont_graph.memory import MemoryGraphDatabase
 from semiont_service.config import Refused
@@ -28,7 +29,8 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
     "graph": {"type": "neo4j", "uri": "bolt://127.0.0.1:1", "username": "neo4j", "passwordEnv": "NEO4J_PASSWORD", "database": "neo4j"},
-    "checkpointPath": "/tmp/semiont/weaver-checkpoint.json",
+    "archivist": {"host": "127.0.0.1", "port": 1},
+    "cursorsPath": "/tmp/semiont/weaver-cursors.json",
     "port": 24102,
     "logLevel": "warn",
     "logFormat": "simple",
@@ -60,24 +62,11 @@ def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> N
     assert not isinstance(started.graph, MemoryGraphDatabase)
 
 
-def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies_of_what_it_asks() -> None:
-    assert sorted(CHANNELS) == sorted(
-        [
-            "yield:created",
-            "mark:archived",
-            "mark:unarchived",
-            "mark:added",
-            "mark:removed",
-            "mark:body-updated",
-            "mark:entity-tag-added",
-            "mark:entity-tag-removed",
-            "weave:rebuild",
-            "browse:resources-result",
-            "browse:resources-failed",
-            "browse:events-result",
-            "browse:events-failed",
-        ]
-    )
+def test_its_stream_names_every_event_of_the_record_the_command_it_answers_and_the_replies_of_what_it_asks() -> None:
+    # A follower of the record receives every event of a log it follows, so that a gap is always a miss.
+    assert sorted(CHANNELS) == sorted([*PERSISTED_EVENT_TYPES, "weave:rebuild", "browse:resources-result", "browse:resources-failed"])
+    assert "mark:added" in PERSISTED_EVENT_TYPES
+    assert "job:completed" in PERSISTED_EVENT_TYPES
 
 
 def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> None:
@@ -102,7 +91,7 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
 
 def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no_value(tmp_path: Path) -> None:
     document: dict[str, JsonValue] = {
-        **without("checkpointPath"),
+        **without("cursorsPath"),
         "port": "24102",
         "graph": {"type": "neo4j", "uri": "bolt://127.0.0.1:1", "username": "neo4j", "password": "hunter2", "database": "neo4j"},
         "extra": 1,
@@ -114,7 +103,7 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
         [
             "  Missing required property: passwordEnv",
             "  graph.neo4j: unknown property password",
-            "  Missing required property: checkpointPath",
+            "  Missing required property: cursorsPath",
             "  port: Input should be a valid integer",
             "  root: unknown property extra",
         ]

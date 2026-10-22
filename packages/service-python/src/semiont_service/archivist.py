@@ -44,7 +44,7 @@ from semiont.types import (
 from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.follower import Record, RecordUnread
 
-__all__ = ["AnnotationsUnread", "Archivist", "Authorizes"]
+__all__ = ["AnnotationReads", "AnnotationsUnread", "Archivist", "Authorizes"]
 
 _TIMEOUT: Final = httpx.Timeout(60.0, connect=10.0)
 """How long the Archivist is waited for: ten seconds to connect, and a minute for each part of an answer to come.
@@ -72,6 +72,14 @@ class AnnotationsUnread(Exception):
     no such resource."""
 
 
+class AnnotationReads(Protocol):
+    """What reads a resource's annotations: `Archivist` is one."""
+
+    async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
+        """Every annotation on a resource, as the record's view holds them. Raises `AnnotationsUnread` where they were not read."""
+        ...
+
+
 class Authorizes(Protocol):
     """What says who asks: the SDK's `ServiceToken` is one."""
 
@@ -81,7 +89,7 @@ class Authorizes(Protocol):
 
 
 @final
-class Archivist(ContentReads, Record):
+class Archivist(ContentReads, AnnotationReads, Record):
     """The Archivist at `host` and `port`, asked as the service account `account` is, for the service whose word is `service`.
 
     Held with `async with`: its connections are closed on the way out.
@@ -129,8 +137,8 @@ class Archivist(ContentReads, Record):
             raise ContentUnread(f"the Archivist stated no content type for the bytes of {resource_id}")
         return Content(answer.content, content_type)
 
+    @override
     async def read_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
-        """Every annotation on a resource, as the record's view holds them. Raises `AnnotationsUnread` where they were not read."""
         what = f"the annotations of {resource_id}"
         answer = await self._answer(f"/resources/{resource_id}/annotations", what, AnnotationsUnread)
         if answer.status_code == _NOT_FOUND:

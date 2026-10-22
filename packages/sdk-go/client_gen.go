@@ -3308,6 +3308,9 @@ type CreateResourceResponse struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
+// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+type CursorsPath = string
+
 // DirEntry defines model for DirEntry.
 type DirEntry struct {
 	// Mtime Last modified time (ISO 8601)
@@ -6427,6 +6430,9 @@ type SmelterConfig struct {
 		Overlap int `json:"overlap"`
 	} `json:"chunking"`
 
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	CursorsPath CursorsPath `json:"cursorsPath"`
+
 	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
 	Embedding EmbeddingConfig `json:"embedding"`
 
@@ -6718,10 +6724,16 @@ type WeaveRebuildCommand struct {
 
 // WeaverConfig Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
 type WeaverConfig struct {
-	// CheckpointPath The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again.
-	CheckpointPath string `json:"checkpointPath"`
+	// Archivist Where the Archivist listens. The Weaver reads the record by position from it, and a resource's annotations, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
 
-	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds.
+	// CursorsPath The file a follower of the record keeps its cursors in: for each log of the record it follows, the sequence number of the last event of it taken (docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing frame). A file of the service's own disk, never of the knowledge base: a service that finds none starts each log as it starts one with no cursor, so losing it costs time and never correctness.
+	CursorsPath CursorsPath `json:"cursorsPath"`
+
+	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus.
 	GatewayUrl string `json:"gatewayUrl"`
 
 	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.

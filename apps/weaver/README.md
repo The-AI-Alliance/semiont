@@ -18,14 +18,18 @@ page is the image, and how it is run.
 
 ## What it does
 
-It follows eight of the events a knowledge base records and writes each into the graph: a
-resource, an annotation, an annotation's link to another resource and its entity tags, and a
-resource's archiving and entity types. That graph is what
-`gather.referencedBy` answers from, and what gather's knowledge-graph traversal walks.
+It follows the record, as every follower of it does
+([TRANSPORT-CONTRACT.md § What repairs a passing frame](../../docs/protocol/TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)):
+a cursor for each resource's log, moved by one, and a sweep of the record at its start and
+each time its stream opens again. Its fold writes eight of the events a knowledge base
+records into the graph: a resource, an annotation, an annotation's link to another resource
+and its entity tags, and a resource's archiving and entity types. Every other event is taken
+as nothing. That graph is what `gather.referencedBy` answers from, and what gather's
+knowledge-graph traversal walks.
 
-It reaches two things: the gateway, for the bus, and the graph database. It mounts no piece
-of the knowledge base and no state. The history it replays arrives as `browse:*` reads over
-the bus, answered by the Archivist.
+It reaches three things: the gateway, for the bus; the Archivist's own surface, for the
+record by position and a resource's annotations; and the graph database. It mounts no piece
+of the knowledge base and no state.
 
 **The graph says what the record says.** A resource is dated when its event was recorded and
 is by whom the event records; an annotation is by the creator its event records, who asked
@@ -34,7 +38,7 @@ the directory's, which the Archivist joins onto every read.
 
 ## Readers wait on its signals
 
-Each time it has applied more of a resource's record it emits `weave:applied`, with the
+Each time it has taken more of a resource's log it emits `weave:applied`, with the
 resource and the sequence number it has reached. The Archivist and the Librarian each keep
 those, and the read-after-write barrier in gather's knowledge-graph build waits on that
 signal rather than polling.
@@ -44,22 +48,24 @@ at the barrier and then fails: the graph stays as it was, and a gather finds not
 walk.
 
 `weave:rebuild` is the one command it answers: for one resource or for the whole graph, one
-at a time, answered with `weave:rebuild-ok` or `weave:rebuild-failed`. A rebuild that left
-events not applied answers that it failed, and says how many.
+at a time, answered with `weave:rebuild-ok` or `weave:rebuild-failed`. A rebuild that
+stopped at an event it could not apply answers that it failed.
 
 ## When it starts
 
 It reads its document, signs in, connects to the graph database, begins following the
-record, opens its health port, and then runs two passes. Both can be run again, so a restart
-runs them again, and `/health` reports how each ended.
+record, opens its health port, sweeps the record once its stream is open, and once that sweep
+is done runs reconcile. `/health` reports how it follows the record and how reconcile ended.
 
-**Catch-up** applies what was recorded while it was not running: from the marks it kept, or
-everything where it kept none. **Reconcile** then compares the graph with what the record's
-views say, and rebuilds from the record any resource the graph holds wrongly: the backstop
-for what catch-up cannot see, such as a graph volume that was wiped.
+**Its first sweep** takes what was recorded while it was not running: from the cursors it
+kept, or every log from its first event where it kept none. **Reconcile** then compares the
+graph with what the record's views say, and rebuilds from the record any resource the graph
+holds wrongly: the backstop for what following the record cannot see, such as a graph volume
+that was wiped.
 
-**A pass that fails does not end the service.** A failed pass is said in the log and at
-`/health`, and the Weaver goes on applying what arrives. That log line is the one signal
+**An event it cannot apply stops that resource's log, and does not end the service.** It is
+said in the log, counted at `/health` (`stopped`), and taken on by the next sweep; every other
+resource goes on. A reconcile that fails is said the same way. Those log lines are the signal
 that the graph may be behind.
 
 **An orphaned view is reported, not healed.** A resource the catalog lists and the record
@@ -77,8 +83,9 @@ It reads one document, the protocol's
 | --- | --- |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
+| `archivist` | where the Archivist listens: it reads the record by position there, and a resource's annotations |
 | `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
-| `checkpointPath` | the file it keeps its marks in |
+| `cursorsPath` | the file it keeps its cursors in ([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json)) |
 | `port` | the port `/health` answers on |
 | `logLevel`, `logFormat` | how it logs |
 
@@ -98,9 +105,10 @@ Started without its document, without its account or without that password, it r
 start: one line on stderr that begins `[fatal] `, and status 1. A graph of the kind `memory`
 is refused too: a graph in the Weaver's own memory could not be shared with a reader.
 
-**Its marks are never a correctness input.** The launcher has it keep them in the
-container's own temporary directory, so they last as long as the container does. A Weaver
-that finds none applies the whole record again and ends with the same graph.
+**Its cursors are never a correctness input.** The launcher has it keep them in the
+container's own temporary directory, never in the knowledge base, so they last as long as
+the container does. A Weaver that finds none takes the whole record again and ends with the
+same graph.
 
 ## What the image carries
 

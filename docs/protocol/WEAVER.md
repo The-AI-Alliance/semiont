@@ -1,12 +1,13 @@
 # Weaver
 
 What the Weaver does: the process a weaver image runs. It keeps a graph
-database in step with the record. It follows the recorded events that change
-what the graph holds, applies each to the graph, says how far it has got, and,
-when it starts, repairs what it missed and what the graph lost. Each time its
-stream of the record opens after a drop, it catches up again. What the
-record is, and what the Archivist answers, is [ARCHIVIST.md](./ARCHIVIST.md);
-what the bus carries is [EVENT-BUS.md](./EVENT-BUS.md).
+database in step with the record. It follows the record as every follower of
+it does ([TRANSPORT-CONTRACT.md § What repairs a passing frame](./TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)),
+applies each resource's events to the graph, says how far it has got, and,
+once its first sweep of the record is done, repairs what the graph lost. What
+the record is, and what the Archivist answers, is
+[ARCHIVIST.md](./ARCHIVIST.md); what the bus carries is
+[EVENT-BUS.md](./EVENT-BUS.md).
 
 A Weaver written in another language does what is written here. If the code
 deviates from it, the code is wrong, or this document is wrong and is
@@ -45,8 +46,10 @@ in it, and the Weaver defaults nothing it leaves out. It states the gateway's
 URL; the issuer the Weaver's service account signs in at; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the environment
-variable that holds its password); the file the Weaver keeps its marks in; the
-port its health answers on; and how it logs. Whoever starts a Weaver writes
+variable that holds its password); where the Archivist listens; the file the
+Weaver keeps its cursors in
+([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json)), on its
+own disk; the port its health answers on; and how it logs. Whoever starts a Weaver writes
 it: the launcher for the Weaver it starts, and anyone else to the same schema.
 
 - **Started with no `--config`, with a path it cannot read, or with a document
@@ -67,26 +70,32 @@ it: the launcher for the Weaver it starts, and anyone else to the same schema.
 ## What it follows
 
 A Weaver signs in as its service account and works as the agent `(semiont,
-weaver)`, and reaches everything but the graph through the gateway.
+weaver)`. It reaches the bus through the gateway, and the record through the
+Archivist's own surface.
 
-- **It follows eight recorded events:** `yield:created`, `mark:archived`,
-  `mark:unarchived`, `mark:added`, `mark:removed`, `mark:body-updated`,
-  `mark:entity-tag-added` and `mark:entity-tag-removed`. Every other event of
-  a resource's stream passes it by, and moves no mark of its.
-  *Held by `weaver/record`.*
-- **It reads history from the Archivist, over the bus:** the catalog
-  (`browse:resources-requested`, a page at a time) and a resource's events
-  (`browse:events-requested`); and a resource's annotations through the
-  gateway, `GET /resources/{id}/annotations`, whose answer follows the
-  document's size and so is no bus read. It opens no file of the record.
-  *Held by `weaver/repair`.*
+- **It follows the record as a follower of it:** a cursor for each log it
+  follows, moved by one; a delivered event taken as a hint; a sweep at its
+  start and each time its stream opens after a drop
+  ([TRANSPORT-CONTRACT.md § What repairs a passing frame](./TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)).
+  It follows every resource's log, and not `__system__`: nothing of the
+  knowledge base's own log is the graph's. Its stream names every event of the
+  record. *Held by `apps/weaver/tests/test_weaver.py` and `weaver/record`.*
+- **A log with no cursor is taken from its first event.** A Weaver with no
+  cursors at all takes the whole record, and ends with the graph the record
+  says. *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
+- **It reads the record from the Archivist's surface, as its service
+  account:** the record by position (`GET /events`, `GET /events/{resourceId}`)
+  and a resource's annotations (`GET /resources/{id}/annotations`), whose
+  answers follow a log's and a document's size and so are no bus reads; and the
+  catalog over the bus (`browse:resources-requested`, a page at a time). It
+  opens no file of the record. *Held by `weaver/repair`.*
 - **It answers one command,** `weave:rebuild` ([Rebuild](#rebuild)), and
   emits one signal, `weave:applied` ([What it has applied](#what-it-has-applied)).
   *Held by `weaver/repair`.*
 
 ## The fold
 
-Each event a Weaver follows changes the graph in one way.
+Each event the fold applies changes the graph in one way.
 [`fold-cases.json`](../../specs/src/weaver/fold-cases.json) states each as a
 history and the graph it leaves, and is the rule; this section says it in
 prose.
@@ -96,6 +105,11 @@ them by `apps/weaver/tests/test_properties.py`: over histories a generator
 makes, delivered in any order and some of them twice, its graph is what a
 second fold, which shares nothing with it, says the record leaves.
 
+- **Its fold applies eight recorded events:** `yield:created`, `mark:archived`,
+  `mark:unarchived`, `mark:added`, `mark:removed`, `mark:body-updated`,
+  `mark:entity-tag-added` and `mark:entity-tag-removed`. Every other event of
+  a resource's log is taken as nothing: it changes nothing in the graph, and
+  its cursor passes it. *Held by `apps/weaver/tests/test_weaver.py` and `weaver/record`.*
 - **`yield:created` puts the resource in the graph as its event records it:**
   its name, format, checksum and entity types from the payload, its storage
   URI where the payload has one, not archived; dated at the event's
@@ -170,74 +184,55 @@ which are required, and what is refused.
 
 ## What it has applied
 
-For each resource a Weaver keeps the sequence number it has applied up to.
+For each resource a Weaver keeps the cursor of its log: the last event of it
+taken. It takes a log a run at a time, the run's events one by one in order.
 
-- **It signals each advance on `weave:applied`,** with the resource and the
-  sequence number. A reader of the graph waits on that signal to know the
-  graph has caught up with something it just saw recorded.
-  *Held by `weaver/record`.*
-- **The mark only rises.**
-  *Held by `weaver/record` and `apps/weaver/tests/test_properties.py`.*
-- **The mark never reaches an event that was not applied.** An event the
-  Weaver refuses, or fails to apply, is counted (`applyFailures` in its
-  [health](#health)) and holds the mark below it, however many later events of
-  the resource are applied. So what it missed is found again when it next
-  starts. *Held by `apps/weaver/tests/test_fold_cases.py`.*
-- **A refused event is refused alone.** The events delivered beside it are
-  applied. *Held by `apps/weaver/tests/test_fold_cases.py`.*
-- **It may keep its marks across a restart,** as a checkpoint. A checkpoint is
-  never a correctness input: a Weaver with none applies the whole record again
-  and ends with the same graph.
-  *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
+- **It signals on `weave:applied` how far each run took a resource's log,**
+  with the resource and the sequence number. A reader of the graph waits on
+  that signal to know the graph has caught up with something it just saw
+  recorded. *Held by `weaver/record`.*
+- **What it signals for a resource only rises,** but where the resource is
+  rebuilt. *Held by `weaver/record` and `apps/weaver/tests/test_properties.py`.*
+- **An event the graph cannot take as recorded is refused:** taken as nothing,
+  its cursor passing it, and counted (`refused` in its [health](#health)).
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
+- **A refused event is refused alone.** The events beside it are applied.
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
+- **An event whose applying fails for any other reason stops its resource's
+  log there:** the cursor stays below it, the log's later events wait, the
+  stop is counted (`stopped` in its [health](#health)), and the next sweep takes
+  the log on from there. No other resource's log waits for it.
+  *Held by `apps/weaver/tests/test_weaver.py`.*
+- **It keeps its cursors across a restart, on its own disk,** in the file its
+  document names, and never in the knowledge base. A cursor is never a
+  correctness input: a Weaver with none takes every log from its first event
+  and ends with the same graph. A cursor above the last event of its log means
+  the record was rewound: the resource is rebuilt ([Rebuild](#rebuild)).
+  *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 
 ## Boot
 
 A Weaver starts in this order: it reads its settings; signs in; connects to
-the graph database; subscribes to what it follows; opens its health port; runs
-catch-up; runs reconcile.
+the graph database; subscribes to every event of the record; opens its health
+port; sweeps the record once its stream is open; runs reconcile once that
+sweep is done.
 
 - **It gives up when the gateway does not answer.** It tries to sign in a
   bounded number of times, then exits with a status other than 0, having said
   which address did not answer. *Held by `weaver/boot`.*
 - **It gives up when the graph database does not answer** within its connect
   deadline. *Held by `packages/service-python/tests/test_connect.py`.*
-- **Its health answers before catch-up begins,** and events recorded from then
-  on are applied as they arrive, while the two passes run. *Held by no case.*
-- **A pass that fails does not end the Weaver.** The failure is logged and
-  reported in its [health](#health), and the Weaver goes on applying what
-  arrives. *Held by no case.*
-
-## Catch-up
-
-Catch-up applies what was recorded while the Weaver was not running, or while
-its stream of the record was down.
-
-- **It runs when the Weaver starts, and again each time its stream of the
-  record opens after a drop.** What is recorded while the stream is down is
-  never delivered when it opens again: the stream names no scope, and the
-  gateway gives a stream what it missed for a scope alone
-  ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
-  None begins while the stream is down, since what it reads of the record is
-  asked over the stream, and however many drops come before one begins, one
-  runs for them. Each drop is logged as a warning. `catchUp` in its
-  [health](#health) is the latest run's.
-  *Held by `apps/weaver/tests/test_weaver.py`.*
-- **For every resource of the catalog, it reads the resource's events and
-  applies those above its mark.** With a checkpoint that is what was recorded
-  since; with none it is everything. *Held by `weaver/repair`.*
-- **A mark above the last event the record holds means the record was
-  rewound:** the resource is rebuilt ([Rebuild](#rebuild)).
-  *Held by `apps/weaver/tests/test_weaver.py`.*
-- **It reports** how many resources it checked (`resourcesChecked`), how many
-  events it replayed (`eventsReplayed`), how many resources it rebuilt
-  (`resourcesRebuilt`), how many events were not applied (`eventsFailed`) and
-  how many resources had not reached their last event when it stopped waiting
-  (`parityPending`). *Held by `weaver/boot` and `weaver/repair`.*
+- **Its health answers before its first sweep is done,** and events recorded
+  from then on are taken as they arrive, while the sweep and reconcile run.
+  *Held by no case.*
+- **A reconcile that fails does not end the Weaver.** The failure is logged
+  and reported in its [health](#health), and the Weaver goes on following the
+  record. *Held by no case.*
 
 ## Reconcile
 
-Reconcile finds what catch-up cannot: a graph that no longer holds what the
-Weaver once applied to it.
+Reconcile finds what following the record cannot: a graph that no longer
+holds what the Weaver once applied to it.
 
 - **For every resource of the catalog, it compares the graph with the
   record,** and calls the resource divergent when: the graph has no such
@@ -259,31 +254,39 @@ Weaver once applied to it.
 - **A graph that was cleared is rebuilt whole** by this pass, when the Weaver
   next starts. *Held by `weaver/repair`.*
 - **It reports** how many resources it checked (`resourcesChecked`), how many
-  were divergent (`divergent`), healed (`healed`), not healed because events
-  were not applied (`healFailures`), and orphaned (`orphaned`).
+  were divergent (`divergent`), healed (`healed`), not healed because the
+  rebuild stopped at an event it could not apply (`healFailures`), and
+  orphaned (`orphaned`).
   *Held by `weaver/boot` and `weaver/repair`.*
 
 ## Rebuild
 
 - **`weave:rebuild` naming a resource rebuilds that resource:** the graph loses
-  the resource and the annotations on it, and the resource's events are
-  applied again, in order. *Held by `weaver/repair`.*
+  the resource and the annotations on it, and the resource's log is taken
+  again from its first event, in order, in the resource's own turn.
+  *Held by `weaver/repair`.*
 - **Another resource's annotation that links to the rebuilt one is not
   touched,** and is followed to it afterwards as before.
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 - **`weave:rebuild` naming none rebuilds the whole graph:** the graph is
-  cleared, and every resource of the catalog applied again.
+  cleared, with no resource's turn under way, and every resource's log taken
+  again from its first event.
   *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
-- **It answers `weave:rebuild-ok` when every event was applied, and
-  `weave:rebuild-failed`, saying how many were not, otherwise.**
+- **It answers `weave:rebuild-ok` when every log it took again reached its
+  end, refused events among them, and `weave:rebuild-failed` when one stopped
+  at an event it could not apply,** or the record could not be read.
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 
 ## Health
 
-- **`GET /health` answers `200` with a JSON object:** `status`; `applyFailures`,
-  the number of events it could not apply since it started; and `catchUp` and
-  `reconcile`, each a `phase` (`pending`, `running`, `done` or `failed`) with
-  the pass's `summary` when it is done, or its `error` when it failed.
+- **`GET /health` answers `200` with a JSON object:** `status`; `following`,
+  what it says of how it follows the record: `sweep` (`pending`, `running`,
+  `done`, or `due` while the record did not answer and a sweep waits to be
+  tried again), `stopped` (how many resources' logs a failed applying has
+  stopped), `refused` (how many events it refused as recorded since it
+  started) and `streamDrops`; and `reconcile`, a `phase` (`pending`,
+  `running`, `done` or `failed`) with the pass's `summary` when it is done, or
+  its `error` when it failed.
   *Held by `weaver/boot`.*
 - **`status` is `ok` whenever the Weaver answers.** It says nothing of whether
   the Weaver can reach the gateway or the graph. *Held by no case.*

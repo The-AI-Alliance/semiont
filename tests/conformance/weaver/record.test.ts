@@ -68,9 +68,8 @@ eachWeaver('the graph a Weaver builds', (world) => {
     // Reconcile runs when a Weaver starts. In a graph this Weaver built, it finds nothing to repair.
     await world().restart();
     const health = await world().weaver.health();
-    expect(health.catchUp).toMatchObject({ phase: 'done', summary: { eventsFailed: 0 } });
+    expect(health.following).toMatchObject({ sweep: 'done', stopped: 0, refused: 0 });
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 0, healed: 0, healFailures: 0, orphaned: 0 } });
-    expect(health.applyFailures).toBe(0);
   });
 
   it('follows a resource through archiving, its entity types and an annotation\'s removal', async () => {
@@ -98,7 +97,7 @@ eachWeaver('the graph a Weaver builds', (world) => {
     expect((await world().graph.resource(id))?.archived).toBe(false);
   });
 
-  it('says how far it has applied each resource, in order, and never past what the record holds', async () => {
+  it('says how far it has taken each resource\'s stream, in order, to its last event, and never past what the record holds', async () => {
     const kb = world().kb;
     const id = await uploaded(world(), 'Signalled');
     const grace = await kb.person('grace');
@@ -108,7 +107,7 @@ eachWeaver('the graph a Weaver builds', (world) => {
     await world().caughtUp(id);
 
     const signalled = world().appliedSignals(id).map((signal) => signal.sequenceNumber);
-    expect(signalled.at(-1)).toBe(world().lastFollowed(id));
+    expect(signalled.at(-1)).toBe(world().last(id));
     expect(signalled).toEqual([...signalled].sort((a, b) => a - b));
     expect(new Set(signalled).size).toBe(signalled.length);
   });
