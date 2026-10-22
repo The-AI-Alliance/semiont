@@ -72,7 +72,7 @@ dev = [
     "opentelemetry-sdk>=1.30,<2",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
-    "ruff==0.17.0",
+    "ruff==0.17.1",
 ]
 
 # The version is the repository's, stated once, in version.json.
