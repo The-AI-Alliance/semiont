@@ -186,16 +186,27 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
     })
 }
 
+/// The most a frame sent on the bus may be, as the gateway's API states it
+/// (`POST /bus/emit`'s `x-semiont-limits.maxBodyBytes`). One it does not state
+/// is an API the Archivist was not built against, and it does not start.
+pub fn largest_message(document: &Value) -> Result<usize, String> {
+    document["paths"]["/bus/emit"]["post"]["x-semiont-limits"]["maxBodyBytes"]
+        .as_u64()
+        .and_then(|bytes| usize::try_from(bytes).ok())
+        .ok_or_else(|| "the gateway's API states no maxBodyBytes for post /bus/emit".to_owned())
+}
+
 /// What a requester is told when the answer to its request, on `replied`,
-/// could not be sent: why, on the operation's failure channel, so it fails at
-/// once rather than when it stops waiting. None for a reply that is not the
-/// operation's result: a failure that could not be sent is not answered again.
-fn unsent(channel: &str, request: &Object, replied: &str, error: &TransportError) -> Option<Reply> {
+/// could not be sent, and `why`: on the operation's failure channel, so it
+/// fails at once rather than when it stops waiting. None for a reply that is
+/// not the operation's result: a failure that could not be sent is not
+/// answered again.
+fn unsent(channel: &str, request: &Object, replied: &str, why: &str) -> Option<Reply> {
     let operation = operation(channel)?;
     if replied != operation.result {
         return None;
     }
-    let message = format!("The answer could not be sent: {error}");
+    let message = format!("The answer could not be sent: {why}");
     let payload = match channel {
         BrowseDirectoryRequested::NAME => json!({
             "path": request.get("path").and_then(Value::as_str).unwrap_or_default(),
@@ -229,14 +240,22 @@ async fn answer(archivist: &Archivist, bus: &Bus, frame: Frame) {
             scope: None,
         };
         let channel = reply.channel;
-        let Err(error) = send(bus, reply, envelope.clone()).await else {
-            return;
+        let largest = archivist.largest_bus_message;
+        let bytes = reply.payload.to_string().len();
+        // The gateway refuses a frame larger than this, so it is not sent.
+        let why = if bytes > largest {
+            format!("it is {bytes} bytes, and a bus message may be {largest}")
+        } else {
+            match send(bus, reply, envelope.clone()).await {
+                Ok(()) => return,
+                Err(error) => error.to_string(),
+            }
         };
         logging::error(
             "A reply was not sent",
-            json!({ "component": "archivist", "channel": channel, "correlationId": frame.correlation_id, "error": error.to_string() }),
+            json!({ "component": "archivist", "channel": channel, "correlationId": frame.correlation_id, "error": why }),
         );
-        if let Some(told) = unsent(&frame.channel, &frame.payload, channel, &error)
+        if let Some(told) = unsent(&frame.channel, &frame.payload, channel, &why)
             && let Err(error) = send(bus, told, envelope).await
         {
             logging::error(

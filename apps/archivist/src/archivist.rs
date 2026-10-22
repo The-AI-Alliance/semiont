@@ -36,6 +36,8 @@ pub struct Archivist {
     facts: UnboundedSender<Object>,
     /// Events appended and not yet published.
     pub unpublished: Arc<AtomicI64>,
+    /// The most a frame on the bus may be, in bytes.
+    pub largest_bus_message: usize,
 }
 
 /// A command refused, or a read that could not be answered.
@@ -94,6 +96,7 @@ impl Archivist {
         record: Record,
         staging: Arc<dyn Staging>,
         facts: UnboundedSender<Object>,
+        largest_bus_message: usize,
     ) -> Archivist {
         Archivist {
             content: Content::new(&root, staging.clone()),
@@ -106,6 +109,7 @@ impl Archivist {
             smelt: SmeltProgress::default(),
             facts,
             unpublished: Arc::new(AtomicI64::new(0)),
+            largest_bus_message,
         }
     }
 
