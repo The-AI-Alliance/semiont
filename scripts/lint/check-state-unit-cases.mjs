@@ -285,8 +285,8 @@ const delegated = new Set(
   (table.cases ?? [])
     .filter((c) => c.unit === 'mark')
     .flatMap((c) => c.steps ?? [])
-    .filter((step) => isObject(step) && step.say === 'mark:delegate-request')
-    .map((step) => step.payload?.params?.motivation),
+    .filter((step) => isObject(step) && step.invoke === 'requestDelegate')
+    .map((step) => step.args?.params?.motivation),
 );
 const undelegated = toldApart.filter((motivation) => !delegated.has(motivation));
 if (undelegated.length > 0) fail(`${TABLE}: no case of the mark unit delegates a job of ${undelegated.join(', ')}, which MarkJobParams tells apart`);

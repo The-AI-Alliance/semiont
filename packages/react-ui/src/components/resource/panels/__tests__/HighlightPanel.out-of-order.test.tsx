@@ -8,11 +8,11 @@
  * arrival order must be invisible in the rendered list — both for a scrambled
  * initial load and for a late-arriving EARLIER-position insert.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
-import type { SemiontSession } from '@semiont/sdk';
+import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
@@ -49,14 +49,19 @@ function renderedQuotes(): string[] {
 
 describe('HighlightPanel — arrival order is invisible; list order is document order', () => {
   let session: SemiontSession;
+  let mark: MarkStateUnit;
   beforeEach(() => {
     vi.clearAllMocks();
     ({ session } = createTestSemiontWrapper());
+    mark = createMarkStateUnit(session.client, resourceId('res-1'));
+  });
+  afterEach(() => {
+    mark.dispose();
   });
 
   it('a scrambled initial load (concurrent units) renders in document order', () => {
     renderWithProviders(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
+      <HighlightPanel session={session} mark={mark} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
         annotations={[
           highlightAt('h-chunk3', 900, 'gamma'),
           highlightAt('h-chunk1', 100, 'alpha'),
@@ -74,7 +79,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
   it('an earlier-position annotation arriving LATE slots into place, not onto the end', () => {
     const { rerender } = renderWithProviders(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
+      <HighlightPanel session={session} mark={mark} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
         annotations={[highlightAt('h-late-chunk', 700, 'omega')]}
         pendingAnnotation={null}
         isDelegating={false}
@@ -86,7 +91,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
     // Chunk 1's find lands after chunk 2's — the out-of-order insert.
     rerender(
-      <HighlightPanel session={session} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
+      <HighlightPanel session={session} mark={mark} resourceId={resourceId('res-1')} jobId={null} cancelled={false}
         annotations={[highlightAt('h-late-chunk', 700, 'omega'), highlightAt('h-early-chunk', 50, 'alpha')]}
         pendingAnnotation={null}
         isDelegating={false}

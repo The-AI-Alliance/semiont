@@ -305,17 +305,8 @@ export interface MarkNamespace {
     motivation: Motivation,
   ): void;
 
-  /** Fire-and-forget variant of `delegate` — mark-state-unit creates the job for its resource and follows it. */
-  requestDelegate(params: MarkJobParams): void;
-
   /** Submit the pending annotation with its selector and optional body. */
   submit(input: components['schemas']['MarkSubmitEvent']): void;
-
-  /** Cancel the pending annotation (if any). */
-  cancelPending(): void;
-
-  /** Dismiss the display of a delegated job's progress. */
-  dismissProgress(): void;
 
   /**
    * UI signal: a delete failed at the caller that awaited it. `delete` rejects;

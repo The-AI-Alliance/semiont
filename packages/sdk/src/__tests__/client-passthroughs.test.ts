@@ -120,7 +120,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       // a disposed client is a bug, and it says so rather than no-op'ing
       // into a leaked bus.
       expect(() => client.bus.on('mark:submit')).toThrow(/destroyed bus/);
-      expect(() => client.mark.cancelPending()).toThrow(/destroyed bus/);
+      expect(() => client.beckon.hover(null)).toThrow(/destroyed bus/);
     });
   });
 

@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
 import type { EventBus } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
+import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
@@ -38,6 +38,7 @@ function createEventTracker() {
 // the first test). The `session` passed as a prop below and the `eventBus`
 // the tracker subscribes come from the SAME factory call.
 let session: SemiontSession;
+let mark: MarkStateUnit;
 let eventBus: EventBus;
 let SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
 
@@ -159,6 +160,7 @@ describe('AssessmentPanel Component', () => {
     vi.clearAllMocks();
 
     ({ session, eventBus, SemiontWrapper } = createTestSemiontWrapper());
+    mark = createMarkStateUnit(session.client, resourceId('res-1'));
 
     // Mock scrollIntoView for jsdom
     Element.prototype.scrollIntoView = vi.fn();
@@ -175,24 +177,25 @@ describe('AssessmentPanel Component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    mark.dispose();
   });
 
   describe('Rendering', () => {
     it('should render panel header with title and count', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} annotations={mockAssessments.multiple} />);
 
       expect(screen.getByText(/Assessments/)).toBeInTheDocument();
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
     });
 
     it('should show empty state when no assessments', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} />);
 
       expect(screen.getByText(/No assessments yet/)).toBeInTheDocument();
     });
 
     it('should render all assessments', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} annotations={mockAssessments.multiple} />);
 
       expect(screen.getByTestId('assessment-1')).toBeInTheDocument();
       expect(screen.getByTestId('assessment-2')).toBeInTheDocument();
@@ -200,7 +203,7 @@ describe('AssessmentPanel Component', () => {
     });
 
     it('should have proper panel structure', () => {
-      const { container } = renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} />);
+      const { container } = renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
@@ -209,7 +212,7 @@ describe('AssessmentPanel Component', () => {
 
   describe('Assessment Sorting', () => {
     it('should sort assessments by position in resource', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} annotations={mockAssessments.multiple} />);
 
       const assessments = screen.getAllByTestId(/assessment-/);
 
@@ -223,14 +226,14 @@ describe('AssessmentPanel Component', () => {
       mockGetTextPositionSelector.mockReturnValue(null);
 
       expect(() => {
-        renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} annotations={mockAssessments.multiple} />);
+        renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} annotations={mockAssessments.multiple} />);
       }).not.toThrow();
     });
   });
 
   describe('New Assessment Creation', () => {
     it('should not show new assessment input by default', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} />);
 
       expect(screen.queryByPlaceholderText(/Type your assessment here/)).not.toBeInTheDocument();
     });
@@ -240,7 +243,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -253,7 +256,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -267,7 +270,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -281,7 +284,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -297,7 +300,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -315,7 +318,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -329,7 +332,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -344,7 +347,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />,
         tracker
@@ -370,7 +373,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -388,7 +391,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />,
         tracker
@@ -411,7 +414,7 @@ describe('AssessmentPanel Component', () => {
 
       const { container } = renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -426,7 +429,7 @@ describe('AssessmentPanel Component', () => {
     it('should render assessment entries', () => {
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           annotations={mockAssessments.single}
         />
       );
@@ -441,7 +444,7 @@ describe('AssessmentPanel Component', () => {
       expect(() => {
         renderWithEventBus(
           <AssessmentPanel
-            {...defaultProps} session={session}
+            {...defaultProps} session={session} mark={mark}
             annotations={mockAssessments.single}
           />
         );
@@ -453,7 +456,7 @@ describe('AssessmentPanel Component', () => {
     it('should render DelegateSection when annotateMode is true', () => {
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           annotateMode={true}
         />
       );
@@ -464,7 +467,7 @@ describe('AssessmentPanel Component', () => {
     it('should not render DelegateSection when annotateMode is false', () => {
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           annotateMode={false}
         />
       );
@@ -475,7 +478,7 @@ describe('AssessmentPanel Component', () => {
     it('should render DelegateSection with correct annotationType', () => {
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           annotateMode={true}
         />
       );
@@ -491,7 +494,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -499,12 +502,13 @@ describe('AssessmentPanel Component', () => {
       expect(screen.getByText('Cancel')).toBeInTheDocument();
     });
 
-    it('should clear textarea when Cancel button is clicked', async () => {
+    it('Cancel drops the pending annotation and clears the textarea', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
+      const cancelPending = vi.spyOn(mark, 'cancelPending');
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );
@@ -515,13 +519,14 @@ describe('AssessmentPanel Component', () => {
       const cancelButton = screen.getByText('Cancel');
       await userEvent.click(cancelButton);
 
+      expect(cancelPending).toHaveBeenCalledOnce();
       expect(textarea).toHaveValue('');
     });
   });
 
   describe('Accessibility', () => {
     it('should have proper heading structure', () => {
-      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} session={session} mark={mark} />);
 
       const heading = screen.getByText(/Assessments/);
       expect(heading).toHaveClass('semiont-panel-header__text');
@@ -532,7 +537,7 @@ describe('AssessmentPanel Component', () => {
 
       renderWithEventBus(
         <AssessmentPanel
-          {...defaultProps} session={session}
+          {...defaultProps} session={session} mark={mark}
           pendingAnnotation={pendingAnnotation}
         />
       );

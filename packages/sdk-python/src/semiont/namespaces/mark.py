@@ -8,15 +8,7 @@ on the `browse` queries.
 from collections.abc import Sequence
 from typing import Final, final
 
-from semiont.channel import Empty
-from semiont.channels import (
-    MARK_CANCEL_PENDING,
-    MARK_DELEGATE_REQUEST,
-    MARK_DELETE_ERROR,
-    MARK_PROGRESS_DISMISS,
-    MARK_REQUESTED,
-    MARK_SUBMIT,
-)
+from semiont.channels import MARK_DELETE_ERROR, MARK_REQUESTED, MARK_SUBMIT
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import stated
 from semiont.namespaces.follow import Delegation, follow
@@ -28,7 +20,6 @@ from semiont.types import (
     MarkArchiveCommand,
     MarkCreateOkResponse,
     MarkCreateRequest,
-    MarkDelegateRequestEvent,
     MarkDeleteCommand,
     MarkJobCompleteCommand,
     MarkJobCreateCommand,
@@ -89,24 +80,9 @@ class MarkNamespace:
         """Signal: a new annotation is wanted on `source`."""
         self._links.signal(MARK_REQUESTED, MarkRequestedEvent(source=source, selector=selector, motivation=motivation))
 
-    def request_delegate(self, params: MarkJobParams) -> None:
-        """Signal: the annotating of the open resource is to be delegated, as a `mark` job of these parameters.
-
-        They are the ones `delegate` takes. The client's own state runs it.
-        """
-        self._links.signal(MARK_DELEGATE_REQUEST, MarkDelegateRequestEvent(params=params))
-
     def submit(self, event: MarkSubmitEvent) -> None:
         """Signal: submit the annotation that is pending."""
         self._links.signal(MARK_SUBMIT, event)
-
-    def cancel_pending(self) -> None:
-        """Signal: drop the annotation that is pending."""
-        self._links.signal(MARK_CANCEL_PENDING, Empty())
-
-    def dismiss_progress(self) -> None:
-        """Signal: dismiss the display of a delegated job's progress."""
-        self._links.signal(MARK_PROGRESS_DISMISS, Empty())
 
     def report_delete_error(self, event: ResourceErrorEvent) -> None:
         """Signal: a delete failed where nothing could show it. Said by whoever awaited `delete`, which knows the resource."""

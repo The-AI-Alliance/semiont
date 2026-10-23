@@ -295,18 +295,6 @@
           ]
         },
         {
-          "method": "requestDelegate",
-          "shape": "signal",
-          "via": { "local": "mark:delegate-request" },
-          "cases": [
-            {
-              "why": "the request carries the job's parameters as `delegate` takes them",
-              "args": { "params": { "motivation": "linking", "entityTypes": ["Person"] } },
-              "sends": { "params": { "motivation": "linking", "entityTypes": ["Person"] } }
-            }
-          ]
-        },
-        {
           "method": "submit",
           "shape": "signal",
           "via": { "local": "mark:submit" },
@@ -316,18 +304,6 @@
               "sends": { "source": "res-1", "motivation": "highlighting", "selector": { "$fixture": "selector" } }
             }
           ]
-        },
-        {
-          "method": "cancelPending",
-          "shape": "signal",
-          "via": { "local": "mark:cancel-pending" },
-          "cases": [{ "args": {}, "sends": {} }]
-        },
-        {
-          "method": "dismissProgress",
-          "shape": "signal",
-          "via": { "local": "mark:progress-dismiss" },
-          "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "reportDeleteError",
@@ -779,7 +755,7 @@
   "stateUnits": [
     {
       "unit": "mark",
-      "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. It is moved by the signals the mark namespace publishes, which name its resource.",
+      "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
       "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit" },
       "members": [
         { "member": "pendingAnnotation" },
@@ -787,7 +763,10 @@
         { "member": "progress" },
         { "member": "progressMotivation" },
         { "member": "failure" },
-        { "member": "jobId" }
+        { "member": "jobId" },
+        { "member": "requestDelegate" },
+        { "member": "cancelPending" },
+        { "member": "dismissProgress" }
       ]
     },
     {
@@ -806,7 +785,7 @@
     },
     {
       "unit": "gather",
-      "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed.",
+      "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
       "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit" },
       "members": [
         { "member": "context" },
@@ -816,6 +795,7 @@
         { "member": "resourceContext" },
         { "member": "resourceLoading" },
         { "member": "resourceError" },
+        { "member": "gatherAnnotation" },
         { "member": "gatherResource" }
       ]
     },

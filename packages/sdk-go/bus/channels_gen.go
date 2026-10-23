@@ -168,32 +168,11 @@ const (
 	// payload: CommandError
 	MarkBodyUpdateFailed Channel = "mark:body-update-failed"
 
-	// payload: SelectionData
-	MarkSelectComment Channel = "mark:select-comment"
-
-	// payload: SelectionData
-	MarkSelectTag Channel = "mark:select-tag"
-
-	// payload: SelectionData
-	MarkSelectAssessment Channel = "mark:select-assessment"
-
-	// payload: SelectionData
-	MarkSelectReference Channel = "mark:select-reference"
-
 	// payload: MarkRequestedEvent
 	MarkRequested Channel = "mark:requested"
 
-	// no payload — not emittable
-	MarkCancelPending Channel = "mark:cancel-pending"
-
 	// payload: MarkSubmitEvent
 	MarkSubmit Channel = "mark:submit"
-
-	// payload: MarkDelegateRequestEvent
-	MarkDelegateRequest Channel = "mark:delegate-request"
-
-	// no payload — not emittable
-	MarkProgressDismiss Channel = "mark:progress-dismiss"
 
 	// not emittable (no registered schema)
 	MarkDelegateTimeout Channel = "mark:delegate-timeout"
@@ -627,13 +606,8 @@ var ChannelSchemas = map[Channel]string{
 	MarkUnarchiveFailed:              "CommandError",
 	MarkUpdateEntityTypesFailed:      "CommandError",
 	MarkBodyUpdateFailed:             "CommandError",
-	MarkSelectComment:                "SelectionData",
-	MarkSelectTag:                    "SelectionData",
-	MarkSelectAssessment:             "SelectionData",
-	MarkSelectReference:              "SelectionData",
 	MarkRequested:                    "MarkRequestedEvent",
 	MarkSubmit:                       "MarkSubmitEvent",
-	MarkDelegateRequest:              "MarkDelegateRequestEvent",
 	FrameAddEntityType:               "FrameAddEntityTypeCommand",
 	FrameAddTagSchema:                "FrameAddTagSchemaCommand",
 	FrameEntityTypeAddFailed:         "CommandError",

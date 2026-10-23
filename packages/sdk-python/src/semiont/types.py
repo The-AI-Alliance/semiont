@@ -309,7 +309,6 @@ __all__ = [
     "MarkCreateOk",
     "MarkCreateOkResponse",
     "MarkCreateRequest",
-    "MarkDelegateRequestEvent",
     "MarkDelegateTimeoutEvent",
     "MarkDeleteCommand",
     "MarkDeleteOk",
@@ -378,7 +377,6 @@ __all__ = [
     "ResourceUpload",
     "ResourceView",
     "ScoredResource",
-    "SelectionData",
     "Selector",
     "SemanticMatch",
     "SessionJoinedEvent",
@@ -1653,48 +1651,6 @@ class ResourceUpdatedPayload(WireModel, frozen=True):
 
     content_checksum: Annotated[str, Field(alias="contentChecksum", description="SHA-256 of new content")]
     content_byte_size: Annotated[int | None, Field(alias="contentByteSize")] = None
-
-
-class SelectionData(WireModel, frozen=True):
-    """
-    Selection data for user-initiated annotations. Captures the text range and optional selector information from a user's highlight in the UI.
-    """
-
-    exact: Annotated[str, Field(description="The exact selected text")]
-    start: Annotated[
-        int,
-        Field(
-            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.",
-            ge=0,
-        ),
-    ]
-    end: Annotated[
-        int,
-        Field(
-            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.",
-            ge=0,
-        ),
-    ]
-    svg_selector: Annotated[
-        str | None,
-        Field(
-            alias="svgSelector",
-            description="SVG selector for non-text selections (e.g. PDF regions)",
-        ),
-    ] = None
-    fragment_selector: Annotated[
-        str | None,
-        Field(alias="fragmentSelector", description="Fragment selector (e.g. page=2)"),
-    ] = None
-    conforms_to: Annotated[
-        str | None,
-        Field(
-            alias="conformsTo",
-            description="Specification the fragment selector conforms to",
-        ),
-    ] = None
-    prefix: Annotated[str | None, Field(description="Text before the selection (for disambiguation)")] = None
-    suffix: Annotated[str | None, Field(description="Text after the selection (for disambiguation)")] = None
 
 
 class SemanticMatch(WireModel, frozen=True):
@@ -6355,14 +6311,6 @@ class JobReportProgressCommand(WireModel, frozen=True):
     ] = None
     percentage: float
     progress: JobProgress | None = None
-
-
-class MarkDelegateRequestEvent(WireModel, frozen=True, extra="forbid"):
-    """
-    A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
-    """
-
-    params: MarkJobParams
 
 
 class MarkCommitCommand(WireModel, frozen=True):

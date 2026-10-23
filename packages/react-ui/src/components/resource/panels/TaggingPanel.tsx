@@ -5,7 +5,7 @@ import { delegateProgressTranslations } from '../../../lib/delegate-progress-cop
 import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { markJobControls } from '../../../lib/delegated-job-controls';
 import { DelegateShell } from './DelegateShell';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
@@ -44,6 +44,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface TaggingPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: ResourceId;
   annotations: Annotation[];
@@ -74,13 +76,12 @@ interface TaggingPanelProps {
 /**
  * Panel for managing tag annotations with schema-based annotation
  *
- * @emits mark:delegate-request - Start tag annotation. Payload: MarkDelegateRequestEvent, its params those of a 'tagging' job: schemaId, categories, language, sourceLanguage
- * @emits mark:cancel-pending - Cancel pending tag annotation. Payload: undefined
  * @emits mark:submit - Create new tag annotation. Payload: MarkSubmitEvent with motivation 'tagging' and two TextualBody items, the category and the schema's id
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
   session,
+  mark,
   resourceId,
   annotations,
   annotateMode = true,
@@ -232,7 +233,7 @@ export function TaggingPanel({
 
   const handleDelegate = () => {
     if (selectedCategories.size > 0) {
-      session?.client.mark.requestDelegate({
+      mark?.requestDelegate({
         motivation: 'tagging',
         schemaId: selectedSchemaId,
         categories: Array.from(selectedCategories),
@@ -251,13 +252,13 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.mark.cancelPending();
+        mark?.cancelPending();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, session]);
+  }, [pendingAnnotation, mark]);
 
   return (
     <div className="semiont-panel">
@@ -352,7 +353,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => session?.client.mark.cancelPending()}
+                onClick={() => mark?.cancelPending()}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >
@@ -370,7 +371,7 @@ export function TaggingPanel({
             isDelegating={isDelegating}
             progress={progress}
             cancelled={cancelled}
-            controls={markJobControls(session, jobId)}
+            controls={markJobControls(session, mark, jobId)}
             progressProps={{
               translations: delegateProgressTranslations(ta),
             }}

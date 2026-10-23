@@ -477,6 +477,7 @@ function ResourceViewerPageExcerpt() {
 
       <UnifiedAnnotationsPanel
         session={session}
+        mark={stateUnit?.mark}
         annotations={annotations}
         annotators={ANNOTATORS}
         resourceId={rId}

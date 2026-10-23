@@ -1,25 +1,25 @@
 """Marking, as one resource's state: the annotation being composed, and the delegated job that is running.
 
-**The pending annotation.** A selection (`client.mark.request`, or one of the
-quick `mark:select-*` signals) becomes the annotation pending. Submitting it
-(`client.mark.submit`) creates it, and it stops being pending when the
-knowledge base says it is recorded; a creation that fails leaves it pending and
-says `mark:create-error` on the client's own bus. `client.mark.cancel_pending`
-drops it.
+**The pending annotation.** A selection (`client.mark.request`) becomes the
+annotation pending. Submitting it (`client.mark.submit`) creates it, and it
+stops being pending when the knowledge base says it is recorded; a creation
+that fails leaves it pending and says `mark:create-error` on the client's own
+bus. `cancel_pending` drops it.
 
-A request and a submission name the resource they are for, and a unit acts only
-on its own: several units over one client, one per open resource, do not answer
-for each other.
+A request and a submission are signals on the client's own bus that name the
+resource they are for, and a unit acts only on its own. A delegation, a cancel
+and a dismissal are asked of the unit itself. So several units over one client,
+one per open resource, do not answer for each other.
 
-**The delegated job.** `client.mark.request_delegate` starts one: the `mark`
-job whose parameters the request carries, delegated for this unit's resource.
-The motivation those parameters state is held while it runs, and its progress
-as it comes, with the motivation that progress is of. A finished job's progress
-stays until it is dismissed (`client.mark.dismiss_progress`) or the next one
-begins, and so does a cancelled one's: its commits stand. One that fails clears
-it. Why a job ended without completing is held until the progress is dismissed
-or the next job begins. The job's id is held from the queue's answer to its
-creation to the job's end: it is what `client.job.cancel` names.
+**The delegated job.** `request_delegate` starts one: the `mark` job of the
+parameters it is given, delegated for this unit's resource. The motivation
+those parameters state is held while it runs, and its progress as it comes,
+with the motivation that progress is of. A finished job's progress stays until
+it is dismissed (`dismiss_progress`) or the next one begins, and so does a
+cancelled one's: its commits stand. One that fails clears it. Why a job ended
+without completing is held until the progress is dismissed or the next job
+begins. The job's id is held from the queue's answer to its creation to the
+job's end: it is what `client.job.cancel` names.
 
 A delegated job that says nothing for `DELEGATE_SILENCE_MS` has gone quiet,
 which is not over: the unit says so once (`mark:delegate-timeout`) and keeps
@@ -30,23 +30,11 @@ import asyncio
 from types import TracebackType
 from typing import Final, Self, final, override
 
-from pydantic import JsonValue, ValidationError
+from pydantic import ValidationError
 
 from semiont._reading import Reading
 from semiont.bus import decoded
-from semiont.channels import (
-    MARK_CANCEL_PENDING,
-    MARK_CREATE_ERROR,
-    MARK_DELEGATE_REQUEST,
-    MARK_DELEGATE_TIMEOUT,
-    MARK_PROGRESS_DISMISS,
-    MARK_REQUESTED,
-    MARK_SELECT_ASSESSMENT,
-    MARK_SELECT_COMMENT,
-    MARK_SELECT_REFERENCE,
-    MARK_SELECT_TAG,
-    MARK_SUBMIT,
-)
+from semiont.channels import MARK_CREATE_ERROR, MARK_DELEGATE_TIMEOUT, MARK_REQUESTED, MARK_SUBMIT
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
@@ -62,7 +50,6 @@ from semiont.types import (
     AnnotationSelector,
     AnnotationTarget,
     CreateAnnotationRequest,
-    FragmentSelector,
     JobProgress,
     MarkDelegateTimeoutEvent,
     MarkJobCompleteCommand,
@@ -70,26 +57,12 @@ from semiont.types import (
     MarkSubmitEvent,
     Motivation,
     ResourceErrorEvent,
-    SelectionData,
-    Selector,
-    SvgSelector,
-    TextQuoteSelector,
 )
 from semiont.watched import Variable, Watched
 
 __all__ = ["MarkStateUnit", "PendingAnnotation"]
 
-_HEARD: Final = (
-    MARK_REQUESTED,
-    MARK_SELECT_COMMENT,
-    MARK_SELECT_TAG,
-    MARK_SELECT_ASSESSMENT,
-    MARK_SELECT_REFERENCE,
-    MARK_CANCEL_PENDING,
-    MARK_SUBMIT,
-    MARK_DELEGATE_REQUEST,
-    MARK_PROGRESS_DISMISS,
-)
+_HEARD: Final = (MARK_REQUESTED, MARK_SUBMIT)
 
 
 @final
@@ -98,30 +71,6 @@ class PendingAnnotation(WireModel, frozen=True):
 
     selector: AnnotationSelector
     motivation: Motivation
-
-
-def _selected(selection: SelectionData) -> AnnotationSelector:
-    """The selector a quick selection states: its region, its fragment with the text it quotes, or the text alone.
-
-    Each selector states only what the selection did: an empty text is none.
-    """
-    quoted: dict[str, JsonValue] = {"type": "TextQuoteSelector", "exact": selection.exact}
-    if selection.prefix:
-        quoted["prefix"] = selection.prefix
-    if selection.suffix:
-        quoted["suffix"] = selection.suffix
-    quote = TextQuoteSelector.model_validate(quoted)
-    if selection.svg_selector:
-        return SvgSelector.model_validate({"type": "SvgSelector", "value": selection.svg_selector})
-    if selection.fragment_selector:
-        fragment: dict[str, JsonValue] = {"type": "FragmentSelector", "value": selection.fragment_selector}
-        if selection.conforms_to:
-            fragment["conformsTo"] = selection.conforms_to
-        selectors: list[Selector] = [FragmentSelector.model_validate(fragment)]
-        if selection.exact:
-            selectors.append(quote)
-        return selectors
-    return quote
 
 
 @final
@@ -138,6 +87,7 @@ class MarkStateUnit(StateUnit):
         self._failure: Final = Variable[SemiontError | None](None)
         self._job_id: Final = Variable[JobId | None](None)
         self._tasks: Final = Tasks()
+        self._disposed = False
         # One reader of every signal it hears, taken now, so what is said from here on is acted on in the order it was said.
         self._tasks.run(self._listen(client.bus.frames_among([channel.name for channel in _HEARD])))
 
@@ -171,6 +121,32 @@ class MarkStateUnit(StateUnit):
         """The delegated job's id, from the queue's answer to its creation to its end: what `client.job.cancel` names."""
         return Reading(self._job_id)
 
+    def request_delegate(self, params: MarkJobParams) -> None:
+        """Delegate the annotating of this unit's resource, as the `mark` job of `params`: what `client.mark.delegate` takes."""
+        if self._disposed:
+            return
+        motivation = params.motivation
+        self._delegating.set(motivation)
+        self._progress.set(None)
+        self._progress_motivation.set(motivation)
+        self._failure.set(None)
+        self._job_id.set(None)
+        self._tasks.run(self._follow(self._client.mark.delegate(self._resource_id, params), motivation))
+
+    def cancel_pending(self) -> None:
+        """Drop the annotation that is pending."""
+        if self._disposed:
+            return
+        self._pending.set(None)
+
+    def dismiss_progress(self) -> None:
+        """Clear the display of a delegated job: its progress, the motivation that progress is of, and why it ended."""
+        if self._disposed:
+            return
+        self._progress.set(None)
+        self._progress_motivation.set(None)
+        self._failure.set(None)
+
     async def _listen(self, heard: Events[Frame]) -> None:
         async with heard:
             async for frame in heard:
@@ -186,32 +162,10 @@ class MarkStateUnit(StateUnit):
                 request = decoded(MARK_REQUESTED, frame.payload)
                 if request.source == self._resource_id:
                     self._pending.set(PendingAnnotation(selector=request.selector, motivation=request.motivation))
-            case MARK_SELECT_COMMENT.name:
-                self._pending.set(
-                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_COMMENT, frame.payload)), motivation="commenting")
-                )
-            case MARK_SELECT_TAG.name:
-                self._pending.set(PendingAnnotation(selector=_selected(decoded(MARK_SELECT_TAG, frame.payload)), motivation="tagging"))
-            case MARK_SELECT_ASSESSMENT.name:
-                self._pending.set(
-                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_ASSESSMENT, frame.payload)), motivation="assessing")
-                )
-            case MARK_SELECT_REFERENCE.name:
-                self._pending.set(
-                    PendingAnnotation(selector=_selected(decoded(MARK_SELECT_REFERENCE, frame.payload)), motivation="linking")
-                )
-            case MARK_CANCEL_PENDING.name:
-                self._pending.set(None)
             case MARK_SUBMIT.name:
                 submission = decoded(MARK_SUBMIT, frame.payload)
                 if submission.source == self._resource_id:
                     self._tasks.run(self._create(submission))
-            case MARK_DELEGATE_REQUEST.name:
-                self._delegate(decoded(MARK_DELEGATE_REQUEST, frame.payload).params)
-            case MARK_PROGRESS_DISMISS.name:
-                self._progress.set(None)
-                self._progress_motivation.set(None)
-                self._failure.set(None)
             case _:
                 pass
 
@@ -232,15 +186,6 @@ class MarkStateUnit(StateUnit):
             self._client.bus.publish(MARK_CREATE_ERROR, ResourceErrorEvent(resource_id=self._resource_id, message=error.message))
             return
         self._pending.set(None)
-
-    def _delegate(self, params: MarkJobParams) -> None:
-        motivation = params.motivation
-        self._delegating.set(motivation)
-        self._progress.set(None)
-        self._progress_motivation.set(motivation)
-        self._failure.set(None)
-        self._job_id.set(None)
-        self._tasks.run(self._follow(self._client.mark.delegate(self._resource_id, params), motivation))
 
     async def _follow(self, run: Delegation[MarkJobCompleteCommand], motivation: Motivation) -> None:
         # This job's id. At the job's end it is let go only while it is still the one held: a job delegated later replaces it.
@@ -294,6 +239,7 @@ class MarkStateUnit(StateUnit):
 
     @override
     def dispose(self) -> None:
+        self._disposed = True
         self._tasks.stop()
         self._pending.end()
         self._delegating.end()

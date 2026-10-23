@@ -364,21 +364,18 @@ mod tests {
     #[tokio::test]
     async fn a_view_of_several_channels_gives_them_in_the_order_they_were_published() {
         let bus = EventBus::new();
-        let mut both = bus.frames_among(&["mark:requested", "mark:cancel-pending"]);
-        assert_eq!(
-            bus.observed_channels(),
-            ["mark:cancel-pending", "mark:requested"]
-        );
+        let mut both = bus.frames_among(&["mark:requested", "mark:submit"]);
+        assert_eq!(bus.observed_channels(), ["mark:requested", "mark:submit"]);
 
         for n in 0..6 {
             let channel = if n % 2 == 0 {
                 "mark:requested"
             } else {
-                "mark:cancel-pending"
+                "mark:submit"
             };
             assert_eq!(bus.emit(channel, payload(n), Envelope::default()), 1);
         }
-        bus.emit("mark:submit", payload(9), Envelope::default());
+        bus.emit("mark:create-error", payload(9), Envelope::default());
         bus.scope(&"res-1".parse().unwrap())
             .emit("mark:requested", payload(9), None);
         drop(bus.frames_among(&["mark:requested"]));
@@ -393,11 +390,11 @@ mod tests {
             seen,
             [
                 said("mark:requested", 0),
-                said("mark:cancel-pending", 1),
+                said("mark:submit", 1),
                 said("mark:requested", 2),
-                said("mark:cancel-pending", 3),
+                said("mark:submit", 3),
                 said("mark:requested", 4),
-                said("mark:cancel-pending", 5),
+                said("mark:submit", 5),
             ]
         );
     }

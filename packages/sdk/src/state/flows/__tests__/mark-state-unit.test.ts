@@ -48,6 +48,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
         return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
       },
       surfaces: (u) => [u.pendingAnnotation$, u.delegatingMotivation$, u.progress$, u.progressMotivation$, u.jobId$, u.failure$],
+      invocations: (u) => [() => u.requestDelegate({ motivation: 'highlighting' }), () => u.cancelPending(), () => u.dismissProgress()],
     });
   });
 });

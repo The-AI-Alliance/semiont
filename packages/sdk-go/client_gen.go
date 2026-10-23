@@ -5193,12 +5193,6 @@ type MarkCreateRequest struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// MarkDelegateRequestEvent A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
-type MarkDelegateRequestEvent struct {
-	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
-	Params MarkJobParams `json:"params"`
-}
-
 // MarkDelegateTimeoutEvent The payload of `mark:delegate-timeout`, a client-local signal: a delegated job went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
 type MarkDelegateTimeoutEvent struct {
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
@@ -6297,33 +6291,6 @@ type ScoredResourceWasDerivedFrom1 = []ResourceId
 // ScoredResource_WasDerivedFrom W3C PROV: the resource, or resources, this one was derived from, each by its id
 type ScoredResource_WasDerivedFrom struct {
 	union json.RawMessage
-}
-
-// SelectionData Selection data for user-initiated annotations. Captures the text range and optional selector information from a user's highlight in the UI.
-type SelectionData struct {
-	// ConformsTo Specification the fragment selector conforms to
-	ConformsTo *string `json:"conformsTo,omitempty"`
-
-	// End Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.
-	End int `json:"end"`
-
-	// Exact The exact selected text
-	Exact string `json:"exact"`
-
-	// FragmentSelector Fragment selector (e.g. page=2)
-	FragmentSelector *string `json:"fragmentSelector,omitempty"`
-
-	// Prefix Text before the selection (for disambiguation)
-	Prefix *string `json:"prefix,omitempty"`
-
-	// Start Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.
-	Start int `json:"start"`
-
-	// Suffix Text after the selection (for disambiguation)
-	Suffix *string `json:"suffix,omitempty"`
-
-	// SvgSelector SVG selector for non-text selections (e.g. PDF regions)
-	SvgSelector *string `json:"svgSelector,omitempty"`
 }
 
 // Selector One W3C selector: a way of finding a segment of a resource. Tell them apart by `type`, which is required on each and single-valued.

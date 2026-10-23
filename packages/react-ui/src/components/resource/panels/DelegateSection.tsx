@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { delegateProgressCopy, delegateSubjectCopy, delegateParamLabel } from '../../../lib/delegate-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import type { JobId, MarkJobParams, components } from '@semiont/core';
 import type { AnnotatorKey } from '../../../lib/annotation-registry';
 import { markJobControls } from '../../../lib/delegated-job-controls';
@@ -29,6 +29,8 @@ type Subset<Whole, Part extends Whole> = Part;
 interface DelegateSectionProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   annotationType: Subset<AnnotatorKey, 'highlight' | 'assessment' | 'comment'>;
   isDelegating: boolean;
   /** User UI locale — written into the annotation body's `language` field for comment/assessment. */
@@ -47,11 +49,10 @@ interface DelegateSectionProps {
  * instructions, tone (comment/assessment), density — composed into the shared
  * DelegateShell chrome. Reference and tag panels compose the same shell with
  * their own fields (entity chips; schema + categories).
- *
- * @emits mark:delegate-request - Delegate a `mark` job for the annotation type. Payload: { params: MarkJobParams }, the `mark` job's own parameters, its motivation among them
  */
 export function DelegateSection({
   session,
+  mark,
   annotationType,
   isDelegating,
   locale,
@@ -90,12 +91,12 @@ export function DelegateSection({
       : annotationType === 'assessment' ? { motivation: 'assessing', ...shared, tone: toneAmong(ASSESSMENT_TONES, tone), language: locale }
       : { motivation: 'commenting', ...shared, tone: toneAmong(COMMENT_TONES, tone), language: locale };
 
-    session?.client.mark.requestDelegate(params);
+    mark?.requestDelegate(params);
 
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across delegated jobs
-  }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, session]);
+  }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, mark]);
 
   return (
     <DelegateShell
@@ -106,7 +107,7 @@ export function DelegateSection({
       isDelegating={isDelegating}
       cancelled={cancelled}
       progress={progress}
-      controls={markJobControls(session, jobId)}
+      controls={markJobControls(session, mark, jobId)}
       progressProps={{
         translations: {
           cancel: t('cancel'),

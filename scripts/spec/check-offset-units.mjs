@@ -30,8 +30,6 @@ const SCHEMAS = 'specs/src/components/schemas';
 const MEMBERS = [
   ['TextPositionSelector', ['properties', 'start']],
   ['TextPositionSelector', ['properties', 'end']],
-  ['SelectionData', ['properties', 'start']],
-  ['SelectionData', ['properties', 'end']],
   ['PdfTextItem', ['properties', 'start']],
   ['PdfTextItem', ['properties', 'end']],
   ['AnchoredTextExtractedEntry', ['properties', 'lines', 'items', 'properties', 'words']],

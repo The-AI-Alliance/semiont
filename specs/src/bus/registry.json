@@ -54,15 +54,8 @@
       "mark:update-entity-types-ok",
       "mark:update-entity-types-failed",
       "mark:body-update-failed",
-      "mark:select-comment",
-      "mark:select-tag",
-      "mark:select-assessment",
-      "mark:select-reference",
       "mark:requested",
-      "mark:cancel-pending",
       "mark:submit",
-      "mark:delegate-request",
-      "mark:progress-dismiss",
       "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",
@@ -260,15 +253,8 @@
       "frame:tag-schema-add-failed",
       "person:profiled",
       "person:profile",
-      "mark:select-comment",
-      "mark:select-tag",
-      "mark:select-assessment",
-      "mark:select-reference",
       "mark:requested",
-      "mark:cancel-pending",
       "mark:submit",
-      "mark:delegate-request",
-      "mark:progress-dismiss",
       "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",
@@ -1197,10 +1183,10 @@
       }
     },
     {
-      "channel": "mark:select-comment",
+      "channel": "mark:requested",
       "shape": "schema",
-      "schema": "SelectionData",
-      "validate": "SelectionData",
+      "schema": "MarkRequestedEvent",
+      "validate": "MarkRequestedEvent",
       "docs": {
         "lead": [
           "",
@@ -1211,75 +1197,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:select-tag",
-      "shape": "schema",
-      "schema": "SelectionData",
-      "validate": "SelectionData",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:select-assessment",
-      "shape": "schema",
-      "schema": "SelectionData",
-      "validate": "SelectionData",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:select-reference",
-      "shape": "schema",
-      "schema": "SelectionData",
-      "validate": "SelectionData",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:requested",
-      "shape": "schema",
-      "schema": "MarkRequestedEvent",
-      "validate": "MarkRequestedEvent",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:cancel-pending",
-      "shape": "void",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// void"
       }
     },
     {
@@ -1294,33 +1211,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:delegate-request",
-      "shape": "schema",
-      "schema": "MarkDelegateRequestEvent",
-      "validate": "MarkDelegateRequestEvent",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:progress-dismiss",
-      "shape": "void",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// void"
       }
     },
     {
@@ -3857,15 +3747,8 @@
     "doc": "/**\n * Explicitly LOCAL-ONLY: these channels never cross the signal plane — UI\n * signals, event-log appends, and single-process relays. Membership is a\n * DECISION, not a default: a channel absent from every class (operations,\n * outboundCommands, bridgedBroadcasts, here) refuses to generate. There is\n * no fallthrough: one would silently classify a wire channel such as\n * `job:queued` as in-process and starve every worker.\n */",
     "channels": [
       "yield:clone",
-      "mark:select-comment",
-      "mark:select-tag",
-      "mark:select-assessment",
-      "mark:select-reference",
       "mark:requested",
-      "mark:cancel-pending",
       "mark:submit",
-      "mark:delegate-request",
-      "mark:progress-dismiss",
       "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",

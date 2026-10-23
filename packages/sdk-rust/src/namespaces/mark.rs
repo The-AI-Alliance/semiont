@@ -4,11 +4,9 @@
 //! answered. What changed then arrives on the `browse` queries.
 
 use super::follow::{Delegation, Following, follow};
-use crate::channels::Empty;
 use crate::channels::{
-    MarkArchive, MarkCancelPending, MarkCreateRequest as CreateRequest, MarkDelegateRequest,
-    MarkDelete, MarkDeleteError, MarkProgressDismiss, MarkRequested, MarkSubmit, MarkUnarchive,
-    MarkUpdateEntityTypes,
+    MarkArchive, MarkCreateRequest as CreateRequest, MarkDelete, MarkDeleteError, MarkRequested,
+    MarkSubmit, MarkUnarchive, MarkUpdateEntityTypes,
 };
 use crate::client::Links;
 use crate::errors::SemiontError;
@@ -16,8 +14,8 @@ use crate::transport::Envelope;
 use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     AnnotationSelector, CreateAnnotationRequest, MarkArchiveCommand, MarkCreateOkResponse,
-    MarkCreateRequest, MarkDelegateRequestEvent, MarkDeleteCommand, MarkJobCompleteCommand,
-    MarkJobCreateCommand, MarkJobParams, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
+    MarkCreateRequest, MarkDeleteCommand, MarkJobCompleteCommand, MarkJobCreateCommand,
+    MarkJobParams, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
     MarkUpdateEntityTypesCommand, Motivation, ResourceErrorEvent,
 };
 
@@ -173,33 +171,9 @@ impl MarkNamespace {
         );
     }
 
-    /// Signal: the annotating of the open resource is to be delegated, as a
-    /// `mark` job of these parameters, the ones `delegate` takes. The
-    /// client's own state runs it.
-    pub fn request_delegate(&self, params: impl Into<MarkJobParams>) {
-        self.links.signal::<MarkDelegateRequest>(
-            &MarkDelegateRequestEvent {
-                params: params.into(),
-            },
-            Envelope::default(),
-        );
-    }
-
     /// Signal: submit the annotation that is pending.
     pub fn submit(&self, input: MarkSubmitEvent) {
         self.links.signal::<MarkSubmit>(&input, Envelope::default());
-    }
-
-    /// Signal: drop the annotation that is pending.
-    pub fn cancel_pending(&self) {
-        self.links
-            .signal::<MarkCancelPending>(&Empty {}, Envelope::default());
-    }
-
-    /// Signal: dismiss the display of a delegated job's progress.
-    pub fn dismiss_progress(&self) {
-        self.links
-            .signal::<MarkProgressDismiss>(&Empty {}, Envelope::default());
     }
 
     /// Signal: a delete failed where nothing could show it. Said by whoever
