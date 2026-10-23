@@ -199,8 +199,6 @@ On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.
 
 The launcher walks up from the current directory looking for `.semiont/`, as `git` finds `.git/`. `SEMIONT_ROOT` overrides that, and so does `--root` on the commands that take it.
 
-A directory that keeps `.semiont/config` or `.semiont/semiontconfig/` is refused, by `semiont start` and by every other command run in it, and the refusal names the file that holds the same now: `.semiont/config.yaml` for the first, `.semiont/stack/` for the second. Write those, as `semiont init` writes them or as the fixture has them, and delete the old ones.
-
 ## When a document is refused
 
 `semiont start` checks the documents before it starts anything and as it writes each service's document, and a refusal names the file and the field. The common ones:
