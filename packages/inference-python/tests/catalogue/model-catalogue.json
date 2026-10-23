@@ -1,7 +1,7 @@
 {
   "package": "@opencode-ai/models",
-  "version": "0.0.106",
-  "generatedAt": "2026-10-16T05:31:10.840Z",
+  "version": "0.0.109",
+  "generatedAt": "2026-10-19T05:32:55.764Z",
   "license": "MIT",
   "providers": {
     "google": {
@@ -115,9 +115,12 @@
         "deepseek-ai/DeepSeek-V4.1-Flash": {"limit":{"context":1048576,"input":null,"output":384000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","high","max"]}],"status":null,"structured_output":true,"temperature":true},
         "essentialai/Rnj-1-Instruct": {"limit":{"context":32768,"input":null,"output":32768},"reasoning":false,"reasoning_options":null,"status":"deprecated","structured_output":null,"temperature":true},
         "meta-llama/Llama-3.3-70B-Instruct-Turbo": {"limit":{"context":131072,"input":null,"output":131072},"reasoning":false,"reasoning_options":null,"status":null,"structured_output":null,"temperature":true},
+        "meta-models/Muse-Spark-Open-816B-A42B": {"limit":{"context":1048576,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high","xhigh"]}],"status":null,"structured_output":true,"temperature":true},
         "moonshotai/Kimi-K3": {"limit":{"context":1048576,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","high","max"]}],"status":null,"structured_output":true,"temperature":false},
+        "nvidia/NVIDIA-Nemotron-3.5-Super-VL": {"limit":{"context":262144,"input":null,"output":262144},"reasoning":true,"reasoning_options":[{"type":"toggle"}],"status":null,"structured_output":true,"temperature":true},
         "nvidia/nemotron-3-ultra-550b-a55b": {"limit":{"context":512300,"input":null,"output":512300},"reasoning":true,"reasoning_options":[{"type":"toggle"}],"status":null,"structured_output":true,"temperature":true},
         "openai/gpt-oss-120b": {"limit":{"context":131072,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high"]}],"status":null,"structured_output":null,"temperature":true},
+        "reflection/Beam-1.0-501B-A23B": {"limit":{"context":1048576,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":true},
         "thinkingmachines/Inkling": {"limit":{"context":524288,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"effort","values":["max","xhigh","high","medium","low","none"]}],"status":null,"structured_output":true,"temperature":true},
         "zai-org/GLM-5": {"limit":{"context":202752,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"toggle"}],"status":"deprecated","structured_output":true,"temperature":true},
         "zai-org/GLM-5.1": {"limit":{"context":202752,"input":null,"output":131072},"reasoning":true,"reasoning_options":[{"type":"toggle"}],"status":"deprecated","structured_output":true,"temperature":true},
