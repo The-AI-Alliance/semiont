@@ -1,45 +1,45 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "packages": {
     "@semiont/core": {
       "dir": "packages/core",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "@semiont/observability": {
       "dir": "packages/observability",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "@semiont/http-transport": {
       "dir": "packages/http-transport",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "@semiont/sdk": {
       "dir": "packages/sdk",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "@semiont/react-ui": {
       "dir": "packages/react-ui",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "@semiont/mcp-server": {
       "dir": "packages/mcp-server",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": false
     },
     "semiont-browser": {
       "dir": "apps/browser",
       "stage": ".npm-stage/browser",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": true
     },
     "semiont-desktop": {
       "dir": "apps/desktop",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "publish": false
     }
   }
