@@ -201,7 +201,7 @@ components:
     try-lock - MIT
     typenum - MIT OR Apache-2.0
     unicode-general-category - Apache-2.0
-    unicode-normalization - MIT OR Apache-2.0
+    unicode-normalization - (MIT OR Apache-2.0) AND Unicode-3.0
     unicode-width - MIT OR Apache-2.0
     untrusted - ISC
     url - MIT OR Apache-2.0
