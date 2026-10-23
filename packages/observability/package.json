@@ -1,6 +1,6 @@
 {
   "name": "@semiont/observability",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "OpenTelemetry tracing and metrics for Semiont's TypeScript transport. Node process-init helpers, a withSpan wrapper, W3C trace-context propagation across the bus, and the count of the emits a client sent. No-op when no exporter is configured.",
   "type": "module",
   "main": "dist/index.js",
