@@ -197,10 +197,10 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
                     motivation: request.motivation,
                 }));
             }
-        } else if let Some(submission) = said::<MarkSubmit>(&frame) {
-            if submission.source == shared.resource_id {
-                shared.tasks.spawn(create(shared.clone(), submission));
-            }
+        } else if let Some(submission) = said::<MarkSubmit>(&frame)
+            && submission.source == shared.resource_id
+        {
+            shared.tasks.spawn(create(shared.clone(), submission));
         }
     }
 }

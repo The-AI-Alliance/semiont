@@ -277,7 +277,7 @@ class Method(Protocol):
 
 def argument(method: Method, name: str, value: JsonValue) -> object:
     """An argument as the method takes it: what the case states, read as the type the method states for it."""
-    stated: object = get_type_hints(method)[name]
+    stated = get_type_hints(method)[name]
     return TypeAdapter[object](stated).validate_python(resolved(value))
 
 

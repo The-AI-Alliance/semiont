@@ -158,6 +158,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
       renderInEnglish(
         <ReferencesPanel
           session={session}
+          mark={undefined}
           resourceId={resourceId('res-1')}
           annotations={[]}
           isDelegating={false}
