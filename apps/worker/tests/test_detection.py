@@ -38,7 +38,7 @@ from semiont_inference.mock import MockInferenceClient
 from semiont_worker.chunking import Chunking, Cut, chunk_text, cut_chunk, estimate_tokens
 from semiont_worker.detection.annotation_detection import detect_assessments, detect_comments, detect_highlights, detect_tags
 from semiont_worker.detection.chunk_plan import ChunkCursor, DetectionBudget, UnderReportedPiece, derive_detection_budget
-from semiont_worker.detection.chunk_size import CallOutcome, next_chunk_size
+from semiont_worker.detection.chunk_size import CallOutcome, next_chunk_size, resumed_size
 from semiont_worker.detection.entity_extractor import ENTITY_ELEMENT_SCHEMA, Mention, extract_entities
 from semiont_worker.detection.parsers import (
     ASSESSMENT_ELEMENT_SCHEMA,
@@ -484,7 +484,7 @@ def test_what_the_provider_counted_of_a_piece_sizes_the_next(kind: Kind) -> None
     budget = budget_of(kind, limits)
     # Every answer fills the output budget, so each piece is cut smaller than the last, down to the floor.
     client = Costing(limits, budget.bounds.output_budget)
-    filled = CallOutcome(size_failed=False, output_tokens=budget.bounds.output_budget)
+    filled = CallOutcome(recovered=None, output_tokens=budget.bounds.output_budget)
     cuts: list[tuple[Cut, int]] = []
     at, size = 0, budget.chunking.chunk_size
     while at < len(TEXT):
@@ -510,8 +510,8 @@ def test_a_unit_left_partway_is_taken_up_where_its_cursor_stands_and_one_at_the_
     budget = budget_of(kind, limits)
     opened_at = budget.chunking.chunk_size
     left = cuts_of(TEXT, budget, 0, opened_at)[1][1].next
-    # The attempt that wrote the cursor died, so its size is stepped as a size failure steps one.
-    size = next_chunk_size(CallOutcome(size_failed=True, output_tokens=None), opened_at, budget.bounds)
+    # The attempt that wrote the cursor died, so the unit opens one shrink step under the cursor's size.
+    size = resumed_size(opened_at, budget.bounds)
     assert budget.bounds.floor < size < opened_at
     cuts = cuts_of(TEXT, budget, left, size)
     client = answering([[]], limits)

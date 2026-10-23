@@ -108,7 +108,7 @@ ASKED: Final[dict[str, Asked]] = {
     **{f"code-points-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
     "halved-first": Asked(PASSAGES, highlighting),
     **{f"halved-half-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},
-    **{f"halved-rest-{n}": Asked(PASSAGES, highlighting) for n in range(1, 6)},
+    **{f"halved-rest-{n}": Asked(PASSAGES, highlighting) for n in range(1, 9)},
     "unreadable-half": Asked(PASSAGES, highlighting),
     "unreadable-quarter": Asked(PASSAGES, highlighting),
     **{f"resume-{n}": Asked(PASSAGES, highlighting) for n in range(1, 5)},

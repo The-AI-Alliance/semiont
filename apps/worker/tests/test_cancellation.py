@@ -113,7 +113,7 @@ def a_walk(
         await asyncio.sleep(0)
         if len(seen) == cancel_at:
             cancelled.set(True)
-        return CallOutcome(size_failed=False, output_tokens=None)
+        return CallOutcome(recovered=None, output_tokens=None)
 
     run(run_adaptive_chunks(text, budget, cancelled, on_chunk, resume))
     return seen

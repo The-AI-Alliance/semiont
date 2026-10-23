@@ -29,7 +29,14 @@ from semiont_worker.detection.chunk_plan import (
     derive_detection_budget,
     run_adaptive_chunks,
 )
-from semiont_worker.detection.chunk_size import CHUNK_SIZING_POLICY, CallOutcome, ChunkSizingPolicy, SizingBounds, next_chunk_size
+from semiont_worker.detection.chunk_size import (
+    CHUNK_SIZING_POLICY,
+    CallOutcome,
+    ChunkSizingPolicy,
+    Recovered,
+    SizingBounds,
+    next_chunk_size,
+)
 from semiont_worker.failure_class import DeterministicJobError
 from semiont_worker.inference_call import InferenceTimeoutError
 
@@ -56,7 +63,7 @@ class StatedBudget(StatedBounds, frozen=True):
 
 
 class StatedOutcome(Stated, frozen=True):
-    size_failed: Annotated[bool, Field(alias="sizeFailed")]
+    recovered: Recovered | None = None
     output_tokens: Annotated[int | None, Field(alias="outputTokens")] = None
 
 
@@ -135,7 +142,7 @@ class FailsWith(Stated, frozen=True):
 
 class StatedResult(Stated, frozen=True):
     items: list[JsonValue]
-    size_failed: Annotated[bool, Field(alias="sizeFailed")]
+    recovered: Recovered | None = None
     output_tokens: Annotated[int | None, Field(alias="outputTokens")] = None
     counted: list[int]
     under_reported: Annotated[list[StatedVerdict], Field(alias="underReported")]
@@ -178,8 +185,8 @@ def budget_of(stated: StatedBudget) -> DetectionBudget:
     return DetectionBudget(chunking=Chunking(chunk_size=stated.size, overlap=stated.overlap), bounds=bounds_of(stated))
 
 
-def outcome_of(stated: StatedOutcome) -> CallOutcome:
-    return CallOutcome(size_failed=stated.size_failed, output_tokens=stated.output_tokens)
+def outcome_of(stated: StatedOutcome | StatedResult) -> CallOutcome:
+    return CallOutcome(recovered=stated.recovered, output_tokens=stated.output_tokens)
 
 
 def verdict_of(stated: StatedVerdict) -> UnderReportedPiece:
@@ -222,8 +229,8 @@ def raised_by(work: Coroutine[None, None, object]) -> Exception | None:
 
 def test_the_runner_found_cases_of_every_kind() -> None:
     assert len(BUDGETS) >= 10
-    assert len(STEPS) >= 15
-    assert len(WALKS) >= 12
+    assert len(STEPS) >= 17
+    assert len(WALKS) >= 13
     assert len(DESCENTS) >= 19
     assert len(BUDGETS) + len(STEPS) + len(WALKS) + len(DESCENTS) == len(TABLE.cases)
 
@@ -324,10 +331,7 @@ def test_a_piece_is_asked_about_and_descended_into_as_the_table_says(case: Desce
     descent = call_chunk_subdividing("highlight", case.piece, case.overlap, call, under_reported.append, counted.append)
     if case.raises is None:
         assert case.result is not None, "a descent case states its result, or the reply whose failure it raises"
-        assert asyncio.run(descent) == SubdividedCall(
-            items=case.result.items,
-            outcome=CallOutcome(size_failed=case.result.size_failed, output_tokens=case.result.output_tokens),
-        ), case.why
+        assert asyncio.run(descent) == SubdividedCall(items=case.result.items, outcome=outcome_of(case.result)), case.why
         # What the descent told as it went: the count of each piece it accepted, and the verdict of each it kept though under-reported.
         assert counted == case.result.counted, case.why
         assert under_reported == [verdict_of(verdict) for verdict in case.result.under_reported], case.why

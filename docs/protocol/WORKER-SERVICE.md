@@ -611,7 +611,11 @@ deterministic, so that no attempt is spent on them again.
   The batch and the cursor are the piece's, and the cursor states the size
   the piece was first cut at. A half is halved in its turn for as long as the
   half of it is over 128 tokens. The piece after one that was halved is cut at
-  seven tenths the size.
+  the smallest size at which a piece of it came back and was kept. The halves
+  of one piece are all cut at one size, a short last half among them,
+  whatever its own length. The piece after one asked a second time whole
+  ([F5](#failures)), or kept as it was, is cut at the size that one was cut
+  at. No piece is cut under the size [D7](#pieces) never goes under.
   *Held by `worker-service/halved`.*
 - **F7.** A piece whose answer cannot be read, or is not had in time, is
   asked again in halves as [F6](#failures) says: one unreadable for a reason

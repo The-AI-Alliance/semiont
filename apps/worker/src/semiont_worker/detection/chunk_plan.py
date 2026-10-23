@@ -25,7 +25,7 @@ from semiont.watched import Watched
 from semiont_inference.interface import InferenceLimits, StructuredReadError, TokenUsage
 
 from semiont_worker.chunking import Chunking, chunk_text, cut_chunk, estimate_tokens
-from semiont_worker.detection.chunk_size import CallOutcome, SizingBounds, next_chunk_size
+from semiont_worker.detection.chunk_size import CallOutcome, Recovered, SizingBounds, next_chunk_size, resumed_size
 from semiont_worker.failure_class import DeterministicJobError
 from semiont_worker.inference_call import INFERENCE_TIMEOUT_SECONDS, InferenceTimeoutError
 from semiont_worker.log import LOG
@@ -281,17 +281,14 @@ async def run_adaptive_chunks(
     apart by reading `cancelled` itself.
 
     `resume` is where an earlier attempt left the unit. The walk starts at
-    the cursor's `next`, at the size the step gives for the cursor's `size`
-    and a size failure: the attempt that wrote the cursor died, the same size
-    would cut the same piece and be answered the same way, and the opening
-    size would throw away what that attempt learned. A cursor at the end of
-    the text asks nothing.
+    the cursor's `next`, one shrink step under the cursor's `size`
+    (`resumed_size`). A cursor at the end of the text asks nothing.
     """
     total_chars = len(text)
     if resume is None:
         at, size = 0, budget.chunking.chunk_size
     else:
-        at, size = resume.next, next_chunk_size(CallOutcome(size_failed=True, output_tokens=None), resume.size, budget.bounds)
+        at, size = resume.next, resumed_size(resume.size, budget.bounds)
 
     while at < total_chars and not cancelled.value:
         cut = cut_chunk(text, at, Chunking(chunk_size=size, overlap=budget.chunking.overlap))
@@ -321,7 +318,8 @@ class SubdividedCall:
     items: list[JsonValue]
     """Those of every piece that was accepted, in order."""
     outcome: CallOutcome
-    """What the step sizes the next piece from: whether any call size-failed, and what the provider counted over the calls that answered."""
+    """What the step sizes the next piece from: what the descent recovered the piece at, where a call failed for its size, and what the
+    provider counted over the calls that answered."""
 
 
 async def call_chunk_subdividing(
@@ -364,10 +362,18 @@ async def call_chunk_subdividing(
     in its place. `on_under_report` is told the verdict of each collapse that
     is kept. Both are told at once, and not when the descent ends, so what
     was accepted before a later piece failed has still been told.
+
+    Once a call fails in one of the four ways, the outcome says what the
+    descent recovered the piece at: the smallest size a piece it cut was cut
+    at, among the pieces it accepted, or `uncut` where the one piece it
+    accepted is the one it was handed. A piece is cut at half the size of the
+    one it was cut from, so a short piece where that one ends is cut at its
+    siblings' size, whatever its own length. The descent is not told the size
+    `chunk` was cut at: the step, which is, answers `uncut`.
     """
     descent = _Descent(label, overlap, call, on_under_report, on_counted)
-    items = await descent.attempt(chunk, 0)
-    return SubdividedCall(items=items, outcome=CallOutcome(size_failed=descent.size_failed, output_tokens=descent.output_tokens))
+    items = await descent.attempt(chunk, 0, "uncut")
+    return SubdividedCall(items=items, outcome=CallOutcome(recovered=descent.recovered, output_tokens=descent.output_tokens))
 
 
 def _cut_off(failure: BaseException) -> bool:
@@ -429,7 +435,25 @@ class _Descent:
         self._answered = 0
         self._counted_by_the_provider = 0
         self._output_tokens = 0
-        self.size_failed = False
+        self._size_failed = False
+        self._smallest_cut: int | None = None
+
+    @property
+    def recovered(self) -> Recovered | None:
+        """What the descent recovered its piece at, once a call failed for its size: `None` until one does.
+
+        The smallest size a piece it cut was cut at, among the pieces it
+        accepted, or `uncut` where it cut none: the one piece it accepted is
+        the one it was handed.
+        """
+        if not self._size_failed:
+            return None
+        return "uncut" if self._smallest_cut is None else self._smallest_cut
+
+    def _accepted(self, cut_at: Recovered) -> None:
+        """Note the size a piece the descent accepted was cut at."""
+        if isinstance(cut_at, int):
+            self._smallest_cut = cut_at if self._smallest_cut is None else min(self._smallest_cut, cut_at)
 
     @property
     def output_tokens(self) -> int | None:
@@ -468,18 +492,22 @@ class _Descent:
             self._on_counted(answer.counted)
         return list(answer.items)
 
-    async def attempt(self, piece: str, depth: int) -> list[JsonValue]:
-        """What `piece`, `depth` levels below the piece the descent began with, gives."""
+    async def attempt(self, piece: str, depth: int, cut_at: Recovered) -> list[JsonValue]:
+        """What `piece`, `depth` levels below the piece the descent began with, gives.
+
+        `cut_at` is the size the descent cut `piece` at, or `uncut` for the
+        piece it was handed.
+        """
         try:
-            return await self._ask(piece, depth, reroll=False)
+            items = await self._ask(piece, depth, reroll=False)
         except (DeterministicJobError, StructuredReadError, InferenceTimeoutError) as failure:
             by_size = _cut_off(failure) or _unreadable_for_no_stated_reason(failure)
             by_depth = isinstance(failure, InferenceTimeoutError) or _unreadable_though_finished(failure)
             if not (by_size or by_depth):
                 raise
             # The size was wrong, whether or not the descent below recovers the piece: the next piece of the
-            # walk is not to be cut at a size this one has already paid to find too large.
-            self.size_failed = True
+            # walk is cut at what the descent recovers it at, and not at a size this one has paid to find too large.
+            self._size_failed = True
             half = estimate_tokens(piece) // 2
             # By size, a piece descends for as long as its half is over the size floor: what a piece demands
             # halves with its size, so this ends, and a text dense with spans goes as deep as it needs. By
@@ -493,7 +521,7 @@ class _Descent:
                 # What the failed reply carried is discarded for what the smaller pieces give.
                 collected: list[JsonValue] = []
                 for part in chunk_text(piece, Chunking(chunk_size=half, overlap=self._overlap)):
-                    collected.extend(await self.attempt(part, depth + 1))
+                    collected.extend(await self.attempt(part, depth + 1, half))
                 return collected
             if isinstance(failure, YieldCollapseError):
                 # Kept, and said: one piece does not discard its unit's work, and asking again gives the same collapse.
@@ -510,6 +538,7 @@ class _Descent:
                     self._on_under_report(failure.verdict)
                 if self._on_counted is not None:
                     self._on_counted(failure.verdict.counted)
+                self._accepted(cut_at)
                 return list(failure.salvage)
             if not _cut_off(failure):
                 raise
@@ -518,4 +547,6 @@ class _Descent:
                 "Floor-size piece truncated — re-rolling once before giving up",
                 extra={"pieceChars": len(piece), "pieceTokens": estimate_tokens(piece), "error": str(failure)},
             )
-            return await self._ask(piece, depth, reroll=True)
+            items = await self._ask(piece, depth, reroll=True)
+        self._accepted(cut_at)
+        return items
