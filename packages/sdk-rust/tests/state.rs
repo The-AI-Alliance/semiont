@@ -17,7 +17,8 @@ use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_a
 use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::HOVER_DELAY;
 use semiont::types::{
-    AnnotationSelector, GatherResourceRequestOptions, GenerationJobParams, Motivation,
+    AnnotationSelector, GatherResourceRequestOptions, GenerationJobParams, MarkJobParams,
+    Motivation,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -181,9 +182,12 @@ impl AxiomSubject for Gatherings {
     }
 
     fn invocations<'a>(&self, unit: &'a GatherStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
-        vec![Box::new(|| {
-            unit.gather_resource(&as_id(RES), GatherResourceRequestOptions::default());
-        })]
+        vec![
+            Box::new(|| unit.gather_annotation(&as_id("ann-1"), None)),
+            Box::new(|| {
+                unit.gather_resource(&as_id(RES), GatherResourceRequestOptions::default());
+            }),
+        ]
     }
 }
 
@@ -267,7 +271,7 @@ async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
             requested_selector("first"),
             Motivation::Highlighting,
         );
-        client.mark.cancel_pending();
+        unit.cancel_pending();
         client.mark.request(
             &as_id(RES),
             requested_selector(&last),
@@ -282,10 +286,14 @@ async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
         .await
         .expect("the last selection becomes the pending one")
         .expect("the unit lives");
-        // The cancellation was said before it, so nothing is left to undo it.
+        // The cancellation was asked before it, so nothing is left to undo it.
         tokio::time::sleep(Duration::from_millis(2)).await;
         assert_eq!(*pending.borrow(), wanted, "round {round}");
     }
+}
+
+fn highlighting() -> MarkJobParams {
+    serde_json::from_value(json!({ "motivation": "highlighting" })).expect("mark params")
 }
 
 struct Marks;
@@ -306,6 +314,14 @@ impl AxiomSubject for Marks {
             Box::new(unit.progress_motivation()),
             Box::new(unit.failure()),
             Box::new(unit.job_id()),
+        ]
+    }
+
+    fn invocations<'a>(&self, unit: &'a MarkStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
+        vec![
+            Box::new(|| unit.request_delegate(highlighting())),
+            Box::new(|| unit.cancel_pending()),
+            Box::new(|| unit.dismiss_progress()),
         ]
     }
 }

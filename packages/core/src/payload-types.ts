@@ -50,7 +50,6 @@ export type UnitCursor = components['schemas']['UnitCursor'];
  * `yield.delegate` writes and what a worker is handed with the job.
  */
 export type GenerationJobParams = components['schemas']['GenerationJobParams'];
-export type SelectionData = components['schemas']['SelectionData'];
 export type JobType = components['schemas']['JobType'];
 
 /**

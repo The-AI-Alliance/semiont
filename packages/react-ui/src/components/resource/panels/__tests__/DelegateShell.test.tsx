@@ -92,7 +92,7 @@ describe('DelegateShell', () => {
     vi.spyOn(client.job, 'cancel').mockReturnValue(new Promise<boolean>(() => {}));
     const running = (job: string) => (
       <DelegateShell delegateType="reference" title="t" isDelegating={true} cancelled={false} progress={progress}
-        form={null} controls={markJobControls(session, jobId(job))} progressProps={{ translations: TR }} />
+        form={null} controls={markJobControls(session, undefined, jobId(job))} progressProps={{ translations: TR }} />
     );
     const { rerender } = render(running('job-1'));
     await userEvent.click(screen.getByTestId('semiont-delegate-control'));

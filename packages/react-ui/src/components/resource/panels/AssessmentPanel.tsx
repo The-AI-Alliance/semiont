@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -40,6 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface AssessmentPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: ResourceId;
   annotations: Annotation[];
@@ -70,11 +72,11 @@ interface AssessmentPanelProps {
  * Panel for managing assessment annotations with text input
  *
  * @emits mark:submit - Create new assessment annotation. Payload: MarkSubmitEvent with motivation 'assessing', and a TextualBody when there is text
- * @emits mark:cancel-pending - Cancel pending assessment annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
   session,
+  mark,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -182,14 +184,14 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.mark.cancelPending();
+        mark?.cancelPending();
         setNewAssessmentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, session]);
+  }, [pendingAnnotation, mark]);
 
   // Event handler for annotation clicks (a named callback rather than an inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
@@ -235,7 +237,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  session?.client.mark.cancelPending();
+                  mark?.cancelPending();
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -261,6 +263,7 @@ export function AssessmentPanel({
         {annotateMode && (
           <DelegateSection
             session={session}
+            mark={mark}
             annotationType="assessment"
             isDelegating={isDelegating}
             locale={locale}

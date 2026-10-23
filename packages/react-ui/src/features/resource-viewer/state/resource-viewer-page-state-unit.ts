@@ -11,7 +11,6 @@ import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontSession } from '@semiont/sdk';
-import { uuidV4 } from '@semiont/core';
 import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
@@ -105,6 +104,8 @@ export function createResourceViewerPageStateUnit(
   // `subscribeToResource` call is needed.
 
   const bindInitiateSub = client.bus.on('bind:initiate').subscribe((event) => {
+    // The signal names its resource, and several viewers may share a client.
+    if (event.resourceId !== resourceId) return;
     wizard$.next({
       open: true,
       annotationId: event.annotationId,
@@ -112,11 +113,7 @@ export function createResourceViewerPageStateUnit(
       defaultTitle: event.defaultTitle,
       entityTypes: event.entityTypes,
     });
-    client.bus.emit('gather:requested', {
-      annotationId: event.annotationId,
-      resourceId: event.resourceId,
-      options: { contextWindow: 2000 },
-    }, { correlationId: uuidV4() });
+    gather.gatherAnnotation(event.annotationId, { contextWindow: 2000 });
   });
   disposer.add(() => bindInitiateSub.unsubscribe());
 

@@ -140,11 +140,9 @@ describe('createResourceViewerPageStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('bind:initiate opens wizard and fires gather:requested', async () => {
+  it("bind:initiate opens the wizard and gathers the annotation's context", async () => {
     tc = clientWithNamespaces();
     const stateUnit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());
-    const gatherEvents: unknown[] = [];
-    tc.bus.on('gather:requested').subscribe((e) => gatherEvents.push(e));
 
     tc.bus.emit('bind:initiate', {
       annotationId: annotationId('ann-1'),
@@ -155,7 +153,24 @@ describe('createResourceViewerPageStateUnit', () => {
 
     const wizard = await firstValueFrom(stateUnit.wizard$.pipe(filter((w) => w.open)));
     expect(wizard.annotationId).toBe('ann-1');
-    expect(gatherEvents).toHaveLength(1);
+    expect(tc.client.gather.annotation).toHaveBeenCalledExactlyOnceWith(RID, 'ann-1', { contextWindow: 2000 });
+
+    stateUnit.dispose();
+  });
+
+  it("bind:initiate for another resource opens nothing and gathers nothing: viewers may share a client", async () => {
+    tc = clientWithNamespaces();
+    const stateUnit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());
+
+    tc.bus.emit('bind:initiate', {
+      annotationId: annotationId('ann-1'),
+      resourceId: makeResourceId('res-2'),
+      defaultTitle: 'Test',
+      entityTypes: [],
+    });
+
+    expect((await firstValueFrom(stateUnit.wizard$)).open).toBe(false);
+    expect(tc.client.gather.annotation).not.toHaveBeenCalled();
 
     stateUnit.dispose();
   });

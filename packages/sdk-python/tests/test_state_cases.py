@@ -18,7 +18,7 @@ from typing import Final, Protocol, TypedDict, final, get_type_hints
 
 import pytest
 from aio import pass_time, run_still, turns
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, strings, text
 
 from semiont import timing
@@ -276,11 +276,9 @@ class Method(Protocol):
 
 
 def argument(method: Method, name: str, value: JsonValue) -> object:
-    """An argument as the method takes it: one it types as a wire model is read as that model, any other is given as the case states it."""
-    stated: object = get_type_hints(method).get(name)
-    if isinstance(stated, type) and issubclass(stated, WireModel):
-        return stated.model_validate(resolved(value))
-    return resolved(value)
+    """An argument as the method takes it: what the case states, read as the type the method states for it."""
+    stated: object = get_type_hints(method)[name]
+    return TypeAdapter[object](stated).validate_python(resolved(value))
 
 
 def state_of(units: Mapping[str, StateUnit], name: str, member: str) -> Watched[object]:

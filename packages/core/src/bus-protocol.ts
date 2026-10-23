@@ -169,15 +169,8 @@ export type EventMap = {
   'mark:body-update-failed': components['schemas']['CommandError'];
 
   // UI events
-  'mark:select-comment': components['schemas']['SelectionData'];
-  'mark:select-tag': components['schemas']['SelectionData'];
-  'mark:select-assessment': components['schemas']['SelectionData'];
-  'mark:select-reference': components['schemas']['SelectionData'];
   'mark:requested': components['schemas']['MarkRequestedEvent'];
-  'mark:cancel-pending': void;
   'mark:submit': components['schemas']['MarkSubmitEvent'];
-  'mark:delegate-request': components['schemas']['MarkDelegateRequestEvent'];
-  'mark:progress-dismiss': void;
   // Client-local: a delegated job went silent past its deadline (no
   // progress, no completion, no job:fail). Emitted by mark-state-unit so the
   // outcome-notification layer can tell the user; a real job failure arrives
@@ -615,15 +608,8 @@ export const CHANNEL_SCHEMAS = {
   'frame:tag-schema-add-failed':      'CommandError',
   'person:profiled':                  null,
   'person:profile':                   'PersonProfileCommand',
-  'mark:select-comment':              'SelectionData',
-  'mark:select-tag':                  'SelectionData',
-  'mark:select-assessment':           'SelectionData',
-  'mark:select-reference':            'SelectionData',
   'mark:requested':                   'MarkRequestedEvent',
-  'mark:cancel-pending':              null, // void
   'mark:submit':                      'MarkSubmitEvent',
-  'mark:delegate-request':            'MarkDelegateRequestEvent',
-  'mark:progress-dismiss':            null, // void
   'mark:delegate-timeout':            null, // { resourceId; motivation } — client-local UI signal
   'mark:create-error':                null, // { resourceId; message } — client-local UI signal
   'mark:delete-error':                null, // { resourceId; message } — client-local UI signal

@@ -22,6 +22,7 @@ import {
   type BusOperationKey,
   type EventMap,
   type GenerationJobParams,
+  type MarkJobParams,
   type StateUnit,
   type Watched,
 } from '@semiont/core';
@@ -189,6 +190,11 @@ const MAKERS: Record<string, Make> = {
     return {
       unit,
       methods: {
+        gatherAnnotation: (args) =>
+          unit.gatherAnnotation(
+            annotationOf(args),
+            args['contextWindow'] === undefined ? undefined : { contextWindow: count(args['contextWindow'], 'contextWindow') },
+          ),
         gatherResource: (args) => unit.gatherResource(resourceId(text(args['resourceId'], 'resourceId'))),
       } satisfies Methods<GatherStateUnit>,
       states: {
@@ -239,7 +245,12 @@ const MAKERS: Record<string, Make> = {
     const unit: MarkStateUnit = createMarkStateUnit(client, resourceId(text(made['resourceId'], 'a resource')));
     return {
       unit,
-      methods: {} satisfies Methods<MarkStateUnit>,
+      methods: {
+        // The job's parameters are the wire's, as the case writes them.
+        requestDelegate: (args) => unit.requestDelegate(object(args['params'], 'params') as unknown as MarkJobParams),
+        cancelPending: () => unit.cancelPending(),
+        dismissProgress: () => unit.dismissProgress(),
+      } satisfies Methods<MarkStateUnit>,
       states: {
         pendingAnnotation: unit.pendingAnnotation$,
         delegatingMotivation: unit.delegatingMotivation$,

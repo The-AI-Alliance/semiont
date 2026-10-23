@@ -378,13 +378,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             args.typed("selector"),
             args.typed("motivation"),
         ),
-        ("mark", "requestDelegate") => {
-            let params: semiont::types::MarkJobParams = args.typed("params");
-            client.mark.request_delegate(params)
-        }
         ("mark", "submit") => client.mark.submit(args.typed("input")),
-        ("mark", "cancelPending") => client.mark.cancel_pending(),
-        ("mark", "dismissProgress") => client.mark.dismiss_progress(),
         ("mark", "reportDeleteError") => client.mark.report_delete_error(args.typed("input")),
 
         ("bind", "body") => {

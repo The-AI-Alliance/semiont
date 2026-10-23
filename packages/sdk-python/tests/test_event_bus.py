@@ -5,7 +5,7 @@ import logging
 import pytest
 from aio import run, soon
 
-from semiont.channels import BECKON_HOVER, MARK_CANCEL_PENDING
+from semiont.channels import BECKON_HOVER, PANEL_CLOSE
 from semiont.event_bus import EventBus
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
@@ -104,7 +104,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
     async def scenario() -> None:
         bus = EventBus()
         raw, typed = bus.frames_on("beckon:hover"), bus.frames(BECKON_HOVER)
-        nothing = bus.frames_on("mark:cancel-pending")
+        nothing = bus.frames_on("panel:close")
 
         bus.publish(BECKON_HOVER, BeckonHoverEvent(annotation_id=AnnotationId("ann-1")))
         # Nothing is hovered: the field says so, since the channel's payload requires it.
@@ -112,7 +112,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         # What is not the channel's payload is nobody's to act on: it is not given, and is said so.
         bus.emit("beckon:hover", {"annotationId": 7})
         bus.publish(BECKON_HOVER, BeckonHoverEvent(annotation_id=AnnotationId("ann-2")))
-        bus.emit("mark:cancel-pending", {})
+        bus.emit("panel:close", {})
         bus.destroy()
 
         assert [dict(frame.payload) async for frame in raw] == [
@@ -123,7 +123,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         ]
         assert [delivered.payload.annotation_id async for delivered in typed] == ["ann-1", None, "ann-2"]
         assert [dict(frame.payload) async for frame in nothing] == [{}]
-        assert MARK_CANCEL_PENDING.name == "mark:cancel-pending"
+        assert PANEL_CLOSE.name == "panel:close"
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())

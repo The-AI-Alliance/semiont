@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -40,6 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface CommentsPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: ResourceId;
   annotations: Annotation[];
@@ -70,11 +72,11 @@ interface CommentsPanelProps {
  * Panel for managing comment annotations with text input
  *
  * @emits mark:submit - Create new comment annotation. Payload: MarkSubmitEvent with motivation 'commenting' and the comment as a TextualBody
- * @emits mark:cancel-pending - Cancel pending comment annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function CommentsPanel({
   session,
+  mark,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -202,14 +204,14 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.mark.cancelPending();
+        mark?.cancelPending();
         setNewCommentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, session]);
+  }, [pendingAnnotation, mark]);
 
   return (
     <div className="semiont-panel">
@@ -244,7 +246,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  session?.client.mark.cancelPending();
+                  mark?.cancelPending();
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -271,6 +273,7 @@ export function CommentsPanel({
         {annotateMode && (
           <DelegateSection
             session={session}
+            mark={mark}
             annotationType="comment"
             isDelegating={isDelegating}
             locale={locale}

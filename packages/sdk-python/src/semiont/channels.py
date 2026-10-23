@@ -115,7 +115,6 @@ from semiont.types import (
     MarkCommitOk,
     MarkCreateOk,
     MarkCreateRequest,
-    MarkDelegateRequestEvent,
     MarkDelegateTimeoutEvent,
     MarkDeleteCommand,
     MarkDeleteOk,
@@ -140,7 +139,6 @@ from semiont.types import (
     ResourceMovedPayload,
     ResourceUnarchivedPayload,
     ResourceUpdatedPayload,
-    SelectionData,
     SessionJoinedEvent,
     SessionLeftEvent,
     SettingsHoverDelayChangedEvent,
@@ -273,7 +271,6 @@ __all__ = [
     "MARK_ARCHIVE_OK",
     "MARK_BODY_UPDATED",
     "MARK_BODY_UPDATE_FAILED",
-    "MARK_CANCEL_PENDING",
     "MARK_COMMIT",
     "MARK_COMMIT_FAILED",
     "MARK_COMMIT_OK",
@@ -281,7 +278,6 @@ __all__ = [
     "MARK_CREATE_FAILED",
     "MARK_CREATE_OK",
     "MARK_CREATE_REQUEST",
-    "MARK_DELEGATE_REQUEST",
     "MARK_DELEGATE_TIMEOUT",
     "MARK_DELETE",
     "MARK_DELETE_ERROR",
@@ -289,13 +285,8 @@ __all__ = [
     "MARK_DELETE_OK",
     "MARK_ENTITY_TAG_ADDED",
     "MARK_ENTITY_TAG_REMOVED",
-    "MARK_PROGRESS_DISMISS",
     "MARK_REMOVED",
     "MARK_REQUESTED",
-    "MARK_SELECT_ASSESSMENT",
-    "MARK_SELECT_COMMENT",
-    "MARK_SELECT_REFERENCE",
-    "MARK_SELECT_TAG",
     "MARK_SUBMIT",
     "MARK_UNARCHIVE",
     "MARK_UNARCHIVED",
@@ -421,15 +412,8 @@ type ChannelName = Literal[
     "mark:update-entity-types-ok",
     "mark:update-entity-types-failed",
     "mark:body-update-failed",
-    "mark:select-comment",
-    "mark:select-tag",
-    "mark:select-assessment",
-    "mark:select-reference",
     "mark:requested",
-    "mark:cancel-pending",
     "mark:submit",
-    "mark:delegate-request",
-    "mark:progress-dismiss",
     "mark:delegate-timeout",
     "mark:create-error",
     "mark:delete-error",
@@ -618,15 +602,8 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "mark:update-entity-types-ok",
     "mark:update-entity-types-failed",
     "mark:body-update-failed",
-    "mark:select-comment",
-    "mark:select-tag",
-    "mark:select-assessment",
-    "mark:select-reference",
     "mark:requested",
-    "mark:cancel-pending",
     "mark:submit",
-    "mark:delegate-request",
-    "mark:progress-dismiss",
     "mark:delegate-timeout",
     "mark:create-error",
     "mark:delete-error",
@@ -814,15 +791,8 @@ MARK_UNARCHIVE_FAILED: Final = Channel[CommandError]("mark:unarchive-failed", Co
 MARK_UPDATE_ENTITY_TYPES_OK: Final = Channel[Empty]("mark:update-entity-types-ok", Empty)
 MARK_UPDATE_ENTITY_TYPES_FAILED: Final = Channel[CommandError]("mark:update-entity-types-failed", CommandError)
 MARK_BODY_UPDATE_FAILED: Final = Channel[CommandError]("mark:body-update-failed", CommandError)
-MARK_SELECT_COMMENT: Final = Channel[SelectionData]("mark:select-comment", SelectionData)
-MARK_SELECT_TAG: Final = Channel[SelectionData]("mark:select-tag", SelectionData)
-MARK_SELECT_ASSESSMENT: Final = Channel[SelectionData]("mark:select-assessment", SelectionData)
-MARK_SELECT_REFERENCE: Final = Channel[SelectionData]("mark:select-reference", SelectionData)
 MARK_REQUESTED: Final = Channel[MarkRequestedEvent]("mark:requested", MarkRequestedEvent)
-MARK_CANCEL_PENDING: Final = Channel[Empty]("mark:cancel-pending", Empty)
 MARK_SUBMIT: Final = Channel[MarkSubmitEvent]("mark:submit", MarkSubmitEvent)
-MARK_DELEGATE_REQUEST: Final = Channel[MarkDelegateRequestEvent]("mark:delegate-request", MarkDelegateRequestEvent)
-MARK_PROGRESS_DISMISS: Final = Channel[Empty]("mark:progress-dismiss", Empty)
 MARK_DELEGATE_TIMEOUT: Final = Channel[MarkDelegateTimeoutEvent]("mark:delegate-timeout", MarkDelegateTimeoutEvent)
 MARK_CREATE_ERROR: Final = Channel[ResourceErrorEvent]("mark:create-error", ResourceErrorEvent)
 MARK_DELETE_ERROR: Final = Channel[ResourceErrorEvent]("mark:delete-error", ResourceErrorEvent)
@@ -1012,15 +982,8 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "mark:update-entity-types-ok": MARK_UPDATE_ENTITY_TYPES_OK,
         "mark:update-entity-types-failed": MARK_UPDATE_ENTITY_TYPES_FAILED,
         "mark:body-update-failed": MARK_BODY_UPDATE_FAILED,
-        "mark:select-comment": MARK_SELECT_COMMENT,
-        "mark:select-tag": MARK_SELECT_TAG,
-        "mark:select-assessment": MARK_SELECT_ASSESSMENT,
-        "mark:select-reference": MARK_SELECT_REFERENCE,
         "mark:requested": MARK_REQUESTED,
-        "mark:cancel-pending": MARK_CANCEL_PENDING,
         "mark:submit": MARK_SUBMIT,
-        "mark:delegate-request": MARK_DELEGATE_REQUEST,
-        "mark:progress-dismiss": MARK_PROGRESS_DISMISS,
         "mark:delegate-timeout": MARK_DELEGATE_TIMEOUT,
         "mark:create-error": MARK_CREATE_ERROR,
         "mark:delete-error": MARK_DELETE_ERROR,

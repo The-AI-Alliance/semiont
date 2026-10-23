@@ -624,9 +624,6 @@
       "MarkArchiveCommand": {
         "$ref": "components/schemas/MarkArchiveCommand.json"
       },
-      "MarkDelegateRequestEvent": {
-        "$ref": "components/schemas/MarkDelegateRequestEvent.json"
-      },
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
       },
@@ -722,9 +719,6 @@
       },
       "ScoredResource": {
         "$ref": "components/schemas/ScoredResource.json"
-      },
-      "SelectionData": {
-        "$ref": "components/schemas/SelectionData.json"
       },
       "SemanticMatch": {
         "$ref": "components/schemas/SemanticMatch.json"

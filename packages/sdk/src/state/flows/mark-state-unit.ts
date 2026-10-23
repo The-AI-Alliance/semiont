@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import { DELEGATE_SILENCE_MS, watched, type EventMap, type JobId, type Motivation, type ResourceId, type Selector, type StateUnit, type Watched, type components } from '@semiont/core';
+import { DELEGATE_SILENCE_MS, watched, type JobId, type MarkJobParams, type Motivation, type ResourceId, type Selector, type StateUnit, type Watched, type components } from '@semiont/core';
 import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -34,18 +34,16 @@ export interface MarkStateUnit extends StateUnit {
    * when there is no id, and after the end, when there is nothing to cancel.
    */
   jobId$: Watched<JobId | null>;
-}
-
-type SelectionData = EventMap['mark:select-comment'];
-
-function selectionToSelector(selection: SelectionData): Selector | Selector[] {
-  if (selection.svgSelector) return { type: 'SvgSelector', value: selection.svgSelector };
-  if (selection.fragmentSelector) {
-    const selectors: Selector[] = [{ type: 'FragmentSelector', value: selection.fragmentSelector, ...(selection.conformsTo && { conformsTo: selection.conformsTo }) }];
-    if (selection.exact) selectors.push({ type: 'TextQuoteSelector', exact: selection.exact, ...(selection.prefix && { prefix: selection.prefix }), ...(selection.suffix && { suffix: selection.suffix }) });
-    return selectors;
-  }
-  return { type: 'TextQuoteSelector', exact: selection.exact, ...(selection.prefix && { prefix: selection.prefix }), ...(selection.suffix && { suffix: selection.suffix }) };
+  /**
+   * Delegate annotating this unit's resource as a `mark` job of `params`, and
+   * follow it: its motivation, its progress, its id and how it ended. A job
+   * delegated while another runs replaces it here.
+   */
+  requestDelegate(params: MarkJobParams): void;
+  /** Drop the annotation being composed. */
+  cancelPending(): void;
+  /** Clear the last job's progress, what it was of and why it ended. */
+  dismissProgress(): void;
 }
 
 export function createMarkStateUnit(
@@ -67,39 +65,21 @@ export function createMarkStateUnit(
   // dismissal timer: the result line — "Created 7 references" — is the one
   // thing in the whole run worth reading, and a timer that eats it makes the
   // run seem to vanish mid-sentence. The ended display carries an
-  // explicit Close control; it clears on that, on `mark:progress-dismiss`, or
-  // when the next delegated job replaces it below.
+  // explicit Close control; it clears on that (`dismissProgress`), or when the
+  // next delegated job replaces it.
 
-  // The view layer is responsible for opening the annotations panel in
-  // response to `pendingAnnotation$` becoming non-null. The state unit stays pure:
-  // it updates state; UI side-effects (opening panels on the app-scoped
-  // bus) belong in the view layer, where the host's bus emit is accessible.
-  const handleAnnotationRequested = (pending: PendingAnnotation) => {
-    pendingAnnotation$.next(pending);
-  };
-
-  // Selection events → pending annotation. `mark:requested` / `mark:submit`
-  // carry their source resource id and this unit handles only its own — N
-  // units on one client (multi-viewer hosts) must not cross-fire.
-  // NOTE: the `mark:select-*` quick-popup events remain unscoped — their only
-  // emitters are the Browser's single-page popups; scope them the same way if
-  // they ever grow multi-viewer emitters.
+  // A request and a submission reach this unit as signals on the client's own
+  // bus, which name their resource: N units on one client (multi-viewer hosts)
+  // each act on their own. Everything else is asked of the unit itself.
+  //
+  // The view layer opens the annotations panel when `pendingAnnotation$`
+  // becomes non-null: the unit updates state, and UI side effects belong to
+  // the view, where the host's bus is.
   subs.push(client.bus.on('mark:requested').subscribe((event) => {
     if (event.source !== resourceId) return;
-    handleAnnotationRequested({ selector: event.selector as Selector | Selector[], motivation: event.motivation });
+    pendingAnnotation$.next({ selector: event.selector as Selector | Selector[], motivation: event.motivation });
   }));
-  subs.push(client.bus.on('mark:select-comment').subscribe((s) =>
-    handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'commenting' })));
-  subs.push(client.bus.on('mark:select-tag').subscribe((s) =>
-    handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'tagging' })));
-  subs.push(client.bus.on('mark:select-assessment').subscribe((s) =>
-    handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'assessing' })));
-  subs.push(client.bus.on('mark:select-reference').subscribe((s) =>
-    handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'linking' })));
 
-  subs.push(client.bus.on('mark:cancel-pending').subscribe(() => pendingAnnotation$.next(null)));
-
-  // CRUD bridging (submit routed by source — see note above)
   subs.push(client.bus.on('mark:submit').subscribe(async (event) => {
     if (event.source !== resourceId) return;
     try {
@@ -109,17 +89,13 @@ export function createMarkStateUnit(
         body: event.body,
       });
       if (disposed) return;
-      // The composer closes HERE, not on `mark:create-ok`.
-      //
-      // Every other signal in this state machine is `direction: 'in-process'`
-      // — `mark:requested`, `mark:select-*`, `mark:cancel-pending`. Clearing
-      // on the wire reply would reach outside that vocabulary for a frame carrying
-      // no `resourceId` (MarkCreateOk is `{ response: { annotationId } }`), so
-      // it could not be filtered: with two viewers on one session, creating an
-      // annotation in either would discard the other's in-progress selection.
-      // Clearing in the flow that owns the pending state is correlated by
-      // construction. A host that wants to cancel a composer emits
-      // `mark:cancel-pending`, which is what that channel is for.
+      // The composer closes HERE, not on `mark:create-ok`. The wire reply
+      // carries no `resourceId` (MarkCreateOk is `{ response: { annotationId } }`),
+      // so it could not be told apart: with two viewers on one session,
+      // creating an annotation in either would discard the other's
+      // in-progress selection. Clearing in the flow that owns the pending state
+      // is correlated by construction. A host that wants to cancel a composer
+      // calls `cancelPending`.
       pendingAnnotation$.next(null);
     } catch (error) {
       if (disposed) return;
@@ -131,10 +107,10 @@ export function createMarkStateUnit(
 
   // A delegated job. `mark.delegate` creates the job and follows it: it gives the
   // job's progress on `next`, completes on `job:complete`, errors on a
-  // `job:fail` that is final. mark-state-unit's only job is to drive the
-  // three UI observables from that stream.
-  subs.push(client.bus.on('mark:delegate-request').subscribe((event) => {
-    const { motivation } = event.params;
+  // `job:fail` that is final. The unit drives its state from that stream.
+  const requestDelegate = (params: MarkJobParams): void => {
+    if (disposed) return;
+    const { motivation } = params;
     delegatingMotivation$.next(motivation);
     progress$.next(null);
     progressMotivation$.next(motivation);
@@ -181,7 +157,7 @@ export function createMarkStateUnit(
     };
     armStale();
 
-    const delegationSub = client.mark.delegate(resourceId, event.params).subscribe({
+    const delegationSub = client.mark.delegate(resourceId, params).subscribe({
       next: (e) => {
         armStale();
         // Surface only the live progress events to the UI; the final
@@ -224,13 +200,7 @@ export function createMarkStateUnit(
     // Disposing stops the silence detector with the job's subscription.
     delegationSub.add(clearStale);
     subs.push(delegationSub);
-  }));
-
-  subs.push(client.bus.on('mark:progress-dismiss').subscribe(() => {
-    progress$.next(null);
-    progressMotivation$.next(null);
-    failure$.next(null);
-  }));
+  };
 
   return {
     pendingAnnotation$: watched(pendingAnnotation$),
@@ -239,6 +209,16 @@ export function createMarkStateUnit(
     progressMotivation$: watched(progressMotivation$),
     failure$: watched(failure$),
     jobId$: watched(jobId$),
+    requestDelegate,
+    cancelPending() {
+      if (!disposed) pendingAnnotation$.next(null);
+    },
+    dismissProgress() {
+      if (disposed) return;
+      progress$.next(null);
+      progressMotivation$.next(null);
+      failure$.next(null);
+    },
     dispose() {
       disposed = true;
       subs.forEach(s => s.unsubscribe());

@@ -8,16 +8,16 @@
  * - Progress message display
  * - Request parameters display
  * - Form visibility toggling based on progress state
- * - Event emission when detect button clicked
+ * - Delegation asked of the mark unit when Annotate is clicked
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { screen } from '@testing-library/react';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { EventBus } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
+import { resourceId } from '@semiont/core';
+import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { DelegateSection } from '../DelegateSection';
 
 // Mock translations
@@ -76,20 +76,24 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 describe('DelegateSection', () => {
-  // Per-test session/bus — created in beforeEach (a module-scope factory
-  // call would hand tests a client that test-utils disposes after the
-  // first test). The `session` prop and the `eventBus` the emission
-  // tests subscribe come from the SAME factory call.
+  // Per-test session and mark unit — created in beforeEach (a module-scope
+  // factory call would hand tests a client that test-utils disposes after
+  // the first test).
   let session: SemiontSession;
-  let eventBus: EventBus;
+  let mark: MarkStateUnit;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    ({ session, eventBus } = createTestSemiontWrapper());
+    ({ session } = createTestSemiontWrapper());
+    mark = createMarkStateUnit(session.client, resourceId('res-1'));
     // Clear localStorage
     if (typeof window !== 'undefined') {
       localStorage.clear();
     }
+  });
+
+  afterEach(() => {
+    mark.dispose();
   });
 
   describe('Progress Display', () => {
@@ -97,6 +101,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
@@ -113,6 +118,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
@@ -132,6 +138,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
@@ -161,6 +168,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
@@ -179,6 +187,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -195,6 +204,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -211,6 +221,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -233,6 +244,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -247,6 +259,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
@@ -261,6 +274,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
@@ -275,6 +289,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
@@ -290,6 +305,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
@@ -305,6 +321,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -317,14 +334,15 @@ describe('DelegateSection', () => {
     });
   });
 
-  describe('Event Emission', () => {
-    it('should emit mark:delegate-request event when detect button clicked', async () => {
+  describe('Delegation', () => {
+    it('asks the mark unit to delegate a highlighting job when Annotate is clicked', async () => {
       const user = userEvent.setup();
-      const detectionHandler = vi.fn();
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
 
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -332,25 +350,20 @@ describe('DelegateSection', () => {
         />
       );
 
-      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
-
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
-      expect(detectionHandler).toHaveBeenCalledWith({
-        params: expect.objectContaining({ motivation: 'highlighting' }),
-      });
-
-      subscription.unsubscribe();
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ motivation: 'highlighting' }));
     });
 
-    it('should emit correct motivation for assessment type', async () => {
+    it('delegates an assessing job from the assessment form', async () => {
       const user = userEvent.setup();
-      const detectionHandler = vi.fn();
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
 
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="assessment"
           isDelegating={false}
@@ -358,25 +371,20 @@ describe('DelegateSection', () => {
         />
       );
 
-      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
-
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
-      expect(detectionHandler).toHaveBeenCalledWith({
-        params: expect.objectContaining({ motivation: 'assessing' }),
-      });
-
-      subscription.unsubscribe();
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ motivation: 'assessing' }));
     });
 
-    it('should emit correct motivation for comment type', async () => {
+    it('delegates a commenting job from the comment form', async () => {
       const user = userEvent.setup();
-      const detectionHandler = vi.fn();
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
 
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="comment"
           isDelegating={false}
@@ -384,25 +392,20 @@ describe('DelegateSection', () => {
         />
       );
 
-      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
-
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
-      expect(detectionHandler).toHaveBeenCalledWith({
-        params: expect.objectContaining({ motivation: 'commenting' }),
-      });
-
-      subscription.unsubscribe();
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ motivation: 'commenting' }));
     });
 
-    it('should include instructions in event when provided', async () => {
+    it('includes the instructions when they are given', async () => {
       const user = userEvent.setup();
-      const detectionHandler = vi.fn();
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
 
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -410,23 +413,17 @@ describe('DelegateSection', () => {
         />
       );
 
-      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
-
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
-      expect(detectionHandler).toHaveBeenCalledWith({
-        params: {
-          motivation: 'highlighting',
-          instructions: 'Find key concepts',
-          density: expect.any(Number),
-        },
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith({
+        motivation: 'highlighting',
+        instructions: 'Find key concepts',
+        density: expect.any(Number),
       });
-
-      subscription.unsubscribe();
     });
   });
 
@@ -435,6 +432,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -453,6 +451,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -473,6 +472,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={false}
@@ -494,6 +494,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}
@@ -513,6 +514,7 @@ describe('DelegateSection', () => {
       renderWithProviders(
         <DelegateSection
           session={session}
+          mark={mark}
           jobId={null} cancelled={false}
           annotationType="highlight"
           isDelegating={true}

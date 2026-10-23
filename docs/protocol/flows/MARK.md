@@ -118,7 +118,7 @@ From the launcher: `semiont mark --delegate <resourceId> --motivation linking --
 
 ## Local signals
 
-`mark.request`, `mark.requestDelegate`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress` and `mark.reportDeleteError` publish on the client's own bus and nowhere else. They coordinate one viewer's annotation interface and are not part of the wire protocol. See [react-ui's events](../../builder/react-ui/EVENTS.md).
+`mark.request`, `mark.submit` and `mark.reportDeleteError` publish on the client's own bus and nowhere else. They coordinate one viewer's annotation interface and are not part of the wire protocol; a request and a submission name their resource, so only that resource's mark unit acts on them. A delegation, a cancel and a dismissal are asked of the resource's mark unit itself: `requestDelegate(params)`, `cancelPending()` and `dismissProgress()`. See [react-ui's events](../../builder/react-ui/EVENTS.md).
 
 ## Where it is implemented
 

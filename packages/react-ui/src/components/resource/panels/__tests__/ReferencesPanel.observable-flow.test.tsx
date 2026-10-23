@@ -67,7 +67,7 @@ const mockRoutes = { resourceDetail: (id: string) => `/resource/${id}` } as any;
 function ObservableHarness({ source$, session }: { source$: BehaviorSubject<string[]>; session: SemiontSession | null }) {
   const entityTypes = useObservable(source$) ?? [];
   return (
-    <ReferencesPanel session={session}
+    <ReferencesPanel session={session} mark={undefined}
       resourceId={resourceId('res-1')}
       annotations={[]}
       isDelegating={false}

@@ -113,20 +113,8 @@ export class MarkNamespace implements IMarkNamespace {
     this.bus.emit('mark:requested', { source, selector, motivation });
   }
 
-  requestDelegate(params: MarkJobParams): void {
-    this.bus.emit('mark:delegate-request', { params });
-  }
-
   submit(input: components['schemas']['MarkSubmitEvent']): void {
     this.bus.emit('mark:submit', input);
-  }
-
-  cancelPending(): void {
-    this.bus.emit('mark:cancel-pending', undefined);
-  }
-
-  dismissProgress(): void {
-    this.bus.emit('mark:progress-dismiss', undefined);
   }
 
   reportDeleteError(input: EventMap['mark:delete-error']): void {

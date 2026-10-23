@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
 import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
+import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 import { jobId, resourceId } from '@semiont/core';
 
@@ -21,7 +21,7 @@ function createEventTracker() {
     events,
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus) {
-      const panelEvents = ['mark:delegate-request', 'mark:submit'] as const;
+      const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
@@ -37,11 +37,13 @@ function createEventTracker() {
 // provider-free: the `session` passed as a prop (same factory call as the
 // eventBus the tracker attaches to) is the only session it sees.
 let session: SemiontSession;
+let mark: MarkStateUnit;
 let eventBus: EventBus;
 let SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
 
 beforeEach(() => {
   ({ session, eventBus, SemiontWrapper } = createTestSemiontWrapper());
+  mark = createMarkStateUnit(session.client, resourceId('res-1'));
 });
 
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
@@ -112,7 +114,7 @@ describe('ReferencesPanel Component', () => {
   // Per-test props: merges the beforeEach-created session at render time.
   // (Module/describe-scope defaultProps must stay session-free — disposal
   // hazard, see note above renderWithEventBus.)
-  const panelProps = () => ({ ...defaultProps, session });
+  const panelProps = () => ({ ...defaultProps, session, mark });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -120,6 +122,7 @@ describe('ReferencesPanel Component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    mark.dispose();
   });
 
   // The panel threads the host's sparkle set down to
@@ -357,9 +360,9 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should emit mark:delegate-request event with selected types and includeDescriptiveReferences', async () => {
-      const tracker = createEventTracker();
-      renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
+    it('asks the mark unit to delegate a linking job of the chosen types, descriptive references left out', async () => {
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
+      renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
@@ -367,20 +370,16 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:delegate-request' &&
-          e.payload?.params?.motivation === 'linking' &&
-          e.payload?.params?.entityTypes?.includes('Person') &&
-          e.payload?.params?.entityTypes?.includes('Organization') &&
-          e.payload?.params?.includeDescriptiveReferences === false
-        )).toBe(true);
-      });
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        motivation: 'linking',
+        entityTypes: ['Person', 'Organization'],
+        includeDescriptiveReferences: false,
+      }));
     });
 
-    it('should emit mark:delegate-request event with includeDescriptiveReferences when checkbox is checked', async () => {
-      const tracker = createEventTracker();
-      renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
+    it('delegates with descriptive references included when the box is checked', async () => {
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
+      renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -392,14 +391,11 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:delegate-request' &&
-          e.payload?.params?.motivation === 'linking' &&
-          e.payload?.params?.entityTypes?.includes('Person') &&
-          e.payload?.params?.includeDescriptiveReferences === true
-        )).toBe(true);
-      });
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        motivation: 'linking',
+        entityTypes: ['Person'],
+        includeDescriptiveReferences: true,
+      }));
     });
 
     it('the control of a running job asks for that job to be cancelled, by its id', async () => {
