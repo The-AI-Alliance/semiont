@@ -13,7 +13,7 @@ const found = (...markers: number[]) => ({ response: JSON.stringify(markers.map(
 const WINDOW = 1467;
 
 eachWorkerService('a job whose model is cut off', (world) => {
-  it('asks the piece again in halves of its own size, takes what the halves find together, and cuts the rest of the text at seven tenths the size', async () => {
+  it('asks the piece again in halves of its own size, takes what the halves find together, and cuts the rest of the text at the size the halves were cut at', async () => {
     const w = world();
     const agent = w.agents[0]!;
     w.ollama.show = { contextLength: WINDOW };
@@ -27,12 +27,10 @@ eachWorkerService('a job whose model is cut off', (world) => {
       found(205),
       found(),
       found(304),
-      // The rest of the text, in pieces of 280 tokens. Marker 304 and marker 404 are each seen twice.
+      // The rest of the text, in pieces of 180 tokens, the size the halves came back whole at. Marker 304 and marker 404 are each seen twice.
       found(304, 404),
       found(404),
-      found(),
-      found(),
-      found(),
+      ...Array.from({ length: 6 }, () => found()),
     );
     const served = await w.start();
     const completion = await settled(served, job);
@@ -44,7 +42,7 @@ eachWorkerService('a job whose model is cut off', (world) => {
       asked('halved-half-2', 1382),
       asked('halved-half-3', 1382),
       asked('halved-half-4', 1310),
-      ...[1, 2, 3, 4, 5].map((n) => asked(`halved-rest-${n}`, 1406)),
+      ...[1382, 1382, 1310, 1382, 1382, 1310, 1382, 1286].map((num_ctx, i) => asked(`halved-rest-${i + 1}`, num_ctx)),
     ]);
 
     // The halves are one piece to the job: one batch, and one cursor, which states the size the piece was first cut at.
@@ -59,11 +57,8 @@ eachWorkerService('a job whose model is cut off', (world) => {
     const cursor = (next: number, size: number, found: number, emitted: number) => ({ jobId: job.metadata.id, completedUnits: [], unitCursors: { highlighting: { next, size, found, emitted, errors: 0 } } });
     expect(served.payloads('job:checkpoint')).toEqual([
       cursor(1185, 400, 3, 3),
-      cursor(1666, 280, 5, 4),
-      cursor(2147, 280, 6, 4),
-      cursor(2628, 280, 6, 4),
-      cursor(3109, 280, 6, 4),
-      cursor(LONG_TEXT.length, 280, 6, 4),
+      cursor(1586, 180, 5, 4),
+      ...[1987, 2147, 2548, 2949, 3109, 3510, LONG_TEXT.length].map((next) => cursor(next, 180, 6, 4)),
     ]);
 
     expectProgress(served, job, [
@@ -71,7 +66,7 @@ eachWorkerService('a job whose model is cut off', (world) => {
       report(job, 30, { code: 'analyzing' }),
       report(job, 60, { code: 'creating-annotations', count: 3 }),
       report(job, 39, { code: 'analyzing' }),
-      ...[43, 47, 50, 54].flatMap((percentage) => [report(job, 60, { code: 'creating-annotations', count: 4 }), report(job, percentage, { code: 'analyzing' })]),
+      ...[42, 45, 47, 50, 53, 54, 57].flatMap((percentage) => [report(job, 60, { code: 'creating-annotations', count: 4 }), report(job, percentage, { code: 'analyzing' })]),
       report(job, 60, { code: 'creating-annotations', count: 4 }),
       report(job, 100, { code: 'complete-created', count: 4, motivation: 'highlighting' }),
     ]);

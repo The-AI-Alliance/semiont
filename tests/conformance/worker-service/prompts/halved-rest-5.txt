@@ -12,9 +12,9 @@ Guidelines:
 
 Text to analyze:
 ---
-eside the Rhône. Paragraph 7, sentence 4: the survey party recorded marker 704 beside the Rhône. Paragraph 7, sentence 5: the survey party recorded marker 705 beside the Rhône. Paragraph 7, sentence 6: the survey party recorded marker 706 beside the Rhône.
+eside the Rhône. Paragraph 6, sentence 3: the survey party recorded marker 603 beside the Rhône. Paragraph 6, sentence 4: the survey party recorded marker 604 beside the Rhône. Paragraph 6, sentence 5: the survey party recorded marker 605 beside the Rhône. Paragraph 6, sentence 6: the survey party recorded marker 606 beside the Rhône.
 
-Paragraph 8, sentence 1: the survey party recorded marker 801 beside the Rhône. Paragraph 8, sentence 2: the survey party recorded marker 802 beside the Rhône. Paragraph 8, sentence 3: the survey party recorded marker 803 beside the Rhône. Paragraph 8, sentence 4: the survey party recorded marker 804 beside the Rhône. Paragraph 8, sentence 5: the survey party recorded marker 805 beside the Rhône. Paragraph 8, sentence 6: the survey party recorded marker 806 beside the Rhône.
+Paragraph 7, sentence 1: the survey party recorded marker 701 beside the Rhône. Paragraph 7, sentence 2: the survey party recorded marker 702 beside the Rhône. Paragraph 7, sentence 3: the survey party recorded marker 703 beside the Rhône. Paragraph 7, sentence 4: the survey party recorded marker 704 beside the Rhône.
 ---
 
 Return a JSON array of highlights. Each highlight should have:
