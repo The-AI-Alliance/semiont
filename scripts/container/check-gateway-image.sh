@@ -13,8 +13,9 @@
 #      apps/gateway/Dockerfile declares, read from there rather than restated,
 #      so this check cannot probe an address the healthcheck does not.
 #
-# Run by local-build.sh after it builds the gateway image, and by the image
-# publish workflow before it pushes.
+# Run by local-build.sh once every image is built, so nothing else builds
+# while it times the start, and by the image publish workflow before it
+# pushes, in a job that builds this image alone.
 set -eu
 
 IMAGE="${1:?usage: check-gateway-image.sh <image> [runtime]}"
@@ -34,7 +35,9 @@ fi
 # Set from the start times the conformance harness measured for both gateways
 # before the cutover: the Rust gateway served within 68 ms of spawning, the
 # TypeScript one within 649 ms (367 ms median). Four times the Rust gateway's
-# slowest, and under the TypeScript gateway's median.
+# slowest, and under the TypeScript gateway's median. A wall-clock bound:
+# timed beside a build, the same image measures three times its quiet start.
+# check-document-image.sh reads it from here.
 START_BOUND_MS=300
 
 # As root: the promise covers the whole image, including what the image's own
