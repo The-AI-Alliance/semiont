@@ -99,6 +99,12 @@ func workerBinding(inference string) string {
 	return inference + " spec.roster.workers"
 }
 
+// errNoWorkerJob: the refusal of a worker for a roster, in the Inference
+// document at inference, that binds it no job.
+func errNoWorkerJob(inference string) error {
+	return fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(inference))
+}
+
 // workerAgents: the agents the worker works as, projected from the roles the
 // roster binds to jobs (servedJobs). An agent is an engine — a provider and a
 // model, at one address, under one key — and accepts every job that engine
@@ -107,12 +113,6 @@ func workerBinding(inference string) string {
 // agents, and is refused: the document's `agents` is never empty. A start of
 // such a roster runs no worker and writes no document (workerPlan), and a
 // worker asked for by name is refused before anything runs (flowOneService).
-// errNoWorkerJob: the refusal of a worker for a roster, in the Inference
-// document at inference, that binds it no job.
-func errNoWorkerJob(inference string) error {
-	return fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(inference))
-}
-
 func workerAgents(p placement) ([]semiont.WorkerAgentConfig, error) {
 	served := servedJobs(p.st.Inference.Spec.Roster)
 	if len(served) == 0 {

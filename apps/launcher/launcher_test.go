@@ -1286,7 +1286,7 @@ func stateRootFor(home, key string) string {
 	return filepath.Join(dataHomeFor(home), "roots", key)
 }
 
-// testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config).
+// testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config.yaml).
 const testKBKey = "example.github.io-test-kb"
 
 func TestStatePersistsAcrossStarts(t *testing.T) {
@@ -1714,30 +1714,6 @@ func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 		t.Fatalf("a start from a broken config.yaml: want exit 1, got %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stderr", stderr, "config.yaml", "line 7", "domian")
-}
-
-// A knowledge base still keeping a file its documents replaced — the TOML
-// project file, or the TOML configs — is refused by name, pointing at what
-// replaced it, rather than read or ignored.
-func TestStartRefusesTheFilesTheDocumentsReplaced(t *testing.T) {
-	for _, c := range []struct{ old, now string }{
-		{"config", ".semiont/config.yaml"},
-		{"semiontconfig/anthropic.toml", ".semiont/stack/"},
-	} {
-		s := newScenario(t, "container")
-		old := filepath.Join(s.kb, ".semiont", filepath.FromSlash(c.old))
-		if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(old, []byte("[project]\nname = \"old\"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		_, stderr, code := s.run(t, "start", "--dry-run")
-		if code != 1 {
-			t.Fatalf("a KB keeping .semiont/%s: want exit 1, got %d\nstderr:\n%s", c.old, code, stderr)
-		}
-		mustContain(t, "refusal", stderr, "which no launcher reads any more", c.now)
-	}
 }
 
 // --- clean ---
@@ -3945,7 +3921,7 @@ func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
 	// remote-KB line must show only what was READ from the clone whose origin
 	// named this repo — never a did matched by directory name, which would
 	// attach one fork's identity to another's.
-	s := newCodespaceScenario(t) // cwd is a KB clone with a .semiont/config
+	s := newCodespaceScenario(t) // cwd is a KB clone with a .semiont/config.yaml
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -6954,7 +6930,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 		"librarian.json:/etc/semiont/librarian.json:ro",
 		filepath.Join(testKBKey, "librarian")+":/semiont-state",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
-	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", "GATEWAY_HOST", "XDG_STATE_HOME", ".semiontconfig", ":/kb", "anchored-text:", filepath.Join(testKBKey, "state") + ":"} {
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", "GATEWAY_HOST", "XDG_STATE_HOME", ":/kb", "anchored-text:", filepath.Join(testKBKey, "state") + ":"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}

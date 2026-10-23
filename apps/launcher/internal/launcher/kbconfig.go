@@ -12,7 +12,6 @@ package launcher
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,7 +25,6 @@ const projectFileYAML = "config.yaml"
 
 type kbIdentity struct {
 	Name     string // project.name
-	Version  string // project.version
 	SiteName string // site.siteName
 	Domain   string // site.domain — did:web colon-path form
 }
@@ -124,32 +122,16 @@ func readKBIdentity(root string) (*kbIdentity, error) {
 }
 
 // refusedProjectFile: root resolution's refusal of a root whose project file
-// cannot be read or does not hold to its schema, or that still keeps a file
-// its documents replaced, as against its finding no root.
+// cannot be read or does not hold to its schema, as against its finding no
+// root.
 type refusedProjectFile struct{ error }
 
 func (r refusedProjectFile) Unwrap() error { return r.error }
 
-// replacedFiles: what a knowledge base kept before its documents, and what
-// keeps it now. A root still holding one is refused by name (D15): a launcher
-// that read both would be two readers of one fact, and one that ignored the
-// old file would leave its owner believing it is read.
-var replacedFiles = []struct{ old, now string }{
-	{".semiont/config", ".semiont/" + projectFileYAML},
-	{".semiont/semiontconfig", stack.Dir + "/"},
-}
-
-// holdProjectFile reads root's identity, refusing root when it keeps a file
-// its documents replaced, or when its config.yaml cannot be read or does not
-// hold to its schema, naming each place. Root resolution is where a command
-// reads its identity, the once it does.
+// holdProjectFile reads root's identity, refusing root when its config.yaml
+// cannot be read or does not hold to its schema, naming each place. Root
+// resolution is where a command reads its identity, the once it does.
 func holdProjectFile(root string) (*kbIdentity, error) {
-	for _, replaced := range replacedFiles {
-		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(replaced.old))); err == nil {
-			return nil, refusedProjectFile{fmt.Errorf("%s keeps %s, which no launcher reads any more: %s holds what it held (docs/operator/administration/CONFIGURATION.md). Write that, then delete %s",
-				root, replaced.old, replaced.now, replaced.old)}
-		}
-	}
 	identity, err := readKBIdentity(root)
 	if err != nil {
 		return nil, refusedProjectFile{err}
@@ -172,9 +154,5 @@ func yamlKBIdentity(where string, text []byte) (*kbIdentity, error) {
 	if err != nil {
 		return nil, err
 	}
-	identity := &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}
-	if project.Project.Version != nil {
-		identity.Version = *project.Project.Version
-	}
-	return identity, nil
+	return &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}, nil
 }

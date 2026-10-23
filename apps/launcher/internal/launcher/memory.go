@@ -14,10 +14,8 @@ package launcher
 // A WARNING, never a refusal: macOS degrades under pressure rather than
 // breaking, and the launcher cannot know what else the host runs.
 //
-// Known boundary: a HOST-run Ollama (the default — host-process is preferred
-// so models get Metal) uses host RAM this sum cannot see. The ollama ceiling
-// enters the sum only in the container-fallback case, which is also the only
-// case the launcher controls.
+// Known boundary: the machine's Ollama is never in the sum. A host-run one
+// (preferred, so models get Metal) uses host RAM this sum cannot see.
 
 import (
 	"fmt"

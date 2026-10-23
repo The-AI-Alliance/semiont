@@ -351,20 +351,27 @@ func startCodespace(u *UI, opts startOptions) int {
 	return 0
 }
 
-// CwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
-// else the .semiont/ walk) — "" when not inside a clone. The cwd is context
-// every command may consult: standing in a clone says which stack is meant.
-// A clone whose config.yaml does not hold is refused, never read as no
-// clone; one that holds comes with its identity.
-func CwdKBRoot() (string, *kbIdentity, error) {
+// cwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
+// else the .semiont/ walk) — the zero kbRoot when not inside a clone. The cwd
+// is context every command may consult: standing in a clone says which stack
+// is meant. A clone whose config.yaml does not hold is refused, never read as
+// no clone; one that holds comes with its identity.
+func cwdKBRoot() (kbRoot, error) {
 	root, _, ident, err := resolveKBRoot()
 	if projectFileRefused(err) {
-		return "", nil, err
+		return kbRoot{}, err
 	}
 	if err != nil {
-		return "", nil, nil
+		return kbRoot{}, nil
 	}
-	return root, ident, nil
+	return kbRoot{dir: root, ident: ident}, nil
+}
+
+// CwdKBRoot: cwdKBRoot's directory, for the callers that need no identity —
+// "" when not inside a clone.
+func CwdKBRoot() (string, error) {
+	kb, err := cwdKBRoot()
+	return kb.dir, err
 }
 
 // originCodespace: the recorded codespace stack whose repo this clone's git
