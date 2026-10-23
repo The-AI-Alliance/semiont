@@ -17,10 +17,11 @@ export interface DeliveredFrame {
   scope?: string;
 }
 
-/** A failure as an SDK reports it: its code, and the status when a server stated one. */
+/** A failure as an SDK reports it: its code, the status when a server stated one, and a job failure's class when it has one. */
 export interface ReportedFailure {
   code?: string;
   status?: number;
+  failureClass?: string;
 }
 
 /** How much of an upload a client says it has sent. */
@@ -41,11 +42,19 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 function failureOf(v: unknown): { failure: ReportedFailure; detail: string } | undefined {
   if (!isObject(v) || typeof v['detail'] !== 'string') return undefined;
-  const { code, status, detail, ...rest } = v;
+  const { code, status, failureClass, detail, ...rest } = v;
   if (Object.keys(rest).length > 0) return undefined;
   if (code !== undefined && typeof code !== 'string') return undefined;
   if (status !== undefined && typeof status !== 'number') return undefined;
-  return { failure: { ...(code === undefined ? {} : { code }), ...(status === undefined ? {} : { status }) }, detail };
+  if (failureClass !== undefined && typeof failureClass !== 'string') return undefined;
+  return {
+    failure: {
+      ...(code === undefined ? {} : { code }),
+      ...(status === undefined ? {} : { status }),
+      ...(failureClass === undefined ? {} : { failureClass }),
+    },
+    detail,
+  };
 }
 
 function stateOf(v: unknown): ObservedState | undefined {

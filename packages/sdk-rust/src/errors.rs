@@ -7,7 +7,7 @@
 //! unusable, what keeps a person from being signed in, and why no annotation
 //! is built of a span.
 
-use crate::types::JobId;
+use crate::types::{FailureClass, JobId};
 use serde_json::{Map, Value};
 use std::fmt;
 use std::time::Duration;
@@ -99,6 +99,11 @@ pub struct JobError {
     /// created has none.
     pub job_id: Option<JobId>,
     pub message: String,
+    /// The failure's class, for a job that failed and whose failure has one,
+    /// so that a caller tells "the provider would not answer" (`Withheld`)
+    /// from "the job broke" (`Deterministic`) without reading the message.
+    /// A cancellation and a stall have none.
+    pub failure_class: Option<FailureClass>,
 }
 
 impl fmt::Display for JobError {

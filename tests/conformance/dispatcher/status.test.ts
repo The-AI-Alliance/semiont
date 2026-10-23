@@ -5,7 +5,7 @@
 import { expect, it } from 'vitest';
 import { marks, resourceIdOf, withDispatcher } from '../harness/dispatcher-world';
 
-const FIELDS = ['startedAt', 'completedAt', 'error', 'progress', 'result'] as const;
+const FIELDS = ['startedAt', 'completedAt', 'error', 'failureClass', 'progress', 'result'] as const;
 
 /** The conditional fields a status carries. */
 const conditional = (status: Record<string, unknown>) => FIELDS.filter((f) => f in status);
@@ -35,7 +35,9 @@ withDispatcher('job:status-requested', (world) => {
     expect(conditional(await creator.until(complete.job.metadata.id, 'completion', (s) => s.status === 'complete'))).toEqual(['startedAt', 'completedAt', 'result']);
 
     await worker.fail({ jobId: job.metadata.id, jobType: job.metadata.type, resourceId: job.params.resourceId }, 'broken', { failureClass: 'deterministic' });
-    expect(conditional(await creator.until(pendingId, 'failure', (s) => s.status === 'failed'))).toEqual(['completedAt', 'error']);
+    const failed = await creator.until(pendingId, 'failure', (s) => s.status === 'failed');
+    expect(conditional(failed)).toEqual(['completedAt', 'error', 'failureClass']);
+    expect(failed.failureClass).toBe('deterministic');
 
     const cancelledId = await creator.created('mark', { motivation: 'commenting' }, resourceIdOf());
     await creator.cancelRequest({ jobId: cancelledId });

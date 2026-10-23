@@ -3,16 +3,25 @@ import { Bus, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/
 import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
+type FailureClass = components['schemas']['FailureClass'];
 
 /**
  * A job its follower was following failed and will not be tried again: what
  * its worker reported on `job:fail`, or what its status states. A failure the
  * queue will retry is not this; the follower is told of it and keeps going.
+ *
+ * `failureClass` is the failure's class where it has one, so that a caller
+ * tells "the provider would not answer" (`withheld`) from "the job broke"
+ * (`deterministic`) without reading the message.
  */
 export class JobFailedError extends SemiontError {
   declare code: JobErrorCode;
 
-  constructor(message: string, public readonly jobId: string) {
+  constructor(
+    message: string,
+    public readonly jobId: string,
+    public readonly failureClass: FailureClass | undefined,
+  ) {
     super(message, 'job.failed' satisfies JobErrorCode, { jobId });
     this.name = 'JobFailedError';
   }

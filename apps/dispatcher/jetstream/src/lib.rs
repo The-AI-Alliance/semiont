@@ -526,8 +526,14 @@ impl Inner {
             if age < stale {
                 continue;
             }
+            // Nothing about the request was judged: its worker stopped reporting.
             let outcome = self
-                .fail(&id, error.clone(), Checkpoint::default(), None)
+                .fail(
+                    &id,
+                    error.clone(),
+                    Checkpoint::default(),
+                    Some(FailureClass::Transient),
+                )
                 .await?;
             if let Some(outcome) = outcome {
                 logging::warn(
@@ -637,6 +643,7 @@ impl Inner {
                     started_at: Some(job.started_at.clone()),
                     completed_at: now(),
                     error: error.clone(),
+                    failure_class,
                 };
                 Transition::Write(Box::new(Job::Failed(failed)), Some(FailOutcome::Failed))
             })

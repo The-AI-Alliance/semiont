@@ -1,5 +1,5 @@
 {
-  "about": "a job that fails while nothing reaches the client that follows it: the follower, hearing nothing for jobSilenceMs, asks for the job's status, and a status of failed ends it as the frame would have, under the code every SDK reports it by",
+  "about": "a job that fails while nothing reaches the client that follows it: the follower, hearing nothing for jobSilenceMs, asks for the job's status, and a status of failed ends it as the frame would have, under the code every SDK reports it by and with the class the status states",
   "source": "docs/protocol/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; specs/src/errors/codes.json job",
   "tier": "parity",
   "steps": [
@@ -91,7 +91,8 @@
               "$var": "client"
             },
             "created": "2026-01-01T00:00:00.000Z",
-            "error": "the worker gave up"
+            "error": "the worker gave up",
+            "failureClass": "withheld"
           }
         }
       }
@@ -101,7 +102,8 @@
       "state": {
         "status": "failed",
         "error": {
-          "code": "job.failed"
+          "code": "job.failed",
+          "failureClass": "withheld"
         }
       }
     },

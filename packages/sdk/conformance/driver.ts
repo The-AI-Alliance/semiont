@@ -16,6 +16,7 @@ import {
   HttpContentTransport,
   HttpTransport,
   InMemorySessionStorage,
+  JobFailedError,
   SemiontClient,
   type CacheObservable,
   type CacheState,
@@ -48,12 +49,18 @@ function object(args: Arguments, name: string): Arguments {
   return value as Arguments;
 }
 
-/** A failure as the protocol carries it: the SDK's code, and the status when a server stated one. */
-function failure(error: unknown): { code?: string; status?: number; detail: string } {
+/** A failure as the protocol carries it: the SDK's code, the status when a server stated one, and a job failure's class when it has one. */
+function failure(error: unknown): { code?: string; status?: number; failureClass?: string; detail: string } {
   const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   if (!(error instanceof SemiontError)) return { detail };
   const status = (error as { status?: unknown }).status;
-  return { code: error.code, ...(typeof status === 'number' && status > 0 ? { status } : {}), detail };
+  const failureClass = error instanceof JobFailedError ? error.failureClass : undefined;
+  return {
+    code: error.code,
+    ...(typeof status === 'number' && status > 0 ? { status } : {}),
+    ...(failureClass === undefined ? {} : { failureClass }),
+    detail,
+  };
 }
 
 /** What a cache persists to, kept across `close` and the next `open`: a reload, to the client. */

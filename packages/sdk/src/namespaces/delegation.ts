@@ -86,7 +86,7 @@ export function delegated<C extends JobCompletion>(
           completed(verb.learned(status, resourceId), `The status of job ${status.jobId}`);
         } else if (status.status === 'failed') {
           cleanup();
-          subscriber.error(new JobFailedError(status.error ?? 'Job failed', status.jobId));
+          subscriber.error(new JobFailedError(status.error ?? 'Job failed', status.jobId, status.failureClass));
         } else if (status.status === 'cancelled') {
           cleanup();
           subscriber.error(new JobCancelledError(status.jobId));
@@ -161,7 +161,7 @@ export function delegated<C extends JobCompletion>(
         return;
       }
       cleanup();
-      subscriber.error(new JobFailedError(e.error, e.jobId));
+      subscriber.error(new JobFailedError(e.error, e.jobId, e.failureClass));
     });
 
     armStall();

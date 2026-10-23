@@ -103,8 +103,8 @@ There are exactly five states. There is no `claimed`, `retrying` or `declined` s
 | `running` | `running` | `job:checkpoint` | `completedUnits` and `unitCursors` merged | nothing |
 | `running` | `complete` | `job:complete` | `completedAt`, `result`; `progress` dropped | nothing |
 | `running` | `pending` | `job:fail` when a retry is allowed | `retryCount + 1`, checkpoint merged; `startedAt`, `progress` and the error dropped | `job:queued` when the job is redelivered |
-| `running` | `failed` | `job:fail` when no retry is allowed | `completedAt`, `error`, checkpoint merged | nothing |
-| `running` | `pending` or `failed` | the dead-worker sweep | as `job:fail`, with the sweep's error and no failure class or units | `job:queued` on a retry; otherwise nothing |
+| `running` | `failed` | `job:fail` when no retry is allowed | `completedAt`, `error`, the failure's class when it has one, checkpoint merged | nothing |
+| `running` | `pending` or `failed` | the dead-worker sweep | as `job:fail`, with the sweep's error, the class `transient` and no units | `job:queued` on a retry; otherwise nothing |
 | `pending` | `cancelled` | `job:cancel-requested` naming it; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
 | `running` | `cancelled` | `job:cancel` | `completedAt`; `startedAt` kept | nothing |
 | `complete`, `failed`, `cancelled` | removed | retention | the record is deleted | nothing |
@@ -376,6 +376,7 @@ Reads one job. Reads `jobId`
 | `startedAt` | `running`, `complete` |
 | `completedAt` | `complete`, `failed`, `cancelled` |
 | `error` | `failed` |
+| `failureClass` | `failed`, when the failure has a class |
 | `progress` | `running` |
 | `result` | `complete` |
 
@@ -481,8 +482,8 @@ nothing else to wake it. On a healthy stack it changes nothing.
 
 **The dead-worker sweep** treats a running job with no write for 30 minutes as abandoned by a worker
 that died. It concludes the job exactly as a `job:fail` would, with the error
-`worker presumed dead — no progress within 30 minutes`, no failure class and no units: the job is
-retried if its budget allows and failed otherwise, and the checkpoint already on the record is kept
+`worker presumed dead — no progress within 30 minutes`, the failure class `transient` (nothing about
+the request was judged) and no units: the job is retried if its budget allows and failed otherwise, and the checkpoint already on the record is kept
 either way. A worker keeps its job alive by reporting progress (outside the throttle) or
 checkpointing.
 
@@ -552,9 +553,10 @@ the failure ([`FailureClass`](../../specs/src/components/schemas/FailureClass.js
 An absent `failureClass` is a failure nobody classified, and counts as retryable. A `withheld`
 failure is told from a `deterministic` one so that whoever reads the failure can tell "the provider
 would not answer" from "the job broke" without reading the error's text. The class is stated on the
-`job:fail` frame, and on the `job:failed` event the Archivist records of it
-([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)). The dispatcher's record of a failed job
-keeps the error and not the class, so a job's status does not state it.
+`job:fail` frame, on the `job:failed` event the Archivist records of it
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)), on the dispatcher's record of a job that
+failed for good, and in that job's status. The dead-worker sweep, which no worker's `job:fail` tells,
+states `transient`.
 
 A worker evaluates the same predicate, on
 the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK

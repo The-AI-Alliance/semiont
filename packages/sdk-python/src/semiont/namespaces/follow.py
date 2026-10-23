@@ -233,7 +233,9 @@ async def _followed[C: JobCompleteCommand](
                 # outlive it.
                 if job_id is not None:
                     links.run(_cancelled(links, job_id))
-                raise JobError("job.stalled", f"The job stalled: nothing was heard of it within {stall_ms}ms", job_id=job_id)
+                raise JobError(
+                    "job.stalled", f"The job stalled: nothing was heard of it within {stall_ms}ms", job_id=job_id, failure_class=None
+                )
 
             waiting: set[asyncio.Task[object]] = {hearing}
             if creating is not None:
@@ -275,10 +277,12 @@ async def _followed[C: JobCompleteCommand](
                         case "complete":
                             return JobCompleted(_learned(completion, create.job_type, status, resource_id))
                         case "failed":
-                            raise JobError("job.failed", status.error or "Job failed", job_id=status.job_id)
+                            raise JobError(
+                                "job.failed", status.error or "Job failed", job_id=status.job_id, failure_class=status.failure_class
+                            )
                         case "cancelled":
                             # Nothing announces a cancellation: this is where its follower learns of one.
-                            raise JobError("job.cancelled", "The job was cancelled", job_id=status.job_id)
+                            raise JobError("job.cancelled", "The job was cancelled", job_id=status.job_id, failure_class=None)
                         case "pending" | "running":
                             pass
 
@@ -299,7 +303,7 @@ async def _followed[C: JobCompleteCommand](
                     case JobFailCommand():
                         # Absent reads as final: a follower that ends early is seen, one that never ends is not.
                         if said.will_retry is not True:
-                            raise JobError("job.failed", said.error, job_id=said.job_id)
+                            raise JobError("job.failed", said.error, job_id=said.job_id, failure_class=said.failure_class)
                         # The queue re-queues the job and another attempt
                         # continues it. The dead attempt's status is not asked
                         # for: the next attempt's first frame starts the

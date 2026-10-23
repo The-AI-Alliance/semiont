@@ -6,7 +6,7 @@
 //! The two drivers are this crate's binaries: `semiont-wire-driver` holds a
 //! transport, and `semiont-live-driver` the SDK's client over one.
 
-use semiont::errors::{SemiontError, TransportError};
+use semiont::errors::{JobError, SemiontError, TransportError};
 use semiont::types::InvalidIdentifier;
 use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
@@ -63,9 +63,18 @@ pub fn failure(code: &str, status: Option<u16>, detail: String) -> Value {
     failure
 }
 
-/// The same, of a failure the SDK reported.
+/// The same, of a failure the SDK reported, with a job failure's class when
+/// it has one.
 pub fn failed(error: &SemiontError) -> Value {
-    failure(error.code(), error.status(), error.to_string())
+    let mut reported = failure(error.code(), error.status(), error.to_string());
+    if let SemiontError::Job(JobError {
+        failure_class: Some(class),
+        ..
+    }) = error
+    {
+        reported["failureClass"] = json!(class);
+    }
+    reported
 }
 
 pub fn text<'a>(args: &'a Arguments, name: &str) -> Result<&'a str, Ended> {

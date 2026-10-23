@@ -24,10 +24,11 @@ withDispatcher('the re-announce tick and the dead-worker sweep', (world) => {
     await worker.complete(refOf(retried));
   });
 
-  it('fails a silent job with no budget left, saying its worker is presumed dead', async () => {
+  it('fails a silent job with no budget left, saying its worker is presumed dead, and classes it transient', async () => {
     const { creator, job } = await world().running('yield');
     const status = await creator.until(job.metadata.id, 'the sweep to fail the job', (s) => s.status === 'failed', 10_000);
     expect(status.error).toMatch(/presumed dead/);
+    expect(status.failureClass).toBe('transient');
   });
 
   it('leaves alone a job whose worker keeps reporting progress', async () => {

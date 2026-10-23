@@ -274,9 +274,10 @@ Every method returns one of nine shapes, and the table says which:
   `mark` job's result to those two, and never offers it a generation's. Read,
   the job reports its progress and ends with that same completion. A job that
   says nothing is asked for its status, so a completion the stream did not
-  carry is still heard. It ends as a `JobError` when the job failed for good,
-  was cancelled, or (a generation) said nothing for longer than its length
-  allows; and as a `TransportError` when what completed is not a job of the
+  carry is still heard. It ends as a `JobError` when the job failed for good
+  (its `failure_class` says which kind of failure, where the failure has
+  one), was cancelled, or (a generation) said nothing for longer than its
+  length allows; and as a `TransportError` when what completed is not a job of the
   verb that was delegated.
 - **`client.bus`** is the client's own bus: every frame its transport
   delivered, and every signal its own parts gave each other.

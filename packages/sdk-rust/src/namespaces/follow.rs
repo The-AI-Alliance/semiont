@@ -40,7 +40,7 @@ use crate::errors::{
 use crate::running::{Reporter, Running};
 use crate::transport::BoxFuture;
 use crate::types::{
-    JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult,
+    FailureClass, JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult,
     JobCreatedResultResponse, JobFailCommand, JobId, JobProgress, JobReportProgressCommand,
     JobStatusRequest, JobStatusResponse, JobStatusResponseStatus, JobStoredResult,
     MarkJobCompleteCommand, ResourceId, YieldJobCompleteCommand,
@@ -214,11 +214,12 @@ fn heard<T>(item: Option<Result<T, StreamError>>, of: impl FnOnce(T) -> Heard) -
     }
 }
 
-fn failed(job_id: &JobId, message: String) -> SemiontError {
+fn failed(job_id: &JobId, message: String, failure_class: Option<FailureClass>) -> SemiontError {
     JobError {
         code: JobErrorCode::Failed,
         job_id: Some(job_id.clone()),
         message,
+        failure_class,
     }
     .into()
 }
@@ -325,6 +326,7 @@ async fn followed<C: Completion>(
                             return Err(failed(
                                 &status.job_id,
                                 status.error.unwrap_or_else(|| "Job failed".to_owned()),
+                                status.failure_class,
                             ));
                         }
                         // Nothing announces a cancellation: this is where
@@ -334,6 +336,7 @@ async fn followed<C: Completion>(
                                 code: JobErrorCode::Cancelled,
                                 job_id: Some(status.job_id),
                                 message: "The job was cancelled".to_owned(),
+                                failure_class: None,
                             }
                             .into());
                         }
@@ -361,6 +364,7 @@ async fn followed<C: Completion>(
                         "The job stalled: nothing was heard of it within {}ms",
                         within.as_millis()
                     ),
+                    failure_class: None,
                 }
                 .into());
             }
@@ -397,7 +401,9 @@ async fn followed<C: Completion>(
                 }
                 // Absent reads as final: a follower that ends early is seen,
                 // one that never ends is not.
-                Heard::Fail(frame) => return Err(failed(&frame.job_id, frame.error)),
+                Heard::Fail(frame) => {
+                    return Err(failed(&frame.job_id, frame.error, frame.failure_class));
+                }
             }
         }
     }

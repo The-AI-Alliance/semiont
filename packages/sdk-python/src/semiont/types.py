@@ -1074,7 +1074,7 @@ type DurabilityEvidence = Annotated[
 type FailureClass = Annotated[
     Literal["transient", "deterministic", "withheld"],
     Field(
-        description="The class of a job's failure, stated by the worker, where the failure is still typed: at the gateway it is already text, and classing a failure by its text is what this exists to avoid. Each value is a claim. 'transient': nothing about the request was judged (the worker's own bound ran out, the provider said not now), so another attempt may succeed. 'deterministic': the same request cannot succeed on a second attempt. 'withheld': the model's provider had the request and withheld its answer, by a refusal or a content filter, and the same request is withheld again; nothing broke. A 'deterministic' or a 'withheld' failure is not retried, whatever retry budget is left. ABSENT means the failure was not classified, which is not the claim 'transient' makes; it is retried as a transient one is. Only a failure known to be deterministic or withheld is called so: calling a transient failure either one halves reliability, where the reverse costs one wasted attempt."
+        description="The class of a job's failure, stated by the worker, where the failure is still typed: at the gateway it is already text, and classing a failure by its text is what this exists to avoid. A job no worker concluded, because its worker stopped reporting, is classed by the dispatcher, as 'transient'. Each value is a claim. 'transient': nothing about the request was judged (the worker's own bound ran out, the provider said not now), so another attempt may succeed. 'deterministic': the same request cannot succeed on a second attempt. 'withheld': the model's provider had the request and withheld its answer, by a refusal or a content filter, and the same request is withheld again; nothing broke. A 'deterministic' or a 'withheld' failure is not retried, whatever retry budget is left. ABSENT means the failure was not classified, which is not the claim 'transient' makes; it is retried as a transient one is. Only a failure known to be deterministic or withheld is called so: calling a transient failure either one halves reliability, where the reverse costs one wasted attempt."
     ),
 ]
 
@@ -2654,6 +2654,7 @@ class JobFailed(WireModel, frozen=True, extra="forbid"):
     ] = None
     completed_at: Annotated[str, Field(alias="completedAt", description="When it failed.")]
     error: Annotated[str, Field(description="The failure's message.")]
+    failure_class: Annotated[FailureClass | None, Field(alias="failureClass")] = None
 
 
 class JobCancelled(WireModel, frozen=True, extra="forbid"):
@@ -6682,6 +6683,7 @@ class JobStatusResponse(WireModel, frozen=True):
     started_at: Annotated[str | None, Field(alias="startedAt")] = None
     completed_at: Annotated[str | None, Field(alias="completedAt")] = None
     error: str | None = None
+    failure_class: Annotated[FailureClass | None, Field(alias="failureClass")] = None
     progress: JobStoredProgress | None = None
     result: JobStoredResult | None = None
 
