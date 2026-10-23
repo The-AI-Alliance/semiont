@@ -553,6 +553,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
+		"-e", "KC_HOSTNAME=" + (placement{st: fc.stack, plan: fc.plan, rt: x.rtName(), addr: addr}).keycloakHostname(),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
 	}, secrets, password, true
 }

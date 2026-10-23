@@ -56,7 +56,15 @@ func (p placement) issuer() string {
 	if rp.Presence != presenceLauncher {
 		return rp.Issuer
 	}
-	return fmt.Sprintf("http://%s:%d/realms/%s", identityHost(p.rt, p.addr), rp.Port, keycloakRealmName)
+	return p.keycloakHostname() + "/realms/" + keycloakRealmName
+}
+
+// keycloakHostname: the origin of the issuer the launcher's Keycloak serves.
+// Keycloak is started with it as its fixed hostname, so every token names this
+// issuer wherever it was asked for, and the endpoints a caller dials behind it
+// (token, keys) follow the address it asked at.
+func (p placement) keycloakHostname() string {
+	return fmt.Sprintf("http://%s:%d", identityHost(p.rt, p.addr), p.plan.Roles["identity"].Port)
 }
 
 // archivist: where a service that reads the record reaches the Archivist —
