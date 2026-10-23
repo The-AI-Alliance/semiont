@@ -1,5 +1,5 @@
 import type { JobId } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 
 /**
  * What a delegated job's progress display does when its one control is
@@ -61,11 +61,9 @@ export function delegatedJobControls(
 }
 
 /**
- * The controls of a `mark` job's display: its dismiss clears the mark
- * flow's progress.
- *
- * @emits mark:progress-dismiss - Dismiss the annotation progress display. Payload: undefined
+ * The controls of a `mark` job's display: its dismiss clears the progress
+ * of the resource's mark unit.
  */
-export function markJobControls(session: SemiontSession | null, jobId: JobId | null): DelegatedJobControls {
-  return delegatedJobControls(session, jobId, () => session?.client.mark.dismissProgress());
+export function markJobControls(session: SemiontSession | null, mark: MarkStateUnit | undefined, jobId: JobId | null): DelegatedJobControls {
+  return delegatedJobControls(session, jobId, () => mark?.dismissProgress());
 }

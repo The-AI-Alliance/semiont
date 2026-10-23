@@ -77,7 +77,7 @@ Each channel falls into one of five payload categories. The category tells you w
 | **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
 | **Result / failure** | OpenAPI schema, wrapped as `{ response }` for some results; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
-| **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:select-comment` |
+| **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:requested` |
 | **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, inline wrapper types such as `{ response: T }`). The gateway's `/bus/emit` route validates against the same registry entries and rejects payloads that don't validate.

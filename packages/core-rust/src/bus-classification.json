@@ -273,39 +273,11 @@
       "direction": "inbound",
       "delivery": "passing"
     },
-    "mark:select-comment": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "mark:select-tag": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "mark:select-assessment": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "mark:select-reference": {
-      "recorded": false,
-      "direction": "in-process"
-    },
     "mark:requested": {
       "recorded": false,
       "direction": "in-process"
     },
-    "mark:cancel-pending": {
-      "recorded": false,
-      "direction": "in-process"
-    },
     "mark:submit": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "mark:delegate-request": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "mark:progress-dismiss": {
       "recorded": false,
       "direction": "in-process"
     },

@@ -27,7 +27,7 @@ use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
 };
 use semiont::transport::{Envelope, Frame, Lagged};
-use semiont::types::{GatherResourceRequestOptions, GenerationJobParams};
+use semiont::types::{GatherResourceRequestOptions, GenerationJobParams, MarkJobParams};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::any::Any;
@@ -510,6 +510,25 @@ fn adapters() -> Vec<Adapter> {
         },
         Adapter {
             unit: "gather",
+            method: "gatherAnnotation",
+            parameters: &["annotationId", "contextWindow"],
+            call: |unit, args| {
+                let context_window = args
+                    .get("contextWindow")
+                    .map(|window| {
+                        window
+                            .as_u64()
+                            .and_then(|window| u16::try_from(window).ok())
+                            .ok_or_else(|| format!("contextWindow is not a window: {window}"))
+                    })
+                    .transpose()?;
+                unit.as_gather()?
+                    .gather_annotation(&id(args, "annotationId")?, context_window);
+                Ok(())
+            },
+        },
+        Adapter {
+            unit: "gather",
             method: "gatherResource",
             parameters: &["resourceId"],
             call: |unit, args| {
@@ -634,6 +653,35 @@ fn adapters() -> Vec<Adapter> {
             parameters: &[],
             call: |unit, _| {
                 unit.as_yield()?.dismiss_progress();
+                Ok(())
+            },
+        },
+        Adapter {
+            unit: "mark",
+            method: "requestDelegate",
+            parameters: &["params"],
+            call: |unit, args| {
+                let params: MarkJobParams = serde_json::from_value(field(args, "params")?.clone())
+                    .map_err(|wrong| format!("params: {wrong}"))?;
+                unit.as_mark()?.request_delegate(params);
+                Ok(())
+            },
+        },
+        Adapter {
+            unit: "mark",
+            method: "cancelPending",
+            parameters: &[],
+            call: |unit, _| {
+                unit.as_mark()?.cancel_pending();
+                Ok(())
+            },
+        },
+        Adapter {
+            unit: "mark",
+            method: "dismissProgress",
+            parameters: &[],
+            call: |unit, _| {
+                unit.as_mark()?.dismiss_progress();
                 Ok(())
             },
         },

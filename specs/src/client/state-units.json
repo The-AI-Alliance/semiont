@@ -250,7 +250,7 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1"}},
         "settle",
         { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
         { "sent": "gather:requested", "payloads": [{ "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 2000 } }] },
@@ -265,7 +265,7 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere", "options": { "contextWindow": 500 } } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1", "contextWindow": 500}},
         "settle",
         { "sent": "gather:requested", "payloads": [{ "$has": { "options": { "contextWindow": 500 } } }] }
       ]
@@ -276,17 +276,17 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1"}},
         "settle",
         { "answer": "gather:requested", "nth": 0, "reply": "gather:failed", "payload": { "annotationId": "ann-1", "message": "no such annotation" } },
         "settle",
         { "expect": { "unit": { "context": null, "loading": false, "error": { "message": "no such annotation" }, "annotationId": "ann-1", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
-        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-2"}},
         "settle",
         { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-2", "resourceContext": null, "resourceLoading": false, "resourceError": null } } },
         { "answer": "gather:requested", "nth": 1, "reply": "gather:complete", "payload": { "annotationId": "ann-2", "response": { "$fixture": "context" } } },
         "settle",
-        { "say": "gather:requested", "payload": { "annotationId": "ann-3", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-3"}},
         "settle",
         { "expect": { "unit": { "context": null, "loading": true, "error": null, "annotationId": "ann-3", "resourceContext": null, "resourceLoading": false, "resourceError": null } } }
       ]
@@ -297,7 +297,7 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1"}},
         { "pass": { "timing": "busRequestTimeoutMs", "plusMs": -1000 } },
         { "expect": { "unit": { "loading": true } } },
         { "pass": 2000 },
@@ -340,7 +340,7 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1"}},
         { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
         "settle",
         { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-failed", "payload": { "resourceId": "res-9", "message": "no such resource" } },
@@ -357,13 +357,13 @@
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },
       "steps": [
-        { "say": "gather:requested", "payload": { "annotationId": "ann-1", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1"}},
         { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
         "settle",
         { "dispose": "unit" },
         { "answer": "gather:requested", "nth": 0, "reply": "gather:complete", "payload": { "annotationId": "ann-1", "response": { "$fixture": "context" } } },
         { "answer": "gather:resource-requested", "nth": 0, "reply": "gather:resource-complete", "payload": { "resourceId": "res-9", "response": { "$fixture": "context" } } },
-        { "say": "gather:requested", "payload": { "annotationId": "ann-2", "resourceId": "elsewhere" } },
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-2"}},
         { "invoke": "gatherResource", "of": "unit", "args": { "resourceId": "res-9" } },
         "settle",
         { "ended": { "unit": ["context", "resourceContext"] } },
@@ -773,7 +773,7 @@
         {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}},
         "settle",
         {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}}}},
-        {"say": "mark:cancel-pending", "payload": {}},
+        {"invoke": "cancelPending", "of": "unit", "args": {}},
         "settle",
         {"expect": {"unit": {"pendingAnnotation": null}}}
       ]
@@ -787,26 +787,6 @@
         {"say": "mark:requested", "payload": {"source": "res-1", "selector": [{"type": "TextPositionSelector", "start": 3, "end": 8}, {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there"}, {"type": "SvgSelector", "value": "<svg/>"}, {"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}], "motivation": "linking"}},
         "settle",
         {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "TextPositionSelector", "start": 3, "end": 8}, {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there"}, {"type": "SvgSelector", "value": "<svg/>"}, {"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}], "motivation": "linking"}}}}
-      ]
-    },
-    {
-      "unit": "mark",
-      "case": "reads a quick selection as the selector it states",
-      "transport": {"answers": "refuses"},
-      "made": {"unit": {"resourceId": "res-1"}},
-      "steps": [
-        {"say": "mark:select-comment", "payload": {"exact": "hello", "start": 0, "end": 5, "prefix": "oh ", "suffix": ""}},
-        "settle",
-        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "hello", "prefix": "oh "}, "motivation": "commenting"}}}},
-        {"say": "mark:select-tag", "payload": {"exact": "hello", "start": 0, "end": 5, "svgSelector": "<svg/>", "fragmentSelector": "page=2"}},
-        "settle",
-        {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "SvgSelector", "value": "<svg/>"}, "motivation": "tagging"}}}},
-        {"say": "mark:select-assessment", "payload": {"exact": "hello", "start": 0, "end": 5, "fragmentSelector": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}},
-        "settle",
-        {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778"}, {"type": "TextQuoteSelector", "exact": "hello"}], "motivation": "assessing"}}}},
-        {"say": "mark:select-reference", "payload": {"exact": "", "start": 0, "end": 0, "fragmentSelector": "page=2"}},
-        "settle",
-        {"expect": {"unit": {"pendingAnnotation": {"selector": [{"type": "FragmentSelector", "value": "page=2"}], "motivation": "linking"}}}}
       ]
     },
     {
@@ -857,7 +837,7 @@
       "transport": {"answers": "jobs"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting", "instructions": "the dates", "tone": "scholarly", "density": 3, "language": "fr"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "commenting", "instructions": "the dates", "tone": "scholarly", "density": 3, "language": "fr"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "commenting", "progress": null}}},
         {"sent": "job:create", "payloads": [{"jobType": "mark", "resourceId": "res-1", "params": {"motivation": "commenting", "instructions": "the dates", "tone": "scholarly", "density": 3, "language": "fr"}}]},
@@ -867,7 +847,7 @@
         {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 40}}}},
-        {"say": "mark:progress-dismiss", "payload": {}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}}
       ]
@@ -879,7 +859,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
         {"expect": {"unit": {"jobId": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"jobId": null}}},
         {"answer": "job:create", "nth": 0, "reply": "job:created", "payload": {"response": {"jobId": "job-1"}}},
@@ -899,13 +879,13 @@
       "transport": {"answers": "jobs"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"jobId": "job-1"}}},
         {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
         "settle",
         {"expect": {"unit": {"jobId": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"jobId": "job-1"}}}
       ]
@@ -916,13 +896,13 @@
       "transport": {"answers": "jobs"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
         {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 40}}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}}
       ]
@@ -934,7 +914,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
         "settle",
@@ -951,7 +931,7 @@
       "transport": {"answers": "jobs"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 60, "progress": {"percentage": 60}}},
         "settle",
@@ -967,7 +947,7 @@
       "transport": {"answers": "jobs"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 30, "progress": {"percentage": 30}}},
         "settle",
@@ -984,7 +964,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
         {"expect": {"unit": {"progressMotivation": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"progressMotivation": "highlighting"}}},
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 100, "progress": {"percentage": 100}}},
@@ -992,10 +972,10 @@
         "settle",
         {"expect": {"unit": {"delegatingMotivation": null, "progress": {"percentage": 100}}}},
         {"expect": {"unit": {"progressMotivation": "highlighting"}}},
-        {"say": "mark:progress-dismiss", "payload": {}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
         "settle",
         {"expect": {"unit": {"progressMotivation": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "commenting"}}},
         "settle",
         {"expect": {"unit": {"progressMotivation": "commenting"}}}
       ]
@@ -1007,20 +987,20 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
         {"expect": {"unit": {"failure": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
         "settle",
         {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
-        {"say": "mark:progress-dismiss", "payload": {}},
+        {"invoke": "dismissProgress", "of": "unit", "args": {}},
         "settle",
         {"expect": {"unit": {"failure": null}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"say": "job:fail", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "error": "the model refused"}},
         "settle",
         {"expect": {"unit": {"failure": {"code": "job.failed"}}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"failure": null}}},
         {"say": "job:complete", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark"}},
@@ -1035,7 +1015,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}},
         {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "highlighting"}}}]},
@@ -1050,7 +1030,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "commenting", "tone": "scholarly"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "commenting", "tone": "scholarly"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "commenting", "progress": null}}},
         {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "commenting", "tone": "scholarly"}}}]},
@@ -1065,7 +1045,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "assessing", "tone": "critical"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "assessing", "tone": "critical"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "assessing", "progress": null}}},
         {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "assessing", "tone": "critical"}}}]},
@@ -1080,7 +1060,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "linking", "entityTypes": ["Person"]}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "linking", "entityTypes": ["Person"]}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "linking", "progress": null}}},
         {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "linking", "entityTypes": ["Person"]}}}]},
@@ -1095,7 +1075,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": "tagging", "progress": null}}},
         {"sent": "job:create", "payloads": [{"$has": {"params": {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}}}]},
@@ -1109,7 +1089,7 @@
       "transport": {"answers": "refuses"},
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"expect": {"unit": {"delegatingMotivation": null, "progress": null}}}
       ]
@@ -1121,7 +1101,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         {"pass": {"timing": "delegateSilenceMs", "plusMs": -1000}},
         {"heard": []},
         {"expect": {"unit": {"delegatingMotivation": "highlighting", "progress": null}}},
@@ -1142,7 +1122,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         {"pass": {"timing": "delegateSilenceMs", "plusMs": -10000}},
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 10, "progress": {"percentage": 10}}},
         "settle",
@@ -1164,8 +1144,8 @@
     },
     {
       "unit": "mark",
-      "case": "units of two resources on one client each answer for their own",
-      "transport": {"answers": "refuses", "replies": {"mark:create-request": [{"annotationId": "ann-new"}]}},
+      "case": "units of two resources on one client each answer for their own, and what is asked of one moves no other",
+      "transport": {"answers": "refuses", "replies": {"mark:create-request": [{"annotationId": "ann-new"}], "job:create": [{"jobId": "job-a"}]}},
       "made": {"first": {"resourceId": "res-a"}, "second": {"resourceId": "res-b"}},
       "steps": [
         {"say": "mark:requested", "payload": {"source": "res-a", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "highlighting"}},
@@ -1174,7 +1154,14 @@
         {"expect": {"second": {"pendingAnnotation": null}}},
         {"say": "mark:submit", "payload": {"source": "res-a", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
         "settle",
-        {"sent": "mark:create-request", "payloads": [{"$has": {"resourceId": "res-a"}}]}
+        {"sent": "mark:create-request", "payloads": [{"$has": {"resourceId": "res-a"}}]},
+        {"invoke": "requestDelegate", "of": "first", "args": {"params": {"motivation": "highlighting"}}},
+        "settle",
+        {"sent": "job:create", "payloads": [{"$has": {"jobType": "mark", "resourceId": "res-a"}}]},
+        {"expect": {"first": {"delegatingMotivation": "highlighting", "progressMotivation": "highlighting"}, "second": {"delegatingMotivation": null, "progressMotivation": null}}},
+        {"invoke": "dismissProgress", "of": "second", "args": {}},
+        "settle",
+        {"expect": {"first": {"delegatingMotivation": "highlighting", "progressMotivation": "highlighting"}}}
       ]
     },
     {
@@ -1184,7 +1171,7 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "steps": [
         {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "first"}, "motivation": "highlighting"}},
-        {"say": "mark:cancel-pending", "payload": {}},
+        {"invoke": "cancelPending", "of": "unit", "args": {}},
         {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "last"}, "motivation": "commenting"}},
         "settle",
         {"expect": {"unit": {"pendingAnnotation": {"selector": {"type": "TextQuoteSelector", "exact": "last"}, "motivation": "commenting"}}}}
@@ -1197,13 +1184,13 @@
       "made": {"unit": {"resourceId": "res-1"}},
       "listen": ["mark:delegate-timeout", "mark:create-error"],
       "steps": [
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         "settle",
         {"dispose": "unit"},
         {"say": "mark:requested", "payload": {"source": "res-1", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "motivation": "commenting"}},
         {"say": "mark:submit", "payload": {"source": "res-1", "motivation": "commenting", "selector": {"type": "TextQuoteSelector", "exact": "hello"}, "body": [{"type": "TextualBody", "value": "a comment", "purpose": "commenting"}]}},
         {"say": "job:report-progress", "payload": {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "percentage": 40, "progress": {"percentage": 40}}},
-        {"say": "mark:delegate-request", "payload": {"params": {"motivation": "highlighting"}}},
+        {"invoke": "requestDelegate", "of": "unit", "args": {"params": {"motivation": "highlighting"}}},
         {"pass": {"timing": "delegateSilenceMs", "times": 2}},
         {"ended": {"unit": ["pendingAnnotation", "delegatingMotivation", "progress"]}},
         {"expect": {"unit": {"pendingAnnotation": null, "progress": null}}},

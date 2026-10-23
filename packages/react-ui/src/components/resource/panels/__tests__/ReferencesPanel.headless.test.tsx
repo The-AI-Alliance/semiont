@@ -23,7 +23,7 @@ function fakeSession() {
     bus: new EventBus(),
     browse: { click: vi.fn(), tagSchemas: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }) },
     beckon: { hover: vi.fn(), sparkle: vi.fn() },
-    mark: { requestDelegate: vi.fn(), delete: vi.fn() },
+    mark: { delete: vi.fn() },
   };
   const session = {
     client,
@@ -63,6 +63,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
     renderInEnglish(
       <ReferencesPanel
         session={session}
+        mark={undefined}
         resourceId={resourceId('res-1')}
         annotations={[referenceAnnotation()]}
         isDelegating={false}
@@ -91,6 +92,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
       const { session } = fakeSession();
       return {
         session,
+        mark: undefined,
         resourceId: resourceId('res-1' as const),
         annotations: [],
         isDelegating: false,
@@ -156,6 +158,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
       renderInEnglish(
         <ReferencesPanel
           session={session}
+          mark={undefined}
           resourceId={resourceId('res-1')}
           annotations={[]}
           isDelegating={false}

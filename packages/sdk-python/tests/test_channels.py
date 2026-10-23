@@ -194,7 +194,7 @@ def test_a_channel_refuses_what_is_not_its_payload() -> None:
     with pytest.raises(ValidationError):
         channels.MARK_DELETE.decode({"resourceId": "res-1"})
     with pytest.raises(ValidationError):
-        channels.MARK_CANCEL_PENDING.decode({"unexpected": True})
+        channels.PANEL_CLOSE.decode({"unexpected": True})
 
 
 QUEUED: dict[str, JsonValue] = {"jobId": "job-1", "resourceId": "res-1", "userId": "did:web:example.org:users:alice"}

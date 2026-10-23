@@ -11,7 +11,7 @@ from pydantic import JsonValue, ValidationError
 
 from semiont.bus import Bus, decoded, reply_channels_for
 from semiont.channel import Empty
-from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ARCHIVED, MARK_CANCEL_PENDING, MARK_DELETE
+from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ARCHIVED, MARK_DELETE, PANEL_CLOSE
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import stated, written
@@ -106,9 +106,9 @@ def test_a_payload_is_read_without_the_stamps_its_channel_does_not_declare() -> 
     assert (command.annotation_id, command.user_id) == ("ann-1", "did:web:example.org:users:alice")
     assert decoded(BECKON_FOCUS, stamped) == BeckonFocusEvent(annotation_id=ANNOTATION)
     # A payload that admits nothing it does not declare is still read, once the bus's stamps are off it.
-    assert decoded(MARK_CANCEL_PENDING, {"_userId": "did:web:example.org:users:alice"}) == Empty()
+    assert decoded(PANEL_CLOSE, {"_userId": "did:web:example.org:users:alice"}) == Empty()
     with pytest.raises(ValidationError):
-        decoded(MARK_CANCEL_PENDING, {"more": 1})
+        decoded(PANEL_CLOSE, {"more": 1})
     with pytest.raises(ValidationError):
         decoded(BECKON_HOVER, {"annotationId": 7})
 

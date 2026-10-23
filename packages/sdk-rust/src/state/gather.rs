@@ -2,24 +2,19 @@
 //! and the context around a whole resource, each with whether it is being
 //! gathered and the failure it met.
 //!
-//! The two are held apart because both can be in flight at once. An
-//! annotation's is asked for by a signal (`gather:requested` on the client's
-//! own bus), since what asks is far from what shows it; a resource's is
-//! asked for by a method, since what asks holds the unit.
+//! The two are held apart because both can be in flight at once. Each is
+//! asked of the unit itself, so a gather asked of one resource's unit
+//! reaches no other.
 //!
 //! A new request clears what the last one left. Requests are not cancelled
 //! by the next: each lands when it is answered.
 
-use super::{Held, Tasks, said};
-use crate::channels::{Channel, GatherRequested};
+use super::{Held, Tasks};
 use crate::client::SemiontClient;
 use crate::errors::SemiontError;
-use crate::event_bus::BusFrames;
 use crate::state_unit::StateUnit;
 use crate::types::AnnotationId;
-use crate::types::{
-    GatherAnnotationRequest, GatherResourceRequestOptions, GatheredContext, ResourceId,
-};
+use crate::types::{GatherResourceRequestOptions, GatheredContext, ResourceId};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -79,17 +74,16 @@ pub struct GatherStateUnit {
 impl GatherStateUnit {
     /// The gathers of `resource_id`'s annotations, and of any resource.
     pub fn new(client: Arc<SemiontClient>, resource_id: &ResourceId) -> GatherStateUnit {
-        let heard = client.bus().frames(GatherRequested::NAME);
-        let shared = Arc::new(Shared {
-            client,
-            resource_id: resource_id.clone(),
-            annotation: Slot::new(),
-            annotation_id: Held::new(None),
-            resource: Slot::new(),
-            tasks: Tasks::new(),
-        });
-        shared.tasks.spawn(listen(shared.clone(), heard));
-        GatherStateUnit { shared }
+        GatherStateUnit {
+            shared: Arc::new(Shared {
+                client,
+                resource_id: resource_id.clone(),
+                annotation: Slot::new(),
+                annotation_id: Held::new(None),
+                resource: Slot::new(),
+                tasks: Tasks::new(),
+            }),
+        }
     }
 
     /// The context around the annotation last asked about.
@@ -123,6 +117,25 @@ impl GatherStateUnit {
         self.shared.resource.error.read()
     }
 
+    /// Gather the context around one of this unit's resource's annotations,
+    /// taking `context_window` characters of the resource, as
+    /// `client.gather.annotation` does.
+    pub fn gather_annotation(&self, annotation_id: &AnnotationId, context_window: Option<u16>) {
+        self.shared.annotation.begin();
+        self.shared.annotation_id.set(Some(annotation_id.clone()));
+        let (shared, annotation_id) = (self.shared.clone(), annotation_id.clone());
+        self.shared.tasks.spawn(async move {
+            let gathered = shared
+                .client
+                .gather
+                .annotation(&shared.resource_id, &annotation_id, context_window)
+                .await;
+            shared
+                .annotation
+                .land(gathered.map(|complete| complete.response));
+        });
+    }
+
     /// Gather the context around a whole resource.
     pub fn gather_resource(&self, resource_id: &ResourceId, options: GatherResourceRequestOptions) {
         self.shared.resource.begin();
@@ -132,37 +145,6 @@ impl GatherStateUnit {
             shared.resource.land(gathered);
         });
     }
-}
-
-async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
-    while let Some(frame) = heard.next().await {
-        let Some(request) = frame.ok().and_then(|f| said::<GatherRequested>(&f)) else {
-            continue;
-        };
-        gather_annotation(&shared, request);
-    }
-}
-
-fn gather_annotation(shared: &Arc<Shared>, request: GatherAnnotationRequest) {
-    shared.annotation.begin();
-    shared
-        .annotation_id
-        .set(Some(request.annotation_id.clone()));
-    let gathering = shared.clone();
-    shared.tasks.spawn(async move {
-        let gathered = gathering
-            .client
-            .gather
-            .annotation(
-                &gathering.resource_id,
-                &request.annotation_id,
-                request.options.and_then(|options| options.context_window),
-            )
-            .await;
-        gathering
-            .annotation
-            .land(gathered.map(|complete| complete.response));
-    });
 }
 
 impl StateUnit for GatherStateUnit {

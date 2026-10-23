@@ -36,7 +36,7 @@ from semiont.channels import (
     CHANNELS,
     JOB_CHECKPOINT,
     JOB_COMPLETE,
-    MARK_CANCEL_PENDING,
+    PANEL_CLOSE,
     YIELD_CLONE_RESOURCE_REQUESTED,
     YIELD_CLONE_TOKEN_GENERATED,
 )
@@ -312,7 +312,7 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
             "its `response.token` is malformed; it has no `response.expiresAt`; it has no `response.resource.name`",
         ),
         (BECKON_HOVER, {"annotation_id": [CARRIED]}, "its `annotationId` is malformed"),
-        (MARK_CANCEL_PENDING, {CARRIED[:12]: CARRIED}, "it has a member that channel's payload has not"),
+        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, "it has a member that channel's payload has not"),
         (
             JOB_CHECKPOINT,
             {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}},

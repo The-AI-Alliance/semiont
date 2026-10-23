@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { markJobControls } from '../../../lib/delegated-job-controls';
@@ -47,6 +47,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface Props {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   /** Host-owned navigation: called with the resolved resource id when a reference entry opens. */
   onOpenResource?: (resourceId: ResourceId) => void;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
@@ -105,13 +107,12 @@ interface Props {
 /**
  * Panel for managing reference annotations with entity type annotation
  *
- * @emits mark:delegate-request - Start reference annotation. Payload: MarkDelegateRequestEvent, its params those of a 'linking' job: entityTypes, includeDescriptiveReferences, language, sourceLanguage
  * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
- * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
   session,
+  mark,
   onOpenResource,
   resourceId,
   annotations = [],
@@ -243,7 +244,7 @@ export function ReferencesPanel({
   // Clear log when starting new annotation
   const handleDelegate = () => {
     setLastDetectionLog(null);
-    session?.client.mark.requestDelegate({
+    mark?.requestDelegate({
       motivation: 'linking',
       entityTypes: selectedEntityTypes,
       includeDescriptiveReferences,
@@ -308,14 +309,14 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.mark.cancelPending();
+        mark?.cancelPending();
         setPendingEntityTypes([]);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, session]);
+  }, [pendingAnnotation, mark]);
 
   return (
     <div className="semiont-panel">
@@ -360,7 +361,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  session?.client.mark.cancelPending();
+                  mark?.cancelPending();
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -390,7 +391,7 @@ export function ReferencesPanel({
             isDelegating={isDelegating}
             progress={progress}
             cancelled={cancelled}
-            controls={markJobControls(session, jobId)}
+            controls={markJobControls(session, mark, jobId)}
             progressProps={{
               translations: delegateProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),

@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { annotatorKeyForMotivation, type Annotator, type AnnotatorKey } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
@@ -37,6 +37,8 @@ const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment
 interface UnifiedAnnotationsPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
 
   /** Host-owned navigation: called with the resolved resource id when a reference entry opens. */
   onOpenResource?: (resourceId: ResourceId) => void;
@@ -294,6 +296,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           // Common props for all annotation panels
           const commonProps = {
             session: props.session,
+            mark: props.mark,
             resourceId: props.resourceId,
             annotations,
             pendingAnnotation: props.pendingAnnotation,
@@ -322,6 +325,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <ReferencesPanel
                 session={commonProps.session}
+                mark={commonProps.mark}
                 onOpenResource={props.onOpenResource}
                 resourceId={commonProps.resourceId}
                 annotations={commonProps.annotations}

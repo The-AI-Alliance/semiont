@@ -9,8 +9,8 @@ import { openResourceByName } from '../fixtures/discover';
  * The production chain is:
  *
  *   ReferencesPanel delegate widget → click "Annotate" (✨)
- *     → eventBus `mark:delegate-request` (local)
- *     → mark-state-unit → `client.mark.delegate(...)`
+ *     → the resource's mark unit: `requestDelegate(params)`
+ *     → `client.mark.delegate(...)`
  *     → bus `job:create` (jobType="mark", params.motivation="linking" + params.entityTypes)
  *     → bus `job:created` (jobId)
  *     → worker entity-extraction → `mark:added` per entity

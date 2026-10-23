@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { of } from 'rxjs';
-import { CacheObservable, type SemiontSession } from '@semiont/sdk';
+import { CacheObservable, createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
 import type { EventBus, TagSchema } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
@@ -24,7 +24,7 @@ function createEventTracker() {
     events,
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus) {
-      const panelEvents = ['mark:submit', 'mark:delegate-request'] as const;
+      const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
@@ -53,8 +53,18 @@ const TEST_TAG_SCHEMAS: TagSchema[] = [
   },
 ];
 
-const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSession | null }>, tracker?: ReturnType<typeof createEventTracker>) => {
+type SessionProps = { session: SemiontSession | null; mark: MarkStateUnit | undefined };
+
+// The mark units the render helpers make, disposed after each test.
+const markUnits: MarkStateUnit[] = [];
+afterEach(() => {
+  for (const unit of markUnits.splice(0)) unit.dispose();
+});
+
+const renderWithEventBus = (component: React.ReactElement<SessionProps>, tracker?: ReturnType<typeof createEventTracker>) => {
   const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
+  const mark = createMarkStateUnit(client, resourceId('res-1'));
+  markUnits.push(mark);
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
     CacheObservable.from(of({ status: 'ready' as const, value: TEST_TAG_SCHEMAS }))
   );
@@ -64,22 +74,24 @@ const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSess
   );
   // The component is provider-free: the `session` prop is the only session it
   // sees. Inject the factory session here so it is the SAME session whose
-  // client backs `eventBus` (trackers subscribe there).
-  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
+  // client backs `eventBus` (trackers subscribe there), and a mark unit on it.
+  return Object.assign(render(React.cloneElement(component, { session, mark }), { wrapper: Wrapper }), { mark });
 };
 
 // Variant for the empty-registry case: the cache resolves to `[]`
 // (post-bootstrap, no schemas registered). Distinct from the still-
 // loading case where the observable yields `undefined`.
-const renderWithEmptyRegistry = (component: React.ReactElement<{ session: SemiontSession | null }>) => {
+const renderWithEmptyRegistry = (component: React.ReactElement<SessionProps>) => {
   const { SemiontWrapper, client, session } = createTestSemiontWrapper();
+  const mark = createMarkStateUnit(client, resourceId('res-1'));
+  markUnits.push(mark);
   vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
     CacheObservable.from(of({ status: 'ready' as const, value: [] }))
   );
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
+  return render(React.cloneElement(component, { session, mark }), { wrapper: Wrapper });
 };
 
 // Mock TranslationContext. The component uses `schema.name` /
@@ -192,11 +204,12 @@ describe('TaggingPanel Component', () => {
     pendingAnnotation: null,
     jobId: null,
     cancelled: false,
-    // Satisfies JSX at element construction only; the render helpers always
-    // replace it (via cloneElement) with the per-test factory session. Never
-    // put a live session here — module-scope clients get disposed after the
-    // first test.
+    // Satisfy JSX at element construction only; the render helpers always
+    // replace both (via cloneElement) with the per-test factory session and
+    // a mark unit on its client. Never put a live session here — module-scope
+    // clients get disposed after the first test.
     session: null,
+    mark: undefined,
   };
 
   beforeEach(() => {
@@ -566,15 +579,14 @@ describe('TaggingPanel Component', () => {
       expect(annotateButton).not.toBeDisabled();
     });
 
-    it('should emit mark:delegate-request event with selected schema and categories', async () => {
-      const tracker = createEventTracker();
-      renderWithEventBus(
+    it('asks the mark unit to delegate a tagging job of the chosen schema and categories', async () => {
+      const { mark } = renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
         />,
-        tracker
       );
+      const requestDelegate = vi.spyOn(mark, 'requestDelegate').mockImplementation(() => {});
 
       const issueCheckbox = await screen.findByLabelText(/Issue/);
       const ruleCheckbox = screen.getByLabelText(/Rule/);
@@ -585,15 +597,11 @@ describe('TaggingPanel Component', () => {
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/i });
       await userEvent.click(annotateButton);
 
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'mark:delegate-request' &&
-          e.payload?.params?.motivation === 'tagging' &&
-          e.payload?.params?.schemaId === 'legal-irac' &&
-          e.payload?.params?.categories?.includes('Issue') &&
-          e.payload?.params?.categories?.includes('Rule')
-        )).toBe(true);
-      });
+      expect(requestDelegate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        motivation: 'tagging',
+        schemaId: 'legal-irac',
+        categories: ['Issue', 'Rule'],
+      }));
     });
   });
 

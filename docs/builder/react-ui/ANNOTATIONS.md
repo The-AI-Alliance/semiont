@@ -211,30 +211,32 @@ observables that the UI reads via `useObservable`:
 - `mark.jobId$` — the delegated job's id, from the queue's answer to its creation to the job's end (or `null`); what `client.job.cancel` takes
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
 
+It is asked three things, each of its own resource: `mark.requestDelegate(params)`
+delegates a `mark` job and follows it, `mark.cancelPending()` drops the annotation
+being composed, and `mark.dismissProgress()` clears an ended job's display.
+
 A delegated job that says nothing for `delegateSilenceMs` (three minutes, in
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json)) is
 reported on the local channel `mark:delegate-timeout`. The signal ends nothing:
 the job goes on, the state unit keeps following it, and
 `delegatingMotivation$` stays set until the job ends.
 
-To trigger detection, a panel calls the SDK directly — there is no handler to
-wire up and no detection context object:
+To trigger detection, a panel asks the mark unit — there is no handler to wire
+up and no detection context object:
 
 ```tsx
-import { useObservable, useSemiont } from '@semiont/react-ui';
+import { useObservable } from '@semiont/react-ui';
 
 function DelegateReferences({ stateUnit }: { stateUnit: ResourceViewerPageStateUnit }) {
-  const session = useObservable(useSemiont().activeSession$);
-
   // Read the delegated job's live state from the mark state unit
   const delegatingMotivation = useObservable(stateUnit.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit.mark.progress$) ?? null;
 
   const handleDetect = () => {
-    // requestDelegate emits the local 'mark:delegate-request' event; the mark
-    // state unit picks it up and runs client.mark.delegate(...) for the job.
-    // The request carries the job's params, its motivation among them.
-    session?.client.mark.requestDelegate({
+    // The mark unit runs client.mark.delegate(...) for its own resource and
+    // follows the job. The request carries the job's params, its motivation
+    // among them.
+    stateUnit.mark.requestDelegate({
       motivation: 'linking',
       entityTypes: ['Person', 'Organization'],
     });
@@ -273,7 +275,8 @@ it cancels it, through `client.job.cancel(jobId)`; from the click it reads
 request, or an answer of `false`, gives it back. Once the job has ended it
 closes the display. A job the queue has not named yet has no control.
 
-`markJobControls(session, jobId)` makes a mark panel's controls, and
+`markJobControls(session, mark, jobId)` makes a mark panel's controls, whose
+close asks the mark unit to dismiss, and
 `delegatedJobControls(session, jobId, onDismiss)` any other display's.
 `DelegateShell` takes nothing else, so no display can be composed without
 naming the job it follows.
@@ -568,7 +571,7 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 - `ANNOTATORS` - The registry: one `Annotator` per annotation type
 - `annotatorKeyForMotivation(motivation)` - The registry key for a W3C motivation
-- `client.mark.requestDelegate(params)` - Delegate an annotation pass, with a `mark` job's params (mark state unit runs the job)
+- `stateUnit.mark.requestDelegate(params)` - Delegate an annotation pass of the unit's resource, with a `mark` job's params
 - `useObservable(stateUnit.mark.delegatingMotivation$)` - Read the delegated job's live state
 
 ### Types

@@ -32,6 +32,7 @@ type PanelProps = React.ComponentProps<typeof UnifiedAnnotationsPanel>;
 
 const base = (): PanelProps => ({
   session: fakeSession(),
+  mark: undefined,
   annotations: [],
   annotators: ANNOTATORS,
   allEntityTypes: [],

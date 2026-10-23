@@ -338,43 +338,4 @@ describe('UI signal wrappers', () => {
       expect(spy).toHaveBeenCalledExactlyOnceWith('mark:submit', payload);
     });
   });
-
-  describe('mark.cancelPending', () => {
-    it('emits mark:cancel-pending with no payload (local bus)', () => {
-      const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:cancel-pending');
-      const mark = new MarkNamespace(makeMockTransport(), bus);
-
-      mark.cancelPending();
-
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:cancel-pending', undefined);
-    });
-  });
-
-  describe('mark.requestDelegate', () => {
-    it("emits mark:delegate-request with the job's params (local bus)", () => {
-      const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:delegate-request');
-      const mark = new MarkNamespace(makeMockTransport(), bus);
-
-      mark.requestDelegate({ motivation: 'linking', entityTypes: ['Person'] });
-
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:delegate-request', {
-        params: { motivation: 'linking', entityTypes: ['Person'] },
-      });
-    });
-  });
-
-  describe('mark.dismissProgress', () => {
-    it('emits mark:progress-dismiss with no payload (local bus)', () => {
-      const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:progress-dismiss');
-      const mark = new MarkNamespace(makeMockTransport(), bus);
-
-      mark.dismissProgress();
-
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:progress-dismiss', undefined);
-    });
-  });
-
 });

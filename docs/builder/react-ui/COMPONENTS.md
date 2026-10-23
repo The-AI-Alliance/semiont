@@ -289,19 +289,25 @@ Optional: `parts` (which of the four control groups to render — `'clickAction'
 
 The side-panel renderers for each annotation motivation. **Bring-your-own-session**, like
 `ResourceViewer`: every panel takes a `session: SemiontSession | null` prop directly — no
-`SemiontProvider` required — plus the **grouped annotation arrays + UI state** (from
-`useResourceLoader` / the page state unit). They render what you pass, send interactions
-through the session's client, and follow `browse:click` on its bus for entry focus.
-`session={null}` renders inert (display-only).
+`SemiontProvider` required — plus the resource's mark unit as `mark: MarkStateUnit | undefined`,
+which a panel asks to delegate a job, drop the annotation being composed, or clear an ended
+job's display, and the **grouped annotation arrays + UI state** (from `useResourceLoader` /
+the page state unit). They render what you pass, send interactions through the session's
+client and the mark unit, and follow `browse:click` on its bus for entry focus.
+`session={null}` renders inert (display-only), and `mark={undefined}` leaves the delegate,
+cancel and dismiss controls inert.
 
 ```tsx
-import { HighlightPanel, useResourceLoader } from '@semiont/react-ui';
+import { HighlightPanel, createMarkStateUnit, useResourceLoader, useSessionStateUnit } from '@semiont/react-ui';
 
 const { annotations } = useResourceLoader(session.client, rId);
+// The resource's mark unit, made and disposed with the session (the page unit holds one as `mark`).
+const mark = useSessionStateUnit(session, (s) => createMarkStateUnit(s.client, rId));
 
 // One motivation — no session provider, just the session:
 <HighlightPanel
   session={session}
+  mark={mark}
   resourceId={rId}
   annotations={annotations.highlights}
   pendingAnnotation={null}  // the mark in progress (`MarkStateUnit.pendingAnnotation$`), or null

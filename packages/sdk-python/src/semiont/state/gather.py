@@ -1,10 +1,9 @@
 """Gathering, as state: the context around an annotation of one resource, and the context around a whole resource.
 
 Each is held with whether it is being gathered and the failure it met. The two
-are held apart because both can be in flight at once. An annotation's is asked
-for by a signal (`gather:requested` on the client's own bus), since what asks
-is far from what shows it; a resource's is asked for by a method, since what
-asks holds the unit.
+are held apart because both can be in flight at once. Each is asked of the unit
+itself (`gather_annotation`, `gather_resource`), so a gather asked of one
+resource's unit reaches no other.
 
 A new request clears what the last one left. Requests are not cancelled by the
 next: each lands when it is answered.
@@ -12,18 +11,16 @@ next: each lands when it is answered.
 
 from collections.abc import Awaitable, Sequence
 from types import TracebackType
-from typing import Final, Self, TypedDict, final, override
+from typing import Final, Self, final, override
 
 from semiont._reading import Reading
-from semiont.bus import Typed
-from semiont.channels import GATHER_REQUESTED
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Transport
-from semiont.types import GatherAnnotationRequest, GatheredContext
+from semiont.types import GatheredContext
 from semiont.watched import Variable, Watched
 
 __all__ = ["GatherStateUnit"]
@@ -57,19 +54,6 @@ class _Slot:
         self.error.end()
 
 
-class _Window(TypedDict, total=False):
-    """The window a request states. One it leaves out is the namespace's to choose."""
-
-    context_window: int
-
-
-def _window(request: GatherAnnotationRequest) -> _Window:
-    window: _Window = {}
-    if request.options is not None and request.options.context_window is not None:
-        window["context_window"] = request.options.context_window
-    return window
-
-
 @final
 class GatherStateUnit(StateUnit):
     """See the module's documentation. It gathers the annotations of `resource_id`, and any resource."""
@@ -82,8 +66,6 @@ class GatherStateUnit(StateUnit):
         self._resource: Final = _Slot()
         self._tasks: Final = Tasks()
         self._disposed = False
-        # Taken now, so that a gather asked for from here on is heard.
-        self._tasks.run(self._listen(client.bus.frames(GATHER_REQUESTED)))
 
     @property
     def context(self) -> Watched[GatheredContext | None]:
@@ -116,6 +98,14 @@ class GatherStateUnit(StateUnit):
     def resource_error(self) -> Watched[SemiontError | None]:
         return Reading(self._resource.error)
 
+    def gather_annotation(self, annotation_id: AnnotationId, *, context_window: int = 2000) -> None:
+        """Gather the context around an annotation of this unit's resource, with what `client.gather.annotation` takes."""
+        if self._disposed:
+            return
+        self._annotation.begin()
+        self._annotation_id.set(annotation_id)
+        self._tasks.run(self._annotation.land(self._gather_annotation(annotation_id, context_window)))
+
     def gather_resource(
         self,
         resource_id: ResourceId,
@@ -140,16 +130,8 @@ class GatherStateUnit(StateUnit):
         )
         self._tasks.run(self._resource.land(gathering))
 
-    async def _listen(self, heard: Typed[GatherAnnotationRequest]) -> None:
-        async with heard:
-            async for asked in heard:
-                request = asked.payload
-                self._annotation.begin()
-                self._annotation_id.set(request.annotation_id)
-                self._tasks.run(self._annotation.land(self._gather_annotation(request)))
-
-    async def _gather_annotation(self, request: GatherAnnotationRequest) -> GatheredContext:
-        complete = await self._client.gather.annotation(self._resource_id, request.annotation_id, **_window(request))
+    async def _gather_annotation(self, annotation_id: AnnotationId, context_window: int) -> GatheredContext:
+        complete = await self._client.gather.annotation(self._resource_id, annotation_id, context_window=context_window)
         return complete.response
 
     @override

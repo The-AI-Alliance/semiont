@@ -1,38 +1,34 @@
 //! Marking, as one resource's state: the annotation being composed, and the
 //! delegated job that is running.
 //!
-//! **The pending annotation.** A selection (`client.mark.request`, or one of
-//! the quick `mark:select-*` signals) becomes the annotation pending.
-//! Submitting it (`client.mark.submit`) creates it, and it stops being
-//! pending when the knowledge base says it is recorded; a creation that
-//! fails leaves it pending and says `mark:create-error` on the client's own
-//! bus. `client.mark.cancel_pending` drops it.
+//! **The pending annotation.** A selection (`client.mark.request`) becomes
+//! the annotation pending. Submitting it (`client.mark.submit`) creates it,
+//! and it stops being pending when the knowledge base says it is recorded; a
+//! creation that fails leaves it pending and says `mark:create-error` on the
+//! client's own bus. `cancel_pending` drops it.
 //!
-//! A request and a submission name the resource they are for, and a unit
-//! acts only on its own: several units over one client, one per open
-//! resource, do not answer for each other.
+//! A request and a submission are signals on the client's own bus that name
+//! the resource they are for, and a unit acts only on its own. A delegation,
+//! a cancel and a dismissal are asked of the unit itself. So several units
+//! over one client, one per open resource, do not answer for each other.
 //!
-//! **The delegated job.** `client.mark.request_delegate` starts one: the
-//! `mark` job whose parameters the request carries, delegated for this unit's
-//! resource. The motivation those parameters state is held while it runs,
-//! and its progress as it comes, with the motivation that progress is of. A
-//! finished job's progress stays until it is dismissed
-//! (`client.mark.dismiss_progress`) or the next one begins, and so does a
-//! cancelled one's: its commits stand. One that fails clears it. Why a job
-//! ended without completing is held until the progress is dismissed or the
-//! next job begins. The job's id is held from the queue's answer to its
-//! creation to the job's end: it is what `client.job.cancel` names.
+//! **The delegated job.** `request_delegate` starts one: the `mark` job of
+//! the parameters it is given, delegated for this unit's resource. The
+//! motivation those parameters state is held while it runs, and its progress
+//! as it comes, with the motivation that progress is of. A finished job's
+//! progress stays until it is dismissed (`dismiss_progress`) or the next one
+//! begins, and so does a cancelled one's: its commits stand. One that fails
+//! clears it. Why a job ended without completing is held until the progress
+//! is dismissed or the next job begins. The job's id is held from the
+//! queue's answer to its creation to the job's end: it is what
+//! `client.job.cancel` names.
 //!
 //! A delegated job that says nothing for `DELEGATE_SILENCE` has gone quiet,
 //! which is not over: the unit says so once (`mark:delegate-timeout`) and
 //! keeps following, so a completion that arrives later still ends it.
 
 use super::{Held, Tasks, cancelled, said, signal};
-use crate::channels::{
-    Channel, MarkCancelPending, MarkCreateError, MarkDelegateRequest, MarkDelegateTimeout,
-    MarkProgressDismiss, MarkRequested, MarkSelectAssessment, MarkSelectComment,
-    MarkSelectReference, MarkSelectTag, MarkSubmit,
-};
+use crate::channels::{Channel, MarkCreateError, MarkDelegateTimeout, MarkRequested, MarkSubmit};
 use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::event_bus::BusFrames;
@@ -41,10 +37,8 @@ use crate::state_unit::StateUnit;
 use crate::timing::DELEGATE_SILENCE;
 use crate::transport::Envelope;
 use crate::types::{
-    AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
-    FragmentSelectorType, JobProgress, MarkDelegateTimeoutEvent, MarkJobParams, MarkSubmitEvent,
-    Motivation, ResourceErrorEvent, SelectionData, Selector, SvgSelector, SvgSelectorType,
-    TextQuoteSelector, TextQuoteSelectorType,
+    AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, JobProgress,
+    MarkDelegateTimeoutEvent, MarkJobParams, MarkSubmitEvent, Motivation, ResourceErrorEvent,
 };
 use crate::types::{JobId, ResourceId};
 use serde::Serialize;
@@ -58,39 +52,6 @@ use tokio::sync::watch;
 pub struct PendingAnnotation {
     pub selector: AnnotationSelector,
     pub motivation: Motivation,
-}
-
-fn stated(text: Option<String>) -> Option<String> {
-    text.filter(|text| !text.is_empty())
-}
-
-/// The selector a quick selection states: its region, its fragment with the
-/// text it quotes, or the text alone.
-fn selected(selection: SelectionData) -> AnnotationSelector {
-    let quote = TextQuoteSelector {
-        r#type: TextQuoteSelectorType::TextQuoteSelector,
-        exact: selection.exact,
-        prefix: stated(selection.prefix),
-        suffix: stated(selection.suffix),
-    };
-    if let Some(region) = stated(selection.svg_selector) {
-        return AnnotationSelector::Selector(Selector::SvgSelector(SvgSelector {
-            r#type: SvgSelectorType::SvgSelector,
-            value: region,
-        }));
-    }
-    if let Some(fragment) = stated(selection.fragment_selector) {
-        let mut selectors = vec![Selector::FragmentSelector(FragmentSelector {
-            r#type: FragmentSelectorType::FragmentSelector,
-            value: fragment,
-            conforms_to: stated(selection.conforms_to),
-        })];
-        if !quote.exact.is_empty() {
-            selectors.push(Selector::TextQuoteSelector(quote));
-        }
-        return AnnotationSelector::List(selectors);
-    }
-    AnnotationSelector::Selector(Selector::TextQuoteSelector(quote))
 }
 
 /// The motivation a `mark` job's parameters state, read from them as the
@@ -134,17 +95,9 @@ pub struct MarkStateUnit {
 impl MarkStateUnit {
     /// The marking of `resource_id`.
     pub fn new(client: Arc<SemiontClient>, resource_id: &ResourceId) -> MarkStateUnit {
-        let heard = client.bus().frames_among(&[
-            MarkRequested::NAME,
-            MarkSelectComment::NAME,
-            MarkSelectTag::NAME,
-            MarkSelectAssessment::NAME,
-            MarkSelectReference::NAME,
-            MarkCancelPending::NAME,
-            MarkSubmit::NAME,
-            MarkDelegateRequest::NAME,
-            MarkProgressDismiss::NAME,
-        ]);
+        let heard = client
+            .bus()
+            .frames_among(&[MarkRequested::NAME, MarkSubmit::NAME]);
         let shared = Arc::new(Shared {
             client,
             resource_id: resource_id.clone(),
@@ -199,54 +152,55 @@ impl MarkStateUnit {
     pub fn job_id(&self) -> watch::Receiver<Option<JobId>> {
         self.shared.job_id.read()
     }
+
+    /// Delegate the annotating of this unit's resource as a `mark` job of
+    /// these parameters, the ones `client.mark.delegate` takes.
+    pub fn request_delegate(&self, params: impl Into<MarkJobParams>) {
+        let params = params.into();
+        // Parameters that state no motivation are no request.
+        let Some(motivation) = motivation_of(&params) else {
+            return;
+        };
+        let shared = &self.shared;
+        shared.delegating.set(Some(motivation));
+        shared.progress.set(None);
+        shared.progress_motivation.set(Some(motivation));
+        shared.failure.set(None);
+        shared.job_id.set(None);
+        shared
+            .tasks
+            .spawn(delegate(shared.clone(), params, motivation));
+    }
+
+    /// Drop the annotation that is pending.
+    pub fn cancel_pending(&self) {
+        self.shared.pending.set(None);
+    }
+
+    /// Dismiss the display of a delegated job: its progress, the motivation
+    /// that progress is of, and why it ended without completing.
+    pub fn dismiss_progress(&self) {
+        self.shared.progress.set(None);
+        self.shared.progress_motivation.set(None);
+        self.shared.failure.set(None);
+    }
 }
 
 async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
     while let Some(frame) = heard.next().await {
         // A signal that was missed is not known, and is not acted on.
         let Ok(frame) = frame else { continue };
-        let pend = |selector, motivation| {
-            shared.pending.set(Some(PendingAnnotation {
-                selector,
-                motivation,
-            }));
-        };
         if let Some(request) = said::<MarkRequested>(&frame) {
             if request.source == shared.resource_id {
-                pend(request.selector, request.motivation);
+                shared.pending.set(Some(PendingAnnotation {
+                    selector: request.selector,
+                    motivation: request.motivation,
+                }));
             }
-        } else if let Some(selection) = said::<MarkSelectComment>(&frame) {
-            pend(selected(selection), Motivation::Commenting);
-        } else if let Some(selection) = said::<MarkSelectTag>(&frame) {
-            pend(selected(selection), Motivation::Tagging);
-        } else if let Some(selection) = said::<MarkSelectAssessment>(&frame) {
-            pend(selected(selection), Motivation::Assessing);
-        } else if let Some(selection) = said::<MarkSelectReference>(&frame) {
-            pend(selected(selection), Motivation::Linking);
-        } else if said::<MarkCancelPending>(&frame).is_some() {
-            shared.pending.set(None);
-        } else if let Some(submission) = said::<MarkSubmit>(&frame) {
-            if submission.source == shared.resource_id {
-                shared.tasks.spawn(create(shared.clone(), submission));
-            }
-        } else if let Some(request) = said::<MarkDelegateRequest>(&frame) {
-            // Parameters that state no motivation are no request, as a frame
-            // that is not its channel's is none.
-            let Some(motivation) = motivation_of(&request.params) else {
-                continue;
-            };
-            shared.delegating.set(Some(motivation));
-            shared.progress.set(None);
-            shared.progress_motivation.set(Some(motivation));
-            shared.failure.set(None);
-            shared.job_id.set(None);
-            shared
-                .tasks
-                .spawn(delegate(shared.clone(), request.params, motivation));
-        } else if said::<MarkProgressDismiss>(&frame).is_some() {
-            shared.progress.set(None);
-            shared.progress_motivation.set(None);
-            shared.failure.set(None);
+        } else if let Some(submission) = said::<MarkSubmit>(&frame)
+            && submission.source == shared.resource_id
+        {
+            shared.tasks.spawn(create(shared.clone(), submission));
         }
     }
 }

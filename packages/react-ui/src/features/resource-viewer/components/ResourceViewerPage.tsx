@@ -644,6 +644,7 @@ export function ResourceViewerPage({
             {activePanel === 'annotations' && !resource.archived && (
               <UnifiedAnnotationsPanel
                 session={session ?? null}
+                mark={stateUnit?.mark}
                 onOpenResource={handleViewerOpenResource}
                 annotations={annotations}
                 annotators={ANNOTATORS}

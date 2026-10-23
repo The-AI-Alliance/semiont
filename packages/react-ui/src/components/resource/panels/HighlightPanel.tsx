@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { MarkStateUnit, SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -23,6 +23,8 @@ interface PendingAnnotation {
 interface HighlightPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
+  /** The resource's mark unit, which delegations, cancels and dismissals are asked of; undefined renders inert. */
+  mark: MarkStateUnit | undefined;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
   resourceId: ResourceId;
   annotations: Annotation[];
@@ -56,6 +58,7 @@ interface HighlightPanelProps {
  */
 export function HighlightPanel({
   session,
+  mark,
   resourceId,
   annotations,
   pendingAnnotation,
@@ -169,6 +172,7 @@ export function HighlightPanel({
         {annotateMode && (
           <DelegateSection
             session={session}
+            mark={mark}
             annotationType="highlight"
             isDelegating={isDelegating}
             progress={progress}

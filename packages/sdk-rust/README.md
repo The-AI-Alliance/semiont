@@ -456,8 +456,8 @@ so does dropping it.
 
 | Unit | holds | hears, or is told |
 |---|---|---|
-| `MarkStateUnit` (one resource) | the annotation being composed; the motivation, id and progress of the delegated job running, the motivation that progress is of, and why the last job ended without completing | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
-| `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
+| `MarkStateUnit` (one resource) | the annotation being composed; the motivation, id and progress of the delegated job running, the motivation that progress is of, and why the last job ended without completing | `client.mark.request` and `submit`, which name its resource; `request_delegate`, `cancel_pending`, `dismiss_progress` |
+| `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather_annotation`, `gather_resource` |
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
 | `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
 | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |

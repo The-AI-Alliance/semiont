@@ -102,7 +102,6 @@ export type {
   YieldJobResult,
   UnitCursor,
   GenerationJobParams,
-  SelectionData,
   JobType,
   CollaboratorEntry,
   Collaborator,

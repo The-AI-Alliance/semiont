@@ -3,6 +3,8 @@ import type { SemiontClient } from '../../client';
 import { watched, type AnnotationId, type GatheredContext, type ResourceId, type StateUnit, type Watched } from '@semiont/core';
 import type { GatherNamespace } from '../../namespaces/types';
 
+/** The options `client.gather.annotation` takes — one shape, referenced not duplicated. */
+export type AnnotationGatherOptions = Parameters<GatherNamespace['annotation']>[2];
 /** The options `client.gather.resource` takes — one shape, referenced not duplicated. */
 export type ResourceGatherOptions = Parameters<GatherNamespace['resource']>[1];
 
@@ -21,11 +23,12 @@ export interface GatherStateUnit extends StateUnit {
   resourceLoading$: Watched<boolean>;
   resourceError$: Watched<Error | null>;
   /**
-   * Gather a resource-focus context. A METHOD, not a bus channel: the
-   * annotation path's channel exists because a far-away component triggers
-   * it; this path's only trigger holds the unit already, and a channel is
-   * added when a remote trigger exists, not before.
+   * Gather the context around an annotation of this unit's resource. Asked of
+   * the unit itself, as every gather is: a gather asked of one resource's unit
+   * reaches no other.
    */
+  gatherAnnotation(annotationId: AnnotationId, options?: AnnotationGatherOptions): void;
+  /** Gather a resource-focus context. */
   gatherResource(resourceId: ResourceId, options?: ResourceGatherOptions): void;
 }
 
@@ -65,24 +68,17 @@ export function createGatherStateUnit(
       });
   };
 
-  subs.push(client.bus.on('gather:requested').subscribe((event) => {
+  const gatherAnnotation = (annotationId: AnnotationId, options?: AnnotationGatherOptions): void => {
+    if (disposed) return;
     loading$.next(true);
     error$.next(null);
     context$.next(null);
-    annotationId$.next(event.annotationId);
+    annotationId$.next(annotationId);
 
-    const gatherSub = client.gather.annotation(
-      resourceId,
-      event.annotationId,
-      { contextWindow: event.options?.contextWindow ?? 2000 },
-    ).subscribe({
-      next: (progress) => {
-        if ('response' in progress && progress.response) {
-          context$.next(
-            (progress as { response: GatheredContext }).response ?? null,
-          );
-          loading$.next(false);
-        }
+    const gatherSub = client.gather.annotation(resourceId, annotationId, options).subscribe({
+      next: (gathered) => {
+        context$.next(gathered.response);
+        loading$.next(false);
       },
       error: (err) => {
         error$.next(err instanceof Error ? err : new Error(String(err)));
@@ -93,7 +89,7 @@ export function createGatherStateUnit(
       },
     });
     subs.push(gatherSub);
-  }));
+  };
 
   return {
     context$: watched(context$),
@@ -103,6 +99,7 @@ export function createGatherStateUnit(
     resourceContext$: watched(resourceContext$),
     resourceLoading$: watched(resourceLoading$),
     resourceError$: watched(resourceError$),
+    gatherAnnotation,
     gatherResource,
     dispose() {
       disposed = true;
