@@ -1,5 +1,5 @@
 {
-  "about": "a job's failure reaches the client that follows it as a frame: one the queue will try again is a setback the follower reports and follows past, and it does not ask for the status of the attempt that died however long the next takes to begin; one that is final ends the follower as failed, under the code every SDK reports it by",
+  "about": "a job's failure reaches the client that follows it as a frame: one the queue will try again is a setback the follower reports and follows past, and it does not ask for the status of the attempt that died however long the next takes to begin; one that is final ends the follower as failed, under the code every SDK reports it by and with the class its worker gave it",
   "source": "docs/protocol/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs; specs/src/errors/codes.json job",
   "tier": "parity",
   "steps": [
@@ -121,6 +121,7 @@
           "jobType": "mark",
           "attempt": 2,
           "error": "the model did not answer",
+          "failureClass": "deterministic",
           "willRetry": false
         }
       }
@@ -130,7 +131,8 @@
       "state": {
         "status": "failed",
         "error": {
-          "code": "job.failed"
+          "code": "job.failed",
+          "failureClass": "deterministic"
         }
       }
     },

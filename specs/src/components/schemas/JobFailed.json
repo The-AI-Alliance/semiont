@@ -25,6 +25,9 @@
     "error": {
       "type": "string",
       "description": "The failure's message."
+    },
+    "failureClass": {
+      "$ref": "./FailureClass.json"
     }
   },
   "required": [

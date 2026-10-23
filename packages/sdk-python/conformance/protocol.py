@@ -17,7 +17,7 @@ from typing import Final, final
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from semiont.errors import SemiontError
+from semiont.errors import JobError, SemiontError
 
 __all__ = [
     "Arguments",
@@ -106,13 +106,15 @@ def texts(args: Arguments, name: str) -> list[str]:
 
 
 def failure(error: BaseException) -> dict[str, JsonValue]:
-    """A failure as the protocol carries it: the SDK's code, and the status when a server stated one."""
+    """A failure as the protocol carries it: the SDK's code, a server's status, and a job failure's class, each where there is one."""
     detail = f"{type(error).__name__}: {error}"
     if not isinstance(error, SemiontError):
         return {"detail": detail}
     stated: dict[str, JsonValue] = {"code": error.code}
     if error.status is not None:
         stated["status"] = error.status
+    if isinstance(error, JobError) and error.failure_class is not None:
+        stated["failureClass"] = error.failure_class
     stated["detail"] = detail
     return stated
 

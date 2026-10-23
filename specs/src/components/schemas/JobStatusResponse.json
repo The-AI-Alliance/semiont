@@ -32,6 +32,9 @@
     "error": {
       "type": "string"
     },
+    "failureClass": {
+      "$ref": "./FailureClass.json"
+    },
     "progress": {
       "$ref": "./JobStoredProgress.json"
     },

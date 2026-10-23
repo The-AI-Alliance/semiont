@@ -123,7 +123,18 @@ withDispatcher('job:fail', (world) => {
     await worker.fail(ref, 'second, and last');
     const status = await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
     expect(status.error).toBe('second, and last');
+    expect(status.failureClass).toBeUndefined();
     expect(Date.parse(status.completedAt!)).toBeGreaterThanOrEqual(Date.parse(retried.startedAt));
+  });
+
+  it('keeps on the record of a job failed for good the class its last failure was given', async () => {
+    const { creator, worker, job, ref } = await world().running();
+    await worker.fail(ref, 'rate limited', { failureClass: 'transient' });
+    await creator.until(job.metadata.id, 'the job to be re-queued', (s) => s.status === 'pending');
+    await worker.claimed([marks('highlighting')]);
+    await worker.fail(ref, 'rate limited again', { failureClass: 'transient' });
+    const status = await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
+    expect(status.failureClass).toBe('transient');
   });
 
   it('never retries a generation job', async () => {
@@ -135,7 +146,8 @@ withDispatcher('job:fail', (world) => {
   it('fails at once a failure classed deterministic, whatever budget is left', async () => {
     const { creator, worker, job, ref } = await world().running({ motivation: 'assessing' });
     await worker.fail(ref, 'the resource is empty', { failureClass: 'deterministic' });
-    await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
+    const status = await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
+    expect(status.failureClass).toBe('deterministic');
   });
 
   it('fails at once a failure classed withheld, whatever budget is left, and does not queue the job again', async () => {
@@ -144,6 +156,7 @@ withDispatcher('job:fail', (world) => {
     await worker.fail(ref, 'The provider withheld its answer: refusal', { failureClass: 'withheld' });
     const status = await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
     expect(status.error).toBe('The provider withheld its answer: refusal');
+    expect(status.failureClass).toBe('withheld');
     expect((await worker.claim([marks('commenting')])).payload['code']).toBe('none-pending');
   });
 

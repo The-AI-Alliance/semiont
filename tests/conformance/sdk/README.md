@@ -92,6 +92,9 @@ concurrently; each is answered once, whenever it settles, by one of:
 
 A failure's `code` is the SDK's own, from `specs/src/errors/codes.json`.
 `status` is the HTTP status when a server stated one, and absent otherwise.
+`failureClass` is a job failure's class
+([`FailureClass`](../../../specs/src/components/schemas/FailureClass.json))
+when it has one, and absent otherwise.
 `detail` is the SDK's words, for a person; nothing compares it.
 
 **What the client observes** is written as it happens, with no `id`:

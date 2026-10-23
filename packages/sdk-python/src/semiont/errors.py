@@ -23,6 +23,7 @@ from semiont.error_codes import (
     transport_error_code_for_status,
 )
 from semiont.identifiers import JobId
+from semiont.types import FailureClass
 
 __all__ = ["BusRequestError", "JobError", "SemiontError", "SessionError", "SignInError", "SpanRefusedError", "TransportError"]
 
@@ -102,11 +103,18 @@ class BusRequestError(SemiontError):
 class JobError(SemiontError):
     """A job its follower saw end without completing: it failed for good, was cancelled, or said nothing for too long."""
 
-    def __init__(self, code: JobErrorCode, message: str, *, job_id: JobId | None) -> None:
+    def __init__(self, code: JobErrorCode, message: str, *, job_id: JobId | None, failure_class: FailureClass | None) -> None:
         super().__init__(message)
         self._code: Final = code
         self.job_id: Final = job_id
         """The job, when its creation was answered: one that stalled before that has no id."""
+        self.failure_class: Final = failure_class
+        """The failure's class, for a job that failed and whose failure has one.
+
+        A caller tells "the provider would not answer" (`withheld`) from "the
+        job broke" (`deterministic`) by it, without reading the message. A
+        cancellation and a stall have none.
+        """
 
     @property
     @override
