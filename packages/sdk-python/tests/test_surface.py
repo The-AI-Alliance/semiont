@@ -517,7 +517,7 @@ def test_a_method_does_what_its_row_says(case: tuple[str, str, JsonObject, JsonO
 
 def test_the_table_and_this_sdk_list_the_same_methods() -> None:
     assert sorted({(namespace, method) for namespace, method, _, _ in CASES}) == sorted([*CALLS, *EVENTS])
-    assert len(CALLS) + len(EVENTS) == 69
+    assert len(CALLS) + len(EVENTS) == 66
     shapes = TABLE["shapes"]
     assert isinstance(shapes, dict)
     assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events", "claims"}
