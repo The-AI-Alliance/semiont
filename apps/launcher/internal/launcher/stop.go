@@ -199,7 +199,7 @@ func Stop(args []string) int {
 		// Anything less certain still refuses: stop doesn't guess, but it
 		// also must not demand --runtime container from a user standing in
 		// the exact clone whose stack is up.
-		root, _, err := CwdKBRoot()
+		root, err := CwdKBRoot()
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
@@ -333,10 +333,10 @@ func Stop(args []string) int {
 	snapRoot, snapKey := "", ""
 	if useState && st != nil && st.KBRoot != "" {
 		snapRoot, snapKey = st.KBRoot, rootKey(st.KBDid, st.KBRoot)
-	} else if r, ident, err := CwdKBRoot(); err != nil {
+	} else if kb, err := cwdKBRoot(); err != nil {
 		u.Warn("No log snapshot: %v", err)
-	} else if r != "" {
-		snapRoot, snapKey = r, kbRoot{dir: r, ident: ident}.key()
+	} else if kb.dir != "" {
+		snapRoot, snapKey = kb.dir, kb.key()
 	}
 
 	if dryRun {

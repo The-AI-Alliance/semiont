@@ -31,7 +31,7 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 	}
 	cs := codespaceStacks(ss)
 	local := ss.Stacks["local"]
-	cwdRoot, _, err := CwdKBRoot()
+	cwdRoot, err := CwdKBRoot()
 	if err != nil {
 		u.Fail("%v", err)
 		return nil, false

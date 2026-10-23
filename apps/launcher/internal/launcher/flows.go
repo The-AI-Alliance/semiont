@@ -1111,10 +1111,10 @@ func flowOneService(x executor, fc flowCtx) int {
 }
 
 // nothingToLaunch: whether `start --service svc` is a no-op — a dependency the
-// config hands to somebody else, or does not reference. ONE decider for the
+// documents hand to somebody else, or do not reference. ONE decider for the
 // flow's gate and the summary that follows it. Never one of Semiont's own
-// services: a worker the environment binds no job is refused, where its
-// document is written (workerAgents), not passed over.
+// services: a worker the roster binds no job is refused before anything runs
+// (flowOneService), not passed over.
 func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
 	if plan == nil {
 		return rolePlan{}, false

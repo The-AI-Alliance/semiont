@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -27,14 +28,6 @@ import (
 // gated by descriptor_census_test.go.
 
 const driverSemiont = "semiont"
-
-// dependency: an edge from a (role, driver) to a role it cannot come up
-// before. It only ORDERS the walk: the role is brought up first when the
-// stack has it. What a role cannot run WITHOUT is its document's schema's to
-// require (Issuer.json requires the Keycloak's database).
-type dependency struct {
-	role string
-}
 
 // authority: what the launcher may do INSIDE a service it does not run.
 //
@@ -73,15 +66,6 @@ type healthProbe struct {
 	// Zero means "whatever port this role is running on".
 	port int
 	path string
-}
-
-// needs spells the ordering-only edges, which are most of them.
-func needs(roles ...string) []dependency {
-	out := make([]dependency, 0, len(roles))
-	for _, r := range roles {
-		out = append(out, dependency{role: r})
-	}
-	return out
 }
 
 // portNeed: a port that must be free, and its name in a conflict message.
@@ -126,8 +110,11 @@ type serviceDescriptor struct {
 	// walk is ordered by and the teardown walk is ordered against — declared
 	// per (role, driver), because a requirement can be the DRIVER's and not
 	// the role's: Keycloak keeps its realm in a database, an external OIDC
-	// issuer needs nothing from us.
-	needs []dependency
+	// issuer needs nothing from us. An edge only ORDERS the walk: the role is
+	// brought up first when the stack has it. What a role cannot run WITHOUT
+	// is its document's schema's to require (Issuer.json requires the
+	// Keycloak's database).
+	needs []string
 
 	// authority: what the launcher may change inside this service when it is
 	// not the one running it. Zero is observe-only, which is the right
@@ -159,30 +146,30 @@ var serviceDescriptors = []serviceDescriptor{
 	// embedding or database client of its own. The collector precedes it
 	// because the gateway is the first process to export to it.
 	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
-		needs:  needs("collector", "identity", "messaging"),
+		needs:  []string{"collector", "identity", "messaging"},
 		health: healthProbe{path: "/api/health"}},
 	// The worker, the Smelter and the Weaver open with boot-time bus requests the
 	// Archivist answers (the smelter's reconcile opens with browse:resources),
 	// and its /health only turns on after its bus pumps attach — so this edge
 	// is what closes the startup race.
 	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
-		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
+		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
-		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
+		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
-		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
+		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	// The Archivist dials the bus and nothing else.
 	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
-		needs: needs("gateway"), health: healthProbe{path: "/health"}},
+		needs: []string{"gateway"}, health: healthProbe{path: "/health"}},
 	// The Librarian owns discovery, so the stores it dials are its preconditions:
 	// each of them gates it, and none of them gates the gateway above.
 	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
-		needs:  needs("gateway", "graph", "vectors", "inference", "embedding"),
+		needs:  []string{"gateway", "graph", "vectors", "inference", "embedding"},
 		health: healthProbe{path: "/health"}},
 	// The dispatcher's JetStream queue dials the same broker the signal plane
 	// does.
 	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
-		needs:  needs("gateway", "messaging"),
+		needs:  []string{"gateway", "messaging"},
 		health: healthProbe{path: "/health"}},
 	// browser: the Browser owns its port inside flowBrowser — an empty ports
 	// list keeps 3000 out of every stack-level claim and sweep.
@@ -228,7 +215,7 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start-dev", "--import-realm"},
-		needs: []dependency{{role: "database"}},
+		needs: []string{"database"},
 		// The master realm always exists, so it answers for a server whose
 		// own realm this launcher has not been told about. A configured
 		// stack is probed at its issuer instead (healthEndpoint).
@@ -268,7 +255,7 @@ var serviceDescriptors = []serviceDescriptor{
 		health: healthProbe{path: "/-/healthy"}},
 	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
-		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: needs("traces"),
+		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: []string{"traces"},
 		// The collector's readout port, not the OTLP port services target.
 		health: healthProbe{port: 24110, path: "/metrics"}},
 }
@@ -340,18 +327,11 @@ func startRank(role string) int {
 // dependenciesOf: every edge out of a role, across all its drivers. The
 // order walks are static — they run before any config is read — so they see
 // the union: an edge one driver declares orders the role.
-func dependenciesOf(role string) []dependency {
-	var out []dependency
+func dependenciesOf(role string) []string {
+	var out []string
 	for _, d := range descriptorsForRole(role) {
 		for _, dep := range d.needs {
-			dup := false
-			for _, have := range out {
-				if have.role == dep.role {
-					dup = true
-					break
-				}
-			}
-			if !dup {
+			if !slices.Contains(out, dep) {
 				out = append(out, dep)
 			}
 		}

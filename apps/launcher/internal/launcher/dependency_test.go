@@ -20,14 +20,14 @@ func TestStartOrderRespectsEveryDependency(t *testing.T) {
 	for _, role := range startOrder {
 		at := startRank(role)
 		for _, dep := range dependenciesOf(role) {
-			need := startRank(dep.role)
+			need := startRank(dep)
 			if need < 0 {
-				t.Errorf("%q needs %q, which is not a role", role, dep.role)
+				t.Errorf("%q needs %q, which is not a role", role, dep)
 				continue
 			}
 			if need >= at {
 				t.Errorf("%q starts at %d but needs %q, which starts at %d — the walk would bring it up against a dependency that is not there yet",
-					role, at, dep.role, need)
+					role, at, dep, need)
 			}
 		}
 	}

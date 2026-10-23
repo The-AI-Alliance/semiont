@@ -26,7 +26,6 @@ const projectFileYAML = "config.yaml"
 
 type kbIdentity struct {
 	Name     string // project.name
-	Version  string // project.version
 	SiteName string // site.siteName
 	Domain   string // site.domain — did:web colon-path form
 }
@@ -172,9 +171,5 @@ func yamlKBIdentity(where string, text []byte) (*kbIdentity, error) {
 	if err != nil {
 		return nil, err
 	}
-	identity := &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}
-	if project.Project.Version != nil {
-		identity.Version = *project.Project.Version
-	}
-	return identity, nil
+	return &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}, nil
 }

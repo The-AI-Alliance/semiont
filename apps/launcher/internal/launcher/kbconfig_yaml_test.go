@@ -41,7 +41,7 @@ func TestABrokenProjectFileIsRefusedAtItsLine(t *testing.T) {
 	if _, _, _, err := resolveKBRoot(); !errors.As(err, &refused) {
 		t.Errorf("SEMIONT_ROOT naming a broken config.yaml must be refused, and resolving it said %v", err)
 	}
-	if found, _, err := CwdKBRoot(); !projectFileRefused(err) {
+	if found, err := CwdKBRoot(); !projectFileRefused(err) {
 		t.Errorf("the working directory's broken config.yaml read as %q, %v: a refusal, not \"not inside a clone\"", found, err)
 	}
 
