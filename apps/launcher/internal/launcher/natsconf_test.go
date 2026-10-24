@@ -94,12 +94,13 @@ func TestBrokerPairIsReadByTheLaunchedBrokersParser(t *testing.T) {
 		t.Fatal("this test binary carries no build information")
 	}
 	image := descriptorFor("messaging", "jetstream").image
+	tagged, _, _ := strings.Cut(image, "@")
 	for _, dep := range info.Deps {
 		if dep.Path != module {
 			continue
 		}
-		if want := "nats:" + strings.TrimPrefix(dep.Version, "v") + "-alpine"; image != want {
-			t.Errorf("the launcher runs %s, and its tests parse with %s %s (%s) — move go.mod and the descriptor together", image, module, dep.Version, want)
+		if want := "nats:" + strings.TrimPrefix(dep.Version, "v") + "-alpine"; tagged != want {
+			t.Errorf("the launcher runs %s, and its tests parse with %s %s (%s) — move go.mod and the descriptor (its tag and its digest) together", image, module, dep.Version, want)
 		}
 		return
 	}

@@ -1,10 +1,31 @@
 package launcher
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
 )
+
+// Every image the launcher names is pinned: a tag a reader goes by, and the
+// digest of the bytes that run. A tag alone can be moved to other bytes.
+func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
+	pinned := regexp.MustCompile(`^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$`)
+	images := map[string]string{"the probe": probeImage}
+	for _, d := range serviceDescriptors {
+		if d.image != "" {
+			images[d.role+"/"+d.driver] = d.image
+		}
+	}
+	if len(images) < 2 {
+		t.Fatal("the table names no image: the census read nothing")
+	}
+	for what, image := range images {
+		if !pinned.MatchString(image) {
+			t.Errorf("%s runs %q, which is not a tag pinned by its digest (name:tag@sha256:<64 hex>)", what, image)
+		}
+	}
+}
 
 // ONE descriptor set, keyed by (role, driver), owns the facts: the two sweep
 // lists, the `--service` vocabulary and the realm's client list derive from

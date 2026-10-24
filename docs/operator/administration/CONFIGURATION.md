@@ -68,7 +68,7 @@ spec:
   messaging:
     jobs: { type: jetstream }
     signal: { type: in-process }
-    image: nats:<version>-alpine   # the broker version the launcher pins
+    image: nats:<version>-alpine@sha256:<digest>   # the broker release the launcher pins
     resources: { limits: { memory: 512M } }
   issuer:
     ref: issuer
@@ -90,7 +90,7 @@ The issuer is chosen the same way, one level up: the KnowledgeBase names an Issu
 
 ### Images
 
-Every container the launcher runs from a document runs the `image` that document names, as a registry names it. `semiont init` writes `ghcr.io/the-ai-alliance/semiont-<service>:latest` for each of Semiont's services, and a pinned release of each daemon. Every start pulls the images of Semiont's services, so a moving tag such as `latest` brings the newest; to run another version, name it in the document.
+Every container the launcher runs from a document runs the `image` that document names, as a registry names it. `semiont init` writes `ghcr.io/the-ai-alliance/semiont-<service>:latest` for each of Semiont's services, and for each daemon a release pinned by its digest, `name:tag@sha256:<digest>`: the tag says which release, and the digest names its exact bytes, which a tag moved later cannot change. Every start pulls the images of Semiont's services, so a moving tag such as `latest` brings the newest; to run another version, name it in the document.
 
 An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)).
 

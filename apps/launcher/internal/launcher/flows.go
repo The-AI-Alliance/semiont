@@ -709,7 +709,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		x.settle(rp.Port)
 	}
 	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
-	x.note(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), addr, rp.Port)
+	x.note(`if present — probe: %s run --rm %s sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), probeImage, addr, rp.Port)
 	return x.either(probeHostOllama(rp.Port),
 		func() int {
 			if !x.hostOllamaReachable(addr, rp.Port) {

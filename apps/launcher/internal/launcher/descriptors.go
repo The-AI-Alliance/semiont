@@ -23,11 +23,19 @@ import (
 // Semiont's own services are roles with exactly one driver — themselves. They
 // carry no image: theirs is built from the registry and the version at start.
 //
+// Every image this table names is pinned by digest, behind the tag a reader
+// goes by: a tag can be moved to other bytes, and a digest cannot. `semiont
+// init` writes the daemons' into a knowledge base's documents from here.
+//
 // Every list of container names derives from this table (the two sweeps,
 // the status roster, the realm's client list, the `--service` usage string),
 // gated by descriptor_census_test.go.
 
 const driverSemiont = "semiont"
+
+// probeImage: the image of every one-shot container the launcher runs to look
+// from a container's side (an address, a port, a route) or to clear a store.
+const probeImage = "busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e"
 
 // authority: what the launcher may do INSIDE a service it does not run.
 //
@@ -177,19 +185,19 @@ var serviceDescriptors = []serviceDescriptor{
 	// default; a running Browser is reported from its record instead.
 	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G", health: healthProbe{port: 3000}},
 
-	{role: "database", driver: "postgres", container: "semiont-postgres", image: "postgres:15.18-alpine", mem: "1G",
+	{role: "database", driver: "postgres", container: "semiont-postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
 		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
 		health: healthProbe{tcp: true}},
 
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default is too tight on Apple container.
-	{role: "graph", driver: "neo4j", container: "semiont-neo4j", image: "neo4j:5.26.28-community", mem: "2G",
+	{role: "graph", driver: "neo4j", container: "semiont-neo4j", image: "neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357", mem: "2G",
 		ports:   []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}},
 		display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}},
 		// Neo4j answers HTTP on its browser port; bolt is not a health route.
 		health: healthProbe{port: 7474}},
 
-	{role: "vectors", driver: "qdrant", container: "semiont-qdrant", image: "qdrant/qdrant:v1.19.1", mem: "2G",
+	{role: "vectors", driver: "qdrant", container: "semiont-qdrant", image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", mem: "2G",
 		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant",
 		health: healthProbe{path: "/readyz"}},
 
@@ -200,7 +208,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// with the stamped /data store — because both use that store: the job
 	// queue's stream, and the signal driver's KV tables, where the gateway's
 	// ledger keeps its claims.
-	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.15.1-alpine", mem: "512M",
+	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.15.1-alpine@sha256:7ae34c25dfd6fe2e01c6483eabef20d796690fdcac6c4d94ca780a6cf9877fde", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
@@ -215,7 +223,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// ample for one KB's realm. "oidc" is an issuer somebody else runs: the
 	// launcher verifies it and launches nothing, which is why it carries no
 	// container.
-	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
+	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start", "--import-realm", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
 		needs: []string{"database"},
@@ -231,7 +239,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// authorityConfigure: the launcher pulls models into an Ollama it did not
 	// start. A pull is idempotent, cheap and reversible, which is the whole
 	// of the argument — and the argument PostgreSQL does not get.
-	{role: "inference", driver: "ollama", container: "semiont-ollama", image: "ollama/ollama", mem: "24G",
+	{role: "inference", driver: "ollama", container: "semiont-ollama", image: "ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35", mem: "24G",
 		display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure,
 		health: healthProbe{path: "/api/version"}},
 	// Remote SaaS: no image (nothing to launch), port is TLS. The row it
@@ -249,14 +257,14 @@ var serviceDescriptors = []serviceDescriptor{
 	// The collector owns 4318 (the port services target); Jaeger's own OTLP
 	// ingest sits behind it on 14318. Both are ephemeral: observability data
 	// is disposable in a dev stack.
-	{role: "traces", driver: "jaeger", container: "semiont-jaeger", image: "jaegertracing/all-in-one:1.76.0", mem: "1G",
+	{role: "traces", driver: "jaeger", container: "semiont-jaeger", image: "jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac", mem: "1G",
 		ports:   []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}},
 		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}},
 	// Prometheus keeps its product port (tier 2).
-	{role: "metrics", driver: "prometheus", container: "semiont-prometheus", image: "prom/prometheus:v3.9.1", mem: "1G",
+	{role: "metrics", driver: "prometheus", container: "semiont-prometheus", image: "prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702", mem: "1G",
 		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI",
 		health: healthProbe{path: "/-/healthy"}},
-	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0", mem: "1G",
+	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
 		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: []string{"traces"},
 		// The collector's readout port, not the OTLP port services target.

@@ -1798,7 +1798,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 // in it — as neo4j 7474, postgres 70, qdrant and nats root, Semiont 1001 —
 // and on Linux only a container's root can remove it.
 func storeClear(sd string) string {
-	return "container run --rm -v " + sd + ":/store busybox:1.38.0 find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+	return "container run --rm -v " + sd + ":/store busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
 }
 
 func TestCleanDryRunListsAndKeeps(t *testing.T) {
@@ -3054,7 +3054,7 @@ func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 func externalDatabase(t *testing.T, s *scenario) {
 	t.Helper()
 	editDocument(t, s, "issuer.yaml",
-		"    image: postgres:15.18-alpine\n    resources: { limits: { memory: 1G } }\n",
+		"    image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f\n    resources: { limits: { memory: 1G } }\n",
 		"    external: { host: db.example.com, port: 5432, password: { fromEnv: EXT_PG } }\n")
 }
 
@@ -4881,7 +4881,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 func externalGraph(t *testing.T, s *scenario, uri string) {
 	t.Helper()
 	editDocument(t, s, "index.yaml",
-		"    image: neo4j:5.26.28-community\n    resources: { limits: { memory: 2G } }\n",
+		"    image: neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357\n    resources: { limits: { memory: 2G } }\n",
 		"    external: { uri: \""+uri+"\", password: { fromEnv: EXT_GRAPH } }\n")
 }
 
@@ -7440,7 +7440,7 @@ func TestStartRefusesAStackWithNoSemanticSearch(t *testing.T) {
 	}{
 		{
 			"no-vectors",
-			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1\n    resources: { limits: { memory: 2G } }\n",
+			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10\n    resources: { limits: { memory: 2G } }\n",
 			[]string{"index.yaml", "/spec/vectors", "is missing"},
 		},
 		{

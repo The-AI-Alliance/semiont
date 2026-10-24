@@ -593,7 +593,7 @@ func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration
 		u.Fail("%s did not open port %d within %ds (waited %s).", label, port, seconds, took(time.Since(t0)))
 		return time.Since(t0), false
 	}
-	if runSilent(rt, "run", "--rm", "busybox:1.38.0", "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
+	if runSilent(rt, "run", "--rm", probeImage, "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
 		u.Fail("%s is up on localhost:%d but not reachable from containers at %s:%d.", label, port, host, port)
 		return time.Since(t0), false
 	}

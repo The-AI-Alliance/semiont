@@ -1,6 +1,6 @@
 # semiont start --dry-run — the exact runtime commands a real run would
 # execute, in order. Values known only at runtime appear as <placeholders>.
-# probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
 # snapshot container logs into <state-root>/logs/<timestamp>/ before removal
 container stop semiont-weaver
 container rm semiont-weaver
@@ -53,25 +53,25 @@ container rm semiont-jaeger
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
 # images tagged :local are built on this machine — not pulled
-container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
+container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac
 # wait: http://localhost:16686 (30s)
-container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1
+container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
 # wait: http://localhost:9090/-/healthy (30s)
-container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110:24110 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
+container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110:24110 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
 # wait: http://localhost:24110/metrics (30s)
 # database state: <data-home>/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
-container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine
+container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 # wait: tcp localhost:5432 (20s)
-# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 5432
 # wait: container exec semiont-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
 # messaging state: <data-home>/roots/example.github.io-test-kb/nats (created if absent; reused across restarts)
 # stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)
-container run -d --name semiont-nats --memory 512M -p 4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.1-alpine -js -sd /data -c /etc/nats/semiont.conf
+container run -d --name semiont-nats --memory 512M -p 4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.1-alpine@sha256:7ae34c25dfd6fe2e01c6483eabef20d796690fdcac6c4d94ca780a6cf9877fde -js -sd /data -c /etc/nats/semiont.conf
 # wait: tcp localhost:4222 (15s)
-# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 4222
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 4222
 # create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
 # write <config-stage>/keycloak-semiont-realm.json (launcher-owned; realm "semiont", clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker)
-container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4 start --import-realm --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
+container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --import-realm --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
 # wait: http://localhost:8080/realms/semiont (90s)
 # open Keycloak's admin to this machine over HTTP: container exec --env KC_CLI_PASSWORD semiont-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
 # client-credentials grant at http://localhost:8080/realms/semiont as semiont-archivist — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
@@ -89,21 +89,21 @@ container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-sta
 # mount gateway state (no image stamps it: an image change clears nothing)
 container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro -v <data-home>/roots/example.github.io-test-kb/gateway:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET --env JWT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:local
 # wait: http://localhost:4000/api/health (120s)
-# probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
 # graph state: <data-home>/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
-container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <data-home>/roots/example.github.io-test-kb/neo4j/data:/data -v <data-home>/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes -e NEO4J_AUTH neo4j:5.26.28-community
+container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <data-home>/roots/example.github.io-test-kb/neo4j/data:/data -v <data-home>/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes -e NEO4J_AUTH neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357
 # wait: http://localhost:7474 (30s)
 # vectors state: <data-home>/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
-container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <data-home>/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1
+container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <data-home>/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
 # wait: http://localhost:6333/readyz (15s)
 container stop semiont-ollama
 container rm semiont-ollama
 # probe: host Ollama at http://localhost:11434/api/version
-# if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
+# if present — probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
 # ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
 # require free port: 11434
-container run -d --name semiont-ollama --memory 24G -p 11434:11434 -v <ollama-volume>:/root/.ollama ollama/ollama
+container run -d --name semiont-ollama --memory 24G -p 11434:11434 -v <ollama-volume>:/root/.ollama ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35
 # wait: http://localhost:11434/api/version (30s)
 # ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing

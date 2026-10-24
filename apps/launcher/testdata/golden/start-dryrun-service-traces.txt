@@ -3,5 +3,5 @@
 container stop semiont-jaeger
 container rm semiont-jaeger
 # require free ports: 16686 14318
-container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
+container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac
 # wait: http://localhost:16686 (30s)
