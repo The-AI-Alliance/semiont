@@ -94,6 +94,18 @@ vulnerabilities before it is pushed. A finding that has a fix available
 fails the publish, so such an image never reaches the registry. The
 service images pass a licence policy as well.
 
+### What `semiont start` checks
+
+Before it tears down or runs anything, `semiont start` verifies each of Semiont's images that it is about to run: the services' images the knowledge base's documents name, and the Browser's.
+
+- It reads the image's digest from its registry, and the build provenance attested of that digest. GHCR keeps an image's attestations under the tag `sha256-<digest>`.
+- It checks the attestation's signature against Sigstore's public trusted root, which it reads through TUF and keeps under the launcher's data directory until the root's metadata expires.
+- The signer must be GitHub Actions running this repository's publish workflow for that image, `publish-browser.yml` for the Browser and `publish-service-images.yml` for the seven services, at a release tag (`refs/tags/v…`). An image built from a branch, by another workflow or from another repository is refused.
+
+A verified image is pulled and run by its digest, `name:tag@sha256:<digest>`, so a tag moved afterwards changes nothing that runs. An image that does not verify does not run, and the start stops before it touches the stack that is running.
+
+An image tagged `:local` is built on this machine and never pulled, so no release vouches for it. It runs unverified, and every start names it in a warning: it is for development only.
+
 ### Verify the image you pulled
 
 Requires the [GitHub CLI](https://cli.github.com/). No keys to

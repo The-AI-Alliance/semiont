@@ -1,0 +1,17 @@
+{
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "schemaVersion": 2,
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:a3abb5bd5db29dd67a7904e38ae2a048a60ac34ac39f57ca7b24477ee70d5b6c",
+      "size": 813,
+      "artifactType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "annotations": {
+        "org.opencontainers.image.created": "2026-10-23T05:49:22.993Z",
+        "dev.sigstore.bundle.content": "dsse-envelope",
+        "dev.sigstore.bundle.predicateType": "https://slsa.dev/provenance/v1"
+      }
+    }
+  ]
+}

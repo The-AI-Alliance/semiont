@@ -92,7 +92,9 @@ The issuer is chosen the same way, one level up: the KnowledgeBase names an Issu
 
 Every container the launcher runs from a document runs the `image` that document names, as a registry names it. `semiont init` writes `ghcr.io/the-ai-alliance/semiont-<service>:latest` for each of Semiont's services, and for each daemon a release pinned by its digest, `name:tag@sha256:<digest>`: the tag says which release, and the digest names its exact bytes, which a tag moved later cannot change. Every start pulls the images of Semiont's services, so a moving tag such as `latest` brings the newest; to run another version, name it in the document.
 
-An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)).
+An image of Semiont's runs only when a release built it: `semiont start` verifies its build provenance first, and runs it by its digest ([What `semiont start` checks](IMAGES.md#what-semiont-start-checks)).
+
+An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
 
 The Browser is the machine's, not a knowledge base's, so no document names its image. It runs `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings browser-image <image>` names another, and `semiont settings browser-image --unset` returns it to that. The images of Ollama and the telemetry containers are the launcher's own.
 

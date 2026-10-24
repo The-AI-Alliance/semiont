@@ -150,6 +150,19 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	x.say(sayLog, "Host address: %s", x.dim(addr))
 
+	// Before anything is torn down: a start whose images do not verify leaves
+	// the running stack as it was.
+	x.banner("Verifying Images")
+	var services []string
+	for _, svc := range stackServices {
+		if fc.plan.runs(svc) {
+			services = append(services, svc)
+		}
+	}
+	if !verifyStackImages(x, fc, services) {
+		return 1
+	}
+
 	x.banner("Preflight")
 	// Crash evidence first: the runtime's log capture is the only copy of the
 	// prior stack's story, and the stop+rm below deletes it.
@@ -201,23 +214,15 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	x.banner("Pulling Images")
-	built, pulled := false, false
-	for _, svc := range stackServices {
-		if !fc.plan.runs(svc) {
-			continue
-		}
+	pulled := false
+	for _, svc := range services {
 		if locallyBuilt(fc.plan.Images[svc]) {
-			built = true
 			continue
 		}
 		if !x.pull(fc.plan.Images[svc]) {
 			return 1
 		}
 		pulled = true
-	}
-	if built {
-		x.say(sayLog, "Using locally-built %s images (not pulled)", x.bold(":local"))
-		x.note("images tagged :local are built on this machine — not pulled")
 	}
 	if pulled {
 		x.say(sayOK, "Images pulled")
@@ -330,7 +335,18 @@ func flowBrowser(x executor, port int, forceRestart bool) int {
 	} else {
 		x.banner("Browser")
 	}
+	// Verified first, so a running Browser is kept only when it runs the very
+	// digest a release built, and a moved tag restarts it.
 	desired := browserImage()
+	if locallyBuilt(desired) {
+		warnUnverified(x, []string{desired})
+	} else {
+		pinned, ok := x.verifyImage("browser", desired)
+		if !ok {
+			return 1
+		}
+		desired = pinned
+	}
 	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
 	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)")
 	return x.either(func() bool { return !forceRestart && x.browserCurrent(desired) },
@@ -967,6 +983,12 @@ func flowOneService(x executor, fc flowCtx) int {
 		return 1
 	}
 
+	// A service's image is verified before its container is touched, so a
+	// refusal leaves the running one as it was.
+	if isConfigConsumer(svc) && !verifyStackImages(x, fc, []string{svc}) {
+		return 1
+	}
+
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
 	// and its port must NEVER enter the STACK's recorded claims: stop
 	// verifies stack-port release while the Browser deliberately keeps
@@ -992,14 +1014,8 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.say(sayLog, "Host address: %s", x.dim(addr))
 	}
 
-	if isConfigConsumer(svc) || svc == "browser" {
-		img := browserImage()
-		if svc != "browser" {
-			img = fc.plan.Images[svc]
-		}
-		if locallyBuilt(img) {
-			x.note("%s is built on this machine — not pulled", img)
-		} else if !x.pull(img) {
+	if isConfigConsumer(svc) {
+		if img := fc.plan.Images[svc]; !locallyBuilt(img) && !x.pull(img) {
 			return 1
 		}
 	}

@@ -1,6 +1,7 @@
 # semiont start --dry-run — the exact runtime commands a real run would
 # execute, in order. Values known only at runtime appear as <placeholders>.
 # probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
+# unverified: ghcr.io/the-ai-alliance/semiont-gateway:local, ghcr.io/the-ai-alliance/semiont-archivist:local, ghcr.io/the-ai-alliance/semiont-librarian:local, ghcr.io/the-ai-alliance/semiont-dispatcher:local, ghcr.io/the-ai-alliance/semiont-worker:local, ghcr.io/the-ai-alliance/semiont-smelter:local, ghcr.io/the-ai-alliance/semiont-weaver:local — built on this machine (:local) and never pulled; for development only
 # snapshot container logs into <state-root>/logs/<timestamp>/ before removal
 container stop semiont-weaver
 container rm semiont-weaver
@@ -52,7 +53,6 @@ container rm semiont-jaeger
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
-# images tagged :local are built on this machine — not pulled
 container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac
 # wait: http://localhost:16686 (30s)
 container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
@@ -122,6 +122,7 @@ container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volu
 # wait: http://localhost:24101/health (30s)
 container run -d --name semiont-weaver --memory 2G --publish 24102:24102 --volume <config-stage>/weaver.json:/etc/semiont/weaver.json:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:local
 # wait: http://localhost:24102/health (30s)
+# unverified: ghcr.io/the-ai-alliance/semiont-browser:local — built on this machine (:local) and never pulled; for development only
 # browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-browser:local; else stop/rm + pull + run
 # (the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)
 # else:

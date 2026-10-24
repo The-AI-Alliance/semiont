@@ -17,6 +17,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
 )
 
 // stager: writes what a container will read: each service's configuration document, the launcher-owned
@@ -34,6 +36,7 @@ type stager interface {
 // runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
 // happened when a gate fails.
 type runner interface {
+	verifyImage(svc, img string) (string, bool) // a Semiont image's build provenance, checked; returns it pinned to the digest that runs
 	pull(img string) bool
 	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
 	stopRm(name string) bool                  // teardown; reports whether anything existed
@@ -109,7 +112,6 @@ type modeler interface {
 type narrator interface {
 	banner(s string)
 	dim(s string) string
-	bold(s string) string
 	say(kind sayKind, format string, a ...any) // live narration; nothing in plan mode
 	note(format string, a ...any)              // plan comment; nothing in live mode
 }
@@ -467,6 +469,18 @@ func (x *liveExec) initStack(kb kbRoot, config, addr, stage string) {
 		Config:   config,
 		HostAddr: addr, Stage: stage, Services: map[string]ServiceState{},
 	}
+}
+
+func (x *liveExec) verifyImage(svc, img string) (string, bool) {
+	workflow := semiontWorkflow(svc)
+	digest, err := provenance.Verify(imageProvenance(), img, provenance.SemiontRelease(workflow))
+	if err != nil {
+		x.u.Fail("%s does not run: %v", img, err)
+		fmt.Fprintf(os.Stderr, "  An image of Semiont's runs only when a release built it: %s, run at a release tag (refs/tags/v…).\n", workflow)
+		fmt.Fprintln(os.Stderr, "  Name a released image in the document, or build it on this machine as :local, which runs unverified.")
+		return "", false
+	}
+	return pinnedImage(img, digest), true
 }
 
 func (x *liveExec) pull(img string) bool {
@@ -1115,7 +1129,6 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, key string) bool {
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.Dim(s) }
-func (x *liveExec) bold(s string) string      { return x.u.Bold(s) }
 
 func (x *liveExec) banner(s string) { x.u.Banner(s) }
 
@@ -1239,6 +1252,11 @@ func (x *planExec) stageOne(svc string, _ flowCtx, _ string) (string, bool) {
 }
 
 func (x *planExec) initStack(kbRoot, string, string, string) {}
+
+func (x *planExec) verifyImage(svc, img string) (string, bool) {
+	x.c("verify %s: its build provenance, signed by %s at a release tag (refs/tags/v…); then pull and run it by its digest", img, semiontWorkflow(svc))
+	return pinnedImage(img, "sha256:<verified>"), true
+}
 
 func (x *planExec) pull(img string) bool {
 	x.p(pullArgs(x.rt, img)...)
@@ -1458,7 +1476,6 @@ func (x *planExec) resolveStoreStamps(flowCtx) bool {
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }
 func (x *planExec) dim(s string) string       { return s }
-func (x *planExec) bold(s string) string      { return s }
 
 func (x *planExec) banner(string) {}
 
