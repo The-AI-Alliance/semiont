@@ -2,6 +2,8 @@ package launcher
 
 import (
 	"strings"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
 )
 
 // semiontWorkflow: the workflow of The-AI-Alliance/semiont that builds and
@@ -11,6 +13,11 @@ func semiontWorkflow(svc string) string {
 		return "publish-browser.yml"
 	}
 	return "publish-service-images.yml"
+}
+
+// semiontRelease: the release that builds a service's image.
+func semiontRelease(svc string) provenance.Release {
+	return provenance.Release{Repository: "The-AI-Alliance/semiont", Workflow: semiontWorkflow(svc)}
 }
 
 // pinnedImage: img as it runs once verified, by the digest its attestation is

@@ -67,8 +67,8 @@ func TestMain(m *testing.M) {
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
 	// The launcher under test is built with fakesigstore: it verifies images
 	// against Sigstore's test authority (internal/provenance/fake.go), told
-	// by provenance.FakeFile what each image's attestation says. Only that
-	// build can be told so.
+	// by fake-sigstore.json in its data directory what each image's
+	// attestation says. Only that build can be told so.
 	for _, build := range [][]string{
 		{"build", "-tags", "fakesigstore", "-o", launcherBin, "."},
 		{"build", "-o", fakertBin, "./internal/fakert"},
@@ -1127,7 +1127,7 @@ func TestStartLocalImagesBoot(t *testing.T) {
 
 // fakeAttestations: what the scenario's Sigstore test authority attests of
 // each image named. The launcher under test, built with fakesigstore, reads
-// it from fake-sigstore.json in its data directory (provenance.FakeFile); an
+// it from fake-sigstore.json in its data directory (provenance/fake.go); an
 // image it does not name is attested as a release built it.
 func fakeAttestations(t *testing.T, s *scenario, said map[string]map[string]any) {
 	t.Helper()

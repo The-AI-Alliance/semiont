@@ -14,12 +14,12 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
 
-// registry: a registry serving the gateway's saved 0.7.0 files as ghcr does —
+// serveSaved: a registry serving the gateway's saved 0.7.0 files as ghcr does —
 // a pull token asked for at its realm, the image's index under its tag and
 // its digest, its attestations' index under the sha256-<hex> tag, and each
 // attestation's manifest and bundle by digest. tamper, when set, changes
 // what is served for a path.
-func registry(t *testing.T, tamper func(path string, body []byte) []byte) (*httptest.Server, string) {
+func serveSaved(t *testing.T, tamper func(path string, body []byte) []byte) (*httptest.Server, string) {
 	t.Helper()
 	dir := filepath.Join("testdata", "gateway-0.7.0")
 	repo := "/v2/the-ai-alliance/semiont-gateway"
@@ -64,15 +64,15 @@ func registry(t *testing.T, tamper func(path string, body []byte) []byte) (*http
 }
 
 // rooted: the registry, checked against the saved trusted root.
-type rooted struct{ Registry }
+type rooted struct{ registry }
 
-func (rooted) TrustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
+func (rooted) trustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
 	return savedRoot()
 }
 
 func TestTheRegistryServesWhatVerifies(t *testing.T) {
-	srv, image := registry(t, nil)
-	digest, err := Verify(rooted{Registry{Client: srv.Client()}}, image, SemiontRelease("publish-service-images.yml"))
+	srv, image := serveSaved(t, nil)
+	digest, err := sigstoreVerifier{rooted{registry{client: srv.Client()}}}.Verify(image, semiont("publish-service-images.yml"))
 	if err != nil {
 		t.Fatalf("refused: %v", err)
 	}
@@ -97,13 +97,13 @@ func TestTheRegistryIsNotTakenAtItsWord(t *testing.T) {
 		{"an index other than the one its digest names", "/manifests/latest", func(b []byte) []byte { return append(b, '\n') }, "hashes to"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			srv, image := registry(t, func(path string, body []byte) []byte {
+			srv, image := serveSaved(t, func(path string, body []byte) []byte {
 				if path == c.path {
 					return c.alter(body)
 				}
 				return body
 			})
-			if digest, err := Verify(rooted{Registry{Client: srv.Client()}}, image, SemiontRelease("publish-service-images.yml")); err == nil {
+			if digest, err := (sigstoreVerifier{rooted{registry{client: srv.Client()}}}).Verify(image, semiont("publish-service-images.yml")); err == nil {
 				t.Fatalf("verified %s", digest)
 			} else if !strings.Contains(err.Error(), c.want) {
 				t.Errorf("want a refusal saying %q, got %v", c.want, err)
@@ -113,24 +113,24 @@ func TestTheRegistryIsNotTakenAtItsWord(t *testing.T) {
 }
 
 func TestAnImageWithNoAttestationsTagHasNone(t *testing.T) {
-	srv, image := registry(t, nil)
-	r := Registry{Client: srv.Client()}
-	if _, err := r.Attestations(image, "sha256:"+strings.Repeat("0", 64)); !errors.Is(err, ErrNoAttestation) {
-		t.Fatalf("want ErrNoAttestation, got %v", err)
+	srv, image := serveSaved(t, nil)
+	r := registry{client: srv.Client()}
+	if _, err := r.attestations(image, "sha256:"+strings.Repeat("0", 64)); !errors.Is(err, errNoAttestation) {
+		t.Fatalf("want errNoAttestation, got %v", err)
 	}
 }
 
 func TestADigestInTheImageIsTheDigest(t *testing.T) {
-	r := Registry{Client: &http.Client{Transport: refuseAll{}}}
-	digest, err := r.Digest("ghcr.io/the-ai-alliance/semiont-gateway:latest@" + gatewayDigest)
+	r := registry{client: &http.Client{Transport: noNetwork{}}}
+	digest, err := r.digest("ghcr.io/the-ai-alliance/semiont-gateway:latest@" + gatewayDigest)
 	if err != nil || digest != gatewayDigest {
 		t.Fatalf("got %q, %v: an image pinned by its digest needs no registry to name it", digest, err)
 	}
 }
 
-type refuseAll struct{}
+type noNetwork struct{}
 
-func (refuseAll) RoundTrip(r *http.Request) (*http.Response, error) {
+func (noNetwork) RoundTrip(r *http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("asked %s", r.URL)
 }
 

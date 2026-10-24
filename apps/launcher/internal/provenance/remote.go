@@ -1,6 +1,8 @@
 package provenance
 
 import (
+	"net/http"
+
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/tuf"
 	"github.com/sigstore/sigstore-go/pkg/verify"
@@ -17,16 +19,20 @@ var publicGood = []verify.VerifierOption{
 	verify.WithObserverTimestamps(1),
 }
 
-// Remote: the source a released launcher verifies with — the image's own
-// registry, and Sigstore's public trusted root, read through TUF and kept in
-// cacheDir until its metadata expires.
-type Remote struct {
-	Registry
-	CacheDir string
+// NewRemote: the Verifier a released launcher runs — each image's own
+// registry, asked through client, and Sigstore's public trusted root, read
+// through TUF and kept in cacheDir until its metadata expires.
+func NewRemote(client *http.Client, cacheDir string) Verifier {
+	return sigstoreVerifier{remote{registry: registry{client: client}, cacheDir: cacheDir}}
 }
 
-func (r Remote) TrustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
-	trusted, err := root.FetchTrustedRootWithOptions(tuf.DefaultOptions().WithCachePath(r.CacheDir).WithForceCache())
+type remote struct {
+	registry
+	cacheDir string
+}
+
+func (r remote) trustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
+	trusted, err := root.FetchTrustedRootWithOptions(tuf.DefaultOptions().WithCachePath(r.cacheDir).WithForceCache())
 	if err != nil {
 		return nil, nil, err
 	}

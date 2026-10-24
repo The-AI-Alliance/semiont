@@ -34,12 +34,12 @@ var manifestAccept = strings.Join([]string{ociIndex, dockerList, ociManifest, do
 // and nothing a registry sends is read without a bound.
 const maxDocument = 4 << 20
 
-// Registry reads an image's digest and its attestations from the registry the
+// registry reads an image's digest and its attestations from the registry the
 // image names, over the distribution API, anonymously. A registry on this
 // machine (localhost, a *.localhost name, a loopback address) is spoken to
 // over plain HTTP, as every runtime does; any other over HTTPS.
-type Registry struct {
-	Client *http.Client
+type registry struct {
+	client *http.Client
 }
 
 // reference: an image as a registry is asked about it.
@@ -86,10 +86,10 @@ func (r reference) base() string {
 	return scheme + "://" + r.host + "/v2/" + r.repository
 }
 
-// Digest: the digest of the bytes image names. A digest in the image is
+// digest: the digest of the bytes image names. A digest in the image is
 // itself the answer; a tag is resolved by reading the manifest it names and
 // hashing what was read, so the answer is never only the registry's word.
-func (r Registry) Digest(image string) (string, error) {
+func (r registry) digest(image string) (string, error) {
 	ref, err := parseReference(image)
 	if err != nil {
 		return "", err
@@ -108,19 +108,19 @@ func (r Registry) Digest(image string) (string, error) {
 	return digest, nil
 }
 
-// Attestations: the Sigstore bundles the registry holds about digest. A
+// attestations: the Sigstore bundles the registry holds about digest. A
 // registry without the referrers API holds them under the tag
 // sha256-<hex> (the OCI referrers tag schema), as an index of artifact
 // manifests whose one layer is the bundle; each manifest names digest as its
 // subject.
-func (r Registry) Attestations(image, digest string) ([]verify.SignedEntity, error) {
+func (r registry) attestations(image, digest string) ([]verify.SignedEntity, error) {
 	ref, err := parseReference(image)
 	if err != nil {
 		return nil, err
 	}
 	body, _, err := r.get(ref, "/manifests/"+strings.Replace(digest, ":", "-", 1), ociIndex)
 	if errors.Is(err, errNotFound) {
-		return nil, ErrNoAttestation
+		return nil, errNoAttestation
 	}
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (r Registry) Attestations(image, digest string) ([]verify.SignedEntity, err
 
 // bundle reads one artifact manifest and the bundle it holds, holding each to
 // the digest it was asked for by.
-func (r Registry) bundle(ref reference, manifestDigest, subject string) (*bundle.Bundle, error) {
+func (r registry) bundle(ref reference, manifestDigest, subject string) (*bundle.Bundle, error) {
 	body, _, err := r.get(ref, "/manifests/"+manifestDigest, ociManifest)
 	if err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ var errNotFound = errors.New("not found")
 
 // get reads one document of ref's repository, answering a registry's bearer
 // challenge with an anonymous token for pulling that repository.
-func (r Registry) get(ref reference, path, accept string) ([]byte, http.Header, error) {
+func (r registry) get(ref reference, path, accept string) ([]byte, http.Header, error) {
 	address := ref.base() + path
 	resp, err := r.do(address, accept, "")
 	if err != nil {
@@ -231,7 +231,7 @@ func (r Registry) get(ref reference, path, accept string) ([]byte, http.Header, 
 	return body, resp.Header, nil
 }
 
-func (r Registry) do(address, accept, token string) (*http.Response, error) {
+func (r registry) do(address, accept, token string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, address, nil)
 	if err != nil {
 		return nil, err
@@ -242,12 +242,12 @@ func (r Registry) do(address, accept, token string) (*http.Response, error) {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	return r.Client.Do(req)
+	return r.client.Do(req)
 }
 
 // token answers a `Bearer realm="…",service="…"` challenge with an anonymous
 // pull token for repository.
-func (r Registry) token(challenge, repository string) (string, error) {
+func (r registry) token(challenge, repository string) (string, error) {
 	params, ok := bearerChallenge(challenge)
 	if !ok || params["realm"] == "" {
 		return "", fmt.Errorf("the registry asks for credentials it does not offer anonymously (%q)", challenge)
@@ -261,7 +261,7 @@ func (r Registry) token(challenge, repository string) (string, error) {
 		return "", fmt.Errorf("the registry's token realm %q: %w", params["realm"], err)
 	}
 	realm.RawQuery = q.Encode()
-	resp, err := r.Client.Get(realm.String())
+	resp, err := r.client.Get(realm.String())
 	if err != nil {
 		return "", err
 	}

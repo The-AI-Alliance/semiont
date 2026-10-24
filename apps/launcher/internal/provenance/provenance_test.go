@@ -26,17 +26,22 @@ const (
 	gatewayBundle = "testdata/gateway-0.7.0/blobs/sha256-2b81794cc31526b95d6869b5e667f64ab17f20ddd8b06dfd9005533c2ad2c688"
 )
 
-// saved: a Source that is what the registry and TUF served, read from
+// semiont: a release of Semiont's, by workflow.
+func semiont(workflow string) Release {
+	return Release{Repository: "The-AI-Alliance/semiont", Workflow: workflow}
+}
+
+// saved: a source that is what the registry and TUF served, read from
 // testdata, so the checks a released launcher makes run on a real
 // attestation with no network.
 type saved struct {
-	digest  string
-	bundles []string
+	digestOf string
+	bundles  []string
 }
 
-func (s saved) Digest(string) (string, error) { return s.digest, nil }
+func (s saved) digest(string) (string, error) { return s.digestOf, nil }
 
-func (s saved) Attestations(string, string) ([]verify.SignedEntity, error) {
+func (s saved) attestations(string, string) ([]verify.SignedEntity, error) {
 	var entities []verify.SignedEntity
 	for _, path := range s.bundles {
 		b, err := os.ReadFile(path)
@@ -52,7 +57,7 @@ func (s saved) Attestations(string, string) ([]verify.SignedEntity, error) {
 	return entities, nil
 }
 
-func (s saved) TrustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
+func (s saved) trustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
 	return savedRoot()
 }
 
@@ -65,8 +70,10 @@ func savedRoot() (root.TrustedMaterial, []verify.VerifierOption, error) {
 	return trusted, publicGood, err
 }
 
+func released() Verifier { return sigstoreVerifier{saved{gatewayDigest, []string{gatewayBundle}}} }
+
 func TestTheReleasedGatewayIsASemiontRelease(t *testing.T) {
-	digest, err := Verify(saved{gatewayDigest, []string{gatewayBundle}}, gatewayImage, SemiontRelease("publish-service-images.yml"))
+	digest, err := released().Verify(gatewayImage, semiont("publish-service-images.yml"))
 	if err != nil {
 		t.Fatalf("the gateway 0.7.0 released is refused: %v", err)
 	}
@@ -77,17 +84,19 @@ func TestTheReleasedGatewayIsASemiontRelease(t *testing.T) {
 
 // The same real attestation, held to what it does not say.
 func TestTheReleasedGatewayIsRefusedForWhatItIsNot(t *testing.T) {
+	release := signerOf(semiont("publish-service-images.yml"))
 	for _, c := range []struct {
 		name   string
 		digest string
-		signer Signer
+		signer signer
 	}{
-		{"another workflow's release", gatewayDigest, SemiontRelease("publish-browser.yml")},
-		{"another image's digest", "sha256:" + strings.Repeat("0", 64), SemiontRelease("publish-service-images.yml")},
-		{"another issuer", gatewayDigest, Signer{Issuer: "https://accounts.google.com", Identity: SemiontRelease("publish-service-images.yml").Identity}},
+		{"another workflow's release", gatewayDigest, signerOf(semiont("publish-browser.yml"))},
+		{"another repository's release", gatewayDigest, signerOf(Release{Repository: "someone/semiont", Workflow: "publish-service-images.yml"})},
+		{"another image's digest", "sha256:" + strings.Repeat("0", 64), release},
+		{"another issuer", gatewayDigest, signer{issuer: "https://accounts.google.com", identity: release.identity, what: "Google's"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if digest, err := Verify(saved{c.digest, []string{gatewayBundle}}, gatewayImage, c.signer); err == nil {
+			if digest, err := verifyWith(saved{c.digest, []string{gatewayBundle}}, gatewayImage, c.signer); err == nil {
 				t.Fatalf("verified %s", digest)
 			} else if !strings.Contains(err.Error(), gatewayImage) {
 				t.Errorf("the refusal does not name the image: %v", err)
@@ -96,12 +105,25 @@ func TestTheReleasedGatewayIsRefusedForWhatItIsNot(t *testing.T) {
 	}
 }
 
+// Every Verifier the interface keeps in view refuses an image no release
+// built; the Refuser refuses a release's too.
+func TestNoVerifierAcceptsWhatNoReleaseBuilt(t *testing.T) {
+	for name, v := range map[string]Verifier{"sigstore": released(), "refuser": Refuser{}} {
+		if digest, err := v.Verify(gatewayImage, semiont("publish-browser.yml")); err == nil {
+			t.Errorf("%s verified the services' image as the Browser's release: %s", name, digest)
+		}
+	}
+	if _, err := (Refuser{}).Verify(gatewayImage, semiont("publish-service-images.yml")); !errors.Is(err, ErrUnverifiable) {
+		t.Errorf("the Refuser said %v of a release's image, want ErrUnverifiable", err)
+	}
+}
+
 // authority: an attestation made and checked by Sigstore's test authority,
 // for what no real attestation of ours says — a build from a branch, from a
 // fork, a predicate that is not provenance.
 type authority struct {
 	ca       *ca.VirtualSigstore
-	digest   string
+	digestOf string
 	entities []verify.SignedEntity
 }
 
@@ -111,7 +133,7 @@ func newAuthority(t *testing.T) *authority {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &authority{ca: vs, digest: "sha256:" + strings.Repeat("ab", 32)}
+	return &authority{ca: vs, digestOf: "sha256:" + strings.Repeat("ab", 32)}
 }
 
 func (a *authority) attest(t *testing.T, identity, predicate, subject string) {
@@ -132,11 +154,11 @@ func (a *authority) attest(t *testing.T, identity, predicate, subject string) {
 	a.entities = append(a.entities, entity)
 }
 
-func (a *authority) Digest(string) (string, error) { return a.digest, nil }
-func (a *authority) Attestations(string, string) ([]verify.SignedEntity, error) {
+func (a *authority) digest(string) (string, error) { return a.digestOf, nil }
+func (a *authority) attestations(string, string) ([]verify.SignedEntity, error) {
 	return a.entities, nil
 }
-func (a *authority) TrustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
+func (a *authority) trustedMaterial() (root.TrustedMaterial, []verify.VerifierOption, error) {
 	return a.ca, []verify.VerifierOption{verify.WithTransparencyLog(1), verify.WithObserverTimestamps(1)}, nil
 }
 
@@ -155,9 +177,9 @@ func TestAReleaseIsSignedAtAReleaseTag(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			a := newAuthority(t)
-			a.attest(t, c.identity, BuildProvenance, a.digest)
-			digest, err := Verify(a, gatewayImage, SemiontRelease("publish-service-images.yml"))
-			if c.accepted && (err != nil || digest != a.digest) {
+			a.attest(t, c.identity, buildProvenance, a.digestOf)
+			digest, err := sigstoreVerifier{a}.Verify(gatewayImage, semiont("publish-service-images.yml"))
+			if c.accepted && (err != nil || digest != a.digestOf) {
 				t.Fatalf("refused: %v", err)
 			}
 			if !c.accepted && err == nil {
@@ -169,31 +191,35 @@ func TestAReleaseIsSignedAtAReleaseTag(t *testing.T) {
 
 func TestOnlyBuildProvenanceOfTheDigestVerifies(t *testing.T) {
 	release := servicesWorkflow + "@refs/tags/v0.7.0"
+	check := func(a *authority) error {
+		_, err := sigstoreVerifier{a}.Verify(gatewayImage, semiont("publish-service-images.yml"))
+		return err
+	}
 	t.Run("a bill of materials is not provenance", func(t *testing.T) {
 		a := newAuthority(t)
-		a.attest(t, release, "https://spdx.dev/Document/v2.3", a.digest)
-		if _, err := Verify(a, gatewayImage, SemiontRelease("publish-service-images.yml")); err == nil || !strings.Contains(err.Error(), "not build provenance") {
+		a.attest(t, release, "https://spdx.dev/Document/v2.3", a.digestOf)
+		if err := check(a); err == nil || !strings.Contains(err.Error(), "not build provenance") {
 			t.Fatalf("want a refusal naming the predicate, got %v", err)
 		}
 	})
 	t.Run("provenance of another digest", func(t *testing.T) {
 		a := newAuthority(t)
-		a.attest(t, release, BuildProvenance, "sha256:"+strings.Repeat("cd", 32))
-		if _, err := Verify(a, gatewayImage, SemiontRelease("publish-service-images.yml")); err == nil {
+		a.attest(t, release, buildProvenance, "sha256:"+strings.Repeat("cd", 32))
+		if err := check(a); err == nil {
 			t.Fatal("provenance of another image verified this one")
 		}
 	})
 	t.Run("one good attestation among others", func(t *testing.T) {
 		a := newAuthority(t)
-		a.attest(t, release, "https://spdx.dev/Document/v2.3", a.digest)
-		a.attest(t, release, BuildProvenance, a.digest)
-		if _, err := Verify(a, gatewayImage, SemiontRelease("publish-service-images.yml")); err != nil {
+		a.attest(t, release, "https://spdx.dev/Document/v2.3", a.digestOf)
+		a.attest(t, release, buildProvenance, a.digestOf)
+		if err := check(a); err != nil {
 			t.Fatalf("refused: %v", err)
 		}
 	})
 	t.Run("no attestation at all", func(t *testing.T) {
-		if _, err := Verify(newAuthority(t), gatewayImage, SemiontRelease("publish-service-images.yml")); !errors.Is(err, ErrNoAttestation) {
-			t.Fatalf("want ErrNoAttestation, got %v", err)
+		if err := check(newAuthority(t)); !errors.Is(err, errNoAttestation) {
+			t.Fatalf("want errNoAttestation, got %v", err)
 		}
 	})
 }
