@@ -207,8 +207,8 @@ describe('Validation Library (Native JS)', () => {
     });
 
     it('should handle undefined name (converts to null)', () => {
-      const userWithUndefinedName = { ...validUser };
-      delete (userWithUndefinedName as any).name;
+      const userWithUndefinedName: Partial<typeof validUser> = { ...validUser };
+      delete userWithUndefinedName.name;
       const result = OAuthUserSchema.parse(userWithUndefinedName);
       expect(result.name).toBeUndefined();
     });

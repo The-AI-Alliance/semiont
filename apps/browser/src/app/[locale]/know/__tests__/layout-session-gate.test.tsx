@@ -20,6 +20,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
+import type { LinkComponentProps } from '@semiont/react-ui';
 
 const translations: Record<string, string> = {};
 
@@ -52,7 +53,7 @@ vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({
 }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({ ToolbarPanels: () => null }));
 vi.mock('@/lib/routing', () => ({
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+  Link: ({ children, ...props }: LinkComponentProps) => <a {...props}>{children}</a>,
   routes: {},
 }));
 
@@ -66,7 +67,7 @@ const harness = vi.hoisted(() => {
     token$: new BehaviorSubject<string | null>('tok'),
     streamState$: new BehaviorSubject('open'),
   });
-  const activeSession$ = new BehaviorSubject<any>(null);
+  const activeSession$ = new BehaviorSubject<ReturnType<typeof makeSession> | null>(null);
   const activeKbId$ = new BehaviorSubject<string | null>(null);
   const sessionActivating$ = new BehaviorSubject<boolean>(false);
   const kbs$ = new BehaviorSubject<unknown[]>([]);

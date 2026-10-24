@@ -45,13 +45,18 @@ const issuerReply = (json: unknown, status = 200): Response =>
   ({ ok: status < 300, status, json: async () => json }) as unknown as Response;
 const refreshCalls = () => fetchMock.mock.calls.filter(([url]) => url === TOKEN_ENDPOINT);
 
+/** What the HeadlessUI stand-ins render: an element's attributes, and children or a render function of the open state. */
+type HeadlessStandInProps = Omit<React.HTMLAttributes<HTMLElement>, 'children'> & {
+  children?: React.ReactNode | ((bag: { open: boolean }) => React.ReactNode);
+};
+
 // Mock @headlessui/react to avoid jsdom portal issues
 vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-  Transition: ({ show, children }: any) => show ? <>{children}</> : null,
-  TransitionChild: ({ children }: any) => <>{children}</>,
+  Dialog: ({ children, ...props }: HeadlessStandInProps) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
+  DialogPanel: ({ children, ...props }: { children?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  DialogTitle: ({ children, ...props }: { children?: React.ReactNode } & React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+  Transition: ({ show, children }: { show?: boolean; children?: React.ReactNode }) => show ? <>{children}</> : null,
+  TransitionChild: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
 // Build a fake JWT whose `exp` is far in the future, so validation runs.

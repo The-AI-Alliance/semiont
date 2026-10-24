@@ -211,8 +211,6 @@ route fits:
 |---|---|
 | Anything with PostCSS | `@import '@semiont/react-ui/styles'` |
 | Own design system | `@semiont/react-ui/styles/variables.css` for the tokens alone |
-| CSS Modules | `@semiont/react-ui/integrations/css-modules` |
-| styled-components | `@semiont/react-ui/integrations/styled-components` |
 
 The styles are organized into a modular, maintainable structure:
 

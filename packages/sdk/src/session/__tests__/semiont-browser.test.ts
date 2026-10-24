@@ -5,11 +5,20 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import { firstValueFrom, filter, skip, take } from 'rxjs';
+import { firstValueFrom, filter, skip, take, type Subject } from 'rxjs';
 
 const mockDispose = vi.fn();
 const mockResourceFresh = vi.fn();
 let mockKb: () => Promise<unknown>;
+/** The errors stream of each client the mock makes, newest last. */
+const mockTransportErrors: Subject<SemiontError>[] = [];
+
+/** The errors stream of the newest client: the session's, read right after it opens. */
+function newestTransportErrors(): Subject<SemiontError> {
+  const errors = mockTransportErrors[mockTransportErrors.length - 1];
+  if (!errors) throw new Error('no client has been made');
+  return errors;
+}
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
@@ -19,7 +28,8 @@ vi.mock('../../client', async () => {
     // Mirrors the `ITransport` errors$ contract enough for the
     // SemiontBrowser → signals routing tests to push test errors through.
     transport = (() => {
-      const errorsSubject = new Subject();
+      const errorsSubject = new Subject<SemiontError>();
+      mockTransportErrors.push(errorsSubject);
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
     // Tab revalidation reads descriptors through `browse`. `.fresh()` is the
@@ -48,6 +58,7 @@ import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
 import { BusRequestError } from '@semiont/core';
+import type { SemiontError } from '@semiont/core';
 
 /** An issuer's JSON answer, as `fetch` would hand it back. */
 function issuerReply(json: unknown, status = 200): Response {
@@ -1567,14 +1578,14 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
 
     const browser = makeBrowser();
-    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.sessionEnded$.getValue()).toBeNull();
 
     // Push directly through the transport's errors Subject — this is the
     // same path HttpTransport hits in its `beforeError` ky hook. No refresh
     // is stubbed, so recovery exhausts.
-    const subj = (session!.client.transport as any).errorsSubject;
+    const subj = newestTransportErrors();
     subj.next(APIError.fromStatus('token expired', 401, 'Unauthorized', undefined, undefined));
     await new Promise((r) => setTimeout(r, 0));
 
@@ -1593,11 +1604,11 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
 
     const browser = makeBrowser();
-    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.permissionDenied$.getValue()).toBeNull();
 
-    const subj = (session!.client.transport as any).errorsSubject;
+    const subj = newestTransportErrors();
     subj.next(APIError.refusal(403, 'Forbidden', { error: 'Archiving needs the curator role.' }, null));
 
     expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'Archiving needs the curator role.' });
@@ -1611,10 +1622,10 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
 
     const browser = makeBrowser();
-    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
 
-    const subj = (session!.client.transport as any).errorsSubject;
+    const subj = newestTransportErrors();
     subj.next(APIError.fromStatus('boom', 500, 'Internal Server Error', undefined, undefined));
     subj.next(APIError.fromStatus('not found', 404, 'Not Found', undefined, undefined));
 

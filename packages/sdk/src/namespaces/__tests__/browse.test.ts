@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
-import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { EventBus, resourceId, annotationId, userId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
 import type { AnchoredTextAnswer, ConnectionState, ITransport, IContentTransport } from '@semiont/core';
@@ -9,9 +9,14 @@ import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
-function stored(event: Record<string, any>): any {
-  return { ...event, metadata: { sequenceNumber: 1 } };
-}
+/** What every stored event carries beside its type, resource and payload. */
+const STORED = {
+  id: 'evt-1',
+  userId: userId('did:web:test:users:test'),
+  version: 1,
+  timestamp: '2026-01-01T00:00:00Z',
+  metadata: { sequenceNumber: 1 },
+};
 
 function mockAnnotation(id: string): Annotation {
   return {
@@ -313,7 +318,7 @@ describe('BrowseNamespace', () => {
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
       const list = await firstDefined(browse.annotations(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(1);
-      expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-2' });
+      expect(list![0].body).toMatchObject([{ source: 'res-2' }]);
     });
 
     it('appends a new annotation if not present', async () => {
@@ -348,7 +353,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.events(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(1);
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('mark:added', stored({ resourceId: RID }) as any);
+      eventBus.emit('mark:added', { ...STORED, type: 'mark:added', resourceId: RID, payload: { annotation: mockAnnotation('ann-2') } });
       await firstDefined(browse.annotations(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(2);
       expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -359,7 +364,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.events(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(1);
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('mark:removed', stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
+      eventBus.emit('mark:removed', { ...STORED, type: 'mark:removed', resourceId: RID, payload: { annotationId: AID } });
       await firstDefined(browse.annotations(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(2);
       expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -369,12 +374,12 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
       const updated = { ...mockAnnotation('ann-1'), body: [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }] } as Annotation;
-      eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID }, annotation: updated }) as any);
+      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } }] }, annotation: updated });
       const list = await firstDefined(browse.annotations(RID));
       // annotations not refetched (in-place update), but events refetched
       expect(content.getAnnotations).toHaveBeenCalledTimes(1);
       expect(emitSpy).toHaveBeenCalledTimes(2);
-      expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
+      expect(list![0].body).toMatchObject([{ source: 'res-target' }]);
     });
 
     it('mark:body-updated without annotation → invalidates list + events (never keeps the stale body)', async () => {
@@ -386,7 +391,7 @@ describe('BrowseNamespace', () => {
       // enriched the event, so there is nothing to write through. A no-op
       // here would leave the stale body on screen; B13c in
       // cache-semantics.test.ts is the contract clause.
-      eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID } }));
+      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } }] } });
       await firstDefined(browse.annotations(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(2);
       expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -396,7 +401,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.events(RID));
-      eventBus.emit('mark:entity-tag-added', stored({ resourceId: RID }) as any);
+      eventBus.emit('mark:entity-tag-added', { ...STORED, type: 'mark:entity-tag-added', resourceId: RID, payload: { entityType: 'Person' } });
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(2);
@@ -426,14 +431,14 @@ describe('BrowseNamespace', () => {
     it('yield:created → a non-requesting client invalidates its list and detail', async () => {
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('yield:created', stored({ resourceId: RID }));
+      eventBus.emit('yield:created', { ...STORED, type: 'yield:created', resourceId: RID, payload: { name: 'Created', format: 'text/plain', contentChecksum: 'sha256-test' } });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('yield:updated → a non-requesting client invalidates', async () => {
       await firstDefined(browse.resource(RID));
-      eventBus.emit('yield:updated', stored({ resourceId: RID }));
+      eventBus.emit('yield:updated', { ...STORED, type: 'yield:updated', resourceId: RID, payload: { contentChecksum: 'sha256-test' } });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -442,14 +447,14 @@ describe('BrowseNamespace', () => {
       // Without this trigger a clone-persist creates a resource and no list
       // ever learns of it.
       await firstDefined(browse.resource(RID));
-      eventBus.emit('yield:cloned', stored({ resourceId: RID }));
+      eventBus.emit('yield:cloned', { ...STORED, type: 'yield:cloned', resourceId: RID, payload: { name: 'Cloned', format: 'text/plain', contentChecksum: 'sha256-test', parentResourceId: resourceId('res-parent') } });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('yield:moved → invalidates — a rename went stale in every other list', async () => {
       await firstDefined(browse.resource(RID));
-      eventBus.emit('yield:moved', stored({ resourceId: RID }));
+      eventBus.emit('yield:moved', { ...STORED, type: 'yield:moved', resourceId: RID, payload: { fromUri: 'file://old.md', toUri: 'file://new.md' } });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -457,7 +462,7 @@ describe('BrowseNamespace', () => {
     it('mark:archived → invalidates resource detail + lists', async () => {
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('mark:archived', stored({ resourceId: RID }) as any);
+      eventBus.emit('mark:archived', { ...STORED, type: 'mark:archived', resourceId: RID, payload: {} });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -465,7 +470,7 @@ describe('BrowseNamespace', () => {
     it('mark:unarchived → invalidates resource detail + lists', async () => {
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('mark:unarchived', stored({ resourceId: RID }) as any);
+      eventBus.emit('mark:unarchived', { ...STORED, type: 'mark:unarchived', resourceId: RID, payload: {} });
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -473,7 +478,7 @@ describe('BrowseNamespace', () => {
     it('frame:entity-type-added → invalidates entity types', async () => {
       await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('frame:entity-type-added', stored({}) as any);
+      eventBus.emit('frame:entity-type-added', { ...STORED, type: 'frame:entity-type-added', payload: { entityType: 'Person' } });
       await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
@@ -481,7 +486,7 @@ describe('BrowseNamespace', () => {
     it('frame:tag-schema-added → invalidates tag schemas', async () => {
       await firstDefined(browse.tagSchemas());
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('frame:tag-schema-added', stored({}) as any);
+      eventBus.emit('frame:tag-schema-added', { ...STORED, type: 'frame:tag-schema-added', payload: { schema: { id: 'legal', name: 'Legal', description: 'Legal roles', domain: 'legal', tags: [] } } });
       await firstDefined(browse.tagSchemas());
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });

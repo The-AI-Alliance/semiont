@@ -87,7 +87,7 @@ const ACTIVE_KB = {
   email: 'admin@example.com',
 };
 
-function setUser(overrides: Record<string, any> = {}) {
+function setUser(overrides: Record<string, unknown> = {}) {
   user$.next({
     name: 'John Doe',
     image: 'https://example.com/avatar.jpg',

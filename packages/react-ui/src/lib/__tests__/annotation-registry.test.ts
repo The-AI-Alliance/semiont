@@ -1,17 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { annotationId, resourceId, type Annotation } from '@semiont/core';
 import { ANNOTATORS, annotatorKeyForMotivation } from '../annotation-registry';
 
-// Mock http-transport type guards
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
+/** An annotation of `motivation` on a whole resource. */
+function withMotivation(motivation: Annotation['motivation']): Annotation {
   return {
-    ...actual,
-  isHighlight: vi.fn((ann: any) => ann.motivation === 'highlighting'),
-  isComment: vi.fn((ann: any) => ann.motivation === 'commenting'),
-  isReference: vi.fn((ann: any) => ann.motivation === 'linking'),
-  isTag: vi.fn((ann: any) => ann.motivation === 'tagging'),
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annotationId('ann-1'),
+    motivation,
+    target: resourceId('res-1'),
+    created: '2026-01-01T00:00:00Z',
   };
-});
+}
 
 describe('annotation-registry ANNOTATORS', () => {
   describe('structure', () => {
@@ -35,20 +36,20 @@ describe('annotation-registry ANNOTATORS', () => {
 
   describe('matchesAnnotation', () => {
     it('highlight matches highlighting motivation', () => {
-      expect(ANNOTATORS.highlight.matchesAnnotation({ motivation: 'highlighting' } as any)).toBe(true);
-      expect(ANNOTATORS.highlight.matchesAnnotation({ motivation: 'commenting' } as any)).toBe(false);
+      expect(ANNOTATORS.highlight.matchesAnnotation(withMotivation('highlighting'))).toBe(true);
+      expect(ANNOTATORS.highlight.matchesAnnotation(withMotivation('commenting'))).toBe(false);
     });
 
     it('comment matches commenting motivation', () => {
-      expect(ANNOTATORS.comment.matchesAnnotation({ motivation: 'commenting' } as any)).toBe(true);
+      expect(ANNOTATORS.comment.matchesAnnotation(withMotivation('commenting'))).toBe(true);
     });
 
     it('reference matches linking motivation', () => {
-      expect(ANNOTATORS.reference.matchesAnnotation({ motivation: 'linking' } as any)).toBe(true);
+      expect(ANNOTATORS.reference.matchesAnnotation(withMotivation('linking'))).toBe(true);
     });
 
     it('tag matches tagging motivation', () => {
-      expect(ANNOTATORS.tag.matchesAnnotation({ motivation: 'tagging' } as any)).toBe(true);
+      expect(ANNOTATORS.tag.matchesAnnotation(withMotivation('tagging'))).toBe(true);
     });
   });
 

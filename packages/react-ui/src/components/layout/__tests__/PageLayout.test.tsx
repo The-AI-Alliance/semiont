@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderInEnglish } from '../../../test-utils';
 import { PageLayout } from '../PageLayout';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 import { SkipLinks } from '../SkipLinks';
 
 // No mocks - using real components via composition
@@ -17,15 +18,14 @@ vi.mock('@/hooks/useUI', () => ({
 }));
 
 // Mock Link component
-const MockLink = ({ href, children, ...props }: any) => (
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
-// Mock routes
-const mockRoutes = {
-  home: () => '/',
-  about: () => '/about',
-} as any;
+// Mock routes: the layout links to no resource, and leaves the others to their defaults
+const mockRoutes: RouteBuilder = {
+  resourceDetail: (id: string) => `/resource/${id}`,
+};
 
 // Mock translation function
 const mockTNav = (key: string) => `nav.${key}`;

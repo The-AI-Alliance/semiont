@@ -24,17 +24,7 @@ import {
   setBrowseResults,
 } from './search-modal-harness';
 
-vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, ...props }: any) => (
-    <div role="dialog" {...props}>
-      {typeof children === 'function' ? children({ open: true }) : children}
-    </div>
-  ),
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-  Transition: ({ show, children }: any) => (show ? <>{children}</> : null),
-  TransitionChild: ({ children }: any) => <>{children}</>,
-}));
+vi.mock('@headlessui/react', () => import('../../../__tests__/plain-headlessui'));
 
 vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();

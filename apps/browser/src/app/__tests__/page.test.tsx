@@ -17,7 +17,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => ({ activeSession$: session$ }),
-    SemiontBranding: ({ className }: any) => (
+    SemiontBranding: ({ className }: { className?: string }) => (
       <div data-testid="semiont-branding" className={className}>
         <h2>Semiont</h2>
       </div>

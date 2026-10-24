@@ -141,6 +141,4 @@ export function scaleSvgToNative(
       return createPolygonSvg(points);
     }
   }
-
-  return svg;
 }

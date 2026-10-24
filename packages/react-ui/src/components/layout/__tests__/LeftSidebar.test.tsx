@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { LeftSidebar } from '../LeftSidebar';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 
 // No mocks - using real components via composition
 
 // Mock Link component
-const MockLink = ({ href, children, ...props }: any) => (
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
-// Mock routes
-const mockRoutes = {
-  home: () => '/',
-  about: () => '/about',
-} as any;
+// Mock routes: the layout links to no resource, and leaves the others to their defaults
+const mockRoutes: RouteBuilder = {
+  resourceDetail: (id: string) => `/resource/${id}`,
+};
 
 // Mock translation function
 const mockT = (key: string) => `nav.${key}`;
