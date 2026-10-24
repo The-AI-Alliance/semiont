@@ -26,7 +26,7 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "anthropic"))
 	checkRole(t, plan, "identity", rolePlan{
 		Presence: presenceLauncher, Driver: "keycloak",
-		Image: "quay.io/keycloak/keycloak:26.7.4", Memory: "1G", Port: 8080,
+		Image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", Memory: "1G", Port: 8080,
 		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
 	rp := plan.Roles["identity"]

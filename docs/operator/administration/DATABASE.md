@@ -12,7 +12,7 @@ none, and there is no ORM, no migration step and no schema of ours to evolve.
 
 ## Overview
 
-- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` as `semiont init` names it in the Issuer document)
+- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine`, pinned by its digest, as `semiont init` names it in the Issuer document)
 - **Owner**: Keycloak. It creates and migrates its own schema on first boot.
 - **Semiont's schema**: none
 - **Why it is here at all**: the Issuer document, which describes the Keycloak the launcher runs,

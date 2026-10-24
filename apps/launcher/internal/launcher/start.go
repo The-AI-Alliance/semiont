@@ -1090,10 +1090,10 @@ func resolveHostAddr(rt string) (addr, why string) {
 	case "podman":
 		alias = podmanHostAlias
 	}
-	if alias != "" && runSilent(rt, "run", "--rm", "busybox:1.38.0", "nslookup", alias) == nil {
+	if alias != "" && runSilent(rt, "run", "--rm", probeImage, "nslookup", alias) == nil {
 		return alias, ""
 	}
-	out, why := captureWhy(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c", "ip route | awk '/default/{print $3}'")
+	out, why := captureWhy(rt, "run", "--rm", probeImage, "sh", "-c", "ip route | awk '/default/{print $3}'")
 	if addr = strings.Join(strings.Fields(out), ""); addr != "" {
 		return addr, ""
 	}

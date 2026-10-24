@@ -34,6 +34,7 @@ type stager interface {
 // runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
 // happened when a gate fails.
 type runner interface {
+	verifyImage(svc, img string) (string, bool) // a Semiont image's build provenance, checked; returns it pinned to the digest that runs
 	pull(img string) bool
 	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
 	stopRm(name string) bool                  // teardown; reports whether anything existed
@@ -109,7 +110,6 @@ type modeler interface {
 type narrator interface {
 	banner(s string)
 	dim(s string) string
-	bold(s string) string
 	say(kind sayKind, format string, a ...any) // live narration; nothing in plan mode
 	note(format string, a ...any)              // plan comment; nothing in live mode
 }
@@ -266,7 +266,7 @@ func (x *liveExec) portCheck(p portNeed) bool {
 // reach it, else print the Ollama-Desktop diagnostics and fail (Docker
 // Desktop's bridge gateway does not reach the Mac host).
 func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
-	if runSilent(x.rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
+	if runSilent(x.rt, "run", "--rm", probeImage, "sh", "-c",
 		fmt.Sprintf("wget -q -O- http://%s:%d/api/version", addr, port)) == nil {
 		return true
 	}
@@ -469,6 +469,18 @@ func (x *liveExec) initStack(kb kbRoot, config, addr, stage string) {
 	}
 }
 
+func (x *liveExec) verifyImage(svc, img string) (string, bool) {
+	release := semiontRelease(svc)
+	digest, err := imageVerifier().Verify(img, release)
+	if err != nil {
+		x.u.Fail("%s does not run: %v", img, err)
+		fmt.Fprintf(os.Stderr, "  An image of Semiont's runs only when a release built it: %s, run at a release tag (refs/tags/v…).\n", release.Workflow)
+		fmt.Fprintln(os.Stderr, "  Name a released image in the document, or build it on this machine as :local, which runs unverified.")
+		return "", false
+	}
+	return pinnedImage(img, digest), true
+}
+
 func (x *liveExec) pull(img string) bool {
 	args := pullArgs(x.rt, img)
 	x.u.EchoCmd(x.rt, args...)
@@ -509,7 +521,7 @@ func (x *liveExec) gatewayReachable(addr string, port int) bool {
 	x.u.Log("Verifying gateway reachable from containers...")
 	t0 := time.Now()
 	for i := 0; i < 20; i++ {
-		if runSilent(x.rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
+		if runSilent(x.rt, "run", "--rm", probeImage, "sh", "-c",
 			fmt.Sprintf("wget -q -O- http://%s:%d/api/health", addr, port)) == nil {
 			x.u.Ok("Gateway reachable from containers %s", x.u.Dim("("+took(time.Since(t0))+")"))
 			return true
@@ -989,18 +1001,18 @@ func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 	dir := stateRootDir(key)
 	sd := spec.storeDir(key)
 	meta := loadRootMeta(dir)
-	prev := meta.Stores[role].Image
-	if prev == "" || prev == image {
+	prev, stamp := meta.Stores[role].Image, stampOf(image)
+	if prev == "" || prev == stamp {
 		return true
 	}
 	if storeDirNonEmpty(sd) {
 		if !spec.projection {
-			x.u.Fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
+			x.u.Fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, stamp)
 			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
 			return false
 		}
 		x.u.Log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
-			role, sd, prev, image)
+			role, sd, prev, stamp)
 		if err := clearStoreContents(x.rt, sd); err != nil {
 			x.u.Fail("cannot clear %s state %s: %v", role, sd, err)
 			return false
@@ -1009,7 +1021,7 @@ func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 	// Restamp here, not at the owner's prep: the stamped image's output is
 	// gone, and a resolution that leaves its stamp re-fires at the owner's own
 	// stateMounts.
-	meta.Stores[role] = storeMeta{Image: image}
+	meta.Stores[role] = storeMeta{Image: stamp}
 	saveRootMeta(dir, meta)
 	return true
 }
@@ -1061,7 +1073,7 @@ func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
 	}
 	meta.KBRoot = kb.dir
 	meta.Did = kb.ident.didWeb()
-	meta.Stores[role] = storeMeta{Image: image}
+	meta.Stores[role] = storeMeta{Image: stampOf(image)}
 	saveRootMeta(dir, meta)
 	return args, true
 }
@@ -1115,7 +1127,6 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, key string) bool {
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.Dim(s) }
-func (x *liveExec) bold(s string) string      { return x.u.Bold(s) }
 
 func (x *liveExec) banner(s string) { x.u.Banner(s) }
 
@@ -1240,6 +1251,11 @@ func (x *planExec) stageOne(svc string, _ flowCtx, _ string) (string, bool) {
 
 func (x *planExec) initStack(kbRoot, string, string, string) {}
 
+func (x *planExec) verifyImage(svc, img string) (string, bool) {
+	x.c("verify %s: its build provenance, signed by %s at a release tag (refs/tags/v…); then pull and run it by its digest", img, semiontWorkflow(svc))
+	return pinnedImage(img, "sha256:<verified>"), true
+}
+
 func (x *planExec) pull(img string) bool {
 	x.p(pullArgs(x.rt, img)...)
 	return true
@@ -1264,7 +1280,7 @@ func (x *planExec) waitPGAccepting(seconds int) bool {
 
 func (x *planExec) waitTCP(_, addr string, port, seconds int) (time.Duration, bool) {
 	x.c("wait: tcp localhost:%d (%ds)", port, seconds)
-	x.c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 %s %d", x.rt, addr, port)
+	x.c("probe: %s run --rm %s nc -z -w 2 %s %d", x.rt, probeImage, addr, port)
 	return 0, true
 }
 
@@ -1280,18 +1296,18 @@ func (x *planExec) recordPorts([]portNeed) {}
 func (x *planExec) hostOllamaReachable(string, int) bool { return true }
 
 func (x *planExec) gatewayReachable(addr string, port int) bool {
-	x.c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/health" (up to 20 tries)`, x.rt, addr, port)
+	x.c(`probe: %s run --rm %s sh -c "wget -q -O- http://%s:%d/api/health" (up to 20 tries)`, x.rt, probeImage, addr, port)
 	return true
 }
 
 func (x *planExec) resolveAddr() (string, bool) {
 	switch x.rt {
 	case "container":
-		x.c(`probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>`)
+		x.c(`probe: container run --rm %s sh -c "ip route | awk '/default/{print $3}'" → <host-addr>`, probeImage)
 	case "docker":
-		x.c("probe: docker run --rm busybox:1.38.0 nslookup host.docker.internal (fallback: default-gateway probe) → <host-addr>")
+		x.c("probe: docker run --rm %s nslookup host.docker.internal (fallback: default-gateway probe) → <host-addr>", probeImage)
 	case "podman":
-		x.c("probe: podman run --rm busybox:1.38.0 nslookup host.containers.internal (fallback: default-gateway probe) → <host-addr>")
+		x.c("probe: podman run --rm %s nslookup host.containers.internal (fallback: default-gateway probe) → <host-addr>", probeImage)
 	}
 	return "<host-addr>", true
 }
@@ -1458,7 +1474,6 @@ func (x *planExec) resolveStoreStamps(flowCtx) bool {
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }
 func (x *planExec) dim(s string) string       { return s }
-func (x *planExec) bold(s string) string      { return s }
 
 func (x *planExec) banner(string) {}
 

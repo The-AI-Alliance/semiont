@@ -53,7 +53,7 @@ The secrets a stack has, who generates each and which service receives it are in
 
 Every published image is scanned for `HIGH` and `CRITICAL` vulnerabilities before it is pushed, and a finding with a fix fails the publish. Each image carries a signed build provenance and a bill of materials, and the service images also pass a licence policy. The gateway's and the dispatcher's binaries record the crates they link, which is what the scan reads, and those crates are checked against the RustSec advisory database daily.
 
-Verify an image before running it where it matters: [Supply-chain verification](./IMAGES.md#supply-chain-verification).
+`semiont start` verifies each of Semiont's images before it runs it, and runs it by its digest: its build provenance must be signed by this repository's publish workflow at a release tag ([What `semiont start` checks](./IMAGES.md#what-semiont-start-checks)). Where something else runs the images, verify an image before running it where it matters: [Supply-chain verification](./IMAGES.md#supply-chain-verification).
 
 ## What to watch
 

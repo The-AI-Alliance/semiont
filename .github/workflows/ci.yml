@@ -2019,13 +2019,17 @@ jobs:
       # The launcher's deps are go.yaml.in/yaml and santhosh-tekuri/jsonschema
       # (the stack's documents and their schemas), golang.org/x/sys (the Windows build's
       # file lock, access lists and process calls), golang.org/x/term (hidden
-      # input and the terminal's size) and packages/sdk-go (whose client pulls
+      # input and the terminal's size), sigstore/sigstore-go (an image's build
+      # provenance, checked before it runs, and what it pulls in: protobuf,
+      # TUF, the Sigstore clients) and packages/sdk-go (whose client pulls
       # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped
       # binary (distributed via Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from
       # our code. nats-server's module is a requirement of the tests alone (they
       # read the broker's config with its parser): it is in no shipped binary,
-      # and it is not among the modules this scan covers.
+      # and it is not among the modules this scan covers. Nor is what only a
+      # launcher built with -tags fakesigstore links (Sigstore's test
+      # authority, for the scenario suite): no release is built that way.
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest

@@ -114,12 +114,12 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			plan := mustPlan(t, fixtureStack(t, name))
 			checkRole(t, plan, "graph", rolePlan{
 				Presence: presenceLauncher, Driver: "neo4j",
-				Image: "neo4j:5.26.28-community", Memory: "2G", Port: 7687,
+				Image: "neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357", Memory: "2G", Port: 7687,
 				User: "neo4j", Env: []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
 			})
 			checkRole(t, plan, "vectors", rolePlan{
 				Presence: presenceLauncher, Driver: "qdrant",
-				Image: "qdrant/qdrant:v1.19.1", Memory: "2G", Port: 6333,
+				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "2G", Port: 6333,
 			})
 			// embedding: with ollama bindings, the inference role runs the
 			// Ollama and embedding rides along (external, sharing it). With
@@ -143,7 +143,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			}
 			checkRole(t, plan, "database", rolePlan{
 				Presence: presenceLauncher, Driver: "postgres",
-				Image: "postgres:15.18-alpine", Memory: "1G", Port: 5432,
+				Image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", Memory: "1G", Port: 5432,
 				Env: []string{"POSTGRES_DB=keycloak"},
 			})
 			// The inference driver is WHO PERFORMS INFERENCE per the roster,

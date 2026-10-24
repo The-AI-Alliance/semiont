@@ -65,8 +65,16 @@ func TestMain(m *testing.M) {
 	defer os.RemoveAll(binDir)
 	launcherBin = filepath.Join(binDir, harness.Exe("semiont"))
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
-	for target, pkg := range map[string]string{launcherBin: ".", fakertBin: "./internal/fakert"} {
-		out, err := exec.Command("go", "build", "-o", target, pkg).CombinedOutput()
+	// The launcher under test is built with fakesigstore: it verifies images
+	// against Sigstore's test authority (internal/provenance/fake.go), told
+	// by fake-sigstore.json in its data directory what each image's
+	// attestation says. Only that build can be told so.
+	for _, build := range [][]string{
+		{"build", "-tags", "fakesigstore", "-o", launcherBin, "."},
+		{"build", "-o", fakertBin, "./internal/fakert"},
+	} {
+		out, err := exec.Command("go", build...).CombinedOutput()
+		pkg := build[len(build)-1]
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "building %s: %v\n%s", pkg, err, out)
 			os.Exit(1)
@@ -484,8 +492,15 @@ func (s *scenario) norm(text string) string {
 	// this placeholder too (executor.go), so live and dry-run goldens
 	// agree on the one line that cannot be a literal.
 	out = keycloakAdminPwRe.ReplaceAllString(out, "KC_BOOTSTRAP_ADMIN_PASSWORD=<keycloak-admin-password>")
+	// A Semiont image runs by the digest its attestation is of. The fake
+	// authority derives it from the image's name, so it is stable, but it is
+	// not what a golden is about; plan mode renders the same placeholder.
+	out = verifiedDigestRe.ReplaceAllString(out, "${1}@sha256:<verified>")
 	return out
 }
+
+// verifiedDigestRe: the digest a verified Semiont image runs by.
+var verifiedDigestRe = regexp.MustCompile(`(/semiont-[a-z]+:[A-Za-z0-9._-]+)@sha256:[0-9a-f]{64}`)
 
 // inJSON: a path as it reads inside a JSON string, where Windows' separator
 // is written twice.
@@ -1101,6 +1116,82 @@ func TestStartLocalImagesBoot(t *testing.T) {
 	checkGolden(t, "start-local-version-boot.argv", s.argv(t))
 	if strings.Contains(s.argv(t), " pull ") {
 		t.Error("an image tagged :local must not be pulled")
+	}
+	// No release built them, so nothing vouches for them, and every start
+	// says so, naming each.
+	mustContain(t, "the start's warning", stdout+stderr,
+		"Unverified: ghcr.io/the-ai-alliance/semiont-gateway:local, ghcr.io/the-ai-alliance/semiont-archivist:local, ghcr.io/the-ai-alliance/semiont-librarian:local",
+		"Unverified: ghcr.io/the-ai-alliance/semiont-browser:local",
+		"For development only")
+}
+
+// fakeAttestations: what the scenario's Sigstore test authority attests of
+// each image named. The launcher under test, built with fakesigstore, reads
+// it from fake-sigstore.json in its data directory (provenance/fake.go); an
+// image it does not name is attested as a release built it.
+func fakeAttestations(t *testing.T, s *scenario, said map[string]map[string]any) {
+	t.Helper()
+	b, err := json.Marshal(said)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := dataHomeFor(s.home)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fake-sigstore.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+const servicesRelease = "https://github.com/The-AI-Alliance/semiont/.github/workflows/publish-service-images.yml@refs/tags/v0.7.0"
+
+// An image of Semiont's runs only when a release built it, and a start that
+// would run one no release built refuses before it touches anything: the
+// running stack stays as it was.
+func TestAnImageNoReleaseBuiltIsRefusedBeforeAnythingIsTornDown(t *testing.T) {
+	const worker = "ghcr.io/the-ai-alliance/semiont-worker:latest"
+	for _, c := range []struct {
+		name string
+		said map[string]any
+		why  string
+	}{
+		{"built from main", map[string]any{"identity": strings.Replace(servicesRelease, "refs/tags/v0.7.0", "refs/heads/main", 1)}, "none of its 1 attestations is build provenance"},
+		{"with no attestation", map[string]any{"absent": true}, "no attestation of it"},
+		{"attested as another image", map[string]any{"identity": servicesRelease, "subject": "sha256:" + strings.Repeat("0", 64)}, "none of its 1 attestations is build provenance"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := newScenario(t, "container")
+			fakeAttestations(t, s, map[string]map[string]any{worker: c.said})
+			stdout, stderr, code := s.run(t, "start")
+			if code == 0 {
+				t.Fatalf("started\nstdout:\n%s", stdout)
+			}
+			mustContain(t, "refusal", stdout+stderr, worker+" does not run", c.why,
+				"publish-service-images.yml, run at a release tag")
+			argv := s.argv(t)
+			for _, touched := range []string{"stop semiont-", "run -d", " pull "} {
+				if strings.Contains(argv, touched) {
+					t.Errorf("a refused start touched the stack (%q):\n%s", touched, argv)
+				}
+			}
+		})
+	}
+}
+
+// The Browser's image is a release's only when the Browser's own workflow
+// built it: the services' workflow signing it does not make it one.
+func TestTheBrowsersImageIsHeldToItsOwnWorkflow(t *testing.T) {
+	const browser = "ghcr.io/the-ai-alliance/semiont-browser:latest"
+	s := newScenario(t, "container")
+	fakeAttestations(t, s, map[string]map[string]any{browser: {"identity": servicesRelease}})
+	stdout, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatalf("started\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, browser+" does not run", "publish-browser.yml, run at a release tag")
+	if strings.Contains(s.argv(t), "--name semiont-browser") {
+		t.Errorf("the refused Browser ran:\n%s", s.argv(t))
 	}
 }
 
@@ -1798,7 +1889,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 // in it — as neo4j 7474, postgres 70, qdrant and nats root, Semiont 1001 —
 // and on Linux only a container's root can remove it.
 func storeClear(sd string) string {
-	return "container run --rm -v " + sd + ":/store busybox:1.38.0 find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+	return "container run --rm -v " + sd + ":/store busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
 }
 
 func TestCleanDryRunListsAndKeeps(t *testing.T) {
@@ -3054,7 +3145,7 @@ func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 func externalDatabase(t *testing.T, s *scenario) {
 	t.Helper()
 	editDocument(t, s, "issuer.yaml",
-		"    image: postgres:15.18-alpine\n    resources: { limits: { memory: 1G } }\n",
+		"    image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f\n    resources: { limits: { memory: 1G } }\n",
 		"    external: { host: db.example.com, port: 5432, password: { fromEnv: EXT_PG } }\n")
 }
 
@@ -4881,7 +4972,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 func externalGraph(t *testing.T, s *scenario, uri string) {
 	t.Helper()
 	editDocument(t, s, "index.yaml",
-		"    image: neo4j:5.26.28-community\n    resources: { limits: { memory: 2G } }\n",
+		"    image: neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357\n    resources: { limits: { memory: 2G } }\n",
 		"    external: { uri: \""+uri+"\", password: { fromEnv: EXT_GRAPH } }\n")
 }
 
@@ -7440,7 +7531,7 @@ func TestStartRefusesAStackWithNoSemanticSearch(t *testing.T) {
 	}{
 		{
 			"no-vectors",
-			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1\n    resources: { limits: { memory: 2G } }\n",
+			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10\n    resources: { limits: { memory: 2G } }\n",
 			[]string{"index.yaml", "/spec/vectors", "is missing"},
 		},
 		{
@@ -8125,10 +8216,19 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	mustContain(t, "browser record survives the stack record", string(rec), `"browser"`)
 
 	// Second start with the SAME image running: keep, don't churn. The fake
-	// runtime reports the reference the launcher would run.
+	// runtime reports the reference the launcher ran, which is the verified
+	// image by its digest, as the first start recorded it.
+	var ran struct {
+		Browser struct {
+			Image string `json:"image"`
+		} `json:"browser"`
+	}
+	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Browser.Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
+		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Browser.Image, err)
+	}
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_browser=running",
-		"FAKERT_IMAGE_browser=ghcr.io/the-ai-alliance/semiont-browser:latest")
+		"FAKERT_IMAGE_browser="+ran.Browser.Image)
 	before := s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {

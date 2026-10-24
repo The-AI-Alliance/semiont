@@ -237,7 +237,7 @@ func clearStoreContents(rt, sd string) error {
 // storeClearArgs: the run that empties sd — every entry, dotfiles included,
 // and not the mount point itself.
 func storeClearArgs(sd string) []string {
-	return []string{"run", "--rm", "-v", sd + ":/store", "busybox:1.38.0",
+	return []string{"run", "--rm", "-v", sd + ":/store", probeImage,
 		"find", "/store", "-mindepth", "1", "-maxdepth", "1", "-exec", "rm", "-rf", "{}", "+"}
 }
 
@@ -284,6 +284,15 @@ type rootMeta struct {
 
 type storeMeta struct {
 	Image string `json:"image"`
+}
+
+// stampOf: what a store's stamp records of the image that writes it, and what
+// a stamp is compared with — the image without its digest. The stamp asks
+// whether another version wrote the data, and the version is the name and the
+// tag; a digest names one build of it.
+func stampOf(image string) string {
+	name, _, _ := strings.Cut(image, "@")
+	return name
 }
 
 // loadRootMeta: the dir's meta.json, or a zero-valued meta (never nil).

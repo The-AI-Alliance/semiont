@@ -9,11 +9,11 @@ spec:
     type: neo4j
     username: neo4j
     database: neo4j
-    image: neo4j:5.26.28-community
+    image: neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357
     resources: { limits: { memory: 2G } }
   vectors:
     type: qdrant
-    image: qdrant/qdrant:v1.19.1
+    image: qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
     resources: { limits: { memory: 2G } }
   embedding:
     type: ollama
