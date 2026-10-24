@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -546,11 +547,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		}
 		probe := endpoint
 		if rest, ok := strings.CutPrefix(probe, "tcp:"); ok {
-			if strings.Contains(rest, ":") {
-				probe = "tcp://" + rest
-			} else {
-				probe = "tcp://localhost:" + rest
-			}
+			probe = "tcp://" + rest
 		}
 		mark := u.Wrap(AnsiRed, "✗")
 		if isHealthy {
@@ -1086,11 +1083,15 @@ func roleHealthy(role, endpoint string) bool {
 // an accepted dial for tcp ones.
 func probeHealth(endpoint string) bool {
 	if rest, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
-		addr := rest
-		if !strings.Contains(rest, ":") {
-			addr = "localhost:" + rest
+		host, port, err := net.SplitHostPort(rest)
+		if err != nil {
+			return false
 		}
-		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		n, err := strconv.Atoi(port)
+		if err != nil {
+			return false
+		}
+		conn, err := dialTCP(host, n, time.Second)
 		if err != nil {
 			return false
 		}

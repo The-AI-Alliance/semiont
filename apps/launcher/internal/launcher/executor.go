@@ -1494,7 +1494,7 @@ func probeHostOllama(port int) func() bool {
 // dependents against a dead dependency.
 func verifyExternal(u *UI, role string, rp rolePlan) bool {
 	addr := net.JoinHostPort(rp.Address, fmt.Sprintf("%d", rp.Port))
-	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	conn, err := dialTCP(rp.Address, rp.Port, 3*time.Second)
 	if err != nil {
 		u.Fail("%s is externally provided at %s but unreachable: %v", role, addr, err)
 		return false

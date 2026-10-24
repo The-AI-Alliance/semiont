@@ -56,7 +56,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
 	doc, graph := weaverDocumentOf(t, placed(t, st))
-	if doc.GatewayUrl != "http://192.168.64.1:4000" {
+	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
@@ -64,7 +64,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	}
 	want := semiont.Neo4jGraphConfig{
 		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
-		Uri:         "bolt://192.168.64.1:7687",
+		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
 		Database:    "neo4j",
 		PasswordEnv: daemonPasswords["graph"].env,
@@ -133,7 +133,7 @@ func TestWeaverDocumentIsWhereTheImageLooks(t *testing.T) {
 
 	doc, _ := weaverDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 	port := fmt.Sprint(doc.Port)
-	if want := "--publish " + port + ":" + port; !strings.Contains(args, want) {
+	if want := "--publish 1.2.3.4:" + port + ":" + port; !strings.Contains(args, want) {
 		t.Errorf("the Weaver's health port is not published (%s):\n%s", want, args)
 	}
 	for label, re := range map[string]*regexp.Regexp{

@@ -1006,14 +1006,14 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.recordPorts(ports)
 	}
 
-	// Every role but the Browser publishes, or is configured with, an address
-	// a container dials; the Browser's own move asks the realm, which a
-	// container may hold the only route to.
-	addr, ok := x.resolveAddr()
-	if !ok {
-		return 1
+	addr := ""
+	if serviceNeedsAddr(svc, exposure{rt: x.rtName()}) {
+		var ok bool
+		if addr, ok = x.resolveAddr(); !ok {
+			return 1
+		}
+		x.say(sayLog, "Host address: %s", x.dim(addr))
 	}
-	x.say(sayLog, "Host address: %s", x.dim(addr))
 
 	if isConfigConsumer(svc) {
 		if img := fc.plan.Images[svc]; !locallyBuilt(img) && !x.pull(img) {
@@ -1113,7 +1113,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			if rp, ok := fc.plan.Roles["identity"]; ok && rp.Issuer != "" {
 				base := rp.Issuer
 				if rp.Presence == presenceLauncher {
-					base = identityEndpoint(rp, exposure{x.rtName(), addr})
+					base = identityEndpoint(rp, recordedExposure(fc.kb.key()))
 				}
 				if !x.preflightBrowserMove(base, bp) {
 					return 1

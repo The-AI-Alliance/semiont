@@ -49,6 +49,38 @@ func TestEveryPublishGoesThroughExposure(t *testing.T) {
 	}
 }
 
+// Every connection the launcher opens goes through dialHost (httpclient.go):
+// a dial of its own would reach the bridge address in production and miss
+// the scenario build's redirect, so the suites could not see where it goes.
+func TestEveryDialGoesThroughDialHost(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no source read (%v): a census of nothing passes", err)
+	}
+	read := 0
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") || file == "httpclient.go" {
+			continue
+		}
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read++
+		for n, line := range strings.Split(string(b), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+			if strings.Contains(line, "net.Dial") || strings.Contains(line, ".DialContext(") {
+				t.Errorf("%s:%d dials without dialHost: %s", file, n+1, strings.TrimSpace(line))
+			}
+		}
+	}
+	if read < 10 {
+		t.Fatalf("read %d source files: the census is not reading the package", read)
+	}
+}
+
 // LOCAL-ONLY-STACK's table, as D1-A and D2 ruled it for Apple container: what
 // a person dials on loopback, what containers dial on the bridge address, and
 // both, the containers' side above the person's.

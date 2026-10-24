@@ -3,7 +3,6 @@ package launcher
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -430,11 +429,6 @@ func SelectRuntime(u *UI, requested string) (string, bool) {
 const healthProbeTimeout = 2 * time.Second
 
 var healthClient = &http.Client{Transport: launcherTransport, Timeout: healthProbeTimeout}
-
-// netDialTimeout: one TCP reachability check (external-role verification).
-func netDialTimeout(addr string) (net.Conn, error) {
-	return net.DialTimeout("tcp", addr, 3*time.Second)
-}
 
 func httpOK(url string) bool {
 	resp, err := healthClient.Get(url)

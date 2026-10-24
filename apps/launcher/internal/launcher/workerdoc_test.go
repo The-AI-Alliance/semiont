@@ -144,7 +144,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, agent.ApiKeyEnv)
 		}
 	}
-	if doc.GatewayUrl != "http://192.168.64.1:4000" {
+	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
@@ -423,7 +423,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 
 	port := fmt.Sprint(workerDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)
-	if want := "--publish " + port + ":" + port; !strings.Contains(args, want) {
+	if want := "--publish 1.2.3.4:" + port + ":" + port; !strings.Contains(args, want) {
 		t.Errorf("the worker's health port is not published (%s):\n%s", want, args)
 	}
 	for label, re := range map[string]*regexp.Regexp{

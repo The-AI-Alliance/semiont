@@ -915,7 +915,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", step.name, code, stdout, stderr)
 		}
 		argv := s.argv(t)[before:]
-		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
+		if run := keycloakRun(t, argv); !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
@@ -4867,7 +4867,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 
 func TestBrowserPort(t *testing.T) {
 	// --port moves the browser (the one flag-movable port): publish
-	// <p>:3000, warn that anything holding the default origin will not
+	// 127.0.0.1:<p>:3000, warn that anything holding the default origin will not
 	// follow, record the moved endpoint so status and stop follow it.
 	s := newScenario(t, "container")
 	s.noGitRoot = true // "just the browser" needs no clone
@@ -4876,7 +4876,7 @@ func TestBrowserPort(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--publish 3001:3000")
+	mustContain(t, "argv log", string(log), "--publish 127.0.0.1:3001:3000")
 	mustContain(t, "stdout", stdout,
 		"Browser on port 3001", "instead of 3000",
 		"🚀 browser is up")
@@ -5194,7 +5194,7 @@ func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
 		"# worker: the roster binds no job to a worker — nothing to launch (bind one in "+noWorkerBinding+" to run one)",
-		"run -d --name semiont-smelter", "wait: http://localhost:24101/health (30s)")
+		"run -d --name semiont-smelter", "wait: http://<host-addr>:24101/health (30s)")
 	if n := strings.Count(plan, noWorkerBinding); n != 1 {
 		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerBinding, n, plan)
 	}
@@ -7011,24 +7011,37 @@ func TestStartServiceWorker(t *testing.T) {
 }
 
 func TestStartServiceGraph(t *testing.T) {
-	// Infra service: no config, no secret, no host-addr probe, no pull
-	// (pinned image) — just its own stop+rm, run, and health gate.
-	s := newScenario(t, "container")
-	// Already running, so "Restarting graph" has something to replace. The
-	// teardown lists before it acts; a scenario asserting stop+rm must say the
-	// container is there rather than relying on a blind fire at its name.
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
-	stdout, stderr, code := s.run(t, "start", "--service", "graph")
-	if code != 0 {
-		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-	}
-	mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
-	argv := s.argv(t)
-	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
-	for _, absent := range []string{"image pull", "busybox", "inspect"} {
-		if strings.Contains(argv, absent) {
-			t.Errorf("infra --service ran needless step: %q in argv", absent)
-		}
+	// Infra service: no config, no secret, no pull (pinned image) — just its
+	// own stop+rm, run, and health gate. Under Docker no host-addr probe
+	// either. Under Apple container the graph publishes the containers' side
+	// of its bolt port on the host address, so the probe is what places it.
+	for _, rt := range []string{"container", "docker"} {
+		t.Run(rt, func(t *testing.T) {
+			s := newScenario(t, rt)
+			// Already running, so "Restarting graph" has something to replace.
+			// The teardown lists before it acts; a scenario asserting stop+rm
+			// must say the container is there rather than relying on a blind
+			// fire at its name.
+			s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
+			stdout, stderr, code := s.run(t, "start", "--service", "graph")
+			if code != 0 {
+				t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
+			argv := s.argv(t)
+			mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
+			needless := []string{"image pull", "inspect"}
+			if rt == "container" {
+				mustContain(t, "argv", argv, "-p 192.168.64.1:17687:7687")
+			} else {
+				needless = append(needless, "busybox")
+			}
+			for _, absent := range needless {
+				if strings.Contains(argv, absent) {
+					t.Errorf("infra --service ran needless step: %q in argv", absent)
+				}
+			}
+		})
 	}
 }
 
@@ -7073,7 +7086,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
-		"--publish 24104:24104",
+		"--publish 192.168.64.1:24104:24104",
 		"librarian.json:/etc/semiont/librarian.json:ro",
 		filepath.Join(testKBKey, "librarian")+":/semiont-state",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
@@ -7106,7 +7119,7 @@ func TestStartServiceArchivist(t *testing.T) {
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
-		"--publish 24103:24103",
+		"--publish 192.168.64.1:24103:24103",
 		":/kb",
 		"archivist.json:/etc/semiont/archivist.json:ro",
 		"anchored-text:/anchored-text",
@@ -7127,7 +7140,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"<config-stage>/worker.json",
-		"wait: http://localhost:24100/health (30s)",
+		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
 		t.Error("service plan leaked the wider stack")
