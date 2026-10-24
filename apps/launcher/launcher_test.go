@@ -965,6 +965,54 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 	}
 }
 
+// Keycloak runs its production server, its hostname fixed at the issuer's
+// origin, so every token names the issuer the services are told to trust,
+// wherever it was asked for. Each runtime names the issuer differently, and
+// the issuer is read back from the gateway's staged document.
+func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
+	for _, rt := range []string{"container", "docker", "podman"} {
+		t.Run(rt, func(t *testing.T) {
+			s := newScenario(t, "container", "docker", "podman")
+			stdout, stderr, code := s.run(t, "start", "--runtime", rt)
+			if code != 0 {
+				t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			var keycloak []string
+			for _, line := range strings.Split(s.argv(t), "\n") {
+				if strings.Contains(line, " run ") && strings.Contains(line, "--name semiont-keycloak ") {
+					keycloak = strings.Fields(line)
+				}
+			}
+			if keycloak == nil {
+				t.Fatalf("no Keycloak run in the argv log:\n%s", s.argv(t))
+			}
+			hostname, command := "", ""
+			for i, field := range keycloak {
+				if v, ok := strings.CutPrefix(field, "KC_HOSTNAME="); ok {
+					hostname = v
+				}
+				if strings.HasPrefix(field, "quay.io/keycloak/keycloak:") && i+1 < len(keycloak) {
+					command = keycloak[i+1]
+				}
+			}
+			if command != "start" {
+				t.Errorf("Keycloak runs %q, not its production server (start):\n%s", command, strings.Join(keycloak, " "))
+			}
+			var gateway struct {
+				Identity struct {
+					Issuer string `json:"issuer"`
+				} `json:"identity"`
+			}
+			if err := json.Unmarshal([]byte(stagedFile(t, s, "gateway.json")), &gateway); err != nil {
+				t.Fatal(err)
+			}
+			if hostname == "" || gateway.Identity.Issuer != hostname+"/realms/semiont" {
+				t.Errorf("Keycloak's hostname is %q and the gateway trusts the issuer %q: its tokens would name another issuer", hostname, gateway.Identity.Issuer)
+			}
+		})
+	}
+}
+
 func TestStartNoObserveBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--no-observe")

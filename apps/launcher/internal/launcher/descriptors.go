@@ -205,16 +205,19 @@ var serviceDescriptors = []serviceDescriptor{
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
 	// The OIDC issuer the gateway trusts, stated in config and never
-	// inferred. "keycloak" is an upstream pin like postgres — the dev-mode
-	// server, importing the realm the launcher stages, on its own database
-	// of the PostgreSQL the Issuer document describes. A JVM like graph, but its image caps the
+	// inferred. "keycloak" is an upstream pin like postgres — the production
+	// server over plain HTTP, importing the realm the launcher stages, on its own database
+	// of the PostgreSQL the Issuer document describes. Its hostname is fixed at
+	// the issuer's origin (KC_HOSTNAME, identityRunExtras), the endpoints behind
+	// it follow the address asked (backchannel-dynamic), and it is one node, so
+	// its cache is local. A JVM like graph, but its image caps the
 	// heap at 70% of the container ceiling, so 1G leaves ~700M of heap —
 	// ample for one KB's realm. "oidc" is an issuer somebody else runs: the
 	// launcher verifies it and launches nothing, which is why it carries no
 	// container.
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
-		cmd:   []string{"start-dev", "--import-realm"},
+		cmd:   []string{"start", "--import-realm", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
 		needs: []string{"database"},
 		// The master realm always exists, so it answers for a server whose
 		// own realm this launcher has not been told about. A configured
