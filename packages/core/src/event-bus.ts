@@ -55,9 +55,6 @@ export interface TraceCarrier {
 /** The envelope half, for `emit`: the routing facts, none of which belong in a channel's domain type. */
 export type BusEnvelope = Omit<BusFrame<never>, 'payload' | 'trace'>;
 
-/** The stream of each channel opened so far, of that channel's own frames. */
-type ChannelStreams = { [K in keyof EventMap]?: Subject<BusFrame<EventMap[K]>> };
-
 /**
  * RxJS-based event bus.
  *
@@ -90,7 +87,7 @@ type ChannelStreams = { [K in keyof EventMap]?: Subject<BusFrame<EventMap[K]>> }
  * ```
  */
 export class EventBus {
-  private subjects: ChannelStreams;
+  private subjects: Map<keyof EventMap, Subject<any>>;
   private isDestroyed: boolean;
   /**
    * Observers per (channel, scope). One Subject carries every scope of a
@@ -102,7 +99,7 @@ export class EventBus {
   private observerCounts: Map<string, number> = new Map();
 
   constructor() {
-    this.subjects = {};
+    this.subjects = new Map();
     this.isDestroyed = false;
   }
 
@@ -175,11 +172,10 @@ export class EventBus {
     if (this.isDestroyed) {
       throw new Error(`Cannot access event '${String(channel)}' on destroyed bus`);
     }
-    const opened = this.subjects[channel];
-    if (opened) return opened;
-    const stream = new Subject<BusFrame<EventMap[K]>>();
-    this.subjects[channel] = stream;
-    return stream;
+    if (!this.subjects.has(channel)) {
+      this.subjects.set(channel, new Subject<BusFrame<EventMap[K]>>());
+    }
+    return this.subjects.get(channel)!;
   }
 
   /** @internal — the scoped view reads and writes the same per-channel stream. */
@@ -198,13 +194,11 @@ export class EventBus {
       return;
     }
 
-    // `Object.values` reads the channels opened; the `?.` is the optional
-    // member's type, not a channel without a stream.
-    for (const subject of Object.values(this.subjects)) {
-      subject?.complete();
+    for (const subject of this.subjects.values()) {
+      subject.complete();
     }
 
-    this.subjects = {};
+    this.subjects.clear();
     this.isDestroyed = true;
   }
 
