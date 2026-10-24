@@ -168,13 +168,13 @@ Neither is optional at start: the Weaver and the Librarian each connect to the g
 
 ```bash
 semiont logs --service graph
-curl -s http://localhost:6333/readyz
 curl -s http://localhost:7474
+curl -s http://192.168.64.1:6333/readyz        # Under Docker or Podman: localhost
 ```
 
 ### Inference failures
 
-With an Anthropic Inference document, the launcher must be able to find `ANTHROPIC_API_KEY`: exported, or registered with `semiont settings secret set ANTHROPIC_API_KEY`. With an Ollama one, the model has to be present:
+With an Anthropic Inference document, the launcher must be able to find `ANTHROPIC_API_KEY`: exported, or registered with `semiont settings secret set ANTHROPIC_API_KEY`. With an Ollama one, the model has to be present. An Ollama the stack runs in a container under Apple `container` answers at `192.168.64.1` rather than `localhost` ([Ports](../LOCAL-SEMIONT.md#ports)):
 
 ```bash
 curl -s http://localhost:11434/api/version

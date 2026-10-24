@@ -571,14 +571,14 @@ var stoppedStates = map[string]bool{"exited": true, "dead": true, "stopped": tru
 // the CONTAINER starts. On Apple container with an empty data dir the host
 // port answers at 20ms and the real server accepts at 1579ms. Anything that
 // must talk to the database follows this with waitPGAccepting.
-func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration, bool) {
+func waitForTCP(u *UI, rt, label, pollHost, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	up := false
 	// Same deadline discipline as waitForHTTP: with a 1s dial timeout plus
 	// the pacing sleep, an attempt count would overstate the budget too.
 	for {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), time.Second)
+		conn, err := dialTCP(pollHost, port, time.Second)
 		if err == nil {
 			conn.Close()
 			up = true
@@ -594,7 +594,7 @@ func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration
 		return time.Since(t0), false
 	}
 	if runSilent(rt, "run", "--rm", probeImage, "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
-		u.Fail("%s is up on localhost:%d but not reachable from containers at %s:%d.", label, port, host, port)
+		u.Fail("%s is up on %s:%d but not reachable from containers at %s:%d.", label, pollHost, port, host, port)
 		return time.Since(t0), false
 	}
 	return time.Since(t0), true

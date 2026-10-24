@@ -45,7 +45,12 @@ func (p placement) placed(role string) bool {
 // start's address on the gateway's port. The publicURL is where clients
 // reach it, and is written into the gateway's own document alone.
 func (p placement) gatewayURL() string {
-	return fmt.Sprintf("http://%s:%d", p.addr, p.plan.GatewayPort)
+	return fmt.Sprintf("http://%s:%d", p.addr, p.exposure().containersPort("gateway", p.plan.GatewayPort))
+}
+
+// exposure: where this start publishes and probes each port, by who dials it.
+func (p placement) exposure() exposure {
+	return exposure{rt: p.rt, addr: p.addr}
 }
 
 // issuer: the issuer a container signs in at — the Keycloak the launcher runs
@@ -82,7 +87,7 @@ func (p placement) graphURI() string {
 	if external := p.st.KnowledgeIndex.Spec.Graph.External; external != nil {
 		return external.Uri
 	}
-	return fmt.Sprintf("bolt://%s:%d", p.addr, p.plan.Roles["graph"].Port)
+	return fmt.Sprintf("bolt://%s:%d", p.addr, p.exposure().containersPort("graph", p.plan.Roles["graph"].Port))
 }
 
 // vectors: where the vector index is.

@@ -31,7 +31,7 @@
 //	                         while the codespace's gateway already answers through its forward
 //	FAKERT_BUSYBOX_FAIL_FIRST  the first n busybox probe containers fail with a runtime error
 //	                         while the daemon answers — docker-in-docker just after dockerd starts
-//	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of :4000
+//	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of the gateway's /api/health
 //	FAKERT_NC_FAIL           "1" fails the busybox `nc -z` postgres probe
 //	FAKERT_VOLUME_ABSENT     "1" makes `volume rm` fail (volume not found)
 //	FAKERT_STACK_RUNTIME     which runtime's list/ps shows semiont-gateway
@@ -1263,8 +1263,10 @@ func run(args []string) {
 			detached = true
 		case "-p", "--publish":
 			if i+1 < len(args) {
-				hp := strings.SplitN(args[i+1], ":", 2)[0]
-				ports = append(ports, hp)
+				// host:container, or address:host:container: the host port is
+				// next to last.
+				parts := strings.Split(args[i+1], ":")
+				ports = append(ports, parts[len(parts)-2])
 			}
 		case "--name":
 			if i+1 < len(args) {
@@ -1561,7 +1563,7 @@ func busybox(args []string, joined string) {
 			if os.Getenv("FAKERT_OLLAMA_REACHABLE") == "" {
 				os.Exit(1)
 			}
-		case strings.Contains(joined, ":4000"):
+		case strings.Contains(joined, "/api/health"): // the gateway's, at whichever port the containers dial it
 			if os.Getenv("FAKERT_GATEWAY_UNREACHABLE") != "" {
 				os.Exit(1)
 			}

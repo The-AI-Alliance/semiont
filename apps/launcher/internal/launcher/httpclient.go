@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,8 +22,12 @@ var launcherTransport = func() *http.Transport {
 	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(addr)
-		if err != nil || !isLocalhostName(host) {
+		if err != nil {
 			return dialer.DialContext(ctx, network, addr)
+		}
+		host = dialHost(host)
+		if !isLocalhostName(host) {
+			return dialer.DialContext(ctx, network, net.JoinHostPort(host, port))
 		}
 		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", port))
 		if err == nil {
@@ -41,6 +46,12 @@ var launcherTransport = func() *http.Transport {
 	}
 	return t
 }()
+
+// dialTCP: a TCP connection to host:port, dialed as the launcher's HTTP
+// requests are (dialHost).
+func dialTCP(host string, port int, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout("tcp", net.JoinHostPort(dialHost(host), strconv.Itoa(port)), timeout)
+}
 
 func isLocalhostName(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))

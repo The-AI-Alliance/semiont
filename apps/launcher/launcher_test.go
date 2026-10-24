@@ -65,12 +65,14 @@ func TestMain(m *testing.M) {
 	defer os.RemoveAll(binDir)
 	launcherBin = filepath.Join(binDir, harness.Exe("semiont"))
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
-	// The launcher under test is built with fakesigstore: it verifies images
-	// against Sigstore's test authority (internal/provenance/fake.go), told
-	// by fake-sigstore.json in its data directory what each image's
-	// attestation says. Only that build can be told so.
+	// The launcher under test is built with the scenario tag, and only that
+	// build can be told two things a released one cannot: it verifies images
+	// against Sigstore's test authority (internal/provenance/fake.go), told by
+	// fake-sigstore.json in its data directory what each image's attestation
+	// says; and it dials the fake runtime's host address at loopback, where
+	// the fake's stand-in services listen (internal/launcher/dialhost_scenario.go).
 	for _, build := range [][]string{
-		{"build", "-tags", "fakesigstore", "-o", launcherBin, "."},
+		{"build", "-tags", "scenario", "-o", launcherBin, "."},
 		{"build", "-o", fakertBin, "./internal/fakert"},
 	} {
 		out, err := exec.Command("go", build...).CombinedOutput()
@@ -648,14 +650,16 @@ func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	librarian := stagedFile(t, s, "librarian.json")
+	// The gateway and Neo4j's bolt port are a person's too, so the containers
+	// dial their own side of each (containersSide).
 	mustContain(t, "staged librarian.json", librarian,
-		`"gatewayUrl": "http://192.168.64.1:4000"`, "bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
 	if strings.Contains(librarian, "${") {
 		t.Errorf("the staged librarian.json leaves an address to its environment:\n%s", librarian)
 	}
 	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
 	mustContain(t, "staged smelter.json", stagedFile(t, s, "smelter.json"),
-		`"gatewayUrl": "http://192.168.64.1:4000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
+		`"gatewayUrl": "http://192.168.64.1:14000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
 }
 
 func TestStartDefaultBoot(t *testing.T) {
@@ -701,12 +705,16 @@ func TestStartDefaultBoot(t *testing.T) {
 		"http://localhost:3000",
 		"http://localhost:4000",
 		"http://localhost:7474",
-		"http://localhost:6333/dashboard",
 		"http://localhost:16686",
+		// The collector's readout is the containers', at the bridge address.
+		"http://192.168.64.1:24110/metrics",
 		"semiont status",
 		"semiont logs",
 		"semiont stop",
 	)
+	if strings.Contains(stdout, "Qdrant Dashboard") {
+		t.Errorf("the summary offers Qdrant's dashboard, which no person dials:\n%s", stdout)
+	}
 	// A service credential must never reach the terminal, or the command line
 	// the terminal echoes: it crosses through the runtime's environment. Six
 	// of them, one per service account.
@@ -1126,7 +1134,7 @@ func TestStartLocalImagesBoot(t *testing.T) {
 }
 
 // fakeAttestations: what the scenario's Sigstore test authority attests of
-// each image named. The launcher under test, built with fakesigstore, reads
+// each image named. The launcher under test, built with the scenario tag, reads
 // it from fake-sigstore.json in its data directory (provenance/fake.go); an
 // image it does not name is attested as a release built it.
 func fakeAttestations(t *testing.T, s *scenario, said map[string]map[string]any) {
@@ -7061,7 +7069,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://localhost:24104)")
+	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://192.168.64.1:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
@@ -7094,7 +7102,7 @@ func TestStartServiceArchivist(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://localhost:24103)")
+	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://192.168.64.1:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
@@ -8464,14 +8472,14 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 	// launcher gives it, so the laptop that forwards it can move it.
 	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
 	_ = stderr
-	if !strings.Contains(stdout, "-p 8080:8080") {
+	if !strings.Contains(stdout, "-p <host-addr>:8080:8080") {
 		t.Errorf("the newborn's Keycloak is not on the default port:\n%s", stdout)
 	}
 	s2.extraEnv = append(s2.extraEnv, "KEYCLOAK_PORT=8081")
 	if stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run"); code != 0 {
 		t.Fatalf("moved issuer: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p 8081:8080")
+	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p <host-addr>:8081:8080")
 
 	// voyage embedding refuses: no established key variable exists, and the
 	// launcher never invents environment variables.

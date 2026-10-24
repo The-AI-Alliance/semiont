@@ -3,6 +3,7 @@
 container stop semiont-prometheus
 container rm semiont-prometheus
 # require free ports: 9090
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
-container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
+container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
 # wait: http://localhost:9090/-/healthy (30s)

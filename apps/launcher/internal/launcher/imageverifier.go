@@ -1,4 +1,4 @@
-//go:build !fakesigstore
+//go:build !scenario
 
 package launcher
 

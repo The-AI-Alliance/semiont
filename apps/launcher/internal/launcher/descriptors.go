@@ -503,14 +503,14 @@ func mayConfigure(rp rolePlan) bool {
 // The port follows the plan when the config owns it, and the descriptor
 // otherwise — which is what makes status honest about a config that moved a
 // port.
-func healthEndpoint(role, driver string, plan *launchPlan) string {
+func healthEndpoint(role, driver string, plan *launchPlan, e exposure) string {
 	d := descriptorFor(role, driver)
 	// identity is the one driver-specific shape: a configured issuer names
 	// its own realm path, and that realm — not master — is what a start
 	// waits for, because the import is what makes it answer.
 	if role == "identity" && plan != nil {
 		if rp, ok := plan.Roles[role]; ok && rp.Issuer != "" {
-			return identityEndpoint(rp)
+			return identityEndpoint(rp, e)
 		}
 	}
 	port := d.health.port
@@ -520,10 +520,11 @@ func healthEndpoint(role, driver string, plan *launchPlan) string {
 	if port == 0 {
 		return ""
 	}
+	host := e.probeHost(role, port)
 	if d.health.tcp {
-		return fmt.Sprintf("tcp:localhost:%d", port)
+		return fmt.Sprintf("tcp:%s:%d", host, port)
 	}
-	return fmt.Sprintf("http://localhost:%d%s", port, d.health.path)
+	return fmt.Sprintf("http://%s:%d%s", host, port, d.health.path)
 }
 
 // healthPort: the port this role is actually running on — the gateway's from
