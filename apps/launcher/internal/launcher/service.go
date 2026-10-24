@@ -22,16 +22,6 @@ import (
 // that holds realm accounts.
 func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 
-// serviceNeedsAddr: does this role's launch interpolate the host address?
-// Every stack service does (the addresses its document states), and so do
-// the three third-party roles the launcher must reach or configure: the database
-// it waits on, the Ollama it probes, and the identity provider whose
-// KC_DB_URL names the PostgreSQL by address: without it, `start --service
-// identity` builds `jdbc:postgresql://:5432/<database>`.
-func serviceNeedsAddr(svc string) bool {
-	return isConfigConsumer(svc) || svc == "database" || svc == "inference" || svc == "identity"
-}
-
 // digString walks a nested inspect entry for a string leaf.
 func digString(m map[string]any, path ...string) (string, bool) {
 	var cur any = m

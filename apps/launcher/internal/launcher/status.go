@@ -436,6 +436,12 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	// dispatcher and gateway are both down.
 	var readout string
 	readoutFetched := false
+	// Where a service the record holds no endpoint for is asked: where the
+	// recorded stack was published, else loopback.
+	at := exposure{}
+	if st != nil {
+		at = exposure{rt: st.Runtime, addr: st.HostAddr}
+	}
 	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -449,7 +455,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		// No record: the descriptor's static probe, for the driver a stack
 		// that has not recorded itself would be running. A record's endpoint
 		// is sharper — it names the port that start actually used.
-		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil)
+		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil, at)
 		var rec *ServiceState
 		if st != nil {
 			if e, ok := st.Services[svc.name]; ok {

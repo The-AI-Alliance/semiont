@@ -50,10 +50,10 @@ type prober interface {
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool // singular wording in plan mode
 	hostOllamaReachable(addr string, port int) bool
-	waitHTTP(label, container, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts; ends when the container stops
-	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
-	waitPGAccepting(seconds int) bool       // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
-	probeTCP(role string, rp rolePlan) bool // external-role reachability
+	waitHTTP(label, container, url string, seconds int) (time.Duration, bool)      // wall-clock budget, not attempts; ends when the container stops
+	waitTCP(label, pollHost, addr string, port, seconds int) (time.Duration, bool) // polls pollHost from here, then asks addr once from a container's side
+	waitPGAccepting(seconds int) bool                                              // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
+	probeTCP(role string, rp rolePlan) bool                                        // external-role reachability
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
 	otelDetect(addr string) []string // --service: OTel iff the collector is up
@@ -505,8 +505,8 @@ func (x *liveExec) waitHTTP(label, container, url string, seconds int) (time.Dur
 	return waitForContainerHTTP(x.u, x.rt, label, container, url, seconds)
 }
 
-func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration, bool) {
-	return waitForTCP(x.u, x.rt, label, addr, port, seconds)
+func (x *liveExec) waitTCP(label, pollHost, addr string, port, seconds int) (time.Duration, bool) {
+	return waitForTCP(x.u, x.rt, label, pollHost, addr, port, seconds)
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
@@ -601,7 +601,7 @@ func (x *liveExec) either(cond func() bool, then, els func() int) int {
 func (x *liveExec) otelDetect(addr string) []string {
 	// Probe the COLLECTOR — it owns the port services export to. Its :24110
 	// readout is a plain 200 when up; the OTLP receiver rejects GETs.
-	if httpOK("http://localhost:24110/metrics") {
+	if httpOK(fmt.Sprintf("http://%s:24110/metrics", exposure{x.rt, addr}.probeHost("collector", 24110))) {
 		x.u.Log("OTel collector detected — export enabled")
 		return otelArgs(addr)
 	}
@@ -1278,8 +1278,8 @@ func (x *planExec) waitPGAccepting(seconds int) bool {
 	return true
 }
 
-func (x *planExec) waitTCP(_, addr string, port, seconds int) (time.Duration, bool) {
-	x.c("wait: tcp localhost:%d (%ds)", port, seconds)
+func (x *planExec) waitTCP(_, pollHost, addr string, port, seconds int) (time.Duration, bool) {
+	x.c("wait: tcp %s:%d (%ds)", pollHost, port, seconds)
 	x.c("probe: %s run --rm %s nc -z -w 2 %s %d", x.rt, probeImage, addr, port)
 	return 0, true
 }

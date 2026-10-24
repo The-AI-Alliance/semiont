@@ -23,7 +23,7 @@ func TestLauncherProbesWhatTheImageDeclares(t *testing.T) {
 	const root = "../../../.."
 	check := func(role, want string) {
 		t.Helper()
-		if got := healthEndpoint(role, driverSemiont, nil); got != want {
+		if got := healthEndpoint(role, driverSemiont, nil, exposure{}); got != want {
 			t.Errorf("%s: the launcher probes %s, the image declares %s — one of them is wrong and only the image is running",
 				role, got, want)
 		}
