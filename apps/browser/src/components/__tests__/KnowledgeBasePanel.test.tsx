@@ -30,8 +30,9 @@ const translations: Record<string, string> = {
 };
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: any) => {
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (scopedKey: string, params?: Record<string, unknown>) => {
+      const key = options?.keyPrefix ? `${options.keyPrefix}.${scopedKey}` : scopedKey;
       let val = translations[key] ?? key;
       if (params) {
         Object.entries(params).forEach(([k, v]) => {

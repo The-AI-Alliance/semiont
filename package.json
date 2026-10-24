@@ -101,6 +101,7 @@
     "lint:broker-boundary": "node scripts/lint/check-broker-boundary.mjs",
     "lint:staging-boundary": "node scripts/lint/check-staging-boundary.mjs",
     "lint:secure-context-apis": "node scripts/lint/check-secure-context-apis.mjs",
+    "lint:skips-and-any": "node scripts/lint/check-skips-and-any.mjs",
     "lint:event-tags": "node scripts/lint/check-event-tags.mjs",
     "lint:client-surface": "node scripts/lint/check-client-surface.mjs",
     "lint:state-unit-census": "node scripts/lint/check-state-unit-census.mjs",

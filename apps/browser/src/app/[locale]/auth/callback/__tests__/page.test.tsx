@@ -21,8 +21,9 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: Record<string, unknown>) => {
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (scopedKey: string, params?: Record<string, unknown>) => {
+      const key = options?.keyPrefix ? `${options.keyPrefix}.${scopedKey}` : scopedKey;
       if (key === 'KnowledgeBasePanel.connectedToOther') return `Connected to ${params?.actual}, not ${params?.expected}.`;
       if (key === 'KnowledgeBasePanel.identityCheckFailed') return 'Signed in, but the identity check could not reach this knowledge base.';
       if (key === 'KnowledgeBasePanel.identityNotReported') return 'Signed in, but this knowledge base did not report an identity.';

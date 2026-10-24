@@ -7,7 +7,11 @@ import { UserPanel } from '../UserPanel';
 // Mock react-i18next (overrides global setup to allow per-test translation control)
 const mockUseTranslations = vi.fn();
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: mockUseTranslations, i18n: { language: 'en' } }),
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      mockUseTranslations(options?.keyPrefix ? `${options.keyPrefix}.${key}` : key, params),
+    i18n: { language: 'en' },
+  }),
   initReactI18next: { type: '3rdParty', init: vi.fn() },
 }));
 
@@ -110,7 +114,7 @@ describe('UserPanel Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockUseTranslations.mockImplementation((key: string, params?: any) => {
+    mockUseTranslations.mockImplementation((key: string, params?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
         'UserPanel.account': 'Account',
         'UserPanel.user': '[UserPanel.user]',

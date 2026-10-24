@@ -94,21 +94,22 @@ describe('SearchModal — search wiring', () => {
     );
   });
 
-  it('renders results when the Observable emits a non-empty list', async () => {
+  it('renders results, each with its description, when the Observable emits a non-empty list', async () => {
     renderWithProviders(<SearchModal {...defaultProps} />);
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'test' } });
 
     await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([
-      buildResource('res-1', 'Test Document', 'Some content here'),
-      buildResource('res-2', 'Another Result', 'More content'),
+      buildResource('res-1', 'Test Document', 'A document about testing'),
+      buildResource('res-2', 'Another Result'),
     ]);
 
     await waitFor(() => {
       expect(screen.getByText('Test Document')).toBeInTheDocument();
       expect(screen.getByText('Another Result')).toBeInTheDocument();
     }, { timeout: 1500 });
+    expect(screen.getByText('A document about testing')).toBeInTheDocument();
   });
 
   it('shows the no-results message after an empty emission', async () => {

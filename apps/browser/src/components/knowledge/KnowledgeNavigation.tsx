@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { Link } from '@/lib/routing';
-import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import {
   useSemiont,
   useObservable,
@@ -23,8 +23,7 @@ interface KnowledgeNavigationProps {
 }
 
 export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: KnowledgeNavigationProps) {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Sidebar' });
   const pathname = usePathname();
   const router = useRouter();
   const semiont = useSemiont();
@@ -101,8 +100,7 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
           }}
           icons={{
             chevronLeft: ChevronLeftIcon,
-            bars: Bars3Icon,
-            close: XMarkIcon
+            bars: Bars3Icon
           }}
           navigationMenu={navigationMenu}
         />

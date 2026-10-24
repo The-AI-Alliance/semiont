@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { defaultProtocol, isValidHostname, type KbRead, type KbReadVerdict, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { usePathname } from '@/i18n/routing';
@@ -10,7 +11,7 @@ import {
   useKBDiscovery,
 } from '@semiont/react-ui';
 
-type T = (key: string, params?: Record<string, unknown>) => string;
+type T = TFunction<'translation', 'KnowledgeBasePanel'>;
 
 const STATUS_COLORS: Record<KbSessionStatus, string> = {
   authenticated: 'var(--semiont-color-success-500, #22c55e)',
@@ -175,8 +176,7 @@ function ReauthPrompt({ t, onSubmit, onCancel, error, isSubmitting }: {
  */
 export function KnowledgeBasePanel() {
   const pathname = usePathname();
-  const { t: _t, i18n } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: 'KnowledgeBasePanel' });
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;

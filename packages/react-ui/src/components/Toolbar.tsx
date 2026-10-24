@@ -1,17 +1,30 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from '../contexts/TranslationContext';
+import type { Theme } from '../contexts/ThemeContext';
 import { useSemiont } from '../session/SemiontProvider';
+import type { ToolbarPanelType } from '../state/shell-state-unit';
 import './toolbar/Toolbar.css';
 
 type ToolbarContext = 'document' | 'simple';
 
-interface Props<T extends string = string> {
+export interface ToolbarProps<T extends string = string> {
   context: ToolbarContext;
   activePanel: T | null;
 
   // Document context specific
   isArchived?: boolean;
+}
+
+/**
+ * What a page renders the host's panel container with (its `ToolbarPanels`
+ * prop): the open panel, the theme setting, and the page's own panels.
+ */
+export interface ToolbarPanelsProps {
+  activePanel: ToolbarPanelType | null;
+  theme: Theme;
+  children?: ReactNode;
 }
 
 /**
@@ -23,7 +36,7 @@ export function Toolbar<T extends string = string>({
   context,
   activePanel,
   isArchived = false
-}: Props<T>) {
+}: ToolbarProps<T>) {
   const t = useTranslations('Toolbar');
   const semiont = useSemiont();
 

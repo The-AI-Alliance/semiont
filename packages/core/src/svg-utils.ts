@@ -48,10 +48,11 @@ export function createCircleSvg(center: Point, radius: number): string {
 /**
  * Parse SVG selector to extract shape type and data
  */
-export function parseSvgSelector(svg: string): {
-  type: 'rect' | 'polygon' | 'circle' | 'path';
-  data: any;
-} | null {
+export function parseSvgSelector(svg: string):
+  | { type: 'rect'; data: { x: number; y: number; width: number; height: number } }
+  | { type: 'polygon'; data: { points: Point[] } }
+  | { type: 'circle'; data: { cx: number; cy: number; r: number } }
+  | null {
   // Extract rectangle
   const rectMatch = svg.match(/<rect\s+([^>]+)\/>/);
   if (rectMatch && rectMatch[1]) {

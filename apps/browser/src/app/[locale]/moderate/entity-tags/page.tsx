@@ -12,8 +12,7 @@ import { createEntityTagsStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function EntityTagsPageWrapper() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'ModerateEntityTags' });
   const session = useObservable(useSemiont().activeSession$) ?? undefined;
 
   const browseStateUnit = useShellStateUnit();

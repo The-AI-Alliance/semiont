@@ -13,8 +13,7 @@ import { useSemiont, useObservable } from '@semiont/react-ui';
  * gateway has never heard of, so a guaranteed 404.
  */
 export default function KnowledgePage() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Sidebar' });
   const router = useRouter();
   const semiont = useSemiont();
 

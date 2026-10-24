@@ -173,15 +173,13 @@ describe('useDropdown', () => {
 
 ### SearchModal Tests
 
-`SearchModal.keyboard.test.tsx` and `SearchModal.accessibility.test.tsx` render HeadlessUI's real
-`<Dialog>`. They share `__tests__/search-modal-harness.ts` with `SearchModal.search-wiring.test.tsx`:
-one browser for the whole file, because `useSemiont` is called on every render and a browser made
-per render restarts the modal's search pipeline on every keystroke. `search-wiring` and
+`SearchModal.keyboard.test.tsx`, `SearchModal.accessibility.test.tsx` and
+`SearchModal.basic.test.tsx` (the search box) render HeadlessUI's real `<Dialog>`. They share
+`__tests__/search-modal-harness.ts` with `SearchModal.search-wiring.test.tsx`: one browser for the
+whole file, because `useSemiont` is called on every render and a browser made per render restarts
+the modal's search pipeline on every keystroke. `search-wiring` and
 `SearchModal.translations.test.tsx` replace the dialog's parts with plain elements: they are about
 the search and the strings.
-
-`SearchModal.basic.test.tsx` and `SearchModal.visual.test.tsx` are skipped. They render without the
-session provider the modal needs, so they cannot pass as written.
 
 ## Testing Philosophy Summary
 

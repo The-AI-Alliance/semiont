@@ -12,6 +12,7 @@ import {
   LightBulbIcon
 } from '@heroicons/react/24/outline';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
+import { type ToolbarPanelsProps, type ToolbarProps } from '../../../components/Toolbar';
 import type { TagSchema } from '@semiont/sdk';
 export type { TagSchema };
 
@@ -22,7 +23,7 @@ export interface TagSchemasPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
 
   // Translations
   translations: {
@@ -33,11 +34,11 @@ export interface TagSchemasPageProps {
   };
 
   // Component dependencies
-  ToolbarPanels: React.ComponentType<any>;
-  Toolbar: React.ComponentType<any>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
+  Toolbar: React.ComponentType<ToolbarProps<ToolbarPanelType>>;
 }
 
-const domainIcons: Record<string, React.ComponentType<any>> = {
+const domainIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   legal: ScaleIcon,
   scientific: AcademicCapIcon,
   general: LightBulbIcon
@@ -68,7 +69,7 @@ export function TagSchemasPage({
   }
 
   return (
-    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content">
         {/* Page Title */}

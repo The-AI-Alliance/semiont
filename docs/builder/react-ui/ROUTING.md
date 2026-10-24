@@ -10,7 +10,8 @@ import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 ```
 
 **`Link`** is any component that accepts `LinkComponentProps`: `href`, `children`, and
-optionally `className`, `title` and `onClick`. Further props pass through to the host's link.
+optionally `className`, `title`, `onClick`, `aria-label` and `aria-current`. Those are all the
+props a component renders it with; a host's link passes them on to its anchor.
 
 **`routes`** is a `RouteBuilder`, which turns an id into a path:
 

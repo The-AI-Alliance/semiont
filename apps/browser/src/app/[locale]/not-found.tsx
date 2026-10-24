@@ -4,8 +4,7 @@ import { MainContent } from '@semiont/react-ui';
 import { useLocale } from '@/i18n/routing';
 
 export default function NotFound() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`NotFound.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'NotFound' });
   const locale = useLocale();
 
   return (

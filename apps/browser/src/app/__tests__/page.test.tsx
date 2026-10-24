@@ -31,7 +31,12 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key === 'Home.begin' ? 'Begin' : key }),
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (scopedKey: string) => {
+      const key = options?.keyPrefix ? `${options.keyPrefix}.${scopedKey}` : scopedKey;
+      return key === 'Home.begin' ? 'Begin' : key;
+    },
+  }),
 }));
 
 describe('Home Page (Splash)', () => {
