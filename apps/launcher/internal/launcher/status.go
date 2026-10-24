@@ -341,9 +341,10 @@ func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 	}
 	detail := "serves every KB on this machine; discovery-synced"
 	if b != nil && b.Image != "" {
-		if i := strings.LastIndexByte(b.Image, ':'); i > 0 {
-			tag := b.Image[i+1:]
-			detail = "images " + tag + " · " + detail
+		// A verified image is recorded by its digest too; the tag is before it.
+		tagged, _, _ := strings.Cut(b.Image, "@")
+		if i := strings.LastIndexByte(tagged, ':'); i > 0 {
+			detail = "images " + tagged[i+1:] + " · " + detail
 		}
 	}
 	if !healthy && p.State == "" {
