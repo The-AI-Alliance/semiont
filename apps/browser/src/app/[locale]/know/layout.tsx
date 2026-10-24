@@ -24,9 +24,7 @@ function GlobalEventsConnector() {
  * Shows contextual guidance based on whether any KBs exist.
  */
 export function DiscoverEmptyState() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) =>
-    (p !== undefined ? _t(`DiscoverEmptyState.${k}`, p) : _t(`DiscoverEmptyState.${k}`)) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'DiscoverEmptyState' });
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   // Launcher discovery: with zero registered KBs, say what's running on this

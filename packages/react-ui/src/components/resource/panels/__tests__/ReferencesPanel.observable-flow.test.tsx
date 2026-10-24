@@ -18,6 +18,7 @@ import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
 import type { SemiontSession } from '@semiont/sdk';
+import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 import { ReferencesPanel } from '../ReferencesPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 import { useObservable } from '../../../../hooks/useObservable';
@@ -57,7 +58,7 @@ const NINE_TYPES = [
 ];
 
 const MockLink: React.FC<{ href?: string; children?: React.ReactNode }> = ({ children }) => <>{children}</>;
-const mockRoutes = { resourceDetail: (id: string) => `/resource/${id}` } as any;
+const mockRoutes: RouteBuilder = { resourceDetail: (id: string) => `/resource/${id}` };
 
 /**
  * Thin harness: subscribes to a BehaviorSubject via useObservable (the
@@ -80,7 +81,7 @@ function ObservableHarness({ source$, session }: { source$: BehaviorSubject<stri
       pendingAnnotation={{
         motivation: 'linking',
         selector: { type: 'TextQuoteSelector', exact: 'te' },
-      } as any}
+      }}
     />
   );
 }

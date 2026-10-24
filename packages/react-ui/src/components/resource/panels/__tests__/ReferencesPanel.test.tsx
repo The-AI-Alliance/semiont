@@ -4,7 +4,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
-import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
+import type { Annotation, AnnotationId, EventBus, EventMap } from '@semiont/core';
+import type { LinkComponentProps, RouteBuilder } from '../../../../contexts/RoutingContext';
 import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 import { jobId, resourceId } from '@semiont/core';
@@ -12,7 +13,7 @@ import { jobId, resourceId } from '@semiont/core';
 // Composition-based event tracker
 interface TrackedEvent {
   event: string;
-  payload: any;
+  payload: EventMap['mark:submit'];
 }
 
 function createEventTracker() {
@@ -23,7 +24,7 @@ function createEventTracker() {
     _attach(eventBus: EventBus) {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
-        eventBus.on(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload) => {
           events.push({ event: eventName, payload });
         });
       });
@@ -56,7 +57,7 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
-  useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
+  useTranslations: vi.fn(() => (key: string, params?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       annotateReferences: 'Annotate References',
       selectEntityTypes: 'Select entity types',
@@ -89,14 +90,14 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 
 describe('ReferencesPanel Component', () => {
   // Mock Link component
-  const MockLink = ({ href, children, ...props }: any) => (
+  const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
     <a href={href} {...props}>{children}</a>
   );
 
   // Mock routes
-  const mockRoutes = {
+  const mockRoutes: RouteBuilder = {
     resourceDetail: (id: string) => `/resources/${id}`,
-  } as any;
+  };
 
   const defaultProps = {
     resourceId: resourceId('res-1'),
@@ -870,7 +871,8 @@ describe('ReferencesPanel Component', () => {
           <ReferencesPanel
             {...panelProps()}
             isDelegating={false}
-            progress={undefined as any}
+            // @ts-expect-error — progress is JobProgress or null; this holds that undefined does not throw
+            progress={undefined}
           />
         );
       }).not.toThrow();

@@ -5,7 +5,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
-import type { EventBus } from '@semiont/core';
+import type { EventBus, EventMap } from '@semiont/core';
+import type { AssessmentEntry } from '../AssessmentEntry';
+import type { DelegateSection } from '../DelegateSection';
 import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -14,7 +16,7 @@ import type { Annotation, AnnotationId } from '@semiont/core';
 // Composition-based event tracker
 interface TrackedEvent {
   event: string;
-  payload: any;
+  payload: EventMap['mark:submit'];
 }
 
 function createEventTracker() {
@@ -25,7 +27,7 @@ function createEventTracker() {
     _attach(eventBus: EventBus) {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
-        eventBus.on(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload) => {
           events.push({ event: eventName, payload });
         });
       });
@@ -78,7 +80,7 @@ vi.mock('@semiont/core', async () => {
 
 // Mock AssessmentEntry component to simplify testing
 vi.mock('../AssessmentEntry', () => ({
-  AssessmentEntry: ({ assessment }: any) => (
+  AssessmentEntry: ({ assessment }: React.ComponentProps<typeof AssessmentEntry>) => (
     <div data-testid={`assessment-${assessment.id}`}>
       <div>{assessment.id}</div>
     </div>
@@ -87,7 +89,7 @@ vi.mock('../AssessmentEntry', () => ({
 
 // Mock DelegateSection component — just render a simplified version.
 vi.mock('../DelegateSection', () => ({
-  DelegateSection: ({ isDelegating }: any) => (
+  DelegateSection: ({ isDelegating }: React.ComponentProps<typeof DelegateSection>) => (
     <div data-testid="detect-section">
       <button>Start Detection</button>
       {isDelegating && <div>Detecting...</div>}
@@ -166,9 +168,9 @@ describe('AssessmentPanel Component', () => {
     Element.prototype.scrollIntoView = vi.fn();
 
     // Mock selector functions to return proper position data
-    mockGetTargetSelector.mockImplementation((target: any) => target.selector);
-    mockGetTextPositionSelector.mockImplementation((selector: any) => {
-      if (selector?.type === 'TextPositionSelector') {
+    mockGetTargetSelector.mockImplementation((target) => (typeof target === 'string' ? undefined : target.selector));
+    mockGetTextPositionSelector.mockImplementation((selector) => {
+      if (selector !== undefined && !Array.isArray(selector) && selector.type === 'TextPositionSelector') {
         return selector;
       }
       return null;
@@ -362,8 +364,11 @@ describe('AssessmentPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
-          e.payload?.motivation === 'assessing' &&
-          e.payload?.body?.value === 'My assessment'
+          e.payload.motivation === 'assessing' &&
+          e.payload.body !== undefined &&
+          !Array.isArray(e.payload.body) &&
+          e.payload.body.type === 'TextualBody' &&
+          e.payload.body.value === 'My assessment'
         )).toBe(true);
       });
     });

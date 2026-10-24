@@ -13,6 +13,7 @@ import type { SupportedMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData } from '../state/compose-page-state-unit';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
+import { type ToolbarPanelsProps, type ToolbarProps } from '../../../components/Toolbar';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
@@ -55,7 +56,7 @@ export interface ResourceComposePageProps {
   // UI state
   theme: 'light' | 'dark';
   hoverDelayMs: number;
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
 
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
@@ -100,8 +101,8 @@ export interface ResourceComposePageProps {
   };
 
   // Component dependencies
-  ToolbarPanels: React.ComponentType<any>;
-  Toolbar: React.ComponentType<any>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
+  Toolbar: React.ComponentType<ToolbarProps<ToolbarPanelType>>;
 }
 
 export interface SaveResourceParams {
@@ -284,7 +285,7 @@ export function ResourceComposePage({
   const isClone = mode === 'clone';
 
   return (
-    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content semiont-page__compose">
         {/* Page Title */}

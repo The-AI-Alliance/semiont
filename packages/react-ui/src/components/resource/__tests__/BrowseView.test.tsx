@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
-import type { EventBus } from '@semiont/core';
+import type { EventBus, EventMap } from '@semiont/core';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 
@@ -80,10 +80,10 @@ vi.mock('../../annotation/AnnotateToolbar', () => ({
 }));
 
 // Composition-based event tracker - subscribes to events like a real component
-interface TrackedEvent {
-  event: string;
-  payload: any;
-}
+type TrackedChannel = 'beckon:hover' | 'browse:click' | 'beckon:focus';
+
+/** One emit the tracker saw: its channel, and that channel's payload. */
+type TrackedEvent = { [K in TrackedChannel]: { event: K; payload: EventMap[K] } }[TrackedChannel];
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
@@ -96,16 +96,18 @@ function createEventTracker() {
       subscriptions.clear();
     },
     _attach(eventBus: EventBus) {
-      const annotationEvents = [
-        'beckon:hover',
-        'browse:click',
-        'beckon:focus',
-      ] as const;
-      annotationEvents.forEach((eventName) => {
-        subscriptions.add(eventName);
-        eventBus.on(eventName).subscribe((payload: any) => {
-          events.push({ event: eventName, payload });
-        });
+      // One subscription per channel, so each push pairs a channel with its own payload.
+      subscriptions.add('beckon:hover');
+      eventBus.on('beckon:hover').subscribe((payload) => {
+        events.push({ event: 'beckon:hover', payload });
+      });
+      subscriptions.add('browse:click');
+      eventBus.on('browse:click').subscribe((payload) => {
+        events.push({ event: 'browse:click', payload });
+      });
+      subscriptions.add('beckon:focus');
+      eventBus.on('beckon:focus').subscribe((payload) => {
+        events.push({ event: 'beckon:focus', payload });
       });
     },
   };
@@ -272,7 +274,7 @@ describe('BrowseView Component', () => {
       // Mock closest to return our annotation element
       const mockTarget = {
         closest: vi.fn(() => mockAnnotationElement),
-      } as any;
+      };
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -302,7 +304,7 @@ describe('BrowseView Component', () => {
 
       const mockAnnotationElement = document.createElement('span');
       mockAnnotationElement.setAttribute('data-annotation-id', 'ref-1');
-      const mockTarget = { closest: vi.fn(() => mockAnnotationElement) } as any;
+      const mockTarget = { closest: vi.fn(() => mockAnnotationElement) };
 
       // Enter and let dwell timer fire
       fireEvent.mouseOver(browseContainer!, { target: mockTarget });
@@ -326,7 +328,7 @@ describe('BrowseView Component', () => {
 
       const mockTargetNoAnnotation = {
         closest: vi.fn(() => null),
-      } as any;
+      };
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -361,8 +363,8 @@ describe('BrowseView Component', () => {
       const mockAnnotation2 = document.createElement('span');
       mockAnnotation2.setAttribute('data-annotation-id', 'ref-2');
 
-      const mockTarget1 = { closest: vi.fn(() => mockAnnotation1) } as any;
-      const mockTarget2 = { closest: vi.fn(() => mockAnnotation2) } as any;
+      const mockTarget1 = { closest: vi.fn(() => mockAnnotation1) };
+      const mockTarget2 = { closest: vi.fn(() => mockAnnotation2) };
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -569,10 +571,10 @@ describe('BrowseView Component', () => {
       };
 
       const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
-      eventBus.on('beckon:hover').subscribe((payload: any) => {
+      eventBus.on('beckon:hover').subscribe((payload) => {
         eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
       });
-      eventBus.on('browse:click').subscribe((payload: any) => {
+      eventBus.on('browse:click').subscribe((payload) => {
         eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
       });
 
@@ -594,8 +596,8 @@ describe('BrowseView Component', () => {
       mockHighlightElement.setAttribute('data-annotation-id', 'highlight-1');
       mockHighlightElement.setAttribute('data-annotation-type', 'highlight');
 
-      const mockRefTarget = { closest: vi.fn(() => mockRefElement) } as any;
-      const mockHighlightTarget = { closest: vi.fn(() => mockHighlightElement) } as any;
+      const mockRefTarget = { closest: vi.fn(() => mockRefElement) };
+      const mockHighlightTarget = { closest: vi.fn(() => mockHighlightElement) };
 
       // Verify event delegation works by simulating interactions
       fireEvent.mouseOver(browseContainer!, { target: mockRefTarget });

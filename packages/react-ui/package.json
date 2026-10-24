@@ -22,16 +22,6 @@
     "./styles": "./src/styles/index.css",
     "./styles/index.css": "./src/styles/index.css",
     "./styles/variables.css": "./src/styles/variables.css",
-    "./integrations/css-modules": {
-      "types": "./dist/integrations/css-modules-helper.d.ts",
-      "import": "./dist/integrations/css-modules-helper.js",
-      "default": "./dist/integrations/css-modules-helper.js"
-    },
-    "./integrations/styled-components": {
-      "types": "./dist/integrations/styled-components-theme.d.ts",
-      "import": "./dist/integrations/styled-components-theme.js",
-      "default": "./dist/integrations/styled-components-theme.js"
-    },
     "./translations/*": "./translations/*.json"
   },
   "files": [
@@ -40,7 +30,6 @@
     "src/styles",
     "src/components",
     "src/features",
-    "src/integrations",
     "src/examples",
     "translations",
     "public",
@@ -65,9 +54,8 @@
     "test:components:modals:basic": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.basic.test.tsx",
     "test:components:modals:keyboard": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.keyboard.test.tsx",
     "test:components:modals:accessibility": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.accessibility.test.tsx",
-    "test:components:modals:visual": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.visual.test.tsx",
     "test:components:modals:auth": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SessionEndedModal.test.tsx src/components/modals/__tests__/PermissionDeniedModal.test.tsx",
-    "test:components:modals": "npm run test:components:modals:basic && npm run test:components:modals:keyboard && npm run test:components:modals:accessibility && npm run test:components:modals:visual && npm run test:components:modals:auth",
+    "test:components:modals": "npm run test:components:modals:basic && npm run test:components:modals:keyboard && npm run test:components:modals:accessibility && npm run test:components:modals:auth",
     "test:components:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
     "test:features": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/features",
     "test:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/contexts src/hooks src/lib src/assets",
@@ -81,13 +69,9 @@
   "peerDependencies": {
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "styled-components": "^6.0.0",
     "vitest": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
-    "styled-components": {
-      "optional": true
-    },
     "vitest": {
       "optional": true
     }
@@ -108,7 +92,6 @@
     "postcss-import": "^17.0.1",
     "rollup": "^4.64.10",
     "rollup-plugin-dts": "^6.4.1",
-    "styled-components": "^6.6.0",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
     "vitest": "^5.0.2"

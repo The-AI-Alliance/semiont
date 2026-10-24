@@ -7,7 +7,7 @@ export interface CreateAnnotationParams {
   rUri: ResourceId;
   motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging';
   selector: Selector | Selector[];
-  body?: any[];
+  body?: Annotation['body'];
 }
 
 /**

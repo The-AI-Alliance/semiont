@@ -14,7 +14,6 @@ export interface SortableResourceTabProps {
   index?: number;
   totalCount?: number;
   Link: ComponentType<LinkComponentProps>;
-  dragHandleProps?: any;
   isDragging?: boolean;
   translations: {
     dragToReorder?: string;
@@ -33,7 +32,7 @@ export interface CollapsibleResourceNavigationProps {
   fixedItems: Array<{
     name: string;
     href: string;
-    icon: ComponentType<any>;
+    icon: ComponentType<{ className?: string }>;
     description?: string;
   }>;
 
@@ -67,9 +66,8 @@ export interface CollapsibleResourceNavigationProps {
 
   // Icons (to avoid platform-specific imports)
   icons: {
-    chevronLeft: ComponentType<any>;
-    bars: ComponentType<any>;
-    close: ComponentType<any>;
+    chevronLeft: ComponentType<{ className?: string }>;
+    bars: ComponentType<{ className?: string }>;
   };
 
   // Optional dropdown menu for header

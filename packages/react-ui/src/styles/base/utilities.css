@@ -1,46 +1,13 @@
 /**
  * Utility Classes
  *
- * Text alignment, weight and size utilities, and the screen-reader-only class
+ * The two text sizes markup renders, and the screen-reader-only class
  * These are semantic utilities, not Tailwind-style atomics
  */
 
 /* ============================================
    Text Utilities
    ============================================ */
-
-.semiont-text-left {
-  text-align: left;
-}
-
-.semiont-text-center {
-  text-align: center;
-}
-
-.semiont-text-right {
-  text-align: right;
-}
-
-.semiont-text-justify {
-  text-align: justify;
-}
-
-/* Font Weights */
-.semiont-font-normal {
-  font-weight: 400;
-}
-
-.semiont-font-medium {
-  font-weight: 500;
-}
-
-.semiont-font-semibold {
-  font-weight: 600;
-}
-
-.semiont-font-bold {
-  font-weight: 700;
-}
 
 /* Font Sizes */
 .semiont-text-xs {
@@ -49,26 +16,6 @@
 
 .semiont-text-sm {
   font-size: var(--semiont-text-sm);
-}
-
-.semiont-text-base {
-  font-size: var(--semiont-text-base);
-}
-
-.semiont-text-lg {
-  font-size: var(--semiont-text-lg);
-}
-
-.semiont-text-xl {
-  font-size: var(--semiont-text-xl);
-}
-
-.semiont-text-2xl {
-  font-size: var(--semiont-text-2xl);
-}
-
-.semiont-text-3xl {
-  font-size: var(--semiont-text-3xl);
 }
 
 /* ============================================

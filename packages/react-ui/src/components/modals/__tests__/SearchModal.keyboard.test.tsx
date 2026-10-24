@@ -1,12 +1,12 @@
 /**
  * SearchModal from the keyboard: the arrow keys move one selection through
- * the results and wrap at either end, Enter opens the selected result, and
- * Escape closes the modal. The real HeadlessUI Dialog is rendered: Escape is
+ * the results and wrap at either end, the selected result alone shows the
+ * Enter key, Enter opens it, and Escape closes the modal. The real HeadlessUI Dialog is rendered: Escape is
  * its behaviour, not the modal's own.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from '../../../test-utils';
 import { SearchModal } from '../SearchModal';
 import {
@@ -111,6 +111,18 @@ describe('SearchModal — keyboard', () => {
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('shows the Enter key on the selected result only, and moves it with the selection', async () => {
+    const { input } = await openWith('First', 'Second');
+
+    expect(screen.getAllByText(searchTranslations.enter)).toHaveLength(1);
+    expect(within(row('First')).getByText(searchTranslations.enter)).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(screen.getAllByText(searchTranslations.enter)).toHaveLength(1);
+    expect(within(row('Second')).getByText(searchTranslations.enter)).toBeInTheDocument();
   });
 
   it('moves the same selection with the pointer as with the keys', async () => {

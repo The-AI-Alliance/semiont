@@ -10,24 +10,20 @@ expect.extend(matchers);
 expect.extend(toHaveNoViolations);
 
 // Mock DOMMatrix for PDF.js in test environment
-if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
-  (globalThis as any).DOMMatrix = class DOMMatrix {
-    constructor() {
+if (!('DOMMatrix' in globalThis)) {
+  Object.defineProperty(globalThis, 'DOMMatrix', {
+    configurable: true,
+    writable: true,
+    value: class DOMMatrix {
       // Minimal implementation for PDF.js compatibility
-      this.a = 1;
-      this.b = 0;
-      this.c = 0;
-      this.d = 1;
-      this.e = 0;
-      this.f = 0;
-    }
-    a: number;
-    b: number;
-    c: number;
-    d: number;
-    e: number;
-    f: number;
-  };
+      a = 1;
+      b = 0;
+      c = 0;
+      d = 1;
+      e = 0;
+      f = 0;
+    },
+  });
 }
 
 // jsdom does not implement Element.prototype.scrollIntoView AT ALL — the
@@ -36,26 +32,22 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
 // directly, which nothing restores: the clobbered method then leaks to every
 // later test in the file. Defining a no-op here gives `vi.spyOn` something to
 // attach to, so those tests are ordinary restorable spies.
-if (typeof globalThis !== 'undefined' && (globalThis as any).Element) {
-  const ElementCtor = (globalThis as any).Element;
-  if (typeof ElementCtor.prototype.scrollIntoView !== 'function') {
-    Object.defineProperty(ElementCtor.prototype, 'scrollIntoView', {
-      configurable: true,
-      writable: true,
-      value: function scrollIntoView(): void {},
-    });
-  }
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value: function scrollIntoView(): void {},
+  });
 }
 
 // Polyfill for HTMLElement.focus to fix @headlessui/react Dialog focus issues in jsdom
 // jsdom's focus is read-only and doesn't properly set document.activeElement
-if (typeof globalThis !== 'undefined' && (globalThis as any).HTMLElement) {
-  const HTMLElementCtor = (globalThis as any).HTMLElement;
-  const descriptor = Object.getOwnPropertyDescriptor(HTMLElementCtor.prototype, 'focus');
+if (typeof HTMLElement !== 'undefined') {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'focus');
 
   if (descriptor && !descriptor.writable) {
     // Redefine focus as a writable method that properly sets activeElement
-    Object.defineProperty(HTMLElementCtor.prototype, 'focus', {
+    Object.defineProperty(HTMLElement.prototype, 'focus', {
       configurable: true,
       writable: true,
       value: function (this: HTMLElement) {

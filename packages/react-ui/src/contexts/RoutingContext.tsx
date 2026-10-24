@@ -15,7 +15,8 @@ export interface LinkComponentProps {
   className?: string;
   title?: string;
   onClick?: (e: React.MouseEvent) => void;
-  [key: string]: any; // Allow additional props for framework-specific links
+  'aria-label'?: string;
+  'aria-current'?: 'page';
 }
 
 /**

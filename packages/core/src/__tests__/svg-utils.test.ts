@@ -62,9 +62,7 @@ describe('parseSvgSelector', () => {
   test('parses polygon', () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg"><polygon points="0,0 100,0 50,100"/></svg>';
     const result = parseSvgSelector(svg);
-    expect(result?.type).toBe('polygon');
-    expect(result?.data.points).toHaveLength(3);
-    expect(result?.data.points[0]).toEqual({ x: 0, y: 0 });
+    expect(result).toEqual({ type: 'polygon', data: { points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }] } });
   });
 
   test('parses circle', () => {
@@ -84,29 +82,21 @@ describe('scaleSvgToNative', () => {
     const svg = createRectangleSvg({ x: 10, y: 20 }, { x: 50, y: 60 });
     const scaled = scaleSvgToNative(svg, 100, 100, 200, 200);
     const parsed = parseSvgSelector(scaled);
-    expect(parsed?.type).toBe('rect');
-    expect(parsed?.data.x).toBe(20);
-    expect(parsed?.data.y).toBe(40);
-    expect(parsed?.data.width).toBe(80);
-    expect(parsed?.data.height).toBe(80);
+    expect(parsed).toEqual({ type: 'rect', data: { x: 20, y: 40, width: 80, height: 80 } });
   });
 
   test('scales circle SVG', () => {
     const svg = createCircleSvg({ x: 50, y: 50 }, 10);
     const scaled = scaleSvgToNative(svg, 100, 100, 200, 200);
     const parsed = parseSvgSelector(scaled);
-    expect(parsed?.type).toBe('circle');
-    expect(parsed?.data.cx).toBe(100);
-    expect(parsed?.data.cy).toBe(100);
-    expect(parsed?.data.r).toBe(20);
+    expect(parsed).toEqual({ type: 'circle', data: { cx: 100, cy: 100, r: 20 } });
   });
 
   test('scales polygon SVG', () => {
     const svg = createPolygonSvg([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }]);
     const scaled = scaleSvgToNative(svg, 100, 100, 200, 200);
     const parsed = parseSvgSelector(scaled);
-    expect(parsed?.type).toBe('polygon');
-    expect(parsed?.data.points[1]).toEqual({ x: 200, y: 0 });
+    expect(parsed).toEqual({ type: 'polygon', data: { points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 100, y: 200 }] } });
   });
 
   test('returns original for unparseable SVG', () => {

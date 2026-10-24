@@ -194,12 +194,9 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       const ours = annotations.filter((a) => {
         if (a.motivation !== 'tagging') return false;
         const bodies = Array.isArray(a.body) ? a.body : a.body ? [a.body] : [];
-        return bodies.some(
-          (b: any) =>
-            b?.type === 'TextualBody' &&
-            b?.purpose === 'classifying' &&
-            b?.value === E2E_TAG_SCHEMA.id,
-        );
+        return bodies
+          .filter((b) => b.type === 'TextualBody')
+          .some((b) => b.purpose === 'classifying' && b.value === E2E_TAG_SCHEMA.id);
       });
       expect(
         ours.length,
@@ -213,21 +210,18 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // that the worker pipeline used the embedded schema.
       const ann = ours[0]!;
       const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
-      const classifyingBody = bodies.find(
-        (b: any) => b?.type === 'TextualBody' && b?.purpose === 'classifying',
-      );
-      const taggingBody = bodies.find(
-        (b: any) => b?.type === 'TextualBody' && b?.purpose === 'tagging',
-      );
+      const textualBodies = bodies.filter((b) => b.type === 'TextualBody');
+      const classifyingBody = textualBodies.find((b) => b.purpose === 'classifying');
+      const taggingBody = textualBodies.find((b) => b.purpose === 'tagging');
 
       expect(classifyingBody, 'tagging annotation must carry a classifying body').toBeDefined();
-      expect((classifyingBody as any).value).toBe(E2E_TAG_SCHEMA.id);
+      expect(classifyingBody?.value).toBe(E2E_TAG_SCHEMA.id);
 
       expect(taggingBody, 'tagging annotation must carry a tagging body').toBeDefined();
       expect(
         E2E_TAG_SCHEMA.tags.map((t) => t.name),
         'tagging body value must be one of the registered category names',
-      ).toContain((taggingBody as any).value);
+      ).toContain(taggingBody?.value);
     } finally {
       opened.dispose();
     }

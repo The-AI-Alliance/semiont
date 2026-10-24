@@ -4,16 +4,40 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import type { SortableResourceTabProps } from '../../../types/collapsible-navigation';
 import type { LinkComponentProps } from '../../../contexts/RoutingContext';
+import type { Transform } from '@dnd-kit/utilities';
 
 // Mock @dnd-kit/sortable
 const mockSetNodeRef = vi.fn();
-const mockSortableReturn = {
-  attributes: { role: 'button', tabIndex: 0 },
-  listeners: {},
-  setNodeRef: mockSetNodeRef,
-  transform: null,
-  transition: null,
+/** What `useSortable` returns for a tab that nothing is dragging. */
+const mockSortableReturn: ReturnType<typeof useSortable> = {
+  active: null,
+  activeIndex: -1,
+  attributes: {
+    role: 'button',
+    tabIndex: 0,
+    'aria-disabled': false,
+    'aria-pressed': undefined,
+    'aria-roledescription': 'sortable',
+    'aria-describedby': '',
+  },
+  data: { sortable: { containerId: 'tabs', items: [], index: 0 } },
+  rect: { current: null },
+  index: 0,
+  newIndex: 0,
+  items: [],
+  isOver: false,
+  isSorting: false,
   isDragging: false,
+  listeners: {},
+  node: { current: null },
+  overIndex: -1,
+  over: null,
+  setNodeRef: mockSetNodeRef,
+  setActivatorNodeRef: vi.fn(),
+  setDroppableNodeRef: vi.fn(),
+  setDraggableNodeRef: vi.fn(),
+  transform: null,
+  transition: undefined,
 };
 
 vi.mock('@dnd-kit/sortable', () => ({
@@ -23,7 +47,7 @@ vi.mock('@dnd-kit/sortable', () => ({
 vi.mock('@dnd-kit/utilities', () => ({
   CSS: {
     Transform: {
-      toString: vi.fn((transform: any) => (transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined)),
+      toString: vi.fn((transform: Transform | null) => (transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined)),
     },
   },
 }));
@@ -66,7 +90,7 @@ describe('SortableResourceTab', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useSortable).mockReturnValue(mockSortableReturn as any);
+    vi.mocked(useSortable).mockReturnValue(mockSortableReturn);
   });
 
   describe('Rendering', () => {
@@ -165,7 +189,7 @@ describe('SortableResourceTab', () => {
       vi.mocked(useSortable).mockReturnValue({
         ...mockSortableReturn,
         isDragging: true,
-      } as any);
+      });
 
       const { container } = renderWithProviders(
         <SortableResourceTab {...defaultProps} />

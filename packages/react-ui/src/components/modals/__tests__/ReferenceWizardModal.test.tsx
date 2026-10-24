@@ -23,6 +23,7 @@ import '@testing-library/jest-dom';
 import type { GatheredContext } from '@semiont/core';
 import { renderWithProviders } from '../../../test-utils';
 import { ReferenceWizardModal } from '../ReferenceWizardModal';
+import type { CodeMirrorRenderer } from '../../CodeMirrorRenderer';
 import { annotationId, resourceId } from '@semiont/core';
 
 // jsdom implements no layout, so it has no `scrollIntoView`. GatherContextStep
@@ -71,7 +72,7 @@ const T = {
 
 // ComposeStep embeds the editor; same mock the page's own tests use.
 vi.mock('../../CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+  CodeMirrorRenderer: ({ content, onChange, editable }: React.ComponentProps<typeof CodeMirrorRenderer>) => (
     <textarea
       data-testid="code-editor"
       value={content}

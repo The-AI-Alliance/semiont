@@ -21,6 +21,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
+import type { LinkComponentProps } from '@semiont/react-ui';
 
 let mockedParamsId: string | undefined = 'A';
 
@@ -44,7 +45,7 @@ vi.mock('@/i18n/routing', () => ({
   }),
 }));
 vi.mock('@/lib/routing', () => ({
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+  Link: ({ children, ...props }: LinkComponentProps) => <a {...props}>{children}</a>,
   routes: {},
 }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
@@ -77,7 +78,7 @@ const harness = vi.hoisted(() => {
     kb: { id: kbId, label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' },
     streamState$: new BehaviorSubject('initial'),
   });
-  const session$ = new BehaviorSubject<any>(makeSession('c1'));
+  const session$ = new BehaviorSubject<ReturnType<typeof makeSession> | null>(makeSession('c1'));
   return { session$, makeSession, browser: { activeSession$: session$ } };
 });
 
@@ -89,7 +90,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => harness.browser,
-    createResourceLoaderStateUnit: (session: any, rId: string) => {
+    createResourceLoaderStateUnit: (session: ReturnType<typeof harness.makeSession> | null, rId: string) => {
       vmFactoryCalls.push(rId);
       vmFactoryClients.push(session?.client?.tag ?? 'none');
       // Real rxjs rather than hand-rolled subscribe stubs: correctly typed,

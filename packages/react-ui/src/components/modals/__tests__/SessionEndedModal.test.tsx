@@ -20,13 +20,7 @@ import { SessionEndedModal } from '../SessionEndedModal';
 import en from '../../../../translations/en.json';
 import ja from '../../../../translations/ja.json';
 
-vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-  Transition: ({ show, children }: any) => show ? <>{children}</> : null,
-  TransitionChild: ({ children }: any) => <>{children}</>,
-}));
+vi.mock('@headlessui/react', () => import('../../../__tests__/plain-headlessui'));
 
 const english = createMockTranslationManager(en);
 const japanese = createMockTranslationManager(ja);

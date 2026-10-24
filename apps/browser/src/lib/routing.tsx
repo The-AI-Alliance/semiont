@@ -12,8 +12,7 @@ import type { RouteBuilder, LinkComponentProps } from '@semiont/react-ui';
  * react-ui components pass `href`; React Router's link takes `to`.
  *
  * A plain component, not `forwardRef`: no react-ui component hands its `Link`
- * a ref, and `forwardRef` wraps the props in `Omit<…, 'ref'>`, which over
- * `LinkComponentProps`'s index signature drops `href` and `children`.
+ * a ref.
  */
 export function Link({ href, ...props }: LinkComponentProps) {
   return <LocaleLink to={href} {...props} />;

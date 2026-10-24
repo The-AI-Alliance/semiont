@@ -12,6 +12,7 @@ import {
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
+import { type ToolbarPanelsProps, type ToolbarProps } from '../../../components/Toolbar';
 export interface EntityTagsPageProps {
   // Data props
   entityTypes: string[];
@@ -28,7 +29,7 @@ export interface EntityTagsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
 
   // Translations
   translations: {
@@ -42,8 +43,8 @@ export interface EntityTagsPageProps {
   };
 
   // Component dependencies
-  ToolbarPanels: React.ComponentType<any>;
-  Toolbar: React.ComponentType<any>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
+  Toolbar: React.ComponentType<ToolbarProps<ToolbarPanelType>>;
 }
 
 export function EntityTagsPage({
@@ -67,7 +68,7 @@ export function EntityTagsPage({
   };
 
   return (
-    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content">
         {/* Page Title */}

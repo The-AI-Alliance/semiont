@@ -12,12 +12,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { ComponentProps } from 'react';
 import { ComposeStep, type ComposeDraft } from '../ComposeStep';
+import type { CodeMirrorRenderer } from '../../CodeMirrorRenderer';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies (same mock the
 // compose page's own tests use).
 vi.mock('../../CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+  CodeMirrorRenderer: ({ content, onChange, editable }: ComponentProps<typeof CodeMirrorRenderer>) => (
     <textarea
       data-testid="code-editor"
       value={content}

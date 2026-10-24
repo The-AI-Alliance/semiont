@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
-import type { EventBus, ResourceDescriptor } from '@semiont/core';
+import type { EventBus, EventMap, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { jobId, resourceId as makeResourceId } from '@semiont/core';
 import type { CacheObservable, CacheState, SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
@@ -58,10 +58,9 @@ vi.mock('@/lib/button-styles', () => ({
 }));
 
 // Composition-based event tracker
-interface TrackedEvent {
-  event: string;
-  payload: any;
-}
+type TrackedEvent =
+  | { event: 'yield:clone'; payload: EventMap['yield:clone'] }
+  | { event: 'mark:archive' | 'mark:unarchive'; payload: { resourceId: ResourceId } };
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
@@ -70,18 +69,18 @@ function createEventTracker() {
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus, client: SemiontClient) {
       // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
-      eventBus.on('yield:clone').subscribe((payload: any) => {
+      eventBus.on('yield:clone').subscribe((payload) => {
         events.push({ event: 'yield:clone', payload });
       });
       // `mark:archive` / `mark:unarchive` are gateway-routed via `actor.emit`;
       // spy on the namespace methods instead of subscribing to a local bus.
       const origArchive = client.mark.archive.bind(client.mark);
       const origUnarchive = client.mark.unarchive.bind(client.mark);
-      client.mark.archive = vi.fn(async (rid: any) => {
+      client.mark.archive = vi.fn(async (rid: ResourceId) => {
         events.push({ event: 'mark:archive', payload: { resourceId: rid } });
         return origArchive(rid);
       }) as typeof client.mark.archive;
-      client.mark.unarchive = vi.fn(async (rid: any) => {
+      client.mark.unarchive = vi.fn(async (rid: ResourceId) => {
         events.push({ event: 'mark:unarchive', payload: { resourceId: rid } });
         return origUnarchive(rid);
       }) as typeof client.mark.unarchive;

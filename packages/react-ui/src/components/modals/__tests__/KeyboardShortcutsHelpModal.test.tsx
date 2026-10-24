@@ -4,14 +4,8 @@ import { renderInEnglish, renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { KeyboardShortcutsHelpModal } from '../KeyboardShortcutsHelpModal';
 
-// Mock HeadlessUI to avoid jsdom OOM issues
-vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, onClose, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-  Transition: ({ show, children }: any) => show ? <>{children}</> : null,
-  TransitionChild: ({ children }: any) => <>{children}</>,
-}));
+// HeadlessUI's dialog as plain elements: this suite is about what is rendered inside it
+vi.mock('@headlessui/react', () => import('../../../__tests__/plain-headlessui'));
 
 describe('KeyboardShortcutsHelpModal', () => {
   const defaultProps = {

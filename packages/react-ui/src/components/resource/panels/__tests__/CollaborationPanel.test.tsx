@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { Collaborator } from '@semiont/core';
 import { CollaborationPanel } from '../CollaborationPanel';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
-  useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
+  useTranslations: vi.fn(() => (key: string, params?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       connectionStatus: 'Connection Status',
       live: 'Live',
@@ -62,7 +63,7 @@ describe('CollaborationPanel Component', () => {
   // quietly — the field is absent whenever discovery could not answer
   // *right now*.
   describe('Collaborators roster', () => {
-    const softwareEntry = (over: Record<string, unknown> = {}) => ({
+    const softwareEntry = (over: Partial<Collaborator> = {}): Collaborator => ({
       agent: {
         '@type': 'Software' as const,
         '@id': 'did:web:localhost:agents:anthropic:claude-sonnet-5',
@@ -76,7 +77,7 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('renders one row per software agent with provider, model and ceilings', () => {
-      render(<CollaborationPanel {...defaultProps} collaborators={[softwareEntry() as any]} />);
+      render(<CollaborationPanel {...defaultProps} collaborators={[softwareEntry()]} />);
 
       expect(screen.getByText('Collaborators')).toBeInTheDocument();
       const row = screen.getByTestId('semiont-collaborator-row');
@@ -99,7 +100,7 @@ describe('CollaborationPanel Component', () => {
         },
         limits: { contextTokens: 128_000, maxOutputTokens: 128_000 },
       });
-      render(<CollaborationPanel {...defaultProps} collaborators={[shared as any]} />);
+      render(<CollaborationPanel {...defaultProps} collaborators={[shared]} />);
 
       const row = screen.getByTestId('semiont-collaborator-row');
       expect(row.textContent).toContain('128K window');
@@ -108,8 +109,8 @@ describe('CollaborationPanel Component', () => {
 
     it('renders the row without ceilings when limits are absent', () => {
       const noLimits = softwareEntry();
-      delete (noLimits as Record<string, unknown>).limits;
-      render(<CollaborationPanel {...defaultProps} collaborators={[noLimits as any]} />);
+      delete noLimits.limits;
+      render(<CollaborationPanel {...defaultProps} collaborators={[noLimits]} />);
 
       const row = screen.getByTestId('semiont-collaborator-row');
       expect(row.textContent).toContain('claude-sonnet-5');
@@ -127,11 +128,11 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('lists only software agents — Persons are not inference collaborators', () => {
-      const person = { agent: { '@type': 'Person' as const, name: 'Ada' } };
+      const person: Collaborator = { agent: { '@type': 'Person', name: 'Ada' } };
       render(
         <CollaborationPanel
           {...defaultProps}
-          collaborators={[softwareEntry() as any, person as any]}
+          collaborators={[softwareEntry(), person]}
         />,
       );
 

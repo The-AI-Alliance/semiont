@@ -23,7 +23,7 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/react-ui';
+import type { BrowseMediaRenderers, AnnotateMediaRenderers, ToolbarPanelsProps } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
 import { JobCancelledError } from '@semiont/sdk';
 import { useResourceContent } from '../../../hooks/useResourceContent';
@@ -97,7 +97,7 @@ export interface ResourceViewerPageProps {
   /**
    * Component dependencies - passed from framework layer
    */
-  ToolbarPanels: React.ComponentType<any>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
 
   /**
    * Callback to refetch document from parent
@@ -625,11 +625,6 @@ export function ResourceViewerPage({
           <ToolbarPanels
             activePanel={activePanel}
             theme={theme}
-            width={
-              activePanel === 'jsonld' ? 'w-[600px]' :
-              activePanel === 'annotations' ? 'w-[400px]' :
-              'w-64'
-            }
           >
             {/* Archived Status */}
             {annotateMode && resource.archived && (

@@ -9,12 +9,45 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { getTextPositionSelector, getTextQuoteSelector } from '@semiont/core';
+import type { Selector, TextPositionSelector } from '@semiont/core';
+
+/** The annotation's TextPositionSelector, which the fixture states. */
+function positionSelectorOf(selectors: Selector[]): TextPositionSelector {
+  const found = getTextPositionSelector(selectors);
+  if (!found) throw new Error('the annotation has no TextPositionSelector');
+  return found;
+}
+
+/** The annotation's TextQuoteSelector, with the prefix and suffix the fixture states. */
+function quoteSelectorOf(selectors: Selector[]): { exact: string; prefix: string; suffix: string } {
+  const found = getTextQuoteSelector(selectors);
+  if (!found) throw new Error('the annotation has no TextQuoteSelector');
+  const { exact, prefix, suffix } = found;
+  if (prefix === undefined || suffix === undefined) throw new Error('the TextQuoteSelector states no prefix or suffix');
+  return { exact, prefix, suffix };
+}
 
 describe('Annotation Positioning - Real World Case', () => {
   // The actual content from the legal document
   const content = `Lampron, J.
 Action by plaintiff Engineering Associates of New England, Inc., a New Hampshire corporation with a principal place of business in Manchester, against W. & L. E. Gurley, a New York corporation with a principal place of business in Troy, New York, later known as B & L Liquidating Corporation, to recover commissions allegedly earned under a sales representative agreement with Gurley. Service of plaintiff's writ, dated January 18, 1969, was made on the secretary of state pursuant to RSA 300:14 (1966), which was then in effect, and notice sent to Gurley at its office in Troy.
 B & L Liquidating appeared specially and moved to dismiss plaintiff's action on the following grounds: (1) Defendant did not enter into a contract which was to be performed in whole or in part in New Hampshire; (2) defendant was not registered to do business and was not doing business in New Hampshire; and (3) Plaintiff's claim should have been brought in the New York court which was supervising the liquidation of B & L Liquidating, formerly W. & L. E. Gurley. Hearing before King, J., who reserved and transferred without ruling, on an agreed statement of facts, the question "whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969."`;
+
+  // The annotation's selectors, from the gateway
+  const selector: Selector[] = [
+    {
+      "type": "TextPositionSelector",
+      "start": 1159,
+      "end": 1301
+    },
+    {
+      "type": "TextQuoteSelector",
+      "exact": "the question \"whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969.\"",
+      "prefix": "without ruling, on an agreed statement of facts, ",
+      "suffix": ""
+    }
+  ];
 
   // The annotation from the gateway
   const annotation = {
@@ -25,19 +58,7 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
     "target": {
       "type": "SpecificResource",
       "source": "https://ideal-fortnight-pjpg4rx4rc6jx9-4000.app.github.dev/resources/fa67e360958d4ccf7bad9639e429c18c",
-      "selector": [
-        {
-          "type": "TextPositionSelector",
-          "start": 1159,
-          "end": 1301
-        },
-        {
-          "type": "TextQuoteSelector",
-          "exact": "the question \"whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969.\"",
-          "prefix": "without ruling, on an agreed statement of facts, ",
-          "suffix": ""
-        }
-      ]
+      "selector": selector,
     },
     "body": [
       {
@@ -51,9 +72,7 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
   };
 
   it('should extract exact text using TextPositionSelector', () => {
-    const positionSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextPositionSelector'
-    ) as any;
+    const positionSelector = positionSelectorOf(annotation.target.selector);
 
     const extractedText = content.substring(
       positionSelector.start,
@@ -67,9 +86,7 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
     console.log('Length:', extractedText.length);
 
     // Check if it matches the exact text from TextQuoteSelector
-    const quoteSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextQuoteSelector'
-    ) as any;
+    const quoteSelector = quoteSelectorOf(annotation.target.selector);
 
     console.log('\n=== Expected (from TextQuoteSelector.exact) ===');
     console.log('Expected text:', JSON.stringify(quoteSelector.exact));
@@ -79,9 +96,7 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
   });
 
   it('should find text using TextQuoteSelector with prefix/suffix context', () => {
-    const quoteSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextQuoteSelector'
-    ) as any;
+    const quoteSelector = quoteSelectorOf(annotation.target.selector);
 
     // Find the exact text in content
     const exactIndex = content.indexOf(quoteSelector.exact);
@@ -116,13 +131,9 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
   });
 
   it('should verify TextPositionSelector and TextQuoteSelector point to same text', () => {
-    const positionSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextPositionSelector'
-    ) as any;
+    const positionSelector = positionSelectorOf(annotation.target.selector);
 
-    const quoteSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextQuoteSelector'
-    ) as any;
+    const quoteSelector = quoteSelectorOf(annotation.target.selector);
 
     // Extract using position
     const textFromPosition = content.substring(
@@ -168,13 +179,9 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
   });
 
   it('should show character-by-character comparison if there is a mismatch', () => {
-    const positionSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextPositionSelector'
-    ) as any;
+    const positionSelector = positionSelectorOf(annotation.target.selector);
 
-    const quoteSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextQuoteSelector'
-    ) as any;
+    const quoteSelector = quoteSelectorOf(annotation.target.selector);
 
     const textFromPosition = content.substring(
       positionSelector.start,
@@ -205,9 +212,7 @@ B & L Liquidating appeared specially and moved to dismiss plaintiff's action on 
   });
 
   it('should check if the prefix/suffix in the annotation are corrupted', () => {
-    const quoteSelector = annotation.target.selector.find(
-      (s: any) => s.type === 'TextQuoteSelector'
-    ) as any;
+    const quoteSelector = quoteSelectorOf(annotation.target.selector);
 
     console.log('\n=== Checking Prefix/Suffix Quality ===');
 

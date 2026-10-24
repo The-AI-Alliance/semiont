@@ -20,7 +20,7 @@ is usually `routes.resourceDetail`.
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Bars3Icon, ChevronLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, ChevronLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 <CollapsibleResourceNavigation
   fixedItems={[{ name: 'Discover', href: '/know/discover', icon: MagnifyingGlassIcon }]}
@@ -31,7 +31,7 @@ import { Bars3Icon, ChevronLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@her
   getResourceHref={routes.resourceDetail}
   onNavigate={navigate}
   translations={{ title: 'Knowledge' }}
-  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon, close: XMarkIcon }}
+  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon }}
 />
 ```
 

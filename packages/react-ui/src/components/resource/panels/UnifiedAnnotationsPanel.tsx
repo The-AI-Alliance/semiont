@@ -79,7 +79,7 @@ interface UnifiedAnnotationsPanelProps {
   // Reference-specific props
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
-  referencedBy?: any[];
+  referencedBy?: React.ComponentProps<typeof ReferencesPanel>['referencedBy'];
   referencedByLoading?: boolean;
   entityTypesError?: Error | null;
   referencedByError?: Error | null;

@@ -22,7 +22,7 @@ interface ResourceAnnotationsContextType {
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
-    body?: any[]
+    body?: Annotation['body']
   ) => Promise<string | undefined>;
 
   // UI actions
@@ -48,7 +48,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
-    body: any[] = []
+    body?: Annotation['body']
   ): Promise<string | undefined> => {
     if (!semiont) throw new Error('Not authenticated');
     try {

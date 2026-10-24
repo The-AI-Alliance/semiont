@@ -4,12 +4,13 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
+import type { EditorView } from '@codemirror/view';
 
 // Mock CodeMirror modules
 vi.mock('@codemirror/view', () => {
   class MockEditorView {
     destroy = vi.fn();
-    constructor(_config: any) {}
+    constructor(_config: ConstructorParameters<typeof EditorView>[0]) {}
     static editable = { of: vi.fn() };
     static theme = vi.fn(() => ({}));
   }
