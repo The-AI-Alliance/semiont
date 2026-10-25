@@ -96,7 +96,7 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
 		return realmAdmin{}, false
 	}
-	base := fmt.Sprintf("http://%s:%d", recordedExposure(rootKey(did, root)).probeHost("identity", rp.Port), rp.Port)
+	base := keycloakBase(recordedExposure(rootKey(did, root)), rp.Port)
 	token, err := adminToken(base, keycloakAdminUser, adminPass)
 	if err != nil {
 		u.Fail("%v", err)

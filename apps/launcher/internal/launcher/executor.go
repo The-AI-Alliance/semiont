@@ -36,12 +36,14 @@ type stager interface {
 type runner interface {
 	verifyImage(svc, img string) (string, bool) // a Semiont image's build provenance, checked; returns it pinned to the digest that runs
 	pull(img string) bool
-	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
-	stopRm(name string) bool                  // teardown; reports whether anything existed
-	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)                      // wait for torn-down ports to be released
-	snapshotLogs(kb kbRoot, names []string)   // crash evidence: capture container logs into the root's state area before a teardown deletes them
-	dumpLogs(container, svc string)           // failed health gate: show the crash where it is
+	runDetached(args []string) (string, bool)        // echo + run -d; returns runtime-reported id
+	stopRm(name string) bool                         // teardown; reports whether anything existed
+	sweepStray(names []string) bool                  // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                             // wait for torn-down ports to be released
+	snapshotLogs(kb kbRoot, names []string)          // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	dumpLogs(container, svc string)                  // failed health gate: show the crash where it is
+	issuerProxy(listen, upstream, realm string) bool // `network lan`: the detached filtering proxy that serves the issuer to the network, recorded
+	retireIssuerProxy()                              // end the issuer proxy the record names, if one runs; before the ports it held are checked
 }
 
 // prober: asks whether something is up, and waits on a WALL-CLOCK budget rather than a count
@@ -119,6 +121,7 @@ type narrator interface {
 type modeScope interface {
 	val(live, plan string) string // mode-scoped value (kb root, admin password)
 	rtName() string
+	exposure(addr string) exposure // where this start publishes, its containers reaching the host at addr
 	either(cond func() bool, then, els func() int) int
 }
 
@@ -165,6 +168,9 @@ type liveExec struct {
 	// flow having to pass them; models are config truth, so they belong to
 	// the record the same way the driver does.
 	plan *launchPlan
+	// lan: this Mac's address on the network for a `network lan` start, else
+	// empty (startNetwork).
+	lan string
 }
 
 // present lists the semiont-* containers that EXIST under a runtime — running
@@ -386,7 +392,7 @@ func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool
 		x.u.Fail("%s has no configuration document to stage", svc)
 		return false
 	}
-	doc, err := document.write(placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}, fc.kb)
+	doc, err := document.write(placementOf(fc, x.exposure(addr)), fc.kb)
 	if err == nil {
 		err = os.WriteFile(filepath.Join(stage, document.file), doc, 0o644)
 	}
@@ -465,7 +471,7 @@ func (x *liveExec) initStack(kb kbRoot, config, addr, stage string) {
 	x.st = &StackState{
 		Runtime: x.rt, KBRoot: kb.dir, KBDid: kb.ident.didWeb(),
 		Config:   config,
-		HostAddr: addr, Stage: stage, Services: map[string]ServiceState{},
+		HostAddr: addr, LanAddr: x.lan, Stage: stage, Services: map[string]ServiceState{},
 	}
 }
 
@@ -601,7 +607,7 @@ func (x *liveExec) either(cond func() bool, then, els func() int) int {
 func (x *liveExec) otelDetect(addr string) []string {
 	// Probe the COLLECTOR — it owns the port services export to. Its :24110
 	// readout is a plain 200 when up; the OTLP receiver rejects GETs.
-	if httpOK(fmt.Sprintf("http://%s:24110/metrics", exposure{x.rt, addr}.probeHost("collector", 24110))) {
+	if httpOK(fmt.Sprintf("http://%s:24110/metrics", x.exposure(addr).probeHost("collector", 24110))) {
 		x.u.Log("OTel collector detected — export enabled")
 		return otelArgs(addr)
 	}
@@ -694,7 +700,18 @@ func (x *liveExec) ollamaVolume(opts startOptions) string {
 }
 
 func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
-	if x.st == nil { // --service mode: load, or create with full metadata
+	var models []servedModel
+	if x.plan != nil {
+		models = x.plan.Roles[role].Models
+	}
+	x.stack().recordService(role, id, image, provided, endpoint, driver, models)
+}
+
+// stack: the record this start writes to. A full start began it (initStack);
+// a --service start loads the running stack's, or creates one with full
+// metadata.
+func (x *liveExec) stack() *StackState {
+	if x.st == nil {
 		x.st = loadLocalState()
 		if x.st == nil {
 			x.st = &StackState{
@@ -703,12 +720,23 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 			}
 		}
 	}
-	var models []servedModel
-	if x.plan != nil {
-		models = x.plan.Roles[role].Models
-	}
-	x.st.recordService(role, id, image, provided, endpoint, driver, models)
+	return x.st
 }
+
+func (x *liveExec) issuerProxy(listen, upstream, realm string) bool {
+	pid, ok := spawnIssuerProxy(x.u, listen, upstream, realm)
+	if !ok {
+		return false
+	}
+	st := x.stack()
+	st.IssuerProxy = &issuerProxyRecord{PID: pid, Listen: listen, Upstream: upstream, Realm: realm}
+	st.LanAddr = x.lan
+	saveStack(st)
+	x.u.Log("Issuer proxy running %s", x.u.Dim(fmt.Sprintf("(detached, pid %d, %s → %s — recorded; semiont stop ends it)", pid, listen, upstream)))
+	return true
+}
+
+func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u) }
 
 // providerOf reads back how an earlier step in THIS run resolved a role.
 // The host-Ollama-vs-container decision is made at runtime, not in the plan,
@@ -1127,6 +1155,9 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, key string) bool {
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.Dim(s) }
+func (x *liveExec) exposure(addr string) exposure {
+	return exposure{rt: x.rt, addr: addr, lan: x.lan}
+}
 
 func (x *liveExec) banner(s string) { x.u.Banner(s) }
 
@@ -1149,6 +1180,8 @@ func (x *liveExec) note(string, ...any) {}
 
 type planExec struct {
 	rt string
+	// lan: "<lan-addr>" for a `network lan` start, else empty (startNetwork).
+	lan string
 }
 
 func (x *planExec) p(args ...string)          { fmt.Println(renderCmd(x.rt, args...)) }
@@ -1208,7 +1241,7 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("write <config-stage>/%s (the Librarian's configuration document: LibrarianConfig, resolved)", librarianDocumentFile)
 	x.c("write into each document the addresses this start places, as literals (launcher-placed topology):")
-	for _, line := range (placement{st: fc.stack, plan: fc.plan, rt: x.rt, addr: addr}).placedLines() {
+	for _, line := range placementOf(fc, x.exposure(addr)).placedLines() {
 		x.c("  %s", line)
 	}
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
@@ -1398,6 +1431,15 @@ func (x *planExec) noteContainer(string, string) {}
 // --dry-run launches nothing, so nothing can crash.
 func (x *planExec) dumpLogs(string, string) {}
 
+func (x *planExec) issuerProxy(listen, upstream, realm string) bool {
+	x.c("run detached: semiont %s — the issuer at the network address, passing the realm's paths alone (recorded; semiont stop ends it)", strings.Join(issuerProxyArgs(listen, upstream, realm), " "))
+	return true
+}
+
+func (x *planExec) retireIssuerProxy() {
+	x.c("end the issuer proxy the record names, if one runs")
+}
+
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
 func (x *planExec) browserCurrent(string) bool        { return false }
@@ -1474,6 +1516,9 @@ func (x *planExec) resolveStoreStamps(flowCtx) bool {
 func (x *planExec) val(_, plan string) string { return plan }
 func (x *planExec) rtName() string            { return x.rt }
 func (x *planExec) dim(s string) string       { return s }
+func (x *planExec) exposure(addr string) exposure {
+	return exposure{rt: x.rt, addr: addr, lan: x.lan}
+}
 
 func (x *planExec) banner(string) {}
 

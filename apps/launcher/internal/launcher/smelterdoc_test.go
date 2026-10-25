@@ -206,7 +206,7 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := smelterDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 
-	args := strings.Join(smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil), " ")
+	args := strings.Join(smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil), " ")
 	if want := "/stage/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's document is not mounted onto %s:\n%s", smelterDocumentTarget, args)
 	}

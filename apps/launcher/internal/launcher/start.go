@@ -437,6 +437,10 @@ func Start(args []string) int {
 	} else {
 		u.Log("Container runtime: %s", u.Bold(rt))
 	}
+	lan, ok := startNetwork(u, rt, opts)
+	if !ok {
+		return 1
+	}
 	if configNeeded {
 		if configFrom != "" {
 			u.Log("Config: %s %s", u.Bold(opts.configName), u.Dim("("+configFrom+")"))
@@ -498,9 +502,9 @@ func Start(args []string) int {
 
 	if opts.dryRun {
 		if opts.service != "" {
-			renderServicePlan(rt, kb, opts, userEnv, st, plan)
+			renderServicePlan(rt, lan, kb, opts, userEnv, st, plan)
 		} else {
-			renderStartPlan(rt, kb, opts, userEnv, st, plan)
+			renderStartPlan(rt, lan, kb, opts, userEnv, st, plan)
 		}
 		return 0
 	}
@@ -517,9 +521,9 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		var needs []portNeed
 		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan, opts, exposure{rt: rt}) // nil-plan-safe (browser, traces)
+			needs = servicePortNeeds(opts.service, plan, opts, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
 		} else {
-			needs = planPortChecks(plan, opts.observe, exposure{rt: rt}) // full start always has a plan
+			needs = planPortChecks(plan, opts.observe, exposure{rt: rt, lan: lan}) // full start always has a plan
 		}
 		dropCollidingForwards(u, needs)
 	}
@@ -530,9 +534,9 @@ func Start(args []string) int {
 	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
 	if opts.service != "" {
-		code = runStartService(u, rt, kb, opts, userEnv, st, plan)
+		code = runStartService(u, rt, lan, kb, opts, userEnv, st, plan)
 	} else {
-		code = runStart(u, rt, kb, opts, userEnv, st, plan)
+		code = runStart(u, rt, lan, kb, opts, userEnv, st, plan)
 	}
 	if code == 0 {
 		if opts.configSet {
@@ -546,6 +550,58 @@ func Start(args []string) int {
 		}
 	}
 	return code
+}
+
+// startNetwork: this Mac's address on the network when the start is `network
+// lan`, else empty. A full start reads the address afresh (D3a); a --service
+// start takes the one its running stack was started with, since every
+// document that stack staged names it, and refuses a setting the running
+// stack was not started with. lan is built for Apple container alone. The
+// Browser never answers the network, so its start reads nothing.
+func startNetwork(u *UI, rt string, opts startOptions) (string, bool) {
+	if opts.service == "browser" {
+		return "", true
+	}
+	lan := networkSetting() == networkLAN
+	if rec := loadLocalState(); opts.service != "" && rec != nil && !opts.dryRun {
+		if (rec.LanAddr != "") != lan {
+			u.Fail("The network setting is %s, and the running stack was started otherwise.", networkSetting())
+			fmt.Fprintln(os.Stderr, "  Start the whole stack to change who reaches it: semiont start")
+			return "", false
+		}
+		return rec.LanAddr, true
+	}
+	if !lan {
+		return "", true
+	}
+	if rt != "container" {
+		u.Fail("The network setting is lan, which is built for Apple container alone, and this start runs %s.", rt)
+		fmt.Fprintln(os.Stderr, "  Under Docker and Podman a stack answers every interface already. To start it here: semiont settings network local")
+		return "", false
+	}
+	if opts.dryRun {
+		return "<lan-addr>", true
+	}
+	addr, err := lanAddress()
+	if err != nil {
+		u.Fail("The network setting is lan, and this Mac's address on the network cannot be read: %v", err)
+		return "", false
+	}
+	u.Log("Network: %s %s", u.Bold("lan"), u.Dim("(the gateway and the issuer answer the network at "+addr+", over plain HTTP)"))
+	return addr, true
+}
+
+// printLANReach: what a `network lan` stack answers the network with, and that
+// it is plain HTTP — said at every such start.
+func printLANReach(u *UI, lan string, plan *launchPlan, e exposure) {
+	fmt.Println()
+	fmt.Printf("  %s\n", u.Wrap(AnsiBold+AnsiYellow, "Answering the network at "+lan+" (semiont settings network lan):"))
+	fmt.Printf("  Semiont KB         http://%s:%d\n", lan, plan.GatewayPort)
+	if rp := plan.Roles["identity"]; rp.Presence == presenceLauncher {
+		fmt.Printf("  Issuer             %s   %s\n", identityEndpoint(rp, e), u.Dim("(its realm alone, through the issuer proxy)"))
+	}
+	fmt.Printf("  %s\n", u.Dim("Plain HTTP: passwords at sign-in and every token cross the network unencrypted."))
+	fmt.Printf("  %s\n", u.Dim("Another machine runs its own Browser and adds this knowledge base at the address above."))
 }
 
 // printConfigNames: the Inference documents the knowledge base at root holds,
@@ -699,9 +755,9 @@ const kbMountTarget = "/kb"
 // signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
-func gatewayArgs(stage, rt, addr, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage string, e exposure, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway"} // no --rm: see providedRunArgs
-	a = append(a, exposure{rt, addr}.publish("--publish", "gateway", port, port)...)
+	a = append(a, e.publish("--publish", "gateway", port, port)...)
 	a = append(a, "--memory", mem,
 		"--volume", stage+"/"+gatewayDocumentFile+":"+gatewayDocumentTarget+":ro")
 	// The gateway writes nothing to disk; supervise.sh keeps its events log on
@@ -709,7 +765,7 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, img, mem string, port int, 
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// The gateway's own account at the realm. It dials the Archivist for
 		// content, events and the branch, and proves who it is like any caller.
@@ -742,16 +798,16 @@ func superviseEnv() []string {
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
 // same fact the gateway's event read from it relies on).
-func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "archivist", 24103, 24103)...)
+	a = append(a, e.publish("--publish", "archivist", 24103, 24103)...)
 	a = append(a, "--volume", kbRoot+":"+kbMountTarget,
 		"--volume", stage+"/"+archivistDocumentFile+":"+archivistDocumentTarget+":ro")
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
@@ -772,16 +828,16 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, img, mem string
 // own for a Neo4j it runs), which arrive among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	port := semiontDescriptor("librarian").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "librarian", port, port)...)
+	a = append(a, e.publish("--publish", "librarian", port, port)...)
 	a = append(a, "--volume", stage+"/"+librarianDocumentFile+":"+librarianDocumentTarget+":ro")
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys the agent tokens
 		// of its matcher's and its gatherer's models from the gateway.
@@ -798,14 +854,14 @@ func librarianArgs(stage, rt, addr string, clientSecret, img, mem string, userEn
 // passes to `--config`, so it is handed no *_HOST variables: the document
 // carries every address already. It keeps the issuer's host entry, because it
 // signs in at the issuer by name.
-func dispatcherArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
+func dispatcherArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "dispatcher", 24105, 24105)...)
+	a = append(a, e.publish("--publish", "dispatcher", 24105, 24105)...)
 	a = append(a, "--volume", stage+"/"+dispatcherDocumentFile+":"+dispatcherDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
@@ -821,15 +877,15 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, img, mem string, userE
 // every address already, and names the variable holding each provider's key
 // (workerSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func workerArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
+func workerArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "worker", port, port)...)
+	a = append(a, e.publish("--publish", "worker", port, port)...)
 	a = append(a, "--volume", stage+"/"+workerDocumentFile+":"+workerDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
@@ -851,15 +907,15 @@ func workerArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, 
 // names the variable holding Voyage's key
 // (embeddingSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
+func smelterArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("smelter").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "smelter", port, port)...)
+	a = append(a, e.publish("--publish", "smelter", port, port)...)
 	a = append(a, "--volume", stage+"/"+smelterDocumentFile+":"+smelterDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys the agent token
 		// of its embedding provider and model from the gateway.
@@ -878,15 +934,15 @@ func smelterArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv,
 // holding the graph database's password (graphSecrets, and the launcher's
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
-func weaverArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
+func weaverArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("weaver").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, exposure{rt, addr}.publish("--publish", "weaver", port, port)...)
+	a = append(a, e.publish("--publish", "weaver", port, port)...)
 	a = append(a, "--volume", stage+"/"+weaverDocumentFile+":"+weaverDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys the agent token
 		// of (semiont, weaver) from the gateway.
@@ -956,7 +1012,7 @@ var sidecarSpecs = []sidecarSpec{
 
 // runStart: the live full start — flowFullStart with liveExec, plus the
 // live-only bookends (timing stamp, summary table).
-func runStart(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
+func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
 	t0 := time.Now()
 	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
 	// dry-run output must stay machine-independent (host RAM in a golden
@@ -967,7 +1023,7 @@ func runStart(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, 
 			u.Warn("%s", w)
 		}
 	}
-	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan}
+	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan, lan: lan}
 	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv}); code != 0 {
 		return code
 	}
@@ -1001,7 +1057,10 @@ func runStart(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, 
 	}
 	// The readout is the containers' (Prometheus scrapes it), published
 	// where they reach it; this machine reaches it there too.
-	fmt.Printf("  Metrics readout    http://%s:24110/metrics\n", exposure{rt: rt, addr: x.st.HostAddr}.probeHost("collector", 24110))
+	fmt.Printf("  Metrics readout    http://%s:24110/metrics\n", x.st.exposure().probeHost("collector", 24110))
+	if lan != "" {
+		printLANReach(u, lan, plan, x.st.exposure())
+	}
 	fmt.Println()
 	fmt.Printf("  Add a user:    %s\n", u.Bold(useraddHint("")))
 	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))

@@ -115,6 +115,67 @@ func TestAppleContainerPublishesEachPortWhereItsDialersAre(t *testing.T) {
 	}
 }
 
+// The network address a `network lan` start places the issuer at.
+const lanAddr = "192.168.2.10"
+
+var appleContainerLAN = exposure{rt: "container", addr: bridge, lan: lanAddr}
+
+// D3 as ruled: `network lan` adds the network to the gateway, on every
+// interface, and to the issuer, which the filtering proxy serves while
+// Keycloak itself is published on the bridge address at the containers' side.
+// Nothing else changes.
+func TestNetworkLANPublishesTheGatewayAndTheIssuerAlone(t *testing.T) {
+	for _, c := range []struct {
+		role            string
+		hostPort, cport int
+		want            []string
+	}{
+		{"gateway", 4000, 4000, []string{"4000:4000", bridge + ":14000:4000"}},
+		{"identity", 8080, 8080, []string{bridge + ":18080:8080"}},
+		{"identity", 8081, 8080, []string{bridge + ":18081:8080"}},
+		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000"}},
+		{"database", 5432, 5432, []string{bridge + ":5432:5432"}},
+		{"graph", 7474, 7474, []string{"127.0.0.1:7474:7474"}},
+		{"graph", 7687, 7687, []string{"127.0.0.1:7687:7687", bridge + ":17687:7687"}},
+		{"metrics", 9090, 9090, []string{"127.0.0.1:9090:9090"}},
+		{"archivist", 24103, 24103, []string{bridge + ":24103:24103"}},
+	} {
+		if got := appleContainerLAN.publishSpecs(c.role, c.hostPort, c.cport); !slices.Equal(got, c.want) {
+			t.Errorf("under lan, %s %d publishes %v, want %v", c.role, c.hostPort, got, c.want)
+		}
+	}
+}
+
+// Under `network lan` everyone reaches the issuer at the network address,
+// through the proxy, and the launcher reaches Keycloak itself behind it; a
+// start claims Keycloak's port there free.
+func TestNetworkLANPlacesTheIssuerAtTheNetworkAddress(t *testing.T) {
+	if got := appleContainerLAN.probeHost("identity", 8080); got != lanAddr {
+		t.Errorf("under lan the issuer is asked at %s, want the network address %s", got, lanAddr)
+	}
+	if host, port := appleContainerLAN.keycloakAt(8080); host != bridge || port != 18080 {
+		t.Errorf("under lan the launcher reaches Keycloak at %s:%d, want %s:18080, behind the proxy", host, port, bridge)
+	}
+	if host, port := appleContainer.keycloakAt(8080); host != bridge || port != 8080 {
+		t.Errorf("under local the launcher reaches Keycloak at %s:%d, want the issuer itself, %s:8080", host, port, bridge)
+	}
+	st := fixtureStack(t, "ollama-gemma")
+	plan := mustPlan(t, st)
+	p := placement{st: st, plan: plan, rt: "container", addr: bridge, lan: lanAddr}
+	if got := p.issuer(); got != "http://"+lanAddr+":8080/realms/semiont" {
+		t.Errorf("under lan every document names the issuer %s, want it at the network address", got)
+	}
+	if got := p.gatewayURL(); got != "http://"+bridge+":14000" {
+		t.Errorf("under lan a container dials the gateway at %s, want its side on the bridge address", got)
+	}
+	claimed := portNumbers(planPortChecks(plan, false, appleContainerLAN))
+	for _, port := range []int{8080, 18080, 4000, 14000} {
+		if !slices.Contains(claimed, port) {
+			t.Errorf("a lan start claims %v, without %d", claimed, port)
+		}
+	}
+}
+
 // Docker and Podman publish as before, on every interface, until D1 is ruled
 // for them.
 func TestDockerAndPodmanPublishAsBefore(t *testing.T) {

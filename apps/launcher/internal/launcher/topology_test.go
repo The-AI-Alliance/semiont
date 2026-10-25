@@ -107,13 +107,13 @@ func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	const addr = "192.168.64.1"
 	builders := map[string][]string{
-		"gateway":    gatewayArgs("/stage", "docker", addr, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
-		"worker":     workerArgs("/stage", "docker", addr, "secret", "latest", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":    smelterArgs("/stage", "docker", addr, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
-		"weaver":     weaverArgs("/stage", "docker", addr, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
-		"archivist":  archivistArgs("/kb", "/stage", "docker", addr, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian":  librarianArgs("/stage", "docker", addr, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
-		"dispatcher": dispatcherArgs("/stage", "docker", addr, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
+		"gateway":    gatewayArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
+		"worker":     workerArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("worker").mem, nil, nil),
+		"smelter":    smelterArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
+		"weaver":     weaverArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
+		"archivist":  archivistArgs("/kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
+		"librarian":  librarianArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
+		"dispatcher": dispatcherArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
 	}
 	handed := map[string]bool{}
 	for svc, args := range builders {

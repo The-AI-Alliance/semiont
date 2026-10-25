@@ -69,8 +69,10 @@ func TestMain(m *testing.M) {
 	// build can be told two things a released one cannot: it verifies images
 	// against Sigstore's test authority (internal/provenance/fake.go), told by
 	// fake-sigstore.json in its data directory what each image's attestation
-	// says; and it dials the fake runtime's host address at loopback, where
-	// the fake's stand-in services listen (internal/launcher/dialhost_scenario.go).
+	// says; and it dials the fake runtime's host address and a fake network
+	// address at loopback, where the fake's stand-in services listen, and binds
+	// a listener asked for the network address there too
+	// (internal/launcher/hostnet_scenario.go).
 	for _, build := range [][]string{
 		{"build", "-tags", "scenario", "-o", launcherBin, "."},
 		{"build", "-o", fakertBin, "./internal/fakert"},
@@ -877,6 +879,179 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
+}
+
+// `semiont settings network` is local unless set to lan, refuses anything
+// else, and `local` returns it to the default (LOCAL-ONLY-STACK D3).
+func TestNetworkSettingIsLocalOrLAN(t *testing.T) {
+	s := newScenario(t, "container")
+	show := func() string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, "settings", "network")
+		if code != 0 {
+			t.Fatalf("settings network: exit %d\nstderr:\n%s", code, stderr)
+		}
+		return stdout
+	}
+	mustContain(t, "the default", show(), "local", "a stack answers this machine alone")
+	if _, stderr, code := s.run(t, "settings", "network", "wide"); code != 1 {
+		t.Errorf("settings network wide: exit %d, want 1", code)
+	} else {
+		mustContain(t, "stderr", stderr, "local or lan")
+	}
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "lan", show(), "lan", "plain HTTP")
+	if _, stderr, code := s.run(t, "settings", "network", "local"); code != 0 {
+		t.Fatalf("settings network local: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "back to the default", show(), "a stack answers this machine alone")
+}
+
+// A `network lan` start, as a plan: the gateway on every interface beside its
+// containers' side, Keycloak on the bridge address behind the issuer proxy,
+// its hostname the network address, the proxy started there and the issuer
+// asked through it, and the start saying what answers the network.
+func TestStartDryRunNetworkLAN(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "dry run", stdout,
+		"--publish 4000:4000", "--publish <host-addr>:14000:4000",
+		"-p <host-addr>:18080:8080",
+		"KC_HOSTNAME=http://<lan-addr>:8080",
+		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm semiont",
+		"wait: http://<host-addr>:18080/realms/semiont (90s)",
+		"wait: http://<lan-addr>:8080/realms/semiont (15s)",
+		"network lan: the gateway answers the network at <lan-addr>:4000",
+		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/semiont")
+	for _, absent := range []string{"127.0.0.1:4000:4000", "<host-addr>:8080:8080"} {
+		if strings.Contains(stdout, absent) {
+			t.Errorf("a lan start still publishes %s:\n%s", absent, stdout)
+		}
+	}
+}
+
+// lan is built for Apple container alone: under Docker the issuer is
+// keycloak.localhost, which no other machine reaches, so a lan start there
+// refuses rather than promise what it cannot do.
+func TestStartNetworkLANRefusesDocker(t *testing.T) {
+	s := newScenario(t, "docker")
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 1 {
+		t.Fatalf("a lan start under Docker: exit %d, want 1\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "built for Apple container alone", "semiont settings network local")
+}
+
+// A `network lan` start, live: the issuer proxy runs (the scenario build puts
+// the fake network address on loopback), passes the realm and refuses the
+// admin console; every document names the issuer at the network address;
+// status shows the proxy; and stop ends it.
+func TestStartNetworkLANBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// A proxy left running would hold 8080 for every later scenario.
+	t.Cleanup(func() { killRecordedIssuerProxy(t, s) })
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout,
+		"Answering the network at 192.168.2.10",
+		"http://192.168.2.10:4000",
+		"http://192.168.2.10:8080/realms/semiont",
+		"Plain HTTP")
+	mustContain(t, "argv", s.argv(t), "--publish 4000:4000", "-p 192.168.64.1:18080:8080", "KC_HOSTNAME=http://192.168.2.10:8080")
+	for _, staged := range []string{"librarian.json", "worker.json", "gateway.json"} {
+		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/semiont")
+	}
+	status := func(url string) int {
+		t.Helper()
+		resp, err := http.Get(url)
+		if err != nil {
+			t.Fatalf("GET %s: %v", url, err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+		t.Errorf("the realm through the issuer proxy answered %d", got)
+	}
+	if got := status("http://127.0.0.1:8080/admin/master/console/"); got != http.StatusNotFound {
+		t.Errorf("the admin console through the issuer proxy answered %d, want 404", got)
+	}
+	sstdout, _, _ := s.run(t, "status")
+	mustContain(t, "status", sstdout, "network lan", "issuer proxy: pid")
+	// Restarting the issuer replaces its proxy: the old one leaves the
+	// issuer's port before the restart checks it, and a new one serves it.
+	before := recordedIssuerProxyPID(t, s)
+	if stdout, stderr, code := s.run(t, "start", "--service", "identity"); code != 0 {
+		t.Fatalf("start --service identity: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if after := recordedIssuerProxyPID(t, s); after == 0 || after == before {
+		t.Errorf("after an issuer restart the record names proxy pid %d, before %d: want a new one", after, before)
+	}
+	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+		t.Errorf("after an issuer restart the realm through the proxy answered %d", got)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		resp, err := http.Get("http://127.0.0.1:8080/realms/semiont")
+		if err != nil {
+			break
+		}
+		resp.Body.Close()
+		if time.Now().After(deadline) {
+			t.Fatal("the issuer proxy still answers after stop")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// recordedIssuerProxyPID: the issuer proxy s's local stack record names, or 0.
+func recordedIssuerProxyPID(t *testing.T, s *scenario) int {
+	t.Helper()
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		return 0
+	}
+	var doc struct {
+		Stacks map[string]struct {
+			IssuerProxy *struct {
+				PID int `json:"pid"`
+			} `json:"issuerProxy"`
+		} `json:"stacks"`
+	}
+	if json.Unmarshal(b, &doc) != nil || doc.Stacks["local"].IssuerProxy == nil {
+		return 0
+	}
+	return doc.Stacks["local"].IssuerProxy.PID
+}
+
+// killRecordedIssuerProxy ends the issuer proxy s's stack record names, if a
+// test left one running.
+func killRecordedIssuerProxy(t *testing.T, s *scenario) {
+	t.Helper()
+	if pid := recordedIssuerProxyPID(t, s); pid != 0 {
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	}
 }
 
 // The issuer's port is the launcher's to place, like its host — one Keycloak

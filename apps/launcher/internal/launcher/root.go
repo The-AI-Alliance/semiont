@@ -94,9 +94,12 @@ type rootsRegistry struct {
 	Runtime string `json:"runtime,omitempty"` // sticky --runtime: what a successful start last used explicitly
 	// BrowserImage: the image the machine's Browser runs, where the
 	// browser-image setting names one (browserImage).
-	BrowserImage string               `json:"browserImage,omitempty"`
-	Secrets      map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
-	Roots        []rootEntry          `json:"roots"`
+	BrowserImage string `json:"browserImage,omitempty"`
+	// Network: "lan" where the network setting lets the network reach a
+	// local stack's gateway and issuer; empty for the default, local.
+	Network string               `json:"network,omitempty"`
+	Secrets map[string]secretRef `json:"secrets,omitempty"` // env var → {provider, path} POINTERS (never values)
+	Roots   []rootEntry          `json:"roots"`
 }
 
 func rootsPath() string {

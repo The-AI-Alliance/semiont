@@ -101,8 +101,8 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 				}
 			}
 			if len(missing) > 0 {
-				// APPENDED, never replaced: the LAN entry is deployment truth
-				// this command cannot re-derive.
+				// APPENDED, never replaced: an entry somebody added is theirs,
+				// and this command cannot re-derive it.
 				patch["redirectUris"] = append(append([]string{}, have...), missing...)
 				changes = append(changes, "loopback redirect URIs added ("+strings.Join(missing, ", ")+")")
 			}
@@ -122,7 +122,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 			}
 			if len(missingOrigins) > 0 {
 				// Appended for the same reason, and `"+"` is left in place:
-				// removing it would drop the LAN origin it still derives.
+				// removing it would drop an origin somebody else's entry derives.
 				patch["webOrigins"] = append(append([]string{}, haveOrigins...), missingOrigins...)
 				changes = append(changes, "browser web origins added ("+strings.Join(missingOrigins, ", ")+")")
 			}

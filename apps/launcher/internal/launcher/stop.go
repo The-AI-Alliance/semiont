@@ -353,6 +353,9 @@ func Stop(args []string) int {
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
 		}
+		if useState && st.IssuerProxy != nil && (service == "" || service == "identity") {
+			fmt.Printf("# end the issuer proxy (pid %d)\n", st.IssuerProxy.PID)
+		}
 		for _, rt := range strayRuntimes {
 			fmt.Println("# sweep stray Semiont containers under " + rt + ":")
 			for _, c := range stopNames {
@@ -423,8 +426,12 @@ func Stop(args []string) int {
 	}
 
 	if service != "" {
-		// The record forgets this one service; the rest of it stands.
+		// The record forgets this one service; the rest of it stands. The
+		// issuer proxy goes with the issuer it serves.
 		if useState {
+			if service == "identity" {
+				endIssuerProxy(u, st)
+			}
 			delete(st.Services, service)
 			saveStack(st)
 		}
@@ -449,6 +456,9 @@ func Stop(args []string) int {
 	removeStagedConfigs()
 	if len(staged) > 0 {
 		u.Ok("Removed %d staged config dir(s)", len(staged))
+	}
+	if st != nil {
+		endIssuerProxy(u, st)
 	}
 	forgetStack("local")
 

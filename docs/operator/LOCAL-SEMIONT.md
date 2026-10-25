@@ -81,6 +81,19 @@ Where each port listens depends on the container runtime:
 - **Apple `container`:** what you open listens on `127.0.0.1`. What the containers dial listens on the bridge address, `192.168.64.1`, which answers this Mac and its containers and refuses other machines: the databases, the broker, the vector store, the collector and Jaeger's OTLP port, a containerized Ollama, the services' own ports, and Keycloak, whose address is the bridge address so that you and the containers sign in at the same URL, `http://192.168.64.1:8080`. The gateway and Neo4j's bolt port, which you and the containers both dial, take a second port on the bridge address, 10000 above their own: 14000 and 17687.
 - **Docker and Podman:** every port listens on every interface, and Keycloak is at `http://keycloak.localhost:8080`.
 
+## Reaching it from another machine
+
+By default a stack under Apple `container` answers this Mac alone. `semiont settings network lan` lets the network reach two things more, from the next start on, and `semiont settings network local` returns it to the default:
+
+- **The gateway**, on port 4000 at this Mac's address on the network.
+- **The issuer**, at `http://<this Mac's address>:8080/realms/semiont`. The issuer moves there for everyone, this Mac and the containers included, because a token names one issuer. A proxy the launcher runs answers at that address and passes the realm's sign-in pages and nothing else: Keycloak's admin console, its admin API and its master realm stay on the bridge address. `semiont stop` ends the proxy, and `semiont status` starts it again if it has died.
+
+The address is read afresh at every start. When it changes, so does the issuer every token names, and people sign in again.
+
+Nothing else answers the network, the Browser included: a person on another machine runs a Browser of their own ([Get the Browser](../analyst/README.md#get-the-browser)) and adds the knowledge base at `<this Mac's address>`, port 4000. Every `lan` start says what answers the network and that it is plain HTTP: passwords at sign-in and every token cross the network unencrypted.
+
+`lan` is built for Apple `container`; under Docker and Podman a start with it refuses.
+
 ## Local network access
 
 A stack's containers reach each other through your machine's own address, so the container runtime must be allowed to use the local network:
