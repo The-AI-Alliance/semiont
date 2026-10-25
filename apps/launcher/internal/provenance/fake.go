@@ -1,4 +1,4 @@
-//go:build fakesigstore
+//go:build scenario
 
 package provenance
 
@@ -45,7 +45,7 @@ type fake struct {
 	caErr error
 }
 
-// NewFake: the Verifier a launcher built with `-tags fakesigstore` runs —
+// NewFake: the Verifier a launcher built with `-tags scenario` runs —
 // sigstore-go's checks, over what Sigstore's test authority signs as
 // fake-sigstore.json in dir says. A released launcher has no such Verifier.
 func NewFake(dir string) Verifier {

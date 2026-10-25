@@ -54,20 +54,24 @@ i18n
 
 ## Using Translations in Components
 
-The namespace-binding pattern keeps call sites clean:
+A component reads the keys of its own section with react-i18next's `keyPrefix`, so a call site
+names the key alone:
 
 ```tsx
 import { useTranslation } from 'react-i18next';
 
-export function MyComponent() {
-  const { t: _t } = useTranslation();
-  // Bind to namespace so call sites just use t('key')
-  const t = (k: string, p?: Record<string, unknown>) =>
-    _t(`MyNamespace.${k}`, p as any) as string;
+export function MyComponent({ name }: { name: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: 'MyNamespace' });
 
-  return <h1>{t('title')}</h1>;
+  return <h1 title={t('greeting', { name })}>{t('title')}</h1>;
 }
 ```
+
+The first argument is left `undefined`: every key is in the one namespace `config.ts` names as the
+default. A component that reads two sections calls `useTranslation` once for each
+(`const { t: tHome } = useTranslation(undefined, { keyPrefix: 'Home' })`). A test that mocks
+`react-i18next` itself reads `keyPrefix` the way `vitest.setup.ts`'s mock does, or the component
+looks up bare keys.
 
 Translation file (`messages-source/en.json`):
 ```json

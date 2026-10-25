@@ -19,6 +19,7 @@ import type { components } from '@semiont/core';
 import { DelegateProgress, type DelegateProgressTranslations } from '../DelegateProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
+type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 const TALLY = 'semiont-delegate-tally';
 
@@ -29,7 +30,7 @@ const T = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTr
     cancelled: 'tr.cancelled',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
-    message: (m: any) => `tr.code(${m.code})`,
+    message: (m: JobProgressMessage) => `tr.code(${m.code})`,
     subject: (c: { kind: string; value: string }) => `tr.subject(${c.kind}:${c.value})`,
     paramLabel: (code: string) => `tr.param(${code})`,
     tally: (found: number, expected: number) => `tr.tally(${found}/${expected})`,

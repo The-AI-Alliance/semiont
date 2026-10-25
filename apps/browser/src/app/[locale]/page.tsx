@@ -6,8 +6,7 @@ import { useRouter } from '@/i18n/routing';
 const AUTO_TRANSITION_MS = 5000;
 
 export default function Home() {
-  const { t: _t } = useTranslation();
-  const t = (k: string) => _t(`Home.${k}`) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Home' });
   const router = useRouter();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const semiont = useSemiont();

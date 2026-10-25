@@ -63,6 +63,7 @@ jobs:
           npm run lint:broker-boundary || fail=1
           npm run lint:staging-boundary || fail=1
           npm run lint:secure-context-apis || fail=1
+          npm run lint:skips-and-any || fail=1
           npm run lint:event-tags || fail=1
           npm run lint:spec-protocol || fail=1
           npm run lint:spec-jobs || fail=1
@@ -2028,7 +2029,7 @@ jobs:
       # our code. nats-server's module is a requirement of the tests alone (they
       # read the broker's config with its parser): it is in no shipped binary,
       # and it is not among the modules this scan covers. Nor is what only a
-      # launcher built with -tags fakesigstore links (Sigstore's test
+      # launcher built with -tags scenario links (Sigstore's test
       # authority, for the scenario suite): no release is built that way.
       - name: Vulnerability scan launcher (govulncheck)
         run: |

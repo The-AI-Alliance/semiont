@@ -47,7 +47,7 @@ describe('useRovingTabIndex', () => {
       document.body.appendChild(container);
 
       // Set the ref
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Initialize tabindex
       buttons.forEach((btn, i) => {
@@ -85,7 +85,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Start at index 1 by calling focusItem
       act(() => {
@@ -122,7 +122,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons[0].setAttribute('tabindex', '0');
       buttons[1].setAttribute('tabindex', '-1');
 
@@ -156,7 +156,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
       });
@@ -190,7 +190,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Start at index 1 by calling focusItem
       act(() => {
@@ -227,7 +227,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons[0].setAttribute('tabindex', '0');
       buttons[1].setAttribute('tabindex', '-1');
 
@@ -257,7 +257,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
       });
@@ -287,7 +287,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
       });
@@ -317,7 +317,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Start at index 4 by calling focusItem
       act(() => {
@@ -357,7 +357,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Focus on item using focusItem
       result.current.focusItem(2);
@@ -390,7 +390,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
       });
@@ -423,7 +423,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Focus on last item
       result.current.focusItem(2);
@@ -457,7 +457,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 2 ? '0' : '-1');
       });
@@ -489,7 +489,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
       buttons.forEach((btn, i) => {
         btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
       });
@@ -523,7 +523,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(1);
 
@@ -547,7 +547,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(10);
 
@@ -571,7 +571,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(4); // 4 % 3 = 1
 
@@ -595,7 +595,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(-1);
 
@@ -610,7 +610,7 @@ describe('useRovingTabIndex', () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       expect(() => result.current.focusItem(0)).not.toThrow();
 
@@ -642,7 +642,7 @@ describe('useRovingTabIndex', () => {
       container.appendChild(button);
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       const event = {
         key: 'a',
@@ -671,7 +671,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Add a third button
       const newButton = document.createElement('button');
@@ -701,7 +701,7 @@ describe('useRovingTabIndex', () => {
       document.body.appendChild(container);
 
       const { result } = renderHook(() => useRovingTabIndex(3));
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Use focusItem to update tabindex (simulates what click handler does)
       act(() => {
@@ -739,7 +739,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(1);
 
@@ -763,7 +763,7 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       result.current.focusItem(1);
 
@@ -787,7 +787,7 @@ describe('useRovingTabIndex', () => {
       buttons[1].setAttribute('disabled', 'true');
       document.body.appendChild(container);
 
-      (result.current.containerRef as any).current = container;
+      result.current.containerRef.current = container;
 
       // Should only find 2 focusable items (0 and 2)
       result.current.focusItem(0);

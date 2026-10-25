@@ -6,11 +6,12 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { resourceId, type ResourceDescriptor } from '@semiont/core';
 import { ResourceCard } from '../components/ResourceCard';
 
-const createMockResource = (overrides?: any) => ({
+const createMockResource = (overrides?: Partial<ResourceDescriptor>): ResourceDescriptor => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': 'test-123',
+  '@id': resourceId('test-123'),
   '@type': 'schema:DigitalDocument',
   name: 'Test Resource',
   description: 'A test resource',

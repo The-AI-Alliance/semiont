@@ -4,10 +4,9 @@ import { PageLayout, AuthErrorDisplay } from '@semiont/react-ui';
 import { Link, routes } from '@/lib/routing';
 
 export default function AuthError() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`AuthError.${k}`, p as any) as string;
-  const tNav = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
-  const tHome = (k: string, p?: Record<string, unknown>) => _t(`Home.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'AuthError' });
+  const { t: tNav } = useTranslation(undefined, { keyPrefix: 'Navigation' });
+  const { t: tHome } = useTranslation(undefined, { keyPrefix: 'Home' });
   const [searchParams] = useSearchParams();
 
   const errorType = searchParams.get('error') ?? null;

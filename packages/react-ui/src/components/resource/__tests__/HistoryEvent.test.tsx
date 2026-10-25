@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { AttributedEvent } from '@semiont/core';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 import { HistoryEvent } from '../HistoryEvent';
 import { renderWithProviders } from '../../../test-utils';
 
@@ -31,7 +33,7 @@ vi.mock('../event-formatting', () => ({
   getResourceCreationDetails: vi.fn(() => mockCreationDetails),
 }));
 
-import { getAnnotationIdFromEvent } from '@semiont/core';
+import { getAnnotationIdFromEvent, resourceId, userId } from '@semiont/core';
 import {
   formatEventType,
   getEventDisplayContent,
@@ -50,13 +52,13 @@ const PERSON = `${KB}:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd`;
 const WORKER = `${KB}:agents:anthropic:claude-haiku-4-5`;
 
 /** An event as a history reply carries it: the stored event and its actor's agent. */
-function makeStoredEvent(overrides: Record<string, any> = {}): any {
+function makeStoredEvent(overrides: Partial<AttributedEvent> = {}): AttributedEvent {
   return {
     id: 'evt-1',
     type: 'yield:created',
     timestamp: '2026-03-06T12:00:00Z',
-    resourceId: 'res-1',
-    userId: PERSON,
+    resourceId: resourceId('res-1'),
+    userId: userId(PERSON),
     agent: { '@type': 'Person', '@id': PERSON, name: 'Adam Pingel' },
     version: 1,
     payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc' },
@@ -68,10 +70,10 @@ function makeStoredEvent(overrides: Record<string, any> = {}): any {
 }
 
 const mockT = (key: string) => key;
-const MockLink = ({ href, children, ...props }: any) => <a href={href} {...props}>{children}</a>;
-const mockRoutes = {
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
+const mockRoutes: RouteBuilder = {
   resourceDetail: (id: string) => `/resources/${id}`,
-} as any;
+};
 
 describe('HistoryEvent', () => {
   beforeEach(() => {
@@ -138,7 +140,7 @@ describe('HistoryEvent', () => {
 
   it('renders as button when annotationUri exists', () => {
     mockGetAnnotationId.mockReturnValue('http://localhost/annotations/ann-1');
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
     const { container } = renderWithProviders(
       <HistoryEvent
         event={event}
@@ -159,7 +161,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventClick = vi.fn();
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
 
     renderWithProviders(
       <HistoryEvent
@@ -251,7 +253,7 @@ describe('HistoryEvent', () => {
 
   it("names a software peer's row by its provider and model", () => {
     const event = makeStoredEvent({
-      userId: WORKER,
+      userId: userId(WORKER),
       agent: { '@type': 'Software', '@id': WORKER, name: 'anthropic claude-haiku-4-5', provider: 'anthropic', model: 'claude-haiku-4-5' },
     });
     renderWithProviders(
@@ -393,7 +395,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventRef = vi.fn();
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
 
     renderWithProviders(
       <HistoryEvent
@@ -416,7 +418,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
 
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -449,7 +451,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
 
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -483,7 +485,7 @@ describe('HistoryEvent', () => {
 
   it('sets data-interactive on button wrapper', () => {
     mockGetAnnotationId.mockReturnValue('http://localhost/annotations/ann-1');
-    const event = makeStoredEvent({ type: 'mark:added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' });
     const { container } = renderWithProviders(
       <HistoryEvent
         event={event}

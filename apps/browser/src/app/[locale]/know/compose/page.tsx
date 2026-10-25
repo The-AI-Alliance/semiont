@@ -22,8 +22,7 @@ import { createComposePageStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 function ComposeResourceContent() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Compose.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Compose' });
   const locale = useLocale();
   const router = useRouter();
   const [searchParams] = useSearchParams();
@@ -125,8 +124,7 @@ function ComposeResourceContent() {
 }
 
 export default function ComposeResourcePage() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Compose.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Compose' });
 
   return (
     <Suspense fallback={<ComposeLoadingState message={t('loading')} />}>

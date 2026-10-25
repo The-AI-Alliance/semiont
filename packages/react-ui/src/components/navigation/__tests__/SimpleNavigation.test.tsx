@@ -5,16 +5,17 @@ import { renderWithProviders } from '../../../test-utils';
 import { SimpleNavigation } from '../SimpleNavigation';
 import type { SimpleNavigationItem } from '../SimpleNavigation';
 import type { LinkComponentProps } from '../../../contexts/RoutingContext';
+import type { ComponentProps } from 'react';
 
-const MockChevronLeft = (props: any) => <span data-testid="chevron" {...props} />;
-const MockBars = (props: any) => <span data-testid="bars" {...props} />;
+const MockChevronLeft = (props: ComponentProps<'span'>) => <span data-testid="chevron" {...props} />;
+const MockBars = (props: ComponentProps<'span'>) => <span data-testid="bars" {...props} />;
 
 const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
-const MockIcon1 = (props: any) => <span data-testid="icon-1" {...props} />;
-const MockIcon2 = (props: any) => <span data-testid="icon-2" {...props} />;
+const MockIcon1 = (props: ComponentProps<'span'>) => <span data-testid="icon-1" {...props} />;
+const MockIcon2 = (props: ComponentProps<'span'>) => <span data-testid="icon-2" {...props} />;
 
 const defaultItems: SimpleNavigationItem[] = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: MockIcon1 },

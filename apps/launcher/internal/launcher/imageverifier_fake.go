@@ -1,11 +1,11 @@
-//go:build fakesigstore
+//go:build scenario
 
 package launcher
 
 import "github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
 
 // imageVerifier, in a launcher built for the scenario suite (-tags
-// fakesigstore): sigstore-go's checks over what Sigstore's test authority
+// scenario): sigstore-go's checks over what Sigstore's test authority
 // signs, as fake-sigstore.json in the data directory says. A released
 // launcher has no such verifier, so nothing can tell it to trust anything
 // else.

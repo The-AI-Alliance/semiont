@@ -7,7 +7,7 @@ export type Messages = Record<string, Record<string, string>>;
 /** The manager for one locale's messages. `locale` is the language they are written in. */
 export function createTranslationManager(locale: string, messages: Messages): TranslationManager {
   return {
-    t: (namespace: string, key: string, params?: Record<string, any>) => {
+    t: (namespace: string, key: string, params?: Record<string, unknown>) => {
       const translation = messages[namespace]?.[key];
 
       if (!translation) {

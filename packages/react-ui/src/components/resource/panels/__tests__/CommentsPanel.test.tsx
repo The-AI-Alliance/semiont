@@ -5,7 +5,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentsPanel } from '../CommentsPanel';
-import type { EventBus } from '@semiont/core';
+import type { EventBus, EventMap } from '@semiont/core';
+import type { CommentEntry } from '../CommentEntry';
 import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -14,7 +15,7 @@ import type { Annotation, AnnotationId } from '@semiont/core';
 // Composition-based event tracker
 interface TrackedEvent {
   event: string;
-  payload: any;
+  payload: EventMap['mark:submit'];
 }
 
 function createEventTracker() {
@@ -25,7 +26,7 @@ function createEventTracker() {
     _attach(eventBus: EventBus) {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
-        eventBus.on(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload) => {
           events.push({ event: eventName, payload });
         });
       });
@@ -81,17 +82,8 @@ vi.mock('@semiont/core', async () => {
 
 // Mock CommentEntry component to simplify testing
 vi.mock('../CommentEntry', () => ({
-  CommentEntry: ({ comment, onClick, onCommentHover }: any) => (
-    <div
-      data-testid={`comment-${comment.id}`}
-      onClick={() => onClick()}
-    >
-      <button
-        onMouseEnter={() => onCommentHover?.(comment.id)}
-        onMouseLeave={() => onCommentHover?.(null)}
-      >
-        Hover
-      </button>
+  CommentEntry: ({ comment }: React.ComponentProps<typeof CommentEntry>) => (
+    <div data-testid={`comment-${comment.id}`}>
       <div>{comment.id}</div>
     </div>
   ),
@@ -168,9 +160,9 @@ describe('CommentsPanel Component', () => {
     Element.prototype.scrollIntoView = vi.fn();
 
     // Mock selector functions to return proper position data
-    mockGetTargetSelector.mockImplementation((target: any) => target.selector);
-    mockGetTextPositionSelector.mockImplementation((selector: any) => {
-      if (selector?.type === 'TextPositionSelector') {
+    mockGetTargetSelector.mockImplementation((target) => (typeof target === 'string' ? undefined : target.selector));
+    mockGetTextPositionSelector.mockImplementation((selector) => {
+      if (selector !== undefined && !Array.isArray(selector) && selector.type === 'TextPositionSelector') {
         return selector;
       }
       return null;
@@ -407,8 +399,10 @@ describe('CommentsPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
-          e.payload?.motivation === 'commenting' &&
-          e.payload?.body?.[0]?.value === 'My new comment'
+          e.payload.motivation === 'commenting' &&
+          Array.isArray(e.payload.body) &&
+          e.payload.body[0]?.type === 'TextualBody' &&
+          e.payload.body[0].value === 'My new comment'
         )).toBe(true);
       });
     });

@@ -34,7 +34,7 @@ describe('createMarkStateUnit', () => {
     const panels: string[] = [];
     tc.bus.on('panel:open').subscribe(e => panels.push(e.panel));
 
-    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.emit('mark:requested', { source: RID, selector: { type: 'TextQuoteSelector', exact: 'a passage' }, motivation: 'highlighting' });
     expect(panels).toEqual([]);
     stateUnit.dispose();
   });

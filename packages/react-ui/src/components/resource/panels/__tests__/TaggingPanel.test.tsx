@@ -7,7 +7,8 @@ import '@testing-library/jest-dom';
 import { of } from 'rxjs';
 import { CacheObservable, createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
-import type { EventBus, TagSchema } from '@semiont/core';
+import type { EventBus, EventMap, TagSchema } from '@semiont/core';
+import type { TagEntry } from '../TagEntry';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
@@ -15,7 +16,7 @@ import type { Annotation, AnnotationId } from '@semiont/core';
 // Composition-based event tracker
 interface TrackedEvent {
   event: string;
-  payload: any;
+  payload: EventMap['mark:submit'];
 }
 
 function createEventTracker() {
@@ -26,7 +27,7 @@ function createEventTracker() {
     _attach(eventBus: EventBus) {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
-        eventBus.on(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload) => {
           events.push({ event: eventName, payload });
         });
       });
@@ -99,7 +100,7 @@ const renderWithEmptyRegistry = (component: React.ReactElement<SessionProps>) =>
 // are registered per knowledge base at runtime), so the mock carries no
 // per-schema or per-category translation keys.
 vi.mock('../../../../contexts/TranslationContext', () => ({
-  useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
+  useTranslations: vi.fn(() => (key: string, params?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       title: 'Tags',
       noTags: 'No tags yet. Select text to add a tag.',
@@ -138,7 +139,7 @@ vi.mock('@semiont/core', async () => {
 
 // Mock TagEntry component to simplify testing
 vi.mock('../TagEntry', () => ({
-  TagEntry: ({ tag }: any) => (
+  TagEntry: ({ tag }: React.ComponentProps<typeof TagEntry>) => (
     <div data-testid={`tag-${tag.id}`}>
       <div>{tag.id}</div>
     </div>
@@ -219,9 +220,9 @@ describe('TaggingPanel Component', () => {
     Element.prototype.scrollIntoView = vi.fn();
 
     // Mock selector functions to return proper position data
-    mockGetTargetSelector.mockImplementation((target: any) => target.selector);
-    mockGetTextPositionSelector.mockImplementation((selector: any) => {
-      if (selector?.type === 'TextPositionSelector') {
+    mockGetTargetSelector.mockImplementation((target) => (typeof target === 'string' ? undefined : target.selector));
+    mockGetTextPositionSelector.mockImplementation((selector) => {
+      if (selector !== undefined && !Array.isArray(selector) && selector.type === 'TextPositionSelector') {
         return selector;
       }
       return null;
@@ -394,9 +395,10 @@ describe('TaggingPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
-          e.payload?.motivation === 'tagging' &&
-          e.payload?.body?.[0]?.value === 'Issue' &&
-          e.payload?.body?.[0]?.type === 'TextualBody'
+          e.payload.motivation === 'tagging' &&
+          Array.isArray(e.payload.body) &&
+          e.payload.body[0]?.type === 'TextualBody' &&
+          e.payload.body[0].value === 'Issue'
         )).toBe(true);
       });
     });
@@ -425,24 +427,11 @@ describe('TaggingPanel Component', () => {
       await waitFor(() => {
         const createEvent = tracker.events.find(e => e.event === 'mark:submit');
         expect(createEvent).toBeDefined();
-        const body: any[] = createEvent!.payload.body;
-
-        // Must have exactly two body elements
-        expect(body).toHaveLength(2);
-
-        // First: the category
-        expect(body[0]).toMatchObject({
-          type: 'TextualBody',
-          value: 'Rule',
-          purpose: 'tagging',
-        });
-
-        // Second: the schema id
-        expect(body[1]).toMatchObject({
-          type: 'TextualBody',
-          value: 'legal-irac',
-          purpose: 'classifying',
-        });
+        // Exactly two bodies: the category, then the schema id.
+        expect(createEvent!.payload.body).toMatchObject([
+          { type: 'TextualBody', value: 'Rule', purpose: 'tagging' },
+          { type: 'TextualBody', value: 'legal-irac', purpose: 'classifying' },
+        ]);
       });
     });
 

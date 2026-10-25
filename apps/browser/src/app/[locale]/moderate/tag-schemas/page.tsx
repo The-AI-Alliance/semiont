@@ -7,8 +7,7 @@ import { useTheme, useShellStateUnit, useObservable, useSemiont } from '@semiont
 import { TagSchemasPage } from '@semiont/react-ui';
 
 export default function TagSchemasPageWrapper() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateTagSchemas.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'ModerateTagSchemas' });
 
   // Toolbar and settings state
   const browseStateUnit = useShellStateUnit();

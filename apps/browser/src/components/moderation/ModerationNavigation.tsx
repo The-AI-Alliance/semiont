@@ -19,10 +19,8 @@ interface ModerationNavigationProps {
 }
 
 export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: ModerationNavigationProps) {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Moderation.${k}`, p as any) as string;
-  const { t: _tSidebar } = useTranslation();
-  const tSidebar = (k: string, p?: Record<string, unknown>) => _tSidebar(`Sidebar.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Moderation' });
+  const { t: tSidebar } = useTranslation(undefined, { keyPrefix: 'Sidebar' });
   const pathname = usePathname();
 
   // Handle sidebar toggle events

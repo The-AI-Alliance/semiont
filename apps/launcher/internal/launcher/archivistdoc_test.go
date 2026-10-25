@@ -39,7 +39,7 @@ func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
 	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
 	doc := archivistDocumentOf(t, placed(t, st))
-	if doc.GatewayUrl != "http://192.168.64.1:4000" {
+	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {

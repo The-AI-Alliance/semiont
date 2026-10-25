@@ -13,8 +13,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useShellStateUnit } from '@semiont/react-ui';
 import { createDiscoverStateUnit } from '@semiont/react-ui';
 export default function DiscoverPage() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Discover' });
   const router = useRouter();
   const session = useObservable(useSemiont().activeSession$) ?? undefined;
 

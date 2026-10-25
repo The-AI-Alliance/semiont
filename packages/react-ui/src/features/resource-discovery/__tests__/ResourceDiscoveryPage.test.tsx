@@ -10,6 +10,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
 import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import type { ToolbarPanelsProps } from '../../../components/Toolbar';
 import { resourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
@@ -60,7 +61,7 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   retry: 'Try again',
   loadingKnowledgeBase: 'Loading knowledge base...',
   },
-  ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+  ToolbarPanels: ({ children }: ToolbarPanelsProps) => <div data-testid="toolbar-panels">{children}</div>,
   ...overrides,
 });
 

@@ -12,7 +12,7 @@ const stableMockClient = {
   },
 };
 const stableMockSession = { client: stableMockClient };
-const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableActiveSession$ = new BehaviorSubject(stableMockSession);
 const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
 vi.mock('../../session/SemiontProvider', async (importOriginal) => {

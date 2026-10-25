@@ -4,10 +4,8 @@ import { KnowledgeNavigation } from './KnowledgeNavigation';
 import { Link, routes } from '@/lib/routing';
 
 export function KnowledgeSidebarWrapper() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
-  const { t: _tHome } = useTranslation();
-  const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Navigation' });
+  const { t: tHome } = useTranslation(undefined, { keyPrefix: 'Home' });
   const session = useObservable(useSemiont().activeSession$);
   const user = useObservable(session?.user$);
   const isAuthenticated = !!user;

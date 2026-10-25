@@ -19,6 +19,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
+import type { LinkComponentProps } from '@semiont/react-ui';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { SemiontProvider, ThemeProvider, WebBrowserStorage, createShellStateUnit } from '@semiont/react-ui';
 import { SemiontBrowser, createHttpSessionFactory } from '@semiont/sdk';
@@ -38,7 +39,7 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
 
 vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({ KnowledgeSidebarWrapper: () => null }));
 vi.mock('@/lib/routing', () => ({
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+  Link: ({ children, ...props }: LinkComponentProps) => <a {...props}>{children}</a>,
   routes: {},
 }));
 

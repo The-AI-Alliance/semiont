@@ -16,10 +16,8 @@ describe('favicons index exports', () => {
     });
 
     it('exports frozen object to prevent modifications', () => {
-      const paths = faviconPaths as any;
-
       // Verify all properties exist
-      expect(Object.keys(paths)).toHaveLength(8);
+      expect(Object.keys(faviconPaths)).toHaveLength(8);
 
       // Verify the object is effectively immutable (const assertion)
       expect(() => {

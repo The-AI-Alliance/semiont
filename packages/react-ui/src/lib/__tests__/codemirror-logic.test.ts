@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { textOffsets } from '@semiont/core';
+import { annotationId, resourceId, textOffsets } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import {
   documentPositions,
   convertSegmentPositions,
@@ -10,37 +11,35 @@ import {
 } from '../codemirror-logic';
 import type { TextSegment } from '../codemirror-logic';
 
-// Mock http-transport type guards
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  isHighlight: vi.fn((ann: any) => ann.motivation === 'highlighting'),
-  isComment: vi.fn((ann: any) => ann.motivation === 'commenting'),
-  isReference: vi.fn((ann: any) => ann.motivation === 'linking'),
-  isResolvedReference: vi.fn((ann: any) => ann.motivation === 'linking' && ann.body?.some?.((b: any) => b.source)),
-  isAssessment: vi.fn((ann: any) => ann.motivation === 'assessing'),
-  isTag: vi.fn((ann: any) => ann.motivation === 'tagging'),
-  getBodySource: vi.fn((body: any) => body?.[0]?.source ?? null),
-  };
-});
-
 // Mock annotation-registry
 vi.mock('../annotation-registry', () => ({
   ANNOTATORS: {
-    highlight: { className: 'highlight-class', matchesAnnotation: (ann: any) => ann.motivation === 'highlighting' },
-    comment: { className: 'comment-class', matchesAnnotation: (ann: any) => ann.motivation === 'commenting' },
-    reference: { className: 'reference-class', matchesAnnotation: (ann: any) => ann.motivation === 'linking' },
-    assessment: { className: 'assessment-class', matchesAnnotation: (ann: any) => ann.motivation === 'assessing' },
-    tag: { className: 'tag-class', matchesAnnotation: (ann: any) => ann.motivation === 'tagging' },
+    highlight: { className: 'highlight-class', matchesAnnotation: (ann: Annotation) => ann.motivation === 'highlighting' },
+    comment: { className: 'comment-class', matchesAnnotation: (ann: Annotation) => ann.motivation === 'commenting' },
+    reference: { className: 'reference-class', matchesAnnotation: (ann: Annotation) => ann.motivation === 'linking' },
+    assessment: { className: 'assessment-class', matchesAnnotation: (ann: Annotation) => ann.motivation === 'assessing' },
+    tag: { className: 'tag-class', matchesAnnotation: (ann: Annotation) => ann.motivation === 'tagging' },
   },
 }));
 
-function makeAnnotation(id: string, motivation: string, body?: any[]): any {
-  return { id, motivation, body: body ?? [] };
+function makeAnnotation(id: string, motivation: Annotation['motivation'], body?: Annotation['body']): Annotation {
+  return {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annotationId(id),
+    motivation,
+    target: resourceId('res-1'),
+    created: '2026-01-01T00:00:00Z',
+    ...(body === undefined ? {} : { body }),
+  };
 }
 
-function makeSegment(start: number, end: number, annotation?: any): TextSegment {
+/** A reference's body: it links to `source`. */
+function linkTo(source: string): Annotation['body'] {
+  return [{ type: 'SpecificResource', source: resourceId(source), purpose: 'linking' }];
+}
+
+function makeSegment(start: number, end: number, annotation?: Annotation): TextSegment {
   return {
     exact: 'x'.repeat(end - start),
     start,
@@ -109,10 +108,11 @@ describe('getAnnotationTooltip', () => {
   });
 
   it('returns Resolved Reference for linking with body source', () => {
-    expect(getAnnotationTooltip(makeAnnotation('1', 'linking', [{ source: 'doc-123' }]))).toBe('Resolved Reference');
+    expect(getAnnotationTooltip(makeAnnotation('1', 'linking', linkTo('doc-123')))).toBe('Resolved Reference');
   });
 
   it('returns Annotation for unknown motivation', () => {
+    // @ts-expect-error — a W3C motivation Semiont does not support, for the fallback
     expect(getAnnotationTooltip(makeAnnotation('1', 'bookmarking'))).toBe('Annotation');
   });
 });
@@ -151,6 +151,7 @@ describe('getAnnotationDecorationMeta', () => {
   });
 
   it('falls back to annotation-highlight for unknown motivation', () => {
+    // @ts-expect-error — a W3C motivation Semiont does not support, for the fallback
     const meta = getAnnotationDecorationMeta(makeAnnotation('1', 'bookmarking'), false);
     expect(meta.className).toBe('annotation-highlight');
   });
@@ -188,7 +189,7 @@ describe('computeWidgetDecorations', () => {
   });
 
   it('returns widget metadata for reference annotations', () => {
-    const ann = makeAnnotation('ref-1', 'linking', [{ source: 'doc-abc' }]);
+    const ann = makeAnnotation('ref-1', 'linking', linkTo('doc-abc'));
     const segments = [makeSegment(0, 10, ann)];
     const getName = (id: string) => id === 'doc-abc' ? 'My Document' : undefined;
 

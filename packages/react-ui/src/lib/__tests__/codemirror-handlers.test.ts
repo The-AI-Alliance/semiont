@@ -1,4 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { annotationId, resourceId, type Annotation } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
+import { createTestSession } from '@semiont/sdk/testing';
 import {
   handleAnnotationClick,
   handleWidgetClick,
@@ -9,25 +12,39 @@ import {
 import type { WidgetClickResult } from '../codemirror-handlers';
 import type { TextSegment } from '../codemirror-logic';
 
-function makeSegment(id: string, motivation: string): TextSegment {
+function makeSegment(id: string, motivation: Annotation['motivation']): TextSegment {
   return {
     exact: 'test',
     start: 0,
     end: 4,
-    annotation: { id, motivation } as any,
+    annotation: {
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      type: 'Annotation',
+      id: annotationId(id),
+      motivation,
+      target: resourceId('res-1'),
+      created: '2026-01-01T00:00:00Z',
+    },
   };
 }
 
+const sessions: SemiontSession[] = [];
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const session of sessions.splice(0)) {
+    session.dispose();
+    session.client.dispose();
+  }
+});
+
+/** A real session, and spies on the two browse verbs the handlers send. */
 function makeSession() {
-  const click = vi.fn();
-  const openResource = vi.fn();
-  return {
-    client: {
-      browse: { click, openResource },
-    },
-    click,
-    openResource,
-  } as any;
+  const { session, client } = createTestSession();
+  sessions.push(session);
+  const click = vi.spyOn(client.browse, 'click').mockImplementation(() => {});
+  const openResource = vi.spyOn(client.browse, 'openResource').mockImplementation(() => {});
+  return { session, click, openResource };
 }
 
 // DOM helper: create element with data attributes
@@ -43,14 +60,14 @@ function createElement(tag: string, attrs: Record<string, string> = {}, parent?:
 describe('handleAnnotationClick', () => {
   it('returns false when target has no annotation-id', () => {
     const target = document.createElement('span');
-    const result = handleAnnotationClick(target, new Map(), makeSession());
+    const result = handleAnnotationClick(target, new Map(), makeSession().session);
     expect(result).toBe(false);
   });
 
   it('returns false when annotation not in segments map', () => {
     const parent = createElement('span', { 'data-annotation-id': 'missing' });
     const child = createElement('span', {}, parent);
-    const result = handleAnnotationClick(child, new Map(), makeSession());
+    const result = handleAnnotationClick(child, new Map(), makeSession().session);
     expect(result).toBe(false);
   });
 
@@ -60,11 +77,11 @@ describe('handleAnnotationClick', () => {
 
     const parent = createElement('span', { 'data-annotation-id': 'ann-1' });
     const child = createElement('span', {}, parent);
-    const session = makeSession();
+    const { session, click } = makeSession();
 
     const result = handleAnnotationClick(child, segmentsById, session);
     expect(result).toBe(true);
-    expect(session.click).toHaveBeenCalledWith('ann-1');
+    expect(click).toHaveBeenCalledWith('ann-1');
   });
 });
 
@@ -122,14 +139,14 @@ describe('handleWidgetClick', () => {
 
 describe('dispatchWidgetClick', () => {
   it('does nothing when not handled', () => {
-    const session = makeSession();
+    const { session, click, openResource } = makeSession();
     dispatchWidgetClick({ handled: false }, session);
-    expect(session.click).not.toHaveBeenCalled();
-    expect(session.openResource).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+    expect(openResource).not.toHaveBeenCalled();
   });
 
   it('emits browse:resource-open for navigate action', () => {
-    const session = makeSession();
+    const { session, openResource } = makeSession();
     const result: WidgetClickResult = {
       handled: true,
       action: 'navigate',
@@ -137,18 +154,18 @@ describe('dispatchWidgetClick', () => {
       annotationId: 'ann-1',
     };
     dispatchWidgetClick(result, session);
-    expect(session.openResource).toHaveBeenCalledWith('doc-1');
+    expect(openResource).toHaveBeenCalledWith('doc-1');
   });
 
   it('emits browse:click for browse-click action', () => {
-    const session = makeSession();
+    const { session, click } = makeSession();
     const result: WidgetClickResult = {
       handled: true,
       action: 'browse-click',
       annotationId: 'ann-1',
     };
     dispatchWidgetClick(result, session);
-    expect(session.click).toHaveBeenCalledWith('ann-1');
+    expect(click).toHaveBeenCalledWith('ann-1');
   });
 });
 

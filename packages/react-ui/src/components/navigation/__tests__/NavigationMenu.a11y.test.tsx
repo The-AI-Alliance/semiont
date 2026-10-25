@@ -9,12 +9,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { NavigationMenu } from '../NavigationMenu';
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 // Extend expect with accessibility matchers
 expect.extend(toHaveNoViolations);
 
 describe('NavigationMenu - Accessibility', () => {
-  const mockLink = vi.fn((props: any) => (
+  const mockLink = vi.fn((props: LinkComponentProps) => (
     <a {...props}>
       {props.children}
     </a>

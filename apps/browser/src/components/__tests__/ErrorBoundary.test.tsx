@@ -19,18 +19,14 @@ const mockLocation = {
   href: ''
 };
 
-// Store original location
-const originalLocation = window.location;
-
 // Mock location before tests
 beforeAll(() => {
-  delete (window as any).location;
-  window.location = mockLocation as any;
+  vi.stubGlobal('location', mockLocation);
 });
 
-// Restore original location after tests
+// Restore the location after tests
 afterAll(() => {
-  (window as any).location = originalLocation;
+  vi.unstubAllGlobals();
 });
 
 describe('ErrorBoundary', () => {
@@ -82,8 +78,7 @@ describe('ErrorBoundary', () => {
     });
 
     it('should show error details in development mode', () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as any).NODE_ENV = 'development';
+      vi.stubEnv('NODE_ENV', 'development');
       
       render(
         <ErrorBoundary>
@@ -94,12 +89,11 @@ describe('ErrorBoundary', () => {
       expect(screen.getByText('Error Details (Development Only)')).toBeInTheDocument();
       expect(screen.getByText('Development error')).toBeInTheDocument();
       
-      (process.env as any).NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
 
     it('should hide error details in production mode', () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as any).NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       
       render(
         <ErrorBoundary>
@@ -110,7 +104,7 @@ describe('ErrorBoundary', () => {
       expect(screen.queryByText('Error Details (Development Only)')).not.toBeInTheDocument();
       expect(screen.queryByText('Production error')).not.toBeInTheDocument();
       
-      (process.env as any).NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
 
     it('should call custom onError handler when provided', () => {
@@ -129,8 +123,7 @@ describe('ErrorBoundary', () => {
     });
 
     it('should log error to console in development mode', () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as any).NODE_ENV = 'development';
+      vi.stubEnv('NODE_ENV', 'development');
       
       render(
         <ErrorBoundary>
@@ -144,12 +137,11 @@ describe('ErrorBoundary', () => {
         expect.objectContaining({ componentStack: expect.any(String) })
       );
       
-      (process.env as any).NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
 
     it('should not log error to console in production mode', () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as any).NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       
       // Clear any previous calls
       mockConsoleError.mockClear();
@@ -168,7 +160,7 @@ describe('ErrorBoundary', () => {
         expect.any(Object)
       );
       
-      (process.env as any).NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
   });
 
@@ -249,8 +241,7 @@ describe('ErrorBoundary', () => {
 
   describe('Error Stack Display', () => {
     it('should display error stack in development when available', () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as any).NODE_ENV = 'development';
+      vi.stubEnv('NODE_ENV', 'development');
       
       const errorWithStack = new Error('Error with stack');
       errorWithStack.stack = 'Error: Error with stack\n    at TestComponent\n    at ErrorBoundary';
@@ -270,7 +261,7 @@ describe('ErrorBoundary', () => {
       const stackElement = screen.getByText(/at TestComponent/);
       expect(stackElement.tagName).toBe('PRE');
       
-      (process.env as any).NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
   });
 });
@@ -410,9 +401,10 @@ describe('ErrorBoundary Edge Cases', () => {
   });
 
   it('should handle complex error objects', () => {
-    const complexError = new Error('Complex error');
-    (complexError as any).code = 'COMPLEX_ERROR';
-    (complexError as any).details = { severity: 'high' };
+    const complexError = Object.assign(new Error('Complex error'), {
+      code: 'COMPLEX_ERROR',
+      details: { severity: 'high' },
+    });
     
     const ThrowComplexError = () => {
       throw complexError;

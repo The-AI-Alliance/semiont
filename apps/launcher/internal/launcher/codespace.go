@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"regexp"
@@ -1577,7 +1576,7 @@ func forwardAlive(pid, port int) bool {
 	if !forwardProcAlive(pid) || port == 0 {
 		return false
 	}
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+	conn, err := dialTCP("127.0.0.1", port, time.Second)
 	if err != nil {
 		return false
 	}

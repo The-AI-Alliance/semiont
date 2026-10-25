@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { UnifiedHeader } from '../UnifiedHeader';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 
 // Mock only hooks - using real components via composition
 vi.mock('@/hooks/useUI', () => ({
@@ -17,15 +18,14 @@ vi.mock('@/hooks/useUI', () => ({
 import { useDropdown } from '@/hooks/useUI';
 
 // Mock Link component
-const MockLink = ({ href, children, ...props }: any) => (
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
-// Mock routes
-const mockRoutes = {
-  home: () => '/',
-  about: () => '/about',
-} as any;
+// Mock routes: the layout links to no resource, and leaves the others to their defaults
+const mockRoutes: RouteBuilder = {
+  resourceDetail: (id: string) => `/resource/${id}`,
+};
 
 // Mock translation functions
 const mockT = (key: string) => `nav.${key}`;

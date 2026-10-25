@@ -1,8 +1,7 @@
 "use client";
 
+import type { TranslateFn } from '../../types/translation';
 import './Branding.css';
-
-type TranslateFn = (key: string) => string;
 
 interface SemiontBrandingProps {
   t: TranslateFn;

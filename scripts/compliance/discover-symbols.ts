@@ -130,10 +130,8 @@ class SymbolDiscoverer {
   }
 
   private hasExportModifier(node: ts.Node): boolean {
-    if (!('modifiers' in node)) return false;
-    const modifiers = (node as any).modifiers as ts.NodeArray<ts.Modifier> | undefined;
-    if (!modifiers) return false;
-    return modifiers.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+    if (!ts.canHaveModifiers(node)) return false;
+    return ts.getModifiers(node)?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
   }
 
   private findNamedExports(sourceFile: ts.SourceFile): Set<string> {

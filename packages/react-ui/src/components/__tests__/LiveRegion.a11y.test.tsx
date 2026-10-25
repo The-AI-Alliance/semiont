@@ -196,7 +196,7 @@ describe('LiveRegion - Accessibility', () => {
 
   describe('Context Provider', () => {
     it('should provide announce function through context', () => {
-      let announceFunction: any;
+      let announceFunction: ReturnType<typeof useLiveRegion>['announce'] | undefined;
 
       function CaptureContext() {
         const { announce } = useLiveRegion();

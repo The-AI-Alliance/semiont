@@ -5,6 +5,13 @@
 import '@testing-library/jest-dom';
 import { vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import type { AnchorHTMLAttributes, ReactNode } from 'react';
+
+/** What the mocked `Link`s take: an anchor's attributes, a route, and a render function for `NavLink`'s children. */
+type MockLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'children'> & {
+  children?: ReactNode | ((state: { isActive: boolean }) => ReactNode);
+  to?: string;
+};
 
 // AbortController polyfill for ky compatibility
 if (typeof global.AbortController === 'undefined') {
@@ -13,10 +20,14 @@ if (typeof global.AbortController === 'undefined') {
 }
 
 // DOMMatrix polyfill for PDF.js
-if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
-  (globalThis as any).DOMMatrix = class DOMMatrix {
-    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
-  };
+if (typeof globalThis !== 'undefined' && !('DOMMatrix' in globalThis)) {
+  Object.defineProperty(globalThis, 'DOMMatrix', {
+    value: class DOMMatrix {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    },
+    writable: true,
+    configurable: true,
+  });
 }
 
 // window.matchMedia mock for theme detection (jsdom only — node-environment
@@ -80,10 +91,13 @@ vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   const React = await import('react');
 
-  const MockLink = ({ children, to, href, ...props }: any) =>
-    React.createElement('a', { href: to ?? href, ...props },
+  const MockLink = ({ children, to, href, ...props }: MockLinkProps) => {
+    const target = to ?? href;
+    const anchor: AnchorHTMLAttributes<HTMLAnchorElement> = target === undefined ? props : { ...props, href: target };
+    return React.createElement('a', anchor,
       typeof children === 'function' ? children({ isActive: false }) : children
     );
+  };
 
   return {
     ...actual,
@@ -92,8 +106,8 @@ vi.mock('react-router', async (importOriginal) => {
     useParams: () => ({ locale: 'en' }),
     useSearchParams: () => [new URLSearchParams(), vi.fn()],
     Link: MockLink,
-    Navigate: ({ to }: any) => React.createElement('div', { 'data-testid': 'navigate', 'data-to': to }),
-    BrowserRouter: ({ children }: any) => React.createElement(React.Fragment, null, children),
+    Navigate: ({ to }: { to: string }) => React.createElement('div', { 'data-testid': 'navigate', 'data-to': to }),
+    BrowserRouter: ({ children }: { children?: ReactNode }) => React.createElement(React.Fragment, null, children),
     MemoryRouter: actual.MemoryRouter,
   };
 });
@@ -106,7 +120,7 @@ vi.mock('react-i18next', async () => {
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const translationsPath = path.join(__dirname, 'messages', 'en.json');
-  const translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
+  const translations: Record<string, Record<string, string> | undefined> = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
 
   const tFn = (key: string, params?: Record<string, unknown>) => {
     // key format: "Namespace.subkey"
@@ -124,6 +138,19 @@ vi.mock('react-i18next', async () => {
     return result;
   };
 
+  // react-i18next's own scoping: `useTranslation(ns, { keyPrefix })` hands back
+  // a `t` that reads every key under the prefix. One per prefix, so it is as
+  // stable from render to render as the real one.
+  const scoped = new Map<string, typeof tFn>();
+  const tUnder = (keyPrefix: string | undefined) => {
+    if (keyPrefix === undefined) return tFn;
+    const known = scoped.get(keyPrefix);
+    if (known) return known;
+    const t = (key: string, params?: Record<string, unknown>) => tFn(`${keyPrefix}.${key}`, params);
+    scoped.set(keyPrefix, t);
+    return t;
+  };
+
   const i18nInstance = {
     language: 'en',
     changeLanguage: vi.fn().mockResolvedValue(undefined),
@@ -134,10 +161,10 @@ vi.mock('react-i18next', async () => {
   };
 
   return {
-    useTranslation: vi.fn(() => ({ t: tFn, i18n: i18nInstance })),
+    useTranslation: vi.fn((_ns?: string, options?: { keyPrefix?: string }) => ({ t: tUnder(options?.keyPrefix), i18n: i18nInstance })),
     initReactI18next: { type: '3rdParty', init: vi.fn() },
-    I18nextProvider: ({ children }: any) => children,
-    Trans: ({ i18nKey }: any) => i18nKey,
+    I18nextProvider: ({ children }: { children?: ReactNode }) => children,
+    Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
   };
 });
 
@@ -145,8 +172,13 @@ vi.mock('react-i18next', async () => {
 vi.mock('@/i18n/routing', async () => {
   const React = await import('react');
 
-  const MockLink = ({ children, to, href, ...props }: any) =>
-    React.createElement('a', { href: to ?? href, ...props }, children);
+  const MockLink = ({ children, to, href, ...props }: MockLinkProps) => {
+    const target = to ?? href;
+    const anchor: AnchorHTMLAttributes<HTMLAnchorElement> = target === undefined ? props : { ...props, href: target };
+    return React.createElement('a', anchor,
+      typeof children === 'function' ? children({ isActive: false }) : children
+    );
+  };
 
   return {
     Link: MockLink,

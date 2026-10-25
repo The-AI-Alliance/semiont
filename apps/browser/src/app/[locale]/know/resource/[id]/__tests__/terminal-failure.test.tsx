@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
+import type { LinkComponentProps } from '@semiont/react-ui';
 import { Subject } from 'rxjs';
 
 vi.mock('react-router', async () => {
@@ -25,7 +26,7 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ replace: () => {}, push: () => {} }),
 }));
 vi.mock('@/lib/routing', () => ({
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+  Link: ({ children, ...props }: LinkComponentProps) => <a {...props}>{children}</a>,
   routes: {},
 }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({ ToolbarPanels: () => null }));

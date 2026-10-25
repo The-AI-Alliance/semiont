@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { NavigationMenu } from '../NavigationMenu';
-import type { LinkComponentProps } from '../../../contexts/RoutingContext';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 
 describe('NavigationMenu Component', () => {
   const mockLink = vi.fn(({ href, children, className, onClick, ...props }: LinkComponentProps) => (
@@ -378,9 +378,12 @@ describe('NavigationMenu Component', () => {
     });
 
     it('should handle routes that return null', () => {
-      const nullRoutes = {
-        knowledge: () => null as any,
-        moderate: () => null as any,
+      // A host's route builder that returns nothing, which the menu falls back from.
+      const nullRoutes: Partial<RouteBuilder> = {
+        // @ts-expect-error — no route
+        knowledge: () => null,
+        // @ts-expect-error — no route
+        moderate: () => null,
       };
 
       render(
