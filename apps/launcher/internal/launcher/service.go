@@ -22,14 +22,20 @@ import (
 // that holds realm accounts.
 func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 
-// serviceNeedsAddr: does this role's launch interpolate the host address?
-// Every stack service does (the addresses its document states), and so do
-// the three third-party roles the launcher must reach or configure: the database
-// it waits on, the Ollama it probes, and the identity provider whose
-// KC_DB_URL names the PostgreSQL by address: without it, `start --service
-// identity` builds `jdbc:postgresql://:5432/<database>`.
-func serviceNeedsAddr(svc string) bool {
-	return isConfigConsumer(svc) || svc == "database" || svc == "inference" || svc == "identity"
+// serviceNeedsAddr: does this role's start use the host address? Every stack
+// service's does (the addresses its document states), and so do the roles the
+// launcher reaches or configures through it: the database and the broker it
+// waits on from a container's side, the Ollama it probes from one (owned by
+// inference or embedding), the identity provider whose KC_DB_URL names the
+// PostgreSQL, the collector whose document names Jaeger, and Prometheus, whose
+// document names the collector. Where publishes are confined, every role but
+// the Browser publishes a port on it.
+func serviceNeedsAddr(svc string, e exposure) bool {
+	if svc == "browser" {
+		return false
+	}
+	return e.confined() || isConfigConsumer(svc) ||
+		contains([]string{"database", "messaging", "inference", "embedding", "identity", "collector", "metrics"}, svc)
 }
 
 // digString walks a nested inspect entry for a string leaf.

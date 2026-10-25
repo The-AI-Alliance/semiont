@@ -35,8 +35,8 @@ func dispatcherDocumentOf(t *testing.T, p placement) semiont.DispatcherConfig {
 }
 
 // Every address is the placement's: the gateway at this start's address on the
-// port the KnowledgeBase gives it — never its publicURL, which is where clients
-// reach it — and the broker the launcher runs, with the pair the launcher keeps
+// containers' side of the port the KnowledgeBase gives it — never its
+// publicURL, which is where clients reach it — and the broker the launcher runs, with the pair the launcher keeps
 // named. The log level is the KnowledgeBase's.
 func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
@@ -44,7 +44,7 @@ func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
 	p := placed(t, st)
 	doc := dispatcherDocumentOf(t, p)
-	if doc.GatewayUrl != "http://192.168.64.1:4100" {
+	if doc.GatewayUrl != "http://192.168.64.1:14100" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address on its port", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {

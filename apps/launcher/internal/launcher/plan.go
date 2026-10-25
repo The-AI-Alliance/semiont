@@ -340,7 +340,7 @@ func driverDisplay(role, driver string) string {
 // its plan: aux ports first, then the primary publish (host side the plan's,
 // container side the driver default), driver extras, the env the documents
 // derive, image — with the memory its document states.
-func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
+func providedRunArgs(e exposure, role string, rp rolePlan, extra ...string) []string {
 	spec := descriptorFor(role, rp.Driver)
 	// NO --rm: a crashed container must remain inspectable — its logs are
 	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
@@ -348,9 +348,9 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	// start's preflight and stop both stop+rm by name.
 	a := []string{"run", "-d", "--name", spec.container, "--memory", rp.Memory}
 	for _, ap := range spec.auxPorts {
-		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
+		a = append(a, e.publish("-p", role, ap.port, ap.port)...)
 	}
-	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
+	a = append(a, e.publish("-p", role, rp.Port, spec.defaultPort)...)
 	a = append(a, extra...)
 	for _, e := range rp.Env {
 		a = append(a, "-e", e)
@@ -365,14 +365,14 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 // when the bindings are all-remote) while the container, image and port
 // shape do not — the OWNER's descriptor would be wrong for embedding, whose
 // row carries no container precisely because it never runs one.
-func ollamaRunArgs(rp rolePlan, extra ...string) []string {
+func ollamaRunArgs(e exposure, rp rolePlan, extra ...string) []string {
 	spec := descriptorFor("inference", "ollama")
 	// The ceiling is the INFERENCE row's whichever role owns the container
 	// (an all-remote embedding config still runs one Ollama), and it comes
 	// from the descriptor ALONE — a second -m from a caller wins by flag
 	// order and desyncs the memory preflight.
 	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem} // no --rm: see providedRunArgs
-	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
+	a = append(a, e.publish("-p", "inference", rp.Port, spec.defaultPort)...)
 	a = append(a, extra...)
 	return append(a, rp.Image)
 }
@@ -388,9 +388,10 @@ func (p *launchPlan) runs(role string) bool {
 }
 
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
-// the launcher actually provides claim ports. The order is the order the
-// checks run in, and the start goldens pin it.
-func planPortChecks(plan *launchPlan, observe bool) []portNeed {
+// the launcher actually provides claim ports, and a port a person and the
+// containers both dial claims its containers' side too (e). The order is the
+// order the checks run in, and the start goldens pin it.
+func planPortChecks(plan *launchPlan, observe bool, e exposure) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {
 		rp := plan.Roles[role]
@@ -399,7 +400,8 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		}
 		spec := descriptorFor(role, rp.Driver)
 		checks = append(checks, spec.auxPorts...)
-		checks = append(checks, portNeed{rp.Port, spec.portLabel})
+		need := portNeed{rp.Port, spec.portLabel}
+		checks = append(append(checks, need), e.containersSideNeed(role, need)...)
 	}
 	addRole("graph")
 	addRole("vectors")
@@ -410,7 +412,8 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	// launcher fiat and comes from the descriptor set. No browser here: the
 	// Browser is not a stack member — its port is checked inside flowBrowser,
 	// and only when (re)starting.
-	checks = append(checks, portNeed{plan.GatewayPort, "Gateway"})
+	gateway := portNeed{plan.GatewayPort, "Gateway"}
+	checks = append(append(checks, gateway), e.containersSideNeed("gateway", gateway)...)
 	for _, role := range fiatRoles(observe) {
 		if plan.runs(role) {
 			checks = append(checks, stackPortNeeds(role)...)

@@ -22,11 +22,12 @@ func externalIssuer(st *stack.Stack) {
 }
 
 // A daemon whose document states no `external` is the launcher's to run and
-// to place: every one at this start's address, on its driver's port, and the
-// machine's Ollama beside them.
+// to place: every one at this start's address, on its driver's port (the
+// containers' side of one a person dials too), and the machine's Ollama beside
+// them.
 func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	placedByLauncher := []string{
-		"graph: bolt://192.168.64.1:7687",
+		"graph: bolt://192.168.64.1:17687",
 		"vectors: 192.168.64.1:6333",
 		"database: 192.168.64.1:5432",
 		"messaging: 192.168.64.1:4222",
