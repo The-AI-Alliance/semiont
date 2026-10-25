@@ -36,7 +36,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 20
     labels:
-      - "dependencies"
+      - "kind:dependencies"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -90,8 +90,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "tests"
+      - "kind:dependencies"
+      - "tests:e2e"
     groups:
       e2e:
         patterns:
@@ -116,8 +116,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "tests"
+      - "kind:dependencies"
+      - "tests:conformance"
     groups:
       conformance:
         patterns:
@@ -149,8 +149,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "launcher"
+      - "kind:dependencies"
+      - "app:launcher"
     groups:
       # Alone, as the paragraph above says: its bump runs every suite against
       # the new broker, and the launcher's tests fail until the image moves.
@@ -184,8 +184,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "sdk-go"
+      - "kind:dependencies"
+      - "sdk:go"
     groups:
       sdk-go:
         patterns:
@@ -242,10 +242,7 @@ updates:
       python:
         patterns: ["*"]
     labels:
-      - "dependencies"
-      - "sdk-python"
-      - "inference-python"
-      - "worker"
+      - "kind:dependencies"
     commit-message:
       prefix: "python"
       include: "scope"
@@ -265,8 +262,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "gateway"
+      - "kind:dependencies"
     groups:
       gateway-crates:
         patterns:
@@ -292,8 +288,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "gateway"
+      - "kind:dependencies"
     commit-message:
       prefix: "gateway"
       include: "scope"
@@ -310,8 +305,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "desktop"
+      - "kind:dependencies"
+      - "app:desktop"
     groups:
       desktop-crates:
         patterns:
@@ -334,8 +329,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "github-actions"
+      - "kind:dependencies"
     groups:
       actions:
         patterns:
@@ -354,9 +348,8 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "browser"
-      - "docker"
+      - "kind:dependencies"
+      - "app:browser"
     groups:
       browser-image:
         patterns:
@@ -386,9 +379,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "services"
-      - "docker"
+      - "kind:dependencies"
     groups:
       service-base-images:
         patterns:
@@ -417,9 +408,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "services"
-      - "docker"
+      - "kind:dependencies"
     groups:
       python-service-images:
         patterns:

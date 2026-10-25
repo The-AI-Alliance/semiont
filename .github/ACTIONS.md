@@ -55,6 +55,12 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - Runs the `security-and-quality` query suite
 - Uploads results to GitHub Security tab
 
+### Labels (`labels.yml`)
+**The repository's labels, made `labels.yml`'s**:
+- On a push to main, creates, updates, renames and deletes labels until they are `labels.yml`'s; a label made by hand is deleted by the next sync
+- On a pull request, or a branch dispatched by hand, changes nothing: the log is what that file would do
+- `crazy-max/ghaction-github-labeler`
+
 ## 🔧 Configuration Files
 
 ### Dependabot (`dependabot.yml`)
@@ -70,6 +76,14 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 - `npm run lint:node-version` (Architecture Compliance) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
 - `npm run lint:nats-version` (Architecture Compliance) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
+- Each entry's labels are `kind:dependencies` and, when all its directories are in one app, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`
+
+### Labels (`labels.yml`)
+**Every label the repository has**, each a name, a colour and a description:
+- A label is `<dimension>:<value>`, each dimension in one colour: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
+- Three are of no dimension: `good first issue` and `help wanted`, which GitHub reads by those names, and `Ontology`
+- `from_name` renames a label in place, so what it is on keeps it; it is deleted once the sync has run
+- `npm run lint:labels` (Census) fails when an entry is not a label GitHub can hold, a label is of no dimension and not listed, `app:`, `tests:`, `verb:` or `stack:` disagrees with the directories, the client surface's namespaces or the stack schemas' kinds, an SDK has no `sdk:`, or a Dependabot entry applies another label than its directories give it
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
@@ -134,6 +148,14 @@ session code.
 - pull_request: [main, develop]
 - schedule: "0 6 * * 1" # Weekly Monday 6 AM UTC
 - workflow_dispatch: # Manual trigger
+```
+
+### Labels
+```yaml
+# Runs on:
+- push: [main] # changes to labels.yml or the workflow; the one run that changes labels
+- pull_request: [main, develop] # changes to labels.yml or the workflow; a dry run
+- workflow_dispatch: # Manual trigger; a dry run but on main
 ```
 
 ## 🛡️ Security Workflow Details
