@@ -82,6 +82,17 @@ const capturedHistory = vi.hoisted(() => {
   return captured;
 });
 
+/**
+ * The props the page last rendered the history with. Read through a function:
+ * after a test sets `capturedHistory.props = null`, the compiler holds it null
+ * for the rest of that test, though the render assigns it again.
+ */
+function historyProps(): React.ComponentProps<typeof AnnotationHistory> {
+  const { props } = capturedHistory;
+  if (!props) throw new Error('the page rendered no AnnotationHistory');
+  return props;
+}
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
@@ -362,8 +373,9 @@ describe('ResourceViewerPage', () => {
       const focused: Array<EventMap['beckon:focus']['annotationId']> = [];
       const sub = stubClient.bus.on('beckon:focus').subscribe(({ annotationId }: EventMap['beckon:focus']) => focused.push(annotationId));
 
-      expect(capturedHistory.props?.onEventClick).toBeTypeOf('function');
-      capturedHistory.props!.onEventClick!(makeAnnotationId('ann-42'));
+      const { onEventClick } = historyProps();
+      if (!onEventClick) throw new Error('the page gave the history no onEventClick');
+      onEventClick(makeAnnotationId('ann-42'));
       expect(focused).toEqual(['ann-42']);
 
       sub.unsubscribe();

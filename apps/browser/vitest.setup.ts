@@ -93,7 +93,8 @@ vi.mock('react-router', async (importOriginal) => {
 
   const MockLink = ({ children, to, href, ...props }: MockLinkProps) => {
     const target = to ?? href;
-    return React.createElement('a', target === undefined ? props : { ...props, href: target },
+    const anchor: AnchorHTMLAttributes<HTMLAnchorElement> = target === undefined ? props : { ...props, href: target };
+    return React.createElement('a', anchor,
       typeof children === 'function' ? children({ isActive: false }) : children
     );
   };
@@ -173,7 +174,8 @@ vi.mock('@/i18n/routing', async () => {
 
   const MockLink = ({ children, to, href, ...props }: MockLinkProps) => {
     const target = to ?? href;
-    return React.createElement('a', target === undefined ? props : { ...props, href: target },
+    const anchor: AnchorHTMLAttributes<HTMLAnchorElement> = target === undefined ? props : { ...props, href: target };
+    return React.createElement('a', anchor,
       typeof children === 'function' ? children({ isActive: false }) : children
     );
   };
