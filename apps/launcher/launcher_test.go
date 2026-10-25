@@ -7029,7 +7029,8 @@ func TestStartServiceGraph(t *testing.T) {
 			}
 			mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
 			argv := s.argv(t)
-			mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
+			// Docker's run carries its log options before -d.
+			mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "-d --name semiont-neo4j")
 			needless := []string{"image pull", "inspect"}
 			if rt == "container" {
 				mustContain(t, "argv", argv, "-p 192.168.64.1:17687:7687")
