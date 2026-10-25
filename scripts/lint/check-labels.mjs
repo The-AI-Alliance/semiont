@@ -15,8 +15,11 @@
  *    of a name and 100 of a description. Names, and the names renamed from,
  *    are unique as GitHub compares them, without case.
  * 2. A label is `<dimension>:<value>`, for a dimension below, or one of the
- *    few of no dimension, each listed below with why. The labels of a
- *    dimension share one colour.
+ *    few of no dimension, each listed below with why. Its colour says what it
+ *    is: two labels share a colour exactly when they are in one colour group.
+ *    A dimension is one group, but kind:, whose every label is its own group,
+ *    and verb:, whose groups are the three ways a verb works on the corpus,
+ *    listed below. A label of no dimension is its own group.
  * 3. Five dimensions restate what something else owns, and are held to it
  *    both ways:
  *      app:    the directories under apps/
@@ -67,6 +70,13 @@ const NOT_A_VERB = {
   job: "jobs' lifecycle, which the verbs' delegated work runs as",
   auth: "the gateway's view of who is signed in",
   system: 'what the knowledge base says about itself',
+};
+
+/** The verbs by what each does to the corpus, as the docs group them: each group is one colour. */
+const VERB_GROUPS = {
+  writing: ['yield', 'mark', 'bind', 'frame'],
+  reading: ['browse', 'match', 'gather'],
+  attention: ['beckon'],
 };
 
 /** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
@@ -137,11 +147,36 @@ for (const { name, color } of labels) {
 for (const [name, why] of Object.entries(OF_NO_DIMENSION)) {
   if (!labels.some((label) => label.name === name)) fail(`${name} is listed as of no dimension (${why}), and ${LABELS} has no such label: take it off the list`);
 }
-for (const [dimension, of] of byDimension) {
-  if (of.length === 0) fail(`${LABELS} has no ${dimension}: label`);
-  const colours = new Set(of.map((label) => label.color));
-  if (colours.size > 1) fail(`the ${dimension}: labels have ${colours.size} colours (${[...colours].join(', ')}); a dimension has one`);
+for (const [dimension, of] of byDimension) if (of.length === 0) fail(`${LABELS} has no ${dimension}: label`);
+
+const verbs = byDimension.get('verb').map((label) => label.value);
+for (const verb of verbs) {
+  const groups = Object.keys(VERB_GROUPS).filter((group) => VERB_GROUPS[group].includes(verb));
+  if (groups.length !== 1) fail(`verb:${verb} is in ${groups.length === 0 ? 'no group' : `${groups.length} groups (${groups.join(', ')})`} of VERB_GROUPS; each verb is in one`);
 }
+for (const [group, members] of Object.entries(VERB_GROUPS)) {
+  for (const verb of members) if (!verbs.includes(verb)) fail(`VERB_GROUPS lists ${verb} under ${group}, and ${LABELS} has no verb:${verb}: take it off the list`);
+}
+
+/** The colour group a label is in. */
+function colourGroup(name) {
+  const [dimension, value] = name.split(':');
+  if (value === undefined || dimension === 'kind') return name;
+  if (dimension === 'verb') return `verb: ${Object.keys(VERB_GROUPS).find((group) => VERB_GROUPS[group].includes(value))}`;
+  return `${dimension}:`;
+}
+const addTo = (map, key, value) => {
+  if (!map.has(key)) map.set(key, new Set());
+  map.get(key).add(value);
+};
+const coloursOf = new Map();
+const groupsOf = new Map();
+for (const { name, color } of labels) {
+  addTo(coloursOf, colourGroup(name), color);
+  addTo(groupsOf, color, colourGroup(name));
+}
+for (const [group, colours] of coloursOf) if (colours.size > 1) fail(`${group} has ${colours.size} colours (${[...colours].join(', ')}); a colour group has one`);
+for (const [color, groups] of groupsOf) if (groups.size > 1) fail(`${color} is the colour of ${[...groups].join(' and ')}; a colour says one group`);
 
 // Rule 3: the dimensions that restate what something else owns.
 const valuesOf = (dimension) => new Set(byDimension.get(dimension).map((label) => label.value));
@@ -218,5 +253,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions of one colour each; app:, tests:, spec:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
+  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions, each colour one group's; app:, tests:, spec:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
 );
