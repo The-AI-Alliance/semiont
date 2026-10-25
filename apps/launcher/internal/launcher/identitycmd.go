@@ -164,7 +164,7 @@ func Identity(args []string) int {
 	}
 
 	realm := keycloakRealm(issuerPath(rp.Issuer))
-	base := fmt.Sprintf("http://localhost:%d", rp.Port)
+	base := fmt.Sprintf("http://%s:%d", recordedExposure(kb.key()).probeHost("identity", rp.Port), rp.Port)
 	u.Log("Reconciling realm %s at %s", u.Bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,

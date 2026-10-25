@@ -32,7 +32,7 @@ Who may sign in is decided at the issuer, and nowhere else. The gateway admits e
 ## What is your platform's
 
 - **TLS.** The gateway serves HTTP and sends `Strict-Transport-Security`, which a browser honours only over HTTPS. Terminate TLS in front of it.
-- **Network placement.** Only the gateway and the Browser need to be reachable by clients. Everything else can sit on a private network.
+- **Network placement.** Only the gateway and the Browser need to be reachable by clients. Everything else can sit on a private network. Where a stack the launcher starts on your machine listens is in [Ports](../LOCAL-SEMIONT.md#ports).
 - **Limits per address**, and allow or block lists. The gateway limits per principal, after a token is read.
 - **Secrets.** Where they are stored and how they reach each container: see [Secrets](../services/SECRETS.md).
 - **File permissions** on the knowledge base's working tree and the stores beside it.

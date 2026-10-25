@@ -84,9 +84,10 @@ func keycloakRealm(path string) string {
 }
 
 // identityEndpoint: the issuer as reachable from this host — the realm's
-// root, which Keycloak serves only once the realm exists.
-func identityEndpoint(rp rolePlan) string {
-	return fmt.Sprintf("http://localhost:%d%s", rp.Port, issuerPath(rp.Issuer))
+// root, which Keycloak serves only once the realm exists — where e publishes
+// it.
+func identityEndpoint(rp rolePlan, e exposure) string {
+	return fmt.Sprintf("http://%s:%d%s", e.probeHost("identity", rp.Port), rp.Port, issuerPath(rp.Issuer))
 }
 
 // serviceClients: the realm's view of `stackServices` — every process that
