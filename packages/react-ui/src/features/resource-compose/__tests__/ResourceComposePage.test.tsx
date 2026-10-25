@@ -6,15 +6,19 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import type { ComponentProps } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { resourceId, type ResourceDescriptor } from '@semiont/core';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps } from '../components/ResourceComposePage';
+import type { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
+import type { ToolbarPanelsProps } from '../../../components/Toolbar';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
 vi.mock('../../../components/CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content, onChange, editable, showLineNumbers }: any) => (
+  CodeMirrorRenderer: ({ content, onChange, editable, showLineNumbers }: ComponentProps<typeof CodeMirrorRenderer>) => (
     <textarea
       data-testid="code-editor"
       data-line-numbers={String(showLineNumbers)}
@@ -54,6 +58,14 @@ const createMockTranslations = () => ({
   createResource: 'Create Resource',
 });
 
+/** The resource a clone is made from. */
+const originalResource: ResourceDescriptor = {
+  '@context': 'https://schema.org/',
+  '@id': resourceId('1'),
+  name: 'Original Resource',
+  representations: [{ mediaType: 'text/plain' }],
+};
+
 const createMockProps = (overrides?: Partial<ResourceComposePageProps>): ResourceComposePageProps => ({
   mode: 'new',
   availableEntityTypes: ['Document', 'Article', 'Report'],
@@ -64,7 +76,7 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   onSaveResource: vi.fn().mockResolvedValue(undefined),
   onCancel: vi.fn(),
   translations: createMockTranslations(),
-  ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+  ToolbarPanels: ({ children }: ToolbarPanelsProps) => <div data-testid="toolbar-panels">{children}</div>,
   Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
   ...overrides,
 });
@@ -135,10 +147,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'clone',
         cloneData: {
-          sourceResource: {
-            '@id': '1',
-            name: 'Original Resource',
-          } as any,
+          sourceResource: originalResource,
           sourceContent: 'Original content',
         },
       });
@@ -152,10 +161,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'clone',
         cloneData: {
-          sourceResource: {
-            '@id': '1',
-            name: 'Original Resource',
-          } as any,
+          sourceResource: originalResource,
           sourceContent: 'Original content',
         },
       });
@@ -172,10 +178,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'clone',
         cloneData: {
-          sourceResource: {
-            '@id': '1',
-            name: 'Original Resource',
-          } as any,
+          sourceResource: originalResource,
           sourceContent: 'Original content',
         },
       });
@@ -188,10 +191,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'clone',
         cloneData: {
-          sourceResource: {
-            '@id': '1',
-            name: 'Original Resource',
-          } as any,
+          sourceResource: originalResource,
           sourceContent: 'Original content',
         },
       });

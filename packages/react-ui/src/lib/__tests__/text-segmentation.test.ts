@@ -1,56 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { segmentTextWithAnnotations, _resetDegradedAnchorWarnings } from '../text-segmentation';
 import { getAnnotationDecorationMeta, computeAnnotationDecorations } from '../codemirror-logic';
-import { textOffsets, type Annotation } from '@semiont/core';
+import { annotationId, resourceId, textOffsets, type Annotation, type Selector } from '@semiont/core';
 
-// Mock http-transport functions used by segmentTextWithAnnotations
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getTargetSelector: vi.fn((target: any) => {
-    if (Array.isArray(target)) return target[0];
-    return target;
-  }),
-  getTextPositionSelector: vi.fn((selector: any) => {
-    if (!selector) return null;
-    if (selector.type === 'TextPositionSelector') return selector;
-    if (selector.selector) {
-      const pos = Array.isArray(selector.selector)
-        ? selector.selector.find((s: any) => s.type === 'TextPositionSelector')
-        : selector.selector.type === 'TextPositionSelector' ? selector.selector : null;
-      return pos ?? null;
-    }
-    return null;
-  }),
-  getTextQuoteSelector: vi.fn((selector: any) => {
-    if (!selector) return null;
-    if (selector.type === 'TextQuoteSelector') return selector;
-    if (selector.selector) {
-      const quote = Array.isArray(selector.selector)
-        ? selector.selector.find((s: any) => s.type === 'TextQuoteSelector')
-        : selector.selector.type === 'TextQuoteSelector' ? selector.selector : null;
-      return quote ?? null;
-    }
-    return null;
-  }),
-  // anchorAnnotation is the real implementation from @semiont/core via the
-  // `...actual` spread above. Don't mock it — these tests assert the
-  // integration of segmentTextWithAnnotations with the actual scorer.
-  };
-});
+// Every helper segmentTextWithAnnotations calls is @semiont/core's own,
+// anchorAnnotation's scorer included: these tests hold their integration.
 
-function makeAnnotation(id: string, start: number, end: number, exact?: string): any {
+/** An annotation on `selector`, as the store holds it. */
+function annotationOn(id: string, motivation: Annotation['motivation'], selector: Selector[]): Annotation {
   return {
-    id,
-    motivation: 'highlighting',
-    target: {
-      selector: [
-        { type: 'TextPositionSelector', start, end },
-        ...(exact ? [{ type: 'TextQuoteSelector', exact }] : []),
-      ],
-    },
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annotationId(id),
+    motivation,
+    target: { source: resourceId('res-1'), selector },
+    created: '2026-01-01T00:00:00Z',
   };
+}
+
+function makeAnnotation(id: string, start: number, end: number, exact?: string): Annotation {
+  return annotationOn(id, 'highlighting', [
+    { type: 'TextPositionSelector', start, end },
+    ...(exact ? [{ type: 'TextQuoteSelector' as const, exact }] : []),
+  ]);
 }
 
 describe('segmentTextWithAnnotations', () => {
@@ -139,16 +111,10 @@ describe('segmentTextWithAnnotations', () => {
     // selector's unique-occurrence wins and the highlight aligns.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
-    const ann: any = {
-      id: 'tag1',
-      motivation: 'tagging',
-      target: {
-        selector: [
-          { type: 'TextPositionSelector', start: 16, end: 16 + exact.length },
-          { type: 'TextQuoteSelector', exact, prefix: 'Kenison, C.J.\nTh', suffix: ' by this appeal.' },
-        ],
-      },
-    };
+    const ann = annotationOn('tag1', 'tagging', [
+      { type: 'TextPositionSelector', start: 16, end: 16 + exact.length },
+      { type: 'TextQuoteSelector', exact, prefix: 'Kenison, C.J.\nTh', suffix: ' by this appeal.' },
+    ]);
 
     const result = segmentTextWithAnnotations(content, textOffsets(content), [ann]);
     const annotated = result.find(s => s.annotation);
@@ -163,16 +129,10 @@ describe('segmentTextWithAnnotations', () => {
 
 describe('segmentTextWithAnnotations — strategy + confidence on segments', () => {
   function annAt(id: string, start: number, end: number, exact: string): Annotation {
-    return {
-      id,
-      motivation: 'highlighting',
-      target: {
-        selector: [
-          { type: 'TextPositionSelector', start, end },
-          { type: 'TextQuoteSelector', exact },
-        ],
-      },
-    } as any;
+    return annotationOn(id, 'highlighting', [
+      { type: 'TextPositionSelector', start, end },
+      { type: 'TextQuoteSelector', exact },
+    ]);
   }
 
   it('marks fast-path anchors as high confidence', () => {
@@ -194,11 +154,7 @@ describe('segmentTextWithAnnotations — strategy + confidence on segments', () 
 
   it('marks position-fallback anchors as low confidence when only position is given', () => {
     const content = 'Hello World';
-    const ann: any = {
-      id: 'no-quote',
-      motivation: 'highlighting',
-      target: { selector: [{ type: 'TextPositionSelector', start: 0, end: 5 }] },
-    };
+    const ann = annotationOn('no-quote', 'highlighting', [{ type: 'TextPositionSelector', start: 0, end: 5 }]);
     const seg = segmentTextWithAnnotations(content, textOffsets(content), [ann]).find(s => s.annotation);
     expect(seg!.strategy).toBe('position-fallback');
     expect(seg!.confidence).toBe('low');
@@ -208,11 +164,7 @@ describe('segmentTextWithAnnotations — strategy + confidence on segments', () 
 // ─── Layer 3: decoration metadata threading ─────────────────────────────
 
 describe('getAnnotationDecorationMeta — strategy/confidence pass through', () => {
-  const ann: Annotation = {
-    id: 'a',
-    motivation: 'highlighting',
-    target: { selector: [{ type: 'TextPositionSelector', start: 0, end: 5 }] },
-  } as any;
+  const ann = annotationOn('a', 'highlighting', [{ type: 'TextPositionSelector', start: 0, end: 5 }]);
 
   it('omits strategy/confidence when the segment carries neither', () => {
     const meta = getAnnotationDecorationMeta(ann, false);
@@ -253,11 +205,7 @@ describe('getAnnotationDecorationMeta — strategy/confidence pass through', () 
 
 describe('computeAnnotationDecorations — strategy/confidence reach the decoration entry', () => {
   it('preserves strategy/confidence from segment onto the decoration metadata', () => {
-    const ann: Annotation = {
-      id: 'a',
-      motivation: 'highlighting',
-      target: { selector: [{ type: 'TextPositionSelector', start: 0, end: 5 }] },
-    } as any;
+    const ann = annotationOn('a', 'highlighting', [{ type: 'TextPositionSelector', start: 0, end: 5 }]);
     const segments = [
       { exact: '', start: 0, end: 0 },
       {
@@ -292,13 +240,7 @@ describe('segmentTextWithAnnotations — degraded-anchor logging', () => {
   });
 
   function annAt(id: string, exact: string): Annotation {
-    return {
-      id,
-      motivation: 'highlighting',
-      target: {
-        selector: [{ type: 'TextQuoteSelector', exact }],
-      },
-    } as any;
+    return annotationOn(id, 'highlighting', [{ type: 'TextQuoteSelector', exact }]);
   }
 
   it('does not log for high-confidence (unique-occurrence) anchors', () => {
@@ -332,9 +274,10 @@ describe('segmentTextWithAnnotations — degraded-anchor logging', () => {
   it('payload names the strategy and confidence', () => {
     const content = 'foo bar foo baz foo';
     segmentTextWithAnnotations(content, textOffsets(content), [annAt('a', 'foo')]);
-    const payload = warnSpy.mock.calls[0]![1] as any;
-    expect(payload.annotationId).toBe('a');
-    expect(payload.strategy).toBe('position-tiebreaker');
-    expect(payload.confidence).toBe('low');
+    expect(warnSpy.mock.calls[0]![1]).toMatchObject({
+      annotationId: 'a',
+      strategy: 'position-tiebreaker',
+      confidence: 'low',
+    });
   });
 });

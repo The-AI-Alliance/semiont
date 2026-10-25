@@ -258,12 +258,12 @@ importing `react-router` or an icon library (condensed from
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { Link, routes } from '@/lib/routing';
 
 <CollapsibleResourceNavigation
   Link={Link}
-  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon, close: XMarkIcon }}
+  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon }}
   onNavigate={navigate}
   getResourceHref={(id) => routes.resourceDetail(id)}
   fixedItems={[{ name: 'Compose', href: '/know/compose', icon: PlusIcon }]}

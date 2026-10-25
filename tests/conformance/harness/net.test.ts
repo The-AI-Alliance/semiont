@@ -24,9 +24,9 @@ const closed = (server: Server): Promise<void> => new Promise((resolve) => serve
 
 describe('a port for a process the harness starts', () => {
   it('is none the system gives a server that asks for any port', async () => {
-    const any = await listening(0);
-    const given = (any.address() as AddressInfo).port;
-    await closed(any);
+    const server = await listening(0);
+    const given = (server.address() as AddressInfo).port;
+    await closed(server);
     expect(given).toBeGreaterThanOrEqual(LOWEST_THE_SYSTEM_GIVES);
 
     for (let i = 0; i < 20; i++) expect(await freePort()).toBeLessThan(LOWEST_THE_SYSTEM_GIVES);

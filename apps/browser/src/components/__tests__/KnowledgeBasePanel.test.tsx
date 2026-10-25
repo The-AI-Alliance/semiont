@@ -30,8 +30,9 @@ const translations: Record<string, string> = {
 };
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: any) => {
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (scopedKey: string, params?: Record<string, unknown>) => {
+      const key = options?.keyPrefix ? `${options.keyPrefix}.${scopedKey}` : scopedKey;
       let val = translations[key] ?? key;
       if (params) {
         Object.entries(params).forEach(([k, v]) => {
@@ -64,7 +65,7 @@ const {
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { BehaviorSubject } = require('rxjs');
-  const kbs$ = new BehaviorSubject([] as any);
+  const kbs$ = new BehaviorSubject([]);
   const activeSession$ = new BehaviorSubject(null);
   const mockBrowser = {
     kbs$,
@@ -131,7 +132,7 @@ describe('KnowledgeBasePanel', () => {
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
-    activeSession$.next({ kb: kb1 } as any);
+    activeSession$.next({ kb: kb1 });
   });
 
   describe('Rendering', () => {
@@ -190,7 +191,7 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('dims the branch another KB last reported, with when it was read', async () => {
-      activeSession$.next({ kb: kb2 } as any);
+      activeSession$.next({ kb: kb2 });
       render(<KnowledgeBasePanel />);
       await act(async () => {});
       expect(screen.getByText('main')).toHaveAttribute('title', expect.stringMatching(/^As of /));

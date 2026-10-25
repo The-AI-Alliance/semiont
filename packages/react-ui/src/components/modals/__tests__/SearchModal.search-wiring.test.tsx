@@ -24,17 +24,7 @@ import {
   setBrowseResults,
 } from './search-modal-harness';
 
-vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, ...props }: any) => (
-    <div role="dialog" {...props}>
-      {typeof children === 'function' ? children({ open: true }) : children}
-    </div>
-  ),
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-  Transition: ({ show, children }: any) => (show ? <>{children}</> : null),
-  TransitionChild: ({ children }: any) => <>{children}</>,
-}));
+vi.mock('@headlessui/react', () => import('../../../__tests__/plain-headlessui'));
 
 vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
@@ -94,21 +84,22 @@ describe('SearchModal — search wiring', () => {
     );
   });
 
-  it('renders results when the Observable emits a non-empty list', async () => {
+  it('renders results, each with its description, when the Observable emits a non-empty list', async () => {
     renderWithProviders(<SearchModal {...defaultProps} />);
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'test' } });
 
     await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([
-      buildResource('res-1', 'Test Document', 'Some content here'),
-      buildResource('res-2', 'Another Result', 'More content'),
+      buildResource('res-1', 'Test Document', 'A document about testing'),
+      buildResource('res-2', 'Another Result'),
     ]);
 
     await waitFor(() => {
       expect(screen.getByText('Test Document')).toBeInTheDocument();
       expect(screen.getByText('Another Result')).toBeInTheDocument();
     }, { timeout: 1500 });
+    expect(screen.getByText('A document about testing')).toBeInTheDocument();
   });
 
   it('shows the no-results message after an empty emission', async () => {

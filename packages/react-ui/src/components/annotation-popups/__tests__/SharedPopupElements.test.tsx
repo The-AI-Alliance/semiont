@@ -9,17 +9,8 @@ import {
   PopupContainer,
 } from '../SharedPopupElements';
 
-// Mock HeadlessUI to avoid jsdom OOM issues
-vi.mock('@headlessui/react', () => ({
-  Dialog: ({ children, onClose, ...props }: any) => (
-    <div role="dialog" {...props}>
-      {typeof children === 'function' ? children({ open: true }) : children}
-    </div>
-  ),
-  DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Transition: ({ show, children }: any) => (show ? <>{children}</> : null),
-  TransitionChild: ({ children }: any) => <>{children}</>,
-}));
+// HeadlessUI's dialog as plain elements: this suite is about what is rendered inside it
+vi.mock('@headlessui/react', () => import('../../../__tests__/plain-headlessui'));
 
 describe('SelectedTextDisplay', () => {
   it('should render the selected text with quotes', () => {

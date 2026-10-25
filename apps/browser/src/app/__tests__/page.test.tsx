@@ -17,7 +17,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => ({ activeSession$: session$ }),
-    SemiontBranding: ({ className }: any) => (
+    SemiontBranding: ({ className }: { className?: string }) => (
       <div data-testid="semiont-branding" className={className}>
         <h2>Semiont</h2>
       </div>
@@ -31,7 +31,12 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key === 'Home.begin' ? 'Begin' : key }),
+  useTranslation: (_ns?: string, options?: { keyPrefix?: string }) => ({
+    t: (scopedKey: string) => {
+      const key = options?.keyPrefix ? `${options.keyPrefix}.${scopedKey}` : scopedKey;
+      return key === 'Home.begin' ? 'Begin' : key;
+    },
+  }),
 }));
 
 describe('Home Page (Splash)', () => {

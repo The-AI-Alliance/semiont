@@ -138,7 +138,7 @@ describe('a claim names fields of the job description (A5)', () => {
 
   it('a mark entry without its motivation does not typecheck', () => {
     // @ts-expect-error — a mark claim always has its motivation
-    const any: JobClaimCommand = { accepts: [{ jobType: 'mark' }] };
-    expect(any).toBeDefined();
+    const unmotivated: JobClaimCommand = { accepts: [{ jobType: 'mark' }] };
+    expect(unmotivated).toBeDefined();
   });
 });

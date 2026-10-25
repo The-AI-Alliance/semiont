@@ -1,143 +1,58 @@
 /**
- * SearchModal Component Tests - Basic Rendering
+ * SearchModal's search box: it shows what is typed and searches for it as
+ * typed, and it opens empty after it was closed with a query in it. The real
+ * HeadlessUI Dialog is rendered, as in the keyboard and accessibility suites:
+ * closing and opening again is its transition.
  */
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import '@testing-library/jest-dom';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '../../../test-utils';
 import { SearchModal } from '../SearchModal';
+import { matchResourcesMock, resetSearch, searchTranslations } from './search-modal-harness';
 
-// Mock the hooks
-vi.mock('../../../hooks/useSearchAnnouncements', () => ({
-  useSearchAnnouncements: () => ({
-    announceSearchResults: vi.fn(),
-    announceSearching: vi.fn()
-  })
-}));
-
-// Mock getResourceId
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return {
-    ...actual,
-  getResourceId: vi.fn((resource: any) => resource?.id)
-  };
+vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
+  const { searchBrowser } = await import('./search-modal-harness');
+  return { ...actual, useSemiont: () => searchBrowser };
 });
 
-describe('SearchModal Component - Basic Rendering', () => {
-  const defaultProps = {
-    isOpen: true,
-    onClose: vi.fn(),
-    onNavigate: vi.fn(),
-    translations: {
-      title: 'Search',
-      placeholder: 'Search resources, entities...',
-      searching: 'Searching...',
-      noResults: 'No results found for',
-      startTyping: 'Start typing to search...',
-      navigate: 'Navigate',
-      select: 'Select',
-      close: 'Close',
-      enter: 'Enter',
-      esc: 'ESC',
-    },
-  };
+const box = () => screen.getByRole('textbox', { name: searchTranslations.title });
 
+describe('SearchModal — the search box', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetSearch();
   });
 
-  describe.skip('Basic Rendering', () => {
-    // TODO: All SearchModal tests skipped due to HeadlessUI Dialog + jsdom memory issues
-    // These tests cause OOM even with increased heap size
-    // Need to either:
-    // 1. Mock HeadlessUI Dialog component entirely
-    // 2. Use Playwright/Cypress for integration tests instead of jsdom
-    // 3. Redesign SearchModal to use a lighter modal implementation
+  it('shows what is typed, and searches for it as typed', async () => {
+    renderWithProviders(
+      <SearchModal isOpen onClose={vi.fn()} onNavigate={vi.fn()} translations={searchTranslations} />,
+    );
 
-    it('should render when open', () => {
-      render(<SearchModal {...defaultProps} />);
+    fireEvent.change(box(), { target: { value: 'test@#$%^&*()' } });
 
-      const input = screen.getByPlaceholderText('Search resources, entities...');
-      expect(input).toBeInTheDocument();
-    });
-
-    it('should not render when closed', () => {
-      render(<SearchModal {...defaultProps} isOpen={false} />);
-
-      const input = screen.queryByPlaceholderText('Search resources, entities...');
-      expect(input).not.toBeInTheDocument();
-    });
-
-    it('should render with custom translations', () => {
-      const translations = {
-        title: 'Custom title',
-        placeholder: 'Custom search',
-        startTyping: 'Type to search',
-        noResults: 'Nothing found for',
-        searching: 'Looking...',
-        navigate: 'Nav',
-        select: 'Choose',
-        close: 'Exit',
-        enter: 'Return',
-        esc: 'Escape'
-      };
-
-      render(<SearchModal {...defaultProps} translations={translations} />);
-
-      const input = screen.getByPlaceholderText('Custom search');
-      expect(input).toBeInTheDocument();
-      expect(screen.getByText('Type to search')).toBeInTheDocument();
-    });
+    expect(box()).toHaveValue('test@#$%^&*()');
+    await waitFor(
+      () => expect(matchResourcesMock).toHaveBeenCalledWith('test@#$%^&*()', { limit: 5 }),
+      { timeout: 1500 },
+    );
   });
 
-  describe.skip('Search Input', () => {
-    // TODO: All SearchModal tests skipped due to HeadlessUI Dialog + jsdom memory issues
+  it('opens empty after it was closed with a query in it', async () => {
+    const props = { onClose: vi.fn(), onNavigate: vi.fn(), translations: searchTranslations };
+    const { rerender } = renderWithProviders(<SearchModal isOpen {...props} />);
+    fireEvent.change(box(), { target: { value: 'marathon' } });
+    expect(box()).toHaveValue('marathon');
 
-    it('should focus input on mount', () => {
-      render(<SearchModal {...defaultProps} />);
+    rerender(<SearchModal isOpen={false} {...props} />);
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: searchTranslations.title })).not.toBeInTheDocument(),
+    );
+    rerender(<SearchModal isOpen {...props} />);
 
-      const input = screen.getByPlaceholderText('Search resources, entities...') as HTMLInputElement;
-      expect(document.activeElement).toBe(input);
-    });
-
-    it('should update query on input change', async () => {
-      const user = userEvent.setup({ delay: null });
-      render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...') as HTMLInputElement;
-
-      await user.type(input, 'test query');
-
-      expect(input.value).toBe('test query');
-    });
-
-    it.skip('should debounce search query', () => {
-      // TODO: This test causes OOM due to HeadlessUI Dialog memory issues in jsdom
-      // Skip until we can mock the search backend or use a lighter test approach
-    });
-
-    it.skip('should show no results message when search returns empty', () => {
-      // TODO: This test causes OOM due to HeadlessUI Dialog memory issues in jsdom
-      // Skip until we can mock the search backend or use a lighter test approach
-    });
-
-    it('should clear search on modal close', () => {
-      const { rerender } = render(<SearchModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText('Search resources, entities...') as HTMLInputElement;
-
-      fireEvent.change(input, { target: { value: 'test' } });
-      expect(input.value).toBe('test');
-
-      // Close modal
-      rerender(<SearchModal {...defaultProps} isOpen={false} />);
-
-      // Reopen modal
-      rerender(<SearchModal {...defaultProps} isOpen={true} />);
-
-      const newInput = screen.getByPlaceholderText('Search resources, entities...') as HTMLInputElement;
-      expect(newInput.value).toBe('');
+    expect(box()).toHaveValue('');
+    await waitFor(() => expect(screen.getByText(searchTranslations.startTyping)).toBeInTheDocument(), {
+      timeout: 1500,
     });
   });
 });

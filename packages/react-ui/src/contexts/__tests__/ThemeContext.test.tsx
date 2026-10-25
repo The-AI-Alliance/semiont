@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { ThemeProvider, useTheme } from '../ThemeContext';
@@ -7,9 +7,12 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider>{children}</ThemeProvider>
 );
 
+/** What the provider hands `matchMedia`'s list: its `change` listener. */
+type ChangeListening = (type: string, listener: (event: MediaQueryListEvent) => void) => void;
+
 describe('ThemeContext', () => {
   let localStorageMock: Record<string, string>;
-  let matchMediaMock: any;
+  let matchMediaMock: { matches: boolean; addEventListener: Mock<ChangeListening>; removeEventListener: Mock<ChangeListening> };
 
   beforeEach(() => {
     // Mock localStorage
@@ -34,8 +37,8 @@ describe('ThemeContext', () => {
     // Mock matchMedia
     matchMediaMock = {
       matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: vi.fn<ChangeListening>(),
+      removeEventListener: vi.fn<ChangeListening>(),
     };
     Object.defineProperty(window, 'matchMedia', {
       value: vi.fn(() => matchMediaMock),
@@ -307,7 +310,7 @@ describe('ThemeContext', () => {
     });
 
     it('should handle invalid localStorage value', () => {
-      localStorageMock.theme = 'invalid' as any;
+      localStorageMock.theme = 'invalid';
 
       const { result } = renderHook(() => useTheme(), { wrapper });
 

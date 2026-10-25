@@ -11,7 +11,6 @@ import { useSemiont } from '../session/SemiontProvider';
 interface Router {
   push: (path: string) => void;
   replace?: (path: string) => void;
-  [key: string]: any;
 }
 
 /**

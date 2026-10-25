@@ -4,10 +4,8 @@ How to use `@semiont/react-ui`'s styles in your own app: importing them, the
 design tokens, and the classes the components are built from.
 
 Your app's own styling is unconstrained. Take all the styles with
-`@semiont/react-ui/styles`, only the tokens with
-`@semiont/react-ui/styles/variables.css`, or bridge through
-`@semiont/react-ui/integrations/css-modules` or
-`@semiont/react-ui/integrations/styled-components`.
+`@semiont/react-ui/styles`, or only the tokens with
+`@semiont/react-ui/styles/variables.css`.
 
 Dark mode is `data-theme="dark"` on a parent element. The semantic tokens
 (`--semiont-text-*`, `--semiont-bg-*`, `--semiont-border-*`) change with it;

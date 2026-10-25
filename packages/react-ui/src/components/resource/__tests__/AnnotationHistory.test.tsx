@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { AttributedEvent } from '@semiont/core';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 import { AnnotationHistory } from '../AnnotationHistory';
+import type { HistoryEvent } from '../HistoryEvent';
 import { renderWithProviders } from '../../../test-utils';
 
 // Mock @semiont/core - must use importOriginal to preserve EventBus etc.
@@ -29,40 +32,42 @@ vi.mock('../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock HistoryEvent to avoid deep rendering and mocking all its dependencies
-const MockHistoryEvent = vi.fn(({ event }: any) => (
+const MockHistoryEvent = vi.fn(({ event }: React.ComponentProps<typeof HistoryEvent>) => (
   <div data-testid={`history-event-${event.id}`}>
     {event.type}
   </div>
 ));
 
 vi.mock('../HistoryEvent', () => ({
-  HistoryEvent: (props: any) => MockHistoryEvent(props),
+  HistoryEvent: (props: React.ComponentProps<typeof HistoryEvent>) => MockHistoryEvent(props),
 }));
 
-import { getAnnotationIdFromEvent } from '@semiont/core';
+import { getAnnotationIdFromEvent, resourceId, userId } from '@semiont/core';
 const mockGetAnnotationId = getAnnotationIdFromEvent as ReturnType<typeof vi.fn>;
 
-/** Returns flat StoredEventResponse shape (matches API response) */
-function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): any {
+const USER = 'did:web:example.org:users:user-1';
+
+/** An event as a history reply carries it: the stored event and its actor's agent. */
+function makeStoredEvent(id: string, type: string, seq: number): AttributedEvent {
   return {
     id,
     type,
     timestamp: '2026-03-06T12:00:00Z',
-    resourceId: 'res-1',
-    userId: 'user-1',
+    resourceId: resourceId('res-1'),
+    userId: userId(USER),
+    agent: { '@type': 'Person', '@id': USER },
     version: 1,
     payload: {},
-    ...overrides,
     metadata: {
       sequenceNumber: seq,
     },
   };
 }
 
-const MockLink = ({ href, children, ...props }: any) => <a href={href} {...props}>{children}</a>;
-const mockRoutes = {
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
+const mockRoutes: RouteBuilder = {
   resourceDetail: (id: string) => `/resources/${id}`,
-} as any;
+};
 
 describe('AnnotationHistory', () => {
   beforeEach(() => {

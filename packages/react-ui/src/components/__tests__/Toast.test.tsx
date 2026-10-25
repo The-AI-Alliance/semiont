@@ -54,7 +54,7 @@ describe('Toast System', () => {
     });
 
     it('should provide toast context methods', () => {
-      let contextValue: any;
+      let contextValue!: ReturnType<typeof useToast>;
 
       function CaptureContext() {
         contextValue = useToast();

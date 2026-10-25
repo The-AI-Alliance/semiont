@@ -5,8 +5,7 @@ import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 export default function RecentDocumentsPageWrapper() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateRecent.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'ModerateRecent' });
 
   // Toolbar and settings state
   const browseStateUnit = useShellStateUnit();

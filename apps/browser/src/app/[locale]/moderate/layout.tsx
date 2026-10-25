@@ -11,7 +11,8 @@ import { Link, routes } from '@/lib/routing';
 import { useRouter } from '@/i18n/routing';
 
 function ModerateLayoutBody() {
-  const { t } = useTranslation();
+  const { t: tNav } = useTranslation(undefined, { keyPrefix: 'Navigation' });
+  const { t: tHome } = useTranslation(undefined, { keyPrefix: 'Home' });
   const semiont = useSemiont();
   const session = useObservable(semiont.activeSession$);
   const user = useObservable(session?.user$);
@@ -31,8 +32,8 @@ function ModerateLayoutBody() {
         <LeftSidebar
           Link={Link}
           routes={routes}
-          t={(key: string) => t(`Navigation.${key}`)}
-          tHome={(key: string) => t(`Home.${key}`)}
+          t={tNav}
+          tHome={tHome}
           brandingLink="/"
           collapsible={true}
           storageKey="moderation-sidebar-collapsed"

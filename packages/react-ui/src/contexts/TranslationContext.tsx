@@ -148,7 +148,7 @@ export function useTranslations(namespace: string) {
   }
 
   // Return a function that translates keys within this namespace
-  return (key: string, params?: Record<string, any>) => manager.t(namespace, key, params);
+  return (key: string, params?: Record<string, unknown>) => manager.t(namespace, key, params);
 }
 
 /**

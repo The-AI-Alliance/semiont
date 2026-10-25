@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
   useDropdown,
@@ -7,8 +7,8 @@ import {
 
 describe('useUI Hooks', () => {
   describe('useDropdown', () => {
-    let addEventListenerSpy: any;
-    let removeEventListenerSpy: any;
+    let addEventListenerSpy: MockInstance<Document['addEventListener']>;
+    let removeEventListenerSpy: MockInstance<Document['removeEventListener']>;
 
     beforeEach(() => {
       addEventListenerSpy = vi.spyOn(document, 'addEventListener');

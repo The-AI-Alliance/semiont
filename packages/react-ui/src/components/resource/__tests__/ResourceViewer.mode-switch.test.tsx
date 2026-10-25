@@ -30,7 +30,7 @@ const stubClient = {
 const stubSession = {
   client: stubClient,
 };
-const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
+const stubActiveSession$ = new BehaviorSubject(stubSession);
 const stubBrowser = {
   activeSession$: stubActiveSession$,
   emit: vi.fn(),

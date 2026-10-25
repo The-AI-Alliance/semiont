@@ -9,8 +9,7 @@ interface GlobalSearchModalProps {
 
 export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const router = useRouter();
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`Search.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'Search' });
 
   const handleNavigate = (type: 'resource' | 'entity', id: string) => {
     if (type === 'resource') {

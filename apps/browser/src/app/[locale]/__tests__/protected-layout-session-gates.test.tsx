@@ -10,6 +10,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
+import type { LinkComponentProps } from '@semiont/react-ui';
+import type { ReactNode } from 'react';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
@@ -41,7 +43,7 @@ vi.mock('react-router', async () => {
 
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
 vi.mock('@/lib/routing', () => ({
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+  Link: ({ children, ...props }: LinkComponentProps) => <a {...props}>{children}</a>,
   routes: {},
 }));
 
@@ -54,7 +56,7 @@ const harness = vi.hoisted(() => {
     kb: { id: kbId, label: kbId },
     user$: new BehaviorSubject<unknown>({ name: 'Ada' }),
   });
-  const activeSession$ = new BehaviorSubject<any>(null);
+  const activeSession$ = new BehaviorSubject<ReturnType<typeof makeSession> | null>(null);
   return { makeSession, activeSession$, browser: { activeSession$ } };
 });
 
@@ -63,7 +65,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => harness.browser,
-    LeftSidebar: ({ children }: { children: any }) =>
+    LeftSidebar: ({ children }: { children: ReactNode | ((isCollapsed: boolean, toggleCollapsed: () => void, navigationMenu: null) => ReactNode) }) =>
       typeof children === 'function' ? children(false, () => {}, null) : children,
   };
 });

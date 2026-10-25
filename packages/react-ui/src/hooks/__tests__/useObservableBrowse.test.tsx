@@ -3,6 +3,7 @@ import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
 import type { SemiontBrowser } from '@semiont/sdk';
 import { useObservableRouter, useObservableExternalNavigation } from '../useObservableBrowse';
 import { createTestSemiontWrapper } from '../../test-utils';
@@ -26,8 +27,8 @@ describe('useObservableRouter', () => {
     const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
-    const events: any[] = [];
-    browser.stream('nav:push').subscribe((e: any) => events.push(e));
+    const events: EventMap['nav:push'][] = [];
+    browser.stream('nav:push').subscribe((e) => events.push(e));
 
     act(() => {
       result.current.push('/test-path', { reason: 'test' });
@@ -45,8 +46,8 @@ describe('useObservableRouter', () => {
     const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
-    const events: any[] = [];
-    browser.stream('nav:push').subscribe((e: any) => events.push(e));
+    const events: EventMap['nav:push'][] = [];
+    browser.stream('nav:push').subscribe((e) => events.push(e));
 
     act(() => {
       result.current.replace!('/replaced', { reason: 'nav' });
@@ -89,8 +90,8 @@ describe('useObservableExternalNavigation', () => {
     const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
-    const events: any[] = [];
-    browser.stream('nav:external').subscribe((e: any) => events.push(e));
+    const events: EventMap['nav:external'][] = [];
+    browser.stream('nav:external').subscribe((e) => events.push(e));
 
     act(() => {
       result.current('/some/url', { resourceId: resourceId('res-123') });
@@ -111,7 +112,7 @@ describe('useObservableExternalNavigation', () => {
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     // Subscribe and cancel the fallback
-    browser.stream('nav:external').subscribe((e: any) => {
+    browser.stream('nav:external').subscribe((e) => {
       e.cancelFallback();
     });
 

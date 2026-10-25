@@ -2,9 +2,8 @@
 
 import React from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
+import type { TranslateFn } from '../../types/translation';
 import './NavigationMenu.css';
-
-type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 interface NavigationMenuProps {
   Link: React.ComponentType<LinkComponentProps>;

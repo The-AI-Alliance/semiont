@@ -38,7 +38,7 @@ interface SearchResult {
   type: 'resource' | 'entity';
   id: string;
   name: string;
-  content?: string;
+  description?: string;
   entityType?: string;
 }
 
@@ -75,7 +75,7 @@ export function SearchModal({
                   type: 'resource',
                   id,
                   name: resource.name,
-                  content: (resource as { content?: string }).content?.substring(0, 150),
+                  description: resource.description?.substring(0, 150),
                 };
               })
               .filter((r): r is SearchResult => r !== null);
@@ -232,9 +232,9 @@ export function SearchModal({
                                 </span>
                               )}
                             </div>
-                            {result.content && (
+                            {result.description && (
                               <p className="semiont-search-modal__result-description">
-                                {result.content}
+                                {result.description}
                               </p>
                             )}
                           </div>

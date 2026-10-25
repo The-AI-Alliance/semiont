@@ -1,0 +1,5 @@
+{
+  "packages/core/src/event-bus.ts": 1,
+  "packages/mcp-server/src/handlers.ts": 12,
+  "packages/mcp-server/src/index.e2e.test.ts": 1
+}

@@ -80,7 +80,7 @@ function createTestBrowser(): SemiontBrowser {
  */
 export const defaultMocks = {
   translationManager: {
-    t: (namespace: string, key: string, params?: Record<string, any>) => {
+    t: (namespace: string, key: string, params?: Record<string, unknown>) => {
       let result = `${namespace}.${key}`;
       if (params) {
         Object.entries(params).forEach(([k, v]) => {

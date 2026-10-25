@@ -1,4 +1,5 @@
 /**
- * Translation function type for framework-agnostic components
+ * The translation a framework-agnostic component is handed: a key of the
+ * host's section for it, and the string. No such component interpolates.
  */
-export type TranslateFn = (key: string, params?: Record<string, any>) => string;
+export type TranslateFn = (key: string) => string;

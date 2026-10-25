@@ -39,11 +39,11 @@ export function resetSearch(): void {
   matchResourcesMock.mockClear();
 }
 
-export const buildResource = (id: string, name: string, content?: string) => ({
+export const buildResource = (id: string, name: string, description?: string) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
   '@id': id,
   name,
-  content,
+  description,
   representations: [{ mediaType: 'text/plain', isPrimary: true }],
 });
 

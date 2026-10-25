@@ -15,7 +15,9 @@ import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import type { LinkComponentProps } from '../../../contexts/RoutingContext';
-import type { BodyOperation, EventMap, ResourceId, UserId } from '@semiont/core';
+import type { ToolbarPanelsProps } from '../../../components/Toolbar';
+import type { AnnotationHistory } from '../../../components/resource/AnnotationHistory';
+import type { BodyOperation, EventMap, ResourceDescriptor, ResourceId, UserId } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
@@ -75,26 +77,40 @@ vi.mock('../../../session/SemiontProvider', async () => {
   };
 });
 
-const capturedHistory = vi.hoisted(() => ({ props: null as any }));
+const capturedHistory = vi.hoisted(() => {
+  const captured: { props: React.ComponentProps<typeof AnnotationHistory> | null } = { props: null };
+  return captured;
+});
+
+/**
+ * The props the page last rendered the history with. Read through a function:
+ * after a test sets `capturedHistory.props = null`, the compiler holds it null
+ * for the rest of that test, though the render assigns it again.
+ */
+function historyProps(): React.ComponentProps<typeof AnnotationHistory> {
+  const { props } = capturedHistory;
+  if (!props) throw new Error('the page rendered no AnnotationHistory');
+  return props;
+}
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    ResourceViewer: ({ resource }: any) => <div data-testid="resource-viewer">{resource.name}</div>,
+    ResourceViewer: ({ resource }: { resource: ResourceDescriptor }) => <div data-testid="resource-viewer">{resource.name}</div>,
     Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
-    ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+    ToolbarPanels: ({ children }: ToolbarPanelsProps) => <div data-testid="toolbar-panels">{children}</div>,
     UnifiedAnnotationsPanel: () => <div data-testid="annotations-panel">Annotations</div>,
-    AnnotationHistory: (props: any) => {
+    AnnotationHistory: (props: React.ComponentProps<typeof AnnotationHistory>) => {
       capturedHistory.props = props;
       return <div data-testid="history-panel">History</div>;
     },
     ResourceInfoPanel: () => <div data-testid="info-panel">Info</div>,
     CollaborationPanel: () => <div data-testid="collaboration-panel">Collaboration</div>,
     JsonLdPanel: () => <div data-testid="jsonld-panel">JSON-LD</div>,
-    ErrorBoundary: ({ children }: any) => children,
+    ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children,
     createCancelDetectionHandler: () => vi.fn(),
-useDebouncedCallback: (fn: any) => fn,
+    useDebouncedCallback: <A extends unknown[]>(fn: (...args: A) => unknown) => fn,
     supportsDetection: () => false,
     useResourceLoadingAnnouncements: () => ({
       announceResourceLoading: vi.fn(),
@@ -117,7 +133,7 @@ const sparkleContext = vi.hoisted(() => ({
 
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   useResourceAnnotations: () => sparkleContext,
-  ResourceAnnotationsProvider: ({ children }: any) => children,
+  ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Capture what ResourceViewerPage passes to useOutcomeToasts. The real hook is a
@@ -141,7 +157,7 @@ vi.mock('../../../contexts/useEventSubscription', () => ({
 }));
 
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
-  ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+  ToolbarPanels: ({ children }: ToolbarPanelsProps) => <div data-testid="toolbar-panels">{children}</div>,
 }));
 
 // Create mock props matching ResourceViewerPageProps
@@ -162,13 +178,13 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
       },
     ],
   },
-  rUri: 'test-123' as any,
+  rUri: makeResourceId('test-123'),
   locale: 'en',
   Link: ({ href, children }: LinkComponentProps) => <a href={href}>{children}</a>,
   routes: { resourceDetail: (id) => `/know/resource/${id}`, knowledge: () => '/know' },
   refetchDocument: vi.fn().mockResolvedValue(undefined),
   streamStatus: 'open' as const,
-  ToolbarPanels: ({ children, activePanel }: any) =>
+  ToolbarPanels: ({ children, activePanel }: ToolbarPanelsProps) =>
     !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
   ...overrides,
 });
@@ -354,11 +370,12 @@ describe('ResourceViewerPage', () => {
 
       expect(capturedHistory.props).not.toBeNull();
 
-      const focused: Array<string | null> = [];
-      const sub = stubClient.bus.on('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
+      const focused: Array<EventMap['beckon:focus']['annotationId']> = [];
+      const sub = stubClient.bus.on('beckon:focus').subscribe(({ annotationId }: EventMap['beckon:focus']) => focused.push(annotationId));
 
-      expect(capturedHistory.props?.onEventClick).toBeTypeOf('function');
-      capturedHistory.props!.onEventClick('ann-42');
+      const { onEventClick } = historyProps();
+      if (!onEventClick) throw new Error('the page gave the history no onEventClick');
+      onEventClick(makeAnnotationId('ann-42'));
       expect(focused).toEqual(['ann-42']);
 
       sub.unsubscribe();

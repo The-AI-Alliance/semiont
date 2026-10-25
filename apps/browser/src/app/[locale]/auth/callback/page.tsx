@@ -12,8 +12,7 @@ import { IdentityUnverifiableError, SignInError } from '@semiont/sdk';
  * complete lands on the auth error page with the reason.
  */
 export default function AuthCallback() {
-  const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
+  const { t } = useTranslation(undefined, { keyPrefix: 'KnowledgeBasePanel' });
   const semiont = useSemiont();
   const router = useRouter();
   const { showWarning, showError } = useToast();

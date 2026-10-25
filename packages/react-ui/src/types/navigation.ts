@@ -9,7 +9,7 @@ export interface NavigationItem {
   /** Target URL/path for the navigation item */
   href: string;
   /** Icon component to display */
-  icon: ComponentType<any>;
+  icon: ComponentType<{ className?: string }>;
   /** Optional description/tooltip text */
   description?: string;
 }

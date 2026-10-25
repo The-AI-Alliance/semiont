@@ -9,7 +9,7 @@ import React, { useCallback, useRef } from 'react';
 import { getResourceId } from '@semiont/core';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
-import { Toolbar } from '../../../components/Toolbar';
+import { Toolbar, type ToolbarPanelsProps } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';
 
 import type { ResourceDescriptor } from '@semiont/core';
@@ -49,7 +49,7 @@ export interface ResourceDiscoveryPageProps {
 
   // UI state props
   theme: 'light' | 'dark';
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
 
   // Navigation props
   onNavigateToResource: (resourceId: string) => void;
@@ -79,7 +79,7 @@ export interface ResourceDiscoveryPageProps {
   };
 
   // Component dependencies
-  ToolbarPanels: React.ComponentType<any>;
+  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
 }
 
 export function ResourceDiscoveryPage({
@@ -157,7 +157,7 @@ export function ResourceDiscoveryPage({
   const showNoResultsWarning = hasSearchQuery && searchDocuments.length === 0 && !isSearching;
 
   return (
-    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content">
         {/* Page Header */}
