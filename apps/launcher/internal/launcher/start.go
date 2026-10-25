@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -518,9 +517,9 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		var needs []portNeed
 		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan, opts) // nil-plan-safe (browser, traces)
+			needs = servicePortNeeds(opts.service, plan, opts, exposure{rt: rt}) // nil-plan-safe (browser, traces)
 		} else {
-			needs = planPortChecks(plan, opts.observe) // full start always has a plan
+			needs = planPortChecks(plan, opts.observe, exposure{rt: rt}) // full start always has a plan
 		}
 		dropCollidingForwards(u, needs)
 	}
@@ -614,12 +613,12 @@ scrape_configs:
 `, addr)
 }
 
-func prometheusArgs(stage string) []string {
-	return []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
-		"--memory", descriptorFor("metrics", "prometheus").mem,
-		"-p", "9090:9090",
-		"--volume", stage + "/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
-		descriptorFor("metrics", "prometheus").image}
+func prometheusArgs(e exposure, stage string) []string {
+	a := []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
+		"--memory", descriptorFor("metrics", "prometheus").mem}
+	a = append(a, e.publish("-p", "metrics", 9090, 9090)...)
+	return append(a, "--volume", stage+"/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
+		descriptorFor("metrics", "prometheus").image)
 }
 
 // collectorConfig: the OTel Collector's config — launcher-owned, not the
@@ -659,19 +658,22 @@ service:
 `, tracesNote, tracesExporter)
 }
 
-func collectorArgs(stage string) []string {
-	return []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
-		"--memory", descriptorFor("collector", "otel").mem,
-		"-p", "4318:4318", "-p", "24110:24110",
-		"--volume", stage + "/collector.yaml:/etc/otelcol/config.yaml:ro",
-		descriptorFor("collector", "otel").image}
+func collectorArgs(e exposure, stage string) []string {
+	a := []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
+		"--memory", descriptorFor("collector", "otel").mem}
+	a = append(a, e.publish("-p", "collector", 4318, 4318)...)
+	a = append(a, e.publish("-p", "collector", 24110, 24110)...)
+	return append(a, "--volume", stage+"/collector.yaml:/etc/otelcol/config.yaml:ro",
+		descriptorFor("collector", "otel").image)
 }
 
-func tracesArgs() []string {
-	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
-		"--memory", descriptorFor("traces", "jaeger").mem,
-		// 14318: the collector owns 4318 and exports traces here.
-		"-p", "16686:16686", "-p", "14318:4318", descriptorFor("traces", "jaeger").image}
+func tracesArgs(e exposure) []string {
+	a := []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
+		"--memory", descriptorFor("traces", "jaeger").mem}
+	a = append(a, e.publish("-p", "traces", 16686, 16686)...)
+	// 14318: the collector owns 4318 and exports traces here.
+	a = append(a, e.publish("-p", "traces", 14318, 4318)...)
+	return append(a, descriptorFor("traces", "jaeger").image)
 }
 
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
@@ -698,9 +700,10 @@ const kbMountTarget = "/kb"
 // administers the realm itself, so none sits in the container's inspectable
 // env.
 func gatewayArgs(stage, rt, addr, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
-	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", mem,
-		"--volume", stage + "/" + gatewayDocumentFile + ":" + gatewayDocumentTarget + ":ro"}
+	a := []string{"run", "-d", "--name", "semiont-gateway"} // no --rm: see providedRunArgs
+	a = append(a, exposure{rt, addr}.publish("--publish", "gateway", port, port)...)
+	a = append(a, "--memory", mem,
+		"--volume", stage+"/"+gatewayDocumentFile+":"+gatewayDocumentTarget+":ro")
 	// The gateway writes nothing to disk; supervise.sh keeps its events log on
 	// its store so a death record outlives the container.
 	a = append(a, state...)
@@ -741,9 +744,10 @@ func superviseEnv() []string {
 // same fact the gateway's event read from it relies on).
 func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", "24103:24103",
-		"--volume", kbRoot + ":" + kbMountTarget,
-		"--volume", stage + "/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "archivist", 24103, 24103)...)
+	a = append(a, "--volume", kbRoot+":"+kbMountTarget,
+		"--volume", stage+"/"+archivistDocumentFile+":"+archivistDocumentTarget+":ro")
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -769,10 +773,11 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, img, mem string
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
 func librarianArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
-	port := strconv.Itoa(semiontDescriptor("librarian").ports[0].port)
+	port := semiontDescriptor("librarian").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", port + ":" + port,
-		"--volume", stage + "/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "librarian", port, port)...)
+	a = append(a, "--volume", stage+"/"+librarianDocumentFile+":"+librarianDocumentTarget+":ro")
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -795,8 +800,9 @@ func librarianArgs(stage, rt, addr string, clientSecret, img, mem string, userEn
 // signs in at the issuer by name.
 func dispatcherArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", "24105:24105",
-		"--volume", stage + "/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "dispatcher", 24105, 24105)...)
+	a = append(a, "--volume", stage+"/"+dispatcherDocumentFile+":"+dispatcherDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)
@@ -816,10 +822,11 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, img, mem string, userE
 // (workerSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
 func workerArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
-	port := strconv.Itoa(semiontDescriptor("worker").ports[0].port)
+	port := semiontDescriptor("worker").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", port + ":" + port,
-		"--volume", stage + "/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "worker", port, port)...)
+	a = append(a, "--volume", stage+"/"+workerDocumentFile+":"+workerDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)
@@ -845,10 +852,11 @@ func workerArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, 
 // (embeddingSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
 func smelterArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
-	port := strconv.Itoa(semiontDescriptor("smelter").ports[0].port)
+	port := semiontDescriptor("smelter").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", port + ":" + port,
-		"--volume", stage + "/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "smelter", port, port)...)
+	a = append(a, "--volume", stage+"/"+smelterDocumentFile+":"+smelterDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)
@@ -871,10 +879,11 @@ func smelterArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv,
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
 func weaverArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, otel []string) []string {
-	port := strconv.Itoa(semiontDescriptor("weaver").ports[0].port)
+	port := semiontDescriptor("weaver").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", port + ":" + port,
-		"--volume", stage + "/" + weaverDocumentFile + ":" + weaverDocumentTarget + ":ro"}
+		"--memory", mem}
+	a = append(a, exposure{rt, addr}.publish("--publish", "weaver", port, port)...)
+	a = append(a, "--volume", stage+"/"+weaverDocumentFile+":"+weaverDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)
@@ -890,9 +899,10 @@ func weaverArgs(stage, rt, addr string, clientSecret, img, mem string, userEnv, 
 // browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
-func browserArgs(img string, port int) []string {
+func browserArgs(e exposure, img string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("browser").mem, "--publish", fmt.Sprintf("%d:3000", port)}
+		"--memory", semiontDescriptor("browser").mem}
+	a = append(a, e.publish("--publish", "browser", port, 3000)...)
 	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
 	// container cannot single-file mount), which the Browser image's server
 	// serves under /discovery.
@@ -985,12 +995,13 @@ func runStart(u *UI, rt string, kb kbRoot, opts startOptions, userEnv []string, 
 	if store, ok := custodyFor(u, kb.key()); ok {
 		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
 	}
-	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 		fmt.Println("  Prometheus         http://localhost:9090")
 	}
-	fmt.Println("  Metrics readout    http://localhost:24110/metrics")
+	// The readout is the containers' (Prometheus scrapes it), published
+	// where they reach it; this machine reaches it there too.
+	fmt.Printf("  Metrics readout    http://%s:24110/metrics\n", exposure{rt: rt, addr: x.st.HostAddr}.probeHost("collector", 24110))
 	fmt.Println()
 	fmt.Printf("  Add a user:    %s\n", u.Bold(useraddHint("")))
 	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))

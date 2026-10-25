@@ -28,7 +28,7 @@ func TestHealthEndpointReproducesTheStatusRoster(t *testing.T) {
 		{"traces", "http://localhost:16686"},
 		{"metrics", "http://localhost:9090/-/healthy"},
 	} {
-		if got := healthEndpoint(c.role, probeDriver(c.role), nil); got != c.want {
+		if got := healthEndpoint(c.role, probeDriver(c.role), nil, exposure{}); got != c.want {
 			t.Errorf("%s: %q, want %q", c.role, got, c.want)
 		}
 	}
@@ -69,7 +69,7 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 		// answer, so that is what a start waits for.
 		{"identity", "keycloak", "http://localhost:8080/realms/semiont"},
 	} {
-		if got := healthEndpoint(c.role, c.driver, plan); got != c.want {
+		if got := healthEndpoint(c.role, c.driver, plan, exposure{}); got != c.want {
 			t.Errorf("%s/%s: %q, want %q", c.role, c.driver, got, c.want)
 		}
 	}
@@ -94,7 +94,7 @@ func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 		{"inference", "ollama", "http://localhost:11555/api/version"},
 		{"gateway", driverSemiont, "http://localhost:4400/api/health"},
 	} {
-		if got := healthEndpoint(c.role, c.driver, plan); got != c.want {
+		if got := healthEndpoint(c.role, c.driver, plan, exposure{}); got != c.want {
 			t.Errorf("%s moved its port: %q, want %q — the probe must follow the config's port", c.role, got, c.want)
 		}
 	}
@@ -104,7 +104,7 @@ func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 // report that can never say anything.
 func TestEveryRoleHasAHealthEndpoint(t *testing.T) {
 	for _, role := range roleOrder {
-		if got := healthEndpoint(role, probeDriver(role), nil); got == "" {
+		if got := healthEndpoint(role, probeDriver(role), nil, exposure{}); got == "" {
 			t.Errorf("role %q has no health endpoint — status could report nothing about it", role)
 		}
 	}

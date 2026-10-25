@@ -65,12 +65,14 @@ func TestMain(m *testing.M) {
 	defer os.RemoveAll(binDir)
 	launcherBin = filepath.Join(binDir, harness.Exe("semiont"))
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
-	// The launcher under test is built with fakesigstore: it verifies images
-	// against Sigstore's test authority (internal/provenance/fake.go), told
-	// by fake-sigstore.json in its data directory what each image's
-	// attestation says. Only that build can be told so.
+	// The launcher under test is built with the scenario tag, and only that
+	// build can be told two things a released one cannot: it verifies images
+	// against Sigstore's test authority (internal/provenance/fake.go), told by
+	// fake-sigstore.json in its data directory what each image's attestation
+	// says; and it dials the fake runtime's host address at loopback, where
+	// the fake's stand-in services listen (internal/launcher/dialhost_scenario.go).
 	for _, build := range [][]string{
-		{"build", "-tags", "fakesigstore", "-o", launcherBin, "."},
+		{"build", "-tags", "scenario", "-o", launcherBin, "."},
 		{"build", "-o", fakertBin, "./internal/fakert"},
 	} {
 		out, err := exec.Command("go", build...).CombinedOutput()
@@ -648,14 +650,16 @@ func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	librarian := stagedFile(t, s, "librarian.json")
+	// The gateway and Neo4j's bolt port are a person's too, so the containers
+	// dial their own side of each (containersSide).
 	mustContain(t, "staged librarian.json", librarian,
-		`"gatewayUrl": "http://192.168.64.1:4000"`, "bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
 	if strings.Contains(librarian, "${") {
 		t.Errorf("the staged librarian.json leaves an address to its environment:\n%s", librarian)
 	}
 	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
 	mustContain(t, "staged smelter.json", stagedFile(t, s, "smelter.json"),
-		`"gatewayUrl": "http://192.168.64.1:4000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
+		`"gatewayUrl": "http://192.168.64.1:14000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
 }
 
 func TestStartDefaultBoot(t *testing.T) {
@@ -701,12 +705,16 @@ func TestStartDefaultBoot(t *testing.T) {
 		"http://localhost:3000",
 		"http://localhost:4000",
 		"http://localhost:7474",
-		"http://localhost:6333/dashboard",
 		"http://localhost:16686",
+		// The collector's readout is the containers', at the bridge address.
+		"http://192.168.64.1:24110/metrics",
 		"semiont status",
 		"semiont logs",
 		"semiont stop",
 	)
+	if strings.Contains(stdout, "Qdrant Dashboard") {
+		t.Errorf("the summary offers Qdrant's dashboard, which no person dials:\n%s", stdout)
+	}
 	// A service credential must never reach the terminal, or the command line
 	// the terminal echoes: it crosses through the runtime's environment. Six
 	// of them, one per service account.
@@ -907,7 +915,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", step.name, code, stdout, stderr)
 		}
 		argv := s.argv(t)[before:]
-		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
+		if run := keycloakRun(t, argv); !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
@@ -1126,7 +1134,7 @@ func TestStartLocalImagesBoot(t *testing.T) {
 }
 
 // fakeAttestations: what the scenario's Sigstore test authority attests of
-// each image named. The launcher under test, built with fakesigstore, reads
+// each image named. The launcher under test, built with the scenario tag, reads
 // it from fake-sigstore.json in its data directory (provenance/fake.go); an
 // image it does not name is attested as a release built it.
 func fakeAttestations(t *testing.T, s *scenario, said map[string]map[string]any) {
@@ -4859,7 +4867,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 
 func TestBrowserPort(t *testing.T) {
 	// --port moves the browser (the one flag-movable port): publish
-	// <p>:3000, warn that anything holding the default origin will not
+	// 127.0.0.1:<p>:3000, warn that anything holding the default origin will not
 	// follow, record the moved endpoint so status and stop follow it.
 	s := newScenario(t, "container")
 	s.noGitRoot = true // "just the browser" needs no clone
@@ -4868,7 +4876,7 @@ func TestBrowserPort(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--publish 3001:3000")
+	mustContain(t, "argv log", string(log), "--publish 127.0.0.1:3001:3000")
 	mustContain(t, "stdout", stdout,
 		"Browser on port 3001", "instead of 3000",
 		"🚀 browser is up")
@@ -5186,7 +5194,7 @@ func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
 		"# worker: the roster binds no job to a worker — nothing to launch (bind one in "+noWorkerBinding+" to run one)",
-		"run -d --name semiont-smelter", "wait: http://localhost:24101/health (30s)")
+		"run -d --name semiont-smelter", "wait: http://<host-addr>:24101/health (30s)")
 	if n := strings.Count(plan, noWorkerBinding); n != 1 {
 		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerBinding, n, plan)
 	}
@@ -7003,24 +7011,38 @@ func TestStartServiceWorker(t *testing.T) {
 }
 
 func TestStartServiceGraph(t *testing.T) {
-	// Infra service: no config, no secret, no host-addr probe, no pull
-	// (pinned image) — just its own stop+rm, run, and health gate.
-	s := newScenario(t, "container")
-	// Already running, so "Restarting graph" has something to replace. The
-	// teardown lists before it acts; a scenario asserting stop+rm must say the
-	// container is there rather than relying on a blind fire at its name.
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
-	stdout, stderr, code := s.run(t, "start", "--service", "graph")
-	if code != 0 {
-		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-	}
-	mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
-	argv := s.argv(t)
-	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
-	for _, absent := range []string{"image pull", "busybox", "inspect"} {
-		if strings.Contains(argv, absent) {
-			t.Errorf("infra --service ran needless step: %q in argv", absent)
-		}
+	// Infra service: no config, no secret, no pull (pinned image) — just its
+	// own stop+rm, run, and health gate. Under Docker no host-addr probe
+	// either. Under Apple container the graph publishes the containers' side
+	// of its bolt port on the host address, so the probe is what places it.
+	for _, rt := range []string{"container", "docker"} {
+		t.Run(rt, func(t *testing.T) {
+			s := newScenario(t, rt)
+			// Already running, so "Restarting graph" has something to replace.
+			// The teardown lists before it acts; a scenario asserting stop+rm
+			// must say the container is there rather than relying on a blind
+			// fire at its name.
+			s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
+			stdout, stderr, code := s.run(t, "start", "--service", "graph")
+			if code != 0 {
+				t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
+			argv := s.argv(t)
+			// Docker's run carries its log options before -d.
+			mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "-d --name semiont-neo4j")
+			needless := []string{"image pull", "inspect"}
+			if rt == "container" {
+				mustContain(t, "argv", argv, "-p 192.168.64.1:17687:7687")
+			} else {
+				needless = append(needless, "busybox")
+			}
+			for _, absent := range needless {
+				if strings.Contains(argv, absent) {
+					t.Errorf("infra --service ran needless step: %q in argv", absent)
+				}
+			}
+		})
 	}
 }
 
@@ -7061,11 +7083,11 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://localhost:24104)")
+	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://192.168.64.1:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
-		"--publish 24104:24104",
+		"--publish 192.168.64.1:24104:24104",
 		"librarian.json:/etc/semiont/librarian.json:ro",
 		filepath.Join(testKBKey, "librarian")+":/semiont-state",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
@@ -7094,11 +7116,11 @@ func TestStartServiceArchivist(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://localhost:24103)")
+	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://192.168.64.1:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
-		"--publish 24103:24103",
+		"--publish 192.168.64.1:24103:24103",
 		":/kb",
 		"archivist.json:/etc/semiont/archivist.json:ro",
 		"anchored-text:/anchored-text",
@@ -7119,7 +7141,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"<config-stage>/worker.json",
-		"wait: http://localhost:24100/health (30s)",
+		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
 		t.Error("service plan leaked the wider stack")
@@ -8464,14 +8486,14 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 	// launcher gives it, so the laptop that forwards it can move it.
 	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
 	_ = stderr
-	if !strings.Contains(stdout, "-p 8080:8080") {
+	if !strings.Contains(stdout, "-p <host-addr>:8080:8080") {
 		t.Errorf("the newborn's Keycloak is not on the default port:\n%s", stdout)
 	}
 	s2.extraEnv = append(s2.extraEnv, "KEYCLOAK_PORT=8081")
 	if stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run"); code != 0 {
 		t.Fatalf("moved issuer: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p 8081:8080")
+	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p <host-addr>:8081:8080")
 
 	// voyage embedding refuses: no established key variable exists, and the
 	// launcher never invents environment variables.

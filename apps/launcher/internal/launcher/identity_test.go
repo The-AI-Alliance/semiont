@@ -33,7 +33,7 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 	if rp.Issuer != "http://localhost:8080/realms/semiont" {
 		t.Errorf("issuer not carried on the plan: %+v", rp)
 	}
-	if got := identityEndpoint(rp); got != "http://localhost:8080/realms/semiont" {
+	if got := identityEndpoint(rp, exposure{}); got != "http://localhost:8080/realms/semiont" {
 		t.Errorf("endpoint: got %q", got)
 	}
 }

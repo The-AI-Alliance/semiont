@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -436,6 +437,12 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	// dispatcher and gateway are both down.
 	var readout string
 	readoutFetched := false
+	// Where a service the record holds no endpoint for is asked: where the
+	// recorded stack was published, else loopback.
+	at := exposure{}
+	if st != nil {
+		at = exposure{rt: st.Runtime, addr: st.HostAddr}
+	}
 	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -449,7 +456,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		// No record: the descriptor's static probe, for the driver a stack
 		// that has not recorded itself would be running. A record's endpoint
 		// is sharper — it names the port that start actually used.
-		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil)
+		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil, at)
 		var rec *ServiceState
 		if st != nil {
 			if e, ok := st.Services[svc.name]; ok {
@@ -540,11 +547,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		}
 		probe := endpoint
 		if rest, ok := strings.CutPrefix(probe, "tcp:"); ok {
-			if strings.Contains(rest, ":") {
-				probe = "tcp://" + rest
-			} else {
-				probe = "tcp://localhost:" + rest
-			}
+			probe = "tcp://" + rest
 		}
 		mark := u.Wrap(AnsiRed, "✗")
 		if isHealthy {
@@ -1080,11 +1083,15 @@ func roleHealthy(role, endpoint string) bool {
 // an accepted dial for tcp ones.
 func probeHealth(endpoint string) bool {
 	if rest, ok := strings.CutPrefix(endpoint, "tcp:"); ok {
-		addr := rest
-		if !strings.Contains(rest, ":") {
-			addr = "localhost:" + rest
+		host, port, err := net.SplitHostPort(rest)
+		if err != nil {
+			return false
 		}
-		conn, err := net.DialTimeout("tcp", addr, time.Second)
+		n, err := strconv.Atoi(port)
+		if err != nil {
+			return false
+		}
+		conn, err := dialTCP(host, n, time.Second)
 		if err != nil {
 			return false
 		}

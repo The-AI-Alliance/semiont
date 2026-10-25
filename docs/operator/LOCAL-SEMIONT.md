@@ -64,16 +64,22 @@ To use the Browser without running a stack, see [Get the Browser](../analyst/REA
 
 ## Ports
 
-A local stack publishes these on `localhost`:
+A local stack publishes these for you to open:
 
 | Port | What |
 |---|---|
 | 3000 | The Browser |
 | 4000 | The gateway: the knowledge base's address |
 | 8080 | Keycloak, where people sign in |
+| 7474, 7687 | Neo4j's console and its bolt port |
 | 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)) |
 
 The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
+
+Where each port listens depends on the container runtime:
+
+- **Apple `container`:** what you open listens on `127.0.0.1`. What the containers dial listens on the bridge address, `192.168.64.1`, which answers this Mac and its containers and refuses other machines: the databases, the broker, the vector store, the collector and Jaeger's OTLP port, a containerized Ollama, the services' own ports, and Keycloak, whose address is the bridge address so that you and the containers sign in at the same URL, `http://192.168.64.1:8080`. The gateway and Neo4j's bolt port, which you and the containers both dial, take a second port on the bridge address, 10000 above their own: 14000 and 17687.
+- **Docker and Podman:** every port listens on every interface, and Keycloak is at `http://keycloak.localhost:8080`.
 
 ## Local network access
 

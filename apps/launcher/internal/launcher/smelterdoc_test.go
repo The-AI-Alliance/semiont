@@ -66,7 +66,7 @@ func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
 	doc := smelterDocumentOf(t, placed(t, st))
-	if doc.GatewayUrl != "http://192.168.64.1:4000" {
+	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
 	}
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
@@ -222,7 +222,7 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 
 	port := fmt.Sprint(doc.Port)
-	if want := "--publish " + port + ":" + port; !strings.Contains(args, want) {
+	if want := "--publish 1.2.3.4:" + port + ":" + port; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's health port is not published (%s):\n%s", want, args)
 	}
 	for label, re := range map[string]*regexp.Regexp{

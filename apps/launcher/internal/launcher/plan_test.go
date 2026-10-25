@@ -257,7 +257,7 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 	if got := plan.Roles["database"].Image; got != dbImage {
 		t.Errorf("database image: got %q", got)
 	}
-	args := providedRunArgs("graph", plan.Roles["graph"])
+	args := providedRunArgs(exposure{}, "graph", plan.Roles["graph"])
 	if args[len(args)-1] != graphImage {
 		t.Errorf("run argv image: got %q", args[len(args)-1])
 	}
@@ -446,7 +446,7 @@ func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
 // nothing for it.
 func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "anthropic"))
-	checked := portNumbers(planPortChecks(plan, true))
+	checked := portNumbers(planPortChecks(plan, true, exposure{}))
 	for _, role := range startOrder {
 		if rp, planned := plan.Roles[role]; planned && rp.Presence != presenceLauncher {
 			continue
@@ -519,16 +519,16 @@ func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
 	unbound := mustPlan(t, st)
 	var want []int
-	for _, port := range portNumbers(planPortChecks(bound, true)) {
+	for _, port := range portNumbers(planPortChecks(bound, true, exposure{})) {
 		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
 			want = append(want, port)
 		}
 	}
-	got := portNumbers(planPortChecks(unbound, true))
+	got := portNumbers(planPortChecks(unbound, true, exposure{}))
 	if !slices.Equal(got, want) {
 		t.Errorf("a stack without a worker requires %v free\nwant %v", got, want)
 	}
-	if len(want) == len(planPortChecks(bound, true)) {
+	if len(want) == len(planPortChecks(bound, true, exposure{})) {
 		t.Fatal("a stack with a worker claims no worker port: this test would prove nothing")
 	}
 }
@@ -537,7 +537,7 @@ func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 // which the descriptor carries and the plan does not.
 func TestServicePortNeedsOfTheWorkerAreItsDescriptors(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "anthropic"))
-	got := servicePortNeeds("worker", plan, startOptions{})
+	got := servicePortNeeds("worker", plan, startOptions{}, exposure{})
 	if want := stackPortNeeds("worker"); !slices.Equal(got, want) {
 		t.Errorf("--service worker claims %v, want %v", got, want)
 	}
