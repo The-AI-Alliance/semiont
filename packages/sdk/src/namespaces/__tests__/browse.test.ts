@@ -374,7 +374,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
       const updated = { ...mockAnnotation('ann-1'), body: [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }] } as Annotation;
-      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } }] }, annotation: updated });
+      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('res-target'), purpose: 'linking' } }] }, annotation: updated });
       const list = await firstDefined(browse.annotations(RID));
       // annotations not refetched (in-place update), but events refetched
       expect(content.getAnnotations).toHaveBeenCalledTimes(1);
@@ -391,7 +391,7 @@ describe('BrowseNamespace', () => {
       // enriched the event, so there is nothing to write through. A no-op
       // here would leave the stale body on screen; B13c in
       // cache-semantics.test.ts is the contract clause.
-      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } }] } });
+      eventBus.emit('mark:body-updated', { ...STORED, type: 'mark:body-updated', resourceId: RID, payload: { annotationId: AID, operations: [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('res-target'), purpose: 'linking' } }] } });
       await firstDefined(browse.annotations(RID));
       expect(content.getAnnotations).toHaveBeenCalledTimes(2);
       expect(emitSpy).toHaveBeenCalledTimes(2);
