@@ -44,7 +44,7 @@
     "@fontsource/orbitron": "^5.2.8",
     "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
     "@opentelemetry/resources": "^2.12.0",
     "@opentelemetry/sdk-trace-web": "^2.12.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
@@ -62,7 +62,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api": "^1.10.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@testing-library/dom": "^10.4.2",
