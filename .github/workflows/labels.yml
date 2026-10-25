@@ -1,0 +1,43 @@
+name: Labels
+
+# Makes the repository's labels main's .github/labels.yml: it creates,
+# updates, renames and deletes until they agree. A run of any other ref, a
+# pull request's or a branch dispatched by hand, changes nothing, and its log
+# is the list of what that file would do.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labels.yml
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labels.yml
+  workflow_dispatch:
+
+# One run per pull request: a push cancels the run of the push before it, which
+# nobody is waiting for. A push to main is never cancelled: it is the run that
+# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: Sync labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Sync the labels to .github/labels.yml
+        uses: crazy-max/ghaction-github-labeler@v6.0.0
+        with:
+          yaml-file: .github/labels.yml
+          dry-run: ${{ github.ref != 'refs/heads/main' }}
