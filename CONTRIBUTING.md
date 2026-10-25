@@ -110,7 +110,7 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
 - Create an issue describing the problem
 - Reference the issue in your PR
 
-An issue's labels say what it is (`kind:bug`, `kind:enhancement`) and what it is about: a verb (`verb:mark`), an app (`app:smelter`), an SDK (`sdk:python`), a kind of stack document (`stack:inference`), a kind of content (`media:pdf`) or a test suite (`tests:e2e`). [`.github/labels.yml`](.github/labels.yml) is every label there is, with what each means; a new one is added there, and the [Labels](.github/workflows/labels.yml) workflow makes it when the change is merged.
+An issue's labels say what it is (`kind:bug`, `kind:enhancement`) and what it is about: a verb (`verb:mark`), an app (`app:smelter`), an SDK (`sdk:python`), a kind of stack document (`stack:inference`), a part of the spec (`spec:protocol`), a kind of content (`media:pdf`) or a test suite (`tests:e2e`). [`.github/labels.yml`](.github/labels.yml) is every label there is, with what each means; a new one is added there, and the [Labels](.github/workflows/labels.yml) workflow makes it when the change is merged.
 
 ## 🛠 Development Workflow
 

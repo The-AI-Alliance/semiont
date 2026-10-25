@@ -9,8 +9,9 @@
 # the three below the dimensions. `from_name` renames a label in place, so
 # what it is on keeps it; it is deleted once the sync has run.
 #
-# npm run lint:labels holds the file to its rules, the app:, tests:, verb:
-# and stack: labels to what owns them, and .github/dependabot.yml to the file.
+# npm run lint:labels holds the file to its rules, the app:, tests:, spec:,
+# verb: and stack: labels to what owns them, and .github/dependabot.yml to the
+# file.
 
 # kind: what a change or an issue is.
 - name: "kind:bug"
@@ -146,6 +147,20 @@
   color: "fbca04"
   description: "Inference: the model providers, and which provider and model serve each role"
   from_name: "Inference"
+
+# spec: the parts of specs/src/, by who honours them.
+- name: "spec:protocol"
+  color: "006b75"
+  description: "The wire every participant speaks: the gateway's API, the bus, ids, principals, jobs"
+- name: "spec:sdk"
+  color: "006b75"
+  description: "What every SDK computes: the client's surface, sessions, retries, error codes"
+- name: "spec:services"
+  color: "006b75"
+  description: "What each service does: the Archivist, Librarian, Smelter, Weaver and Worker, and the record"
+- name: "spec:launcher"
+  color: "006b75"
+  description: "The files the launcher reads and writes: the stack documents, config.yaml, sign-ins"
 
 # media: the kinds of content a knowledge base holds, or is to.
 - name: "media:text"

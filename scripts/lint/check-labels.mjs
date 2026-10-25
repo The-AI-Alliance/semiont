@@ -17,10 +17,13 @@
  * 2. A label is `<dimension>:<value>`, for a dimension below, or one of the
  *    few of no dimension, each listed below with why. The labels of a
  *    dimension share one colour.
- * 3. Four dimensions restate what something else owns, and are held to it
+ * 3. Five dimensions restate what something else owns, and are held to it
  *    both ways:
  *      app:    the directories under apps/
  *      tests:  the directories under tests/
+ *      spec:   the parts of the spec, listed below by who honours them; every
+ *              directory under specs/src/, and every file directly in it, is
+ *              in exactly one
  *      verb:   the namespaces of specs/src/client/surface.json, but the ones
  *              listed below as no verb
  *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
@@ -49,7 +52,7 @@ const DEPENDABOT = '.github/dependabot.yml';
 const SURFACE = 'specs/src/client/surface.json';
 const STACK = 'specs/src/stack/';
 
-const DIMENSIONS = ['kind', 'verb', 'app', 'sdk', 'stack', 'media', 'tests'];
+const DIMENSIONS = ['kind', 'verb', 'app', 'sdk', 'stack', 'spec', 'media', 'tests'];
 const KEYS = ['name', 'color', 'description', 'from_name'];
 
 /** Labels of no dimension, each with why. */
@@ -64,6 +67,14 @@ const NOT_A_VERB = {
   job: "jobs' lifecycle, which the verbs' delegated work runs as",
   auth: "the gateway's view of who is signed in",
   system: 'what the knowledge base says about itself',
+};
+
+/** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
+const SPEC_PARTS = {
+  protocol: ['openapi.json', 'components', 'paths', 'bus', 'identifiers', 'principals', 'jobs', 'media-types', 'locales'],
+  sdk: ['client', 'session', 'retry', 'resources', 'errors', 'sdk-telemetry'],
+  services: ['archivist', 'librarian', 'smelter', 'weaver', 'worker', 'follower', 'graph', 'vectors', 'text', 'annotations', 'service-environment', 'service-telemetry'],
+  launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
 };
 
 /** The directory of packages/ that holds the TypeScript SDK; every other SDK's is sdk-<language>. */
@@ -143,6 +154,17 @@ function heldBothWays(dimension, owned, owner) {
 heldBothWays('app', directoriesUnder('apps'), 'apps/');
 heldBothWays('tests', directoriesUnder('tests'), 'tests/');
 
+/** What specs/src holds: its directories, and the files directly in it. */
+const specEntries = new Set(files.filter((file) => file.startsWith('specs/src/')).map((file) => file.split('/')[2]));
+for (const entry of specEntries) {
+  const parts = Object.keys(SPEC_PARTS).filter((part) => SPEC_PARTS[part].includes(entry));
+  if (parts.length !== 1) fail(`specs/src/${entry} is in ${parts.length === 0 ? 'no part' : `${parts.length} parts (${parts.join(', ')})`} of SPEC_PARTS; each is in one`);
+}
+for (const [part, entries] of Object.entries(SPEC_PARTS)) {
+  for (const entry of entries) if (!specEntries.has(entry)) fail(`SPEC_PARTS lists specs/src/${entry} under ${part}, and specs/src has no such entry: take it off the list`);
+}
+heldBothWays('spec', new Set(Object.keys(SPEC_PARTS)), 'the parts of the spec (SPEC_PARTS)');
+
 const namespaces = JSON.parse(readFileSync(join(ROOT, SURFACE), 'utf8')).namespaces.map((namespace) => namespace.namespace);
 for (const [namespace, what] of Object.entries(NOT_A_VERB)) {
   if (!namespaces.includes(namespace)) fail(`${namespace} is listed as no verb (${what}), and ${SURFACE} has no such namespace: take it off the list`);
@@ -196,5 +218,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions of one colour each; app:, tests:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
+  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions of one colour each; app:, tests:, spec:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
 );
