@@ -81,17 +81,17 @@ type live struct {
 	askedMu        sync.Mutex
 	directoryAsked chan struct{}
 
-	resource     *cache[api.ResourceId, api.ResourceDescriptor]
-	lists        *cache[filterKey, api.ListResourcesResponse]
-	annotations  *cache[api.ResourceId, api.GetAnnotationsResponse]
-	annotation   *cache[api.AnnotationId, api.Annotation]
-	entityTypes  *cache[whole, []string]
-	tagSchemas   *cache[whole, []api.TagSchema]
-	agents       *cache[whole, []api.CollaboratorEntry]
-	limits       *cache[bus.Channel, []api.InferencePairLimits]
-	events       *cache[api.ResourceId, []api.AttributedEvent]
-	referencedBy *cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
-	searches     *cache[searchKey, api.MatchResourcesResponse]
+	resource     *Cache[api.ResourceId, api.ResourceDescriptor]
+	lists        *Cache[filterKey, api.ListResourcesResponse]
+	annotations  *Cache[api.ResourceId, api.GetAnnotationsResponse]
+	annotation   *Cache[api.AnnotationId, api.Annotation]
+	entityTypes  *Cache[whole, []string]
+	tagSchemas   *Cache[whole, []api.TagSchema]
+	agents       *Cache[whole, []api.CollaboratorEntry]
+	limits       *Cache[bus.Channel, []api.InferencePairLimits]
+	events       *Cache[api.ResourceId, []api.AttributedEvent]
+	referencedBy *Cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
+	searches     *Cache[searchKey, api.MatchResourcesResponse]
 }
 
 // keptBy is what keeps the cache named name, when the client keeps its
@@ -106,19 +106,19 @@ func keptBy[K comparable, V any](persistence *CachePersistence, name string, max
 func newLive(l *links, content ContentTransport, persistence *CachePersistence) *live {
 	v := &live{links: l, annotationOf: map[api.AnnotationId]api.ResourceId{}, directoryAsked: make(chan struct{})}
 	save, most := l.timing.SaveDebounce, l.timing.MaxStoredBytesCount
-	v.resource = newCache(func(ctx context.Context, id api.ResourceId) (api.ResourceDescriptor, error) {
+	v.resource = NewCache(func(ctx context.Context, id api.ResourceId) (api.ResourceDescriptor, error) {
 		answer, err := ask(ctx, l, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: id})
 		return answer.Response.Resource, err
 	}, l.run, keptBy[api.ResourceId, api.ResourceDescriptor](persistence, "resource", most), save)
-	v.lists = newCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
+	v.lists = NewCache(func(ctx context.Context, key filterKey) (api.ListResourcesResponse, error) {
 		limit, offset, archived, entityType := key.request()
 		answer, err := ask(ctx, l, bus.BrowseResourcesRequested, api.BrowseResourcesRequest{Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
 	}, l.run, nil, 0)
-	v.annotations = newCache(func(ctx context.Context, id api.ResourceId) (api.GetAnnotationsResponse, error) {
+	v.annotations = NewCache(func(ctx context.Context, id api.ResourceId) (api.GetAnnotationsResponse, error) {
 		return content.GetAnnotations(ctx, id)
 	}, l.run, keptBy[api.ResourceId, api.GetAnnotationsResponse](persistence, "annotations", most), save)
-	v.annotation = newCache(func(ctx context.Context, id api.AnnotationId) (api.Annotation, error) {
+	v.annotation = NewCache(func(ctx context.Context, id api.AnnotationId) (api.Annotation, error) {
 		v.annotationMu.Lock()
 		resource, named := v.annotationOf[id]
 		v.annotationMu.Unlock()
@@ -128,30 +128,30 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		answer, err := ask(ctx, l, bus.BrowseAnnotationRequested, api.BrowseAnnotationRequest{ResourceId: resource, AnnotationId: id})
 		return answer.Response.Annotation, err
 	}, l.run, keptBy[api.AnnotationId, api.Annotation](persistence, "annotation-detail", most), save)
-	v.entityTypes = newCache(func(ctx context.Context, _ whole) ([]string, error) {
+	v.entityTypes = NewCache(func(ctx context.Context, _ whole) ([]string, error) {
 		answer, err := ask(ctx, l, bus.BrowseEntityTypesRequested, api.BrowseEntityTypesRequest{})
 		return answer.Response.EntityTypes, err
 	}, l.run, keptBy[whole, []string](persistence, "entity-types", most), save)
-	v.tagSchemas = newCache(func(ctx context.Context, _ whole) ([]api.TagSchema, error) {
+	v.tagSchemas = NewCache(func(ctx context.Context, _ whole) ([]api.TagSchema, error) {
 		answer, err := ask(ctx, l, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
 		return answer.Response.TagSchemas, err
 	}, l.run, keptBy[whole, []api.TagSchema](persistence, "tag-schemas", most), save)
-	v.agents = newCache(func(ctx context.Context, _ whole) ([]api.CollaboratorEntry, error) {
+	v.agents = NewCache(func(ctx context.Context, _ whole) ([]api.CollaboratorEntry, error) {
 		answer, err := requestAsking(ctx, l.wire, bus.BrowseAgentsRequested, api.BrowseAgentsRequest{}, l.timing.BusRequestTimeout, v.askedTheDirectory)
 		return answer.Response.Agents, err
 	}, l.run, nil, 0)
-	v.limits = newCache(func(ctx context.Context, holder bus.Channel) ([]api.InferencePairLimits, error) {
+	v.limits = NewCache(func(ctx context.Context, holder bus.Channel) ([]api.InferencePairLimits, error) {
 		return v.limitsOf(ctx, holder), nil
 	}, l.run, nil, 0)
-	v.events = newCache(func(ctx context.Context, id api.ResourceId) ([]api.AttributedEvent, error) {
+	v.events = NewCache(func(ctx context.Context, id api.ResourceId) ([]api.AttributedEvent, error) {
 		answer, err := ask(ctx, l, bus.BrowseEventsRequested, api.BrowseEventsRequest{ResourceId: id})
 		return answer.Response.Events, err
 	}, l.run, nil, 0)
-	v.referencedBy = newCache(func(ctx context.Context, id api.ResourceId) ([]api.GetReferencedByResponseReferencedByItem, error) {
+	v.referencedBy = NewCache(func(ctx context.Context, id api.ResourceId) ([]api.GetReferencedByResponseReferencedByItem, error) {
 		answer, err := ask(ctx, l, bus.GatherReferencedByRequested, api.GatherReferencedByRequest{ResourceId: id})
 		return answer.Response.ReferencedBy, err
 	}, l.run, nil, 0)
-	v.searches = newCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
+	v.searches = NewCache(func(ctx context.Context, key searchKey) (api.MatchResourcesResponse, error) {
 		limit, offset, archived, entityType := key.filters.request()
 		answer, err := ask(ctx, l, bus.MatchResourcesRequested, api.MatchResourcesRequest{Search: key.search, Limit: &limit, Offset: &offset, Archived: archived, EntityType: entityType})
 		return answer.Response, err
@@ -224,9 +224,9 @@ func holders() []bus.Channel {
 // invalidateAgents says the directory is out of date, and so is what each
 // key holder reported.
 func (v *live) invalidateAgents() {
-	v.agents.invalidate(whole{})
+	v.agents.Invalidate(whole{})
 	for _, holder := range holders() {
-		v.limits.invalidate(holder)
+		v.limits.Invalidate(holder)
 	}
 }
 
@@ -238,14 +238,14 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 			asked := v.nextDirectoryAsk()
 			directory := make(chan outcome[[]api.CollaboratorEntry], 1)
 			go func() {
-				entries, err := v.agents.fetchNow(ctx, whole{})
+				entries, err := v.agents.Fetch(ctx, whole{})
 				directory <- outcome[[]api.CollaboratorEntry]{entries, err}
 			}()
 			reports := make(chan []api.InferencePairLimits, len(bus.LimitsOperations))
 			startHolders := func() {
 				for _, holder := range holders() {
 					go func() {
-						limits, _ := v.limits.fetchNow(ctx, holder)
+						limits, _ := v.limits.Fetch(ctx, holder)
 						reports <- limits
 					}()
 				}
@@ -319,7 +319,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 		go func() {
 			defer end()
 			first := true
-			for state := range v.agents.observe(ctx, whole{}) {
+			for state := range v.agents.Observe(ctx, whole{}) {
 				mu.Lock()
 				directory = state
 				mu.Unlock()
@@ -342,7 +342,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			for i, holder := range keyHolders {
 				go func() {
 					defer end()
-					for state := range v.limits.observe(ctx, holder) {
+					for state := range v.limits.Observe(ctx, holder) {
 						if ready, ok := state.(Ready[[]api.InferencePairLimits]); ok {
 							mu.Lock()
 							reported[i] = ready.Value
@@ -392,7 +392,7 @@ func (v *live) writeAnnotations(subject cacheSubject) {
 		return
 	}
 	// Into the resource's list, when the client holds it: where the annotation was, or at its end.
-	held, ok := v.annotations.get(subject.resource)
+	held, ok := v.annotations.Get(subject.resource)
 	if !ok {
 		return
 	}
@@ -410,7 +410,7 @@ func (v *live) writeAnnotations(subject cacheSubject) {
 		listed = append(listed, *subject.written)
 	}
 	held.Annotations = listed
-	v.annotations.write(subject.resource, held)
+	v.annotations.Set(subject.resource, held)
 }
 
 func (v *live) writeAnnotation(subject cacheSubject) {
@@ -418,38 +418,38 @@ func (v *live) writeAnnotation(subject cacheSubject) {
 		return
 	}
 	v.annotationOn(subject.written.Id, subject.resource)
-	v.annotation.write(subject.written.Id, *subject.written)
+	v.annotation.Set(subject.written.Id, *subject.written)
 }
 
 // removeAnnotation ends an annotation the cache holds as not found. What says
 // which resource it was of is kept: an observer arriving at the ended key
 // asks the service, and that request names the resource.
 func (v *live) removeAnnotation(subject cacheSubject) {
-	if subject.annotation.IsZero() || !v.annotation.known(subject.annotation) {
+	if subject.annotation.IsZero() || !v.annotation.Known(subject.annotation) {
 		return
 	}
-	v.annotation.remove(subject.annotation, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: fmt.Sprintf("Annotation %s was removed", subject.annotation)})
+	v.annotation.Remove(subject.annotation, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: fmt.Sprintf("Annotation %s was removed", subject.annotation)})
 }
 
 // persistenceSettled reports whether every cache the client keeps is at
 // rest: none is fetching, and none owes a save.
 func (v *live) persistenceSettled() bool {
-	return !(v.resource.persistencePending() || v.annotations.persistencePending() || v.annotation.persistencePending() ||
-		v.entityTypes.persistencePending() || v.tagSchemas.persistencePending())
+	return !(v.resource.PersistencePending() || v.annotations.PersistencePending() || v.annotation.PersistencePending() ||
+		v.entityTypes.PersistencePending() || v.tagSchemas.PersistencePending())
 }
 
 // dispose ends the queries: every watcher's states end, what was owed to
 // storage is saved, and nothing is fetched after.
 func (v *live) dispose() {
-	v.resource.dispose()
-	v.lists.dispose()
-	v.annotations.dispose()
-	v.annotation.dispose()
-	v.entityTypes.dispose()
-	v.tagSchemas.dispose()
-	v.agents.dispose()
-	v.limits.dispose()
-	v.events.dispose()
-	v.referencedBy.dispose()
-	v.searches.dispose()
+	v.resource.Close()
+	v.lists.Close()
+	v.annotations.Close()
+	v.annotation.Close()
+	v.entityTypes.Close()
+	v.tagSchemas.Close()
+	v.agents.Close()
+	v.limits.Close()
+	v.events.Close()
+	v.referencedBy.Close()
+	v.searches.Close()
 }

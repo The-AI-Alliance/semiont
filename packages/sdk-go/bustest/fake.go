@@ -84,7 +84,7 @@ type Fake struct {
 
 	hub       *semiont.FrameHub
 	router    *semiont.ReplyRouter
-	state     *semiont.Watched[semiont.ConnectionState]
+	state     *semiont.Variable[semiont.ConnectionState]
 	closed    chan struct{}
 	closeOnce sync.Once
 }
@@ -100,7 +100,7 @@ func NewFake() *Fake {
 		holds:      map[api.ResourceId]int{},
 		hub:        semiont.NewFrameHub(),
 		router:     semiont.NewReplyRouter(),
-		state:      semiont.NewWatched(semiont.ConnectionStateOpen),
+		state:      semiont.NewVariable(semiont.ConnectionStateOpen),
 		closed:     make(chan struct{}),
 	}
 }

@@ -72,7 +72,7 @@ func alice() api.UserResponse {
 type world struct {
 	mu       sync.Mutex
 	kept     *semiont.MemorySignIn
-	token    *semiont.Watched[string]
+	token    *semiont.Variable[string]
 	renewals []string // what refresh answers, in order: "" for a refusal
 	renewed  int
 	// takes is how long the issuer takes to answer a renewal.
@@ -84,7 +84,7 @@ type world struct {
 }
 
 func newWorld(t *testing.T, kept string) *world {
-	w := &world{kept: &semiont.MemorySignIn{}, token: semiont.NewWatched("")}
+	w := &world{kept: &semiont.MemorySignIn{}, token: semiont.NewVariable("")}
 	if kept != "" {
 		if err := w.kept.Keep(context.Background(), semiont.HeldSignIn{Access: kept, Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
 			t.Fatal(err)

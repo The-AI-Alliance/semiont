@@ -132,7 +132,7 @@ type retry struct {
 
 type stream struct {
 	shared   *transportShared
-	state    *Watched[ConnectionState]
+	state    *Variable[ConnectionState]
 	commands chan command
 	events   chan streamEvent
 	// ctx is cancelled when the stream closes; every goroutine it starts ends
@@ -183,7 +183,7 @@ type stream struct {
 	degradedAt *time.Time
 }
 
-func newStream(shared *transportShared, state *Watched[ConnectionState]) *stream {
+func newStream(shared *transportShared, state *Variable[ConnectionState]) *stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &stream{
 		shared:      shared,

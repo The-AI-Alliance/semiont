@@ -58,7 +58,7 @@ func TestTheBackoffWaitsBetweenHalfItsCapAndItsCap(t *testing.T) {
 	timing := DefaultTiming()
 	timing.Reconnect = 100 * time.Millisecond
 	timing.MaxReconnect = time.Second
-	s := newStream(&transportShared{timing: timing}, NewWatched(ConnectionStateInitial))
+	s := newStream(&transportShared{timing: timing}, NewVariable(ConnectionStateInitial))
 	for attempt, limit := range []time.Duration{100, 200, 400, 800, 1000, 1000} {
 		limit *= time.Millisecond
 		wait := s.backoff()
@@ -161,7 +161,7 @@ func (g *stubGateway) client() (*HTTPTransport, *http.Client) {
 	httpClient := &http.Client{Transport: &http.Transport{}}
 	return NewHTTPTransport(HTTPTransportConfig{
 		BaseURL:  g.URL,
-		Token:    NewWatched("a-token"),
+		Token:    NewVariable("a-token"),
 		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
 		HTTP:     httpClient,
 		Timing:   timing,

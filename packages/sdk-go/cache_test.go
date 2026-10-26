@@ -150,7 +150,7 @@ func (k *keptBack) saved() []map[string]int {
 // cacheWorld is a cache over a service a test answers, with what runs its
 // fetches. persister, when it is not nil, keeps its values, saved wait after
 // they last changed.
-func cacheWorld(t *testing.T, persister *keptBack, wait time.Duration) (*cache[string, int], *answering, *workers) {
+func cacheWorld(t *testing.T, persister *keptBack, wait time.Duration) (*Cache[string, int], *answering, *workers) {
 	t.Helper()
 	service := &answering{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -159,9 +159,9 @@ func cacheWorld(t *testing.T, persister *keptBack, wait time.Duration) (*cache[s
 	if persister != nil {
 		kept = persister
 	}
-	c := newCache(service.fetch, runner.run, kept, wait)
+	c := NewCache(service.fetch, runner.run, kept, wait)
 	t.Cleanup(func() {
-		c.dispose()
+		c.Close()
 		cancel()
 		runner.wg.Wait()
 	})
@@ -183,10 +183,10 @@ type observer struct {
 }
 
 // watching is an observer of key. Its first pull is what asks.
-func watching(t *testing.T, c *cache[string, int], key string) *observer {
+func watching(t *testing.T, c *Cache[string, int], key string) *observer {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	next, stop := iter.Pull(c.observe(ctx, key))
+	next, stop := iter.Pull(c.Observe(ctx, key))
 	o := &observer{next: next, stop: stop, cancel: cancel}
 	t.Cleanup(o.close)
 	return o
@@ -264,7 +264,7 @@ func isState(t *testing.T, got, want CacheState) {
 }
 
 // ready is an observer of the key, which the first request has replied value.
-func ready(t *testing.T, c *cache[string, int], service *answering, value int) *observer {
+func ready(t *testing.T, c *Cache[string, int], service *answering, value int) *observer {
 	t.Helper()
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
@@ -274,10 +274,10 @@ func ready(t *testing.T, c *cache[string, int], service *answering, value int) *
 }
 
 // aRead is a one-shot read of key, run while the test goes on.
-func aRead(ctx context.Context, c *cache[string, int], key string) chan replied {
+func aRead(ctx context.Context, c *Cache[string, int], key string) chan replied {
 	read := make(chan replied, 1)
 	go func() {
-		value, err := c.fetchNow(ctx, key)
+		value, err := c.Fetch(ctx, key)
 		read <- replied{value, err}
 	}()
 	return read
@@ -297,18 +297,18 @@ func readEnded(t *testing.T, read chan replied) replied {
 
 func TestB1TheFirstObserverOfAKeySeesItPendingCostsOneRequestAndSeesItsAnswer(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
-	if _, has := c.get(cacheKeyOne); has || c.known(cacheKeyOne) {
+	if _, has := c.Get(cacheKeyOne); has || c.Known(cacheKeyOne) {
 		t.Fatal("a key nobody asked for has a value or is known")
 	}
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
 	service.askedJust(t, cacheKeyOne)
-	if !c.known(cacheKeyOne) || !slices.Equal(c.heldKeys(), []string{cacheKeyOne}) {
+	if !c.Known(cacheKeyOne) || !slices.Equal(c.Keys(), []string{cacheKeyOne}) {
 		t.Fatal("the key being fetched is not known")
 	}
 	service.answer(t, 0, 7)
 	isState(t, o.now(t), Ready[int]{Value: 7})
-	if value, _ := c.get(cacheKeyOne); value != 7 {
+	if value, _ := c.Get(cacheKeyOne); value != 7 {
 		t.Fatalf("the value is %d, want 7", value)
 	}
 	service.askedJust(t, cacheKeyOne)
@@ -341,13 +341,13 @@ func TestB3ObserversThatArriveBeforeTheValueShareOneRequestAndSeeTheSameValue(t 
 func TestB6ARefetchThatFailsAndFailsAgainLeavesTheValueItWasToReplace(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
 	o := ready(t, c, service, 1)
-	c.invalidate(cacheKeyOne)
+	c.Invalidate(cacheKeyOne)
 	o.nothingMore(t)
 	service.fail(t, 1, "the service is down")
 	service.fail(t, 2, "the service is down")
 	// The value stays, and the key is never failed: stale beats an error.
 	service.askedJust(t, cacheKeyOne, cacheKeyOne, cacheKeyOne)
-	if value, _ := c.get(cacheKeyOne); value != 1 {
+	if value, _ := c.Get(cacheKeyOne); value != 1 {
 		t.Fatalf("the value is %d, want 1", value)
 	}
 	o.nothingMore(t)
@@ -357,10 +357,10 @@ func TestB6ARefetchThatFailsAndFailsAgainLeavesTheValueItWasToReplace(t *testing
 func TestB7InvalidatingAsksAgainAndShowsTheValueUntilTheNewOneArrives(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
 	o := ready(t, c, service, 1)
-	c.invalidate(cacheKeyOne)
+	c.Invalidate(cacheKeyOne)
 	o.nothingMore(t)
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
-	if value, _ := c.get(cacheKeyOne); value != 1 {
+	if value, _ := c.Get(cacheKeyOne); value != 1 {
 		t.Fatalf("the value is %d, want 1", value)
 	}
 	service.answer(t, 1, 2)
@@ -369,20 +369,20 @@ func TestB7InvalidatingAsksAgainAndShowsTheValueUntilTheNewOneArrives(t *testing
 
 func TestB8InvalidatingAKeyNobodyAskedForAsksForIt(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
-	c.invalidate(cacheKeyOne)
+	c.Invalidate(cacheKeyOne)
 	service.askedJust(t, cacheKeyOne)
-	if !c.known(cacheKeyOne) {
+	if !c.Known(cacheKeyOne) {
 		t.Fatal("the key invalidated is not known")
 	}
 	service.answer(t, 0, 4)
-	eventually(t, "the value written", func() bool { value, _ := c.get(cacheKeyOne); return value == 4 })
+	eventually(t, "the value written", func() bool { value, _ := c.Get(cacheKeyOne); return value == 4 })
 	// And one whose only request failed twice is pending again when it is invalidated.
 	other := watching(t, c, "other")
 	isState(t, other.now(t), Pending{})
 	service.fail(t, 1, "the first")
 	failure := service.fail(t, 2, "the retry")
 	isState(t, other.now(t), Failed{Err: failure})
-	c.invalidate("other")
+	c.Invalidate("other")
 	isState(t, other.now(t), Pending{})
 	service.answer(t, 3, 9)
 	isState(t, other.now(t), Ready[int]{Value: 9})
@@ -393,7 +393,7 @@ func TestB9InvalidatingWhileAFetchIsInFlightStartsAnotherAndTheLastAnswerIsTheVa
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
 	service.count(t, 1)
-	c.invalidate(cacheKeyOne)
+	c.Invalidate(cacheKeyOne)
 	// Not joined: the one in flight may never be replied.
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	service.answer(t, 1, 5)
@@ -410,11 +410,11 @@ func TestB9AFetchThatWasLetGoOfDoesNotTakeThePlaceOfTheOneAfterIt(t *testing.T) 
 	c, service, _ := cacheWorld(t, nil, 0)
 	watching(t, c, cacheKeyOne).now(t)
 	service.count(t, 1)
-	c.invalidate(cacheKeyOne)
+	c.Invalidate(cacheKeyOne)
 	service.count(t, 2)
 	// The older ends first, while the newer is still in flight: a read now joins the newer.
 	service.answer(t, 0, 3)
-	eventually(t, "the older answer written", func() bool { value, _ := c.get(cacheKeyOne); return value == 3 })
+	eventually(t, "the older answer written", func() bool { value, _ := c.Get(cacheKeyOne); return value == 3 })
 	read := aRead(context.Background(), c, cacheKeyOne)
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	service.answer(t, 1, 5)
@@ -433,14 +433,14 @@ func TestB10KeysAreIndependent(t *testing.T) {
 	service.answer(t, 1, 2)
 	isState(t, other.now(t), Ready[int]{Value: 2})
 	one.nothingMore(t)
-	c.invalidate("b")
+	c.Invalidate("b")
 	service.askedJust(t, "a", "b", "b")
-	keys := c.heldKeys()
+	keys := c.Keys()
 	slices.Sort(keys)
 	if !slices.Equal(keys, []string{"a", "b"}) {
 		t.Fatalf("the keys known are %v", keys)
 	}
-	c.invalidateAll()
+	c.InvalidateAll()
 	service.count(t, 5)
 	settledFor()
 	again := service.askedNow()[3:]
@@ -471,7 +471,7 @@ func TestB14AOneShotReadIsNeverRetriedAndItsFailureIsItsCallersAlone(t *testing.
 	}
 	service.askedJust(t, cacheKeyOne)
 	// A failure writes nothing: the key is as it was, and its first observer asks.
-	if _, has := c.get(cacheKeyOne); has {
+	if _, has := c.Get(cacheKeyOne); has {
 		t.Fatal("a failed read wrote a value")
 	}
 	isState(t, watching(t, c, cacheKeyOne).now(t), Pending{})
@@ -508,7 +508,7 @@ func TestB15AKeyWithNoValueWhoseRetryFailsTooIsFailedForEveryObserverWhoLiveOn(t
 	// The retry's failure, not the first's.
 	isState(t, one.now(t), Failed{Err: failure})
 	isState(t, other.now(t), Failed{Err: failure})
-	if _, has := c.get(cacheKeyOne); has || !c.known(cacheKeyOne) {
+	if _, has := c.Get(cacheKeyOne); has || !c.Known(cacheKeyOne) {
 		t.Fatal("a failed key has a value, or is not known")
 	}
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
@@ -526,7 +526,7 @@ func TestB15AKeyWithNoValueWhoseRetryFailsTooIsFailedForEveryObserverWhoLiveOn(t
 }
 
 func TestB15AFailedKeyIsMadeReadyByAValueHoweverItComesWithNoPendingBetween(t *testing.T) {
-	failed := func(t *testing.T) (*cache[string, int], *answering, *observer) {
+	failed := func(t *testing.T) (*Cache[string, int], *answering, *observer) {
 		c, service, _ := cacheWorld(t, nil, 0)
 		o := watching(t, c, cacheKeyOne)
 		isState(t, o.now(t), Pending{})
@@ -537,7 +537,7 @@ func TestB15AFailedKeyIsMadeReadyByAValueHoweverItComesWithNoPendingBetween(t *t
 	}
 	t.Run("a value that is known", func(t *testing.T) {
 		c, service, o := failed(t)
-		c.write(cacheKeyOne, 3)
+		c.Set(cacheKeyOne, 3)
 		isState(t, o.now(t), Ready[int]{Value: 3})
 		service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	})
@@ -556,9 +556,9 @@ func TestB13aARemovedKeyIsFailedAsItWasToldAtOnceAndNothingIsAskedFor(t *testing
 	c, service, _ := cacheWorld(t, nil, 0)
 	o := ready(t, c, service, 1)
 	gone := &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "it was removed"}
-	c.remove(cacheKeyOne, gone)
+	c.Remove(cacheKeyOne, gone)
 	isState(t, o.now(t), Failed{Err: gone})
-	if _, has := c.get(cacheKeyOne); has || !c.known(cacheKeyOne) {
+	if _, has := c.Get(cacheKeyOne); has || !c.Known(cacheKeyOne) {
 		t.Fatal("a removed key has a value, or is not known")
 	}
 	service.askedJust(t, cacheKeyOne)
@@ -566,7 +566,7 @@ func TestB13aARemovedKeyIsFailedAsItWasToldAtOnceAndNothingIsAskedFor(t *testing
 	isState(t, watching(t, c, cacheKeyOne).now(t), Pending{})
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
 	// A fetch in flight when the key is removed is let go of: a read after it does not join it.
-	c.remove(cacheKeyOne, gone)
+	c.Remove(cacheKeyOne, gone)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	aRead(ctx, c, cacheKeyOne)
@@ -575,24 +575,24 @@ func TestB13aARemovedKeyIsFailedAsItWasToldAtOnceAndNothingIsAskedFor(t *testing
 
 func TestAValueThatIsKnownIsWrittenAndNothingIsAskedFor(t *testing.T) {
 	c, service, _ := cacheWorld(t, nil, 0)
-	c.write(cacheKeyOne, 3)
-	if value, _ := c.get(cacheKeyOne); value != 3 {
+	c.Set(cacheKeyOne, 3)
+	if value, _ := c.Get(cacheKeyOne); value != 3 {
 		t.Fatalf("the value is %d, want 3", value)
 	}
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Ready[int]{Value: 3})
-	c.write(cacheKeyOne, 4)
+	c.Set(cacheKeyOne, 4)
 	isState(t, o.now(t), Ready[int]{Value: 4})
 	service.askedJust(t)
 }
 
 func TestAnObserverThatFallsBehindIsGivenTheLatestStateNotEachItMissed(t *testing.T) {
 	c, _, _ := cacheWorld(t, nil, 0)
-	c.write(cacheKeyOne, 1)
+	c.Set(cacheKeyOne, 1)
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Ready[int]{Value: 1})
-	c.write(cacheKeyOne, 2)
-	c.write(cacheKeyOne, 3)
+	c.Set(cacheKeyOne, 2)
+	c.Set(cacheKeyOne, 3)
 	isState(t, o.now(t), Ready[int]{Value: 3})
 	o.nothingMore(t)
 }
@@ -603,8 +603,8 @@ func TestB16DisposingEndsEveryObserverAndNothingIsAskedOrWrittenAfter(t *testing
 	waiting := watching(t, c, "waiting")
 	isState(t, waiting.now(t), Pending{})
 	service.count(t, 2)
-	c.dispose()
-	c.dispose()
+	c.Close()
+	c.Close()
 	o.ended(t)
 	waiting.ended(t)
 
@@ -612,22 +612,22 @@ func TestB16DisposingEndsEveryObserverAndNothingIsAskedOrWrittenAfter(t *testing
 	watching(t, c, cacheKeyOne).ended(t)
 	watching(t, c, "new").ended(t)
 	var refused *BusRequestError
-	if _, err := c.fetchNow(context.Background(), cacheKeyOne); !errors.As(err, &refused) || refused.Code != BusRequestErrorCodeClosed {
+	if _, err := c.Fetch(context.Background(), cacheKeyOne); !errors.As(err, &refused) || refused.Code != BusRequestErrorCodeClosed {
 		t.Fatalf("a read of a disposed cache failed with %v, want bus.closed", err)
 	}
-	c.invalidate(cacheKeyOne)
-	c.invalidateAll()
-	c.write(cacheKeyOne, 9)
-	c.remove(cacheKeyOne, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
+	c.Invalidate(cacheKeyOne)
+	c.InvalidateAll()
+	c.Set(cacheKeyOne, 9)
+	c.Remove(cacheKeyOne, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
 	service.askedJust(t, cacheKeyOne, "waiting")
-	if _, has := c.get(cacheKeyOne); has || c.known(cacheKeyOne) || len(c.heldKeys()) != 0 {
+	if _, has := c.Get(cacheKeyOne); has || c.Known(cacheKeyOne) || len(c.Keys()) != 0 {
 		t.Fatal("a disposed cache holds something")
 	}
 
 	// What was in flight is replied into nothing.
 	service.answer(t, 1, 5)
 	settledFor()
-	if _, has := c.get("waiting"); has {
+	if _, has := c.Get("waiting"); has {
 		t.Fatal("an answer after disposal was written")
 	}
 }
@@ -637,7 +637,7 @@ func TestB16ARetryThatStraddlesTheDisposalIsNeverMade(t *testing.T) {
 	o := watching(t, c, cacheKeyOne)
 	isState(t, o.now(t), Pending{})
 	service.count(t, 1)
-	c.dispose()
+	c.Close()
 	service.fail(t, 0, "the first")
 	service.askedJust(t, cacheKeyOne)
 	runner.idle(t)
@@ -669,10 +669,10 @@ func TestAReadWhoseFetchItsClientsClosingEndedFailsAsClosedAndOneThatIsAbandoned
 
 func TestB17ACacheBeginsWithWhatWasKeptAndB18AsksForItAnewTheFirstTimeItIsObserved(t *testing.T) {
 	c, service, _ := cacheWorld(t, &keptBack{kept: map[string]int{cacheKeyOne: 1, "unobserved": 2}}, time.Hour)
-	if value, _ := c.get(cacheKeyOne); value != 1 {
+	if value, _ := c.Get(cacheKeyOne); value != 1 {
 		t.Fatalf("the kept value is %d, want 1", value)
 	}
-	keys := c.heldKeys()
+	keys := c.Keys()
 	slices.Sort(keys)
 	if !slices.Equal(keys, []string{cacheKeyOne, "unobserved"}) {
 		t.Fatalf("the keys known are %v", keys)
@@ -690,7 +690,7 @@ func TestB17ACacheBeginsWithWhatWasKeptAndB18AsksForItAnewTheFirstTimeItIsObserv
 	isState(t, watching(t, c, cacheKeyOne).now(t), Ready[int]{Value: 5})
 	service.askedJust(t, cacheKeyOne)
 	// Only what is observed: the other kept key cost nothing.
-	if value, _ := c.get("unobserved"); value != 2 {
+	if value, _ := c.Get("unobserved"); value != 2 {
 		t.Fatalf("the unobserved kept value is %d, want 2", value)
 	}
 }
@@ -702,7 +702,7 @@ func TestB18AKeptValueWhoseRevalidationFailsTwiceStaysAndIsNotAskedForAThirdTime
 	service.fail(t, 0, "the first")
 	service.fail(t, 1, "the retry")
 	service.askedJust(t, cacheKeyOne, cacheKeyOne)
-	if value, _ := c.get(cacheKeyOne); value != 1 {
+	if value, _ := c.Get(cacheKeyOne); value != 1 {
 		t.Fatalf("the kept value is %d, want 1", value)
 	}
 	isState(t, watching(t, c, cacheKeyOne).now(t), Ready[int]{Value: 1})
@@ -722,14 +722,14 @@ func TestB18AKeptValueIsNoLongerOneOnceAnythingHasAskedForItOrWrittenIt(t *testi
 					t.Fatalf("the read gave %d, %v", got.value, got.err)
 				}
 			case "an invalidation":
-				c.invalidate(cacheKeyOne)
+				c.Invalidate(cacheKeyOne)
 				service.answer(t, 0, 2)
-				eventually(t, "the value written", func() bool { value, _ := c.get(cacheKeyOne); return value == 2 })
+				eventually(t, "the value written", func() bool { value, _ := c.Get(cacheKeyOne); return value == 2 })
 			case "a value that is known":
-				c.write(cacheKeyOne, 2)
+				c.Set(cacheKeyOne, 2)
 				asked = 0
 			default:
-				c.remove(cacheKeyOne, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
+				c.Remove(cacheKeyOne, &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
 				asked = 0
 			}
 			settledFor()
@@ -753,29 +753,29 @@ func TestB17ValuesAreSavedOnceTheyHaveStoppedChangingAndOnlyValues(t *testing.T)
 	const wait = 200 * time.Millisecond
 	persister := &keptBack{}
 	c, service, _ := cacheWorld(t, persister, wait)
-	if c.persistencePending() {
+	if c.PersistencePending() {
 		t.Fatal("a cache that has done nothing owes something")
 	}
 	failing := watching(t, c, "failing")
 	isState(t, failing.now(t), Pending{})
 	// Fetching, it has not kept what it knows.
-	if !c.persistencePending() {
+	if !c.PersistencePending() {
 		t.Fatal("a cache fetching owes nothing")
 	}
 	service.fail(t, 0, "the first")
 	failure := service.fail(t, 1, "the retry")
 	isState(t, failing.now(t), Failed{Err: failure})
-	eventually(t, "nothing in flight", func() bool { return !c.persistencePending() })
+	eventually(t, "nothing in flight", func() bool { return !c.PersistencePending() })
 
-	c.write("a", 1)
-	if !c.persistencePending() {
+	c.Set("a", 1)
+	if !c.PersistencePending() {
 		t.Fatal("a cache with a new value owes nothing")
 	}
 	time.Sleep(wait / 2)
-	c.write("b", 2)
+	c.Set("b", 2)
 	// The wait begins again with each change: a burst is one save.
 	time.Sleep(wait / 2)
-	if saves := persister.saved(); len(saves) != 0 || !c.persistencePending() {
+	if saves := persister.saved(); len(saves) != 0 || !c.PersistencePending() {
 		t.Fatalf("saved %v before the values stopped changing", saves)
 	}
 	eventually(t, "the save", func() bool { return len(persister.saved()) == 1 })
@@ -783,11 +783,11 @@ func TestB17ValuesAreSavedOnceTheyHaveStoppedChangingAndOnlyValues(t *testing.T)
 	if saves := persister.saved(); !reflect.DeepEqual(saves[0], map[string]int{"a": 1, "b": 2}) {
 		t.Fatalf("saved %v", saves[0])
 	}
-	eventually(t, "nothing owed", func() bool { return !c.persistencePending() })
+	eventually(t, "nothing owed", func() bool { return !c.PersistencePending() })
 
 	// A removal is a change too, and what is gone is no longer kept.
-	c.remove("a", &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
-	if !c.persistencePending() {
+	c.Remove("a", &BusRequestError{Code: BusRequestErrorCodeNotFound, Message: "gone"})
+	if !c.PersistencePending() {
 		t.Fatal("a removal owes nothing")
 	}
 	eventually(t, "the save of the removal", func() bool { return len(persister.saved()) == 2 })
@@ -808,12 +808,12 @@ func TestB17ValuesAreSavedOnceTheyHaveStoppedChangingAndOnlyValues(t *testing.T)
 func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T) {
 	persister := &keptBack{}
 	c, _, _ := cacheWorld(t, persister, time.Hour)
-	c.write("a", 1)
-	c.dispose()
+	c.Set("a", 1)
+	c.Close()
 	if saves := persister.saved(); len(saves) != 1 || !reflect.DeepEqual(saves[0], map[string]int{"a": 1}) {
 		t.Fatalf("disposing saved %v, want the owed save", saves)
 	}
-	c.write("b", 2)
+	c.Set("b", 2)
 	settledFor()
 	if saves := persister.saved(); len(saves) != 1 {
 		t.Fatalf("saved %v after disposal", saves)
@@ -822,7 +822,7 @@ func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T)
 	// With nothing owed, disposing saves nothing.
 	idle := &keptBack{kept: map[string]int{"a": 1}}
 	resting, _, _ := cacheWorld(t, idle, time.Hour)
-	resting.dispose()
+	resting.Close()
 	if saves := idle.saved(); len(saves) != 0 {
 		t.Fatalf("a cache owing nothing saved %v when disposed", saves)
 	}
@@ -831,8 +831,8 @@ func TestB17DisposingMakesASaveThatWasOwedAtOnceAndNoneIsMadeAfter(t *testing.T)
 func TestACacheThatKeepsNothingOwesNothing(t *testing.T) {
 	c, _, _ := cacheWorld(t, nil, 0)
 	watching(t, c, cacheKeyOne).now(t)
-	c.write("a", 1)
-	if c.persistencePending() {
+	c.Set("a", 1)
+	if c.PersistencePending() {
 		t.Fatal("a cache that keeps nothing owes something")
 	}
 }

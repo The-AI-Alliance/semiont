@@ -234,20 +234,10 @@ type HeldJobStall struct {
 	Threshold      time.Duration
 }
 
-// Reading is a value that changes, read and not written: what it is now, and
-// what it becomes.
-type Reading[T any] interface {
-	// Value is the value now.
-	Value() T
-	// Changes is the value now and each value it becomes, until ctx is done,
-	// the loop over it stops, or the value will change no more.
-	Changes(ctx context.Context) iter.Seq[T]
-}
-
 // ending is a Watched read until over is done, after which it changes no
 // more.
 type ending[T comparable] struct {
-	watched *Watched[T]
+	watched *Variable[T]
 	over    context.Context
 }
 
@@ -317,7 +307,7 @@ type HeldJob interface {
 	// Cancelled is whether a cancellation has named this job: the answer
 	// now, and the change to it, until the job is settled. The work stops
 	// where it can, and the worker says Cancel.
-	Cancelled() Reading[bool]
+	Cancelled() Watched[bool]
 	// Settled is whether the job has been settled: completed, failed or
 	// cancelled.
 	Settled() bool
@@ -359,7 +349,7 @@ type heldJob struct {
 	// checkpointed. Absent, each reads as none.
 	completedUnits []string
 	unitCursors    map[string]api.UnitCursor
-	cancelled      *Watched[bool]
+	cancelled      *Variable[bool]
 	// over is done once the job is settled: nothing about it changes after.
 	over context.Context
 	end  context.CancelFunc
@@ -389,7 +379,7 @@ func (h *heldJob) Trace() TraceContext            { return h.trace }
 
 func (h *heldJob) UnitCursors() map[string]api.UnitCursor { return maps.Clone(h.unitCursors) }
 
-func (h *heldJob) Cancelled() Reading[bool] { return ending[bool]{h.cancelled, h.over} }
+func (h *heldJob) Cancelled() Watched[bool] { return ending[bool]{h.cancelled, h.over} }
 
 func (h *heldJob) Settled() bool {
 	h.mu.Lock()
@@ -807,7 +797,7 @@ type Claims struct {
 	// claims when they are first ranged over.
 	filtersErr error
 	handed     *queue[handedOut]
-	stall      *Watched[*HeldJobStall]
+	stall      *Variable[*HeldJobStall]
 	// life is the claims': done once they have ended. What watches for an
 	// idle moment runs in it; a claim in flight does not, and is left to be
 	// answered.
@@ -840,7 +830,7 @@ func newClaims(l *links, accepts []api.JobFilter) *Claims {
 		links:   l,
 		accepts: slices.Clone(accepts),
 		handed:  newQueue[handedOut](),
-		stall:   NewWatched[*HeldJobStall](nil),
+		stall:   NewVariable[*HeldJobStall](nil),
 		life:    life,
 		end:     end,
 	}
@@ -923,7 +913,7 @@ func utc(t time.Time) time.Time {
 // Stalled is the last stall found: a held job that has shown no activity for
 // the client's HeldJobStall, reported once. Nil until there is one, and each
 // one after is a change, until the claims end.
-func (c *Claims) Stalled() Reading[*HeldJobStall] {
+func (c *Claims) Stalled() Watched[*HeldJobStall] {
 	return ending[*HeldJobStall]{c.stall, c.life}
 }
 
@@ -1254,7 +1244,7 @@ func (c *Claims) claimNext() (HeldJob, *ClaimRefusal) {
 	held.retryCount = running.Metadata.RetryCount
 	held.maxRetries = running.Metadata.MaxRetries
 	held.annotationID = anchorOf(running.Metadata.Type, running.Params)
-	held.cancelled = NewWatched(false)
+	held.cancelled = NewVariable(false)
 	held.over, held.end = context.WithCancel(context.Background())
 	// Both appear on the record once an attempt has checkpointed. Absent, each reads as none.
 	held.completedUnits = []string{}

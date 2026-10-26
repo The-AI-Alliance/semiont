@@ -149,7 +149,7 @@ type AgentConfig struct {
 // closed.
 type AgentToken struct {
 	config AgentConfig
-	token  *Watched[string]
+	token  *Variable[string]
 	did    api.UserId
 
 	alive  context.Context
@@ -165,7 +165,7 @@ var _ TokenRefresher = (*AgentToken)(nil)
 // not make the exchange.
 func SignInAgent(ctx context.Context, config AgentConfig) (*AgentToken, error) {
 	alive, cancel := context.WithCancel(context.Background())
-	a := &AgentToken{config: config, token: NewWatched(""), alive: alive, cancel: cancel}
+	a := &AgentToken{config: config, token: NewVariable(""), alive: alive, cancel: cancel}
 	signedIn, err := a.exchange(ctx)
 	if err != nil {
 		cancel()
@@ -183,7 +183,7 @@ func SignInAgent(ctx context.Context, config AgentConfig) (*AgentToken, error) {
 
 // Token is the agent token: the current one, and each one after it. A
 // transport is given it as its token, and the AgentToken as its refresher.
-func (a *AgentToken) Token() *Watched[string] { return a.token }
+func (a *AgentToken) Token() *Variable[string] { return a.token }
 
 // DID is the agent's DID, as the gateway minted it under the knowledge base's
 // own domain, carried as it came.

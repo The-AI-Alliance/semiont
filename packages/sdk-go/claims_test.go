@@ -32,7 +32,7 @@ import (
 type workerWire struct {
 	hub    *FrameHub
 	router *ReplyRouter
-	state  *Watched[ConnectionState]
+	state  *Variable[ConnectionState]
 	// channels is what its stream names; nil names every channel.
 	channels []bus.Channel
 	// answer is what a request is answered with: the reply's payload, whether
@@ -57,7 +57,7 @@ type sentFrame struct {
 var _ Transport = (*workerWire)(nil)
 
 func newWorkerWire() *workerWire {
-	return &workerWire{hub: NewFrameHub(), router: NewReplyRouter(), state: NewWatched(ConnectionStateOpen), done: make(chan struct{})}
+	return &workerWire{hub: NewFrameHub(), router: NewReplyRouter(), state: NewVariable(ConnectionStateOpen), done: make(chan struct{})}
 }
 
 func (w *workerWire) BaseURL() string { return "http://worker.test" }

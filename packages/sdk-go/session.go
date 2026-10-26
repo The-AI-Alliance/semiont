@@ -108,7 +108,7 @@ type SessionConfig struct {
 	// kept under.
 	KbID string
 	// Token is the token the transport sends: "" for none.
-	Token *Watched[string]
+	Token *Variable[string]
 	// Kept is where the session's sign-in is kept.
 	Kept SignInKept
 	// Refresh renews the token at the issuer: the new token, "" when nothing
@@ -413,7 +413,7 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 // starts a wait of its own, and a renewal that changed nothing is due again a
 // floor later. A token that names no expiry schedules nothing: it is renewed
 // when whoever it is shown to refuses it.
-func renewWhenDue(alive context.Context, token *Watched[string], timing Timing, renew func()) {
+func renewWhenDue(alive context.Context, token *Variable[string], timing Timing, renew func()) {
 	for {
 		current, changed := token.watch()
 		var due <-chan time.Time

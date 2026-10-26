@@ -256,7 +256,7 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 		s.accepts = func(token string) bool { return token == signedToken(2) }
 	})
 	store, entry := keptAt(t, s, 1)
-	token := NewWatched("")
+	token := NewVariable("")
 	session, err := ResumeSession(context.Background(), ResumeConfig{
 		KbID: "local", BaseURL: s.gateway.URL, Kept: entry, Token: token,
 		HTTP: &http.Client{}, Timing: quickTiming(), AskWhoTokenIs: true,
