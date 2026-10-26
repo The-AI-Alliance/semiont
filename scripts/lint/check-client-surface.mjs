@@ -18,14 +18,22 @@
  *
  * What a method does when it is called is not read here: each SDK's surface
  * test runs the table's cases (packages/sdk/src/__tests__/client-surface.test.ts,
- * packages/sdk-rust/tests/surface.rs, packages/sdk-python/tests/test_surface.py).
+ * packages/sdk-rust/tests/surface.rs, packages/sdk-python/tests/test_surface.py,
+ * packages/sdk-go/surface_test.go).
  *
  * TypeScript's signatures are the interfaces of
  * packages/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
  * `impl <Name>Namespace` in packages/sdk-rust/src/namespaces; Python's are the
  * methods of each `class <Name>Namespace` in
  * packages/sdk-python/src/semiont/namespaces whose names begin with no
- * underscore.
+ * underscore; Go's are the exported methods of each `type <Name>Namespace
+ * struct` of the root package, packages/sdk-go, each declared with its
+ * methods in `<namespace>.go`, a method being the table's name with its
+ * first letter a capital (`Kb`, `HealthCheck`).
+ *
+ * WHICH SDKS. Each section below holds the SDKs it has a reader for, and
+ * those alone: its roster is its readers' keys. An `absent`, `made` or
+ * `named` that names an SDK outside a section's roster fails there.
  *
  * WHAT A WORKER IS HANDED. The table's `worker` section lists the members of
  * the claims `job.claim` returns and of a job the worker holds, and each SDK
@@ -58,8 +66,13 @@
  * `impl Claims`, in packages/sdk-rust/src/claims.rs. Python's are the public
  * methods, properties and attributes of `HeldMarkJob` and `HeldYieldJob`,
  * with those of the class each is made from, and of `Claims`, in
- * packages/sdk-python/src/semiont/claims.py. A declaration this cannot read
- * is a failure, never a member passed over.
+ * packages/sdk-python/src/semiont/claims.py. Go's are the exported methods
+ * and fields of `type HeldMarkJob struct` and `type HeldYieldJob struct`,
+ * with those of the struct each embeds, of `type Claims struct`, and the
+ * exported methods of `type HeldJob interface` for a job of either verb, in
+ * the files of packages/sdk-go; what a member takes is its parameters less
+ * its context, a type of the spec's named as the spec names it. A
+ * declaration this cannot read is a failure, never a member passed over.
  *
  * THE STATE UNITS. The table's `stateUnits` section lists each state unit,
  * what each SDK makes it as (`made`), and its members by name. Each SDK is
@@ -105,7 +118,11 @@
  * `transport`, and only there, so a `transport` row is refused. TypeScript's
  * bus is the class of packages/core/src, Rust's the `pub fn`s that take it of
  * its inherent `impl`s in packages/sdk-rust/src, Python's the public methods,
- * properties and attributes of its class in packages/sdk-python/src/semiont.
+ * properties and attributes of its class in packages/sdk-python/src/semiont,
+ * Go's the exported methods of its struct in the root package,
+ * packages/sdk-go, with the package's exported functions that take it: a Go
+ * method takes no type parameters, so a member generic in its channel is a
+ * function of the package (`Emit(ctx, w, bus.MarkSubmit, payload)`).
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -124,8 +141,11 @@ const TS_SDK = 'packages/sdk/src';
 const TS_CORE = 'packages/core/src';
 const RUST_SDK = 'packages/sdk-rust/src';
 const PYTHON_SDK = 'packages/sdk-python/src/semiont';
+const GO_SDK = 'packages/sdk-go';
+const GO_CLAIMS = 'packages/sdk-go/claims.go';
 const SCHEMAS = 'specs/src/components/schemas';
-const SDKS = ['typescript', 'rust', 'python'];
+/** Each SDK as a message names it. */
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -404,6 +424,198 @@ function pythonSurface() {
   return surface;
 }
 
+// ── Go ──────────────────────────────────────────────────────────────────
+
+/**
+ * Go `source` with its comments gone and its strings and runes emptied, so
+ * every bracket left is the code's own. A raw string (between backquotes)
+ * has no escapes.
+ */
+function goCode(source) {
+  let out = '';
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    const two = source.slice(i, i + 2);
+    if (two === '//') {
+      while (i < source.length && source[i] !== '\n') i++;
+    } else if (two === '/*') {
+      const end = source.indexOf('*/', i + 2);
+      i = end === -1 ? source.length : end + 2;
+      out += ' ';
+    } else if (c === '`') {
+      const end = source.indexOf('`', i + 1);
+      i = end === -1 ? source.length : end + 1;
+      out += '``';
+    } else if (c === '"' || c === "'") {
+      i++;
+      while (i < source.length && source[i] !== c && source[i] !== '\n') i += source[i] === '\\' ? 2 : 1;
+      i++;
+      out += `${c}${c}`;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/** The index just past the bracket that closes the one at `open`. In Go, `<` is no bracket: it opens `<-chan`. */
+function goClosing(source, open) {
+  const pairs = { '(': ')', '[': ']', '{': '}' };
+  const stack = [];
+  for (let i = open; i < source.length; i++) {
+    const c = source[i];
+    if (pairs[c]) stack.push(pairs[c]);
+    else if (c === stack[stack.length - 1]) {
+      stack.pop();
+      if (stack.length === 0) return i + 1;
+    }
+  }
+  throw new Error('a bracket that is never closed');
+}
+
+/** A Go list cut at each comma inside no bracket. */
+function goSplit(list) {
+  const parts = [];
+  let start = 0;
+  let depth = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth--;
+    else if (c === ',' && depth === 0) {
+      parts.push(list.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(list.slice(start));
+  return parts.map(squeezed).filter((part) => part !== '');
+}
+
+/**
+ * A Go function's parameters and results, its parameter list opening at
+ * `open`: each the text between its brackets, the results as declared (a
+ * single type, a parenthesised list, or nothing). The body is the first brace
+ * outside every bracket that opens no `struct` or `interface` type.
+ */
+function goSignature(code, open) {
+  const afterParameters = goClosing(code, open);
+  let depth = 0;
+  for (let i = afterParameters; i < code.length; i++) {
+    const c = code[i];
+    if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    else if (c === '{' && depth === 0) {
+      if (/\b(?:struct|interface)\s*$/.test(code.slice(afterParameters, i))) {
+        i = goClosing(code, i) - 1;
+        continue;
+      }
+      return { parameters: code.slice(open + 1, afterParameters - 1), results: squeezed(code.slice(afterParameters, i)) };
+    }
+  }
+  throw new Error('a function with no body');
+}
+
+/** The types a Go parameter or result list declares, its names left out: `(n int, ok bool, err error)` and `(int, bool, error)` are both `int, bool, error`. */
+function goTypes(list) {
+  const parts = goSplit(list);
+  // A list is named throughout or not at all; a part that is a name and a type says which.
+  const named = parts.some((part) => /^[A-Za-z_]\w*\s+(?!$)/.test(part) && !/^(?:chan|func|map|struct|interface)\b/.test(part));
+  if (!named) return parts;
+  // `a, b int`: a name without a type has the next one's.
+  const types = [];
+  let waiting = 0;
+  for (const part of parts) {
+    const typed = /^[A-Za-z_]\w*\s+(.+)$/.exec(part);
+    if (!typed) {
+      waiting++;
+      continue;
+    }
+    for (let k = 0; k <= waiting; k++) types.push(squeezed(typed[1]));
+    waiting = 0;
+  }
+  return types;
+}
+
+/** A Go method's shape, from the types it returns. */
+function goShape(results) {
+  const types = results.startsWith('(') ? goTypes(results.slice(1, -1)) : results === '' ? [] : [results];
+  if (types.length === 0) return 'signal';
+  if (types.length === 3 && types[0] === 'int' && types[1] === 'bool' && types[2] === 'error') return 'count';
+  if (types[types.length - 1] === 'error' && types.length <= 2) return 'promise';
+  if (types.length !== 1) return undefined;
+  const [returns] = types;
+  if (returns.startsWith('iter.Seq2[')) return 'events';
+  if (returns.startsWith('*Cached[')) return 'cache';
+  if (returns.startsWith('*Running[')) return 'stream';
+  if (returns.startsWith('*Delegation[')) return 'delegation';
+  if (returns === '*Upload') return 'upload';
+  if (returns === '*Claims') return 'claims';
+  return undefined;
+}
+
+/** A Go name as the table spells it: its first letter small. */
+const tableName = (goName) => goName[0].toLowerCase() + goName.slice(1);
+
+/** The root package's files, its tests left out: every `.go` file directly in packages/sdk-go. */
+function goFiles() {
+  return readdirSync(join(ROOT, GO_SDK), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.go') && !entry.name.endsWith('_test.go'))
+    .map((entry) => ({ file: `${GO_SDK}/${entry.name}`, code: goCode(read(`${GO_SDK}/${entry.name}`)) }))
+    .sort((a, b) => a.file.localeCompare(b.file));
+}
+
+/** namespace → method → { shape, returns } */
+function goSurface() {
+  const surface = new Map();
+  const files = goFiles();
+  const placed = (file, name) => {
+    const namespace = tableName(name);
+    if (file !== `${GO_SDK}/${namespace}.go`) fail(`${file} declares ${name}Namespace or a method of it, which belongs in ${GO_SDK}/${namespace}.go`);
+    if (!surface.has(namespace)) surface.set(namespace, new Map());
+    return surface.get(namespace);
+  };
+  for (const { file, code } of files) {
+    for (const match of code.matchAll(/^type (\w+)Namespace\b/gm)) {
+      if (!/^type \w+Namespace struct\s*\{/.test(code.slice(match.index))) fail(`${file}: \`type ${match[1]}Namespace\` is no struct: a namespace is \`type <Name>Namespace struct\``);
+      placed(file, match[1]);
+    }
+  }
+  for (const { file, code } of files) {
+    for (const match of code.matchAll(/^func \(\s*(?:\w+\s+)?\*?(\w+)Namespace\s*\)\s*(\w+)\s*\(/gm)) {
+      const methods = placed(file, match[1]);
+      if (!/^[A-Z]/.test(match[2])) continue;
+      const { results } = goSignature(code, match.index + match[0].length - 1);
+      methods.set(tableName(match[2]), { shape: goShape(results), returns: results === '' ? 'nothing' : results });
+    }
+  }
+  return surface;
+}
+
+/**
+ * Go's bus, given the name it is made as: the exported methods of its struct,
+ * and the package's exported functions that take it (a Go method takes no
+ * type parameters, so a member generic in its channel is one of these).
+ */
+function goWire(made) {
+  const files = goFiles();
+  const declared = files.filter(({ code }) => new RegExp(`^type ${made} struct\\b`, 'm').test(code));
+  if (declared.length === 0) return undefined;
+  if (declared.length > 1) fail(`${declared.map(({ file }) => file).join(', ')}: \`type ${made} struct\` is declared ${declared.length} times, and this reads the one`);
+  const members = new Set();
+  for (const { code } of files) {
+    for (const method of code.matchAll(new RegExp(`^func \\(\\s*(?:\\w+\\s+)?\\*?${made}\\s*\\)\\s*([A-Z]\\w*)\\s*\\(`, 'gm'))) members.add(tableName(method[1]));
+    for (const fn of code.matchAll(/^func ([A-Z]\w*)\s*(\[|\()/gm)) {
+      const open = fn[2] === '[' ? goClosing(code, fn.index + fn[0].length - 1) : fn.index + fn[0].length - 1;
+      if (code[open] !== '(') throw new Error(`func ${fn[1]}: a parameter list was expected after its type parameters`);
+      const { parameters } = goSignature(code, open);
+      if (goSplit(parameters).some((parameter) => new RegExp(`(?:^|\\s)\\*${made}$`).test(parameter))) members.add(tableName(fn[1]));
+    }
+  }
+  return { where: `${made} in ${declared[0].file}`, members };
+}
+
 // ── Each SDK against the table ──────────────────────────────────────────
 
 function held(sdk, where, surface) {
@@ -437,15 +649,22 @@ function held(sdk, where, surface) {
   }
 }
 
+/** Each SDK whose namespaces this reads: where they are, and their reader. */
+const NAMESPACES = {
+  typescript: { where: TS_INTERFACES, surface: typescriptSurface },
+  rust: { where: RUST_NAMESPACES, surface: rustSurface },
+  python: { where: PYTHON_NAMESPACES, surface: pythonSurface },
+  go: { where: GO_SDK, surface: goSurface },
+};
+const NAMESPACE_SDKS = Object.keys(NAMESPACES);
+
 for (const row of [...rows.values()].flatMap((methods) => [...methods.values()])) {
   for (const sdk of Object.keys(row.absent ?? {})) {
-    if (!SDKS.includes(sdk)) fail(`${TABLE}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+    if (!NAMESPACE_SDKS.includes(sdk)) fail(`${TABLE}: \`absent\` names "${sdk}", which is no SDK whose namespaces this lint reads`);
   }
 }
 
-held('typescript', TS_INTERFACES, typescriptSurface());
-held('rust', RUST_NAMESPACES, rustSurface());
-held('python', PYTHON_NAMESPACES, pythonSurface());
+for (const [sdk, { where, surface }] of Object.entries(NAMESPACES)) held(sdk, where, surface());
 
 // ── What a worker is handed ─────────────────────────────────────────────
 
@@ -454,6 +673,10 @@ const VERBS = JSON.parse(read(`${SCHEMAS}/JobType.json`)).enum;
 
 /** What this lint can read the members of, each as the table names it. */
 const HANDED = ['claims', 'heldJob'];
+
+/** Each SDK whose worker's surface this reads, and its reader. */
+const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker };
+const WORKER_SDKS = Object.keys(WORKERS);
 
 /** handed → member → row */
 const handed = new Map();
@@ -472,16 +695,16 @@ for (const thing of table.worker ?? []) {
     const strays = Object.keys(row).filter((key) => !['member', 'absent', 'named', 'takes'].includes(key));
     if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is docs/protocol/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
-      if (!SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+      if (!WORKER_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose worker's surface this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
       if (row.named?.[sdk] !== undefined) fail(`${name} says ${sdk} lacks it (\`absent\`) and has it under another name (\`named\`): it is one or the other`);
     }
     for (const [sdk, other] of Object.entries(row.named ?? {})) {
-      if (!SDKS.includes(sdk)) fail(`${name}: \`named\` names "${sdk}", which is no SDK this lint reads`);
+      if (!WORKER_SDKS.includes(sdk)) fail(`${name}: \`named\` names "${sdk}", which is no SDK whose worker's surface this lint reads`);
       if (typeof other?.name !== 'string' || other.name === '' || other.name === row.member) fail(`${name}: \`named\` gives ${sdk} no name of its own for it`);
       if (typeof other?.why !== 'string' || other.why === '') fail(`${name}: \`named\` does not say why ${sdk} names it otherwise`);
     }
-    if (SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+    if (WORKER_SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
     if (row.takes !== undefined) {
       if (thing.handed !== 'heldJob') fail(`${name} states \`takes\`, which only a held job's member does: a held job is its verb's`);
       const stated = Object.keys(row.takes);
@@ -595,9 +818,11 @@ const declaredName = (declaration) => /^(?:public\s+)?(?:readonly\s+)?(?:async\s
  * Each reader answers what its SDK declares for a worker: the members of its
  * claims; the members of a held job of each verb, each with the parameters
  * it takes; and, where the language has a type of its own for a job of
- * either verb, that type's. Each with where it was read, for a message. One
- * that meets a declaration it cannot read says so and answers nothing: no
- * SDK is held to a reading that guessed.
+ * either verb, that type's. Each with where it was read, for a message, and
+ * how a name its SDK spells is spelled as the table spells it (`spelled`), for
+ * a row's `named`, which gives the name as the SDK spells it. One that meets a
+ * declaration it cannot read says so and answers nothing: no SDK is held to a
+ * reading that guessed.
  */
 
 /** What says a reader could not read `file`, and whether it has been said. */
@@ -669,7 +894,13 @@ function typescriptWorker() {
     }
   }
   if (said.any) return undefined;
-  return { where: TS_CLAIMS, claims: { of: 'class ClaimsObservable', members: claims }, jobs: Object.fromEntries(VERBS.map((verb) => [verb, { of: `Held<'${verb}', …>`, members: jobs[verb] }])), either: undefined };
+  return {
+    where: TS_CLAIMS,
+    claims: { of: 'class ClaimsObservable', members: claims },
+    jobs: Object.fromEntries(VERBS.map((verb) => [verb, { of: `Held<'${verb}', …>`, members: jobs[verb] }])),
+    either: undefined,
+    spelled: (name) => name,
+  };
 }
 
 function rustWorker() {
@@ -700,7 +931,7 @@ function rustWorker() {
       return [verb, { of: `Held<${marker}>`, members: new Map([...common, ...implemented(` Held<${marker}>`)]) }];
     }),
   );
-  const worker = { where: RUST_CLAIMS, claims: { of: 'Claims', members: implemented(' Claims') }, jobs, either: { of: 'HeldJob', members: implemented(' HeldJob') } };
+  const worker = { where: RUST_CLAIMS, claims: { of: 'Claims', members: implemented(' Claims') }, jobs, either: { of: 'HeldJob', members: implemented(' HeldJob') }, spelled: camel };
   return said.any ? undefined : worker;
 }
 
@@ -740,12 +971,88 @@ function pythonWorker() {
       return [verb, { of: `class ${name}`, members: declares(name) }];
     }),
   );
-  const worker = { where: PYTHON_CLAIMS, claims: { of: 'class Claims', members: declares('Claims') }, jobs, either: undefined };
+  const worker = { where: PYTHON_CLAIMS, claims: { of: 'class Claims', members: declares('Claims') }, jobs, either: undefined, spelled: camel };
+  return said.any ? undefined : worker;
+}
+
+function goWorker() {
+  const files = goFiles();
+  const { said, cannot } = unreadable(GO_CLAIMS);
+
+  /** The one file that declares `type <name> <kind>`, and the declaration's body. */
+  const declaration = (name, kind) => {
+    const found = files.flatMap(({ file, code }) => [...code.matchAll(new RegExp(`^type ${name} ${kind}\\s*\\{`, 'gm'))].map((header) => ({ file, code, header })));
+    if (found.length !== 1) {
+      cannot(`\`type ${name} ${kind}\` is declared ${found.length} times, and this reads the one`);
+      return undefined;
+    }
+    const [{ code, header }] = found;
+    const open = header.index + header[0].length - 1;
+    return code.slice(open + 1, goClosing(code, open) - 1);
+  };
+
+  /** What a member takes: its parameters' types, its context left out and a type of the spec named as the spec names it. */
+  const takes = (list) => goTypes(list).filter((type) => type !== 'context.Context').map((type) => ({ name: '', type: type.replace(/^api\./, '') }));
+
+  /** The exported members of a struct: its exported fields and methods, with those of each struct it embeds, each as the table spells it. */
+  const struct = (name) => {
+    const members = new Map();
+    const body = declaration(name, 'struct');
+    if (body === undefined) return members;
+    for (const line of body.split('\n').map(squeezed).filter((text) => text !== '')) {
+      const embedded = /^\*?([A-Za-z_]\w*)$/.exec(line);
+      if (embedded) {
+        for (const [member, declared] of struct(embedded[1])) members.set(member, declared);
+        continue;
+      }
+      const field = /^([A-Z]\w*)\s+\S/.exec(line);
+      if (field) members.set(tableName(field[1]), { takes: [] });
+    }
+    for (const { code } of files) {
+      for (const method of code.matchAll(new RegExp(`^func \\(\\s*(?:\\w+\\s+)?\\*?${name}\\s*\\)\\s*([A-Z]\\w*)\\s*\\(`, 'gm'))) {
+        const { parameters } = goSignature(code, method.index + method[0].length - 1);
+        members.set(tableName(method[1]), { takes: takes(parameters) });
+      }
+    }
+    return members;
+  };
+
+  /** The exported methods of an interface, each as the table spells it. */
+  const methods = (name) => {
+    const members = new Map();
+    const body = declaration(name, 'interface');
+    if (body === undefined) return members;
+    for (const line of body.split('\n').map(squeezed).filter((text) => text !== '')) {
+      const method = /^([A-Za-z_]\w*)\s*\(/.exec(line);
+      if (!method) {
+        cannot(`\`type ${name} interface\` has a line that declares no method: ${line}`);
+        continue;
+      }
+      if (!/^[A-Z]/.test(method[1])) continue;
+      const open = line.indexOf('(');
+      members.set(tableName(method[1]), { takes: takes(line.slice(open + 1, goClosing(line, open) - 1)) });
+    }
+    return members;
+  };
+
+  const jobs = Object.fromEntries(
+    VERBS.map((verb) => {
+      const name = `Held${verb[0].toUpperCase()}${verb.slice(1)}Job`;
+      return [verb, { of: `type ${name}`, members: struct(name) }];
+    }),
+  );
+  const worker = {
+    where: GO_SDK,
+    claims: { of: 'type Claims', members: struct('Claims') },
+    jobs,
+    either: { of: 'type HeldJob', members: methods('HeldJob') },
+    spelled: tableName,
+  };
   return said.any ? undefined : worker;
 }
 
 /** Hold what `sdk` declares for one thing a worker is handed to the table's rows for it. `verb` is given for a held job of one verb. */
-function heldTo(sdk, where, what, declared, members, verb) {
+function heldTo(sdk, where, what, declared, members, verb, spelled) {
   const its = `${sdk}'s ${what} (${declared.of} in ${where})`;
   const row = `the \`${what}\` rows of \`worker\` in ${TABLE}`;
   const has = declared.members;
@@ -762,7 +1069,7 @@ function heldTo(sdk, where, what, declared, members, verb) {
       continue;
     }
     if (named !== undefined) {
-      if (!has.has(named.name)) fail(`${its} has no ${named.name}, the name ${row} say ${sdk} has ${member} under: add it to the SDK, or correct the row's \`named\``);
+      if (!has.has(spelled(named.name))) fail(`${its} has no ${named.name}, the name ${row} say ${sdk} has ${member} under: add it to the SDK, or correct the row's \`named\``);
       if (has.has(member)) fail(`${its} has ${member}, and ${row} say ${sdk} has it as ${named.name}: the row's \`named\` is stale, so take ${sdk} out of it`);
       continue;
     }
@@ -776,22 +1083,36 @@ function heldTo(sdk, where, what, declared, members, verb) {
       if (taken !== stated.takes[verb]) fail(`${its} has a ${member} that takes ${taken === '' ? 'nothing' : taken}, and ${row} say a held ${verb} job's takes ${stated.takes[verb]}`);
     }
   }
-  const listed = new Set([...members].flatMap(([member, stated]) => [member, ...(stated.named?.[sdk] ? [stated.named[sdk].name] : [])]));
+  const listed = new Set([...members].flatMap(([member, stated]) => [member, ...(stated.named?.[sdk] ? [spelled(stated.named[sdk].name)] : [])]));
   for (const member of has.keys()) {
     if (!listed.has(member)) fail(`${its} has ${member}, which ${row} do not list: add a row for it there before any SDK has it, with an \`absent\` for each SDK that is not to`);
   }
 }
 
-for (const [sdk, worker] of [['typescript', typescriptWorker()], ['rust', rustWorker()], ['python', pythonWorker()]]) {
+for (const [sdk, readWorker] of Object.entries(WORKERS)) {
+  const worker = readWorker();
   if (!worker) continue;
-  if (handed.has('claims')) heldTo(sdk, worker.where, 'claims', worker.claims, handed.get('claims'), undefined);
+  // A name the table gives an SDK (`named`) is as that SDK spells it; its reader says how that is spelled as the table spells a name.
+  const { spelled } = worker;
+  if (handed.has('claims')) heldTo(sdk, worker.where, 'claims', worker.claims, handed.get('claims'), undefined, spelled);
   if (handed.has('heldJob')) {
-    for (const verb of VERBS) heldTo(sdk, worker.where, 'heldJob', worker.jobs[verb], handed.get('heldJob'), verb);
-    if (worker.either) heldTo(sdk, worker.where, 'heldJob', worker.either, handed.get('heldJob'), undefined);
+    for (const verb of VERBS) heldTo(sdk, worker.where, 'heldJob', worker.jobs[verb], handed.get('heldJob'), verb, spelled);
+    if (worker.either) heldTo(sdk, worker.where, 'heldJob', worker.either, handed.get('heldJob'), undefined, spelled);
   }
 }
 
 // ── The state units ─────────────────────────────────────────────────────
+
+/**
+ * Each SDK whose state units this reads: its reader of one unit, where its
+ * units are declared, and its reader of every unit it declares.
+ */
+const UNITS = {
+  typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits },
+  rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits },
+  python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits },
+};
+const UNIT_SDKS = Object.keys(UNITS);
 
 /** unit → its row, with member → row */
 const units = new Map();
@@ -804,17 +1125,17 @@ for (const unit of table.stateUnits ?? []) {
   const strays = Object.keys(unit).filter((key) => !['unit', 'docs', 'made', 'members', 'absent'].includes(key));
   if (strays.length > 0) fail(`${what} states ${strays.join(', ')}, which a unit's row does not: what a unit does is its SDKs' tests' to hold`);
   if (typeof unit.docs !== 'string' || unit.docs === '') fail(`${what} does not say what it is (\`docs\`)`);
-  for (const sdk of SDKS) {
+  for (const sdk of UNIT_SDKS) {
     if (typeof unit.made?.[sdk] !== 'string' || !/^\w+$/.test(unit.made[sdk])) fail(`${what} does not say what ${sdk} makes it as (\`made\`)`);
   }
   for (const sdk of Object.keys(unit.made ?? {})) {
-    if (!SDKS.includes(sdk)) fail(`${what}: \`made\` names "${sdk}", which is no SDK this lint reads`);
+    if (!UNIT_SDKS.includes(sdk)) fail(`${what}: \`made\` names "${sdk}", which is no SDK whose state units this lint reads`);
   }
   for (const [sdk, why] of Object.entries(unit.absent ?? {})) {
-    if (!SDKS.includes(sdk)) fail(`${what}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+    if (!UNIT_SDKS.includes(sdk)) fail(`${what}: \`absent\` names "${sdk}", which is no SDK whose state units this lint reads`);
     if (typeof why !== 'string' || why === '') fail(`${what}: \`absent\` does not say why ${sdk} lacks it`);
   }
-  if (SDKS.every((sdk) => unit.absent?.[sdk] !== undefined)) fail(`${what} is absent from every SDK: it is no unit`);
+  if (UNIT_SDKS.every((sdk) => unit.absent?.[sdk] !== undefined)) fail(`${what} is absent from every SDK: it is no unit`);
   if (!Array.isArray(unit.members)) fail(`${what} does not list its members: a unit with none lists none`);
   for (const row of unit.members ?? []) {
     const name = `${what}.${row.member}`;
@@ -824,11 +1145,11 @@ for (const unit of table.stateUnits ?? []) {
     if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a unit's member is its name, with an \`absent\` for each SDK that has none`);
     if (row.member === 'dispose') fail(`${name}: \`dispose\` is every unit's, being a StateUnit, and is listed for none`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
-      if (!SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+      if (!UNIT_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose state units this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
       if (unit.absent?.[sdk] !== undefined) fail(`${name}: \`absent\` names ${sdk}, which has no ${unit.unit} unit at all`);
     }
-    if (SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+    if (UNIT_SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
   }
 }
 
@@ -941,45 +1262,48 @@ function pythonUnit(made, directory) {
   return { where: `class ${made} in ${file}`, isUnit: bases.includes('StateUnit'), members };
 }
 
-/** Every unit `sdk` declares, by name, each with the file it is declared in. */
-function declaredUnits(sdk) {
-  const extending = (list) => splitOutside(list ?? '', ',').map(squeezed).includes('StateUnit');
-  if (sdk === 'typescript') {
-    return sources(TS_SDK, '.ts').flatMap((file) => {
-      const source = typescriptCode(read(file));
-      return [...source.matchAll(interfaceHeader('(\\w+)')), ...source.matchAll(classHeader('(\\w+)'))]
-        .filter((header) => extending(header[2]))
-        .map((header) => ({ name: header[1], file }));
-    });
-  }
-  if (sdk === 'rust') {
-    return sources(RUST_SDK, '.rs').flatMap((file) =>
-      [...withoutComments(read(file), '"').matchAll(/^impl(?:<[^>{]*>)? StateUnit for (\w+)/gm)].map((impl) => ({ name: impl[1], file })),
-    );
-  }
+/** Whether a list of bases or interfaces names `StateUnit`. */
+const extendsStateUnit = (list) => splitOutside(list ?? '', ',').map(squeezed).includes('StateUnit');
+
+/** Every unit TypeScript declares, by name, each with the file it is declared in. */
+function typescriptUnits() {
+  return sources(TS_SDK, '.ts').flatMap((file) => {
+    const source = typescriptCode(read(file));
+    return [...source.matchAll(interfaceHeader('(\\w+)')), ...source.matchAll(classHeader('(\\w+)'))]
+      .filter((header) => extendsStateUnit(header[2]))
+      .map((header) => ({ name: header[1], file }));
+  });
+}
+
+/** Every unit Rust declares, by name, each with the file it is declared in. */
+function rustUnits() {
+  return sources(RUST_SDK, '.rs').flatMap((file) =>
+    [...withoutComments(read(file), '"').matchAll(/^impl(?:<[^>{]*>)? StateUnit for (\w+)/gm)].map((impl) => ({ name: impl[1], file })),
+  );
+}
+
+/** Every unit Python declares, by name, each with the file it is declared in. */
+function pythonUnits() {
   return sources(PYTHON_SDK, '.py').flatMap((file) =>
     [...withoutPythonComments(read(file)).matchAll(/^class (\w+)(?:\[[^\]]*\])?\(([^)]*)\):/gm)]
-      .filter((header) => extending(header[2]))
+      .filter((header) => extendsStateUnit(header[2]))
       .map((header) => ({ name: header[1], file })),
   );
 }
 
-for (const sdk of SDKS) {
+for (const [sdk, { declared }] of Object.entries(UNITS)) {
   const listed = new Set([...units.values()].map((unit) => unit.made?.[sdk]));
-  for (const { name, file } of declaredUnits(sdk)) {
+  for (const { name, file } of declared()) {
     if (!listed.has(name)) fail(`${file}: ${sdk}'s ${name} is a StateUnit that no row of \`stateUnits\` in ${TABLE} makes: add a row for it there before any SDK has it, with an \`absent\` for each SDK that is not to`);
   }
 }
 
-const readers = { typescript: typescriptUnit, rust: rustUnit, python: pythonUnit };
-/** Where each SDK's units are declared. */
-const UNIT_SOURCES = { typescript: TS_SDK, rust: RUST_SDK, python: PYTHON_SDK };
 for (const [name, unit] of units) {
   const row = `the \`${name}\` row of \`stateUnits\` in ${TABLE}`;
-  for (const sdk of SDKS) {
+  for (const [sdk, { read: readUnit, sources: where }] of Object.entries(UNITS)) {
     const made = unit.made?.[sdk];
     if (typeof made !== 'string') continue;
-    const declared = readers[sdk](made, UNIT_SOURCES[sdk]);
+    const declared = readUnit(made, where);
     if (unit.absent?.[sdk] !== undefined) {
       if (declared) fail(`${sdk} has ${declared.where}, and ${row} says ${sdk} has no ${name} unit: the row's \`absent\` is stale, so take ${sdk} out of it`);
       continue;
@@ -1005,18 +1329,34 @@ for (const [name, unit] of units) {
 
 // ── The bus over the wire ───────────────────────────────────────────────
 
-/** Where each SDK declares its bus: TypeScript's is @semiont/core's. */
-const WIRE_SOURCES = { typescript: TS_CORE, rust: RUST_SDK, python: PYTHON_SDK };
-
 /**
- * Where each SDK's client hands its bus out as `wire`, and what says it does,
- * given the name the SDK makes the bus as.
+ * Each SDK whose bus this reads: its reader, given the name the SDK makes the
+ * bus as; where the bus is declared (TypeScript's is @semiont/core's); and
+ * where the SDK's client hands it out as `wire`, with what says it does.
  */
-const HANDED_OUT = {
-  typescript: { file: `${TS_SDK}/client.ts`, says: (made) => new RegExp(`^\\s+readonly wire: ${made};$`, 'm') },
-  rust: { file: `${RUST_SDK}/client.rs`, says: (made) => new RegExp(`^\\s+pub fn wire\\(&self\\) -> &${made} \\{$`, 'm') },
-  python: { file: `${PYTHON_SDK}/client.py`, says: (made) => new RegExp(`^\\s+self\\.wire: Final = ${made}\\(transport\\)$`, 'm') },
+const WIRES = {
+  typescript: {
+    read: typescriptUnit,
+    sources: TS_CORE,
+    handedOut: { file: `${TS_SDK}/client.ts`, says: (made) => new RegExp(`^\\s+readonly wire: ${made};$`, 'm') },
+  },
+  rust: {
+    read: rustUnit,
+    sources: RUST_SDK,
+    handedOut: { file: `${RUST_SDK}/client.rs`, says: (made) => new RegExp(`^\\s+pub fn wire\\(&self\\) -> &${made} \\{$`, 'm') },
+  },
+  python: {
+    read: pythonUnit,
+    sources: PYTHON_SDK,
+    handedOut: { file: `${PYTHON_SDK}/client.py`, says: (made) => new RegExp(`^\\s+self\\.wire: Final = ${made}\\(transport\\)$`, 'm') },
+  },
+  go: {
+    read: goWire,
+    sources: GO_SDK,
+    handedOut: { file: `${GO_SDK}/client.go`, says: (made) => new RegExp(`^\\s+Wire\\s+\\*${made}\\s*(?://.*)?$`, 'm') },
+  },
 };
+const WIRE_SDKS = Object.keys(WIRES);
 
 /** member → row */
 const wireMembers = new Map();
@@ -1027,11 +1367,11 @@ else {
   const strays = Object.keys(wire).filter((key) => !['docs', 'made', 'members'].includes(key));
   if (strays.length > 0) fail(`${wireRow} states ${strays.join(', ')}, which it does not: what the bus does is its SDKs' tests' to hold`);
   if (typeof wire.docs !== 'string' || wire.docs === '') fail(`${wireRow} does not say what it is (\`docs\`)`);
-  for (const sdk of SDKS) {
+  for (const sdk of WIRE_SDKS) {
     if (typeof wire.made?.[sdk] !== 'string' || !/^\w+$/.test(wire.made[sdk])) fail(`${wireRow} does not say what ${sdk} makes the bus as (\`made\`)`);
   }
   for (const sdk of Object.keys(wire.made ?? {})) {
-    if (!SDKS.includes(sdk)) fail(`${wireRow}: \`made\` names "${sdk}", which is no SDK this lint reads`);
+    if (!WIRE_SDKS.includes(sdk)) fail(`${wireRow}: \`made\` names "${sdk}", which is no SDK whose bus this lint reads`);
   }
   if (!Array.isArray(wire.members) || wire.members.length === 0) fail(`${wireRow} lists no member`);
   for (const row of wire.members ?? []) {
@@ -1042,21 +1382,22 @@ else {
     if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a member of the bus is its name, with an \`absent\` for each SDK that has none`);
     if (row.member === 'transport') fail(`${name}: a bus hands out no transport; a client's transport is the client's \`transport\`, and only there`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
-      if (!SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+      if (!WIRE_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose bus this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
     }
-    if (SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+    if (WIRE_SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
   }
-  for (const sdk of SDKS) {
+  for (const [sdk, { read: readBus, sources: where, handedOut }] of Object.entries(WIRES)) {
     const made = wire.made?.[sdk];
     if (typeof made !== 'string') continue;
-    const declared = readers[sdk](made, WIRE_SOURCES[sdk]);
+    const declared = readBus(made, where);
     if (!declared) {
-      fail(`${sdk} declares no ${made} in ${WIRE_SOURCES[sdk]}, which ${wireRow} says it makes the bus over a client's transport as`);
+      fail(`${sdk} declares no ${made} in ${where}, which ${wireRow} says it makes the bus over a client's transport as`);
       continue;
     }
-    const handedOut = HANDED_OUT[sdk];
-    if (!handedOut.says(made).test(read(handedOut.file))) fail(`${handedOut.file}: ${sdk}'s client does not hand out its ${made} as \`wire\`, which ${wireRow} says every client does`);
+    if (!existsSync(join(ROOT, handedOut.file)) || !handedOut.says(made).test(read(handedOut.file))) {
+      fail(`${handedOut.file}: ${sdk}'s client does not hand out its ${made} as \`wire\`, which ${wireRow} says every client does`);
+    }
     const its = `${sdk}'s bus (${declared.where})`;
     for (const [member, stated] of wireMembers) {
       if (stated.absent?.[sdk] !== undefined) {
@@ -1079,4 +1420,11 @@ if (failures.length > 0) {
 const count = [...rows.values()].reduce((total, methods) => total + methods.size, 0);
 const membersCount = [...handed.values()].reduce((total, members) => total + members.size, 0);
 const unitMembers = [...units.values()].reduce((total, unit) => total + unit.members.size, 0);
-console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${membersCount} members of what a worker is handed, ${unitMembers} members of ${units.size} state units, and ${wireMembers.size} members of the bus over the wire, held by TypeScript, Rust and Python`);
+/** A roster as a message names it: "TypeScript, Rust and Python". */
+const heldBy = (roster) => {
+  const names = roster.map((sdk) => LANGUAGES[sdk]);
+  return `held by ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`}`;
+};
+console.log(
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; and ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}`,
+);
