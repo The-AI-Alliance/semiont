@@ -106,11 +106,7 @@ func (w *workerWire) TrackReply(correlationID string, channels ...bus.Channel) *
 	return w.router.Track(correlationID, channels)
 }
 
-func (w *workerWire) State() ConnectionState { return w.state.Value() }
-
-func (w *workerWire) StateChanges(ctx context.Context) iter.Seq[ConnectionState] {
-	return w.state.Changes(ctx)
-}
+func (w *workerWire) State() Watched[ConnectionState] { return w.state }
 
 func (w *workerWire) BridgeInto(sink FrameSink) { w.hub.Bridge(sink) }
 

@@ -123,7 +123,7 @@ func (r *refresher) start() {
 			}
 		}
 	})
-	states := r.links.transport.StateChanges(r.links.life)
+	states := r.links.transport.State().Changes(r.links.life)
 	r.links.run(func(context.Context) {
 		// B13: the stream is open again having left open, which only a drop
 		// does. A changed subscription is handed over with the state still

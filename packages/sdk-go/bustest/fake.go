@@ -215,11 +215,7 @@ func (f *Fake) TrackReply(correlationID string, channels ...bus.Channel) *semion
 	return f.router.Track(correlationID, channels)
 }
 
-func (f *Fake) State() semiont.ConnectionState { return f.state.Value() }
-
-func (f *Fake) StateChanges(ctx context.Context) iter.Seq[semiont.ConnectionState] {
-	return f.state.Changes(ctx)
-}
+func (f *Fake) State() semiont.Watched[semiont.ConnectionState] { return f.state }
 
 // Failures reports none, and ends when the fake closes.
 func (f *Fake) Failures() iter.Seq[*semiont.TransportError] {

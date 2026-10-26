@@ -60,7 +60,7 @@ func dropped(ctx context.Context, transport semiont.Transport) <-chan struct{} {
 	out := make(chan struct{})
 	go func() {
 		opened := false
-		for state := range transport.StateChanges(ctx) {
+		for state := range transport.State().Changes(ctx) {
 			if state == semiont.ConnectionStateOpen {
 				opened = true
 			} else if opened {

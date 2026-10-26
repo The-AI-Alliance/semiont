@@ -129,18 +129,17 @@ func Listen(args []string) int {
 		}
 	}
 
-	sess, ok := launcher.VerbSession(u, "listen", repo, wantLocal)
-	if !ok {
-		return 1
-	}
-	defer sess.Close()
 	// The stream names the channels globally; a scope's arrive on the scope.
 	var global []bus.Channel
 	if scope == "" {
 		global = channels
 	}
-	c := sess.Client(global...)
-	defer c.Close()
+	sess, ok := launcher.VerbSession(u, "listen", repo, wantLocal, global...)
+	if !ok {
+		return 1
+	}
+	defer sess.Close()
+	c := sess.Client()
 	if scope != "" {
 		release := c.Transport.SubscribeToResource(rid)
 		defer release()
@@ -171,7 +170,7 @@ func Listen(args []string) int {
 	render := newListenRenderer(prefetchResourceNames(c))
 
 	opened := false
-	for state := range c.Transport.StateChanges(ctx) {
+	for state := range c.Transport.State().Changes(ctx) {
 		if state == semiont.ConnectionStateOpen {
 			opened = true
 			break

@@ -373,7 +373,7 @@ func (l *live) Run(ctx context.Context, _ uint64, op string, args protocol.Argum
 		transport := l.transport
 		l.mu.Unlock()
 		if transport != nil {
-			l.report(transport.State())
+			l.report(transport.State().Value())
 		}
 		return nil, nil
 	}
@@ -430,7 +430,7 @@ func (l *live) open(args protocol.Arguments) error {
 	l.reporters.Add(2)
 	go func() {
 		defer l.reporters.Done()
-		for state := range transport.StateChanges(context.Background()) {
+		for state := range transport.State().Changes(context.Background()) {
 			l.report(state)
 			if state == semiont.ConnectionStateClosed {
 				return

@@ -1065,7 +1065,7 @@ func (c *Claims) cancellation(frame Frame) {
 // open after it claims. A closed transport ends the claims.
 func (c *Claims) watchTheStream() {
 	first, wasOpen := true, false
-	for state := range c.links.transport.StateChanges(c.life) {
+	for state := range c.links.transport.State().Changes(c.life) {
 		open := state == ConnectionStateOpen
 		if open && (first || !wasOpen) {
 			c.mu.Lock()

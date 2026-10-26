@@ -178,7 +178,7 @@ func (w *wire) Run(ctx context.Context, id uint64, op string, args protocol.Argu
 		// Answers after everything the transport reported before it: the
 		// suite's way to know it has read every state the connection was in.
 		if c, err := w.current(); err == nil {
-			w.report(c.transport.State())
+			w.report(c.transport.State().Value())
 		}
 		return nil, nil
 	}
@@ -284,7 +284,7 @@ func (w *wire) open(args protocol.Arguments) (any, error) {
 	w.reporters.Add(2)
 	go func() {
 		defer w.reporters.Done()
-		for state := range transport.StateChanges(reporting) {
+		for state := range transport.State().Changes(reporting) {
 			w.report(state)
 		}
 	}()
