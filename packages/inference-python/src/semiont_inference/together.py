@@ -75,7 +75,7 @@ library's typed model of it, which is built without being checked.
   ours, and a finished generation is logged with it.
 
 **What the library does on its own, and what is done about each**
-(`together`, read at 2.40.0, so that a new release of it is read for the
+(`together`, read at 2.42.0, so that a new release of it is read for the
 same):
 
 - Its HTTP client takes a proxy and its trusted certificates from the

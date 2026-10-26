@@ -18,6 +18,7 @@ import time
 import anthropic
 import pytest
 from aio import hurried, run, settle, soon
+from opentelemetry import trace
 from provider import HANG_UP, HOLD, Answer, Anthropic, Reply, model_info, refused, reply, saying
 from spec import JsonObject
 
@@ -254,6 +255,27 @@ def test_a_probe_refused_for_another_reason_fails_the_discovery_with_its_status_
 
 
 # ── the request ─────────────────────────────────────────────────────────
+
+
+def test_no_request_carries_the_trace_it_was_made_in() -> None:
+    # The library sends each call's trace context to the provider unless told not to, and the driver tells it.
+    within = trace.NonRecordingSpan(
+        trace.SpanContext(
+            trace_id=0x4BF92F3577B34DA6A3CE929D0E0E4736,
+            span_id=0x00F067AA0BA902B7,
+            is_remote=False,
+            trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
+        )
+    )
+
+    async def scenario() -> None:
+        async with Anthropic() as played:
+            with trace.use_span(within):
+                assert await driver(played).limits() == limits()
+            assert len(played.asked) == 2
+            assert [asked.headers.get("traceparent") for asked in played.asked] == [None, None]
+
+    run(scenario())
 
 
 def test_plain_text_is_one_request_of_exactly_these_members() -> None:

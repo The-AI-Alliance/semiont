@@ -109,7 +109,7 @@ jobs:
       # each file is uploaded with an attestation of which workflow built it.
       - name: Publish
         if: ${{ !inputs.dry_run && steps.there.outputs.published == 'false' }}
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           packages-dir: packages/sdk-python/dist/
 

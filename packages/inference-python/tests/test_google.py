@@ -1048,6 +1048,21 @@ def test_why_the_model_stopped_is_the_interfaces_word_where_it_has_one_and_other
     run(scenario())
 
 
+def test_a_reply_the_library_would_continue_is_one_request_and_stopped_for_the_providers_reason() -> None:
+    # The library asks again on its own after a reply that ends CONTINUATION with a token, and the driver turns that off.
+    stopped = candidate(said(text_part("The first part.")), finish_reason="CONTINUATION")
+    continuing: JsonObject = {**stopped, "continuationToken": "Y29udGludWU="}
+
+    async def scenario() -> None:
+        async with Google() as played:
+            played.script(Generated(candidates=[continuing], usage=counted(10, 5)))
+            answered = await driver(played).generate_text("p", 100, 0)
+            assert (answered.text, answered.stop_reason) == ("The first part.", "CONTINUATION")
+            assert len(played.generations) == 1
+
+    run(scenario())
+
+
 @pytest.mark.parametrize("structured", [False, True], ids=["text", "structured"])
 @pytest.mark.parametrize(
     "content",
