@@ -36,13 +36,20 @@
  * by a grep, so a class is also considered live if its literal prefix appears
  * in a template string. That is deliberately permissive: this gate exists to
  * catch the obvious, not to be clever.
+ *
+ * The stylesheets and markup read are the files under each root that git says
+ * the repository holds (`repository-files.mjs`).
  */
 
 const fs = require('fs');
 const path = require('path');
+const { repositoryFiles } = require('./repository-files.mjs');
+
+const ROOT = path.join(__dirname, '..', '..');
+const REPOSITORY = repositoryFiles(ROOT);
 
 const CSS_ROOTS = ['packages/react-ui/src', 'apps/browser/src'];
-const MARKUP_ROOTS = ['packages/react-ui/src', 'apps/browser/src', 'apps/desktop/src'];
+const MARKUP_ROOTS = ['packages/react-ui/src', 'apps/browser/src'];
 
 /** Classes whose consumer is outside this repo's markup, with the reason. */
 const ALLOWLIST = new Map([
@@ -60,15 +67,10 @@ const baseline = fs.existsSync(BASELINE_PATH)
   ? { unstyled: [], ...JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8')) }
   : { duplicated: [], unrendered: [], unstyled: [] };
 
-function walk(dir, ext, out = []) {
-  if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, ext, out);
-    else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
-  }
-  return out;
-}
+/** The repository's files under `root` whose names end in one of `ext`. */
+const filesUnder = (root, ext) =>
+  REPOSITORY.filter((file) => file.startsWith(`${root}/`) && ext.some((e) => file.endsWith(e)));
+const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 const DEFINITION = /\.(semiont-[a-zA-Z0-9_-]+)/g;
 
@@ -123,9 +125,9 @@ function scan(source, file) {
 }
 
 for (const root of CSS_ROOTS) {
-  for (const file of walk(root, ['.css'])) {
+  for (const file of filesUnder(root, ['.css'])) {
     if (file.includes('variables.css')) continue;
-    scan(fs.readFileSync(file, 'utf8'), file);
+    scan(read(file), file);
   }
 }
 
@@ -185,8 +187,8 @@ function classNamesIn(rawSource) {
 let markup = '';
 const renderedIn = new Map(); // class -> Set<file>
 for (const root of MARKUP_ROOTS) {
-  for (const file of walk(root, ['.tsx', '.ts'])) {
-    const source = fs.readFileSync(file, 'utf8');
+  for (const file of filesUnder(root, ['.tsx', '.ts'])) {
+    const source = read(file);
     markup += source;
     for (const cls of classNamesIn(source)) {
       if (!renderedIn.has(cls)) renderedIn.set(cls, new Set());

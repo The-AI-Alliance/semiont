@@ -19,25 +19,26 @@
  *
  * Inline fallbacks — `var(--x, #fff)` — are ALLOWED and not reported: those
  * are deliberate optional theming hooks a host may override.
+ *
+ * The stylesheets read are the `.css` files under each root that git says the
+ * repository holds (`repository-files.mjs`). A root given on the command line
+ * is a directory relative to the repository's root.
  */
 
 const fs = require('fs');
 const path = require('path');
+const { repositoryFiles } = require('./repository-files.mjs');
+
+const ROOT = path.join(__dirname, '..', '..');
+const REPOSITORY = repositoryFiles(ROOT);
 
 const ROOTS = process.argv.slice(2).length
-  ? process.argv.slice(2)
+  ? process.argv.slice(2).map((root) => root.replace(/\/+$/, ''))
   : ['packages/react-ui/src', 'apps/browser/src'];
 
 /** Every .css under a root. */
-function cssFiles(dir, out = []) {
-  if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) cssFiles(full, out);
-    else if (entry.name.endsWith('.css')) out.push(full);
-  }
-  return out;
-}
+const cssFiles = (root) => REPOSITORY.filter((file) => file.startsWith(`${root}/`) && file.endsWith('.css'));
+const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 const DEFINITION = /^\s*(--[a-zA-Z0-9_-]+)\s*:/gm;
 // Capture the delimiter so `var(--x, fallback)` can be told from `var(--x)`.
@@ -53,12 +54,11 @@ for (const root of ROOTS) {
   const missing = new Map(); // name -> Set<"file:line">
 
   for (const file of files) {
-    const text = fs.readFileSync(file, 'utf8');
-    for (const m of text.matchAll(DEFINITION)) defined.add(m[1]);
+    for (const m of read(file).matchAll(DEFINITION)) defined.add(m[1]);
   }
 
   for (const file of files) {
-    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    const lines = read(file).split('\n');
     lines.forEach((line, i) => {
       for (const m of line.matchAll(USAGE)) {
         const [, name, delimiter] = m;

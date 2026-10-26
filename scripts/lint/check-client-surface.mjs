@@ -106,12 +106,17 @@
  * bus is the class of packages/core/src, Rust's the `pub fn`s that take it of
  * its inherent `impl`s in packages/sdk-rust/src, Python's the public methods,
  * properties and attributes of its class in packages/sdk-python/src/semiont.
+ *
+ * Which files a directory holds, and whether a schema exists, is what git says
+ * the repository holds (`repository-files.mjs`).
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const REPOSITORY = repositoryFiles(ROOT);
 const TABLE = 'specs/src/client/surface.json';
 const REGISTRY = 'specs/src/bus/registry.json';
 const TS_INTERFACES = 'packages/sdk/src/namespaces/types.ts';
@@ -130,6 +135,9 @@ const SDKS = ['typescript', 'rust', 'python'];
 const failures = [];
 const fail = (message) => failures.push(message);
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
+/** The names of the files directly in `directory` whose names end in `extension`, in order. */
+const filesIn = (directory, extension) =>
+  REPOSITORY.filter((path) => dirname(path) === directory && path.endsWith(extension)).map((path) => basename(path));
 
 const table = JSON.parse(read(TABLE));
 const registry = JSON.parse(read(REGISTRY));
@@ -304,15 +312,15 @@ function rustShape(isAsync, returns) {
 /** namespace → method → { shape, returns } */
 function rustSurface() {
   const surface = new Map();
-  const directory = join(ROOT, RUST_NAMESPACES);
-  for (const file of readdirSync(directory).filter((name) => name.endsWith('.rs')).sort()) {
+  const files = filesIn(RUST_NAMESPACES, '.rs');
+  for (const file of files) {
     // A `'` in Rust opens a lifetime far more often than a character.
-    const source = withoutComments(readFileSync(join(directory, file), 'utf8'), '"');
+    const source = withoutComments(read(`${RUST_NAMESPACES}/${file}`), '"');
     for (const match of source.matchAll(/^impl (\w+)Namespace\s*\{/gm)) {
       // A namespace whose name Rust keeps for itself is in a file named with
       // a trailing underscore; the type's name says which namespace it is.
       const namespace = match[1][0].toLowerCase() + match[1].slice(1);
-      const expected = existsSync(join(directory, `${namespace}_.rs`)) ? `${namespace}_.rs` : `${namespace}.rs`;
+      const expected = files.includes(`${namespace}_.rs`) ? `${namespace}_.rs` : `${namespace}.rs`;
       if (file !== expected) fail(`${RUST_NAMESPACES}/${file} holds ${match[1]}Namespace, which belongs in ${expected}`);
       if (!surface.has(namespace)) surface.set(namespace, new Map());
       const methods = surface.get(namespace);
@@ -376,15 +384,14 @@ function pythonShape(isAsync, returns) {
 /** namespace → method → { shape, returns }. An SDK with no namespaces has none. */
 function pythonSurface() {
   const surface = new Map();
-  const directory = join(ROOT, PYTHON_NAMESPACES);
-  if (!existsSync(directory)) return surface;
-  for (const file of readdirSync(directory).filter((name) => name.endsWith('.py')).sort()) {
-    const source = withoutPythonComments(readFileSync(join(directory, file), 'utf8'));
+  const files = filesIn(PYTHON_NAMESPACES, '.py');
+  for (const file of files) {
+    const source = withoutPythonComments(read(`${PYTHON_NAMESPACES}/${file}`));
     for (const match of source.matchAll(/^class (\w+)Namespace\b[^\n]*:\n/gm)) {
       // A namespace whose name Python keeps for itself is in a file named
       // with a trailing underscore; the class's name says which namespace it is.
       const namespace = match[1][0].toLowerCase() + match[1].slice(1);
-      const expected = existsSync(join(directory, `${namespace}_.py`)) ? `${namespace}_.py` : `${namespace}.py`;
+      const expected = files.includes(`${namespace}_.py`) ? `${namespace}_.py` : `${namespace}.py`;
       if (file !== expected) fail(`${PYTHON_NAMESPACES}/${file} holds ${match[1]}Namespace, which belongs in ${expected}`);
       if (!surface.has(namespace)) surface.set(namespace, new Map());
       const methods = surface.get(namespace);
@@ -487,7 +494,7 @@ for (const thing of table.worker ?? []) {
       const stated = Object.keys(row.takes);
       if (stated.length !== VERBS.length || !VERBS.every((verb) => stated.includes(verb))) fail(`${name}: \`takes\` states ${stated.join(', ')}, and a job's verbs are ${VERBS.join(', ')}`);
       for (const schema of Object.values(row.takes)) {
-        if (!existsSync(join(ROOT, SCHEMAS, `${schema}.json`))) fail(`${name} takes ${schema}, which is no schema of ${SCHEMAS}`);
+        if (!REPOSITORY.includes(`${SCHEMAS}/${schema}.json`)) fail(`${name} takes ${schema}, which is no schema of ${SCHEMAS}`);
       }
     }
   }
@@ -834,12 +841,11 @@ for (const unit of table.stateUnits ?? []) {
 
 /** The files under `directory` whose names end in `extension`, its tests and its test doubles (`testing`) left out. */
 function sources(directory, extension) {
-  if (!existsSync(join(ROOT, directory))) return [];
-  return readdirSync(join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
-    const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory()) return ['__tests__', 'testing'].includes(entry.name) ? [] : sources(path, extension);
-    if (entry.name === `testing${extension}`) return [];
-    return entry.name.endsWith(extension) && !entry.name.endsWith(`.test${extension}`) ? [path] : [];
+  return REPOSITORY.filter((path) => {
+    if (!path.startsWith(`${directory}/`)) return false;
+    const [name, ...folders] = path.slice(directory.length + 1).split('/').reverse();
+    if (folders.includes('__tests__') || folders.includes('testing')) return false;
+    return name.endsWith(extension) && name !== `testing${extension}` && !name.endsWith(`.test${extension}`);
   });
 }
 
