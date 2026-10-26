@@ -9,7 +9,7 @@ The libraries Semiont is built from, in four languages. The services and tools t
 | [TypeScript](#typescript) | The SDK, its transport and its telemetry, the React components, and an MCP server | npm |
 | [Rust](#rust) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io |
 | [Python](#python) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI |
-| [Go](#go) | The client the launcher is built on | nowhere |
+| [Go](#go) | The SDK, which the launcher is built on | nowhere |
 
 Semiont's own services are built on these SDKs too, each on the one of its language.
 
@@ -22,6 +22,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [sdk-rust](./sdk-rust/README.md), [http-transport-rust](./http-transport-rust/README.md) |
 | Python | `pip install semiont` | [sdk-python](./sdk-python/README.md) |
+| Go | The module `github.com/The-AI-Alliance/semiont/packages/sdk-go`, by a `replace` on its path: it is published nowhere | [sdk-go](./sdk-go/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
 
 The rest is what those are built on, and what Semiont's own services are built on.
@@ -69,7 +70,7 @@ The first is how a Python program uses Semiont. The other four are what the Pyth
 
 | Module | Published | What it is |
 |---|---|---|
-| [sdk-go](./sdk-go/README.md) | Not published | The Go client the `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on: the gateway's HTTP operations as generated Go, and the bus's vocabulary with a client that speaks it |
+| [sdk-go](./sdk-go/README.md) | Not published | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on it |
 
 ## Working on a package
 

@@ -377,16 +377,22 @@ and
 [packages/sdk-python/conformance/live.py](../../../packages/sdk-python/conformance/live.py),
 run by the interpreter of the SDK's locked environment
 (`packages/sdk-python/.venv`), which the suite's setup makes with
-`uv sync --locked --no-dev` before any case runs.
+`uv sync --locked --no-dev` before any case runs. Go's are two commands of
+the module [packages/sdk-go/conformance](../../../packages/sdk-go/conformance):
+[semiont-go-wire-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-wire-driver/main.go)
+and
+[semiont-go-live-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-live-driver/main.go),
+built into its `bin/`.
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later)
-on `PATH`, the TypeScript SDK built, and, for the Python drivers, `uv` and
-Python 3.12 or later on `PATH`:
+It needs a built gateway and the Rust drivers, the Go drivers, `nats-server`
+(2.10 or later) on `PATH`, the TypeScript SDK built, and, for the Python
+drivers, `uv` and Python 3.12 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
+(cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

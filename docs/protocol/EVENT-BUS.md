@@ -314,7 +314,7 @@ Two generators read it:
 | Output | Generator |
 |---|---|
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
-| `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
+| `packages/sdk-go/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
 | `packages/sdk-python/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
 
@@ -451,7 +451,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
 - **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.
 - **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
-- **`packages/sdk-go/bus/`** — GENERATED Go channel constants and operation registry.
+- **`packages/sdk-go/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
