@@ -33,7 +33,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // sdk is this runner's SDK, as the table's `absent` names it.
@@ -509,20 +509,36 @@ var events = map[string]func(c *semiont.Client) func() (any, error){
 // surfaceWorld is a client over doubles nothing is scripted to answer but what a
 // case states, which record what was asked of each.
 type surfaceWorld struct {
-	transport *bustest.Fake
-	content   *bustest.RecordingContent
-	gateway   *bustest.RecordingGateway
+	transport *semionttest.FaultyTransport
+	content   *semionttest.InMemoryContent
+	gateway   *semionttest.StubGateway
 	client    *semiont.Client
 	ctx       context.Context
 	cancel    context.CancelFunc
 	calls     sync.WaitGroup
 }
 
-func newSurfaceWorld() *surfaceWorld {
-	w := &surfaceWorld{transport: bustest.NewFake(), content: &bustest.RecordingContent{}, gateway: &bustest.RecordingGateway{}}
-	w.client = semiont.NewClient(semiont.ClientConfig{Transport: w.transport, Content: w.content, Gateway: w.gateway, Timing: semiont.DefaultTiming()})
+// newSurfaceWorld is a world whose gateway answers as answers says; nil
+// answers nothing.
+func newSurfaceWorld(answers semionttest.MakeResponse) *surfaceWorld {
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{
+		Transport: semionttest.NewFaultyTransport(semionttest.FaultyConfig{MakeResponse: answers}),
+		Timing:    semiont.DefaultTiming(),
+	})
+	w := &surfaceWorld{transport: made.Transport, content: made.Content, gateway: made.Gateway, client: made.Client}
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	return w
+}
+
+// signals is every frame emitted that is no request, in order.
+func (w *surfaceWorld) signals() []semiont.Frame {
+	var sent []semiont.Frame
+	for _, frame := range w.transport.Emitted() {
+		if _, request := bus.Operations[frame.Channel]; !request {
+			sent = append(sent, frame)
+		}
+	}
+	return sent
 }
 
 // start runs a call on a goroutine of its own.
@@ -587,12 +603,12 @@ func heldTo(t *testing.T, w *surfaceWorld, kind, named string, at int, sends any
 	t.Helper()
 	switch kind {
 	case "request":
-		sent := eventually(t, why+": a request on "+named, func() (bustest.Requested, bool) {
-			_, requests := w.transport.Sent()
+		sent := eventually(t, why+": a request on "+named, func() (semionttest.RequestLogEntry, bool) {
+			requests := w.transport.RequestLog()
 			if len(requests) > at {
 				return requests[at], true
 			}
-			return bustest.Requested{}, false
+			return semionttest.RequestLogEntry{}, false
 		})
 		if string(sent.Channel) != named {
 			t.Fatalf("%s: requested on %s, the row says %s", why, sent.Channel, named)
@@ -604,12 +620,12 @@ func heldTo(t *testing.T, w *surfaceWorld, kind, named string, at int, sends any
 			t.Fatalf("%s: it is sent globally, and went on %s's scope", why, sent.Scope)
 		}
 	case "emit":
-		sent := eventually(t, why+": a frame on "+named, func() (bustest.Emitted, bool) {
-			emits, _ := w.transport.Sent()
+		sent := eventually(t, why+": a frame on "+named, func() (semiont.Frame, bool) {
+			emits := w.signals()
 			if len(emits) > at {
 				return emits[at], true
 			}
-			return bustest.Emitted{}, false
+			return semiont.Frame{}, false
 		})
 		if string(sent.Channel) != named {
 			t.Fatalf("%s: emitted on %s, the row says %s", why, sent.Channel, named)
@@ -621,12 +637,12 @@ func heldTo(t *testing.T, w *surfaceWorld, kind, named string, at int, sends any
 			t.Fatalf("%s: it is sent globally, and went on %s's scope", why, sent.Scope)
 		}
 	case "content":
-		made := eventually(t, why+": a call of the content transport", func() (bustest.ContentCall, bool) {
+		made := eventually(t, why+": a call of the content transport", func() (semionttest.ContentCall, bool) {
 			calls := w.content.Calls()
 			if len(calls) > at {
 				return calls[at], true
 			}
-			return bustest.ContentCall{}, false
+			return semionttest.ContentCall{}, false
 		})
 		given := map[string]any{"resourceId": made.Resource.String()}
 		if made.Put != nil {
@@ -642,12 +658,12 @@ func heldTo(t *testing.T, w *surfaceWorld, kind, named string, at int, sends any
 			t.Fatalf("%s: what it was given\n got: %v\nwant: %v", why, normal(t, given), sends)
 		}
 	case "gateway":
-		made := eventually(t, why+": a call of the gateway", func() (bustest.GatewayCall, bool) {
+		made := eventually(t, why+": a call of the gateway", func() (semionttest.GatewayCall, bool) {
 			calls := w.gateway.Calls()
 			if len(calls) > at {
 				return calls[at], true
 			}
-			return bustest.GatewayCall{}, false
+			return semionttest.GatewayCall{}, false
 		})
 		given := map[string]any{}
 		if !made.Resource.IsZero() {
@@ -707,15 +723,22 @@ func TestAMethodDoesWhatItsRowSays(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			w := newSurfaceWorld()
-			defer w.over()
+			var answers semionttest.MakeResponse
 			if len(rc.c.Answers) > 0 {
-				reply := json.RawMessage(`{}`)
+				// A case that answers null is answered with a reply that carries no response.
+				var response json.RawMessage
 				if string(rc.c.Answers) != "null" {
-					reply = json.RawMessage(fmt.Sprintf(`{"response":%s}`, resolved(t, table.Fixtures, rc.c.Answers)))
+					response = resolved(t, table.Fixtures, rc.c.Answers)
 				}
-				w.transport.Replies[bus.Channel(channel)] = reply
+				answers = func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+					if operation != bus.Channel(channel) {
+						return semionttest.RefuseUnscriptedOperation(operation, payload)
+					}
+					return response, nil
+				}
 			}
+			w := newSurfaceWorld(answers)
+			defer w.over()
 
 			switch kind {
 			case "local":
@@ -742,8 +765,8 @@ func TestAMethodDoesWhatItsRowSays(t *testing.T) {
 					t.Fatalf("%s: the key on its envelope is %q, the case says %q", why, frame.CorrelationID, correlationID)
 				}
 				time.Sleep(20 * time.Millisecond)
-				if emits, requests := w.transport.Sent(); len(emits)+len(requests) > 0 {
-					t.Fatalf("%s: a signal never reaches the wire, and %d frames did", why, len(emits)+len(requests))
+				if sent := w.transport.Emitted(); len(sent) > 0 {
+					t.Fatalf("%s: a signal never reaches the wire, and %d frames did", why, len(sent))
 				}
 			case "observes":
 				hear, ok := events[rc.name]

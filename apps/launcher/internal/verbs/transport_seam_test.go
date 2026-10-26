@@ -13,7 +13,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // The transport seam: a verb's wire behaviour, tested IN PROCESS.
@@ -55,7 +55,7 @@ func verbFixture(t *testing.T) {
 
 func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	verbFixture(t)
-	fake := bustest.NewFake()
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
 	fake.Counted(2)
 	var built []semiont.HTTPTransportConfig
 	restore := launcher.UseTransport(func(config semiont.HTTPTransportConfig) semiont.Transport {
@@ -68,10 +68,10 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 		t.Fatalf("beckon: exit %d", code)
 	}
 
-	if len(fake.Emits) != 1 {
-		t.Fatalf("want exactly one emit, got %d", len(fake.Emits))
+	if len(signals(fake)) != 1 {
+		t.Fatalf("want exactly one emit, got %d", len(signals(fake)))
 	}
-	got := fake.Emits[0]
+	got := signals(fake)[0]
 	if got.Channel != bus.BeckonFocus.Channel() {
 		t.Errorf("channel = %q, want %q", got.Channel, bus.BeckonFocus.Channel())
 	}
@@ -116,7 +116,7 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 		{0, false, "no delivery confirmation"},
 	} {
 		verbFixture(t)
-		fake := bustest.NewFake()
+		fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
 		if c.counted {
 			fake.Counted(c.subscribers)
 		}

@@ -19,7 +19,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // followContext is a gathered context whose focus is res-1.
@@ -45,22 +45,38 @@ func jobTiming(silence, poll time.Duration) semiont.Timing {
 	return timing
 }
 
-// jobWorld is a client over a fake whose job:create is answered with job-1,
-// or by the test when it is not answered.
-func jobWorld(t *testing.T, answered bool, timing semiont.Timing) (*semiont.Client, *bustest.Fake) {
+// jobWorld is a client over a transport whose job:create is answered with
+// job-1, or by the test when it is not answered.
+func jobWorld(t *testing.T, answered bool, timing semiont.Timing) (*semiont.Client, *semionttest.FaultyTransport) {
 	t.Helper()
-	fake := bustest.NewFake()
 	if answered {
-		fake.Queued[jobCreate] = []json.RawMessage{json.RawMessage(`{"response":{"jobId":"job-1"}}`)}
-	} else {
-		fake.Unanswered[jobCreate] = true
+		return creatingWorld(t, json.RawMessage(`{"jobId":"job-1"}`), timing)
 	}
-	c := semiont.NewClient(semiont.ClientConfig{Transport: fake, Content: &bustest.RecordingContent{}, Gateway: &bustest.RecordingGateway{}, Timing: timing})
-	t.Cleanup(func() {
-		c.Close()
-		fake.Close()
+	// Each reply is lost on its way, and the test answers what it means to.
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{
+		Schedule:     []semionttest.FaultAction{semionttest.DropReply{}},
+		MakeResponse: func(bus.Channel, json.RawMessage) (json.RawMessage, error) { return nil, nil },
 	})
-	return c, fake
+	return worldOver(t, transport, timing)
+}
+
+// creatingWorld is a client over a transport whose job:create is answered
+// with created.
+func creatingWorld(t *testing.T, created json.RawMessage, timing semiont.Timing) (*semiont.Client, *semionttest.FaultyTransport) {
+	t.Helper()
+	transport := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	transport.QueueReply(jobCreate, created)
+	return worldOver(t, transport, timing)
+}
+
+func worldOver(t *testing.T, transport *semionttest.FaultyTransport, timing semiont.Timing) (*semiont.Client, *semionttest.FaultyTransport) {
+	t.Helper()
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{Transport: transport, Timing: timing})
+	t.Cleanup(func() {
+		made.Client.Close()
+		transport.Close()
+	})
+	return made.Client, transport
 }
 
 func highlighting(t *testing.T, c *semiont.Client) *semiont.Delegation[api.MarkJobCompleteCommand] {
@@ -110,14 +126,15 @@ func progressOf(percentage float64) map[string]any {
 	return map[string]any{"percentage": percentage, "progress": map[string]any{"percentage": percentage}}
 }
 
-// statusOf is a job:status-result answering job-1 with status of, and more.
+// statusOf is the response of a job:status-result answering job-1 with
+// status of, and more.
 func statusOf(t *testing.T, of string, more map[string]any) json.RawMessage {
 	t.Helper()
 	response := map[string]any{"jobId": "job-1", "type": "mark", "status": of, "userId": "did:web:example.org:users:alice", "created": "2026-10-01T00:00:00.000Z"}
 	for name, value := range more {
 		response[name] = value
 	}
-	encoded, err := json.Marshal(map[string]any{"response": response})
+	encoded, err := json.Marshal(response)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,10 +146,9 @@ func statuses(answer json.RawMessage, n int) []json.RawMessage {
 	return slices.Repeat([]json.RawMessage{answer}, n)
 }
 
-func requestsOn(fake *bustest.Fake, channel bus.Channel) []bustest.Requested {
-	_, requests := fake.Sent()
-	var on []bustest.Requested
-	for _, request := range requests {
+func requestsOn(transport *semionttest.FaultyTransport, channel bus.Channel) []semionttest.RequestLogEntry {
+	var on []semionttest.RequestLogEntry
+	for _, request := range transport.RequestLog() {
 		if request.Channel == channel {
 			on = append(on, request)
 		}
@@ -151,7 +167,7 @@ func waitUntil(t *testing.T, what string, limit time.Duration, done func() bool)
 }
 
 // created waits for the n-th job:create to have been sent.
-func created(t *testing.T, fake *bustest.Fake, n int) bustest.Requested {
+func created(t *testing.T, fake *semionttest.FaultyTransport, n int) semionttest.RequestLogEntry {
 	t.Helper()
 	waitUntil(t, fmt.Sprintf("job:create number %d", n), time.Second, func() bool { return len(requestsOn(fake, jobCreate)) >= n })
 	return requestsOn(fake, jobCreate)[n-1]
@@ -381,7 +397,7 @@ func TestADelegationIsWaitedForOrRangedOverAndOnce(t *testing.T) {
 		}
 	}
 
-	fake.Queued[jobCreate] = []json.RawMessage{json.RawMessage(`{"response":{"jobId":"job-1"}}`)}
+	fake.QueueReply(jobCreate, json.RawMessage(`{"jobId":"job-1"}`))
 	awaited := highlighting(t, c)
 	waited := waiting(awaited)
 	created(t, fake, 2)
@@ -405,8 +421,8 @@ func TestNothingIsSentUntilADelegationIsWaitedForOrRangedOver(t *testing.T) {
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	highlighting(t, c)
 	time.Sleep(50 * time.Millisecond)
-	if emits, requests := fake.Sent(); len(emits)+len(requests) != 0 {
-		t.Fatalf("a delegation nobody consumed sent %d frames", len(emits)+len(requests))
+	if sent := fake.Emitted(); len(sent) != 0 {
+		t.Fatalf("a delegation nobody consumed sent %d frames", len(sent))
 	}
 }
 
@@ -434,7 +450,7 @@ func TestASilentJobIsAskedForItsStatusUntilItsStatusIsAnEnd(t *testing.T) {
 	t.Parallel()
 	silence, poll := 200*time.Millisecond, 300*time.Millisecond
 	c, fake := jobWorld(t, true, jobTiming(silence, poll))
-	fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "running", nil), statusOf(t, "complete", nil)}
+	fake.QueueReply(jobStatus, statusOf(t, "running", nil), statusOf(t, "complete", nil))
 	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	time.Sleep(silence / 2)
@@ -476,7 +492,7 @@ func TestAStatusCarriesTheResultItsJobWasStoredWithAndAnEmptyOneIsNone(t *testin
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
-			fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", map[string]any{"result": c.result})}
+			fake.QueueReply(jobStatus, statusOf(t, "complete", map[string]any{"result": c.result}))
 			got := followedWithin(t, following(highlighting(t, client).Events(context.Background())), 2*time.Second)
 			if !slices.Equal(got.kinds, []string{"created job-1", "complete"}) {
 				t.Fatalf("the follower gave %v", got.kinds)
@@ -539,7 +555,7 @@ func TestAStatusWhoseCompletionIsNotTheVerbsEndsTheFollowerAndIsNoFailureOfTheJo
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			client, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
-			fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", c.said)}
+			fake.QueueReply(jobStatus, statusOf(t, "complete", c.said))
 			var events iter.Seq2[semiont.JobEvent, error]
 			if c.delegated == api.JobTypeMark {
 				events = highlighting(t, client).Events(context.Background())
@@ -558,7 +574,7 @@ func TestAStatusWhoseCompletionIsNotTheVerbsIsToldAsWhatItIs(t *testing.T) {
 	t.Parallel()
 	const carried = "words-of-what-the-job-made"
 	c, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
-	fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", map[string]any{"result": map[string]any{"resourceId": "res-summary", "resourceName": carried, "truncated": false}})}
+	fake.QueueReply(jobStatus, statusOf(t, "complete", map[string]any{"result": map[string]any{"resourceId": "res-summary", "resourceName": carried, "truncated": false}}))
 	got := waitedWithin(t, waiting(highlighting(t, c)), 2*time.Second)
 	var ended *semiont.TransportError
 	if !errors.As(got.err, &ended) || ended.Code != semiont.TransportErrorCodeError {
@@ -615,7 +631,7 @@ func TestAStatusThatIsAnEndAndNoCompletionEndsTheFollowerWithIt(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			client, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
-			fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, c.of, c.more)}
+			fake.QueueReply(jobStatus, statusOf(t, c.of, c.more))
 			got := waitedWithin(t, waiting(highlighting(t, client)), 2*time.Second)
 			var ended *semiont.JobError
 			if !errors.As(got.err, &ended) || ended.Code != c.code || ended.Message != c.message || ended.JobID.String() != "job-1" {
@@ -676,7 +692,7 @@ func TestAFailureThatIsFinalEndsTheFollowerAndOneThatDoesNotSayIsFinal(t *testin
 func TestAnOptionOfAJobGivenAsNothingIsNotSent(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	fake.Queued[jobCreate] = append(fake.Queued[jobCreate], json.RawMessage(`{"response":{"jobId":"job-2"}}`))
+	fake.QueueReply(jobCreate, json.RawMessage(`{"jobId":"job-2"}`))
 	var params api.MarkJobParams
 	density := float32(1.5)
 	if err := params.FromCommentingJobParams(api.CommentingJobParams{Motivation: api.CommentingJobParamsMotivationCommenting, Density: &density}); err != nil {
@@ -720,7 +736,12 @@ func TestAnOptionOfAJobGivenAsNothingIsNotSent(t *testing.T) {
 func TestAJobWhoseCreationIsRefusedIsItsFollowersFailure(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	fake.Rejections[jobCreate] = json.RawMessage(`{"message":"the queue refused it"}`)
+	fake.RefuseWhen(func(operation bus.Channel, _ json.RawMessage) json.RawMessage {
+		if operation == jobCreate {
+			return json.RawMessage(`{"message":"the queue refused it"}`)
+		}
+		return nil
+	})
 	got := waitedWithin(t, waiting(highlighting(t, c)), time.Second)
 	var refused *semiont.BusRequestError
 	if !errors.As(got.err, &refused) || refused.Code != semiont.BusRequestErrorCodeRejected {
@@ -733,8 +754,7 @@ func TestAJobWhoseCreationIsRefusedIsItsFollowersFailure(t *testing.T) {
 // can never recognise.
 func TestACreationThatNamesNoJobIsItsFollowersFailure(t *testing.T) {
 	t.Parallel()
-	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	fake.Queued[jobCreate] = []json.RawMessage{json.RawMessage(`{"response":{}}`)}
+	c, _ := creatingWorld(t, json.RawMessage(`{}`), semiont.DefaultTiming())
 	got := waitedWithin(t, waiting(highlighting(t, c)), time.Second)
 	var ended *semiont.TransportError
 	if !errors.As(got.err, &ended) || ended.Code != semiont.TransportErrorCodeError || !strings.Contains(ended.Message, "response.jobId") {
@@ -778,12 +798,16 @@ func TestAGenerationThatSaysNothingIsCancelledAndGivenUpOn(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
 	// Its status says it is running for as long as it is asked: only the deadline ends it.
-	fake.Queued[jobStatus] = statuses(statusOf(t, "running", nil), 100)
+	fake.QueueReply(jobStatus, statuses(statusOf(t, "running", nil), 100)...)
 	stall := 600 * time.Millisecond
 	waited := waiting(generation(t, c, stall, nil))
 	sent := created(t, fake, 1)
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(sent.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
 	var members []string
-	for name := range sent.Payload {
+	for name := range payload {
 		members = append(members, name)
 	}
 	sort.Strings(members)
@@ -862,7 +886,7 @@ func TestAGenerationWaitsAsLongAsItsLengthAllowsWhenNoDeadlineIsStated(t *testin
 	timing := jobTiming(50*time.Millisecond, 50*time.Millisecond)
 	timing.GenerationStallFloor, timing.GenerationStallPerToken = 100*time.Millisecond, time.Millisecond
 	c, fake := jobWorld(t, true, timing)
-	fake.Queued[jobStatus] = statuses(statusOf(t, "running", nil), 100)
+	fake.QueueReply(jobStatus, statuses(statusOf(t, "running", nil), 100)...)
 	tokens := float32(400)
 	waited := waiting(generation(t, c, 0, &tokens))
 	created(t, fake, 1)
@@ -884,7 +908,7 @@ func TestAGenerationWaitsAsLongAsItsLengthAllowsWhenNoDeadlineIsStated(t *testin
 func TestAClientToldOtherWaitsKeepsThem(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 20*time.Millisecond))
-	fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", nil)}
+	fake.QueueReply(jobStatus, statusOf(t, "complete", nil))
 	// No clock is moved: a twentieth of a second is waited out.
 	got := waitedWithin(t, waiting(highlighting(t, c)), time.Second)
 	if got.err != nil || got.done.JobId.String() != "job-1" || got.done.Result != nil {
@@ -895,7 +919,7 @@ func TestAClientToldOtherWaitsKeepsThem(t *testing.T) {
 func TestAClientThatClosesEndsTheJobsItWasFollowing(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	fake.Queued[jobCreate] = append(fake.Queued[jobCreate], json.RawMessage(`{"response":{"jobId":"job-2"}}`))
+	fake.QueueReply(jobCreate, json.RawMessage(`{"jobId":"job-2"}`))
 	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	waited := waiting(highlighting(t, c))

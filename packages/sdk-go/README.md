@@ -25,7 +25,7 @@ the launcher's commands are written directly on the transport.
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others), which the wire types carry | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
 | `semiont` | `httptransport.go` and `stream.go`: `HTTPTransport`, a `Transport` holding one stream to the gateway, its emits, and the gateway's own operations. `wire.go`: `Wire`, its emits, frames and requests by channel. `content.go`: `HTTPContentTransport`, uploads and reads of a resource. `errors.go`: `Error`, `TransportError` and `BusRequestError`. `telemetry.go`: the spans and the count a transport reports, and `Frame.Trace`. `session.go`: `Session`, a knowledge base's token renewed by the session table, and `SignInKept`. `signin.go` and `oauth.go`: `ResumeSession`, `SignInWithDevice` and `SignOut` over `Issuer` (discovery, the device and refresh grants, revocation). `signinstore.go`: `SignInStore`, the sign-ins `semiont login` keeps, under their lock; `statedir.go`: `StateDir`, where they are kept. `agent.go`: `ServiceToken` and `AgentToken`, a software agent's token at the gateway. `endpoint.go`: `GatewayURL`. `token.go`: a token's expiry and when it is renewed. `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving. `retry.go`: the retry rules (`RetryRuleBoot`, `RetryRuleTransport`, `RetryRuleRefresh`), `RetryPolicy`, `RetryAfter` and `EqualJitter`. `errorcodes_gen.go`: the failure vocabularies, a type each with a constant per code, `BusRequestErrorCodeOfWire` and `TransportErrorCodeOfStatus`. `timing_gen.go`: `Timing`, a field per entry, and `DefaultTiming`. `telemetry_gen.go`: the SDK telemetry table's names, kinds and attribute keys. `signin_gen.go`: `SignIn`, the store's entry. `oauthclients_gen.go`: the OAuth client ids and the sign-in scope | hand-written; [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json); [`specs/src/client/timing.json`](../../specs/src/client/timing.json); [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json); [`specs/src/sign-in-store/SignIn.json`](../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../specs/src/session/oauth.json) |
 | [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) |
-| `bustest` | `Fake`, a `semiont.Transport` with no server, for tests | hand-written |
+| [`semionttest`](#the-semionttest-package) | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; and `AssertStateUnitAxioms` | hand-written |
 | [`mediatypes`](#the-mediatypes-package) | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
 
 Everything generated is committed, as the monorepo's other generated
@@ -46,7 +46,7 @@ spec shows up as a diff someone reviews.
   knowledge base which issuer that is
   (`GetProtectedResourceMetadataWithResponse`), and to check that the
   gateway accepts the token it was issued (`GetCurrentUserWithResponse`).
-- **Its tests** run the verbs against `bustest.Fake`, with no server.
+- **Its tests** run the verbs against `semionttest.FaultyTransport`, with no server.
 
 The launcher depends on this module through a `replace` directive on its
 relative path (see its `go.mod`). The module is published nowhere: the import
@@ -108,11 +108,24 @@ The schema a channel carries has its Go type in `api/client_gen.go`. See
 Nothing in it is hand-written. What carries the bus is package `semiont`'s
 `Transport`, held to the SDK conformance suite.
 
-`bustest.Fake` implements `semiont.Transport` in process. It records every
-emit with its payload, a request apart from an emit that awaits no reply, and
-answers each request at once with the reply or the failure the test
-scripted, through the same reply router and frame hub a transport uses. Its
-stream is open from the start.
+## The `semionttest` package
+
+`semionttest/` is what a consumer's tests are built on, at parity with the
+other SDKs' test doubles (Python's `semiont.testing`). `NewTestClient` gives a
+real `semiont.Client` over three doubles:
+
+- `FaultyTransport`, a `semiont.Transport` with no wire. A test scripts what
+  the gateway answers (`QueueReply`, a `MakeResponse`, `RefuseWhen`) and what
+  the wire does to each request (`Deliver`, `DropReply`, `Delay`,
+  `DuplicateReply`, `RejectEmit`), and reads what was sent (`RequestLog`,
+  `Emitted`) and what is held (`Holds`, `Scopes`, `PendingReplies`). A request
+  nobody scripted is refused, naming its operation.
+- `InMemoryContent`, a content transport that keeps what it is given, and
+  refuses a read of what nobody stored, naming the resource.
+- `StubGateway`, which answers only what it was told to.
+
+`AssertStateUnitAxioms` holds a state unit to what every unit promises. Each
+double works inside a `testing/synctest` bubble.
 
 ## The `mediatypes` package
 

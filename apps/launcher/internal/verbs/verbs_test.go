@@ -1,13 +1,13 @@
 package verbs
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
 // The knowledge verbs, in process against the fake transport.
@@ -22,19 +22,12 @@ import (
 // understands; a family tested only against a double can agree with a bug in
 // our own client.
 
-// reply wraps a scripted response the way the gateway does: a result's
-// payload is `{response}`, and the SDK hands a verb the response inside it.
-// No correlationId: it rides the envelope, which the fake fills.
-func reply(body string) []byte {
-	return []byte(`{"response":` + body + `}`)
-}
-
 // ── browse ──────────────────────────────────────────────────────────────
 
 func TestBrowseJSONPrintsTheResponseInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["browse:resources-requested"] = reply(`{"total":0,"resources":[],"offset":0,"limit":20}`)
+	fake.QueueReply("browse:resources-requested", json.RawMessage(`{"total":0,"resources":[],"offset":0,"limit":20}`))
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
@@ -48,13 +41,13 @@ func TestBrowseJSONPrintsTheResponseInProcess(t *testing.T) {
 func TestBrowseSendsItsFilters(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
+	fake.QueueReply("browse:resources-requested", json.RawMessage(`{"resources":[],"total":0}`))
 
 	harness.CaptureStdout(t, func() { Browse([]string{"--limit", "5", "--entity-type", "Contract"}) })
-	if len(fake.Requests) != 1 {
-		t.Fatalf("want 1 request, got %v", fake.Ops())
+	if len(fake.RequestLog()) != 1 {
+		t.Fatalf("want 1 request, got %v", ops(fake))
 	}
-	got := bustest.JSON(fake.Requests[0].Payload)
+	got := string(fake.RequestLog()[0].Payload)
 	harness.MustContainAll(t, "request payload", got, `"limit":5`, `"entityType":"Contract"`)
 }
 
@@ -69,8 +62,8 @@ func TestBrowseHasNoSearchFlag(t *testing.T) {
 		}
 	})
 	harness.MustContainAll(t, "refusal", out+errOut, "Unknown argument: --search")
-	if len(fake.Requests) != 0 {
-		t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+	if len(fake.RequestLog()) != 0 {
+		t.Errorf("a refused argument still reached the wire: %v", ops(fake))
 	}
 }
 
@@ -79,19 +72,19 @@ func TestBrowseHasNoSearchFlag(t *testing.T) {
 func TestMatchSearchAsksTheResourceSearch(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["match:resources-requested"] = reply(`{"resources":[` +
-		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],` +
-		`"total":3,"offset":0,"limit":5,"matchKind":"lexical"}`)
+	fake.QueueReply("match:resources-requested", json.RawMessage(`{"resources":[`+
+		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],`+
+		`"total":3,"offset":0,"limit":5,"matchKind":"lexical"}`))
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Match([]string{"--search", "indemnity clause", "--limit", "5", "--entity-type", "Contract"}); code != 0 {
 			t.Fatalf("match --search: exit %d", code)
 		}
 	})
-	if ops := fake.Ops(); len(ops) != 1 || ops[0] != "match:resources-requested" {
+	if ops := ops(fake); len(ops) != 1 || ops[0] != "match:resources-requested" {
 		t.Fatalf("want exactly match:resources-requested, got %v", ops)
 	}
-	got := bustest.JSON(fake.Requests[0].Payload)
+	got := string(fake.RequestLog()[0].Payload)
 	harness.MustContainAll(t, "request payload", got,
 		`"search":"indemnity clause"`, `"limit":5`, `"entityType":"Contract"`)
 	harness.MustContainAll(t, "table", out, "res-7", "Acme MSA", "Contract", "1 shown, 3 total")
@@ -100,20 +93,20 @@ func TestMatchSearchAsksTheResourceSearch(t *testing.T) {
 func TestMatchSearchLimitDefaultsToTwenty(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["match:resources-requested"] = reply(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"lexical"}`)
+	fake.QueueReply("match:resources-requested", json.RawMessage(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"lexical"}`))
 
 	out := harness.CaptureStdout(t, func() { Match([]string{"--search", "clause"}) })
-	if len(fake.Requests) != 1 {
-		t.Fatalf("want 1 request, got %v", fake.Ops())
+	if len(fake.RequestLog()) != 1 {
+		t.Fatalf("want 1 request, got %v", ops(fake))
 	}
-	harness.MustContainAll(t, "request payload", bustest.JSON(fake.Requests[0].Payload), `"limit":20`)
+	harness.MustContainAll(t, "request payload", string(fake.RequestLog()[0].Payload), `"limit":20`)
 	harness.MustContainAll(t, "empty page", out, "No resources match.")
 }
 
 func TestMatchSearchJSONCarriesTheMatchKind(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["match:resources-requested"] = reply(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"semantic"}`)
+	fake.QueueReply("match:resources-requested", json.RawMessage(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"semantic"}`))
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Match([]string{"--search", "clause", "--json"}); code != 0 {
@@ -146,8 +139,8 @@ func TestMatchRefusalsInProcess(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want...)
-			if len(fake.Requests) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+			if len(fake.RequestLog()) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v", ops(fake))
 			}
 		})
 	}
@@ -167,14 +160,14 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 			t.Fatalf("browse --browser: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseResourceOpen.Channel() {
-		t.Fatalf("want one browse:resource-open emit, got %v", fake.Emits)
+	if len(signals(fake)) != 1 || signals(fake)[0].Channel != bus.BrowseResourceOpen.Channel() {
+		t.Fatalf("want one browse:resource-open emit, got %v", signals(fake))
 	}
-	harness.MustContainAll(t, "emit payload", bustest.JSON(fake.Emits[0].Payload), `"resourceId":"res-42"`)
+	harness.MustContainAll(t, "emit payload", string(signals(fake)[0].Payload), `"resourceId":"res-42"`)
 	// A SIGNAL, not a read. A --browser that also fetched would double the work
 	// and print a table nobody asked for.
-	if len(fake.Requests) != 0 {
-		t.Errorf("--browser also performed a read: %v", fake.Ops())
+	if len(fake.RequestLog()) != 0 {
+		t.Errorf("--browser also performed a read: %v", ops(fake))
 	}
 	harness.MustContainAll(t, "audience", out, "1 subscriber")
 }
@@ -199,8 +192,8 @@ func TestBrowseBrowserRefusalsInProcess(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want...)
-			if len(fake.Emits) != 0 || len(fake.Requests) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v %v", fake.Emits, fake.Ops())
+			if len(signals(fake)) != 0 || len(fake.RequestLog()) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", signals(fake), ops(fake))
 			}
 		})
 	}
@@ -220,10 +213,10 @@ func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 			t.Fatalf("browse --annotation --browser: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseClick.Channel() {
-		t.Fatalf("want one browse:click emit, got %v", fake.Emits)
+	if len(signals(fake)) != 1 || signals(fake)[0].Channel != bus.BrowseClick.Channel() {
+		t.Fatalf("want one browse:click emit, got %v", signals(fake))
 	}
-	payload := bustest.JSON(fake.Emits[0].Payload)
+	payload := string(signals(fake)[0].Payload)
 	harness.MustContainAll(t, "emit payload", payload, `"annotationId":"ann-9"`)
 	// The id determines the resource, so neither field rides along. A motivation
 	// here would be a denormalization the schema does not carry.
@@ -232,8 +225,8 @@ func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 			t.Errorf("payload carries %q, which the wire dropped: %s", gone, payload)
 		}
 	}
-	if len(fake.Requests) != 0 {
-		t.Errorf("--annotation --browser also performed a read: %v", fake.Ops())
+	if len(fake.RequestLog()) != 0 {
+		t.Errorf("--annotation --browser also performed a read: %v", ops(fake))
 	}
 	harness.MustContainAll(t, "report", out, "ann-9", "1 subscriber")
 }
@@ -255,8 +248,8 @@ func TestBrowseAnnotationRefusesWhenNoOneIsWatching(t *testing.T) {
 	harness.MustContainAll(t, "refusal", out+errOut,
 		"Nobody saw annotation ann-9", "browse:click",
 		"semiont browse --annotation ann-9 --browser --launch")
-	if len(fake.Emits) != 1 {
-		t.Errorf("the emit should still have gone out, got %v", fake.Emits)
+	if len(signals(fake)) != 1 {
+		t.Errorf("the emit should still have gone out, got %v", signals(fake))
 	}
 }
 
@@ -289,8 +282,8 @@ func TestBrowseAnnotationRefusals(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want...)
-			if len(fake.Emits) != 0 || len(fake.Requests) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v %v", fake.Emits, fake.Ops())
+			if len(signals(fake)) != 0 || len(fake.RequestLog()) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", signals(fake), ops(fake))
 			}
 		})
 	}
@@ -299,7 +292,7 @@ func TestBrowseAnnotationRefusals(t *testing.T) {
 func TestBrowseReportsARejection(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Rejections["browse:resource-requested"] = []byte(`{"message":"resource vanished"}`)
+	fake.RefuseWhen(refusing("browse:resource-requested", `{"message":"resource vanished"}`))
 
 	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"res-9"}); code == 0 {
@@ -321,15 +314,15 @@ func TestBeckonSparkleEmitsSparkleNotFocusInProcess(t *testing.T) {
 			t.Fatalf("beckon --sparkle: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 {
-		t.Fatalf("want exactly one emit, got %v", fake.Emits)
+	if len(signals(fake)) != 1 {
+		t.Fatalf("want exactly one emit, got %v", signals(fake))
 	}
-	if fake.Emits[0].Channel != bus.BeckonSparkle.Channel() {
-		t.Errorf("channel = %q, want %q", fake.Emits[0].Channel, bus.BeckonSparkle.Channel())
+	if signals(fake)[0].Channel != bus.BeckonSparkle.Channel() {
+		t.Errorf("channel = %q, want %q", signals(fake)[0].Channel, bus.BeckonSparkle.Channel())
 	}
 	// Emitting BOTH would scroll-fight, which is the thing this flag exists
 	// to avoid.
-	for _, e := range fake.Emits {
+	for _, e := range signals(fake) {
 		if e.Channel == bus.BeckonFocus.Channel() {
 			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid")
 		}
@@ -345,8 +338,8 @@ func TestBeckonWithoutSparkleFocusesInProcess(t *testing.T) {
 			t.Fatalf("beckon: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BeckonFocus.Channel() {
-		t.Fatalf("want one beckon:focus emit, got %v", fake.Emits)
+	if len(signals(fake)) != 1 || signals(fake)[0].Channel != bus.BeckonFocus.Channel() {
+		t.Fatalf("want one beckon:focus emit, got %v", signals(fake))
 	}
 }
 
@@ -370,8 +363,8 @@ func TestBeckonRefusalsInProcess(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want...)
-			if len(fake.Emits) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v", fake.Emits)
+			if len(signals(fake)) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v", signals(fake))
 			}
 		})
 	}
@@ -382,17 +375,17 @@ func TestBeckonRefusalsInProcess(t *testing.T) {
 func TestMarkLinkInfersLinkingMotivationInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["mark:create-request"] = reply(`{"annotationId":"ann-9"}`)
+	fake.QueueReply("mark:create-request", json.RawMessage(`{"annotationId":"ann-9"}`))
 
 	harness.CaptureStdout(t, func() {
 		if code := Mark([]string{"res-1", "--link", "res-2"}); code != 0 {
 			t.Fatalf("mark --link: exit %d", code)
 		}
 	})
-	if len(fake.Requests) != 1 {
-		t.Fatalf("want 1 request, got %v", fake.Ops())
+	if len(fake.RequestLog()) != 1 {
+		t.Fatalf("want 1 request, got %v", ops(fake))
 	}
-	harness.MustContainAll(t, "request payload", bustest.JSON(fake.Requests[0].Payload),
+	harness.MustContainAll(t, "request payload", string(fake.RequestLog()[0].Payload),
 		`"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
 }
 
@@ -415,8 +408,8 @@ func TestMarkRefusalsInProcess(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want)
-			if len(fake.Requests) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+			if len(fake.RequestLog()) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v", ops(fake))
 			}
 		})
 	}
@@ -427,17 +420,17 @@ func TestMarkRefusalsInProcess(t *testing.T) {
 func TestGatherAnnotationUsesTheStreamingOperationInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["gather:requested"] = reply(`{"content":"ctx","resources":[]}`)
+	fake.QueueReply("gather:requested", json.RawMessage(`{"content":"ctx","resources":[]}`))
 
 	harness.CaptureStdout(t, func() {
 		if code := Gather([]string{"res-1", "ann-7"}); code != 0 {
 			t.Fatalf("gather annotation: exit %d", code)
 		}
 	})
-	if ops := fake.Ops(); len(ops) != 1 || ops[0] != "gather:requested" {
+	if ops := ops(fake); len(ops) != 1 || ops[0] != "gather:requested" {
 		t.Fatalf("want gather:requested, got %v", ops)
 	}
-	harness.MustContainAll(t, "request payload", bustest.JSON(fake.Requests[0].Payload),
+	harness.MustContainAll(t, "request payload", string(fake.RequestLog()[0].Payload),
 		`"annotationId":"ann-7"`, `"resourceId":"res-1"`)
 }
 
@@ -476,10 +469,10 @@ func TestAnIdAfterDoubleDashIsSentAsGiven(t *testing.T) {
 				harness.CaptureOutput(t, func() { c.run(c.args) })
 				var sent string
 				switch {
-				case len(fake.Requests) > 0:
-					sent = bustest.JSON(fake.Requests[0].Payload)
-				case len(fake.Emits) > 0:
-					sent = bustest.JSON(fake.Emits[0].Payload)
+				case len(fake.RequestLog()) > 0:
+					sent = string(fake.RequestLog()[0].Payload)
+				case len(signals(fake)) > 0:
+					sent = string(signals(fake)[0].Payload)
 				default:
 					t.Fatalf("%v sent nothing", c.args)
 				}
@@ -518,8 +511,8 @@ func TestAWordThatIsNoOptionIsRefusedShowingDoubleDash(t *testing.T) {
 				})
 				harness.MustContainAll(t, "refusal", out+errOut,
 					"Unknown argument: "+word, "Every word after -- is an id", c.form)
-				if len(fake.Requests)+len(fake.Emits) != 0 {
-					t.Errorf("a refused argument still reached the wire: %v %v", fake.Ops(), fake.Emits)
+				if len(fake.RequestLog())+len(signals(fake)) != 0 {
+					t.Errorf("a refused argument still reached the wire: %v %v", ops(fake), signals(fake))
 				}
 			})
 		}
@@ -588,10 +581,10 @@ func TestAnIdIsGivenByItsOptionOrBare(t *testing.T) {
 			harness.CaptureOutput(t, func() { c.run(c.args) })
 			var sent string
 			switch {
-			case len(fake.Requests) > 0:
-				sent = bustest.JSON(fake.Requests[0].Payload)
-			case len(fake.Emits) > 0:
-				sent = bustest.JSON(fake.Emits[0].Payload)
+			case len(fake.RequestLog()) > 0:
+				sent = string(fake.RequestLog()[0].Payload)
+			case len(signals(fake)) > 0:
+				sent = string(signals(fake)[0].Payload)
 			default:
 				t.Fatalf("%v sent nothing", c.args)
 			}
@@ -627,8 +620,8 @@ func TestAnIdGivenTwiceOrABareWordTooManyIsRefused(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want)
-			if len(fake.Requests)+len(fake.Emits) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v %v", fake.Ops(), fake.Emits)
+			if len(fake.RequestLog())+len(signals(fake)) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", ops(fake), signals(fake))
 			}
 		})
 	}
