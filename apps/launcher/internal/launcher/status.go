@@ -414,6 +414,13 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 				fmt.Printf("    %s\n", u.Dim("secrets: "+custodyStoreNamed(key, ref, configured).describe()))
 			}
 		}
+		if st != nil && st.LanAddr != "" {
+			fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "network lan: the gateway and the issuer answer the network at "+st.LanAddr+", over plain HTTP"))
+			reviveIssuerProxy(u, st)
+			if p := st.IssuerProxy; p != nil {
+				fmt.Printf("    %s\n", u.Dim(fmt.Sprintf("issuer proxy: pid %d (%s → %s)", p.PID, p.Listen, p.Upstream)))
+			}
+		}
 		fmt.Println()
 	}
 
@@ -442,7 +449,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	// recorded stack was published, else loopback.
 	at := exposure{}
 	if st != nil {
-		at = exposure{rt: st.Runtime, addr: st.HostAddr}
+		at = st.exposure()
 	}
 	lastGroup := 0
 	for _, svc := range statusServices {

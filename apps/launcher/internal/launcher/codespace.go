@@ -1002,34 +1002,45 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	args := []string{"codespace", "ports", "forward",
 		fmt.Sprintf("%d:%d", remote, local), "-c", name}
 	u.EchoCmd("gh", args...)
-	cmd := exec.Command("gh", args...)
-	// Keep gh's stderr: without it a dead forward can be reported but never
-	// EXPLAINED — and gh's own message is the whole
-	// diagnosis ("ssh: rejected: connect failed (Connection refused)" means
-	// the remote port is not listening; "address already in use" means the
-	// local one is taken). A bounded buffer: this is one or two lines, and
-	// an unbounded one would grow for the life of a long-running tunnel.
+	pid, dead, err := startDetached("gh", args...)
+	if err != nil {
+		u.Fail("Could not start the port forward: %v", err)
+		return 0, nil, 1
+	}
+	u.Log("Port forward running %s", u.Dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
+	return pid, dead, 0
+}
+
+// startDetached starts name with args as a long-lived process the launcher
+// leaves behind: a codespace forward, or the issuer proxy. The returned
+// channel closes if it dies while THIS launcher still runs.
+func startDetached(name string, args ...string) (int, <-chan struct{}, error) {
+	cmd := exec.Command(name, args...)
+	// Keep its stderr: without it a dead process can be reported but never
+	// EXPLAINED — and its own message is the whole diagnosis (gh's
+	// "ssh: rejected: connect failed (Connection refused)" means the remote
+	// port is not listening; "address already in use" means the local one is
+	// taken). A bounded buffer: this is one or two lines, and an unbounded one
+	// would grow for the life of a long-running process.
 	cmd.Stdout = nil
 	cmd.Stderr = newForwardLog()
 	detachFromConsole(cmd)
 	if err := cmd.Start(); err != nil {
-		u.Fail("Could not start the port forward: %v", err)
-		return 0, nil, 1
+		return 0, nil, err
 	}
 	pid := cmd.Process.Pid
 	rememberForwardLog(pid, cmd.Stderr)
-	// A reaping Wait (not Release): a forward that dies mid-wait is left a
-	// ZOMBIE, and a zombie passes kill-0 aliveness — only Wait both
-	// reaps it and yields a truthful death signal for the health gate.
-	// The child still outlives a normally-exiting launcher: Wait blocks in
-	// a goroutine that dies with the process, killing nothing.
+	// A reaping Wait (not Release): a process that dies mid-wait is left a
+	// ZOMBIE, and a zombie passes kill-0 aliveness — only Wait both reaps it
+	// and yields a truthful death signal. The child still outlives a
+	// normally-exiting launcher: Wait blocks in a goroutine that dies with the
+	// process, killing nothing.
 	dead := make(chan struct{})
 	go func() {
 		_ = cmd.Wait()
 		close(dead)
 	}()
-	u.Log("Port forward running %s", u.Dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
-	return pid, dead, 0
+	return pid, dead, nil
 }
 
 // reconcileDid keeps a codespace stack's recorded did:web honest against the

@@ -87,7 +87,7 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 }
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, nil))
 	// The gateway verifies tokens, and in the agent exchange never presents
 	// one — but it dials the Archivist for content, events and the working
 	// tree's branch, and proves who it is like any caller.
@@ -97,7 +97,7 @@ func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 }
 
 func TestKeycloakRealmJSON(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan,
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan,
 		map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}))
 	for _, want := range []string{
 		`"realm": "semiont"`,
@@ -106,11 +106,9 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"pkce.code.challenge.method": "S256"`,
 		// Loopback carries NO port, which is what makes `--port` work: RFC 8252
 		// §7.3 has the issuer accept any port on a loopback redirect, and
-		// Keycloak honours that only when the registered URI omits it. The LAN
-		// address is not loopback, so it stays pinned.
+		// Keycloak honours that only when the registered URI omits it.
 		`"http://localhost/*"`,
 		`"http://127.0.0.1/*"`,
-		`"http://192.168.64.1:3000/*"`,
 		`"included.custom.audience": "https://example.github.io/my-kb"`,
 		`"clientId": "semiont-cli"`,
 		`"oauth2.device.authorization.grant.enabled": "true"`,
@@ -156,7 +154,7 @@ func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
 		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)
 	}
-	doc := string(keycloakRealmJSON("semiont", "aud", "1.2.3.4", 3000, plan.Roles["identity"].AccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "aud", 3000, plan.Roles["identity"].AccessTokenLifespan, nil))
 	if !strings.Contains(doc, `"accessTokenLifespan": 60`) {
 		t.Error("the realm document did not take the configured lifespan")
 	}
@@ -171,11 +169,10 @@ func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 // The token POST is cross-origin, so Keycloak would answer 403 `Invalid origin`
 // with no CORS header and sign-in would die as an opaque `error=Verification`.
 func TestBrowserWebOriginsCarryThePort(t *testing.T) {
-	origins := browserWebOrigins("192.168.64.1", 3000)
+	origins := loopbackWebOrigins(3000)
 	for _, want := range []string{
 		"http://localhost:3000",
 		"http://127.0.0.1:3000",
-		"http://192.168.64.1:3000",
 	} {
 		if !slices.Contains(origins, want) {
 			t.Errorf("web origins %v missing %s", origins, want)
@@ -190,7 +187,7 @@ func TestBrowserWebOriginsCarryThePort(t *testing.T) {
 
 // `--port` moves the Browser, so the origin moves with it.
 func TestBrowserWebOriginsFollowTheBrowserPort(t *testing.T) {
-	origins := browserWebOrigins("192.168.64.1", 3001)
+	origins := loopbackWebOrigins(3001)
 	if !slices.Contains(origins, "http://localhost:3001") {
 		t.Errorf("web origins %v do not follow the Browser port", origins)
 	}
@@ -202,11 +199,10 @@ func TestBrowserWebOriginsFollowTheBrowserPort(t *testing.T) {
 // The realm document is what actually reaches Keycloak, so the origin has to
 // survive the render — and the redirect URIs must stay portless beside it.
 func TestKeycloakRealmJSONAllowsTheBrowsersOrigin(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, nil))
 	for _, want := range []string{
 		`"http://localhost:3000"`,
 		`"http://127.0.0.1:3000"`,
-		`"http://192.168.64.1:3000"`,
 		// The redirect leg keeps RFC 8252's portless loopback.
 		`"http://localhost/*"`,
 	} {

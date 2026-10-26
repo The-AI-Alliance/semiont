@@ -8,6 +8,8 @@ package launcher
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
@@ -175,6 +177,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 	}
 	swept := x.sweepStray(preflightNames)
+	// A prior `network lan` start's issuer proxy holds the issuer's port at
+	// the network address, whatever this start's setting.
+	x.retireIssuerProxy()
 	x.sweepStaging()
 	// The settle is for the runtime to release what we just tore down. With
 	// nothing removed there is nothing to settle.
@@ -185,7 +190,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// Neo4j's aux port (exactly what a torn-down stack still holds), or
 	// includes ports for roles bound to a REMOTE service, which this start
 	// never binds.
-	checks := planPortChecks(fc.plan, fc.opts.observe, exposure{x.rtName(), addr})
+	checks := planPortChecks(fc.plan, fc.opts.observe, x.exposure(addr))
 	if removed > 0 || swept {
 		x.settle(portNumbers(checks)...)
 	}
@@ -381,7 +386,7 @@ func flowBrowser(x executor, port int, forceRestart bool) int {
 			if !locallyBuilt(desired) && !x.pull(desired) {
 				return 1
 			}
-			args := browserArgs(exposure{rt: x.rtName()}, desired, port)
+			args := browserArgs(x.exposure(""), desired, port)
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Browser failed to start.")
@@ -403,55 +408,55 @@ func flowBrowser(x executor, port int, forceRestart bool) int {
 // argv or on the endpoint they record.
 func flowTraces(x executor, fc flowCtx, addr string) int {
 	x.banner(roleBanner(fc, "Traces (Jaeger)"))
-	args := tracesArgs(exposure{x.rtName(), addr})
+	args := tracesArgs(x.exposure(addr))
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "traces (Jaeger) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("traces (Jaeger)", roleContainer("traces"), healthEndpoint("traces", "jaeger", fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("traces (Jaeger)", roleContainer("traces"), healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("traces"), "traces")
 		return 1
 	}
-	x.say(sayOK, "traces — Jaeger UI on %s %s", healthEndpoint("traces", "jaeger", fc.plan, exposure{x.rtName(), addr}), x.dim("("+took(d)+")"))
-	x.record("traces", id, args[len(args)-1], providedLauncher, healthEndpoint("traces", "jaeger", fc.plan, exposure{x.rtName(), addr}), "jaeger")
+	x.say(sayOK, "traces — Jaeger UI on %s %s", healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), x.dim("("+took(d)+")"))
+	x.record("traces", id, args[len(args)-1], providedLauncher, healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), "jaeger")
 	return 0
 }
 
 func flowMetrics(x executor, fc flowCtx, addr, stage string) int {
 	x.banner(roleBanner(fc, "Metrics (Prometheus)"))
-	args := prometheusArgs(exposure{x.rtName(), addr}, stage)
+	args := prometheusArgs(x.exposure(addr), stage)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "metrics (Prometheus) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("metrics (Prometheus)", roleContainer("metrics"), healthEndpoint("metrics", "prometheus", fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("metrics (Prometheus)", roleContainer("metrics"), healthEndpoint("metrics", "prometheus", fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("metrics"), "metrics")
 		return 1
 	}
 	x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(d)+")"))
-	x.record("metrics", id, args[len(args)-1], providedLauncher, healthEndpoint("metrics", "prometheus", fc.plan, exposure{x.rtName(), addr}), "prometheus")
+	x.record("metrics", id, args[len(args)-1], providedLauncher, healthEndpoint("metrics", "prometheus", fc.plan, x.exposure(addr)), "prometheus")
 	return 0
 }
 
 func flowCollector(x executor, fc flowCtx, addr, stage string) int {
 	x.banner(roleBanner(fc, "Telemetry (OTel Collector)"))
-	args := collectorArgs(exposure{x.rtName(), addr}, stage)
+	args := collectorArgs(x.exposure(addr), stage)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "collector failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("collector", roleContainer("collector"), healthEndpoint("collector", "otel", fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("collector", roleContainer("collector"), healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("collector"), "collector")
 		return 1
 	}
-	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, healthEndpoint("collector", "otel", fc.plan, exposure{x.rtName(), addr}), x.dim("("+took(d)+")"))
-	x.record("collector", id, args[len(args)-1], providedLauncher, healthEndpoint("collector", "otel", fc.plan, exposure{x.rtName(), addr}), "otel")
+	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), x.dim("("+took(d)+")"))
+	x.record("collector", id, args[len(args)-1], providedLauncher, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), "otel")
 	return 0
 }
 
@@ -503,7 +508,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		rp.Env = append(append([]string{}, rp.Env...), creds...)
-		args := providedRunArgs(exposure{x.rtName(), addr}, role, rp, extra...)
+		args := providedRunArgs(x.exposure(addr), role, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "%s (%s) failed to start.", role, disp)
@@ -512,42 +517,55 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		switch role {
 		case "identity":
 			// Keycloak answers on the realm only once the import is done —
-			// the wait is the realm gate as well as the liveness gate.
-			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity"), healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), 90)
+			// the wait is the realm gate as well as the liveness gate. It asks
+			// Keycloak itself, which under `network lan` is behind the proxy.
+			e := x.exposure(addr)
+			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity"), keycloakEndpoint(rp, e), 90)
 			if !ok {
 				x.dumpLogs(roleContainer("identity"), "identity")
 				return 1
 			}
-			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp, exposure{x.rtName(), addr}), x.dim("("+took(d)+")"))
+			if e.behindProxy(role) {
+				host, port := e.keycloakAt(rp.Port)
+				listen := net.JoinHostPort(e.lan, strconv.Itoa(rp.Port))
+				if !x.issuerProxy(listen, net.JoinHostPort(host, strconv.Itoa(port)), keycloakRealm(issuerPath(rp.Issuer))) {
+					return 1
+				}
+				// The issuer where everyone dials it, through the proxy (D5).
+				if _, ok := x.waitHTTP("identity (the issuer proxy)", roleContainer("identity"), healthEndpoint(role, rp.Driver, fc.plan, e), 15); !ok {
+					return 1
+				}
+			}
+			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp, e), x.dim("("+took(d)+")"))
 			x.openAdminToThisMachine(adminPassword)
 			// The realm is up and imported; prove it honours the credentials
 			// this start is about to inject, BEFORE the first process that
-			// holds one. `identityEndpoint` is the realm as THIS host reaches
+			// holds one. `keycloakEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(identityEndpoint(rp, exposure{x.rtName(), addr}), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
+			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
-			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph"), healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), 30)
+			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph"), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
 			if !ok {
 				x.dumpLogs(roleContainer("graph"), "graph")
 				return 1
 			}
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "vectors":
-			d, ok := x.waitHTTP("vectors ("+disp+")", roleContainer("vectors"), healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), 15)
+			d, ok := x.waitHTTP("vectors ("+disp+")", roleContainer("vectors"), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 15)
 			if !ok {
 				x.dumpLogs(roleContainer("vectors"), "vectors")
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "database":
-			d, ok := x.waitTCP("PostgreSQL", exposure{x.rtName(), addr}.probeHost(role, rp.Port), addr, rp.Port, 20)
+			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, rp.Port), addr, rp.Port, 20)
 			if !ok {
 				x.dumpLogs(roleContainer("database"), "database")
 				return 1
@@ -558,17 +576,17 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
 			// the container path the gateway will dial.
-			d, ok := x.waitTCP("NATS", exposure{x.rtName(), addr}.probeHost(role, rp.Port), addr, rp.Port, 15)
+			d, ok := x.waitTCP("NATS", x.exposure(addr).probeHost(role, rp.Port), addr, rp.Port, 15)
 			if !ok {
 				x.dumpLogs(roleContainer("messaging"), "messaging")
 				return 1
 			}
 			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		}
 	case presenceAbsent:
 		x.say(sayLog, "%s — not configured; skipping", role)
@@ -745,20 +763,20 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			volume := x.ollamaVolume(fc.opts)
 			// The container is semiont-ollama whichever role owns it — the
 			// process is the same; only the accounting differs.
-			args := ollamaRunArgs(exposure{x.rtName(), addr}, rp, "-v", volume+":/root/.ollama")
+			args := ollamaRunArgs(x.exposure(addr), rp, "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Ollama container failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), 30)
+			d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
 			if !ok {
 				x.dumpLogs("semiont-ollama", role)
 				return 1
 			}
-			base := fmt.Sprintf("http://%s:%d", exposure{x.rtName(), addr}.probeHost(role, rp.Port), rp.Port)
+			base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
 			x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, exposure{x.rtName(), addr}), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 			if descriptorFor(role, "ollama").container == "" {
 				// embedding owns this launch: record the container it ran,
 				// or stop could never find it.
@@ -792,23 +810,23 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.plan.Images["gateway"], fc.plan.Memory["gateway"], port, fc.envFor("gateway"), otel, extra...)
+	bArgs := gatewayArgs(stage, x.exposure(addr), gatewayClientSecret, jwt, fc.plan.Images["gateway"], fc.plan.Memory["gateway"], port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
 		return 1
 	}
 	x.say(sayLog, "Waiting for gateway health...")
-	d, ok := x.waitHTTP("Gateway", "semiont-gateway", healthEndpoint("gateway", driverSemiont, fc.plan, exposure{x.rtName(), addr}), 120)
+	d, ok := x.waitHTTP("Gateway", "semiont-gateway", healthEndpoint("gateway", driverSemiont, fc.plan, x.exposure(addr)), 120)
 	if !ok {
 		x.dumpLogs("semiont-gateway", "gateway")
 		return 1
 	}
 	x.say(sayOK, "Gateway healthy %s", x.dim("("+took(d)+")"))
-	if !x.gatewayReachable(addr, exposure{x.rtName(), addr}.containersPort("gateway", port)) {
+	if !x.gatewayReachable(addr, x.exposure(addr).containersPort("gateway", port)) {
 		return 1
 	}
-	x.record("gateway", id, fc.plan.Images["gateway"], providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan, exposure{x.rtName(), addr}), driverSemiont)
+	x.record("gateway", id, fc.plan.Images["gateway"], providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
 
@@ -837,24 +855,24 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	var args []string
 	switch sc.svc {
 	case "worker":
-		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = workerArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "smelter":
-		args = smelterArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = smelterArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "weaver":
-		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = weaverArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
 		return 1
 	}
-	d, ok := x.waitHTTP(sc.label, spec.container, healthEndpoint(sc.svc, driverSemiont, fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP(sc.label, spec.container, healthEndpoint(sc.svc, driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs(spec.container, sc.svc)
 		return 1
 	}
-	x.say(sayOK, "%s healthy (http://%s:%d) %s", sc.label, exposure{x.rtName(), addr}.probeHost(sc.svc, spec.ports[0].port), spec.ports[0].port, x.dim("("+took(d)+")"))
-	x.record(sc.svc, id, fc.plan.Images[sc.svc], providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan, exposure{x.rtName(), addr}), driverSemiont)
+	x.say(sayOK, "%s healthy (http://%s:%d) %s", sc.label, x.exposure(addr).probeHost(sc.svc, spec.ports[0].port), spec.ports[0].port, x.dim("("+took(d)+")"))
+	x.record(sc.svc, id, fc.plan.Images[sc.svc], providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
 
@@ -880,19 +898,19 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.exposure(addr), clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Archivist", "semiont-archivist", healthEndpoint("archivist", driverSemiont, fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("Archivist", "semiont-archivist", healthEndpoint("archivist", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs("semiont-archivist", "archivist")
 		return 1
 	}
-	x.say(sayOK, "Archivist healthy (http://%s:24103) %s", exposure{x.rtName(), addr}.probeHost("archivist", 24103), x.dim("("+took(d)+")"))
-	x.record("archivist", id, fc.plan.Images["archivist"], providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan, exposure{x.rtName(), addr}), driverSemiont)
+	x.say(sayOK, "Archivist healthy (http://%s:24103) %s", x.exposure(addr).probeHost("archivist", 24103), x.dim("("+took(d)+")"))
+	x.record("archivist", id, fc.plan.Images["archivist"], providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
 
@@ -913,19 +931,19 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
+	args := librarianArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Librarian", "semiont-librarian", healthEndpoint("librarian", driverSemiont, fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("Librarian", "semiont-librarian", healthEndpoint("librarian", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs("semiont-librarian", "librarian")
 		return 1
 	}
-	x.say(sayOK, "Librarian healthy (http://%s:24104) %s", exposure{x.rtName(), addr}.probeHost("librarian", 24104), x.dim("("+took(d)+")"))
-	x.record("librarian", id, fc.plan.Images["librarian"], providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan, exposure{x.rtName(), addr}), driverSemiont)
+	x.say(sayOK, "Librarian healthy (http://%s:24104) %s", x.exposure(addr).probeHost("librarian", 24104), x.dim("("+took(d)+")"))
+	x.record("librarian", id, fc.plan.Images["librarian"], providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
 
@@ -943,19 +961,19 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Dispatcher", "semiont-dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan, exposure{x.rtName(), addr}), 30)
+	d, ok := x.waitHTTP("Dispatcher", "semiont-dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
 		x.dumpLogs("semiont-dispatcher", "dispatcher")
 		return 1
 	}
-	x.say(sayOK, "Dispatcher healthy (http://%s:24105) %s", exposure{x.rtName(), addr}.probeHost("dispatcher", 24105), x.dim("("+took(d)+")"))
-	x.record("dispatcher", id, fc.plan.Images["dispatcher"], providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan, exposure{x.rtName(), addr}), driverSemiont)
+	x.say(sayOK, "Dispatcher healthy (http://%s:24105) %s", x.exposure(addr).probeHost("dispatcher", 24105), x.dim("("+took(d)+")"))
+	x.record("dispatcher", id, fc.plan.Images["dispatcher"], providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
 
@@ -995,10 +1013,15 @@ func flowOneService(x executor, fc flowCtx) int {
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
 	if svc != "inference" && svc != "browser" {
-		ports := servicePortNeeds(svc, fc.plan, fc.opts, exposure{rt: x.rtName()})
+		ports := servicePortNeeds(svc, fc.plan, fc.opts, x.exposure(""))
 		if x.stopRm(roleContainer(svc)) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.settle(portNumbers(ports)...)
+		}
+		// The issuer proxy holds the issuer's port at the network address; it
+		// goes with the issuer, before the ports are checked.
+		if svc == "identity" {
+			x.retireIssuerProxy()
 		}
 		if !x.portChecks(ports) {
 			return 1
@@ -1007,7 +1030,7 @@ func flowOneService(x executor, fc flowCtx) int {
 	}
 
 	addr := ""
-	if serviceNeedsAddr(svc, exposure{rt: x.rtName()}) {
+	if serviceNeedsAddr(svc, x.exposure("")) {
 		var ok bool
 		if addr, ok = x.resolveAddr(); !ok {
 			return 1
@@ -1113,7 +1136,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			if rp, ok := fc.plan.Roles["identity"]; ok && rp.Issuer != "" {
 				base := rp.Issuer
 				if rp.Presence == presenceLauncher {
-					base = identityEndpoint(rp, recordedExposure(fc.kb.key()))
+					base = keycloakEndpoint(rp, recordedExposure(fc.kb.key()))
 				}
 				if !x.preflightBrowserMove(base, bp) {
 					return 1

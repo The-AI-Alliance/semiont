@@ -106,6 +106,9 @@ func main() {
 		code = launcher.Settings(rest)
 	case "identity":
 		code = launcher.Identity(rest)
+	case launcher.IssuerProxyVerb:
+		// The process a `network lan` start leaves running; never a person's.
+		code = launcher.IssuerProxy(rest)
 	case "status":
 		code = launcher.Status(rest)
 	case "logs":

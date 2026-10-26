@@ -33,6 +33,7 @@ container stop semiont-prometheus
 container rm semiont-prometheus
 container stop semiont-jaeger
 container rm semiont-jaeger
+# end the issuer proxy the record names, if one runs
 # remove staged configs: <config-stages>
 # require free ports: 7474 7687 17687 6333 5432 4222 8080 4000 14000 24100 24101 24102 24103 24104 24105 4318 24110 16686 14318 9090
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
