@@ -5,8 +5,9 @@
 //! and shows nobody anything. What it needs of its environment it is given:
 //!
 //! - `refresh` renews the token: after it expires, and when the gateway
-//!   refuses it. It answers the new token, nothing when there is nothing to
-//!   renew with, or why it failed.
+//!   refuses it. It is given the token the session holds, and answers the
+//!   new token, nothing when there is nothing to renew with, or why it
+//!   failed.
 //! - `validate` asks the gateway who a token is: when the session starts,
 //!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
@@ -47,10 +48,11 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::SystemTime;
 use tokio::sync::watch;
 
-/// Renew the token: the new one, `None` when there is nothing to renew
-/// with, or why the renewal failed.
+/// Renew the token the session holds, which it is given (none when it holds
+/// none): the new one, `None` when there is nothing to renew with, or why
+/// the renewal failed.
 pub type Refresh =
-    Arc<dyn Fn() -> BoxFuture<'static, Result<Option<String>, String>> + Send + Sync>;
+    Arc<dyn Fn(Option<String>) -> BoxFuture<'static, Result<Option<String>, String>> + Send + Sync>;
 
 /// Ask the gateway who `token` is.
 pub type Validate =
@@ -314,7 +316,7 @@ impl Shared {
     async fn try_refresh(&self) -> (Option<String>, Option<String>) {
         match &self.refresh {
             None => (None, None),
-            Some(refresh) => match refresh().await {
+            Some(refresh) => match refresh(self.token.now()).await {
                 Ok(token) => (token, None),
                 Err(failure) => (None, Some(failure)),
             },

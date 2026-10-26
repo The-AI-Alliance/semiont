@@ -49,8 +49,9 @@ def _heard(renewal: asyncio.Task[str | None]) -> None:
 class _Renewing:
     """A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one."""
 
-    def __init__(self, kept: SignInKept) -> None:
+    def __init__(self, kept: SignInKept, token: Variable[str | None]) -> None:
         self._kept: Final = kept
+        self._token: Final = token
         self._under_way: asyncio.Task[str | None] | None = None
 
     async def __call__(self) -> str | None:
@@ -63,7 +64,7 @@ class _Renewing:
 
     async def _once(self) -> str | None:
         try:
-            return await renew_kept(self._kept)
+            return await renew_kept(self._kept, self._token.value)
         finally:
             self._under_way = None
 
@@ -143,7 +144,7 @@ async def session_from_kept(
     """
     base_url = _gateway_of(kb)
     token = Variable[str | None](None)
-    renewing = _Renewing(kept)
+    renewing = _Renewing(kept, token)
     # The stream's place rides the caches' writes, and only when every cache is
     # at rest: a place kept ahead of a cache still taking in the event it names
     # would have the next session skip that event.

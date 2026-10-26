@@ -381,7 +381,8 @@ impl SessionStorage for SignInStore {
 
     /// What another context writes to the storage beneath. The file is not
     /// watched: what another process renewed is read the next time this
-    /// one renews.
+    /// one renews, and used as it is (specs/src/sign-in-store/README.md,
+    /// Renewing it).
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
         self.rest.subscribe(on_change)
     }

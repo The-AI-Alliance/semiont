@@ -212,11 +212,13 @@ class SignInKept(Protocol):
         """Keep a sign-in, in place of whatever was kept."""
         ...
 
-    async def renewed(self, access: str, refresh: str) -> bool:
-        """Keep the tokens a renewal issued, against what is kept now.
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        """Keep the tokens a renewal of `read` issued, against what is kept now: the access token kept then.
 
-        False when nothing is: a sign-in that was signed out, or ended, while
-        it was being renewed is gone, and is not written back.
+        When what is kept no longer holds `read`'s tokens, it was renewed some
+        other way meanwhile: that stands, and its access token is the one
+        given. Nothing when nothing is kept: a sign-in that was signed out, or
+        ended, while it was being renewed is gone, and is not written back.
         """
         ...
 
@@ -241,9 +243,11 @@ class MemorySignIn(SignInKept):
         self._sign_in = sign_in
 
     @override
-    async def renewed(self, access: str, refresh: str) -> bool:
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
         if self._sign_in is None:
-            return False
+            return None
+        if (self._sign_in.access, self._sign_in.refresh) != (read.access, read.refresh):
+            return self._sign_in.access
         self._sign_in = HeldSignIn(
             access=access,
             refresh=refresh,
@@ -251,7 +255,7 @@ class MemorySignIn(SignInKept):
             token_endpoint=self._sign_in.token_endpoint,
             revocation_endpoint=self._sign_in.revocation_endpoint,
         )
-        return True
+        return access
 
     @override
     async def forget(self) -> None:

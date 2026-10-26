@@ -248,20 +248,26 @@ class _Entry(SignInKept):
 
         self._store.change(change)
 
-    def _renewed(self, access: str, refresh: str) -> bool:
-        kept = False
+    def _renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        given: str | None = None
 
         def change(document: dict[str, JsonValue]) -> bool:
-            nonlocal kept
+            nonlocal given
             before = _sign_in_of(document.get(self._key))
             if before is None:
                 return False
+            # Another program renewed, or signed in again, while this renewal's
+            # grant was in flight: its tokens stand. The refresh token alone does
+            # not tell, since an issuer that rotates none leaves it as it was.
+            if (before.token, before.refresh_token) != (read.access, read.refresh):
+                given = before.token
+                return False
             document[self._key] = self._written(before, access, refresh)
-            kept = True
+            given = access
             return True
 
         self._store.change(change)
-        return kept
+        return given
 
     def _forget(self) -> None:
         self._store.change(lambda document: document.pop(self._key, None) is not None)
@@ -275,8 +281,8 @@ class _Entry(SignInKept):
         await asyncio.to_thread(self._keep, sign_in)
 
     @override
-    async def renewed(self, access: str, refresh: str) -> bool:
-        return await asyncio.to_thread(self._renewed, access, refresh)
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        return await asyncio.to_thread(self._renewed, read, access, refresh)
 
     @override
     async def forget(self) -> None:

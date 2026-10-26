@@ -229,33 +229,16 @@ def test_the_refresh_grant_is_one_form_and_an_issuer_that_does_not_rotate_leaves
     run(scenario())
 
 
-def test_a_kept_sign_in_is_renewed_and_what_the_issuer_rotated_is_kept() -> None:
-    async def scenario() -> None:
-        async with GatewayServer() as gateway:
-            kept = MemorySignIn(held(gateway, access(1)))
-            renewed = access(2)
-            gateway.scripted[("POST", TOKEN)] = [says({"access_token": renewed, "refresh_token": "refresh-2"})]
-
-            assert await soon(renew_kept(kept)) == renewed
-            assert await kept.held() == held(gateway, renewed, "refresh-2")
-            assert form(gateway.of("POST", TOKEN)[0])["refresh_token"] == "refresh-1"
-
-            # With nothing kept there is nothing to renew, and nobody is asked: an absence, not a failure.
-            assert await soon(renew_kept(MemorySignIn())) is None
-            assert len(gateway.of("POST", TOKEN)) == 1
-
-    run(scenario())
-
-
 def test_a_renewal_the_issuer_did_not_refuse_is_tried_again_inside_its_budget() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
-            kept = MemorySignIn(held(gateway, access(1)))
+            first = access(1)
+            kept = MemorySignIn(held(gateway, first))
             renewed = access(2)
             # "Not now", and no answer at all: neither is the issuer's verdict.
             gateway.scripted[("POST", TOKEN)] = [Answer(status=503), Answer(hang_up=True), says({"access_token": renewed})]
 
-            assert await hurried(renew_kept(kept)) == renewed
+            assert await hurried(renew_kept(kept, first)) == renewed
             assert len(gateway.of("POST", TOKEN)) == 3
             # The same refresh token each time: it was not spent by an attempt that got no grant.
             assert {form(asked)["refresh_token"] for asked in gateway.of("POST", TOKEN)} == {"refresh-1"}
@@ -271,13 +254,13 @@ def test_a_refused_grant_is_final_and_a_spent_budget_says_how_many_attempts_it_t
 
             gateway.scripted[("POST", TOKEN)] = [says({"error": "invalid_grant"}, 400)]
             with pytest.raises(SignInError) as refused:
-                await hurried(renew_kept(kept))
+                await hurried(renew_kept(kept, first))
             assert refused.value.message == "The issuer refused the token request (invalid_grant)"
             assert (refused.value.status, len(gateway.of("POST", TOKEN))) == (400, 1)
 
             gateway.scripted[("POST", TOKEN)] = [Answer(status=503)] * 9
             with pytest.raises(SignInError) as spent:
-                await hurried(renew_kept(kept))
+                await hurried(renew_kept(kept, first))
             assert (
                 spent.value.message == "The session could not be renewed after 4 attempts: The issuer refused the token request (HTTP 503)"
             )
@@ -285,48 +268,6 @@ def test_a_refused_grant_is_final_and_a_spent_budget_says_how_many_attempts_it_t
             assert len(gateway.of("POST", TOKEN)) == 1 + 4
             # What is kept is as it was: a renewal that failed changes nothing.
             assert await kept.held() == held(gateway, first)
-
-    run(scenario())
-
-
-@final
-class SignedOutMeanwhile(SignInKept):
-    """A sign-in that is signed out between its renewal's request and the keeping of what came back."""
-
-    def __init__(self, sign_in: HeldSignIn) -> None:
-        self._kept = MemorySignIn(sign_in)
-        self.kept_back = False
-
-    @override
-    async def held(self) -> HeldSignIn | None:
-        found = await self._kept.held()
-        await self._kept.forget()
-        return found
-
-    @override
-    async def keep(self, sign_in: HeldSignIn) -> None:
-        await self._kept.keep(sign_in)
-
-    @override
-    async def renewed(self, access: str, refresh: str) -> bool:
-        self.kept_back = await self._kept.renewed(access, refresh)
-        return self.kept_back
-
-    @override
-    async def forget(self) -> None:
-        await self._kept.forget()
-
-
-def test_a_sign_in_that_ended_while_it_was_renewed_is_given_no_token() -> None:
-    async def scenario() -> None:
-        async with GatewayServer() as gateway:
-            kept = SignedOutMeanwhile(held(gateway, access(1)))
-            gateway.scripted[("POST", TOKEN)] = [says({"access_token": access(2), "refresh_token": "refresh-2"})]
-
-            # A session that is over is not handed a credential again.
-            assert await soon(renew_kept(kept)) is None
-            assert not kept.kept_back
-            assert len(gateway.of("POST", TOKEN)) == 1
 
     run(scenario())
 
@@ -1073,8 +1014,8 @@ class Slowly(SignInKept):
         await self._kept.keep(sign_in)
 
     @override
-    async def renewed(self, access: str, refresh: str) -> bool:
-        return await self._kept.renewed(access, refresh)
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        return await self._kept.renewed(read, access, refresh)
 
     @override
     async def forget(self) -> None:

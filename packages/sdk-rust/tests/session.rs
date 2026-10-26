@@ -147,7 +147,7 @@ impl World {
             storage: self.storage.clone(),
             client: self.client.clone(),
             token: watch::channel(None).0,
-            refresh: Some(Arc::new(move || {
+            refresh: Some(Arc::new(move |_holding| {
                 *renewed.lock().expect("renewed") += 1;
                 let answer = renewals
                     .lock()
@@ -659,7 +659,7 @@ async fn the_start_does_the_asking_when_it_and_the_stream_are_both_waiting_on_on
     let (issuing, renewing, issued) = (issue.clone(), renewals.clone(), renewed.clone());
     let (asking, holding, held_token) = (asked.clone(), release.clone(), renewed.clone());
     let session = SemiontSession::new(SemiontSessionConfig {
-        refresh: Some(Arc::new(move || {
+        refresh: Some(Arc::new(move |_holding| {
             *renewing.lock().expect("renewals") += 1;
             let (issuing, issued) = (issuing.clone(), issued.clone());
             Box::pin(async move {
@@ -743,7 +743,7 @@ async fn refusals_that_arrive_together_cost_one_renewal_and_one_ask() {
     let renewals = Arc::new(Mutex::new(0usize));
     let (renewing, issued) = (renewals.clone(), renewed.clone());
     let session = SemiontSession::new(SemiontSessionConfig {
-        refresh: Some(Arc::new(move || {
+        refresh: Some(Arc::new(move |_holding| {
             *renewing.lock().expect("renewals") += 1;
             let issued = issued.clone();
             Box::pin(async move {
