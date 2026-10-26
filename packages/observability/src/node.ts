@@ -121,7 +121,7 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // W3C trace-context propagator. Without this, `propagation.inject`
   // and `propagation.extract` walk an empty propagator chain and
   // silently do nothing — which means traceparent never makes it onto
-  // outgoing HTTP headers or SSE `_trace` payloads, and cross-service
+  // outgoing HTTP headers or the trace field of SSE payloads, and cross-service
   // traces stay disconnected. NodeSDK registers this for you; bare
   // BasicTracerProvider does not.
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());

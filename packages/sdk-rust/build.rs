@@ -7,9 +7,10 @@
 //! - `operations.rs`: the bus registry's operations, which reply and which
 //!   failure answer each request, and which of them report inference limits;
 //! - `channels.rs`: the channels every client hears and the channels a
-//!   resource's scope carries, from the registry's `audience`; and a type per
-//!   channel naming its payload's type, with each operation's request tied to
-//!   its result and its failure;
+//!   resource's scope carries, from the registry's `audience`; the field of a
+//!   relayed frame's payload its trace rides in, the registry's `trace`; and a
+//!   type per channel naming its payload's type, with each operation's request
+//!   tied to its result and its failure;
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
 //! - `oauth_clients.rs`: the ids a client signs in under at an issuer, and
@@ -557,7 +558,8 @@ fn list<'a>(value: &'a Value, of: &str) -> &'a Vec<Value> {
 
 /// The registry's `audience`: `everyone`, with every operation's reply
 /// channels, is what a client with no narrower list of its own subscribes to;
-/// `scoped` is what taking a resource's scope adds.
+/// `scoped` is what taking a resource's scope adds. And its `trace`: the field
+/// of a relayed frame's payload its trace rides in.
 fn channels_of(registry: &Value) -> String {
     let names = |audience: &str| -> Vec<String> {
         list(&registry["audience"][audience], audience)
@@ -597,6 +599,13 @@ fn channels_of(registry: &Value) -> String {
         "The channels a resource's scope carries: what holding a resource adds to a client's stream.",
         "RESOURCE_SCOPED_CHANNELS",
         &scoped,
+    );
+    let trace = &registry["trace"];
+    let _ = writeln!(
+        code,
+        "/// {}\npub const TRACE_FIELD: &str = {:?};",
+        text(trace, "meaning", "the registry's trace"),
+        text(trace, "field", "the registry's trace")
     );
     code
 }

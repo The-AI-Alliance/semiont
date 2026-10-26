@@ -2,7 +2,8 @@
 // generate-go.mjs — generate the Go bus authority from
 // specs/src/bus/registry.json, the same file the TypeScript generator reads.
 //
-//   packages/sdk-go/bus/channels_gen.go   channel constants + payload metadata
+//   packages/sdk-go/bus/channels_gen.go   channel constants + payload metadata,
+//                                         and the field a relayed frame's trace rides in
 //   packages/sdk-go/bus/operations_gen.go the request→{result,failure} map
 //   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client
 //
@@ -18,6 +19,7 @@
 // --check diffs without writing (the CI drift gate).
 
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
+import { goComment } from '../spec/go-source.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +103,9 @@ func (c Channel) Emittable() bool {
 \t_, ok := ChannelSchemas[c]
 \treturn ok
 }
+
+${goComment(reg.trace.meaning)}
+const TraceField = ${JSON.stringify(reg.trace.field)}
 `;
 
 // ── bridged channels (the SUBSCRIBE side) ──────────────────────────────

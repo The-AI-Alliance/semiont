@@ -92,7 +92,7 @@ A new resource enters as a **yield**, emitted by an actor like any other event, 
 
 Eight composable flows define how actors interact with the knowledge base. Four write: **Yield**, **Mark**, **Bind** and **Frame**. Three read: **Browse**, **Match** and **Gather**. One directs attention: **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
 
-For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
+For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, the trace carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 
 ## Why this shape
 

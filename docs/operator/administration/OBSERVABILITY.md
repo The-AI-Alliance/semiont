@@ -13,7 +13,8 @@ All three share the W3C `trace_id`: a `busLog` line written inside a span carrie
 The transport contract is the single instrumentation layer. Every bus
 emit, content put/get, and worker job
 becomes a span. Trace context propagates over HTTP `traceparent`
-headers and SSE `_trace` payload fields.
+headers and, on a frame relayed over SSE, the payload field the bus
+registry names (`trace` in [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json)).
 
 The spans are in the tables below, by who exports them. What the Rust services, the
 Worker service, the Weaver, the Smelter and the Librarian export is specified, with kinds and attributes, in

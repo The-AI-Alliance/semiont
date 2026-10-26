@@ -12,8 +12,8 @@
  *   - `withSpan(name, fn, options?)` — wrap an async block in a span;
  *     `options` carries `kind` and `attrs`.
  *   - `extractTraceparent(payload)` — W3C trace-context propagation across
- *     the SSE channel (a bus frame the gateway relays carries a
- *     `_trace?: { traceparent }` field).
+ *     the SSE channel (a bus frame the gateway relays carries its trace in
+ *     the payload field `TRACE_FIELD` names, from `@semiont/core`).
  *   - `withTraceparent(carrier, fn)` — run `fn` with the incoming
  *     traceparent as the parent context.
  *   - `withoutTrace(fn)` — run `fn` in no trace, so that what it starts
@@ -22,7 +22,7 @@
  *     an outbound request's `traceparent` header.
  *   - `recordBusSent(channel, scope?)` — count an emit a client sent.
  *   - `SpanKind`, re-exported from `@opentelemetry/api`. The type of the
- *     `_trace` field, `TraceCarrier`, is `@semiont/core`'s.
+ *     trace field, `TraceCarrier`, is `@semiont/core`'s.
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
  * tracer and meter are no-ops, so `withSpan` and the recorder are
@@ -42,7 +42,7 @@ import {
   type Counter,
   type Span,
 } from '@opentelemetry/api';
-import { setBusLogTraceIdProvider, type TraceCarrier } from '@semiont/core';
+import { setBusLogTraceIdProvider, TRACE_FIELD, type TraceCarrier } from '@semiont/core';
 
 // Wire `busLog`'s trace-id provider once at module load. When an OTel
 // SDK is initialized (and a span is active when `busLog` fires), the
@@ -92,8 +92,6 @@ export async function withSpan<T>(
 
 // ── Traceparent on bus payloads ────────────────────────────────────────
 
-const TRACE_FIELD = '_trace';
-
 /**
  * Read the active span's W3C traceparent (and tracestate). Returns
  * `undefined` if no span is active.
@@ -109,7 +107,7 @@ export function getActiveTraceparent(): TraceCarrier | undefined {
 }
 
 /**
- * Strip and return the `_trace` field from a payload. Mutates `payload`.
+ * Strip and return the trace field (`TRACE_FIELD`) from a payload. Mutates `payload`.
  * The field is internal plumbing and should not be visible to subscribers.
  */
 export function extractTraceparent<T extends Record<string, unknown>>(

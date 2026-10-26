@@ -38,7 +38,7 @@ from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
 from semiont._lacks import lacks
 from semiont._reading import Reading
-from semiont.channels import RESOURCE_SCOPED_CHANNELS
+from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
 from semiont.http.exchange import TokenRefresher, refusal
@@ -63,9 +63,6 @@ from semiont.watched import Variable, Watched
 __all__ = ["Bookmarks", "SeenIds", "Stream", "Timing", "backoff_cap_ms"]
 
 _LOG: Final = logging.getLogger("semiont.http")
-
-# Where a frame's payload carries the trace it was sent under. It is the wire's, and no reader of the frame sees it.
-_TRACE_FIELD: Final = "_trace"
 
 
 def _sent_under(carried: JsonValue) -> TraceContext | None:
@@ -534,9 +531,9 @@ class Stream:
             bus_note("LINGER", carried.channel, "delivered on superseded connection")
         payload = carried.payload
         sent_under: TraceContext | None = None
-        if _TRACE_FIELD in payload:
-            sent_under = _sent_under(payload[_TRACE_FIELD])
-            payload = {name: value for name, value in payload.items() if name != _TRACE_FIELD}
+        if TRACE_FIELD in payload:
+            sent_under = _sent_under(payload[TRACE_FIELD])
+            payload = {name: value for name, value in payload.items() if name != TRACE_FIELD}
         frame = Frame(
             channel=carried.channel,
             payload=payload,

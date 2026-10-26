@@ -43,7 +43,7 @@ export interface BusFrame<T> {
 /**
  * A W3C trace context: what a frame from the wire was sent under, so its
  * reader's work can be recorded in the same trace. A wire transport lifts it
- * off the payload's `_trace`, where the gateway's stream puts it.
+ * off the payload's `TRACE_FIELD`, where the gateway's stream puts it.
  */
 export interface TraceCarrier {
   /** W3C `traceparent` header value (`00-<traceId>-<spanId>-<flags>`). */

@@ -22,7 +22,7 @@ import type { SemiontError } from './errors';
 import type { BaseUrl } from './branded-types';
 import { baseUrl as makeBaseUrl } from './branded-types';
 import type { ResourceId } from './identifiers';
-import type { EventMap } from './bus-protocol';
+import { TRACE_FIELD, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
@@ -45,7 +45,7 @@ export interface RequestLogEntry {
   correlationId: string | undefined;
   /**
    * Request identity for retry accounting: channel + payload minus the
-   * per-issue fields (`_trace`, `_userId`). Two emits with the same key are
+   * per-issue fields (`TRACE_FIELD`, `_userId`). Two emits with the same key are
    * the same logical request re-issued.
    */
   retryKey: string;
@@ -109,7 +109,7 @@ function isOperation(channel: string): channel is BusOperationKey {
  *  payload is stable across retries of the same request. */
 export function retryKeyOf(channel: string, payload: Record<string, unknown>): string {
   const entries = Object.entries(payload)
-    .filter(([k]) => k !== '_trace' && k !== '_userId')
+    .filter(([k]) => k !== TRACE_FIELD && k !== '_userId')
     .sort(([a], [b]) => (a < b ? -1 : 1));
   return `${channel} ${JSON.stringify(entries)}`;
 }

@@ -26,6 +26,7 @@ use bytes::Bytes;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
+use semiont::channels::TRACE_FIELD;
 use semiont::transport::TraceCarrier;
 use semiont::types::{BusSubscribeRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
@@ -385,7 +386,7 @@ impl Connection {
                 if let Some(state) = tracestate {
                     carrier.insert("tracestate".to_owned(), json!(state));
                 }
-                fields.insert("_trace".to_owned(), Value::Object(carrier));
+                fields.insert(TRACE_FIELD.to_owned(), Value::Object(carrier));
             }
             let mut data = Map::new();
             data.insert("channel".to_owned(), json!(channel));

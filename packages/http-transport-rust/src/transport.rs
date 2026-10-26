@@ -8,8 +8,8 @@
 //! every Semiont transport observes it: each emit is logged (`[bus EMIT]`),
 //! counted (`semiont.bus.sent`) and sent in a `bus.emit` span whose trace
 //! context travels as `traceparent`; each frame received is logged
-//! (`[bus RECV]`), its `_trace` lifted off the payload, and marked by a
-//! `bus.recv` span in the trace it was sent under.
+//! (`[bus RECV]`), its trace lifted off the payload (`TRACE_FIELD`), and
+//! marked by a `bus.recv` span in the trace it was sent under.
 
 use crate::actor::{self, Command};
 use semiont::bus_log::bus_log;

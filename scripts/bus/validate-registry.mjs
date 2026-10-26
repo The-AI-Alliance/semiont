@@ -310,6 +310,18 @@ export function validateRegistry(reg) {
     }
   }
 
+  // ── the field a relayed frame's trace rides in ──────────────────────────
+  // Every SDK and the gateway generate its name from here. A payload field
+  // whose name begins with `_` is the bus's, not the channel's, so no
+  // channel's own field can be taken for it.
+  const field = reg.trace?.field;
+  if (typeof field !== 'string' || !/^_[A-Za-z]\w*$/.test(field)) {
+    problems.push(`trace.field is ${JSON.stringify(field)} — it is a payload field the bus writes, so a name that begins with "_"`);
+  }
+  if (typeof reg.trace?.meaning !== 'string' || reg.trace.meaning === '') {
+    problems.push('trace states no meaning — every generated constant is documented by it');
+  }
+
   fail(problems);
 }
 
