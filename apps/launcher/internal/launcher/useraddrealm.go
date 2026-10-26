@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // useraddOpts: what the flags mean once parsed. The launcher owns them
@@ -218,11 +219,18 @@ func generatePassword() (string, error) {
 // account id (sub), and the email, which is also the username. Any other claim
 // is the issuer's to fill at sign-in.
 func accountIdentity(a realmAdmin, email, subject string) string {
+	named := func(value string) string {
+		did, err := semiont.PersonDid(a.domain, value)
+		if err != nil {
+			return err.Error()
+		}
+		return did.String()
+	}
 	switch a.subjectClaim {
 	case "sub":
-		return personDID(a.domain, subject)
+		return named(subject)
 	case "email", "preferred_username":
-		return personDID(a.domain, email)
+		return named(email)
 	}
 	return fmt.Sprintf("under %s, named by the issuer's %q claim at sign-in", a.domain, a.subjectClaim)
 }

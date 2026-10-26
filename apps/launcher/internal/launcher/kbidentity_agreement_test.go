@@ -11,9 +11,9 @@ import (
 // specs/src/kb-identity/cases.json through the launcher's readers: a project
 // file the case refuses is refused, by the reader and as a root, and every
 // other yields the identity the case states. The Archivist's reader runs the
-// same cases (apps/archivist/record kb.rs), and TypeScript, Rust and Python
-// run its cases that declare a domain; together they gate a mirror that spans
-// languages and cannot be generated. Absent is "" here and null in the table.
+// same cases (apps/archivist/record kb.rs), and TypeScript, Rust, Python and
+// the Go SDK run its cases that declare a domain; together they gate a mirror
+// that spans languages and cannot be generated. Absent is "" here and null in the table.
 func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
 	if err != nil {
