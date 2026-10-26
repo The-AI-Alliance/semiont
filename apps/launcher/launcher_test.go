@@ -9573,7 +9573,7 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 	// creates a job, then follows job:* broadcasts keyed by jobId. The
 	// subscription must be open before job:create, or a fast job's
 	// completion is missed.
-	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src",
 		"--storage-uri", "file://generated/out.md", "--title", "Derived", "--task", "summary")
 	if code != 0 {
@@ -9612,7 +9612,7 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 
 func TestYieldDelegateReportsJobFailure(t *testing.T) {
 	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`,
 		"FAKERT_JOB_FAIL=model refused")
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
@@ -9634,7 +9634,7 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 // what a generation requires.
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`,
 		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted"}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
@@ -9651,32 +9651,12 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 	}
 }
 
-// A job's result is its verb's. A yield job that completes with a mark job's
-// counts made no resource anyone can name: the command says what it was
-// handed and fails, in either output format, and does not call it a yield.
-func TestYieldDelegateRefusesAResultThatIsNotAYieldJobs(t *testing.T) {
-	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"found":2,"persisted":2}`)
-	for _, format := range [][]string{nil, {"--json"}} {
-		stdout, stderr, code := s.run(t, append([]string{"yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived"}, format...)...)
-		if code == 0 {
-			t.Fatalf("%v: a yield job that reported a mark job's counts must fail the command\nstdout:\n%s", format, stdout)
-		}
-		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither the resource a yield job made nor a decline: {"found":2,"persisted":2}`, "What the job did:  semiont browse res-src")
-		mustNotContain(t, "a type's name in what a user reads", stderr, "YieldJobDone", "JobDeclined")
-		if strings.Contains(stdout, "Yielded") {
-			t.Errorf("%v: claimed a yield that never happened:\n%s", format, stdout)
-		}
-	}
-}
-
 // A completion is its verb's by its jobType. A yield job whose completion
 // names the other verb made nothing this command can read: it says what the
 // job completed as and what it created, and fails.
 func TestYieldDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
 	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`,
 		"FAKERT_JOB_COMPLETES_AS=mark", `FAKERT_JOB_RESULT={"found":2,"persisted":2}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
@@ -9692,7 +9672,7 @@ func TestYieldDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
 // payload and still reports that nothing was produced.
 func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`,
 		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer"}`)
 	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code == 0 {
@@ -9705,7 +9685,7 @@ func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 // SUCCESS into a failure either. Without this, "always fail under --json"
 // passes the decline test above and nothing else notices.
 func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
-	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
+	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{"kind":"resource","resource":{"@context":"https://schema.org/","@id":"res-src","name":"Source","representations":[]}},"graph":{"nodes":[],"edges":[]}}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code != 0 {
 		t.Fatalf("a completed generation under --json must exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)

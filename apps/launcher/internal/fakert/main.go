@@ -2464,14 +2464,14 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								code = "generating-resource"
 							}
 							busPublish("job:report-progress", "", "", job(map[string]any{
-								"progress": map[string]any{"message": map[string]any{"code": code}}}))
+								"percentage": 10, "progress": map[string]any{"percentage": 10, "message": map[string]any{"code": code}}}))
 							// FAKERT_JOB_RETRY=<message>: the first attempt fails and
 							// the queue runs the job again. That failure is an event
 							// of a job still running, and the terminal event follows.
 							if msg := os.Getenv("FAKERT_JOB_RETRY"); msg != "" {
 								busPublish("job:fail", "", "", job(map[string]any{"error": msg, "attempt": 1, "willRetry": true}))
 								busPublish("job:report-progress", "", "", job(map[string]any{
-									"attempt": 2, "progress": map[string]any{"message": map[string]any{"code": code}}}))
+									"attempt": 2, "percentage": 10, "progress": map[string]any{"percentage": 10, "message": map[string]any{"code": code}}}))
 							}
 							// FAKERT_JOB_RESULT=<json>: the result this job
 							// completes with, in its verb's completion. A DECLINE
@@ -2503,7 +2503,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								// before it completes. One a test scripts another
 								// ending for does not.
 								if created, did := fakeCreated(body.Payload); did && scripted == "" && as == "" {
-									busPublish("job:report-progress", "", "", job(map[string]any{"progress": map[string]any{"message": created}}))
+									busPublish("job:report-progress", "", "", job(map[string]any{"percentage": 100, "progress": map[string]any{"percentage": 100, "message": created}}))
 								}
 								busPublish("job:complete", "", "", completed)
 							}

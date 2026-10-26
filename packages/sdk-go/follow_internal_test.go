@@ -118,7 +118,7 @@ func TestAResultIsReadAsExactlyOneOfItsVerbsMembers(t *testing.T) {
 		{"a decline", `{"declined":true,"reason":"encrypted"}`, true, true},
 		{"no member's required members", `{}`, false, false},
 		{"half of a member's required members", `{"found":4,"resourceId":"res-new"}`, false, false},
-		{"both members' required members", `{"found":4,"persisted":3,"declined":true,"reason":"empty"}`, false, false},
+		{"both members' required members", `{"found":4,"persisted":3,"resourceId":"res-new","resourceName":"Generated","truncated":false,"declined":true,"reason":"empty"}`, false, false},
 		{"not an object", `"done"`, false, false},
 	} {
 		for verb, want := range map[api.JobType]bool{api.JobTypeMark: c.mark, api.JobTypeYield: c.yield} {
