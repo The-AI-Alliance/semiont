@@ -16,6 +16,14 @@
  *    jobs shared by the whole organisation. A push to main gets its own group
  *    and is never cancelled: it is the run that sees the merged tree.
  *
+ *    A workflow that triggers on `pull_request_target` and not `pull_request`
+ *    runs for a pull request each time, so its group is the pull request and
+ *    it always cancels:
+ *
+ *        concurrency:
+ *          group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+ *          cancel-in-progress: true
+ *
  * 2. Every job of such a workflow has a step that is not preparation. A step
  *    is preparation when it is one of the setup actions, or a `run` whose
  *    every line installs or builds the packages (`npm ci`, `npm run
@@ -83,6 +91,9 @@ const RUST_IMAGES = ['apps/gateway/Dockerfile', 'apps/dispatcher/Dockerfile', 'a
 
 const GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}';
 const CANCEL = "${{ github.event_name == 'pull_request' }}";
+/** The concurrency of a workflow that runs on `pull_request_target` and not `pull_request`. */
+const TARGET_GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number }}';
+const TARGET_CANCEL = 'true';
 
 /** Actions that make a runner ready and check nothing. */
 const SETUP_ACTIONS = ['actions/checkout', 'actions/setup-node', 'actions/setup-python', 'actions/setup-go', 'actions/cache', 'astral-sh/setup-uv'];
@@ -112,17 +123,21 @@ let held = 0;
 for (const file of workflows) {
   const workflow = yaml.load(readFileSync(join(ROOT, file), 'utf8'));
   const triggers = workflow.on;
-  const onPullRequest = Array.isArray(triggers) ? triggers.includes('pull_request') : triggers != null && typeof triggers === 'object' && 'pull_request' in triggers;
-  if (!onPullRequest) continue;
+  const triggeredBy = (event) => (Array.isArray(triggers) ? triggers.includes(event) : triggers != null && typeof triggers === 'object' && event in triggers);
+  const onPullRequest = triggeredBy('pull_request');
+  if (!onPullRequest && !triggeredBy('pull_request_target')) continue;
   held += 1;
 
+  const [group, cancel, why] = onPullRequest
+    ? [GROUP, CANCEL, "a pull request's superseded run is cancelled, a push to main never is"]
+    : [TARGET_GROUP, TARGET_CANCEL, "every run is a pull request's, so a superseded one is cancelled"];
   const concurrency = workflow.concurrency;
   if (concurrency == null || typeof concurrency !== 'object') {
     failures.push(`${file} runs on pull requests and declares no concurrency: a push to the pull request leaves the run before it going`);
   } else {
-    if (concurrency.group !== GROUP) failures.push(`${file}: concurrency.group is ${JSON.stringify(concurrency.group ?? null)}, not ${GROUP}`);
-    if (String(concurrency['cancel-in-progress']) !== CANCEL) {
-      failures.push(`${file}: concurrency.cancel-in-progress is ${JSON.stringify(concurrency['cancel-in-progress'] ?? null)}, not ${CANCEL}: a pull request's superseded run is cancelled, a push to main never is`);
+    if (concurrency.group !== group) failures.push(`${file}: concurrency.group is ${JSON.stringify(concurrency.group ?? null)}, not ${group}`);
+    if (String(concurrency['cancel-in-progress']) !== cancel) {
+      failures.push(`${file}: concurrency.cancel-in-progress is ${JSON.stringify(concurrency['cancel-in-progress'] ?? null)}, not ${cancel}: ${why}`);
     }
   }
 
