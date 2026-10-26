@@ -147,9 +147,37 @@ pub(crate) struct Shared {
     pub bookmarks: Option<Arc<dyn Bookmarks>>,
     pub hub: FrameHub,
     pub router: Arc<ReplyRouter>,
-    /// `None` once closed.
-    pub failures: Mutex<Option<broadcast::Sender<TransportError>>>,
+    /// The error stream; `None` once closed.
+    pub failures: Mutex<Option<FailureStream>>,
     pub bridges: Mutex<Vec<Arc<EventBus>>>,
+}
+
+/// The error stream. The stream opens before `HttpTransport::new` returns,
+/// so a failure can be reported before anyone has asked to hear failures:
+/// the first listener's receiver is made with the stream and held until a
+/// listener takes it, and nothing reported in the meantime is lost to it.
+pub(crate) struct FailureStream {
+    sender: broadcast::Sender<TransportError>,
+    first: Option<broadcast::Receiver<TransportError>>,
+}
+
+impl FailureStream {
+    fn new() -> FailureStream {
+        let (sender, first) = broadcast::channel(STREAM_BACKLOG);
+        FailureStream {
+            sender,
+            first: Some(first),
+        }
+    }
+
+    /// A listener: the first one taken hears every failure reported since the
+    /// stream was made, and each after it those reported from now on.
+    fn listen(&mut self) -> broadcast::Receiver<TransportError> {
+        match self.first.take() {
+            Some(first) => first,
+            None => self.sender.subscribe(),
+        }
+    }
 }
 
 impl Shared {
@@ -172,7 +200,7 @@ impl Shared {
             bookmarks: config.bookmarks,
             hub: FrameHub::new(),
             router: ReplyRouter::new(),
-            failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
+            failures: Mutex::new(Some(FailureStream::new())),
             bridges: Mutex::new(Vec::new()),
         }
     }
@@ -195,7 +223,7 @@ impl Shared {
     /// Report a failure on the error stream, and hand it back for its caller.
     pub fn failed(&self, error: TransportError) -> TransportError {
         if let Some(failures) = locked(&self.failures).as_ref() {
-            let _ = failures.send(error.clone());
+            let _ = failures.sender.send(error.clone());
         }
         error
     }
@@ -549,7 +577,8 @@ pub struct HttpTransport {
 
 impl HttpTransport {
     /// A transport to the gateway at `config.base_url`. Its stream opens in
-    /// the background, once there is a token.
+    /// the background, once there is a token. The first listener taken of its
+    /// failures hears them from the transport's making.
     pub fn new(config: HttpTransportConfig) -> HttpTransport {
         let shared = Arc::new(Shared::new(config));
         let (commands, receiver) = mpsc::unbounded_channel();
@@ -648,8 +677,8 @@ impl Transport for HttpTransport {
     }
 
     fn failures(&self) -> Failures {
-        match locked(&self.inner.shared.failures).as_ref() {
-            Some(failures) => Events::new(failures.subscribe()),
+        match locked(&self.inner.shared.failures).as_mut() {
+            Some(failures) => Events::new(failures.listen()),
             None => Events::new(broadcast::channel(1).1),
         }
     }
