@@ -441,6 +441,32 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
 }
 
 #[tokio::test]
+async fn a_listener_taken_after_the_first_connect_was_refused_still_hears_the_refusal() {
+    let gateway = Gateway::start().await;
+    gateway
+        .staged
+        .refusals
+        .lock()
+        .unwrap()
+        .push_back(StatusCode::SERVICE_UNAVAILABLE);
+    let transport = gateway.client(Duration::from_secs(5));
+    // The first connect is refused and the next opens, all before anything
+    // listens to the failures: the refusal is reported while no one listens.
+    reaches(&transport, ConnectionState::Open).await;
+    assert_eq!(gateway.arrived(), 2);
+
+    let mut failures = transport.failures();
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+        .await
+        .expect("the refusal reported before anything listened")
+        .expect("a failure")
+        .expect("not lagged");
+    assert_eq!(refused.code.as_str(), "unavailable");
+    assert_eq!(refused.status, Some(503));
+    transport.close().await;
+}
+
+#[tokio::test]
 async fn the_live_stream_ending_during_a_handoff_is_a_drop_the_handoff_recovers() {
     let gateway = Gateway::start().await;
     let transport = gateway.client(Duration::from_millis(60));
