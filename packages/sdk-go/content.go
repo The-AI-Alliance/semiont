@@ -51,8 +51,9 @@ type GatewayOperations interface {
 	// GetProtectedResourceMetadata is the gateway's OAuth protected resource
 	// metadata.
 	GetProtectedResourceMetadata(ctx context.Context) (api.ProtectedResourceMetadata, error)
-	// HealthCheck is the gateway reporting itself.
-	HealthCheck(ctx context.Context) (api.HealthResponse, error)
+	// HealthCheck is the gateway reporting itself: alive when it answers a
+	// success, with its report when the body is one.
+	HealthCheck(ctx context.Context) (report api.HealthResponse, ok bool, err error)
 	// GetStatus is the gateway's status.
 	GetStatus(ctx context.Context) (api.StatusResponse, error)
 }
@@ -412,9 +413,26 @@ func (t *HTTPTransport) GetProtectedResourceMetadata(ctx context.Context) (api.P
 	return answer[api.ProtectedResourceMetadata](ctx, t.shared, t.operation(http.MethodGet, "/.well-known/oauth-protected-resource", false))
 }
 
-// HealthCheck is the gateway reporting itself.
-func (t *HTTPTransport) HealthCheck(ctx context.Context) (api.HealthResponse, error) {
-	return answer[api.HealthResponse](ctx, t.shared, t.operation(http.MethodGet, "/api/health", true))
+// HealthCheck asks the gateway to report itself. A nil error means it
+// answered with a success status: it is alive. Its report is the body, when
+// the body is one; ok is false for a success whose body does not read, a live
+// gateway behind a schema this client does not know, since calling that down
+// would take a gateway offline over a field renamed. Liveness is the status;
+// the body is detail.
+func (t *HTTPTransport) HealthCheck(ctx context.Context) (report api.HealthResponse, ok bool, err error) {
+	spec := t.operation(http.MethodGet, "/api/health", true)
+	got, err := t.shared.exchange(ctx, spec)
+	if err != nil {
+		return api.HealthResponse{}, false, err
+	}
+	defer got.done()
+	reading, cancel := context.WithTimeout(ctx, spec.deadline)
+	defer cancel()
+	body, err := io.ReadAll(readerWithContext(reading, got.response.Body))
+	if err != nil || json.Unmarshal(body, &report) != nil {
+		return api.HealthResponse{}, false, nil
+	}
+	return report, true, nil
 }
 
 // GetStatus is the gateway's status.

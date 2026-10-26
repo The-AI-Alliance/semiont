@@ -1,63 +1,27 @@
 package launcher
 
-// oauth.go — the launcher as an OAuth public client (client id semiont-cli):
-// issuer discovery from a knowledge base's resource metadata (RFC 9728), the
-// device authorization grant (RFC 8628) behind `semiont login`, the refresh
-// grant behind every verb's invisible renewal, and token revocation (RFC
-// 7009) behind `semiont logout`. Plain HTTP against the issuer; nothing here
-// names a vendor, and no process ever holds a password.
+// oauth.go — what of signing in is the launcher's own: the issuer a
+// knowledge base advertises, read before anything dials it; the one-time code
+// shown to a person and the browser offered to them, during `semiont login`'s
+// device grant, which the Go SDK makes (semiont.Issuer); and a small JSON
+// read. Nothing here names a vendor, and no process ever holds a password.
 
 import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"golang.org/x/term"
 )
-
-const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
-
-type issuerEndpoints struct {
-	Issuer              string `json:"issuer"`
-	DeviceAuthorization string `json:"device_authorization_endpoint"`
-	Token               string `json:"token_endpoint"`
-	Revocation          string `json:"revocation_endpoint"`
-}
-
-// discoverIssuer: the knowledge base names its issuer (resource metadata),
-// the issuer names its endpoints (OIDC discovery). No configuration on this
-// side — a client that knows a gateway's address knows everything.
-func discoverIssuer(ctx context.Context, cli *api.ClientWithResponses, base string) (issuerEndpoints, error) {
-	issuer, err := trustedIssuer(ctx, cli, base)
-	if err != nil {
-		return issuerEndpoints{}, err
-	}
-	var ep issuerEndpoints
-	if err := fetchJSON(strings.TrimSuffix(issuer, "/")+"/.well-known/openid-configuration", 15*time.Second, &ep); err != nil {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s: discovery failed: %w", issuer, err)
-	}
-	if ep.Issuer != issuer {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s: its discovery document names a different issuer (%s)", issuer, ep.Issuer)
-	}
-	if ep.Token == "" {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s: discovery names no token endpoint", issuer)
-	}
-	if ep.DeviceAuthorization == "" {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, ScriptClientID)
-	}
-	return ep, nil
-}
 
 // trustedIssuer: the issuer a KB's resource metadata names — the gateway's
 // word, read before anything dials the issuer itself.
@@ -83,24 +47,6 @@ func advertisedIssuer(base string) (string, error) {
 	return trustedIssuer(ctx, cli, base)
 }
 
-type deviceAuthorization struct {
-	DeviceCode              string `json:"device_code"`
-	UserCode                string `json:"user_code"`
-	VerificationURI         string `json:"verification_uri"`
-	VerificationURIComplete string `json:"verification_uri_complete"`
-	ExpiresIn               int    `json:"expires_in"`
-	Interval                int    `json:"interval"`
-}
-
-type tokenResponse struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	TokenType        string `json:"token_type"`
-	ExpiresIn        int    `json:"expires_in"`
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
-}
-
 // promptToOpen shows the one-time code and, on a terminal, offers to open the
 // issuer's page.
 //
@@ -116,19 +62,19 @@ type tokenResponse struct {
 // Nothing is opened when stdin is not a terminal. `semiont login` runs from
 // scripts, and a CI box either has no browser or should not be sent to one —
 // there nothing is asked, and the poll starts immediately.
-func promptToOpen(u *UI, da deviceAuthorization, where string, expires time.Duration) {
-	valid := u.Dim("(valid " + expires.Round(time.Second).String() + ")")
-	u.Log("Your one-time code: %s %s", u.Bold(da.UserCode), valid)
+func promptToOpen(u *UI, code semiont.DeviceCode) {
+	valid := u.Dim("(valid " + code.ExpiresIn.Round(time.Second).String() + ")")
+	u.Log("Your one-time code: %s %s", u.Bold(code.UserCode), valid)
 
-	short := da.VerificationURI
-	if short == "" {
-		short = where
+	where := code.VerificationURIComplete
+	if where == "" {
+		where = code.VerificationURI
 	}
 	// The URI is printed UNCONDITIONALLY, before any question of opening it.
 	// It is what a person needs when the browser does not open, opens on the
 	// wrong machine, or is not where they want to approve — so it must not be
 	// gated on detecting a terminal correctly.
-	u.Log("To sign in, open %s and enter it.", u.Bold(short))
+	u.Log("To sign in, open %s and enter it.", u.Bold(code.VerificationURI))
 
 	if !stdinIsTerminal() {
 		return
@@ -173,106 +119,6 @@ func openBrowser(url string) error {
 	return exec.Command(argv[0], argv[1:]...).Start()
 }
 
-// deviceLogin runs the device authorization grant: ask the issuer for a code,
-// tell the user where to enter it, poll the token endpoint at the issuer's
-// interval until approval, denial, or expiry.
-func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse, error) {
-	var da deviceAuthorization
-	status, err := postForm(ctx, ep.DeviceAuthorization, url.Values{
-		"client_id": {ScriptClientID},
-		"scope":     {SignInScope},
-	}, &da)
-	if err != nil {
-		return tokenResponse{}, fmt.Errorf("device authorization request: %w", err)
-	}
-	if status != http.StatusOK || da.DeviceCode == "" {
-		return tokenResponse{}, fmt.Errorf("issuer refused the device authorization request (HTTP %d)", status)
-	}
-	where := da.VerificationURIComplete
-	if where == "" {
-		where = da.VerificationURI
-	}
-	expires := time.Duration(da.ExpiresIn) * time.Second
-	if expires <= 0 {
-		expires = 10 * time.Minute
-	}
-	promptToOpen(u, da, where, expires)
-	u.Log("Waiting for approval at the issuer...")
-
-	interval := time.Duration(da.Interval) * time.Second
-	if interval < time.Second {
-		interval = time.Second
-	}
-	deadline := time.Now().Add(expires)
-	for {
-		select {
-		case <-ctx.Done():
-			return tokenResponse{}, ctx.Err()
-		case <-time.After(interval):
-		}
-		if time.Now().After(deadline) {
-			return tokenResponse{}, errors.New("the code expired before it was approved — run semiont login again")
-		}
-		var tr tokenResponse
-		status, err := postForm(ctx, ep.Token, url.Values{
-			"grant_type":  {deviceGrantType},
-			"device_code": {da.DeviceCode},
-			"client_id":   {ScriptClientID},
-		}, &tr)
-		if err != nil {
-			return tokenResponse{}, fmt.Errorf("token request: %w", err)
-		}
-		switch {
-		case status == http.StatusOK && tr.AccessToken != "":
-			return tr, nil
-		case tr.Error == "authorization_pending":
-		case tr.Error == "slow_down":
-			interval += 5 * time.Second
-		case tr.Error == "access_denied":
-			return tokenResponse{}, errors.New("sign-in was denied at the issuer")
-		case tr.Error == "expired_token":
-			return tokenResponse{}, errors.New("the code expired before it was approved — run semiont login again")
-		default:
-			return tokenResponse{}, fmt.Errorf("issuer returned HTTP %d: %s %s", status, tr.Error, tr.ErrorDescription)
-		}
-	}
-}
-
-// refreshTokens: the refresh grant. An issuer may rotate the refresh token;
-// the response carries whichever is current.
-func refreshTokens(ctx context.Context, tokenEndpoint, refreshToken string) (tokenResponse, error) {
-	var tr tokenResponse
-	status, err := postForm(ctx, tokenEndpoint, url.Values{
-		"grant_type":    {"refresh_token"},
-		"refresh_token": {refreshToken},
-		"client_id":     {ScriptClientID},
-	}, &tr)
-	if err != nil {
-		return tokenResponse{}, err
-	}
-	if status != http.StatusOK || tr.AccessToken == "" {
-		return tokenResponse{}, fmt.Errorf("issuer returned HTTP %d: %s %s", status, tr.Error, tr.ErrorDescription)
-	}
-	return tr, nil
-}
-
-// revokeToken: RFC 7009. The issuer answers 200 for a token it already
-// forgot, so this is idempotent.
-func revokeToken(ctx context.Context, revocationEndpoint, refreshToken string) error {
-	status, err := postForm(ctx, revocationEndpoint, url.Values{
-		"token":           {refreshToken},
-		"token_type_hint": {"refresh_token"},
-		"client_id":       {ScriptClientID},
-	}, nil)
-	if err != nil {
-		return err
-	}
-	if status != http.StatusOK {
-		return fmt.Errorf("issuer returned HTTP %d", status)
-	}
-	return nil
-}
-
 // fetchJSON GETs a JSON document within a timeout. The error names the step
 // that failed; a probe that only needs yes/no compares it to nil. The body
 // is capped at 1 MiB — every document this launcher reads is small, and a
@@ -293,27 +139,4 @@ func fetchJSON(target string, timeout time.Duration, out any) error {
 		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, target)
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out)
-}
-
-// postForm posts application/x-www-form-urlencoded and decodes the JSON
-// body whatever the status — OAuth error bodies are JSON too, and the caller
-// reads `error` from them. A nil out discards the body.
-func postForm(ctx context.Context, target string, form url.Values, out any) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(form.Encode()))
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-	resp, err := (&http.Client{Transport: launcherTransport}).Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if out != nil {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil && resp.StatusCode == http.StatusOK {
-			return resp.StatusCode, fmt.Errorf("HTTP %d from %s: %w", resp.StatusCode, target, err)
-		}
-	}
-	return resp.StatusCode, nil
 }

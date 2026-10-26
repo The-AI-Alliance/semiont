@@ -3,26 +3,26 @@ package verbs
 // The invisible session refresh, as EVERY verb gets it.
 //
 // `semiont login` stores a short-lived access token and the refresh token that
-// renews it. A verb whose token the gateway refuses must renew the session at
-// the issuer, go on under the renewed token, and save the rotation — and must
-// send the user back to `semiont login` only when that renewal itself fails,
-// or the gateway refuses the token it renewed to. Without that, a five-minute
-// access token means a `browse` at minute six prints "the session was
-// rejected" with no refresh attempted.
+// renews it. A verb's session is the Go SDK's, held to the session table every
+// SDK runs (specs/src/session/cases.json): it asks the gateway who its token
+// is at its start, renews a token that has expired or that the gateway
+// refuses, goes on under the renewed token and keeps the rotation, and
+// forgets a sign-in it cannot renew. The user is sent back to `semiont login`
+// only when the renewal itself fails, or the gateway refuses the token it
+// renewed to.
 //
-// In process, over the SDK's real transport: the gateway is a stub that
-// accepts the bearers each test says it does, and records every one it was
-// shown. The SDK's transport keeps the rule that a refused request is renewed
-// once and sent once more (the SDK conformance suite holds it); what is the
-// launcher's, and asserted here, is the session it asks: how many grants the
-// issuer sees, what is saved, and what the user is told. The issuer is the one
-// other real HTTP server here — the refresh grant is plain HTTP the launcher
-// speaks itself, so it is exercised for real.
+// In process, over the SDK's real transport and session: the gateway is a
+// stub that accepts the tokens each test says it does, and records every one
+// it was shown; the issuer is the one other real HTTP server here. What is
+// asserted is the launcher's part: how many grants the issuer sees, what is
+// kept, and what the user is told. A token is told apart by its `tag` claim.
 //
 // Failure messages name counts and positions, never a token's value: even a
 // stub's token stays out of test output on principle.
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,6 +38,8 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -72,20 +74,60 @@ func (s *issuerStub) refreshGrants() []url.Values {
 	return append([]url.Values(nil), s.grants...)
 }
 
+// tokenTagged is an access token as an issuer issues one, told apart by its
+// tag, that expires lifetime from now.
+func tokenTagged(tag string, lifetime time.Duration) string {
+	now := time.Now()
+	claims, _ := json.Marshal(map[string]any{
+		"tag": tag, "email": "t@example.com", "iss": "http://issuer.test/realms/semiont",
+		"iat": now.Unix(), "exp": now.Add(lifetime).Unix(),
+	})
+	return "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".c2ln"
+}
+
+// tagOf is the tag of a token tokenTagged made; "" for any other.
+func tagOf(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Tag string `json:"tag"`
+	}
+	_ = json.Unmarshal(payload, &claims)
+	return claims.Tag
+}
+
 // renewed is the issuer's answer to a refresh grant it honours: a new access
-// token and a ROTATED refresh token, which the launcher must keep.
-const renewed = `{"access_token":"token-2","refresh_token":"refresh-2","token_type":"Bearer","expires_in":300}`
+// token, token-2, living 300 seconds, and a ROTATED refresh token, which the
+// launcher must keep.
+func renewed() string {
+	return `{"access_token":"` + tokenTagged("token-2", 300*time.Second) + `","refresh_token":"refresh-2","token_type":"Bearer","expires_in":300}`
+}
 
 // storeSession replaces the fixture's bare token with a renewable session:
-// access token token-1, refresh token refresh-1, the stub as its issuer.
-func storeSession(t *testing.T, issuer *issuerStub, expiresAt time.Time) {
+// access token token-1, living lifetime from now (an expired one when it is
+// negative), refresh token refresh-1, the stub as its issuer.
+func storeSession(t *testing.T, issuer *issuerStub, lifetime time.Duration) {
 	t.Helper()
-	if err := launcher.SaveToken("local", launcher.SignIn{
-		Token: "token-1", RefreshToken: "refresh-1", Email: "t@example.com",
-		Issuer: issuer.URL, TokenEndpoint: issuer.URL + "/token", ExpiresAt: expiresAt,
+	store := semiont.NewSignInStore(filepath.Join(launcher.StateDir(), semiont.SignInFile))
+	if err := store.Entry("local").Keep(context.Background(), semiont.HeldSignIn{
+		Access: tokenTagged("token-1", lifetime), Refresh: "refresh-1",
+		ClientID: semiont.ScriptClientID, TokenEndpoint: issuer.URL + "/token",
 	}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// kept is the sign-in the store holds for the local stack; false when none.
+func kept(t *testing.T) (semiont.SignIn, bool) {
+	t.Helper()
+	signIn, ok := launcher.LoadTokens()["local"]
+	return signIn, ok
 }
 
 // shown is one bearer the gateway stub was shown: on which route, and
@@ -97,9 +139,10 @@ type shown struct {
 }
 
 // gatewayStub is the stack's gateway, as much of it as a verb's session
-// meets: the bus's two routes, and who a token is. It accepts the bearers
-// accepts says it does and refuses every other with 401. A request on an
-// operation it was given a reply for is answered on the requester's stream.
+// meets: the bus's two routes, and who a token is. It accepts the tokens
+// accepts says it does, by their tag, and refuses every other with 401. A
+// request on an operation it was given a reply for is answered on the
+// requester's stream.
 type gatewayStub struct {
 	*httptest.Server
 	accepts func(token string) bool
@@ -131,7 +174,7 @@ func newGatewayStub(t *testing.T, accepts func(token string) bool) *gatewayStub 
 }
 
 func (g *gatewayStub) admit(r *http.Request) bool {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token := tagOf(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 	accepted := g.accepts(token)
 	g.mu.Lock()
 	g.shown = append(g.shown, shown{route: r.URL.Path, token: token, accepted: accepted})
@@ -146,7 +189,9 @@ func (g *gatewayStub) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case "/api/users/me":
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"did":"did:web:example.org:users:t","email":"t@example.com","domain":"example.org","name":null,"image":null}`)
 	case "/bus/subscribe":
 		var body struct {
 			ClientID string `json:"clientId"`
@@ -213,7 +258,8 @@ func (g *gatewayStub) acceptedEmits() []bus.Channel {
 	return append([]bus.Channel(nil), g.emits...)
 }
 
-// times is how often token was shown on route; "" is every route.
+// times is how often the token tagged token was shown on route; "" is every
+// route.
 func (g *gatewayStub) times(route, token string) int {
 	n := 0
 	for _, s := range g.bearers() {
@@ -245,7 +291,7 @@ func gatewayAt(t *testing.T, base string) {
 	}
 }
 
-// only accepts one token.
+// only accepts the one token tagged token.
 func only(token string) func(string) bool {
 	return func(presented string) bool { return presented == token }
 }
@@ -279,8 +325,8 @@ func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))
 	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
 	gatewayFixture(t, gateway)
-	issuer := newIssuerStub(t, http.StatusOK, renewed)
-	storeSession(t, issuer, time.Time{})
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
 
 	stdout, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
@@ -312,14 +358,14 @@ func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
 	if len(grants) != 1 {
 		t.Fatalf("want exactly one refresh grant at the issuer, got %d", len(grants))
 	}
-	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != launcher.ScriptClientID || g.Get("refresh_token") != "refresh-1" {
+	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != semiont.ScriptClientID || g.Get("refresh_token") != "refresh-1" {
 		t.Errorf("the grant was not the public client's refresh_token grant carrying the stored refresh token")
 	}
 
 	// The rotation is SAVED: the next command starts from the renewed pair,
 	// and knows when the renewed access token expires.
-	e := launcher.LoadTokens()["local"]
-	if e.Token != "token-2" || e.RefreshToken != "refresh-2" {
+	e, _ := kept(t)
+	if tagOf(e.Token) != "token-2" || e.RefreshToken != "refresh-2" {
 		t.Errorf("tokens.json was not rotated to the renewed access and refresh tokens")
 	}
 	if left := time.Until(e.ExpiresAt); left < 4*time.Minute || left > 5*time.Minute+time.Second {
@@ -345,8 +391,8 @@ func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
 func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))
 	gatewayFixture(t, gateway)
-	issuer := newIssuerStub(t, http.StatusOK, renewed)
-	storeSession(t, issuer, time.Time{})
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
 
 	harness.CaptureOutput(t, func() {
 		if code := Beckon([]string{"--resource", "res-1", "--annotation", "ann-2"}); code != 0 {
@@ -359,7 +405,7 @@ func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
 	}
-	if e := launcher.LoadTokens()["local"]; e.Token != "token-2" {
+	if e, _ := kept(t); tagOf(e.Token) != "token-2" {
 		t.Errorf("tokens.json was not rotated to the renewed access token")
 	}
 }
@@ -368,7 +414,7 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	gateway := newGatewayStub(t, nothing)
 	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusBadRequest, `{"error":"invalid_grant","error_description":"Token is not active"}`)
-	storeSession(t, issuer, time.Time{})
+	storeSession(t, issuer, time.Hour)
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -386,17 +432,19 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
 	}
-	// The stored session is untouched: nothing was renewed, so nothing rotates.
-	if e := launcher.LoadTokens()["local"]; e.Token != "token-1" || e.RefreshToken != "refresh-1" {
-		t.Errorf("a failed renewal must leave tokens.json as it was")
+	// A sign-in that cannot be renewed is forgotten, as the session table's
+	// ending states: the next command says there is no session, and how to
+	// get one.
+	if _, still := kept(t); still {
+		t.Errorf("a sign-in whose renewal failed is still kept")
 	}
 }
 
 func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
 	gateway := newGatewayStub(t, nothing)
 	gatewayFixture(t, gateway)
-	issuer := newIssuerStub(t, http.StatusOK, renewed)
-	storeSession(t, issuer, time.Time{})
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -445,8 +493,8 @@ func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))
 	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
 	gatewayFixture(t, gateway)
-	issuer := newIssuerStub(t, http.StatusOK, renewed)
-	storeSession(t, issuer, time.Now().Add(-time.Minute))
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, -time.Minute)
 
 	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
@@ -470,8 +518,8 @@ func TestALiveSessionIsSentWithoutRenewal(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-1"))
 	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
 	gatewayFixture(t, gateway)
-	issuer := newIssuerStub(t, http.StatusOK, renewed)
-	storeSession(t, issuer, time.Now().Add(time.Hour))
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
 
 	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
@@ -481,30 +529,33 @@ func TestALiveSessionIsSentWithoutRenewal(t *testing.T) {
 	if n := len(issuer.refreshGrants()); n != 0 {
 		t.Errorf("a live session was renewed unasked (%d grant(s))", n)
 	}
-	if n := gateway.times("/api/users/me", "token-1"); n != 0 {
-		t.Errorf("a live session's token was asked about unasked (%d time(s))", n)
+	// Asked about once, at the session's start, as the session table states.
+	if n := gateway.times("/api/users/me", "token-1"); n != 1 {
+		t.Errorf("a live session's token was asked about %d time(s), want once at its start", n)
 	}
 }
 
-// When the proactive renewal fails (issuer down, refresh token expired), the
-// stored token is still TRIED — clocks skew, and the gateway is the judge — and
-// a refusal then is reported without a second grant.
-func TestExpiredSessionWhoseRenewalFailsIsStillTriedOnce(t *testing.T) {
+// An expired token whose renewal fails is not tried: the sign-in is forgotten,
+// as the session table's startup states, and the user is sent to log in.
+func TestExpiredSessionWhoseRenewalFailsIsForgottenUntried(t *testing.T) {
 	gateway := newGatewayStub(t, nothing)
 	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusBadRequest, `{"error":"invalid_grant"}`)
-	storeSession(t, issuer, time.Now().Add(-time.Minute))
+	storeSession(t, issuer, -time.Minute)
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
-			t.Errorf("browse must fail when neither the stored nor a renewed token works")
+			t.Errorf("browse must fail when the stored token expired and cannot be renewed")
 		}
 	})
-	harness.MustContainAll(t, "stderr", stderr, "session was rejected", "could not renew", "semiont login")
-	if n := gateway.times("", "token-1"); n != 1 {
-		t.Errorf("want the stored token tried exactly once, got %d time(s)", n)
+	harness.MustContainAll(t, "stderr", stderr, "browse", "session was rejected", "could not renew", "expired", "semiont login")
+	if n := gateway.times("", "token-1"); n != 0 {
+		t.Errorf("an expired token that could not be renewed was sent anyway (%d time(s))", n)
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {
-		t.Errorf("want exactly one refresh grant (not one per attempt), got %d", n)
+		t.Errorf("want exactly one refresh grant, got %d", n)
+	}
+	if _, still := kept(t); still {
+		t.Errorf("a sign-in whose renewal failed is still kept")
 	}
 }

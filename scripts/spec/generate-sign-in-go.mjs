@@ -3,12 +3,12 @@
 // from specs/src/sign-in-store/SignIn.json, the schema the Rust and Python SDKs
 // generate theirs from.
 //
-//   packages/sdk-go/signin_gen.go                    the entry, and the names
-//   apps/launcher/internal/launcher/sign_in_gen.go   every entry must state
+//   packages/sdk-go/signin_gen.go   the entry, and the names every entry must
+//                                   state
 //
 // Programs in several languages read and write <stateDir>/tokens.json, so the
-// entry's shape is the contract's to state. The launcher keeps its own store
-// until it signs in through the SDK's, and is given its own copy until then.
+// entry's shape is the contract's to state. The launcher keeps its sign-ins
+// through the SDK's store.
 //
 // The reading of the schema is sign-in-schema.mjs's, shared with the Python
 // SDK's generator.
@@ -23,10 +23,7 @@ import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
-const OUTS = [
-  { path: resolve(ROOT, 'packages/sdk-go/signin_gen.go'), pkg: 'semiont' },
-  { path: resolve(ROOT, 'apps/launcher/internal/launcher/sign_in_gen.go'), pkg: 'launcher' },
-];
+const OUT = resolve(ROOT, 'packages/sdk-go/signin_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {
@@ -52,13 +49,13 @@ const fields = schema.fields.map(({ name, description, isTime, required: must })
 const lowerFirst = (text) => `${text[0].toLowerCase()}${text.slice(1)}`;
 const requiredName = `${lowerFirst(schema.title)}Required`;
 
-const text = (pkg) => `// Code generated from specs/src/sign-in-store/SignIn.json — DO NOT EDIT.
+const text = `// Code generated from specs/src/sign-in-store/SignIn.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-sign-in-go.mjs
-// The Rust side (semiont::sign_in_store) generates its entry from the same
-// schema.
+// The Rust (semiont::sign_in_store) and Python (semiont.sign_in) SDKs generate
+// their entries from the same schema.
 
-package ${pkg}
+package semiont
 ${fields.some((field) => field.usesTime) ? '\nimport "time"\n' : ''}
 ${goComment(`${schema.title}: ${schema.description}`)}
 type ${schema.title} struct {
@@ -70,5 +67,5 @@ ${fields.map((field) => field.text).join('\n\n')}
 var ${requiredName} = []string{${required.map((name) => JSON.stringify(name)).join(', ')}}
 `;
 
-for (const { path, pkg } of OUTS) writeOrCheck(ROOT, path, text(pkg), CHECK);
+writeOrCheck(ROOT, OUT, text, CHECK);
 console.log(`properties: ${schema.fields.length}, required: ${required.length}`);

@@ -133,6 +133,7 @@ func Listen(args []string) int {
 	if !ok {
 		return 1
 	}
+	defer t.Close()
 	// The stream names the channels globally; a scope's arrive on the scope.
 	var global []bus.Channel
 	if scope == "" {

@@ -245,6 +245,12 @@ func (s *stream) abort(conn uint64) {
 }
 
 func (s *stream) connect(keepPrevious bool) {
+	// A transport that carries nothing opens no stream: one held only for the
+	// gateway's own operations, or to ask who a token is, makes no request of
+	// the bus. Taking a resource's scope gives it something to carry.
+	if len(s.shared.global) == 0 && len(s.scoped) == 0 {
+		return
+	}
 	// A connect with no token cannot succeed, and neither can one that sends
 	// again the token the gateway just refused. Neither is attempted: the
 	// client waits, with no request, for a different one.

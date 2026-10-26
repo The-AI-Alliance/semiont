@@ -240,6 +240,7 @@ options:
 	if !ok {
 		return 1
 	}
+	defer t.Close()
 	b := t.Bus()
 	defer b.Close()
 

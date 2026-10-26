@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1075,15 +1076,17 @@ func roleHealthy(role, endpoint string) bool {
 		// function cannot speak for; the generic prober still can.
 		return probeHealth(endpoint)
 	}
-	cli, err := semiont.NewHealthClient(base)
-	if err != nil {
-		return false
-	}
+	// Asked with no token, by a transport that opens no stream without one.
+	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
+		BaseURL: base, Token: semiont.NewWatched(""),
+		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
+	})
+	defer asker.Close()
 	// The budget matches the generic prober's, so one slow role cannot stall
 	// a status report longer than any other.
 	ctx, cancel := context.WithTimeout(context.Background(), healthProbeTimeout)
 	defer cancel()
-	_, err = cli.HealthCheck(ctx)
+	_, _, err := asker.HealthCheck(ctx)
 	return err == nil
 }
 

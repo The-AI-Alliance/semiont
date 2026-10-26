@@ -173,6 +173,7 @@ options:
 		if !ok {
 			return 1
 		}
+		defer t.Close()
 		return runYieldDelegate(u, t, rid, aid, request, asJSON)
 	}
 	if len(uploads) == 0 {
@@ -233,10 +234,11 @@ options:
 		}
 	}
 
-	sess, ok := launcher.LoadSession(u, key, base)
+	sess, ok := launcher.LoadSession(u, "yield", key, base)
 	if !ok {
 		return 1
 	}
+	defer sess.Close()
 
 	cli, err := api.NewClientWithResponses(base)
 	if err != nil {

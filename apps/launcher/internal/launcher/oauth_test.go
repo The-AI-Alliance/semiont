@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // `semiont login` shows the one-time code AND the verification URI, always,
@@ -21,13 +23,14 @@ import (
 // step's stdin is commonly /dev/null, which IS a character device, and would
 // read as interactive.
 func TestPromptToOpenAlwaysShowsTheCodeAndURI(t *testing.T) {
-	da := deviceAuthorization{
+	code := semiont.DeviceCode{
 		UserCode:                "ABCD-1234",
 		VerificationURI:         "https://issuer.test/device",
 		VerificationURIComplete: "https://issuer.test/device?user_code=ABCD-1234",
+		ExpiresIn:               10 * time.Minute,
 	}
 	s := harness.CaptureStdout(t, func() {
-		promptToOpen(NewUI(false), da, da.VerificationURIComplete, 10*time.Minute)
+		promptToOpen(NewUI(false), code)
 	})
 	// The code comes first and verbatim: a person has to compare it against the
 	// page, and retype it if they approve on another machine.
