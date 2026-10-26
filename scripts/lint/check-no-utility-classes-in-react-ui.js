@@ -20,6 +20,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { repositoryFiles } = require('./repository-files.mjs');
 
 // Common utility-class patterns from various frameworks
 // These patterns are shared across Tailwind, UnoCSS, Windi, Tachyons, Bootstrap, and others
@@ -143,37 +144,21 @@ function checkFileForUtilityClasses(filePath) {
 }
 
 /**
- * Recursively find all TSX/JSX files in a directory
+ * The TSX/JSX files under packages/react-ui/src that git says the repository
+ * holds (repository-files.mjs), tests left out
  */
 function findReactUIFiles() {
-  const reactUiSrc = path.join(__dirname, '../../packages/react-ui/src');
+  const root = path.join(__dirname, '..', '..');
+  const files = repositoryFiles(root)
+    .filter((file) => file.startsWith('packages/react-ui/src/') && /\.[jt]sx$/.test(file))
+    .filter((file) => !file.includes('/__tests__/') && !/\.(test|spec)\.[jt]sx$/.test(file));
 
-  if (!fs.existsSync(reactUiSrc)) {
-    console.error('Error: packages/react-ui/src not found');
+  if (files.length === 0) {
+    console.error('Error: packages/react-ui/src holds no TSX or JSX files');
     process.exit(1);
   }
 
-  const files = [];
-
-  function walk(dir) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === '__tests__') continue;
-        walk(fullPath);
-      } else if (entry.isFile()) {
-        if (entry.name.endsWith('.test.tsx') || entry.name.endsWith('.test.jsx') ||
-            entry.name.endsWith('.spec.tsx') || entry.name.endsWith('.spec.jsx')) continue;
-        if (entry.name.endsWith('.tsx') || entry.name.endsWith('.jsx')) {
-          files.push(fullPath);
-        }
-      }
-    }
-  }
-
-  walk(reactUiSrc);
-  return files;
+  return files.map((file) => path.join(root, file));
 }
 
 /**

@@ -122,7 +122,7 @@ function walk(dir, exts, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
     if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) walk(p, exts, out); }
-    else if (exts.some((x) => e.name.endsWith(x)) && !e.name.includes('.test.')) out.push(p);
+    else if (e.isFile() && exts.some((x) => e.name.endsWith(x)) && !e.name.includes('.test.')) out.push(p);
   }
   return out;
 }

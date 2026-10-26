@@ -21,8 +21,9 @@
  * dependency here, and a gate that breaks when something else bumps its deps
  * fails for a reason that has nothing to do with what it checks.
  */
-import { readFileSync, readdirSync, existsSync } from 'fs';
-import { basename, dirname } from 'path';
+import { readFileSync } from 'fs';
+import { basename } from 'path';
+import { workspaceDirectories } from './workspaces.mjs';
 
 const CODECOV = 'codecov.yml';
 const WORKFLOW = '.github/workflows/package-tests.yml';
@@ -53,37 +54,7 @@ const read = (file) => {
 
 // ---------- what declares coverage ----------
 
-/**
- * Expand the `workspaces` globs against the filesystem.
- *
- * Deliberately NOT `npm query .workspace`: that reads the INSTALLED tree, so a
- * package added but not yet installed is invisible to it — which is the exact
- * moment this gate exists to catch. Reading the globs needs no install, no
- * lockfile and no subprocess.
- */
-function workspaceDirectories() {
-  const globs = JSON.parse(readFileSync('package.json', 'utf8')).workspaces ?? [];
-  const dirs = [];
-  for (const glob of globs) {
-    if (!glob.includes('*')) {
-      if (existsSync(`${glob}/package.json`)) dirs.push(glob);
-      continue;
-    }
-    const parent = dirname(glob);
-    let entries;
-    try {
-      entries = readdirSync(parent, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      if (e.isDirectory() && existsSync(`${parent}/${e.name}/package.json`)) dirs.push(`${parent}/${e.name}`);
-    }
-  }
-  return dirs;
-}
-
-const workspaces = workspaceDirectories()
+const workspaces = workspaceDirectories(process.cwd())
   // Keyed by DIRECTORY basename, not npm name: every list this gate compares is
   // written that way — the matrix interpolates `packages/${matrix.package}`, and
   // the flags scope `apps/browser/**`. `apps/browser` is the npm package
