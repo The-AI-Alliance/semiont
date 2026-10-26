@@ -22,33 +22,11 @@
  *
  * A workspace that cannot be read is a FAILURE, not a pass.
  */
-import { readFileSync, readdirSync, existsSync } from 'fs';
-import { basename, dirname } from 'path';
+import { readFileSync, readdirSync } from 'fs';
+import { basename } from 'path';
+import { workspaceDirectories } from './workspaces.mjs';
 
 const SHARED = 'vitest.shared.config';
-
-/** Expand `workspaces` globs against the filesystem — no install required. */
-function workspaceDirectories() {
-  const globs = JSON.parse(readFileSync('package.json', 'utf8')).workspaces ?? [];
-  const dirs = [];
-  for (const glob of globs) {
-    if (!glob.includes('*')) {
-      if (existsSync(`${glob}/package.json`)) dirs.push(glob);
-      continue;
-    }
-    const parent = dirname(glob);
-    let entries;
-    try {
-      entries = readdirSync(parent, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      if (e.isDirectory() && existsSync(`${parent}/${e.name}/package.json`)) dirs.push(`${parent}/${e.name}`);
-    }
-  }
-  return dirs;
-}
 
 /** The package's own vitest config, excluding purpose-built extra configs. */
 function configFor(dir) {
@@ -67,7 +45,7 @@ function configFor(dir) {
 const problems = [];
 let checked = 0;
 
-for (const dir of workspaceDirectories()) {
+for (const dir of workspaceDirectories(process.cwd())) {
   let pkg;
   try {
     pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8'));
