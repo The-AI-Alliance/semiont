@@ -54,21 +54,25 @@ const read = (file) => {
 
 // ---------- what declares coverage ----------
 
+/** A workspace's manifest. One that cannot be read or parsed fails the gate, as any block it reads does. */
+const manifestOf = (dir) => {
+  const file = `${dir}/package.json`;
+  const content = read(file);
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    console.error(`\n✖ cannot parse ${file} (${error.message}) — this gate cannot answer its question without it.\n`);
+    process.exit(1);
+  }
+};
+
 const workspaces = workspaceDirectories(process.cwd())
   // Keyed by DIRECTORY basename, not npm name: every list this gate compares is
   // written that way — the matrix interpolates `packages/${matrix.package}`, and
   // the flags scope `apps/browser/**`. `apps/browser` is the npm package
   // `semiont-browser`, so keying by npm name silently matches nothing.
   .map((dir) => ({ name: basename(dir), dir }))
-  .filter((w) => {
-    let pkg;
-    try {
-      pkg = JSON.parse(readFileSync(`${w.dir}/package.json`, 'utf8'));
-    } catch {
-      return false;
-    }
-    return Boolean(pkg.scripts?.['test:coverage']);
-  });
+  .filter((w) => Boolean(manifestOf(w.dir).scripts?.['test:coverage']));
 
 // ---------- what the matrix runs ----------
 
