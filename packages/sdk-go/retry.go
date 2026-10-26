@@ -9,6 +9,7 @@ package semiont
 // client keeps are specs/src/client/timing.json's (Timing).
 
 import (
+	"context"
 	"math/rand/v2"
 	"regexp"
 	"strconv"
@@ -119,4 +120,39 @@ func RetryAfter(header string) (wait time.Duration, ok bool) {
 func EqualJitter(cap time.Duration) time.Duration {
 	half := cap / 2
 	return half + time.Duration(rand.Int64N(int64(cap-half)+1))
+}
+
+// retryWithBackoff runs attempt until it succeeds, the policy's attempts are
+// spent, or it fails in a way retryable does not accept. The wait before each
+// further attempt is the policy's jittered backoff, and never less than the
+// wait the failure itself stated (a refusal's Retry-After). A context that is
+// done ends the wait in progress, and its error is returned; otherwise the
+// last failure is returned as it was.
+func retryWithBackoff[T any](
+	ctx context.Context,
+	policy RetryPolicy,
+	attempt func(context.Context) (T, error),
+	retryable func(error) bool,
+	stated func(error) (time.Duration, bool),
+) (T, error) {
+	limit := policy.InitialDelay
+	for made := 1; ; made++ {
+		value, err := attempt(ctx)
+		if err == nil || made >= policy.Attempts || ctx.Err() != nil || !retryable(err) {
+			return value, err
+		}
+		wait := EqualJitter(limit)
+		if floor, ok := stated(err); ok && floor > wait {
+			wait = floor
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			var none T
+			return none, ctx.Err()
+		case <-timer.C:
+		}
+		limit = min(limit*2, policy.MaxDelay)
+	}
 }

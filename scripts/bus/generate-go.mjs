@@ -110,6 +110,7 @@ func (c Channel) Emittable() bool {
 // the broadcasts; the full set adds every operation's reply channels, which
 // are derived here exactly as the TypeScript side derives them.
 const bridgedRows = reg.audience.everyone.map((c) => `\t${goName(c)},`);
+const scopedRows = reg.audience.scoped.map((c) => `\t${goName(c)},`);
 
 const bridgedGo = `${BANNER}
 package bus
@@ -142,6 +143,14 @@ func Bridged(c Channel) bool {
 \t\t}
 \t}
 \treturn false
+}
+
+// ResourceScopedChannels: the channels a resource's scope carries, which a
+// client holding the scope names in that scope's entry of its subscription.
+// Disjoint from BridgedChannels: a channel in both would reach a client twice,
+// under two ids.
+var ResourceScopedChannels = []Channel{
+${scopedRows.join('\n')}
 }
 `;
 

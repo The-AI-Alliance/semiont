@@ -52,3 +52,23 @@ func Bridged(c Channel) bool {
 	}
 	return false
 }
+
+// ResourceScopedChannels: the channels a resource's scope carries, which a
+// client holding the scope names in that scope's entry of its subscription.
+// Disjoint from BridgedChannels: a channel in both would reach a client twice,
+// under two ids.
+var ResourceScopedChannels = []Channel{
+	MarkBodyUpdated,
+	YieldRepresentationAdded,
+	YieldRepresentationRemoved,
+	MarkAdded,
+	MarkRemoved,
+	MarkEntityTagAdded,
+	MarkEntityTagRemoved,
+	MarkArchived,
+	MarkUnarchived,
+	JobStarted,
+	JobAssigned,
+	JobCompleted,
+	JobFailed,
+}
