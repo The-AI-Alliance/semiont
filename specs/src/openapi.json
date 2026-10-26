@@ -225,6 +225,9 @@
       "BrowseDirectoryResult": {
         "$ref": "components/schemas/BrowseDirectoryResult.json"
       },
+      "BrowseDirectoryResultResponse": {
+        "$ref": "components/schemas/BrowseDirectoryResultResponse.json"
+      },
       "BrowseEntityTypeClickedEvent": {
         "$ref": "components/schemas/BrowseEntityTypeClickedEvent.json"
       },
@@ -402,6 +405,9 @@
       "GatherResourceRequest": {
         "$ref": "components/schemas/GatherResourceRequest.json"
       },
+      "GatherResourceRequestOptions": {
+        "$ref": "components/schemas/GatherResourceRequestOptions.json"
+      },
       "GatherSummaryRequest": {
         "$ref": "components/schemas/GatherSummaryRequest.json"
       },
@@ -440,6 +446,9 @@
       },
       "GetReferencedByResponse": {
         "$ref": "components/schemas/GetReferencedByResponse.json"
+      },
+      "GetReferencedByResponseReferencedByItem": {
+        "$ref": "components/schemas/GetReferencedByResponseReferencedByItem.json"
       },
       "GetResourceByTokenResponse": {
         "$ref": "components/schemas/GetResourceByTokenResponse.json"
@@ -491,6 +500,9 @@
       },
       "JobCreatedResult": {
         "$ref": "components/schemas/JobCreatedResult.json"
+      },
+      "JobCreatedResultResponse": {
+        "$ref": "components/schemas/JobCreatedResultResponse.json"
       },
       "JobFailCommand": {
         "$ref": "components/schemas/JobFailCommand.json"
@@ -626,6 +638,9 @@
       },
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
+      },
+      "MarkCreateOkResponse": {
+        "$ref": "components/schemas/MarkCreateOkResponse.json"
       },
       "MarkCommitCommand": {
         "$ref": "components/schemas/MarkCommitCommand.json"

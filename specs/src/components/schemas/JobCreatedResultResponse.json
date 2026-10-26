@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "$ref": "./JobId.json"
+    }
+  },
+  "required": [
+    "jobId"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "The created annotation's identity.",
+  "properties": {
+    "annotationId": {
+      "$ref": "./AnnotationId.json"
+    }
+  },
+  "required": [
+    "annotationId"
+  ]
+}
