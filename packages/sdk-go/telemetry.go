@@ -3,13 +3,14 @@ package semiont
 // What this SDK's transports tell OpenTelemetry: the spans and the count the
 // SDK telemetry table lists (telemetry_gen.go), a span for each frame sent and
 // each received, one for each upload and each read, and a count of the emits
-// sent. It takes OpenTelemetry's API alone, so nothing here is recorded or
-// sent until the process installs a provider; the tracer and the meter are
-// taken at each use, so a provider installed after a client opened is told
-// all the same.
+// sent. It takes OpenTelemetry's API alone, so every OpenTelemetry choice is
+// the application's: nothing here is recorded or sent until the process
+// installs a provider, and no trace context travels until it installs a
+// propagator (W3C's, for the traceparent and tracestate every Semiont service
+// reads). The tracer, the meter and the propagator are taken at each use, so
+// what is installed after a client opened is used all the same.
 //
-// Trace context crosses the wire as W3C's traceparent and tracestate. A
-// request carries the trace it was made in. A frame brings the trace it was
+// A request carries the trace it was made in. A frame brings the trace it was
 // sent under, and the span that marks its arrival continues it.
 
 import (
@@ -32,10 +33,6 @@ import (
 // instrumentationScope is the scope every span and count here is made under.
 const instrumentationScope = "semiont"
 
-// w3c is W3C's propagator, named outright: which propagators a process is
-// configured with is not this SDK's to read.
-var w3c propagation.TraceContext
-
 // TraceContext is a trace as the wire carries one: what a frame was sent
 // under. Its zero value is no trace.
 type TraceContext struct {
@@ -56,25 +53,27 @@ func (t TraceContext) carrier() propagation.MapCarrier {
 
 // Continuing is ctx holding trace: a span started under it continues that
 // trace, as the work done for a frame continues the trace the frame brought
-// (Frame.Trace). With no trace it is ctx.
+// (Frame.Trace). With no trace, or no propagator installed to read one, it is
+// ctx.
 func Continuing(ctx context.Context, trace TraceContext) context.Context {
 	if trace.IsZero() {
 		return ctx
 	}
-	return w3c.Extract(ctx, trace.carrier())
+	return otel.GetTextMapPropagator().Extract(ctx, trace.carrier())
 }
 
-// activeTrace is the trace ctx is in, as the wire carries one.
+// activeTrace is the trace ctx is in, as the wire carries one: none when it is
+// in none, or no propagator is installed to write one.
 func activeTrace(ctx context.Context) TraceContext {
 	carrier := propagation.MapCarrier{}
-	w3c.Inject(ctx, carrier)
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	return TraceContext{Traceparent: carrier.Get("traceparent"), Tracestate: carrier.Get("tracestate")}
 }
 
 // carryTrace puts the trace ctx is in on a request's headers: none when it is
-// in none.
+// in none, or no propagator is installed to write one.
 func carryTrace(ctx context.Context, header http.Header) {
-	w3c.Inject(ctx, propagation.HeaderCarrier(header))
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(header))
 }
 
 // withoutTrace is a frame's payload without the trace it rides in, and that
