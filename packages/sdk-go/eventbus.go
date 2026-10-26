@@ -156,3 +156,14 @@ func Publish[P any](b *EventBus, c bus.Global[P], payload P, envelope Envelope) 
 func Published[P any](ctx context.Context, b *EventBus, c bus.Global[P]) iter.Seq2[Delivered[P], error] {
 	return typed[P](b.FramesOn(ctx, c.Channel(), api.ResourceId{}))
 }
+
+// Decoded is frame read as a frame of c, its payload decoded: how a reader
+// of several channels at once (FramesAmong) reads each frame, by its channel.
+// A frame of another channel, or a payload that is not c's, is a
+// *TransportError saying so.
+func Decoded[P any](c bus.Global[P], frame Frame) (Delivered[P], error) {
+	if frame.Channel != c.Channel() {
+		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a frame on %s read as one on %s", frame.Channel, c.Channel()), TransportErrorCodeError)
+	}
+	return delivered[P](frame)
+}
