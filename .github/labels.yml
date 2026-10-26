@@ -33,6 +33,12 @@
 - name: "kind:security"
   color: "b60205"
   description: "A vulnerability, an advisory or a security alert"
+- name: "kind:refactor"
+  color: "8250df"
+  description: "Restructures code without changing what it does: renames, moves, splits, consolidations, ports"
+- name: "kind:ci"
+  color: "bf8700"
+  description: "Build, CI or release: the workflows, the scripts they run, and the releases they make"
 
 # verb: the eight verbs, the namespaces of specs/src/client/surface.json:
 # writing (yield, mark, bind, frame), reading (browse, match, gather),
