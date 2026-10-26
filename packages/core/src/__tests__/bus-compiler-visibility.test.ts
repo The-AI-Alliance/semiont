@@ -28,24 +28,9 @@
  * untyped, and on re-typing a read view WRITABLE (the second shape below).
  */
 import { describe, test, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { dirname, join, relative } from 'path';
-import { fileURLToPath } from 'url';
-
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SKIP = new Set(['node_modules', '.venv', 'dist', '.git', 'coverage', '.next', 'build']);
-
-function* sources(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP.has(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) yield* sources(full);
-    else if (/\.tsx?$/.test(entry)) yield full;
-  }
-}
-
-const stripComments = (source: string) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { REPO, stripComments, typeScriptFiles } from './repository-files';
 
 /**
  * Two shapes, both measured to blind the compiler about the bus:
@@ -61,14 +46,9 @@ const BLINDED =
 describe('the compiler can see every bus call site', () => {
   test('no bus verb is reached through an any-typed receiver', () => {
     const offenders: string[] = [];
-    for (const file of sources(join(REPO, 'packages'))) {
-      for (const m of stripComments(readFileSync(file, 'utf-8')).matchAll(BLINDED)) {
-        offenders.push(`${relative(REPO, file)} — ${m[0].trim()}`);
-      }
-    }
-    for (const file of sources(join(REPO, 'apps'))) {
-      for (const m of stripComments(readFileSync(file, 'utf-8')).matchAll(BLINDED)) {
-        offenders.push(`${relative(REPO, file)} — ${m[0].trim()}`);
+    for (const file of typeScriptFiles('packages', 'apps')) {
+      for (const m of stripComments(readFileSync(join(REPO, file), 'utf-8')).matchAll(BLINDED)) {
+        offenders.push(`${file} — ${m[0].trim()}`);
       }
     }
     expect(

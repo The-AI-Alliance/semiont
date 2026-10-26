@@ -36,11 +36,18 @@
  * is this person called", and the one that wins would be whichever ran last.
  * The resolver is Python and the rest of the tree is TypeScript and Python,
  * so this rule reads the source of both.
+ *
+ * The files read are the TypeScript and Python under each package's and app's
+ * `src` that git says the repository holds (`repository-files.mjs`), tests
+ * left out: a fixture may build provenance by hand, and is no second
+ * definition of it.
  */
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { repositoryFiles } from './repository-files.mjs';
 
-const ROOT = new URL('../../', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const ALLOWED = 'packages/core/src/did-utils.ts';
 /** Where a Person Agent acquires a name — the read-side resolver, and only it. */
 const NAMES_A_PERSON = 'apps/librarian/src/semiont_librarian/naming.py';
@@ -56,39 +63,22 @@ const CONSTRUCTION = new RegExp([
   String.raw`\bwasAttributedTo\s*[:=]\s*(?:\[|creator\b)`, // a key or assignment from a literal / from creator
 ].join('|'));
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-types', '__tests__', 'generated', '__pycache__']);
-const SKIP_FILES = (name) =>
-  name.endsWith('.test.ts') || name.endsWith('.d.ts') || name.endsWith('.d.cts') || name === 'types.ts';
+/** A package's or an app's source directory, `packages/<name>/src` or `apps/<name>/src`, at the head of a path. */
+const SOURCE_ROOT = /^(?:packages|apps)\/[^/]+\/src(?=\/)/;
+const TEST = /(^|\/)__tests__\/|\.test\.ts$/;
 
-function* walk(dir) {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry)) continue;
-    const full = join(dir, entry);
-    const st = statSync(full);
-    if (st.isDirectory()) yield* walk(full);
-    else if ((entry.endsWith('.ts') && !SKIP_FILES(entry)) || entry.endsWith('.py')) yield full;
-  }
-}
-
-const roots = [];
-for (const top of ['packages', 'apps']) {
-  for (const pkg of readdirSync(join(ROOT, top))) {
-    const src = join(ROOT, top, pkg, 'src');
-    try { if (statSync(src).isDirectory()) roots.push(src); } catch { /* no src */ }
-  }
-}
+const sources = repositoryFiles(ROOT).filter((file) => SOURCE_ROOT.test(file));
+const roots = new Set(sources.map((file) => SOURCE_ROOT.exec(file)[0]));
 
 const hits = [];
 const nameHits = [];
-for (const root of roots) {
-  for (const file of walk(root)) {
-    const lines = readFileSync(file, 'utf8').split('\n');
-    lines.forEach((line, i) => {
-      const where = { file: relative(ROOT, file), line: i + 1, text: line.trim() };
-      if (CONSTRUCTION.test(line)) hits.push(where);
-      if (PERSON_NAMING.test(line)) nameHits.push(where);
-    });
-  }
+for (const file of sources.filter((f) => (f.endsWith('.ts') || f.endsWith('.py')) && !TEST.test(f))) {
+  const lines = readFileSync(join(ROOT, file), 'utf8').split('\n');
+  lines.forEach((line, i) => {
+    const where = { file, line: i + 1, text: line.trim() };
+    if (CONSTRUCTION.test(line)) hits.push(where);
+    if (PERSON_NAMING.test(line)) nameHits.push(where);
+  });
 }
 
 const allowed = hits.filter((h) => h.file === ALLOWED);
@@ -119,4 +109,4 @@ if (namedElsewhere.length > 0) {
 }
 
 if (failed) process.exit(1);
-console.log(`✓ lint:attribution — wasAttributedTo is constructed in one place (${ALLOWED}), a Person is named in one place (${NAMES_A_PERSON}), ${roots.length} source roots checked`);
+console.log(`✓ lint:attribution — wasAttributedTo is constructed in one place (${ALLOWED}), a Person is named in one place (${NAMES_A_PERSON}), ${roots.size} source roots checked`);

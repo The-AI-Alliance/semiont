@@ -1,12 +1,14 @@
 """What this SDK's transports tell OpenTelemetry (`specs/src/sdk-telemetry/telemetry.json`).
 
-It takes OpenTelemetry's API and nothing more, so every call here does nothing
-until the process it runs in installs a provider: an application's own, or
-none. What is told is the table's: a span for each frame sent and each
-received, a span for each upload and each read, and a count of the emits sent.
+It takes OpenTelemetry's API and nothing more, so every OpenTelemetry choice is
+the application's: every call here does nothing until the process it runs in
+installs a provider, and a trace travels by whichever propagator the process
+is configured with (OpenTelemetry's API takes W3C's `traceparent` and
+`tracestate`, and baggage, unless `OTEL_PROPAGATORS` says otherwise). What is
+told is the table's: a span for each frame sent and each received, a span for
+each upload and each read, and a count of the emits sent.
 
-Trace context crosses the wire as W3C's `traceparent` and `tracestate`. A
-request carries the context it was made in. A frame brings the context it was
+A request carries the context it was made in. A frame brings the context it was
 sent under, and the span that marks its arrival continues that trace. Work
 done for a frame, or for a job a worker holds, is done `continuing` the trace
 it brought. What is nobody's to continue is done `untraced`, and begins a
@@ -19,8 +21,8 @@ from typing import Final, assert_never
 
 from opentelemetry import metrics, trace
 from opentelemetry.context import Context, attach, detach, get_current
+from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from semiont.telemetry_table import (
     BUS_EMIT,
@@ -53,8 +55,6 @@ __all__ = [
 _SCOPE: Final = "semiont"
 _TRACER: Final = trace.get_tracer(_SCOPE)
 _SENT: Final = metrics.get_meter(_SCOPE).create_counter(SEMIONT_BUS_SENT.name, description="Emits the client sent")
-# W3C's, named outright: which propagators a process is configured with is not this SDK's to read.
-_W3C: Final = TraceContextTextMapPropagator()
 _CHANNEL: Final = "{channel}"
 
 # What an attribute of this SDK's telemetry is.
@@ -90,7 +90,7 @@ def _on_the_bus(channel: str, scope: str | None) -> dict[str, _Attribute]:
 def trace_headers() -> dict[str, str]:
     """The headers that carry the trace a request is made in: none when it is made in none."""
     carrier: dict[str, str] = {}
-    _W3C.inject(carrier)
+    inject(carrier)
     return carrier
 
 
@@ -119,7 +119,7 @@ def continuing(trace: TraceContext | None) -> Generator[None]:
     if trace is None:
         yield
         return
-    held = attach(_W3C.extract(_carrier(trace), get_current()))
+    held = attach(extract(_carrier(trace), get_current()))
     try:
         yield
     finally:
@@ -154,7 +154,7 @@ def received(channel: str, scope: str | None, sent_under: TraceContext | None) -
     Returns the trace the work done for the frame continues: the arrival's
     own span when one was recorded, and what the frame brought otherwise.
     """
-    parent = None if sent_under is None else _W3C.extract(_carrier(sent_under))
+    parent = None if sent_under is None else extract(_carrier(sent_under))
     with _span(BUS_RECV, _on_the_bus(channel, scope), channel=channel, parent=parent):
         return active() or sent_under
 

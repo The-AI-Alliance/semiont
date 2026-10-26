@@ -31,24 +31,9 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { dirname, join, relative } from 'path';
-import { fileURLToPath } from 'url';
-
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SKIP = new Set(['node_modules', '.venv', 'dist', '.git', 'coverage', '.next', 'build']);
-
-function* sources(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP.has(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) yield* sources(full);
-    else if (/\.tsx?$/.test(entry)) yield full;
-  }
-}
-
-const stripComments = (source: string) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { REPO, stripComments, typeScriptFiles } from './repository-files';
 
 /**
  * Two shapes:
@@ -63,14 +48,12 @@ const PAYLOAD_READS: ReadonlyArray<readonly [string, RegExp]> = [
 describe('nothing reads correlationId out of a payload', () => {
   test('neither by navigation nor through a cast', () => {
     const offenders: string[] = [];
-    for (const root of ['packages', 'apps']) {
-      for (const file of sources(join(REPO, root))) {
-        const source = stripComments(readFileSync(file, 'utf-8'));
-        for (const [why, pattern] of PAYLOAD_READS) {
-          for (const m of source.matchAll(pattern)) {
-            const line = source.slice(0, m.index).split('\n').length;
-            offenders.push(`${relative(REPO, file)}:${line} — ${why}: ${m[0].trim()}`);
-          }
+    for (const file of typeScriptFiles('packages', 'apps')) {
+      const source = stripComments(readFileSync(join(REPO, file), 'utf-8'));
+      for (const [why, pattern] of PAYLOAD_READS) {
+        for (const m of source.matchAll(pattern)) {
+          const line = source.slice(0, m.index).split('\n').length;
+          offenders.push(`${file}:${line} — ${why}: ${m[0].trim()}`);
         }
       }
     }
