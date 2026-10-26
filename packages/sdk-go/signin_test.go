@@ -11,10 +11,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // stack is a stand-in gateway and the issuer it trusts. Each handler of the
@@ -258,7 +262,7 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	store, entry := keptAt(t, s, 1)
 	token := NewVariable("")
 	session, err := ResumeSession(context.Background(), ResumeConfig{
-		KbID: "local", BaseURL: s.gateway.URL, Kept: entry, Token: token,
+		Kb: gatewayTarget(t, "local", s.gateway.URL), Kept: entry, Token: token,
 		HTTP: &http.Client{}, Timing: quickTiming(), AskWhoTokenIs: true,
 		OnError: func(err *SessionError) { t.Errorf("the session said %s: %s", err.Code, err.Message) },
 	})
@@ -274,8 +278,8 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	if token.Value() != signedToken(2) {
 		t.Error("the session does not hold the renewed token")
 	}
-	if user, ok := session.User(); !ok || user.Email != "a@example.com" {
-		t.Errorf("the session says it is %+v (%v)", user, ok)
+	if user := session.User().Value(); user == nil || user.Email != "a@example.com" {
+		t.Errorf("the session says it is %+v", user)
 	}
 	if signIn, _, _ := store.SignIn("local"); signIn.RefreshToken != "refresh-2" {
 		t.Errorf("the rotation was not kept: %+v", signIn)
@@ -316,4 +320,23 @@ func TestSigningOutForgetsTheSignInWhateverTheIssuerAnswers(t *testing.T) {
 	if _, kept, _ := store.SignIn("local"); kept {
 		t.Error("the sign-in is still kept after an issuer that could not be told")
 	}
+}
+
+// gatewayTarget is the knowledge base id, at the gateway whose origin is
+// origin.
+func gatewayTarget(t *testing.T, id, origin string) api.KbTarget {
+	t.Helper()
+	at, err := url.Parse(origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(at.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var endpoint api.KbEndpoint
+	if err := endpoint.FromHttpEndpoint(api.HttpEndpoint{Kind: api.HttpEndpointKindHttp, Protocol: api.HttpEndpointProtocol(at.Scheme), Host: at.Hostname(), Port: port}); err != nil {
+		t.Fatal(err)
+	}
+	return api.KbTarget{Id: id, Label: id, Endpoint: endpoint}
 }

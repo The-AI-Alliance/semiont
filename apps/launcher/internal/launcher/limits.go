@@ -57,13 +57,12 @@ func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 	// The same session every verb holds, renewed as theirs is. No session
 	// means no report, and no refusal printed: status never prompts and never
 	// resolves secrets.
-	sess, err := resume(u, "local", base)
+	sess, err := resume(u, "local", base, nil)
 	if err != nil {
 		return nil
 	}
 	defer sess.Close()
 	platform := sess.Client()
-	defer platform.Close()
 	if platform.Reached() != nil {
 		return nil
 	}

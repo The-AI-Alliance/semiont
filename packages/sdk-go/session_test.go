@@ -124,7 +124,7 @@ func (w *world) validate(_ context.Context, token string) (api.UserResponse, err
 func (w *world) start(t *testing.T) *semiont.Session {
 	t.Helper()
 	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
-		KbID:     kb,
+		Kb:       api.KbTarget{Id: kb},
 		Token:    w.token,
 		Kept:     w.kept,
 		Refresh:  w.refresh,
@@ -193,7 +193,7 @@ func ends(session *semiont.Session, w *world) string {
 	if w.token.Value() == "" {
 		return "signed-out"
 	}
-	if _, ok := session.User(); !ok {
+	if session.User().Value() == nil {
 		return "unconfirmed"
 	}
 	return "signed-in"
@@ -336,7 +336,7 @@ func TestASessionClosedWhileItStartsIsReadyAndSaysNothing(t *testing.T) {
 	asking := make(chan struct{})
 	release := make(chan struct{})
 	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
-		KbID: kb, Token: w.token, Kept: w.kept, Refresh: w.refresh,
+		Kb: api.KbTarget{Id: kb}, Token: w.token, Kept: w.kept, Refresh: w.refresh,
 		Validate: func(ctx context.Context, token string) (api.UserResponse, error) {
 			close(asking)
 			select {

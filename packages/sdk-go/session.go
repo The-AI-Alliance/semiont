@@ -12,8 +12,11 @@ package semiont
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
@@ -104,9 +107,12 @@ func (m *MemorySignIn) Forget(context.Context) error {
 
 // SessionConfig is what a session is made of.
 type SessionConfig struct {
-	// KbID is the knowledge base the session is with: the key its sign-in is
-	// kept under.
-	KbID string
+	// Kb is the knowledge base the session is with: where it is reached, and
+	// Id, the key its sign-in is kept under.
+	Kb api.KbTarget
+	// Client is the client whose transport sends the session's token. The
+	// session only uses it: whoever made the client and the session ends both.
+	Client *Client
 	// Token is the token the transport sends: "" for none.
 	Token *Variable[string]
 	// Kept is where the session's sign-in is kept.
@@ -142,12 +148,16 @@ type Session struct {
 	// arrive during it are answered by it.
 	answering sync.Mutex
 
-	mu      sync.Mutex
-	user    api.UserResponse
-	hasUser bool
+	// id is which live session this is: a new one for the same knowledge
+	// base has another.
+	id   string
+	user *Variable[*api.UserResponse]
 }
 
-var _ TokenRefresher = (*Session)(nil)
+var (
+	_ TokenRefresher = (*Session)(nil)
+	_ StateUnit      = (*Session)(nil)
+)
 
 const justIssuedAndRefused = "The gateway refused a token its issuer had just issued"
 
@@ -171,7 +181,7 @@ func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 		config.Token.Set(kept.Access)
 	}
 	alive, cancel := context.WithCancel(context.Background())
-	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{})}
+	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil)}
 	s.work.Add(2)
 	go func() {
 		defer s.work.Done()
@@ -209,19 +219,30 @@ func (s *Session) Ready(ctx context.Context) error {
 	}
 }
 
-// User is who the gateway said the session's token is; false until it has
-// said, and once the session is signed out.
-func (s *Session) User() (api.UserResponse, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.user, s.hasUser
-}
+// Id is which live session this is: a new one for the same knowledge base
+// has another.
+func (s *Session) Id() string { return s.id }
 
-func (s *Session) setUser(user api.UserResponse, has bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.user, s.hasUser = user, has
-}
+// Kb is the knowledge base the session is with.
+func (s *Session) Kb() api.KbTarget { return s.config.Kb }
+
+// Client is the client whose transport sends the session's token.
+func (s *Session) Client() *Client { return s.config.Client }
+
+// Token is the token the transport sends: the present one, and each after it;
+// "" for none.
+func (s *Session) Token() Watched[string] { return s.config.Token }
+
+// User is who the gateway said the session's token is: nil until it has
+// said, and once the session is signed out.
+func (s *Session) User() Watched[*api.UserResponse] { return s.user }
+
+// StreamState is the state of the client's connection.
+func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Client.Transport.State() }
+
+// Errors is the failures the client's transport meets, from now on. A host
+// routes them: a refusal for want of a valid token is a reason to Refresh.
+func (s *Session) Errors() iter.Seq[*TransportError] { return s.config.Client.Transport.Failures() }
 
 // ExpiresAt is when the token the session holds expires; false when it holds
 // none, or the token names no time.
@@ -234,12 +255,15 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 }
 
 // Close ends the session: it renews nothing more and asks nobody anything,
-// and it returns once what it was running has stopped. Closing twice is
-// closing once. The token is left as it is, for whoever made it.
+// its token and who is signed in change no more, and it returns once what it
+// was running has stopped. Closing twice is closing once. Its client is left
+// to whoever made it.
 func (s *Session) Close() {
 	s.cancel()
 	s.markReady()
 	s.work.Wait()
+	s.config.Token.End()
+	s.user.End()
 }
 
 // Refresh answers the gateway's refusal of the session's token: it renews the
@@ -273,7 +297,7 @@ func (s *Session) Refresh(context.Context) (string, bool) {
 		// being asked is no longer the session's to be refused.
 		var refused *TransportError
 		if errors.As(err, &refused) && refused.Code == TransportErrorCodeUnauthorized && !s.closing() && s.config.Token.Value() == renewed {
-			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.KbID})
+			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
 		}
 	}
 	if s.closing() {
@@ -316,7 +340,7 @@ func (s *Session) renew() (string, bool) {
 	// which is no failure. One whose store cannot say is ended, which forgets
 	// what may be there.
 	if _, held, err := s.config.Kept.Held(s.alive); err != nil || held {
-		s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.KbID})
+		s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
 	}
 	return "", false
 }
@@ -325,9 +349,9 @@ func (s *Session) renew() (string, bool) {
 // forgotten, and its host is told why.
 func (s *Session) signedOut(told SessionEndReason, err *SessionError) {
 	s.config.Token.Set("")
-	s.setUser(api.UserResponse{}, false)
+	s.user.Set(nil)
 	if forgotten := s.config.Kept.Forget(s.alive); forgotten != nil {
-		err = &SessionError{Code: err.Code, Message: err.Message + "; and the sign-in could not be forgotten: " + forgotten.Error(), KbID: s.config.KbID}
+		err = &SessionError{Code: err.Code, Message: err.Message + "; and the sign-in could not be forgotten: " + forgotten.Error(), KbID: s.config.Kb.Id}
 	}
 	if s.config.OnAuthFailed != nil {
 		s.config.OnAuthFailed(told)
@@ -370,7 +394,7 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 	for !s.closing() {
 		user, err := s.config.Validate(s.alive, token)
 		if err == nil {
-			s.setUser(user, true)
+			s.user.Set(&user)
 			return
 		}
 		if s.closing() {
@@ -378,11 +402,11 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 		}
 		var refused *TransportError
 		if !errors.As(err, &refused) || refused.Code != TransportErrorCodeUnauthorized {
-			s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: err.Error(), KbID: s.config.KbID})
+			s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: err.Error(), KbID: s.config.Kb.Id})
 			return
 		}
 		if justIssued {
-			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.KbID})
+			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
 			return
 		}
 		// The session's token is no longer the one asked about: the stream
@@ -400,7 +424,7 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 			return
 		}
 		if renewed == "" {
-			s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.KbID})
+			s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
 			return
 		}
 		s.config.Token.Set(renewed)

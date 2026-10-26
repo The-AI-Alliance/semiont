@@ -120,10 +120,14 @@ func (v *Variable[T]) End() {
 	close(v.changed)
 }
 
-// watch is the value now, and a channel closed when it next changes.
+// watch is the value now, and a channel closed when it next changes: nil
+// once it has ended, since it will not change again.
 func (v *Variable[T]) watch() (T, <-chan struct{}) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.ended {
+		return v.value, nil
+	}
 	return v.value, v.changed
 }
 
