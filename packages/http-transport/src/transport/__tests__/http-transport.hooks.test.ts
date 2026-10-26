@@ -304,6 +304,11 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     expect(approved.length).toBeGreaterThan(0);
     expect([...new Set(approved)].filter((s) => !admitted.has(s))).toEqual([]);
   });
+
+  test('a transport that renews nothing is made again by the same rule', () => {
+    new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    expect(vi.mocked(ky.create).mock.calls.at(-1)![0]!.retry).toBe(retryConfig);
+  });
 });
 
 describe('HttpTransport afterResponse — a refused credential is renewed once, at once', () => {
