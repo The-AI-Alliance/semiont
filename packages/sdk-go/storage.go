@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"sync"
@@ -120,10 +121,14 @@ func (p *storagePersister[K, V]) Load() map[K]V {
 		if err != nil {
 			continue
 		}
-		// An entry that is not this cache's shape is one it never kept.
+		// An entry that is not this cache's shape is one it never kept: an
+		// object lacking a member its type requires among them.
 		var key K
 		var value V
 		if json.Unmarshal(parts[0], &key) != nil || json.Unmarshal(parts[1], &value) != nil {
+			continue
+		}
+		if shape := reflect.TypeFor[V](); shape.Kind() == reflect.Struct && !carries(parts[1], shape) {
 			continue
 		}
 		kept[key] = value

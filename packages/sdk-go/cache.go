@@ -253,11 +253,11 @@ func (c *cache[K, V]) revalidate(key K) {
 	})
 }
 
-// retried reports whether a failure of the live view's fetch is the SDK's,
-// which is tried again: one the client's closing caused is not.
+// retried reports whether a failure of the live view's fetch is tried
+// again: every failure but the client's closing, so no key is left pending
+// with nothing in flight.
 func retried(err error) bool {
-	var failure Error
-	return err != nil && errors.As(err, &failure)
+	return err != nil && !errors.Is(err, context.Canceled)
 }
 
 // observe is the key's state, now and as it changes, until the cache is
