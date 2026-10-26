@@ -45,12 +45,16 @@ func Say(line any) {
 	}
 }
 
-// Failure is a failure as the protocol carries it: the SDK's code, and the
-// status when a server stated one.
+// Failure is a failure as the protocol carries it: the SDK's code, a
+// server's status, and a job failure's class, each where there is one.
 func Failure(err semiont.Error) map[string]any {
 	failure := map[string]any{"code": err.ErrorCode(), "detail": err.Error()}
 	if status, ok := err.Status(); ok {
 		failure["status"] = status
+	}
+	var job *semiont.JobError
+	if errors.As(err, &job) && job.FailureClass != nil {
+		failure["failureClass"] = *job.FailureClass
 	}
 	return failure
 }

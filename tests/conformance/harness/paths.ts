@@ -49,6 +49,8 @@ export interface SdkDrivers {
 
 /** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
 export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-wire-driver');
+/** The Go SDK's live driver, built beside its wire driver. */
+export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-live-driver');
 
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
@@ -76,6 +78,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   go: {
     wire: [GO_WIRE_DRIVER],
+    live: { command: [GO_LIVE_DRIVER], tier: 'fleet' },
   },
 };
 
