@@ -70,14 +70,15 @@ func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 	if base == "" {
 		return nil
 	}
-	// The same credential printSessions verifies with, renewed as every
-	// verb's is when the gateway refuses it. No session means no report, and
-	// no refusal printed: status never prompts and never resolves secrets.
-	e, ok := LoadTokens()["local"]
-	if !ok || e.Token == "" {
+	// The same session every verb holds, renewed as theirs is. No session
+	// means no report, and no refusal printed: status never prompts and never
+	// resolves secrets.
+	sess, err := resume(u, "local", base)
+	if err != nil {
 		return nil
 	}
-	platform := newSession(u, "local", base, e).bus(nil)
+	defer sess.Close()
+	platform := sess.bus(nil)
 	defer platform.Close()
 	var (
 		mu  sync.Mutex

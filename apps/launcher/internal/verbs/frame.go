@@ -100,6 +100,7 @@ func Frame(args []string) int {
 	if !ok {
 		return 1
 	}
+	defer t.Close()
 	b := t.Bus()
 	defer b.Close()
 

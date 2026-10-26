@@ -1,83 +1,158 @@
 package launcher
 
-// session.go — the session lifecycle around login's stored tokens: the
-// invisible refresh (access tokens are short-lived; the stored refresh token
-// renews them at the issuer so login is a rare event, not an hourly chore),
-// the renewal a verb's bus transport asks for when the gateway refuses its
-// token, the renew-and-retry policy a call of the gateway's HTTP API runs
-// under, and `semiont logout`.
+// session.go — one command's session with a stack's knowledge base: the Go
+// SDK's session (semiont.ResumeSession) over the sign-in `semiont login`
+// stored, which asks the gateway who its token is at its start, renews it at
+// the issuer when it has expired or the gateway refuses it, and forgets a
+// sign-in that cannot be renewed, as every SDK's session does
+// (specs/src/session/cases.json). What is the launcher's here is the
+// command's: a session that is over ends whatever the command is waiting on,
+// and is said in the launcher's words with the one fix that applies. Also
+// `semiont logout`.
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"sync"
-	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-// Session is one stack's live credential: the stored tokens and the policy
-// that keeps them working. A verb's bus transport asks it for a renewed token
-// when the gateway refuses one (Refresh), and a call of the HTTP API runs
-// under Authorized, so the renewal happens in one place and no verb tells the
-// user to log in again the moment a five-minute access token expires.
+// Session is one command's session with a stack: the SDK's session over the
+// stack's stored sign-in, the token a verb's transport carries, and the end
+// of the command when the session is over.
 type Session struct {
-	u    *UI
-	key  string // token/stack key: "local" or "codespace:<repo>"
-	base string // the stack's gateway base URL, which the tokens are for
+	u      *UI
+	key    string // token/stack key: "local" or "codespace:<repo>"
+	base   string // the stack's gateway base URL, which the tokens are for
+	signIn semiont.SignIn
+	token  *semiont.Watched[string]
+	sdk    *semiont.Session
 
-	// renewal guards everything below it: refusals that arrive together, from
-	// the stream and from a request at once, are answered by one renewal.
-	renewal sync.Mutex
-	entry   SignIn
-	// token is the access token the session's transport carries, as the
-	// session renews it.
-	token *semiont.Watched[string]
-	// issued is the token this command's last renewal was issued, which the
-	// gateway did not refuse when it was asked who it is.
-	issued string
-	// failed is why this command's renewal failed. A refresh token the issuer
-	// refused is not sent again: the failure answers every later refusal.
-	failed error
-
-	// ended is done once the gateway has refused the session's token for good,
-	// with a *SessionRejected as its cause. A session that has ended asks
-	// nobody anything more.
+	// ended is done once the session is over for this command, with a
+	// *SessionRejected as its cause.
 	ended context.Context
+	mu    sync.Mutex
 	stop  context.CancelCauseFunc
 }
 
+// errNoRefreshToken: the stored session cannot be renewed — it carries no
+// refresh token to renew it with.
+var errNoRefreshToken = errors.New("no refresh token is stored to renew it")
+
+// errExpired: the stored session's access token had expired, and the issuer
+// would not renew it, so the gateway was never asked.
+var errExpired = errors.New("its access token had expired")
+
+// errNoSession: no sign-in is stored for the stack.
+var errNoSession = errors.New("no session is stored")
+
 // LoadSession is the stored session for a stack key, its tokens for the
-// gateway at base, or the refusal that says how to get one.
-func LoadSession(u *UI, key, base string) (*Session, bool) {
-	e, have := LoadTokens()[key]
-	if !have || e.Token == "" {
+// gateway at base, ready: asked about, and renewed if it needed to be. ok is
+// false when there is none, or it is over, which is said for verb with its
+// fix.
+func LoadSession(u *UI, verb, key, base string) (*Session, bool) {
+	s, err := resume(u, key, base)
+	var rejected *SessionRejected
+	switch {
+	case err == nil:
+		return s, true
+	case errors.Is(err, errNoSession):
 		u.Fail("No session for %s.", key)
 		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login")
-		return nil, false
+	case errors.As(err, &rejected):
+		RejectedFail(u, verb, rejected)
+	default:
+		u.Fail("%v", err)
 	}
-	return newSession(u, key, base, e), true
+	return nil, false
 }
 
-func newSession(u *UI, key, base string, entry SignIn) *Session {
+// resume resumes the stored session for key at base, saying nothing of why it
+// cannot: errNoSession when none is stored, its *SessionRejected when it was
+// over at its start.
+func resume(u *UI, key, base string) (*Session, error) {
+	store, ok := signInStore()
+	if !ok {
+		return nil, errNoSession
+	}
+	signIn, has, err := store.SignIn(key)
+	if err != nil {
+		return nil, fmt.Errorf("the sign-in store cannot be read: %w", err)
+	}
+	if !has || signIn.Token == "" {
+		return nil, errNoSession
+	}
 	ended, stop := context.WithCancelCause(context.Background())
-	return &Session{
-		u: u, key: key, base: base, entry: entry,
-		token: semiont.NewWatched(entry.Token),
-		ended: ended, stop: stop,
+	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewWatched(""), ended: ended, stop: stop}
+	// A sign-in that cannot be renewed is no session the SDK holds: its token
+	// is sent as it is, and the gateway is the judge.
+	if signIn.RefreshToken == "" {
+		s.token.Set(signIn.Token)
+	}
+	s.sdk, err = semiont.ResumeSession(context.Background(), semiont.ResumeConfig{
+		KbID:          key,
+		BaseURL:       base,
+		Kept:          store.Entry(key),
+		Token:         s.token,
+		HTTP:          &http.Client{Transport: launcherTransport},
+		Timing:        semiont.DefaultTiming(),
+		AskWhoTokenIs: true,
+		OnError:       s.failed,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
+	}
+	if err := s.sdk.Ready(context.Background()); err != nil {
+		s.Close()
+		return nil, fmt.Errorf("the session for %s was not ready: %w", key, err)
+	}
+	// A session whose token expired and could not be renewed ended at its
+	// start with nothing said: there was no session to end. Its sign-in is
+	// forgotten; the command says why it cannot go on.
+	if s.ended.Err() == nil && s.token.Value() == "" {
+		s.end(&SessionRejected{refresh: errExpired})
+	}
+	if rejected, over := context.Cause(s.ended).(*SessionRejected); over {
+		s.Close()
+		return nil, rejected
+	}
+	s.noteRenewal(signIn.Token)
+	return s, nil
+}
+
+// noteRenewal says the session was renewed, when the token it holds is not
+// the one it held. On stderr, never stdout: a verb's `--json` reply piped to
+// jq must stay one JSON document.
+func (s *Session) noteRenewal(before string) {
+	if now := s.token.Value(); now != "" && now != before {
+		s.u.Note("Session refreshed %s", s.u.Dim("(access token renewed at the issuer from the stored refresh token)"))
 	}
 }
 
-// end ends the session, for the reason rejected gives, unless it has already
-// ended: the first reason stands. Its transport is left no token to offer, so
-// it sends nothing more. The caller holds s.renewal.
+// failed is a failure the SDK's session reported. One that ends it ends the
+// command: a renewal the issuer would not make, or a token the issuer had just
+// issued that the gateway refused. A gateway that could not be asked at the
+// start refuses nothing: the command goes on, and its requests are the judge.
+func (s *Session) failed(err *semiont.SessionError) {
+	switch err.Code {
+	case semiont.SessionErrorCodeRefreshExhausted:
+		s.end(&SessionRejected{refresh: errors.New(err.Message)})
+	case semiont.SessionErrorCodeCredentialRefused:
+		s.end(&SessionRejected{})
+	}
+}
+
+// end ends the session for the reason rejected gives, unless it has already
+// ended: the first reason stands. Its transport is left no token to offer.
 func (s *Session) end(rejected *SessionRejected) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.ended.Err() != nil {
 		return
 	}
@@ -85,202 +160,53 @@ func (s *Session) end(rejected *SessionRejected) {
 	s.token.Set("")
 }
 
-// errNoRefreshToken: the stored session cannot be renewed — it carries no
-// refresh token, or no token endpoint to send one to.
-var errNoRefreshToken = errors.New("no refresh token is stored to renew it")
-
-// errSignedOut: the stack was signed out while its session was being renewed.
-// A session that is over is not handed a credential again.
-var errSignedOut = errors.New("the stack was signed out while its session was being renewed")
-
-// sameTokens: two sign-ins hold the same pair of tokens.
-func sameTokens(a, b SignIn) bool {
-	return a.Token == b.Token && a.RefreshToken == b.RefreshToken
-}
-
-// refresh trades the stored refresh token for a fresh access token at the
-// issuer and SAVES the rotation — the next command must start from the new
-// tokens, the refresh token included if the issuer rotated it.
-//
-// Another program renews the same sign-in (an application on the Rust SDK),
-// so the store is read again on both sides of the grant. Before it: tokens
-// another program has since replaced are taken as they are, and the refresh
-// token this command read is not spent, since an issuer that rotates would
-// refuse it. After it, under the store's lock: tokens another program wrote
-// while the grant was in flight stand, and a stack signed out meanwhile stays
-// signed out.
-//
-// Whatever token it leaves the session holding is the token the session's
-// transport carries from then on. The caller holds s.renewal.
-func (s *Session) refresh() error {
-	defer func() { s.token.Set(s.entry.Token) }()
-	had := s.entry
-	if stored, have := LoadTokens()[s.key]; have && !sameTokens(stored, had) {
-		s.entry, had = stored, stored
-		if !s.expired() {
-			s.u.Note("Session renewed by another program %s", s.u.Dim("(its tokens are used as they are)"))
-			return nil
-		}
-	}
-	if had.RefreshToken == "" || had.TokenEndpoint == "" {
-		return errNoRefreshToken
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	tr, err := refreshTokens(ctx, had.TokenEndpoint, had.RefreshToken)
-	if err != nil {
-		return err
-	}
-	renewed := had
-	renewed.Token = tr.AccessToken
-	if tr.RefreshToken != "" {
-		renewed.RefreshToken = tr.RefreshToken
-	}
-	renewed.ObtainedAt = time.Now().UTC()
-	renewed.ExpiresAt = expiresAt(renewed.ObtainedAt, tr.ExpiresIn)
-
-	var theirs *SignIn
-	signedOut := false
-	err = changeSignIns(func(doc map[string]json.RawMessage) (bool, error) {
-		stored, have := signInOf(doc[s.key])
-		switch {
-		case !have:
-			signedOut = true
-			return false, nil
-		case !sameTokens(stored, had):
-			theirs = &stored
-			return false, nil
-		}
-		return true, putSignIn(doc, s.key, renewed)
-	})
-	// Narrated on stderr, never stdout: a verb's `--json` reply piped to jq
-	// must stay one JSON document.
-	switch {
-	case err != nil:
-		s.entry = renewed
-		s.u.Note("Refreshed token could not be stored (%v) — it will work for this command only.", err)
-	case signedOut:
-		return errSignedOut
-	case theirs != nil:
-		s.entry = *theirs
-		s.u.Note("Session renewed by another program %s", s.u.Dim("(its tokens stand; the ones this command was issued are dropped)"))
-	default:
-		s.entry = renewed
-		s.u.Note("Session refreshed %s", s.u.Dim("(access token renewed at the issuer from the stored refresh token)"))
-	}
-	return nil
-}
-
-// expiresAt turns the issuer's expires_in into a wall-clock deadline; zero
-// when the issuer named none.
-func expiresAt(from time.Time, expiresIn int) time.Time {
-	if expiresIn <= 0 {
-		return time.Time{}
-	}
-	return from.Add(time.Duration(expiresIn) * time.Second)
-}
-
-// expired: the store already knows the access token is past its lifetime. An
-// unknown lifetime is not expired — the gateway's 401 remains the signal. The
-// caller holds s.renewal.
-func (s *Session) expired() bool {
-	return !s.entry.ExpiresAt.IsZero() && time.Now().After(s.entry.ExpiresAt)
-}
+// Close ends the SDK's session: it renews nothing more.
+func (s *Session) Close() { s.sdk.Close() }
 
 // Refresh is a renewed token for a transport the gateway refused the
-// session's token to (semiont.TokenRefresher): the transport asks once for a
-// refused request, and once per outage of its stream, and sends again with
-// what it is given. The rule is the other SDKs' sessions': a refusal costs at
-// most one renewal and one question to the gateway.
-//
-// Refusals that arrive together wait for one renewal. When the session holds
-// the token this command was issued, the gateway is asked about it first:
-// still accepted, the refusal was of an older token, and this one is the
-// answer, with nothing sent to the issuer. ok=false: the session has ended,
-// and its end's cause says why.
+// session's token to (semiont.TokenRefresher): the SDK's session renews it and
+// asks the gateway who the new one is. ok=false: the session is over, and its
+// end's cause says why.
 func (s *Session) Refresh(ctx context.Context) (token string, ok bool) {
-	s.renewal.Lock()
-	defer s.renewal.Unlock()
 	if s.ended.Err() != nil {
 		return "", false
 	}
-	if s.issued != "" && s.entry.Token == s.issued && !s.refuses(ctx, s.issued) {
-		return s.issued, true
-	}
-	if rejected := s.renew(ctx); rejected != nil {
-		s.end(rejected)
+	before := s.token.Value()
+	renewed, ok := s.sdk.Refresh(ctx)
+	if !ok {
+		why := errNoRefreshToken
+		if s.signIn.RefreshToken != "" {
+			why = errors.New("the stack was signed out while its session was being renewed")
+		}
+		s.end(&SessionRejected{refresh: why})
 		return "", false
 	}
-	return s.entry.Token, true
-}
-
-// renew trades the stored refresh token for a new access token and asks the
-// gateway who the new one is. A rejection says why the session cannot go on:
-// the refresh failed, now or earlier in this command, or the gateway refused a
-// token its issuer had just issued (refresh nil). The caller holds s.renewal.
-func (s *Session) renew(ctx context.Context) *SessionRejected {
-	if s.failed == nil {
-		s.failed = s.refresh()
-	}
-	if s.failed != nil {
-		return &SessionRejected{refresh: s.failed}
-	}
-	if s.refuses(ctx, s.entry.Token) {
-		return &SessionRejected{}
-	}
-	s.issued = s.entry.Token
-	return nil
-}
-
-// refuses reports whether the gateway refuses token, asked who the token is.
-// A gateway that cannot be asked refuses nothing: the token stands, and the
-// next request is the judge.
-func (s *Session) refuses(ctx context.Context, token string) bool {
-	cli, err := api.NewClientWithResponses(s.base)
-	if err != nil {
-		return false
-	}
-	asking, cancel := context.WithTimeout(ctx, semiont.DefaultTiming().HttpRequestTimeout)
-	defer cancel()
-	me, err := cli.GetCurrentUserWithResponse(asking, Bearer(token))
-	return err == nil && semiont.TransportErrorCodeOfStatus(me.StatusCode()) == semiont.TransportErrorCodeUnauthorized
+	s.noteRenewal(before)
+	return renewed, true
 }
 
 // Authorized runs one call of the gateway's HTTP API under the session's
-// access token and keeps it authorized: a token the store knows is expired is
-// renewed BEFORE the call, and a call the gateway answers with 401 earns one
-// renewal and one retry under the renewed token. Never more than one renewal
-// per call — a second rejection is the gateway refusing the account, not a
-// race — and never a retry the renewal could not have helped.
+// access token and keeps it authorized: a call the gateway answers with 401
+// earns one renewal and one retry under the renewed token. A second refusal is
+// the gateway refusing the account, not a race.
 //
 // op receives the token to send and reports a 401 as a *semiont.TransportError
 // coded unauthorized; any other error comes back as it is. A rejection comes
 // back as a *SessionRejected, which says whether a renewal was even possible.
 func (s *Session) Authorized(op func(token string) error) error {
-	attempted := false
-	var refreshErr error
-	s.renewal.Lock()
-	if s.expired() {
-		attempted, refreshErr = true, s.refresh()
-	}
-	token := s.entry.Token
-	s.renewal.Unlock()
-	err := op(token)
+	err := op(s.token.Value())
 	if !unauthorized(err) {
 		return err
 	}
-	if !attempted {
-		s.renewal.Lock()
-		refreshErr = s.refresh()
-		token = s.entry.Token
-		s.renewal.Unlock()
-		if refreshErr == nil {
-			if err = op(token); !unauthorized(err) {
-				return err
-			}
-		}
+	renewed, ok := s.Refresh(context.Background())
+	if !ok {
+		return context.Cause(s.ended)
 	}
-	return &SessionRejected{refresh: refreshErr, cause: err}
+	if err = op(renewed); unauthorized(err) {
+		s.end(&SessionRejected{cause: err})
+		return context.Cause(s.ended)
+	}
+	return err
 }
 
 // unauthorized: the gateway refused the token a call bore.
@@ -347,6 +273,9 @@ func (t VerbTarget) Authorized(op func(token string) error) error {
 	return t.sess.Authorized(op)
 }
 
+// Close ends the command's session.
+func (t VerbTarget) Close() { t.sess.Close() }
+
 // VerbSession resolves a verb's target in one place, because nine verbs asking
 // the same questions nine different ways is how they drift. Refusals are
 // printed here with their fix-it lines; ok=false means stop.
@@ -373,7 +302,7 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 		t.base = GatewayBase(local)
 		key = "local"
 	}
-	if t.sess, ok = LoadSession(u, key, t.base); !ok {
+	if t.sess, ok = LoadSession(u, verb, key, t.base); !ok {
 		return VerbTarget{}, false
 	}
 	return t, true
@@ -428,20 +357,25 @@ func Logout(args []string) int {
 		key = "codespace:" + target.Codespace.Repo
 	}
 
-	e, have := LoadTokens()[key]
+	store, ok := signInStore()
+	if !ok {
+		u.Log("No session for %s — nothing to log out.", key)
+		return 0
+	}
+	e, have, err := store.SignIn(key)
+	if err != nil {
+		u.Fail("The sign-in store cannot be read: %v", err)
+		return 1
+	}
 	if !have {
 		u.Log("No session for %s — nothing to log out.", key)
 		return 0
 	}
 	// Issuer-side first, best-effort: an unreachable issuer must not trap the
 	// user in a session they asked to end — but say what it means.
-	revoked := false
-	if e.RevocationEndpoint != "" && e.RefreshToken != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		revoked = revokeToken(ctx, e.RevocationEndpoint, e.RefreshToken) == nil
-	}
-	if err := deleteToken(key); err != nil {
+	issuer := semiont.Issuer{HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming()}
+	revoked, err := semiont.SignOut(context.Background(), issuer, store.Entry(key))
+	if err != nil {
 		u.Fail("Could not remove the stored session: %v", err)
 		return 1
 	}

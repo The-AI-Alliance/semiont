@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 const (
@@ -264,7 +266,7 @@ func natsConfString(text string) string {
 // runs their own Browser, at their own loopback, which these entries match
 // too (LOCAL-ONLY-STACK D3): no Browser is ever reached at a network address.
 func browserClient(audience string, browserPort int) map[string]any {
-	c := publicClient(BrowserClientID, "Semiont Browser", audience)
+	c := publicClient(semiont.BrowserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true
 	c["redirectUris"] = loopbackRedirectUris()
 	c["webOrigins"] = loopbackWebOrigins(browserPort)
@@ -341,7 +343,7 @@ func loopbackRedirectUris() []string {
 }
 
 func cliClient(audience string) map[string]any {
-	c := publicClient(ScriptClientID, "Semiont launcher", audience)
+	c := publicClient(semiont.ScriptClientID, "Semiont launcher", audience)
 	c["standardFlowEnabled"] = false
 	c["attributes"] = map[string]string{
 		"oauth2.device.authorization.grant.enabled": "true",

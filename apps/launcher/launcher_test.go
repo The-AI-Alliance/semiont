@@ -15,6 +15,7 @@ package main_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -34,6 +35,8 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite golden files from observed output")
@@ -2383,6 +2386,57 @@ func tokensPathFor(home string) string {
 	return filepath.Join(stateHomeFor(home), "tokens.json")
 }
 
+// tokenTagged is a token fakert's gateway knows by its tag, as it knows the
+// person tokens its issuer issues (fake-jwt-token at login, fake-jwt-token-2
+// renewed).
+func tokenTagged(tag string) string {
+	claims, _ := json.Marshal(map[string]any{"tag": tag})
+	return "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".fake"
+}
+
+// tagOf is the tag of a person token fakert's issuer issued; "" for any other.
+func tagOf(token string) string {
+	parts := strings.Split(strings.TrimPrefix(token, "Bearer "), ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Tag string `json:"tag"`
+	}
+	_ = json.Unmarshal(payload, &claims)
+	return claims.Tag
+}
+
+// storedSignIn is the sign-in tokens.json holds under home for key.
+func storedSignIn(t *testing.T, home, key string) (semiont.SignIn, bool) {
+	t.Helper()
+	signIn, ok, err := semiont.NewSignInStore(tokensPathFor(home)).SignIn(key)
+	if err != nil {
+		t.Fatalf("tokens.json: %v", err)
+	}
+	return signIn, ok
+}
+
+// uploadBearerTag is the tag of the bearer the upload fakert captured bore.
+func uploadBearerTag(t *testing.T, fakertDir string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(fakertDir, "yield-upload.json"))
+	if err != nil {
+		t.Fatalf("upload capture: %v", err)
+	}
+	var captured struct {
+		Authorization string `json:"authorization"`
+	}
+	if err := json.Unmarshal(b, &captured); err != nil {
+		t.Fatalf("upload capture: %v\n%s", err, b)
+	}
+	return tagOf(captured.Authorization)
+}
+
 // `semiont login` is the device authorization grant (RFC 8628). The launcher
 // learns the issuer from the knowledge base's resource metadata, asks it for
 // a code as the launcher's own public client, and stores the tokens the
@@ -2409,12 +2463,11 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 		t.Fatalf("device authorization request not recorded: %v", err)
 	}
 	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
-	b, err := os.ReadFile(tokensPathFor(s.home))
-	if err != nil {
-		t.Fatalf("tokens.json after login: %v", err)
+	signIn, ok := storedSignIn(t, s.home, "local")
+	if !ok || tagOf(signIn.Token) != "fake-jwt-token" || signIn.RefreshToken != "fake-refresh-token" ||
+		signIn.Issuer != "http://localhost:4000/realms/semiont" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
+		t.Errorf("tokens.json after login does not hold the issued session: %+v (%v)", signIn, ok)
 	}
-	mustContain(t, "tokens.json", string(b), "fake-jwt-token", "fake-refresh-token", `"local"`,
-		`"issuer"`, "http://localhost:4000/realms/semiont", `"tokenEndpoint"`)
 	if open := harness.OpenToOthers(t, tokensPathFor(s.home)); open != "" {
 		t.Errorf("tokens.json %s (it holds a bearer token)", open)
 	}
@@ -2509,8 +2562,10 @@ func TestYieldUploadsFile(t *testing.T) {
 		`"name":"note"`,
 		`"format":"text/markdown"`,
 		`"storageUri":"file://docs/note.md"`,
-		`"authorization":"Bearer fake-jwt-token"`,
 		`"filecontent":"# hi\n"`)
+	if tag := uploadBearerTag(t, s.fakertDir); tag != "fake-jwt-token" {
+		t.Errorf("the upload bore the token tagged %q, want the login's", tag)
+	}
 }
 
 // The format an upload states comes from the media-type registry
@@ -2577,18 +2632,14 @@ func TestYieldAutoRefreshesExpiredToken(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Yielded", "fake-resource-id")
 	// The upload went out under the REFRESHED token…
-	b, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json"))
-	if err != nil {
-		t.Fatalf("upload capture: %v", err)
+	if tag := uploadBearerTag(t, s.fakertDir); tag != "fake-jwt-token-2" {
+		t.Errorf("the upload bore the token tagged %q, want the renewed one", tag)
 	}
-	mustContain(t, "multipart", string(b), `"authorization":"Bearer fake-jwt-token-2"`)
 	// …and the rotation was SAVED: next command starts from the new token,
 	// keeping the original refresh token (the server does not rotate it).
-	tb, err := os.ReadFile(tokensPathFor(s.home))
-	if err != nil {
-		t.Fatalf("tokens.json: %v", err)
+	if signIn, _ := storedSignIn(t, s.home, "local"); tagOf(signIn.Token) != "fake-jwt-token-2" || signIn.RefreshToken != "fake-refresh-token" {
+		t.Errorf("tokens.json was not rotated to the renewed token: %+v", signIn)
 	}
-	mustContain(t, "tokens.json", string(tb), "fake-jwt-token-2", "fake-refresh-token")
 }
 
 func TestYieldPostRefreshRejectionSaysSo(t *testing.T) {
@@ -2613,10 +2664,8 @@ func TestLogoutForgetsSession(t *testing.T) {
 		t.Fatalf("logout: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Logged out", "local", "revoked at the issuer")
-	if tb, err := os.ReadFile(tokensPathFor(s.home)); err == nil {
-		if strings.Contains(string(tb), "fake-jwt-token") {
-			t.Errorf("token survived logout:\n%s", tb)
-		}
+	if _, still := storedSignIn(t, s.home, "local"); still {
+		t.Error("the session survived logout")
 	}
 	// The refresh token was revoked at the issuer (RFC 7009), as the
 	// launcher's own client — not merely forgotten locally.
@@ -9303,11 +9352,9 @@ func TestBrowseAutoRefreshesExpiredToken(t *testing.T) {
 	if strings.Contains(stdout+stderr, "semiont login") {
 		t.Errorf("a renewed session was still sent to login:\n%s\n%s", stdout, stderr)
 	}
-	tb, err := os.ReadFile(tokensPathFor(s.home))
-	if err != nil {
-		t.Fatalf("tokens.json: %v", err)
+	if signIn, _ := storedSignIn(t, s.home, "local"); tagOf(signIn.Token) != "fake-jwt-token-2" {
+		t.Errorf("tokens.json was not rotated to the renewed token")
 	}
-	mustContain(t, "tokens.json", string(tb), "fake-jwt-token-2")
 }
 
 func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {

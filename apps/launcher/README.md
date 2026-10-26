@@ -529,27 +529,32 @@ authority as the TypeScript SDK's types.
 Both take `--repo <owner/name>` to target a codespace stack through its
 forward instead of the local one.
 
-Sessions maintain themselves: access tokens are short-lived, and every verb
-renews one invisibly at the issuer from the stored refresh token — before
-the first request when the store already knows the token has expired, and
-on a 401 otherwise (announced on stderr, saved, retried once; `semiont
-login` is the fix only when the renewal itself fails) — so login is a rare
-event, not a routine chore. `semiont logout` ends a session (the refresh token revoked at the
-issuer, best-effort; local token forgotten either way, said plainly when
-the issuer half didn't complete), and `semiont status --verbose` lists every stored
-session under SESSIONS, live-verified against the stack when reachable —
-valid / expired / unverified, never a guess.
+Sessions maintain themselves: access tokens are short-lived, and every verb's
+session is the Go SDK's, which every SDK's session agrees with
+(`specs/src/session/cases.json`). At its start it asks the gateway who its
+token is; it renews the token invisibly at the issuer from the stored refresh
+token when the token has expired or the gateway refuses it (announced on
+stderr, kept, retried once); and it forgets a sign-in it cannot renew, so
+`semiont login` is the fix only when the renewal itself fails — login is a
+rare event, not a routine chore. `semiont logout` ends a session (the refresh
+token revoked at the issuer, best-effort; the sign-in forgotten either way,
+said plainly when the issuer half didn't complete), and `semiont status
+--verbose` lists every stored session under SESSIONS, live-verified against
+the stack when reachable — valid / expired / unverified, never a guess.
 
 The stored sessions are the sign-in store, a contract in
 `specs/src/sign-in-store`: `<state home>/tokens.json`, which an application
-on the Rust SDK reads and renews too, so one `semiont login` serves both.
-Every change to it is made under an exclusive lock on `tokens.lock`, a member
-the launcher does not understand is written back as it was, and a file it
-cannot read is never written over. A renewal reads the store again before it
-writes: tokens another program renewed meanwhile stand, and a stack signed
-out meanwhile stays signed out. The entry's shape, the two OAuth client ids
-and the sign-in scope are generated from the spec (`npm run generate:go`),
-the state home runs the spec's cases, and CI fails when any of them drifts.
+on any SDK reads and renews too, so one `semiont login` serves both. The
+launcher keeps it through the Go SDK's store: every change is made under an
+exclusive lock on `tokens.lock`, a member it does not understand is written
+back as it was, and a file it cannot read is never written over. A renewal
+reads the store again before it writes: tokens another program renewed
+meanwhile stand, a refresh token another program replaced is not spent, and a
+stack signed out meanwhile stays signed out. `semiont login` keeps the state
+home to its owner, with everything created in it. The entry's shape, the two
+OAuth client ids and the sign-in scope are generated from the spec (`npm run
+generate:go`), the state home runs the spec's cases, and CI fails when any of
+them drifts.
 
 ### Delegating to the stack
 
