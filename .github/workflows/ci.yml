@@ -2057,17 +2057,20 @@ jobs:
       # input and the terminal's size), sigstore/sigstore-go (an image's build
       # provenance, checked before it runs, and what it pulls in: protobuf,
       # TUF, the Sigstore clients) and packages/sdk-go (whose client pulls
-      # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped
-      # binary (distributed via Homebrew and the release's archives).
+      # oapi-codegen/runtime, and whose telemetry is the OpenTelemetry API),
+      # plus the Go stdlib compiled into the shipped binary (distributed via
+      # Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from
       # our code. nats-server's module is a requirement of the tests alone (they
       # read the broker's config with its parser): it is in no shipped binary,
       # and it is not among the modules this scan covers. Nor is what only a
       # launcher built with -tags scenario links (Sigstore's test
-      # authority, for the scenario suite): no release is built that way.
+      # authority, for the scenario suite): no release is built that way. The
+      # scanner is pinned, so a new release of it changes this job only when
+      # someone chooses it.
       - name: Vulnerability scan launcher (govulncheck)
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           cd apps/launcher && govulncheck ./...
 
   # The same suite, run as a Windows program. The job above proves the
