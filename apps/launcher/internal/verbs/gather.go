@@ -4,7 +4,6 @@ package verbs
 // resource or an annotation. Either focus is a plain request/reply.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -168,7 +167,8 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.
@@ -196,7 +196,7 @@ options:
 	}
 
 	// No progress narration: gather is a single request/reply.
-	reply, err := cli.Request(context.Background(), op, payload, nil)
+	reply, err := b.Request(op, payload, requestWithin)
 	if err != nil {
 		return busFail(u, "gather", err)
 	}
@@ -205,23 +205,12 @@ options:
 		return 0
 	}
 
-	// GENERATED reply types model the reply PAYLOAD, so there is no
-	// hand-rolled unwrapping — and no chance of guessing a field name the
-	// schema never had. Routing keys are not in here: correlationId rides
-	// the envelope, which the bus client consumed before handing this over.
+	// The reply is its response, the gathered context: the GENERATED type,
+	// so there is no hand-rolled unwrapping — and no chance of guessing a
+	// field name the schema never had.
 	var gathered api.GatheredContext
-	if annotationID != "" {
-		var r api.GatherAnnotationComplete
-		if json.Unmarshal(reply, &r) != nil {
-			return rawFallback(reply)
-		}
-		gathered = r.Response
-	} else {
-		var r api.GatherResourceComplete
-		if json.Unmarshal(reply, &r) != nil {
-			return rawFallback(reply)
-		}
-		gathered = r.Response
+	if json.Unmarshal(reply, &gathered) != nil {
+		return rawFallback(reply)
 	}
 	// `summary` is already the --summary flag; this is the gathered prose.
 	relSummary := ""

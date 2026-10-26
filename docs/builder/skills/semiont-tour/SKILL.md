@@ -76,8 +76,8 @@ screen — and zero subscribers means it did not happen. Under `set -e` that mak
 Read the KB first — every verb takes ids, and `browse` is what produces them:
 
 ```sh
-semiont browse --entity-type Chapter --limit 20 --json | jq -r '.response.resources[] | "\(.["@id"])\t\(.name)"'
-semiont browse res-intro --annotations --json | jq -r '.response.annotations[] | select(.motivation=="linking") | .id'
+semiont browse --entity-type Chapter --limit 20 --json | jq -r '.resources[] | "\(.["@id"])\t\(.name)"'
+semiont browse res-intro --annotations --json | jq -r '.annotations[] | select(.motivation=="linking") | .id'
 ```
 
 Reference annotations (`motivation: "linking"`) are the branch points — they already mean "this

@@ -604,7 +604,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 				}
 			}
 			if !ceilingsFetched {
-				ceilings = fetchModelCeilings(st)
+				ceilings = fetchModelCeilings(u, st)
 				ceilingsFetched = true
 			}
 			printModels(u, rec.Models, facts, remote, ceilings)

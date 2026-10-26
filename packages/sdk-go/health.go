@@ -2,9 +2,9 @@ package semiont
 
 // health.go — the gateway's liveness surface, stated as an interface.
 //
-// It exists for the same reason `bus.Transport` does: a caller should be able
-// to ask "is the gateway up?" without owning how that question travels —
-// with no bare `http.Client` and no hand-written `/api/health` path.
+// It lets a caller ask "is the gateway up?" without opening a transport, and
+// without owning how that question travels: no bare `http.Client` and no
+// hand-written `/api/health` path.
 //
 // The TypeScript side declares the same operation on `IGatewayOperations`
 // (packages/core/src/transport.ts), NOT on `ITransport`: health is a gateway

@@ -9,7 +9,6 @@ package verbs
 // protocol's, not this file's.
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -101,7 +100,8 @@ func Frame(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	// One command per type: the protocol has no batch add (the SDK's
 	// addEntityTypes is the same loop). A rejection STOPS the run rather
@@ -109,8 +109,7 @@ func Frame(args []string) int {
 	// would be a lie, and the untried tags cost nothing to re-issue.
 	var added []string
 	for _, et := range entityTypes {
-		_, err := cli.Request(context.Background(), "frame:add-entity-type",
-			api.FrameAddEntityTypeCommand{Tag: et}, nil)
+		_, err := b.Request("frame:add-entity-type", api.FrameAddEntityTypeCommand{Tag: et}, requestWithin)
 		if err != nil {
 			code := busFail(u, "frame", err)
 			if len(added) > 0 {

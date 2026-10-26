@@ -13,7 +13,6 @@ package verbs
 // just be a rejected request.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -164,8 +163,8 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
-	ctx := context.Background()
+	b := t.Bus()
+	defer b.Close()
 
 	if searching {
 		if limit == 0 {
@@ -175,7 +174,7 @@ options:
 		if entityType != "" {
 			req.EntityType = &entityType
 		}
-		reply, err := cli.Request(ctx, "match:resources-requested", req, nil)
+		reply, err := b.Request("match:resources-requested", req, requestWithin)
 		if err != nil {
 			return busFail(u, "match", err)
 		}
@@ -184,7 +183,7 @@ options:
 			return 0
 		}
 		var found api.MatchResourcesResult
-		if json.Unmarshal(reply, &found) != nil {
+		if json.Unmarshal(reply, &found.Response) != nil {
 			return rawFallback(reply)
 		}
 		printResources(u, found.Response.Resources, found.Response.Total)
@@ -197,15 +196,15 @@ options:
 
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)
-	gathered, err := cli.Request(ctx, "gather:requested", api.GatherAnnotationRequest{
+	gathered, err := b.Request("gather:requested", api.GatherAnnotationRequest{
 		ResourceId:   rid,
 		AnnotationId: aid,
-	}, nil)
+	}, requestWithin)
 	if err != nil {
 		return busFail(u, "match (gather step)", err)
 	}
 	var gc api.GatherAnnotationComplete
-	if json.Unmarshal(gathered, &gc) != nil {
+	if json.Unmarshal(gathered, &gc.Response) != nil {
 		u.Fail("match: the gathered context could not be read.")
 		return 1
 	}
@@ -219,7 +218,7 @@ options:
 	}
 	semantic := !noSemantic
 	req.UseSemanticScoring = &semantic
-	reply, err := cli.Request(ctx, "match:search-requested", req, nil)
+	reply, err := b.Request("match:search-requested", req, requestWithin)
 	if err != nil {
 		return busFail(u, "match", err)
 	}
@@ -233,7 +232,7 @@ options:
 	// exactly how this verb shipped printing blank identifiers. The schema
 	// owns the shape; Go should read it from there.
 	var results api.MatchSearchResult
-	if json.Unmarshal(reply, &results) != nil {
+	if json.Unmarshal(reply, &results.Response) != nil {
 		return rawFallback(reply)
 	}
 	rows := results.Response

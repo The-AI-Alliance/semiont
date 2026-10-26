@@ -6,7 +6,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // A guide watching a tour needs to read the room, not decode it. These pin the
@@ -18,14 +18,14 @@ func TestListenRendersResourceNamesWithIdFallback(t *testing.T) {
 	u := launcher.NewUI(true)
 	r := newListenRenderer(map[string]string{"res-42": "The Iliad"})
 
-	known := r.line(u, bus.Event{Channel: "browse:resource-viewed", Payload: []byte(`{"resourceId":"res-42"}`)})
+	known := r.line(u, semiont.Frame{Channel: "browse:resource-viewed", Payload: []byte(`{"resourceId":"res-42"}`)})
 	if !strings.Contains(known, "The Iliad") {
 		t.Errorf("a resolvable id must render as its name: %q", known)
 	}
 
 	// Never blocks and never blanks: an id the prefetch did not cover still
 	// renders, as the id. A guide can act on an id; they cannot act on "".
-	unknown := r.line(u, bus.Event{Channel: "browse:resource-viewed", Payload: []byte(`{"resourceId":"res-99"}`)})
+	unknown := r.line(u, semiont.Frame{Channel: "browse:resource-viewed", Payload: []byte(`{"resourceId":"res-99"}`)})
 	if !strings.Contains(unknown, "res-99") {
 		t.Errorf("an unresolvable id must still render: %q", unknown)
 	}
@@ -39,13 +39,13 @@ func TestListenRendersPresenceAsState(t *testing.T) {
 	r := newListenRenderer(nil)
 	did := "did:web:example.github.io:users:alice%40example.com"
 
-	first := r.line(u, bus.Event{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c1"}`)})
+	first := r.line(u, semiont.Frame{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c1"}`)})
 	mustAll(t, "first join", first, "alice@example.com", "1 connection watching")
 
-	second := r.line(u, bus.Event{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c2"}`)})
+	second := r.line(u, semiont.Frame{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c2"}`)})
 	mustAll(t, "second connection of the same person", second, "2 connections watching")
 
-	gone := r.line(u, bus.Event{Channel: "session:left", Payload: []byte(`{"participant":"` + did + `","connectionId":"c2"}`)})
+	gone := r.line(u, semiont.Frame{Channel: "session:left", Payload: []byte(`{"participant":"` + did + `","connectionId":"c2"}`)})
 	mustAll(t, "one tab closed", gone, "left", "1 connection watching")
 
 	if got := r.watching(); got != 1 {

@@ -18,5 +18,14 @@ output-options:
     - AnnotationId
     - JobId
     - UserId
+  # A timestamp stays the text the wire carries, as it does in every other
+  # SDK: a time.Time writes it back in its own form (2026-01-01T00:00:00Z for
+  # 2026-01-01T00:00:00.000Z), so a value read and passed on would not be the
+  # value the gateway sent.
+  type-mapping:
+    string:
+      formats:
+        date-time:
+          type: string
 compatibility:
   always-prefix-enum-values: true

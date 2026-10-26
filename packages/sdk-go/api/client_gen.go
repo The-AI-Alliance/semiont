@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -2444,7 +2443,7 @@ type Annotation struct {
 	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Created When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it.
-	Created time.Time `json:"created"`
+	Created string `json:"created"`
 
 	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Creator *Agent `json:"creator,omitempty"`
@@ -2454,7 +2453,7 @@ type Annotation struct {
 
 	// Id An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	Id       AnnotationId `json:"id"`
-	Modified *time.Time   `json:"modified,omitempty"`
+	Modified *string      `json:"modified,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
@@ -2726,7 +2725,7 @@ type AttributedEvent struct {
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`
@@ -3311,7 +3310,7 @@ type CursorsPath = string
 // DirEntry defines model for DirEntry.
 type DirEntry struct {
 	// Mtime Last modified time (ISO 8601)
-	Mtime time.Time `json:"mtime"`
+	Mtime string `json:"mtime"`
 
 	// Name Entry name (basename)
 	Name string `json:"name"`
@@ -3464,7 +3463,7 @@ type EnrichedResourceEvent struct {
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`
@@ -3589,7 +3588,7 @@ type FileEntry struct {
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Mtime Last modified time (ISO 8601)
-	Mtime time.Time `json:"mtime"`
+	Mtime string `json:"mtime"`
 
 	// Name Entry name (basename)
 	Name string `json:"name"`
@@ -4938,7 +4937,7 @@ type KbEndpoint struct {
 // KbRead When a knowledge base last described itself, and what it said beyond its name. A client shows it as current only while a session to the knowledge base is live, and as of `at` otherwise.
 type KbRead struct {
 	// At When the description arrived.
-	At time.Time `json:"at"`
+	At string `json:"at"`
 
 	// GitBranch The branch of the knowledge base's working tree then. Absent when the working tree was not a git checkout.
 	GitBranch *string `json:"gitBranch,omitempty"`
@@ -5653,7 +5652,7 @@ type Representation struct {
 
 	// ConformsTo Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).
 	ConformsTo *Representation_ConformsTo `json:"conformsTo,omitempty"`
-	Created    *time.Time                 `json:"created,omitempty"`
+	Created    *string                    `json:"created,omitempty"`
 
 	// Duration Seconds (audio/video).
 	Duration *float32 `json:"duration,omitempty"`
@@ -5669,8 +5668,8 @@ type Representation struct {
 	Language *string `json:"language,omitempty"`
 
 	// MediaType MIME/media type (e.g., text/markdown, image/png).
-	MediaType string     `json:"mediaType"`
-	Modified  *time.Time `json:"modified,omitempty"`
+	MediaType string  `json:"mediaType"`
+	Modified  *string `json:"modified,omitempty"`
 
 	// Rel Semantics of this rendition relative to the resource (e.g., original, thumbnail, preview, derived).
 	Rel *RepresentationRel `json:"rel,omitempty"`
@@ -5864,8 +5863,8 @@ type ResourceDescriptor struct {
 
 	// ConformsTo Profile/shape URI this resource description conforms to.
 	ConformsTo   *ResourceDescriptor_ConformsTo `json:"conformsTo,omitempty"`
-	DateCreated  *time.Time                     `json:"dateCreated,omitempty"`
-	DateModified *time.Time                     `json:"dateModified,omitempty"`
+	DateCreated  *string                        `json:"dateCreated,omitempty"`
+	DateModified *string                        `json:"dateModified,omitempty"`
 	Description  *string                        `json:"description,omitempty"`
 
 	// EntityTypes Application-specific: Entity types for this resource
@@ -6125,8 +6124,8 @@ type ScoredResource struct {
 
 	// ConformsTo Profile/shape URI this resource description conforms to.
 	ConformsTo   *ScoredResource_ConformsTo `json:"conformsTo,omitempty"`
-	DateCreated  *time.Time                 `json:"dateCreated,omitempty"`
-	DateModified *time.Time                 `json:"dateModified,omitempty"`
+	DateCreated  *string                    `json:"dateCreated,omitempty"`
+	DateModified *string                    `json:"dateModified,omitempty"`
 	Description  *string                    `json:"description,omitempty"`
 
 	// EntityTypes Application-specific: Entity types for this resource
@@ -6474,7 +6473,7 @@ type StoredEventResponse struct {
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`

@@ -8,7 +8,6 @@ package verbs
 // creates and follows (job.go).
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -342,11 +341,11 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	if deleteID != "" {
-		_, err := cli.Request(context.Background(), "mark:delete",
-			api.MarkDeleteCommand{AnnotationId: did, ResourceId: &rid}, nil)
+		_, err := b.Request("mark:delete", api.MarkDeleteCommand{AnnotationId: did, ResourceId: &rid}, requestWithin)
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}
@@ -460,8 +459,7 @@ options:
 		request.Body = &body
 	}
 
-	reply, err := cli.Request(context.Background(), "mark:create-request",
-		api.MarkCreateRequest{ResourceId: rid, Request: request}, nil)
+	reply, err := b.Request("mark:create-request", api.MarkCreateRequest{ResourceId: rid, Request: request}, requestWithin)
 	if err != nil {
 		return busFail(u, "mark", err)
 	}
@@ -470,7 +468,7 @@ options:
 		return 0
 	}
 	var ok2 api.MarkCreateOk
-	if json.Unmarshal(reply, &ok2) != nil {
+	if json.Unmarshal(reply, &ok2.Response) != nil {
 		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 		return 0
 	}
@@ -510,7 +508,9 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command api.JobCreat
 		create: command,
 		jobOf:  func(done api.MarkJobCompleteCommand) api.JobId { return done.JobId },
 	}
-	done, raw, ok := job.run(u, t.Transport())
+	b := t.Bus(jobChannels...)
+	defer b.Close()
+	done, raw, ok := job.run(u, b)
 	if !ok {
 		return 1
 	}

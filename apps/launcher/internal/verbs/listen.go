@@ -1,11 +1,12 @@
 package verbs
 
 // listen.go — `semiont listen`: subscribe to the KB's live event stream and
-// print events until interrupted. The pure-streaming verb: no request, no
-// reply, just the bus. Only BRIDGED channels can be subscribed to over a
+// print events until interrupted. The pure-streaming verb: no reply to wait
+// for, just the bus. Only BRIDGED channels can be subscribed to over a
 // transport, so the default set is the bridged broadcasts — asking for an
 // unbridged channel would hang forever with no error, which is exactly the
-// silent-failure trap the bus docs warn about.
+// silent-failure trap the bus docs warn about. A resource's scope carries its
+// own channels (bus.ResourceScopedChannels), and nothing else.
 
 import (
 	"context"
@@ -13,11 +14,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -29,7 +32,8 @@ arrive. Runs until interrupted (Ctrl-C).
 
 Options:
   --channel <name>     Subscribe to this channel (repeatable; default: the
-                       system-wide broadcasts)
+                       system-wide broadcasts, or with --scope, every channel
+                       a resource's scope carries)
   --scope <resourceId> Subscribe to one resource's scoped channels
   --json               Print each event as raw JSON
   --repo <owner/name>  Target a codespace stack (default: the local stack)
@@ -101,13 +105,26 @@ func Listen(args []string) int {
 			return 1
 		}
 	}
-	if len(channels) == 0 {
+	var rid api.ResourceId
+	switch {
+	case scope != "":
+		var ok bool
+		if rid, ok = parsed(u, "scope", scope, api.ParseResourceId); !ok {
+			return 1
+		}
+		if len(channels) == 0 {
+			channels = bus.ResourceScopedChannels
+		}
+	case len(channels) == 0:
 		channels = bus.BridgedBroadcasts
 	}
-	// A channel nobody bridges delivers nothing, silently — say so rather
-	// than sitting there pretending to listen.
+	// A channel nothing delivers stays silent — say so rather than sitting
+	// there pretending to listen.
 	for _, ch := range channels {
-		if !bus.Bridged(ch) {
+		switch {
+		case scope != "" && !slices.Contains(bus.ResourceScopedChannels, ch):
+			u.Warn("%s is not a channel a resource's scope carries — it will deliver nothing.", ch)
+		case scope == "" && !bus.Bridged(ch):
 			u.Warn("%s is not a bridged channel — it will deliver nothing.", ch)
 		}
 	}
@@ -116,28 +133,52 @@ func Listen(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
-
-	// Resource names, fetched ONCE before the stream opens. Not per event: a
-	// lookup is a correlated Request, which opens its own SSE connection, and
-	// every connection publishes session:joined/left — so inline resolution
-	// would make this console generate the churn it is meant to report. One
-	// request up front, then never again; ids the prefetch misses render as
-	// ids.
-	render := newListenRenderer(prefetchResourceNames(cli))
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	var scoped []bus.Channel
-	if scope != "" {
-		scoped, channels = channels, nil
+	// The stream names the channels globally; a scope's arrive on the scope.
+	var global []bus.Channel
+	if scope == "" {
+		global = channels
 	}
-	sub, err := cli.Subscribe(ctx, channels, scoped, scope)
+	b := t.Bus(global...)
+	defer b.Close()
+	if scope != "" {
+		release := b.Transport().SubscribeToResource(rid)
+		defer release()
+	}
+	var heard []bus.Channel
+	for _, ch := range channels {
+		if scope == "" || slices.Contains(bus.ResourceScopedChannels, ch) {
+			heard = append(heard, ch)
+		}
+	}
+	frames, stopFrames, err := arrivals(b.Transport(), heard)
 	if err != nil {
 		return busFail(u, "listen", err)
 	}
-	defer sub.Close()
+	defer stopFrames()
+
+	ctx, stop := signal.NotifyContext(b.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	down := dropped(ctx, b.Transport())
+
+	// Resource names, asked ONCE, on the stream the events arrive on. Not per
+	// event: one request up front, then never again; ids the prefetch misses
+	// render as ids. Events that arrive meanwhile wait for it.
+	render := newListenRenderer(prefetchResourceNames(b))
+
+	// Listening is said once the stream is held, never before.
+	if err := b.Reached(); err != nil {
+		return busFail(u, "listen", err)
+	}
+	opened := false
+	for state := range b.Transport().StateChanges(ctx) {
+		if state == semiont.ConnectionStateOpen {
+			opened = true
+			break
+		}
+	}
+	if !opened {
+		return listenStopped(u, b)
+	}
 
 	where := "this KB"
 	if scope != "" {
@@ -155,42 +196,44 @@ func Listen(args []string) int {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println()
-			u.Log("Stopped.")
-			return 0
-		case ev, open := <-sub.Events:
-			if !open {
-				// The stream ended on its own — say so rather than exiting 0
-				// as though the user had asked to stop.
-				if err := sub.Err(); err != nil {
-					u.Fail("The event stream ended: %v", err)
-					return 1
-				}
-				u.Warn("The event stream closed.")
-				return 1
-			}
-			printEvent(u, render, ev, asJSON)
+			return listenStopped(u, b)
+		case <-down:
+			// The stream ended on its own — say so rather than exiting 0 as
+			// though the user had asked to stop.
+			u.Warn("The event stream closed.")
+			return 1
+		case frame := <-frames:
+			printEvent(u, render, frame, asJSON)
 		}
 	}
+}
+
+// listenStopped ends a `listen` that was stopped: by the user, or by the
+// gateway refusing the session for good.
+func listenStopped(u *launcher.UI, b *launcher.VerbBus) int {
+	if b.Context().Err() != nil {
+		return busFail(u, "listen", context.Cause(b.Context()))
+	}
+	fmt.Println()
+	u.Log("Stopped.")
+	return 0
 }
 
 // prefetchResourceNames builds the resourceId → name map the human rendering
 // uses. Best effort by design: a KB that cannot answer, or answers partially,
 // costs the console nothing — every id still renders as an id. Failing the
 // whole `listen` because a cosmetic lookup failed would be the wrong trade.
-func prefetchResourceNames(cli bus.Transport) map[string]string {
+func prefetchResourceNames(b *launcher.VerbBus) map[string]string {
 	names := map[string]string{}
-	ctx, cancel := context.WithTimeout(context.Background(), prefetchTimeout)
-	defer cancel()
 	limit := prefetchLimit
 	req := api.BrowseResourcesRequest{}
 	req.Limit = &limit
-	reply, err := cli.Request(ctx, "browse:resources-requested", req, &bus.RequestOptions{Timeout: prefetchTimeout})
+	reply, err := b.Request("browse:resources-requested", req, prefetchTimeout)
 	if err != nil {
 		return names
 	}
 	var r api.BrowseResourcesResult
-	if json.Unmarshal(reply, &r) != nil {
+	if json.Unmarshal(reply, &r.Response) != nil {
 		return names
 	}
 	for _, res := range r.Response.Resources {
@@ -199,13 +242,13 @@ func prefetchResourceNames(cli bus.Transport) map[string]string {
 	return names
 }
 
-func printEvent(u *launcher.UI, render *listenRenderer, ev bus.Event, asJSON bool) {
+func printEvent(u *launcher.UI, render *listenRenderer, frame semiont.Frame, asJSON bool) {
 	if asJSON {
 		// UNCHANGED, deliberately: scripts parse this. The human rendering must
 		// never leak into the machine one.
-		b, _ := json.Marshal(map[string]any{"channel": ev.Channel, "payload": json.RawMessage(ev.Payload), "scope": ev.Scope})
+		b, _ := json.Marshal(map[string]any{"channel": frame.Channel, "payload": frame.Payload, "scope": frame.Scope.String()})
 		fmt.Println(string(b))
 		return
 	}
-	fmt.Println(render.line(u, ev))
+	fmt.Println(render.line(u, frame))
 }

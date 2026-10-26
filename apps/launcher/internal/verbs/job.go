@@ -4,10 +4,9 @@ package verbs
 // `mark --delegate` are not one request and its reply: each creates a job
 // (job:create → job:created names it) and then follows job:report-progress,
 // job:complete and job:fail, which are BROADCASTS correlated by jobId — not by
-// the correlationId the bus client uses elsewhere. The subscription therefore
-// opens BEFORE the job is created: the jobId is unknown at that moment, so
-// events are buffered and filtered once it arrives. Subscribing after would
-// race a fast job.
+// the correlationId a request uses. Their frames are therefore taken BEFORE
+// the job is created: the jobId is unknown at that moment, so frames wait and
+// are filtered once it arrives. Taking them after would race a fast job.
 
 import (
 	"context"
@@ -22,9 +21,59 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
+
+// jobChannels: the broadcasts a delegated job is followed on. A delegated
+// verb's bus carries them (launcher.VerbTarget.Bus).
+var jobChannels = []bus.Channel{"job:report-progress", "job:complete", "job:fail"}
+
+// requestWithin: how long a verb waits for a request's reply.
+var requestWithin = semiont.DefaultTiming().BusRequestTimeout
+
+// arrivals is the frames of channels, delivered from when it is called, on
+// one channel; stop lets them go. The frames that arrive while nobody reads
+// wait, in the order the stream delivered them, whatever their channel: a
+// job's progress is read before the completion that followed it.
+func arrivals(transport semiont.Transport, channels []bus.Channel) (frames <-chan semiont.Frame, stop func(), err error) {
+	listener, err := transport.Frames(channels...)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := make(chan semiont.Frame)
+	stopped := make(chan struct{})
+	go func() {
+		for frame := range listener {
+			select {
+			case out <- frame:
+			case <-stopped:
+				return
+			}
+		}
+	}()
+	return out, func() { close(stopped) }, nil
+}
+
+// dropped is closed when the stream, once open, stops being open. What the
+// gateway broadcast while it was down is not sent again, so a verb following
+// broadcasts cannot know what it missed.
+func dropped(ctx context.Context, transport semiont.Transport) <-chan struct{} {
+	out := make(chan struct{})
+	go func() {
+		opened := false
+		for state := range transport.StateChanges(ctx) {
+			if state == semiont.ConnectionStateOpen {
+				opened = true
+			} else if opened {
+				close(out)
+				return
+			}
+		}
+	}()
+	return out
+}
 
 // delegatedJob: one job a verb creates and follows to its end. C is the verb:
 // the member of the JobCompleteCommand union its jobType names, which is what
@@ -40,26 +89,28 @@ type delegatedJob[C any] struct {
 	jobOf       func(C) api.JobId // the job a completion is of
 }
 
-// run creates the job and follows it. It returns the job:complete the job
-// ended with, read as the verb's and as it arrived. ok=false: the job failed,
-// could not be created or followed, or completed as another verb's, and that
-// was said.
-func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw json.RawMessage, ok bool) {
-	ctx := context.Background()
-	sub, err := cli.Subscribe(ctx, []bus.Channel{"job:report-progress", "job:complete", "job:fail"}, nil, "")
+// run creates the job and follows it, on a bus that carries jobChannels. It
+// returns the job:complete the job ended with, read as the verb's and as it
+// arrived. ok=false: the job failed, could not be created or followed, or
+// completed as another verb's, and that was said.
+func (j delegatedJob[C]) run(u *launcher.UI, b *launcher.VerbBus) (done C, raw json.RawMessage, ok bool) {
+	ctx, cancel := context.WithCancel(b.Context())
+	defer cancel()
+	frames, stop, err := arrivals(b.Transport(), jobChannels)
 	if err != nil {
 		busFail(u, j.verb, err)
 		return done, nil, false
 	}
-	defer sub.Close()
+	defer stop()
+	down := dropped(ctx, b.Transport())
 
-	created, err := cli.Request(ctx, "job:create", j.create, nil)
+	created, err := b.Request("job:create", j.create, requestWithin)
 	if err != nil {
 		busFail(u, j.verb, err)
 		return done, nil, false
 	}
 	var jc api.JobCreatedResult
-	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId.IsZero() {
+	if json.Unmarshal(created, &jc.Response) != nil || jc.Response.JobId.IsZero() {
 		u.Fail("%s: the gateway accepted the job but named no jobId.", j.verb)
 		return done, nil, false
 	}
@@ -75,16 +126,21 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 	// read with its own generated type. These are broadcasts, and every
 	// viewer of the KB sees them: another job's are skipped.
 	for {
-		ev, open := <-sub.Events
-		if !open {
+		var frame semiont.Frame
+		select {
+		case <-ctx.Done():
+			busFail(u, j.verb, context.Cause(ctx))
+			return done, nil, false
+		case <-down:
 			u.Fail("The event stream closed before job %s finished.", jobID)
 			fmt.Fprintln(os.Stderr, "  The job may still be running:  "+j.check)
 			return done, nil, false
+		case frame = <-frames:
 		}
-		switch ev.Channel {
+		switch frame.Channel {
 		case "job:report-progress":
 			var p api.JobReportProgressCommand
-			if json.Unmarshal(ev.Payload, &p) != nil || p.JobId != jobID || p.Progress == nil {
+			if json.Unmarshal(frame.Payload, &p) != nil || p.JobId != jobID || p.Progress == nil {
 				continue
 			}
 			// JobProgress is the one progress shape for every job type. The
@@ -96,7 +152,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 			}
 		case "job:fail":
 			var f api.JobFailCommand
-			if json.Unmarshal(ev.Payload, &f) != nil || f.JobId != jobID {
+			if json.Unmarshal(frame.Payload, &f) != nil || f.JobId != jobID {
 				continue
 			}
 			// A failure the queue will retry is an event of a job still
@@ -115,7 +171,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 			u.Fail("%s failed: %s", j.failed, f.Error)
 			return done, nil, false
 		case "job:complete":
-			completed, mine, err := j.completion(jobID, ev.Payload)
+			completed, mine, err := j.completion(jobID, frame.Payload)
 			if !mine {
 				continue
 			}
@@ -124,7 +180,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 				fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
 				return done, nil, false
 			}
-			return completed, ev.Payload, true
+			return completed, frame.Payload, true
 		}
 	}
 }

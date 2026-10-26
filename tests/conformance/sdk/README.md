@@ -347,10 +347,8 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-The TypeScript, Rust and Python drivers each run every wire case. An SDK that
-arrives in steps names what it has not reached: the Go SDK's driver, which
-answers `unsupported` to what it does not do yet, names each case it has not
-reached, with what it lacks.
+The TypeScript, Rust, Python and Go drivers each run every wire case. An SDK
+that arrives in steps names what it has not reached, with what it lacks.
 
 ## Cases that restate a table
 

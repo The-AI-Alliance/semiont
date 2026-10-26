@@ -2,7 +2,7 @@ package verbs
 
 // browse.go — `semiont browse`: reads over the event bus (the launcher's
 // first bus verb). Every read but a resource's annotations is one correlated
-// request/reply exchange through packages/sdk-go/bus; the operation names and
+// request/reply exchange over the SDK's transport; the operation names and
 // payload schemas come from specs/src/bus/registry.json, so this file holds
 // no protocol knowledge of its own beyond which operation answers which
 // question. A resource's annotations are read over the gateway's HTTP API
@@ -21,6 +21,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -239,7 +240,8 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
@@ -260,7 +262,7 @@ options:
 				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
 			}
 		}
-		subscribers, counted, err := cli.Emit(context.Background(), d.channel, d.payload, "")
+		subscribers, counted, err := b.Emit(d.channel, d.payload)
 		if err != nil {
 			return busFail(u, "browse", err)
 		}
@@ -313,7 +315,7 @@ options:
 		payload = req
 	}
 
-	reply, err := cli.Request(context.Background(), op, payload, nil)
+	reply, err := b.Request(op, payload, requestWithin)
 	if err != nil {
 		return busFail(u, "browse", err)
 	}
@@ -345,9 +347,9 @@ func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID api.Resourc
 			return err
 		}
 		if r.StatusCode() == http.StatusUnauthorized {
-			// The signal the bus client raises for the same answer, so the
-			// session's one policy reads both wires the same way.
-			return &bus.StatusError{Op: "GET /resources/{id}/annotations", Status: r.StatusCode()}
+			// The SDK's own word for the same answer, which the session's
+			// policy reads.
+			return &semiont.TransportError{Code: semiont.TransportErrorCodeUnauthorized, Message: "GET /resources/{id}/annotations 401"}
 		}
 		resp = r
 		return nil
@@ -377,7 +379,7 @@ func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID api.Resourc
 // over the HTTP API.
 func renderResource(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId, reply json.RawMessage) int {
 	var r api.BrowseResourceResult
-	if err := json.Unmarshal(reply, &r); err != nil {
+	if err := json.Unmarshal(reply, &r.Response); err != nil {
 		return rawFallback(reply)
 	}
 	list, ok := annotationsOf(u, t, resourceID)
@@ -484,16 +486,16 @@ func launchBrowser(u *launcher.UI, override string) (launcher.BrowserProbe, bool
 	return launcher.BrowserTarget(launcher.LoadStackSet(), override), true
 }
 
-// busFail turns a bus error into the launcher's voice: a rejection carries
-// the gateway's own message, a timeout says what went unanswered, and a
-// session the gateway refused and the issuer could not renew points at login
-// rather than leaving the user guessing.
+// busFail turns a bus error into the launcher's voice: a failure the peer
+// answered with carries its own message, a timeout says what went
+// unanswered, and a session the gateway refused and the issuer could not
+// renew points at login rather than leaving the user guessing.
 func busFail(u *launcher.UI, verb string, err error) int {
-	var re *bus.RequestError
+	var failed *semiont.BusRequestError
 	var rej *launcher.SessionRejected
 	switch {
-	case errors.As(err, &re):
-		u.Fail("%s was rejected: %s", verb, re.Error())
+	case errors.As(err, &failed) && failed.Failure != nil:
+		u.Fail("%s was rejected: %s", verb, failed.Message)
 	case errors.As(err, &rej):
 		return launcher.RejectedFail(u, verb, rej)
 	default:
@@ -509,13 +511,13 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 	switch op {
 	case "browse:resources-requested":
 		var r api.BrowseResourcesResult
-		if err := json.Unmarshal(reply, &r); err != nil {
+		if err := json.Unmarshal(reply, &r.Response); err != nil {
 			return rawFallback(reply)
 		}
 		printResources(u, r.Response.Resources, int(r.Response.Total))
 	case "browse:entity-types-requested":
 		var r api.BrowseEntityTypesResult
-		if err := json.Unmarshal(reply, &r); err != nil {
+		if err := json.Unmarshal(reply, &r.Response); err != nil {
 			return rawFallback(reply)
 		}
 		if len(r.Response.EntityTypes) == 0 {
@@ -527,7 +529,7 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 		}
 	case "browse:tag-schemas-requested":
 		var r api.BrowseTagSchemasResult
-		if err := json.Unmarshal(reply, &r); err != nil {
+		if err := json.Unmarshal(reply, &r.Response); err != nil {
 			return rawFallback(reply)
 		}
 		if len(r.Response.TagSchemas) == 0 {
