@@ -784,9 +784,9 @@ type handedOut struct {
 // (All). The next job is claimed when the one held is settled, and a refusal
 // does not end the claims: the worker waits for its next idle moment, and
 // what the refusal means is its host's to judge. Claiming begins when the
-// claims are first ranged over. It ends when Close is called, or when the
-// transport's stream ends; a job still held when it is stopped is failed
-// first.
+// claims are first ranged over. It ends when Close is called, when the
+// transport's stream ends, or when the client closes; a job still held when
+// Close stops it is failed first.
 type Claims struct {
 	links   *links
 	accepts []api.JobFilter
@@ -837,6 +837,9 @@ func newClaims(l *links, accepts []api.JobFilter) *Claims {
 	if c.accepts == nil {
 		c.accepts = []api.JobFilter{}
 	}
+	// The client's closing ends the claims, and so whoever ranges over them:
+	// nothing can be claimed for a client that is gone.
+	context.AfterFunc(life, c.stop)
 	for _, accepted := range c.accepts {
 		encoded, err := accepted.MarshalJSON()
 		var filter any

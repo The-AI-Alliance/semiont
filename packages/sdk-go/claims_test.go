@@ -760,6 +760,17 @@ func TestAWorkerThatClosesFailsTheJobItHoldsAndClaimsNothingMore(t *testing.T) {
 	claims.Close()
 }
 
+func TestClosingTheClientEndsTheClaimsForWhoeverRangesOverThem(t *testing.T) {
+	w := newClaimWorld(t, DefaultTiming())
+	claims := w.client.Job.Claim(filters(t, everything))
+	pull := pulling(t, claims)
+	eventually(t, "a claim", func() bool { return len(w.wire.sent(bus.JobClaim.Request().Channel())) == 1 })
+	w.client.Close()
+	if one := pull.take(t); one.ok {
+		t.Fatalf("the claims of a closed client handed out %+v", one)
+	}
+}
+
 func TestACommitIsEstablishedWhenTheRecordAcknowledgesItOrSaysItsLastAnnotationIsThere(t *testing.T) {
 	ctx := context.Background()
 	batch := func(t *testing.T) []api.Annotation {
