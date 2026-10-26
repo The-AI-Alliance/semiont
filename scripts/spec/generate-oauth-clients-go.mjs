@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// generate-oauth-clients-go.mjs — generate the launcher's OAuth client ids and
+// generate-oauth-clients-go.mjs — generate the Go SDK's OAuth client ids and
 // the scope a sign-in asks for from specs/src/session/oauth.json, the file the
-// TypeScript and Rust SDKs generate theirs from.
+// TypeScript, Rust and Python SDKs generate theirs from.
 //
+//   packages/sdk-go/oauthclients_gen.go
 //   apps/launcher/internal/launcher/oauth_clients_gen.go
 //
-// The launcher registers these clients in a knowledge base's realm and signs
-// in as one of them, so an id restated by hand is a sign-in that fails the day
-// the registration changes.
+// The SDK signs in as the script client, and the launcher registers both
+// clients in a knowledge base's realm, so an id restated by hand is a sign-in
+// that fails the day the registration changes. The launcher is given its own
+// copy until it signs in through the SDK.
 //
 // --check diffs without writing (the CI drift gate).
 
@@ -19,7 +21,10 @@ import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
-const OUT = resolve(ROOT, 'apps/launcher/internal/launcher/oauth_clients_gen.go');
+const OUTS = [
+  { path: resolve(ROOT, 'packages/sdk-go/oauthclients_gen.go'), pkg: 'semiont' },
+  { path: resolve(ROOT, 'apps/launcher/internal/launcher/oauth_clients_gen.go'), pkg: 'launcher' },
+];
 const CHECK = process.argv.includes('--check');
 
 const { clients, scope } = readOAuthClients(TABLE);
@@ -29,16 +34,16 @@ const goName = (name) => `${name[0].toUpperCase()}${name.slice(1)}ClientID`;
 
 const constant = (name, docs, value) => `${goComment(`${name}: ${docs}`)}\nconst ${name} = ${JSON.stringify(value)}\n`;
 
-const text = `// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
+const text = (pkg) => `// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-oauth-clients-go.mjs
 // The TypeScript side (packages/core/src/generated/oauth-clients.ts) and the
 // Rust side (packages/sdk-rust/build.rs) generate from the same file.
 
-package launcher
+package ${pkg}
 
 ${clients.map(({ name, id, docs }) => constant(goName(name), docs, id)).join('\n')}
 ${constant('SignInScope', scope.docs, scope.value)}`;
 
-writeOrCheck(ROOT, OUT, text, CHECK);
+for (const { path, pkg } of OUTS) writeOrCheck(ROOT, path, text(pkg), CHECK);
 console.log(`clients: ${clients.length}, and the sign-in scope`);

@@ -6,7 +6,8 @@ package launcher
 // functions that read the environment call them.
 //
 // The state home is the one another program finds too (the Rust SDK reads
-// tokens.json there), so its rule is the spec's (stateDirFor, statefile.go).
+// tokens.json there), so its rule is the spec's, and the SDK's
+// (semiont.StateDir, which StateDir in statefile.go calls).
 // The data home and the log dir are this launcher's own.
 
 import (

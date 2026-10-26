@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // The launcher records what it believes each stack IS in stack.json under
@@ -108,34 +110,12 @@ func (st *StackState) platform() platform {
 	return platformLocal
 }
 
-// stateDirFor: the launcher's state home, from what the system says of the
-// person's directories: the application-support directory on macOS, the local
-// application-data directory on Windows, $XDG_STATE_HOME/semiont (default
-// ~/.local/state/semiont) elsewhere, and "" when there is no home.
-// specs/src/sign-in-store/cases.json states it, and every program that finds
-// tokens.json runs those cases. system is the spec's name for the OS: "macos",
-// "windows", or anything else.
-//
-// The path is composed with the SYSTEM's separator, not this build's: a case
-// gives one answer whichever machine computes it.
-func stateDirFor(system, home, xdgStateHome, localAppData string) string {
-	switch {
-	case home == "":
-		return ""
-	case system == "macos":
-		return pathUnder(system, home, "Library", "Application Support", "semiont")
-	case system == "windows":
-		return pathUnder(system, localAppDataFor(home, localAppData), "semiont")
-	case xdgStateHome != "":
-		return pathUnder(system, xdgStateHome, "semiont")
-	}
-	return pathUnder(system, home, ".local", "state", "semiont")
-}
-
-// StateDir is the launcher's state home on this machine. "" when no home is
-// resolvable.
+// StateDir is the launcher's state home on this machine: where the SDK says it
+// is (semiont.StateDir, held to specs/src/sign-in-store/cases.json), from what
+// this machine's environment says. "" when no home is resolvable.
 func StateDir() string {
-	return stateDirFor(systemName(), userHome(), os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
+	dir, _ := semiont.StateDir(semiont.ThisSystem(), userHome(), os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
+	return dir
 }
 
 func statePath() string {

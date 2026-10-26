@@ -1873,7 +1873,8 @@ jobs:
       # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
       # the kinds of id (api/ids_gen.go, whose generator also holds
       # oapi-codegen's exclude-schemas to the kinds), the error codes, the
-      # client's timing, the SDK telemetry table, and the media types
+      # client's timing, the SDK telemetry table, the sign-in store's entry,
+      # the OAuth clients and the sign-in scope, and the media types
       # (mediatypes). TypeScript and Rust build theirs from the same files at
       # build time; a Go module has no build step, so its are committed, and
       # are what can go stale. The bus vocabulary and the REST client have
@@ -1884,16 +1885,9 @@ jobs:
           node scripts/spec/generate-error-codes-go.mjs --check
           node scripts/spec/generate-client-timing-go.mjs --check
           node scripts/spec/generate-sdk-telemetry-go.mjs --check
-          node scripts/spec/generate-media-types-go.mjs --check
-
-      # The launcher shares the sign-in store with the Rust SDK, and signs in
-      # as the clients every SDK does. Its entry type, the client ids and the
-      # scope are committed Go generated from the same spec files, so they are
-      # what can go stale.
-      - name: Sign-in store and OAuth clients vs the launcher's generated Go
-        run: |
           node scripts/spec/generate-sign-in-go.mjs --check
           node scripts/spec/generate-oauth-clients-go.mjs --check
+          node scripts/spec/generate-media-types-go.mjs --check
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the

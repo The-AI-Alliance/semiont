@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // The data home and the log dir on each system, whichever machine runs this:
@@ -62,7 +64,8 @@ func TestTheDataHomeIsTheStateHomeWhereTheSystemKeepsOneBucket(t *testing.T) {
 		{"windows", `C:\Users\alice`, `C:\Users\alice\AppData\Local`},
 		{"windows", `C:\Users\alice`, ""},
 	} {
-		if data, state := dataDirFor(c.system, c.home, "", c.local), stateDirFor(c.system, c.home, "", c.local); data != state {
+		state, _ := semiont.StateDir(semiont.System(c.system), c.home, "", c.local)
+		if data := dataDirFor(c.system, c.home, "", c.local); data != state {
 			t.Errorf("%s: the data home %q is not the state home %q", c.system, data, state)
 		}
 	}

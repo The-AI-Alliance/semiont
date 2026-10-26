@@ -72,3 +72,51 @@ func (e *BusRequestError) ErrorCode() string { return string(e.Code) }
 
 // Status is never stated: a bus request's failure is a peer's, or this side's.
 func (e *BusRequestError) Status() (int, bool) { return 0, false }
+
+// SessionError is a failure that makes a session itself unusable. A request's
+// own failure stays with its caller.
+type SessionError struct {
+	Code    SessionErrorCode
+	Message string
+	// KbID is the knowledge base the session was with.
+	KbID string
+}
+
+var _ Error = (*SessionError)(nil)
+
+func (e *SessionError) Error() string     { return e.Message }
+func (e *SessionError) ErrorCode() string { return string(e.Code) }
+
+// Status is never stated: a session's failure is the session's.
+func (e *SessionError) Status() (int, bool) { return 0, false }
+
+// SignInError is a sign-in at the issuer a knowledge base trusts, or a
+// renewal there, that did not succeed. One that carries a status is the
+// issuer's answer; one that carries none got no answer: a refusal and an
+// outage are different events.
+type SignInError struct {
+	Code    SignInErrorCode
+	Message string
+
+	status    int
+	hasStatus bool
+}
+
+var _ Error = (*SignInError)(nil)
+
+func (e *SignInError) Error() string     { return e.Message }
+func (e *SignInError) ErrorCode() string { return string(e.Code) }
+
+// Status is the status the issuer answered; ok is false when it answered
+// nothing.
+func (e *SignInError) Status() (int, bool) { return e.status, e.hasStatus }
+
+// signInRefused is the issuer's answer, a refusal with its status.
+func signInRefused(code SignInErrorCode, message string, status int) *SignInError {
+	return &SignInError{Code: code, Message: message, status: status, hasStatus: true}
+}
+
+// signInUnanswered is a sign-in step no issuer answered.
+func signInUnanswered(code SignInErrorCode, message string) *SignInError {
+	return &SignInError{Code: code, Message: message}
+}
