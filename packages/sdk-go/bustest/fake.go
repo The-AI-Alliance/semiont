@@ -149,8 +149,8 @@ func (f *Fake) Deliver(frame semiont.Frame) {
 	f.hub.Deliver(frame)
 }
 
-func (f *Fake) Frames(channel bus.Channel) (iter.Seq[semiont.Frame], error) {
-	return f.hub.Frames(channel), nil
+func (f *Fake) Frames(channels ...bus.Channel) (iter.Seq[semiont.Frame], error) {
+	return f.hub.Frames(channels...), nil
 }
 
 func (f *Fake) IsSubscribed(bus.Channel) bool { return true }

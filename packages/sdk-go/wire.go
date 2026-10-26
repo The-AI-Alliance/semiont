@@ -31,9 +31,10 @@ func (w *Wire) EmitOn(ctx context.Context, channel bus.Channel, payload map[stri
 	return w.transport.Emit(ctx, channel, payload, envelope)
 }
 
-// FramesOn is the frames delivered on channel from now on.
-func (w *Wire) FramesOn(channel bus.Channel) (iter.Seq[Frame], error) {
-	return w.transport.Frames(channel)
+// FramesOn is the frames delivered on any of channels from now on, in the
+// order they were delivered.
+func (w *Wire) FramesOn(channels ...bus.Channel) (iter.Seq[Frame], error) {
+	return w.transport.Frames(channels...)
 }
 
 // RequestOf sends payload as the request of the operation whose request

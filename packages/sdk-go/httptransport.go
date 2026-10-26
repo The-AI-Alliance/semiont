@@ -143,18 +143,23 @@ func (t *HTTPTransport) Emit(ctx context.Context, channel bus.Channel, payload m
 	return t.shared.emit(ctx, body)
 }
 
-// Frames is the frames delivered on channel from now on: the listener is
-// taken when Frames is called, and let go when the loop over the sequence
-// stops or the transport closes. A channel this transport can never deliver
-// is refused, as unsubscribed.
-func (t *HTTPTransport) Frames(channel bus.Channel) (iter.Seq[Frame], error) {
-	if !t.IsSubscribed(channel) && !slices.Contains(bus.ResourceScopedChannels, channel) {
-		return nil, &BusRequestError{
-			Code:    BusRequestErrorCodeUnsubscribed,
-			Message: fmt.Sprintf("this transport's stream does not carry %s: nothing on it can be delivered", channel),
+// Frames is the frames delivered on any of channels from now on, in the order
+// the stream delivered them: one listener, taken when Frames is called, and
+// let go when the loop over the sequence stops or the transport closes. A
+// channel this transport can never deliver is refused, as unsubscribed.
+func (t *HTTPTransport) Frames(channels ...bus.Channel) (iter.Seq[Frame], error) {
+	if len(channels) == 0 {
+		return nil, fmt.Errorf("Frames names no channel to listen to")
+	}
+	for _, channel := range channels {
+		if !t.IsSubscribed(channel) && !slices.Contains(bus.ResourceScopedChannels, channel) {
+			return nil, &BusRequestError{
+				Code:    BusRequestErrorCodeUnsubscribed,
+				Message: fmt.Sprintf("this transport's stream does not carry %s: nothing on it can be delivered", channel),
+			}
 		}
 	}
-	return t.shared.hub.Frames(channel), nil
+	return t.shared.hub.Frames(channels...), nil
 }
 
 // IsSubscribed reports whether the stream delivers channel globally: whether
