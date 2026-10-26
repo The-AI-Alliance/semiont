@@ -118,69 +118,6 @@ func TestJobResultReadsEveryMemberOfItsVerbsUnion(t *testing.T) {
 	heldToItsUnion(t, yieldJobResults)
 }
 
-// A job:complete is a broadcast: every job's reaches every follower. One of
-// another job is not this follower's. One of this job is read as its verb's,
-// by the union's own discriminator, and one the union reads as another verb's
-// (or as none) is an error that names both.
-func TestACompletionIsReadAsItsVerbs(t *testing.T) {
-	var create api.JobCreateCommand
-	if err := create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: resourceIdOf(t, "res-1")}); err != nil {
-		t.Fatal(err)
-	}
-	job := delegatedJob[api.MarkJobCompleteCommand]{
-		verb: "mark --delegate", create: create,
-		jobOf: func(done api.MarkJobCompleteCommand) api.JobId { return done.JobId },
-	}
-	// Written by the generated types, so that what each verb's completion
-	// names its job by is the generator's to say.
-	written := func(from func(*api.JobCompleteCommand) error) json.RawMessage {
-		var completion api.JobCompleteCommand
-		if err := from(&completion); err != nil {
-			t.Fatal(err)
-		}
-		payload, err := json.Marshal(completion)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return payload
-	}
-	marks := func(jobID string) json.RawMessage {
-		return written(func(c *api.JobCompleteCommand) error {
-			return c.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobIdOf(t, jobID), ResourceId: resourceIdOf(t, "res-1")})
-		})
-	}
-	yields := func(jobID string) json.RawMessage {
-		return written(func(c *api.JobCompleteCommand) error {
-			return c.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobIdOf(t, jobID), ResourceId: resourceIdOf(t, "res-1")})
-		})
-	}
-
-	job1 := jobIdOf(t, "job-1")
-	if done, mine, err := job.completion(job1, marks("job-1")); !mine || err != nil || done.JobId != job1 || done.JobType != api.MarkJobCompleteCommandJobTypeMark {
-		t.Errorf("this job's completion is read as %+v (mine %v, %v)", done, mine, err)
-	}
-	for name, payload := range map[string]json.RawMessage{
-		"another mark job's":  marks("job-2"),
-		"another yield job's": yields("job-2"),
-		"not an object":       json.RawMessage(`"job-1"`),
-	} {
-		if _, mine, err := job.completion(job1, payload); mine || err != nil {
-			t.Errorf("%s completion %s is taken as this job's (mine %v, %v)", name, payload, mine, err)
-		}
-	}
-	for as, payload := range map[string]json.RawMessage{
-		`a "yield" job`:            yields("job-1"),
-		`a "frame" job`:            json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark"`, `"jobType":"frame"`, 1)),
-		`a job that names no type`: json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark",`, ``, 1)),
-	} {
-		_, mine, err := job.completion(job1, payload)
-		want := `completed as ` + as + `, and mark --delegate created a "mark" job`
-		if !mine || err == nil || err.Error() != want {
-			t.Errorf("this job's completion %s: mine %v, error %v; want the error %q", payload, mine, err, want)
-		}
-	}
-}
-
 // The nouns are the launcher's; the motivations are the spec's. Every
 // motivation has a noun and no noun is for a motivation that is none.
 func TestEveryMotivationHasItsNoun(t *testing.T) {

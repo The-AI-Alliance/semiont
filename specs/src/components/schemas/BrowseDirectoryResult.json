@@ -3,22 +3,7 @@
   "description": "Result of browsing a directory listing",
   "properties": {
     "response": {
-      "type": "object",
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "entries": {
-          "type": "array",
-          "items": {
-            "$ref": "./DirectoryEntry.json"
-          }
-        }
-      },
-      "required": [
-        "path",
-        "entries"
-      ]
+      "$ref": "./BrowseDirectoryResultResponse.json"
     }
   },
   "required": [

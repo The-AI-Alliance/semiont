@@ -3,16 +3,7 @@
   "description": "Success reply after creating an annotation, matched to the originating command by correlationId.",
   "properties": {
     "response": {
-      "type": "object",
-      "description": "The created annotation's identity.",
-      "properties": {
-        "annotationId": {
-          "$ref": "./AnnotationId.json"
-        }
-      },
-      "required": [
-        "annotationId"
-      ]
+      "$ref": "./MarkCreateOkResponse.json"
     }
   },
   "required": [

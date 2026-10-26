@@ -14,8 +14,6 @@ import (
 	"strings"
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
-
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const frameUsage = `Usage: semiont frame --entity-type <name> [--entity-type <name> ...]
@@ -96,13 +94,16 @@ func Frame(args []string) int {
 		return 1
 	}
 
-	t, ok := launcher.VerbSession(u, "frame", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "frame", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "frame", err)
+	}
 
 	// One command per type: the protocol has no batch add (the SDK's
 	// addEntityTypes is the same loop). A rejection STOPS the run rather
@@ -110,9 +111,8 @@ func Frame(args []string) int {
 	// would be a lie, and the untried tags cost nothing to re-issue.
 	var added []string
 	for _, et := range entityTypes {
-		_, err := b.Request("frame:add-entity-type", api.FrameAddEntityTypeCommand{Tag: et}, requestWithin)
-		if err != nil {
-			code := busFail(u, "frame", err)
+		if err := c.Frame.AddEntityType(c.Context(), et); err != nil {
+			code := busFail(u, "frame", c.Refusal(err))
 			if len(added) > 0 {
 				fmt.Fprintf(os.Stderr, "  Added before the failure: %s\n", strings.Join(added, ", "))
 				fmt.Fprintln(os.Stderr, "  Re-running is safe — adding an existing entity type is a no-op.")

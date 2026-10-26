@@ -3,15 +3,7 @@
   "description": "Result of a job:create command",
   "properties": {
     "response": {
-      "type": "object",
-      "properties": {
-        "jobId": {
-          "$ref": "./JobId.json"
-        }
-      },
-      "required": [
-        "jobId"
-      ]
+      "$ref": "./JobCreatedResultResponse.json"
     }
   },
   "required": [

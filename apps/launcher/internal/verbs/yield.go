@@ -1,23 +1,17 @@
 package verbs
 
-// yield.go — `semiont yield --upload`: register local files as KB
-// resources via the generated packages/sdk-go client (multipart POST
-// /resources, bearer token from `semiont login`), and `--delegate`:
-// generation from gathered context, which rides the JOB lifecycle rather
-// than a single request/reply (see runYieldDelegate below).
+// yield.go — `semiont yield --upload`: register local files as KB resources
+// through the SDK's yield namespace, and `--delegate`: generation from
+// gathered context, which rides the JOB lifecycle rather than a single
+// request/reply (see runYieldDelegate below).
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
@@ -169,12 +163,12 @@ options:
 				return 1
 			}
 		}
-		t, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
+		sess, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
 		}
-		defer t.Close()
-		return runYieldDelegate(u, t, rid, aid, request, asJSON)
+		defer sess.Close()
+		return runYieldDelegate(u, sess, rid, aid, request, asJSON)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -239,28 +233,22 @@ options:
 		return 1
 	}
 	defer sess.Close()
-
-	cli, err := api.NewClientWithResponses(base)
-	if err != nil {
-		u.Fail("client: %v", err)
-		return 1
-	}
+	c := sess.Client()
+	defer c.Close()
 	for _, up := range uploads {
-		if code := yieldOne(u, cli, sess, root, up, name); code != 0 {
+		if code := yieldOne(u, c, root, up, name); code != 0 {
 			return code
 		}
 	}
 	return 0
 }
 
-// yieldOne validates, builds the multipart per the spec's schema (name,
-// file, format, storageUri), and posts it. Fail-fast: the first refusal or
-// error stops the batch — partial silent success is how uploads get lost.
-// The post runs under the session's renew-and-retry policy (session.go),
-// which renews with the same refresh-token grant a bus verb's transport asks
-// the session for: an expired access token is plumbing, not the user's
-// problem.
-func yieldOne(u *launcher.UI, cli *api.ClientWithResponses, sess *launcher.Session, root, up, name string) int {
+// yieldOne validates a file and uploads it as a resource (name, bytes,
+// format, storageUri). Fail-fast: the first refusal or error stops the batch
+// — partial silent success is how uploads get lost. An expired access token
+// is renewed on the way, as for every call the session's client makes:
+// plumbing, not the user's problem.
+func yieldOne(u *launcher.UI, c *launcher.VerbClient, root, up, name string) int {
 	abs := up
 	if !filepath.IsAbs(abs) {
 		if a, err := filepath.Abs(abs); err == nil {
@@ -291,69 +279,33 @@ func yieldOne(u *launcher.UI, cli *api.ClientWithResponses, sess *launcher.Sessi
 		format = "application/octet-stream"
 	}
 
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	if buildErr := func() error {
-		if err := w.WriteField("name", name); err != nil {
-			return err
-		}
-		if err := w.WriteField("format", format); err != nil {
-			return err
-		}
-		if err := w.WriteField("storageUri", "file://"+rel); err != nil {
-			return err
-		}
-		fw, err := w.CreateFormFile("file", filepath.Base(rel))
-		if err != nil {
-			return err
-		}
-		if _, err := fw.Write(content); err != nil {
-			return err
-		}
-		return w.Close()
-	}(); buildErr != nil {
-		u.Fail("building upload for %s: %v", up, buildErr)
-		return 1
-	}
-
-	body := buf.Bytes()
-	var resp *api.UploadResourceResponse
-	err = sess.Authorized(func(token string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		r, err := cli.UploadResourceWithBodyWithResponse(ctx, w.FormDataContentType(),
-			bytes.NewReader(body), launcher.Bearer(token))
-		if err != nil {
-			return err
-		}
-		if r.StatusCode() == http.StatusUnauthorized {
-			// The SDK's own word for the same answer, which the session's
-			// policy reads.
-			return &semiont.TransportError{Code: semiont.TransportErrorCodeUnauthorized, Message: "POST /resources 401"}
-		}
-		resp = r
-		return nil
-	})
-	var rej *launcher.SessionRejected
-	switch {
-	case errors.As(err, &rej):
-		return launcher.RejectedFail(u, "yield", rej)
-	case err != nil:
-		u.Fail("Gateway unreachable: %v", err)
-		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
-		return 1
-	}
-	switch {
-	case resp.JSON202 != nil:
-		u.Ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
+	created, err := c.Yield.Resource(c.Context(), semiont.PutBinaryRequest{
+		Name: name, Bytes: content, Format: format, StorageURI: "file://" + rel,
+	}).Wait(c.Context())
+	if err == nil {
+		u.Ok("Yielded: %s → %s", up, created.ResourceId)
 		return 0
-	case resp.JSON400 != nil:
-		u.Fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
-		return 1
-	default:
-		u.Fail("Upload of %s failed: HTTP %d.", up, resp.StatusCode())
-		return 1
 	}
+	var rej *launcher.SessionRejected
+	var refused *semiont.TransportError
+	refusal := c.Refusal(err)
+	switch {
+	case errors.As(refusal, &rej):
+		return launcher.RejectedFail(u, "yield", rej)
+	case errors.As(refusal, &refused) && refused.Code == semiont.TransportErrorCodeBadRequest:
+		u.Fail("Gateway rejected %s: %s", up, refused.Message)
+	case errors.As(refusal, &refused):
+		if status, answered := refused.Status(); answered {
+			u.Fail("Upload of %s failed: HTTP %d.", up, status)
+			break
+		}
+		u.Fail("Gateway unreachable: %v", refusal)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+	default:
+		u.Fail("Gateway unreachable: %v", refusal)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+	}
+	return 1
 }
 
 // --- delegate mode: generation via the job lifecycle -------------------
@@ -408,45 +360,30 @@ var yieldJobResults = resultMembers[api.YieldJobResult]{
 	declinedResult,
 }
 
-func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
-	b := t.Bus(jobChannels...)
-	defer b.Close()
+func runYieldDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
+	c := sess.Client(jobChannels...)
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "yield --delegate", err)
+	}
 
 	// Gather the grounding context first: a generation job requires it, and
 	// its focus names the resource or annotation the generation is about.
 	var gathered api.GatheredContext
 	if !annotationID.IsZero() {
-		reply, err := b.Request("gather:requested", api.GatherAnnotationRequest{
-			ResourceId: resourceID, AnnotationId: annotationID,
-		}, requestWithin)
+		complete, err := c.Gather.Annotation(resourceID, annotationID, 0).Wait(c.Context())
 		if err != nil {
-			return busFail(u, "yield --delegate (gather)", err)
+			return busFail(u, "yield --delegate (gather)", c.Refusal(err))
 		}
-		var gc api.GatherAnnotationComplete
-		if json.Unmarshal(reply, &gc.Response) != nil {
-			u.Fail("yield --delegate: the gathered context could not be read.")
-			return 1
-		}
-		gathered = gc.Response
+		gathered = complete.Response
 	} else {
-		req := api.GatherResourceRequest{ResourceId: resourceID}
-		// Depth and maxResources are required by the schema. Left at Go's
-		// zero, the librarian asks Qdrant for `limit: 0` and the delegate
-		// dies in this gather with a bare "Unprocessable Entity".
-		req.Options.Depth = gatherDefaultDepth
-		req.Options.MaxResources = gatherDefaultMaxResources
-		req.Options.IncludeContent = true
-		req.Options.IncludeSummary = true
-		reply, err := b.Request("gather:resource-requested", req, requestWithin)
+		var err error
+		gathered, err = c.Gather.Resource(c.Context(), resourceID, api.GatherResourceRequestOptions{
+			Depth: gatherDefaultDepth, MaxResources: gatherDefaultMaxResources, IncludeContent: true, IncludeSummary: true,
+		})
 		if err != nil {
-			return busFail(u, "yield --delegate (gather)", err)
+			return busFail(u, "yield --delegate (gather)", c.Refusal(err))
 		}
-		var gc api.GatherResourceComplete
-		if json.Unmarshal(reply, &gc.Response) != nil {
-			u.Fail("yield --delegate: the gathered context could not be read.")
-			return 1
-		}
-		gathered = gc.Response
 	}
 
 	// A yield job's parameters are what it is asked to make and the context it
@@ -459,22 +396,16 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID api.Reso
 	if err == nil {
 		err = json.Unmarshal(asked, &params)
 	}
-	var create api.JobCreateCommand
-	if err == nil {
-		params.Context = gathered
-		err = create.FromYieldJobCreateCommand(api.YieldJobCreateCommand{Params: params})
-	}
 	if err != nil {
 		u.Fail("yield --delegate: the job could not be described: %v", err)
 		return 1
 	}
-	job := delegatedJob[api.YieldJobCompleteCommand]{
+	params.Context = gathered
+	d := delegation{
 		verb: "yield --delegate", doing: "Generating", failed: "Generation",
-		check:  "semiont browse " + resourceID.String(),
-		create: create,
-		jobOf:  func(done api.YieldJobCompleteCommand) api.JobId { return done.JobId },
+		check: "semiont browse " + resourceID.String(),
 	}
-	done, raw, ok := job.run(u, b)
+	done, ok := follow(u, c, d, c.Yield.Delegate(params, 0))
 	if !ok {
 		return 1
 	}
@@ -482,11 +413,11 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID api.Reso
 	// no resource to name.
 	result, err := jobResult(done.Result, yieldJobResults)
 	if err != nil {
-		return job.resultFail(u, done.JobId, err)
+		return d.resultFail(u, done.JobId, err)
 	}
 	declined, isDecline := result.(api.JobDeclined)
 	if asJSON {
-		fmt.Println(string(raw))
+		printJSON(u, done)
 		// The exit code is a property of the outcome, not of the output
 		// format.
 		if isDecline {

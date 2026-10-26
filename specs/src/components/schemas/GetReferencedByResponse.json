@@ -3,49 +3,7 @@
   "properties": {
     "referencedBy": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "allOf": [{ "$ref": "./AnnotationId.json" }],
-            "description": "Reference annotation ID"
-          },
-          "resourceName": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty."
-          },
-          "target": {
-            "type": "object",
-            "properties": {
-              "source": {
-                "allOf": [{ "$ref": "./ResourceId.json" }],
-                "description": "ID of resource containing the reference"
-              },
-              "selector": {
-                "type": "object",
-                "properties": {
-                  "exact": {
-                    "type": "string",
-                    "description": "The selected text that references this resource"
-                  }
-                },
-                "required": [
-                  "exact"
-                ]
-              }
-            },
-            "required": [
-              "source",
-              "selector"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "target"
-        ]
-      }
+      "items": { "$ref": "./GetReferencedByResponseReferencedByItem.json" }
     }
   },
   "required": [

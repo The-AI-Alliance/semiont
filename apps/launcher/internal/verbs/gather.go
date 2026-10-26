@@ -4,7 +4,6 @@ package verbs
 // resource or an annotation. Either focus is a plain request/reply.
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 const gatherIDs = "semiont gather [options] -- <resourceId> [<annotationId>]"
@@ -163,55 +161,37 @@ options:
 		}
 	}
 
-	t, ok := launcher.VerbSession(u, "gather", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "gather", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "gather", err)
+	}
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.
-	// Sending one blob to both would silently feed each the other's fields.
-	var op bus.Channel
-	var payload any
+	var gathered api.GatheredContext
 	if annotationID != "" {
-		op = "gather:requested" // annotation focus
-		req := api.GatherAnnotationRequest{
-			ResourceId:   rid,
-			AnnotationId: aid,
+		complete, err := c.Gather.Annotation(rid, aid, contextWindow).Wait(c.Context())
+		if err != nil {
+			return busFail(u, "gather", c.Refusal(err))
 		}
-		if contextWindow > 0 {
-			req.Options = &api.GatherAnnotationOptions{ContextWindow: &contextWindow}
-		}
-		payload = req
+		gathered = complete.Response
 	} else {
-		op = "gather:resource-requested"
-		req := api.GatherResourceRequest{ResourceId: rid}
-		req.Options.IncludeContent = !noContent
-		req.Options.IncludeSummary = summary
-		req.Options.Depth = depth
-		req.Options.MaxResources = maxResources
-		payload = req
-	}
-
-	// No progress narration: gather is a single request/reply.
-	reply, err := b.Request(op, payload, requestWithin)
-	if err != nil {
-		return busFail(u, "gather", err)
+		var err error
+		gathered, err = c.Gather.Resource(c.Context(), rid, api.GatherResourceRequestOptions{
+			Depth: depth, MaxResources: maxResources, IncludeContent: !noContent, IncludeSummary: summary,
+		})
+		if err != nil {
+			return busFail(u, "gather", c.Refusal(err))
+		}
 	}
 	if asJSON {
-		fmt.Println(string(reply))
-		return 0
-	}
-
-	// The reply is its response, the gathered context: the GENERATED type,
-	// so there is no hand-rolled unwrapping — and no chance of guessing a
-	// field name the schema never had.
-	var gathered api.GatheredContext
-	if json.Unmarshal(reply, &gathered) != nil {
-		return rawFallback(reply)
+		return printJSON(u, gathered)
 	}
 	// `summary` is already the --summary flag; this is the gathered prose.
 	relSummary := ""

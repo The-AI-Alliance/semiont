@@ -1,23 +1,17 @@
 package verbs
 
-// browse.go — `semiont browse`: reads over the event bus (the launcher's
-// first bus verb). Every read but a resource's annotations is one correlated
-// request/reply exchange over the SDK's transport; the operation names and
-// payload schemas come from specs/src/bus/registry.json, so this file holds
-// no protocol knowledge of its own beyond which operation answers which
-// question. A resource's annotations are read over the gateway's HTTP API
-// (GET /resources/{id}/annotations), through the generated client.
+// browse.go — `semiont browse`: the front end of the SDK's browse namespace.
+// Each read is one of its queries, read once; `--browser` drives the
+// participant's viewer through beckon's. This file holds no protocol
+// knowledge of its own: what each read asks is the SDK's.
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
@@ -236,13 +230,13 @@ options:
 		aid = id
 	}
 
-	t, ok := launcher.VerbSession(u, "browse", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "browse", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
@@ -251,21 +245,26 @@ options:
 	if toBrowser {
 		d := drive{
 			subject: resourceID,
-			channel: bus.BrowseResourceOpen,
-			payload: api.BrowseResourceOpenEvent{ResourceId: rid},
+			channel: bus.BrowseResourceOpen.Channel(),
 			retry:   fmt.Sprintf("semiont browse %s --browser", resourceID),
 		}
 		if annotation != "" {
 			d = drive{
 				subject: "annotation " + annotation,
-				channel: bus.BrowseClick,
-				payload: api.BrowseClickEvent{AnnotationId: aid},
+				channel: bus.BrowseClick.Channel(),
 				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
 			}
 		}
-		subscribers, counted, err := b.Emit(d.channel, d.payload)
+		var subscribers int
+		var counted bool
+		var err error
+		if annotation != "" {
+			subscribers, counted, err = c.Beckon.Click(c.Context(), aid)
+		} else {
+			subscribers, counted, err = c.Beckon.OpenResource(c.Context(), rid)
+		}
 		if err != nil {
-			return busFail(u, "browse", err)
+			return busFail(u, "browse", c.Refusal(err))
 		}
 		// A counted zero is the one case the launcher can act on: the signal
 		// was published and nobody was there. Probe only then — the happy path
@@ -279,133 +278,119 @@ options:
 	}
 
 	if annotations {
-		list, ok := annotationsOf(u, t, rid)
+		list, ok := annotationsOf(u, c, rid)
 		if !ok {
 			return 1
 		}
 		if asJSON {
-			fmt.Println(string(list.Body))
-			return 0
+			return printJSON(u, list)
 		}
-		printAnnotations(u, *list.JSON200)
+		printAnnotations(u, list)
 		return 0
 	}
 
-	// Typed request per operation — the generated types come from the same
-	// schemas the gateway validates against, so a wrong or missing field is
-	// a compile error here rather than a rejection (or a silent drop) there.
-	var op bus.Channel
-	var payload any
-	switch {
-	case entityTypes:
-		op = "browse:entity-types-requested"
-		payload = api.BrowseEntityTypesRequest{}
-	case tagSchemas:
-		op = "browse:tag-schemas-requested"
-		payload = api.BrowseTagSchemasRequest{}
-	case resourceID != "":
-		op = "browse:resource-requested"
-		payload = api.BrowseResourceRequest{ResourceId: rid}
-	default:
-		op = "browse:resources-requested"
-		req := api.BrowseResourcesRequest{}
-		req.Limit = &limit
-		if entityType != "" {
-			req.EntityType = &entityType
-		}
-		payload = req
-	}
-
-	reply, err := b.Request(op, payload, requestWithin)
-	if err != nil {
+	if err := c.Reached(); err != nil {
 		return busFail(u, "browse", err)
 	}
-	if asJSON {
-		fmt.Println(string(reply))
-		return 0
-	}
-	if op == "browse:resource-requested" {
-		return renderResource(u, t, rid, reply)
-	}
-	return renderBrowse(u, op, reply)
-}
-
-// annotationsOf reads a resource's annotations over the gateway's HTTP API,
-// under the session's renew-and-retry policy. A failure is printed here in
-// the launcher's voice; ok=false means stop.
-func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId) (*api.GetResourceAnnotationsResponse, bool) {
-	cli, err := t.API()
-	if err != nil {
-		u.Fail("client: %v", err)
-		return nil, false
-	}
-	var resp *api.GetResourceAnnotationsResponse
-	err = t.Authorized(func(token string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		r, err := cli.GetResourceAnnotationsWithResponse(ctx, resourceID, launcher.Bearer(token))
-		if err != nil {
-			return err
-		}
-		if r.StatusCode() == http.StatusUnauthorized {
-			// The SDK's own word for the same answer, which the session's
-			// policy reads.
-			return &semiont.TransportError{Code: semiont.TransportErrorCodeUnauthorized, Message: "GET /resources/{id}/annotations 401"}
-		}
-		resp = r
-		return nil
-	})
-	var rej *launcher.SessionRejected
 	switch {
-	case errors.As(err, &rej):
-		launcher.RejectedFail(u, "browse", rej)
-		return nil, false
-	case err != nil:
-		u.Fail("Gateway unreachable: %v", err)
-		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
-		return nil, false
-	case resp.JSON200 != nil:
-		return resp, true
-	case resp.JSON404 != nil:
-		u.Fail("There is no resource %s in this knowledge base.", resourceID)
-		return nil, false
+	case entityTypes:
+		types, err := c.Browse.EntityTypes().Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, types)
+		}
+		if len(types) == 0 {
+			u.Log("This KB declares no entity types yet.")
+			return 0
+		}
+		for _, e := range types {
+			fmt.Printf("  %s\n", e)
+		}
+	case tagSchemas:
+		schemas, err := c.Browse.TagSchemas().Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, schemas)
+		}
+		if len(schemas) == 0 {
+			u.Log("This KB declares no tag schemas yet.")
+			return 0
+		}
+		// A schema's id and its categories' names are what a delegated
+		// tagging pass is asked by:  semiont mark --delegate --help
+		for _, schema := range schemas {
+			fmt.Printf("  %-24s %s %s\n", schema.Id, schema.Name, u.Dim("("+schema.Domain+")"))
+			for _, category := range schema.Tags {
+				fmt.Printf("    %-22s %s\n", category.Name, u.Dim(category.Description))
+			}
+		}
+	case resourceID != "":
+		resource, err := c.Browse.Resource(rid).Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, resource)
+		}
+		// How many annotations it has, which its description does not carry.
+		list, ok := annotationsOf(u, c, rid)
+		if !ok {
+			return 1
+		}
+		fmt.Printf("  %s  %s\n", u.Bold(resource.Name), u.Dim(resource.Id.String()))
+		if entityTypes := semiont.ResourceEntityTypes(resource); len(entityTypes) > 0 {
+			fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(entityTypes, ", ")))
+		}
+		fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(list))))
 	default:
-		u.Fail("Reading the annotations of %s failed: HTTP %d.", resourceID, resp.StatusCode())
-		return nil, false
+		filters := semiont.ResourceFilters{Limit: limit}
+		if entityType != "" {
+			filters.EntityType = &entityType
+		}
+		page, err := c.Browse.Resources(filters).Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, page)
+		}
+		printResources(u, page.Resources, int(page.Total))
 	}
-}
-
-// renderResource prints one resource from its GENERATED reply type, and how
-// many annotations it has, which the reply does not carry: they are read
-// over the HTTP API.
-func renderResource(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId, reply json.RawMessage) int {
-	var r api.BrowseResourceResult
-	if err := json.Unmarshal(reply, &r.Response); err != nil {
-		return rawFallback(reply)
-	}
-	list, ok := annotationsOf(u, t, resourceID)
-	if !ok {
-		return 1
-	}
-	fmt.Printf("  %s  %s\n", u.Bold(r.Response.Resource.Name), u.Dim(r.Response.Resource.Id.String()))
-	if r.Response.Resource.EntityTypes != nil && len(*r.Response.Resource.EntityTypes) > 0 {
-		fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
-	}
-	fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", int(list.JSON200.Total))))
 	return 0
 }
 
+// annotationsOf reads a resource's annotations. A failure is printed here in
+// the launcher's voice; ok=false means stop.
+func annotationsOf(u *launcher.UI, c *launcher.VerbClient, resourceID api.ResourceId) ([]api.Annotation, bool) {
+	list, err := c.Browse.Annotations(resourceID).Fresh(c.Context())
+	var refused *semiont.TransportError
+	switch {
+	case err == nil:
+		return list, true
+	case errors.As(err, &refused) && refused.Code == semiont.TransportErrorCodeNotFound:
+		u.Fail("There is no resource %s in this knowledge base.", resourceID)
+		return nil, false
+	default:
+		busFail(u, "browse", c.Refusal(err))
+		return nil, false
+	}
+}
+
 // printAnnotations prints a resource's annotations: each one's id and
-// motivation, and how many of how many.
-func printAnnotations(u *launcher.UI, list api.GetAnnotationsResponse) {
-	if len(list.Annotations) == 0 {
+// motivation, and how many there are.
+func printAnnotations(u *launcher.UI, list []api.Annotation) {
+	if len(list) == 0 {
 		u.Log("No annotations on that resource.")
 		return
 	}
-	for _, a := range list.Annotations {
+	for _, a := range list {
 		fmt.Printf("  %-28s %s\n", a.Id, u.Dim(string(a.Motivation)))
 	}
-	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d of %d", len(list.Annotations), int(list.Total))))
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(list))))
 }
 
 // drive is one `--browser` act: what was sent, on which channel, and the
@@ -415,7 +400,6 @@ func printAnnotations(u *launcher.UI, list api.GetAnnotationsResponse) {
 type drive struct {
 	subject string // how to name it to a human: "res-42", "annotation ann-9"
 	channel bus.Channel
-	payload any
 	retry   string // the exact command, minus --launch
 }
 
@@ -505,52 +489,6 @@ func busFail(u *launcher.UI, verb string, err error) int {
 	return 1
 }
 
-// renderBrowse prints the human table from the GENERATED reply type for each
-// operation. Nothing here parses a field name by hand — that habit shipped a
-// verb that printed blank identifiers because resources are JSON-LD (`@id`).
-func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
-	switch op {
-	case "browse:resources-requested":
-		var r api.BrowseResourcesResult
-		if err := json.Unmarshal(reply, &r.Response); err != nil {
-			return rawFallback(reply)
-		}
-		printResources(u, r.Response.Resources, int(r.Response.Total))
-	case "browse:entity-types-requested":
-		var r api.BrowseEntityTypesResult
-		if err := json.Unmarshal(reply, &r.Response); err != nil {
-			return rawFallback(reply)
-		}
-		if len(r.Response.EntityTypes) == 0 {
-			u.Log("This KB declares no entity types yet.")
-			return 0
-		}
-		for _, e := range r.Response.EntityTypes {
-			fmt.Printf("  %s\n", e)
-		}
-	case "browse:tag-schemas-requested":
-		var r api.BrowseTagSchemasResult
-		if err := json.Unmarshal(reply, &r.Response); err != nil {
-			return rawFallback(reply)
-		}
-		if len(r.Response.TagSchemas) == 0 {
-			u.Log("This KB declares no tag schemas yet.")
-			return 0
-		}
-		// A schema's id and its categories' names are what a delegated
-		// tagging pass is asked by:  semiont mark --delegate --help
-		for _, schema := range r.Response.TagSchemas {
-			fmt.Printf("  %-24s %s %s\n", schema.Id, schema.Name, u.Dim("("+schema.Domain+")"))
-			for _, category := range schema.Tags {
-				fmt.Printf("    %-22s %s\n", category.Name, u.Dim(category.Description))
-			}
-		}
-	default:
-		return rawFallback(reply)
-	}
-	return 0
-}
-
 // printResources prints one page of resources: the table `browse` lists and
 // `match --search` finds.
 func printResources(u *launcher.UI, resources []api.ResourceDescriptor, total int) {
@@ -568,10 +506,15 @@ func printResources(u *launcher.UI, resources []api.ResourceDescriptor, total in
 	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d shown, %d total", len(resources), total)))
 }
 
-// rawFallback prints what the gateway actually said. A reply we cannot shape
-// is still information — swallowing it would be the dishonest option.
-func rawFallback(payload json.RawMessage) int {
-	fmt.Println(string(payload))
+// printJSON prints v, a reply's generated type, as JSON: the --json form of
+// what a verb read.
+func printJSON(u *launcher.UI, v any) int {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		u.Fail("the reply could not be written as JSON: %v", err)
+		return 1
+	}
+	fmt.Println(string(encoded))
 	return 0
 }
 

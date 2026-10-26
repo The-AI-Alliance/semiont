@@ -31,18 +31,18 @@ func reply(body string) []byte {
 
 // ── browse ──────────────────────────────────────────────────────────────
 
-func TestBrowseJSONPassesThroughInProcess(t *testing.T) {
+func TestBrowseJSONPrintsTheResponseInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
+	fake.Replies["browse:resources-requested"] = reply(`{"total":0,"resources":[],"offset":0,"limit":20}`)
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
 			t.Fatalf("browse --json: exit %d", code)
 		}
 	})
-	// The reply's response, as the gateway sent it.
-	harness.MustContainAll(t, "raw response", out, `{"resources":[],"total":0}`)
+	// The reply's response, as the SDK read it: its members in the schema's order.
+	harness.MustContainAll(t, "response", out, `{"limit":20,"offset":0,"resources":[],"total":0}`)
 }
 
 func TestBrowseSendsItsFilters(t *testing.T) {
@@ -167,7 +167,7 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 			t.Fatalf("browse --browser: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseResourceOpen {
+	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseResourceOpen.Channel() {
 		t.Fatalf("want one browse:resource-open emit, got %v", fake.Emits)
 	}
 	harness.MustContainAll(t, "emit payload", bustest.JSON(fake.Emits[0].Payload), `"resourceId":"res-42"`)
@@ -220,7 +220,7 @@ func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 			t.Fatalf("browse --annotation --browser: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseClick {
+	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseClick.Channel() {
 		t.Fatalf("want one browse:click emit, got %v", fake.Emits)
 	}
 	payload := bustest.JSON(fake.Emits[0].Payload)
@@ -324,13 +324,13 @@ func TestBeckonSparkleEmitsSparkleNotFocusInProcess(t *testing.T) {
 	if len(fake.Emits) != 1 {
 		t.Fatalf("want exactly one emit, got %v", fake.Emits)
 	}
-	if fake.Emits[0].Channel != bus.BeckonSparkle {
-		t.Errorf("channel = %q, want %q", fake.Emits[0].Channel, bus.BeckonSparkle)
+	if fake.Emits[0].Channel != bus.BeckonSparkle.Channel() {
+		t.Errorf("channel = %q, want %q", fake.Emits[0].Channel, bus.BeckonSparkle.Channel())
 	}
 	// Emitting BOTH would scroll-fight, which is the thing this flag exists
 	// to avoid.
 	for _, e := range fake.Emits {
-		if e.Channel == bus.BeckonFocus {
+		if e.Channel == bus.BeckonFocus.Channel() {
 			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid")
 		}
 	}
@@ -345,7 +345,7 @@ func TestBeckonWithoutSparkleFocusesInProcess(t *testing.T) {
 			t.Fatalf("beckon: exit %d", code)
 		}
 	})
-	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BeckonFocus {
+	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BeckonFocus.Channel() {
 		t.Fatalf("want one beckon:focus emit, got %v", fake.Emits)
 	}
 }

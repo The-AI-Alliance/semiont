@@ -8,6 +8,7 @@ package semiont
 import (
 	"encoding/json"
 	"iter"
+	"slices"
 	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
@@ -102,6 +103,16 @@ func (q *queue[T]) next() (T, bool) {
 	}
 }
 
+// drain takes every item the queue holds now, without waiting; closed is
+// whether the queue has closed and nothing more will come. A reader that
+// selects on ready drains after each signal.
+func (q *queue[T]) drain() (items []T, closed bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	items, q.items = q.items, nil
+	return items, q.closed
+}
+
 // all is what the queue is given, until it closes or the loop over it stops;
 // leave is called once either happens.
 func (q *queue[T]) all(leave func()) iter.Seq[T] {
@@ -177,12 +188,21 @@ func (b *broadcast[T]) close() {
 	clear(b.listeners)
 }
 
+// FrameSink is where a transport delivers every frame it receives: its
+// client's own bus.
+type FrameSink interface {
+	// Deliver takes one frame, as the transport delivered it.
+	Deliver(frame Frame)
+}
+
 // FrameHub is the frames of every channel anybody listens to, a broadcast per
-// channel. What a transport delivers goes through one; so does what a test
-// double of a transport delivers.
+// channel, and the buses every frame is bridged into. What a transport
+// delivers goes through one; so does what a test double of a transport
+// delivers.
 type FrameHub struct {
 	mu       sync.Mutex
 	channels map[bus.Channel]*broadcast[Frame]
+	bridged  []FrameSink
 	closed   bool
 }
 
@@ -220,11 +240,30 @@ func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
 	})
 }
 
-// Deliver hands frame to its channel's listeners.
+// Bridge delivers into sink every frame delivered here from now on, whatever
+// its channel. Each is published to everyone there, whichever scope it came
+// on: a client's bus keeps its scopes for what the client's own parts say to
+// each other. Of a closed hub, nothing.
+func (h *FrameHub) Bridge(sink FrameSink) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.closed {
+		h.bridged = append(h.bridged, sink)
+	}
+}
+
+// Deliver hands frame to every bus bridged into, and to its channel's
+// listeners.
 func (h *FrameHub) Deliver(frame Frame) {
 	h.mu.Lock()
+	bridged := slices.Clone(h.bridged)
 	b, ok := h.channels[frame.Channel]
 	h.mu.Unlock()
+	everyone := frame
+	everyone.Scope = api.ResourceId{}
+	for _, sink := range bridged {
+		sink.Deliver(everyone)
+	}
 	if ok {
 		b.give(frame)
 	}
@@ -238,6 +277,7 @@ func (h *FrameHub) Close() {
 	for _, b := range h.channels {
 		b.close()
 	}
+	h.bridged = nil
 }
 
 // failureStream is the failures a transport met. Its first listener's queue is

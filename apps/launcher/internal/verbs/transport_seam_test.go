@@ -72,8 +72,8 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 		t.Fatalf("want exactly one emit, got %d", len(fake.Emits))
 	}
 	got := fake.Emits[0]
-	if got.Channel != bus.BeckonFocus {
-		t.Errorf("channel = %q, want %q", got.Channel, bus.BeckonFocus)
+	if got.Channel != bus.BeckonFocus.Channel() {
+		t.Errorf("channel = %q, want %q", got.Channel, bus.BeckonFocus.Channel())
 	}
 	payload, _ := json.Marshal(got.Payload)
 	for _, want := range []string{`"resourceId":"res-1"`, `"annotationId":"ann-2"`} {
@@ -98,8 +98,8 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	}
 	// The command's own stream is no audience for its signal: a stream that
 	// named beckon:focus would be counted among the subscribers it reports.
-	if slices.Contains(config.Channels, bus.BeckonFocus) {
-		t.Errorf("the command's stream names %s, the channel it emits on", bus.BeckonFocus)
+	if slices.Contains(config.Channels, bus.BeckonFocus.Channel()) {
+		t.Errorf("the command's stream names %s, the channel it emits on", bus.BeckonFocus.Channel())
 	}
 }
 

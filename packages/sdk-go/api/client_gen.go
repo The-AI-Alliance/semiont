@@ -2932,10 +2932,13 @@ type BrowseDirectoryRequestSort string
 
 // BrowseDirectoryResult Result of browsing a directory listing
 type BrowseDirectoryResult struct {
-	Response struct {
-		Entries []DirectoryEntry `json:"entries"`
-		Path    string           `json:"path"`
-	} `json:"response"`
+	Response BrowseDirectoryResultResponse `json:"response"`
+}
+
+// BrowseDirectoryResultResponse defines model for BrowseDirectoryResultResponse.
+type BrowseDirectoryResultResponse struct {
+	Entries []DirectoryEntry `json:"entries"`
+	Path    string           `json:"path"`
 }
 
 // BrowseEntityTypeClickedEvent Emitted when an entity type is clicked in the browse panel
@@ -3795,25 +3798,28 @@ type GatherResourceFailedCode string
 // GatherResourceRequest Request payload sent on the gather:resource-requested bus channel to gather context for a resource.
 type GatherResourceRequest struct {
 	// Options Gathering configuration
-	Options struct {
-		// Depth How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them
-		Depth int `json:"depth"`
-
-		// ExcludeEntityTypes Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.
-		ExcludeEntityTypes *[]string `json:"excludeEntityTypes,omitempty"`
-
-		// IncludeContent Whether to include resource content in the gathered result
-		IncludeContent bool `json:"includeContent"`
-
-		// IncludeSummary Whether to include resource summaries in the gathered result
-		IncludeSummary bool `json:"includeSummary"`
-
-		// MaxResources Maximum number of related resources to include
-		MaxResources int `json:"maxResources"`
-	} `json:"options"`
+	Options GatherResourceRequestOptions `json:"options"`
 
 	// ResourceId Branded ResourceId of the resource to gather context for
 	ResourceId ResourceId `json:"resourceId"`
+}
+
+// GatherResourceRequestOptions Gathering configuration
+type GatherResourceRequestOptions struct {
+	// Depth How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them
+	Depth int `json:"depth"`
+
+	// ExcludeEntityTypes Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.
+	ExcludeEntityTypes *[]string `json:"excludeEntityTypes,omitempty"`
+
+	// IncludeContent Whether to include resource content in the gathered result
+	IncludeContent bool `json:"includeContent"`
+
+	// IncludeSummary Whether to include resource summaries in the gathered result
+	IncludeSummary bool `json:"includeSummary"`
+
+	// MaxResources Maximum number of related resources to include
+	MaxResources int `json:"maxResources"`
 }
 
 // GatherSummaryRequest Request to generate an AI summary of an annotation
@@ -4050,22 +4056,25 @@ type GetEventsResponse struct {
 
 // GetReferencedByResponse defines model for GetReferencedByResponse.
 type GetReferencedByResponse struct {
-	ReferencedBy []struct {
-		// Id Reference annotation ID
-		Id AnnotationId `json:"id"`
+	ReferencedBy []GetReferencedByResponseReferencedByItem `json:"referencedBy"`
+}
 
-		// ResourceName Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.
-		ResourceName *string `json:"resourceName,omitempty"`
-		Target       struct {
-			Selector struct {
-				// Exact The selected text that references this resource
-				Exact string `json:"exact"`
-			} `json:"selector"`
+// GetReferencedByResponseReferencedByItem defines model for GetReferencedByResponseReferencedByItem.
+type GetReferencedByResponseReferencedByItem struct {
+	// Id Reference annotation ID
+	Id AnnotationId `json:"id"`
 
-			// Source ID of resource containing the reference
-			Source ResourceId `json:"source"`
-		} `json:"target"`
-	} `json:"referencedBy"`
+	// ResourceName Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.
+	ResourceName *string `json:"resourceName,omitempty"`
+	Target       struct {
+		Selector struct {
+			// Exact The selected text that references this resource
+			Exact string `json:"exact"`
+		} `json:"selector"`
+
+		// Source ID of resource containing the reference
+		Source ResourceId `json:"source"`
+	} `json:"target"`
 }
 
 // GetResourceByTokenResponse defines model for GetResourceByTokenResponse.
@@ -4421,10 +4430,13 @@ type JobCreateCommand struct {
 
 // JobCreatedResult Result of a job:create command
 type JobCreatedResult struct {
-	Response struct {
-		// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-		JobId JobId `json:"jobId"`
-	} `json:"response"`
+	Response JobCreatedResultResponse `json:"response"`
+}
+
+// JobCreatedResultResponse defines model for JobCreatedResultResponse.
+type JobCreatedResultResponse struct {
+	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	JobId JobId `json:"jobId"`
 }
 
 // JobDeclined Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
@@ -5172,10 +5184,13 @@ type MarkCommitOk struct {
 // MarkCreateOk Success reply after creating an annotation, matched to the originating command by correlationId.
 type MarkCreateOk struct {
 	// Response The created annotation's identity.
-	Response struct {
-		// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-		AnnotationId AnnotationId `json:"annotationId"`
-	} `json:"response"`
+	Response MarkCreateOkResponse `json:"response"`
+}
+
+// MarkCreateOkResponse The created annotation's identity.
+type MarkCreateOkResponse struct {
+	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	AnnotationId AnnotationId `json:"annotationId"`
 }
 
 // MarkCreateRequest Raw annotation creation intent — bus handler assembles the W3C annotation

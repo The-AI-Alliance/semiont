@@ -7,6 +7,8 @@ package semiont
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // Error is what every failure the SDK reports is: a code of one of the
@@ -120,3 +122,26 @@ func signInRefused(code SignInErrorCode, message string, status int) *SignInErro
 func signInUnanswered(code SignInErrorCode, message string) *SignInError {
 	return &SignInError{Code: code, Message: message}
 }
+
+// JobError is a job its follower saw end without completing: it failed for
+// good, was cancelled, or said nothing for too long.
+type JobError struct {
+	Code    JobErrorCode
+	Message string
+	// JobID is the job, when its creation was answered: one that stalled
+	// before that has none (the zero JobId).
+	JobID api.JobId
+	// FailureClass is the failure's class, for a job that failed and whose
+	// failure has one: a caller tells "the provider would not answer"
+	// (withheld) from "the job broke" (deterministic) by it, without reading
+	// the message. A cancellation and a stall have none (nil).
+	FailureClass *api.FailureClass
+}
+
+var _ Error = (*JobError)(nil)
+
+func (e *JobError) Error() string     { return e.Message }
+func (e *JobError) ErrorCode() string { return string(e.Code) }
+
+// Status is never a server's: ok is false.
+func (e *JobError) Status() (int, bool) { return 0, false }

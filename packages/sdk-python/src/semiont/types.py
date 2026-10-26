@@ -1052,6 +1052,51 @@ class GatherAnnotationRequest(WireModel, frozen=True):
     options: GatherAnnotationOptions | None = None
 
 
+class GatherResourceRequestOptions(WireModel, frozen=True):
+    """
+    Gathering configuration
+    """
+
+    depth: Annotated[
+        int,
+        Field(
+            description="How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them",
+            ge=1,
+            le=3,
+        ),
+    ]
+    max_resources: Annotated[
+        int,
+        Field(
+            alias="maxResources",
+            description="Maximum number of related resources to include",
+            ge=1,
+            le=200,
+        ),
+    ]
+    include_content: Annotated[
+        bool,
+        Field(
+            alias="includeContent",
+            description="Whether to include resource content in the gathered result",
+        ),
+    ]
+    include_summary: Annotated[
+        bool,
+        Field(
+            alias="includeSummary",
+            description="Whether to include resource summaries in the gathered result",
+        ),
+    ]
+    exclude_entity_types: Annotated[
+        list[str] | None,
+        Field(
+            alias="excludeEntityTypes",
+            description="Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.",
+        ),
+    ] = None
+
+
 class GatherSummaryRequest(WireModel, frozen=True):
     """
     Request to generate an AI summary of an annotation
@@ -1162,6 +1207,10 @@ class JobCancelRequest(WireModel, frozen=True):
     Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.
     """
 
+    job_id: Annotated[JobId, Field(alias="jobId")]
+
+
+class JobCreatedResultResponse(WireModel, frozen=True):
     job_id: Annotated[JobId, Field(alias="jobId")]
 
 
@@ -1481,6 +1530,14 @@ class MarkArchiveCommand(WireModel, frozen=True):
         ),
     ] = None
     keep_file: Annotated[bool | None, Field(alias="keepFile")] = None
+
+
+class MarkCreateOkResponse(WireModel, frozen=True):
+    """
+    The created annotation's identity.
+    """
+
+    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
 
 
 class MarkDeleteCommand(WireModel, frozen=True):
@@ -3000,51 +3057,6 @@ type ExtractionDeclinedDeclined = Annotated[
 ]
 
 
-class GatherResourceRequestOptions(WireModel, frozen=True):
-    """
-    Gathering configuration
-    """
-
-    depth: Annotated[
-        int,
-        Field(
-            description="How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them",
-            ge=1,
-            le=3,
-        ),
-    ]
-    max_resources: Annotated[
-        int,
-        Field(
-            alias="maxResources",
-            description="Maximum number of related resources to include",
-            ge=1,
-            le=200,
-        ),
-    ]
-    include_content: Annotated[
-        bool,
-        Field(
-            alias="includeContent",
-            description="Whether to include resource content in the gathered result",
-        ),
-    ]
-    include_summary: Annotated[
-        bool,
-        Field(
-            alias="includeSummary",
-            description="Whether to include resource summaries in the gathered result",
-        ),
-    ]
-    exclude_entity_types: Annotated[
-        list[str] | None,
-        Field(
-            alias="excludeEntityTypes",
-            description="Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.",
-        ),
-    ] = None
-
-
 class GatheredContextFocusAnnotationSelected(WireModel, frozen=True):
     """
     Text context around the annotation target
@@ -3131,10 +3143,6 @@ class InferenceLimitsResultResponse(WireModel, frozen=True):
     limits: list[InferencePairLimits]
 
 
-class JobCreatedResultResponse(WireModel, frozen=True):
-    job_id: Annotated[JobId, Field(alias="jobId")]
-
-
 type JobDeclinedReason = Annotated[
     Literal["no-text-layer", "encrypted", "corrupt", "too-large", "empty"],
     Field(
@@ -3193,14 +3201,6 @@ class KnowledgeGraphEdgesItem(WireModel, frozen=True):
         ),
     ] = None
     metadata: dict[str, JsonValue] | None = None
-
-
-class MarkCreateOkResponse(WireModel, frozen=True):
-    """
-    The created annotation's identity.
-    """
-
-    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
 
 
 class MarkCommitOkResponse(WireModel, frozen=True):
@@ -5311,11 +5311,6 @@ Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bo
 type AnnotationBodyUpdatedPayloadOperationsItem = BodyOperationAdd | BodyOperationRemove | BodyOperationReplace
 
 
-class BrowseDirectoryResultResponse(WireModel, frozen=True):
-    path: str
-    entries: list[DirectoryEntry]
-
-
 class BrowseResourceResultResponse(WireModel, frozen=True, extra="forbid"):
     resource: ResourceDescriptor
     last_sequence: Annotated[
@@ -5516,12 +5511,9 @@ class BrowseAnnotationHistoryResult(WireModel, frozen=True):
     response: GetAnnotationHistoryResponse
 
 
-class BrowseDirectoryResult(WireModel, frozen=True):
-    """
-    Result of browsing a directory listing
-    """
-
-    response: BrowseDirectoryResultResponse
+class BrowseDirectoryResultResponse(WireModel, frozen=True):
+    path: str
+    entries: list[DirectoryEntry]
 
 
 class BrowseEventsResult(WireModel, frozen=True):
@@ -5617,6 +5609,19 @@ class CreateAnnotationRequest(WireModel, frozen=True):
             description="Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body."
         ),
     ] = None
+
+
+class GetReferencedByResponseReferencedByItem(WireModel, frozen=True):
+    id: Annotated[AnnotationId, Field(description="Reference annotation ID")]
+    resource_name: Annotated[
+        str | None,
+        Field(
+            alias="resourceName",
+            description="Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.",
+            min_length=1,
+        ),
+    ] = None
+    target: GetReferencedByResponseReferencedByItemTarget
 
 
 class GetResourceByTokenResponse(WireModel, frozen=True):
@@ -6022,19 +6027,6 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
-class GetReferencedByResponseReferencedByItem(WireModel, frozen=True):
-    id: Annotated[AnnotationId, Field(description="Reference annotation ID")]
-    resource_name: Annotated[
-        str | None,
-        Field(
-            alias="resourceName",
-            description="Name of the resource containing the reference. Absent where no description of that resource is held, and where its name is empty.",
-            min_length=1,
-        ),
-    ] = None
-    target: GetReferencedByResponseReferencedByItemTarget
-
-
 class ArchivistRosterWorkers(WireModel, frozen=True, extra="forbid"):
     """
     The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.
@@ -6105,6 +6097,14 @@ class AnnotationAddedPayload(WireModel, frozen=True):
             description="SHA-256 of resource content at annotation time",
         ),
     ] = None
+
+
+class BrowseDirectoryResult(WireModel, frozen=True):
+    """
+    Result of browsing a directory listing
+    """
+
+    response: BrowseDirectoryResultResponse
 
 
 class BrowseResourcesResult(WireModel, frozen=True):

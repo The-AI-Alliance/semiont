@@ -103,6 +103,19 @@ type Upload struct {
 	consumed bool
 }
 
+// NewUpload is the upload work carries out: work reports how much has been
+// sent through report, and returns what the gateway answered. What
+// implements ContentTransport makes each upload it starts with it.
+func NewUpload(work func(report func(UploadProgress)) (api.CreateResourceResponse, error)) *Upload {
+	upload := &Upload{progress: newQueue[UploadProgress](), done: make(chan struct{})}
+	go func() {
+		defer close(upload.done)
+		defer upload.progress.close()
+		upload.result, upload.err = work(func(progress UploadProgress) { upload.progress.push(progress) })
+	}()
+	return upload
+}
+
 // Progress is how much has been sent, each time more has, never less than it
 // last said, until the upload ends or the loop over it stops.
 func (u *Upload) Progress() iter.Seq[UploadProgress] {
@@ -236,7 +249,7 @@ type progressReader struct {
 	sent     int64
 	reported *int64
 	mu       *sync.Mutex
-	progress *queue[UploadProgress]
+	report   func(UploadProgress)
 }
 
 func (p *progressReader) Read(buffer []byte) (int, error) {
@@ -248,7 +261,7 @@ func (p *progressReader) Read(buffer []byte) (int, error) {
 	p.mu.Lock()
 	if p.sent > *p.reported {
 		*p.reported = p.sent
-		p.progress.push(UploadProgress{BytesUploaded: p.sent, TotalBytes: int64(len(p.body))})
+		p.report(UploadProgress{BytesUploaded: p.sent, TotalBytes: int64(len(p.body))})
 	}
 	p.mu.Unlock()
 	return n, nil
@@ -257,27 +270,22 @@ func (p *progressReader) Read(buffer []byte) (int, error) {
 // PutBinary uploads a resource. Its context abandons it: the connection is
 // closed, nothing is reported on the error stream, and it is not sent again.
 func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryRequest) *Upload {
-	upload := &Upload{progress: newQueue[UploadProgress](), done: make(chan struct{})}
-	go func() {
-		defer close(upload.done)
-		defer upload.progress.close()
+	return NewUpload(func(report func(UploadProgress)) (api.CreateResourceResponse, error) {
 		ctx, span := uploading(ctx, putting.Format, len(putting.Bytes))
 		defer span.End()
 		body, contentType, err := form(putting)
 		if err != nil {
-			upload.err = c.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an upload that cannot be written: %v", err), TransportErrorCodeError))
-			return
+			return api.CreateResourceResponse{}, c.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an upload that cannot be written: %v", err), TransportErrorCodeError))
 		}
 		var reported int64
 		var mu sync.Mutex
-		upload.result, upload.err = answer[api.CreateResourceResponse](ctx, c.shared, request{
+		return answer[api.CreateResourceResponse](ctx, c.shared, request{
 			method: http.MethodPost, path: "/resources", authenticated: true, contentType: contentType,
 			body: func() (io.Reader, int64) {
-				return &progressReader{body: body, reported: &reported, mu: &mu, progress: upload.progress}, int64(len(body))
+				return &progressReader{body: body, reported: &reported, mu: &mu, report: report}, int64(len(body))
 			},
 		})
-	}()
-	return upload
+	})
 }
 
 // path is where a resource is read. Its id is one segment of the path as it

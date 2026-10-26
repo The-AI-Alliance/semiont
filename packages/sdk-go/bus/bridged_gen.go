@@ -1,8 +1,6 @@
 // Code generated from specs/src/bus/registry.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/bus/generate-go.mjs
-// The TypeScript side (packages/core/src/bus-protocol.ts) generates from the
-// same registry, so the two languages cannot drift apart by hand.
 
 package bus
 
@@ -10,24 +8,24 @@ package bus
 // vocabulary changes, attention signals, SSE infrastructure. These are what a
 // client subscribes to when it wants to watch a KB rather than await a reply.
 var BridgedBroadcasts = []Channel{
-	JobReportProgress,
-	JobComplete,
-	JobFail,
-	SmeltSettled,
-	FrameEntityTypeAdded,
-	FrameTagSchemaAdded,
-	YieldCreated,
-	YieldUpdated,
-	YieldCloned,
-	YieldMoved,
-	BeckonFocus,
-	BeckonSparkle,
-	BusResumeGap,
-	BrowseResourceOpen,
-	BrowseResourceViewed,
-	SessionJoined,
-	SessionLeft,
-	BrowseClick,
+	"job:report-progress",
+	"job:complete",
+	"job:fail",
+	"smelt:settled",
+	"frame:entity-type-added",
+	"frame:tag-schema-added",
+	"yield:created",
+	"yield:updated",
+	"yield:cloned",
+	"yield:moved",
+	"beckon:focus",
+	"beckon:sparkle",
+	"bus:resume-gap",
+	"browse:resource-open",
+	"browse:resource-viewed",
+	"session:joined",
+	"session:left",
+	"browse:click",
 }
 
 // BridgedChannels: everything a transport delivers — the broadcasts plus
@@ -58,17 +56,17 @@ func Bridged(c Channel) bool {
 // Disjoint from BridgedChannels: a channel in both would reach a client twice,
 // under two ids.
 var ResourceScopedChannels = []Channel{
-	MarkBodyUpdated,
-	YieldRepresentationAdded,
-	YieldRepresentationRemoved,
-	MarkAdded,
-	MarkRemoved,
-	MarkEntityTagAdded,
-	MarkEntityTagRemoved,
-	MarkArchived,
-	MarkUnarchived,
-	JobStarted,
-	JobAssigned,
-	JobCompleted,
-	JobFailed,
+	"mark:body-updated",
+	"yield:representation-added",
+	"yield:representation-removed",
+	"mark:added",
+	"mark:removed",
+	"mark:entity-tag-added",
+	"mark:entity-tag-removed",
+	"mark:archived",
+	"mark:unarchived",
+	"job:started",
+	"job:assigned",
+	"job:completed",
+	"job:failed",
 }

@@ -162,6 +162,10 @@ func (t *HTTPTransport) Frames(channels ...bus.Channel) (iter.Seq[Frame], error)
 	return t.shared.hub.Frames(channels...), nil
 }
 
+// BridgeInto delivers into sink every frame the stream delivers from now on,
+// each published to everyone there whichever scope it came on.
+func (t *HTTPTransport) BridgeInto(sink FrameSink) { t.shared.hub.Bridge(sink) }
+
 // IsSubscribed reports whether the stream delivers channel globally: whether
 // a reply published there can reach this client.
 func (t *HTTPTransport) IsSubscribed(channel bus.Channel) bool {

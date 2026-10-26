@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-// generate-go.mjs — generate the Go bus authority from
-// specs/src/bus/registry.json, the same file the TypeScript generator reads.
+// generate-go.mjs — generate the Go SDK's bus vocabulary from
+// specs/src/bus/registry.json, the same file the TypeScript and Python
+// generators read.
 //
-//   packages/sdk-go/bus/channels_gen.go   channel constants + payload metadata,
-//                                         and the field a relayed frame's trace rides in
-//   packages/sdk-go/bus/operations_gen.go the request→{result,failure} map
-//   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client
+//   packages/sdk-go/bus/channels_gen.go   every channel, typed by its payload, and the field a
+//                                         relayed frame's trace rides in
+//   packages/sdk-go/bus/operations_gen.go every request, typed, with its two replies; and the
+//                                         replies of each by name
+//   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client, and those a
+//                                         resource's scope carries
 //
-// Payload STRUCTS are not generated here: the OpenAPI schemas a channel
-// carries already have Go types in packages/sdk-go/api/client_gen.go. What Go
-// needs from the registry is the vocabulary — which channels exist, which
-// schema each carries, and which triples form a request/reply operation.
-//
-// Channels whose payload is TypeScript-only (DOM geometry, callbacks) are
-// EXCLUDED: they never cross the wire, so a Go constant for them would be an
-// invitation to emit something the gateway will reject.
+// A channel's payload type is DERIVED from its shape, as the TypeScript and
+// Python generators derive it: the registry states the payload once, in a
+// form every language reads. The payload types themselves are the OpenAPI
+// schemas', generated into packages/sdk-go/api/client_gen.go. The typed
+// values are of the kinds packages/sdk-go/bus/typed.go declares.
 //
 // --check diffs without writing (the CI drift gate).
 
@@ -38,10 +38,6 @@ validateRegistryFormat(registryText);
 const reg = JSON.parse(registryText);
 validateRegistry(reg);
 
-// Every channel has a Go name. Whether one may be emitted is ChannelSchemas'
-// to say, not this list's.
-const wireChannels = reg.channels;
-
 /** `mark:delegate-timeout` → `MarkDelegateTimeout` */
 const goName = (channel) =>
   channel
@@ -49,71 +45,142 @@ const goName = (channel) =>
     .map((p) => (p ? p[0].toUpperCase() + p.slice(1) : ''))
     .join('');
 
+const names = new Map();
+for (const c of reg.channels) {
+  const name = goName(c.channel);
+  if (names.has(name)) throw new Error(`registry: "${c.channel}" and "${names.get(name)}" would both be the Go name ${name}`);
+  names.set(name, c.channel);
+}
+
 const BANNER = `// Code generated from specs/src/bus/registry.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/bus/generate-go.mjs
-// The TypeScript side (packages/core/src/bus-protocol.ts) generates from the
-// same registry, so the two languages cannot drift apart by hand.
 `;
 
-// ── channels_gen.go ────────────────────────────────────────────────────
-const channelLines = wireChannels.map((c) => {
-  const doc = c.validate
-    ? `payload: ${c.validate}`
-    : c.shape === 'storedEvent'
-      ? `payload: ${c.enriched ? 'EnrichedEvent' : 'StoredEvent'}(${c.event}) — not emittable`
-      : c.shape === 'void'
-        ? 'no payload — not emittable'
-        : 'not emittable (no registered schema)';
-  return `\t// ${doc}\n\t${goName(c.channel)} Channel = ${JSON.stringify(c.channel)}`;
-});
-
-/** gofmt aligns map values to the longest key in a contiguous block; emit
- *  that alignment directly so generated output is gofmt-clean and the drift
- *  gate never fights the formatter. */
+/** gofmt aligns a run of rows to its longest first cell; emit that alignment
+ *  directly so generated output is gofmt-clean and the drift gate never fights
+ *  the formatter. */
 function alignRows(pairs) {
   const width = Math.max(...pairs.map(([k]) => k.length));
-  return pairs.map(([k, v]) => `\t${k}${' '.repeat(width - k.length)} ${v},`);
+  return pairs.map(([k, v]) => `\t${k}${' '.repeat(width - k.length)} ${v}`);
 }
 
-const emittable = wireChannels.filter((c) => c.validate);
-const schemaRows = alignRows(emittable.map((c) => [`${goName(c.channel)}:`, JSON.stringify(c.validate)]));
+/** The Go type of a channel's payload, and for a stored event the type of the event's own payload. */
+function payloadOf(c) {
+  switch (c.shape) {
+    case 'schema':
+      return { type: `api.${c.schema}` };
+    case 'envelope':
+      return { type: `Response[api.${c.schema}]` };
+    case 'storedEvent':
+      return { type: c.enriched === true ? 'api.EnrichedResourceEvent' : 'api.StoredEventResponse', recorded: `api.${c.payload}` };
+    case 'void':
+    case 'empty':
+      return { type: 'Empty' };
+    default:
+      throw new Error(`registry: "${c.channel}" has no payload type for shape ${JSON.stringify(c.shape)}`);
+  }
+}
+
+const byChannel = new Map(reg.channels.map((c) => [c.channel, c]));
+const scoped = new Set(reg.audience.scoped);
+const requested = new Set(reg.operations.map((o) => o.request));
+
+/** A channel's typed value: what it carries, and whether it is emitted, read for a resource, or of the record. */
+function valueOf(c) {
+  const { type, recorded } = payloadOf(c);
+  // A scoped channel is a stored event: validate-registry.mjs refuses one that is not.
+  if (recorded !== undefined) return `${scoped.has(c.channel) ? 'Scoped' : 'Recorded'}[${type}, ${recorded}]`;
+  return `${c.validate ? 'Emittable' : 'Of'}[${type}]`;
+}
+
+// ── channels_gen.go ────────────────────────────────────────────────────
+// An operation's request channel is the operation's value, under the
+// channel's name (operations_gen.go).
+const channelRows = alignRows(
+  reg.channels.filter((c) => !requested.has(c.channel)).map((c) => [goName(c.channel), `= ${valueOf(c)}{${JSON.stringify(c.channel)}}`]),
+);
 
 const channelsGo = `${BANNER}
 package bus
 
-// Channel is a bus channel name. Only channels the gateway will accept on
-// /bus/emit have an entry in ChannelSchemas; emitting anything else is a
-// client bug the server rejects.
+import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+
+// Channel is a bus channel's name: what a channel chosen at run time is
+// given as, and what each typed value below is named by.
 type Channel string
 
-const (
-${channelLines.join('\n\n')}
+// Every channel that is no operation's request, typed by the payload it
+// carries. An operation's request is the operation (operations_gen.go).
+var (
+${channelRows.join('\n')}
 )
-
-// ChannelSchemas maps an emittable channel to the OpenAPI schema name its
-// payload must satisfy — the same mapping the gateway validates against.
-// A channel absent from this map is not emittable.
-var ChannelSchemas = map[Channel]string{
-${schemaRows.join('\n')}
-}
-
-// Emittable reports whether the gateway accepts this channel on /bus/emit.
-func (c Channel) Emittable() bool {
-\t_, ok := ChannelSchemas[c]
-\treturn ok
-}
 
 ${goComment(reg.trace.meaning)}
 const TraceField = ${JSON.stringify(reg.trace.field)}
 `;
 
-// ── bridged channels (the SUBSCRIBE side) ──────────────────────────────
+// ── operations_gen.go ──────────────────────────────────────────────────
+for (const o of reg.operations) {
+  if (!byChannel.get(o.request).validate) {
+    throw new Error(`registry: "${o.request}" is an operation's request the gateway does not accept on /bus/emit: it could never be asked`);
+  }
+}
+const typeOf = (channel) => payloadOf(byChannel.get(channel)).type;
+const operationRows = alignRows(
+  reg.operations.map((o) => [
+    goName(o.request),
+    `= Operation[${typeOf(o.request)}, ${typeOf(o.result)}, ${typeOf(o.failure)}]{${[o.request, o.result, o.failure].map((c) => JSON.stringify(c)).join(', ')}}`,
+  ]),
+);
+// Every limits operation asks and answers the same, which is what lets one caller ask them all.
+const limitsOperations = reg.operations.filter((o) => o.request.endsWith(':limits-requested'));
+const shapeOf = (o) => [o.request, o.result, o.failure].map(typeOf).join(', ');
+if (limitsOperations.length === 0) throw new Error('registry: no operation is named <flow>:limits-requested');
+if (new Set(limitsOperations.map(shapeOf)).size !== 1) {
+  throw new Error(`registry: the limits operations do not all ask and answer the same: ${limitsOperations.map((o) => `${o.request} (${shapeOf(o)})`).join('; ')}`);
+}
+
+const repliesRows = alignRows(
+  reg.operations.map((o) => [`${JSON.stringify(o.request)}:`, `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}},`]),
+);
+
+const operationsGo = `${BANNER}
+package bus
+
+import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+
+// Every operation, named for its request channel and typed by what it sends
+// and what each of its replies carries.
+var (
+${operationRows.join('\n')}
+)
+
+// LimitsOperations is the operations that report the limits of the models a
+// service holds credentials for: one per such service, each named
+// <flow>:limits-requested. A new key holder's joins by being registered.
+var LimitsOperations = []Operation[${shapeOf(limitsOperations[0])}]{
+${limitsOperations.map((o) => `\t${goName(o.request)},`).join('\n')}
+}
+
+// Replies is the two channels a request is answered on.
+type Replies struct {
+\tResult  Channel
+\tFailure Channel
+}
+
+// Operations is each operation's replies, by the name of its request
+// channel: for a request named at run time. ${reg.operations.length} operations.
+var Operations = map[Channel]Replies{
+${repliesRows.join('\n')}
+}
+`;
+
+// ── bridged_gen.go ─────────────────────────────────────────────────────
 // Only these can be received over a transport. `semiont listen` defaults to
 // the broadcasts; the full set adds every operation's reply channels, which
 // are derived here exactly as the TypeScript side derives them.
-const bridgedRows = reg.audience.everyone.map((c) => `\t${goName(c)},`);
-const scopedRows = reg.audience.scoped.map((c) => `\t${goName(c)},`);
+const listed = (channels) => channels.map((c) => `\t${JSON.stringify(c)},`).join('\n');
 
 const bridgedGo = `${BANNER}
 package bus
@@ -122,7 +189,7 @@ package bus
 // vocabulary changes, attention signals, SSE infrastructure. These are what a
 // client subscribes to when it wants to watch a KB rather than await a reply.
 var BridgedBroadcasts = []Channel{
-${bridgedRows.join('\n')}
+${listed(reg.audience.everyone)}
 }
 
 // BridgedChannels: everything a transport delivers — the broadcasts plus
@@ -153,33 +220,7 @@ func Bridged(c Channel) bool {
 // Disjoint from BridgedChannels: a channel in both would reach a client twice,
 // under two ids.
 var ResourceScopedChannels = []Channel{
-${scopedRows.join('\n')}
-}
-`;
-
-// ── operations_gen.go ──────────────────────────────────────────────────
-const opRows = alignRows(
-  reg.operations.map((o) => {
-    return [
-      `${JSON.stringify(o.request)}:`,
-      `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}}`,
-    ];
-  }),
-);
-
-const operationsGo = `${BANNER}
-package bus
-
-// Operation is one request/reply pair: emit the request channel with a
-// correlationId, then take the first matching Result or Failure.
-type Operation struct {
-\tResult  Channel
-\tFailure Channel
-}
-
-// Operations is the request→reply registry: ${reg.operations.length} operations.
-var Operations = map[Channel]Operation{
-${opRows.join('\n')}
+${listed(reg.audience.scoped)}
 }
 `;
 
@@ -201,6 +242,6 @@ for (const [name, text] of [
   if (!CHECK) writeFileSync(path, text);
 }
 console.log(
-  `channels: ${wireChannels.length}, emittable: ${emittable.length}, operations: ${reg.operations.length}`,
+  `channels: ${reg.channels.length}, emittable: ${reg.channels.filter((c) => c.validate).length}, operations: ${reg.operations.length}`,
 );
 if (CHECK && drift) process.exit(1);
