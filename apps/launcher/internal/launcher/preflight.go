@@ -25,6 +25,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // serviceAccountFinding: one service client's reason for refusal. A finding
@@ -231,12 +233,12 @@ func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bo
 		return publicClientFinding{}, false
 	}
 	redirect := fmt.Sprintf("http://localhost:%d/en/auth/callback", port)
-	code, err := authorizationProbe(eps.authorization, BrowserClientID, redirect, responseCode, withPKCE)
+	code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, redirect, responseCode, withPKCE)
 	if err != nil || code == http.StatusOK {
 		return publicClientFinding{}, false // unreachable, or accepted
 	}
 	return publicClientFinding{
-		clientID: BrowserClientID,
+		clientID: semiont.BrowserClientID,
 		reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", redirect, code),
 		fix:      fmt.Sprintf("this realm pins the Browser to :3000 — it predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, add `http://localhost/*` to the client, or run `semiont identity sync`; the Browser would start on :%d and no one could sign in", port),
 	}, true
@@ -273,12 +275,12 @@ func verifyBrowserOrigin(issuerBase string, port int) (publicClientFinding, bool
 		return publicClientFinding{}, false
 	}
 	origin := fmt.Sprintf("http://localhost:%d", port)
-	allowed, err := tokenOriginProbe(eps.token, BrowserClientID, origin)
+	allowed, err := tokenOriginProbe(eps.token, semiont.BrowserClientID, origin)
 	if err != nil || allowed == origin {
 		return publicClientFinding{}, false // unreachable, or the origin is allowed
 	}
 	return publicClientFinding{
-		clientID: BrowserClientID,
+		clientID: semiont.BrowserClientID,
 		reason:   fmt.Sprintf("the realm will not accept a token exchange from %s (no Access-Control-Allow-Origin)", origin),
 		fix:      fmt.Sprintf("its web origins do not name the Browser's origin — a realm imported before this was fixed derives them from the portless loopback redirects, which drops the port. Run `semiont identity sync`; sign-in at %s would fail after a redirect that worked", origin),
 	}, true
@@ -333,7 +335,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	eps, err := discoverEndpoints(issuerBase)
 	if err != nil {
 		return []publicClientFinding{{
-			clientID: BrowserClientID,
+			clientID: semiont.BrowserClientID,
 			reason:   fmt.Sprintf("OIDC discovery at %s failed: %v", issuerBase, err),
 			fix:      "is the issuer reachable from this host?",
 		}}
@@ -346,25 +348,25 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	// client exists AND may use the grant.
 	if eps.device == "" {
 		findings = append(findings, publicClientFinding{
-			clientID: ScriptClientID,
+			clientID: semiont.ScriptClientID,
 			reason:   "the issuer publishes no device_authorization_endpoint",
 			fix:      "`semiont login` cannot work against this issuer",
 		})
 	} else {
-		switch code, oauthErr, err := deviceGrantProbe(eps.device, ScriptClientID); {
+		switch code, oauthErr, err := deviceGrantProbe(eps.device, semiont.ScriptClientID); {
 		case err != nil:
-			findings = append(findings, publicClientFinding{clientID: ScriptClientID, reason: err.Error()})
+			findings = append(findings, publicClientFinding{clientID: semiont.ScriptClientID, reason: err.Error()})
 		case code == http.StatusOK:
 			// exists, and the grant is enabled
 		case oauthErr == "invalid_client":
 			findings = append(findings, publicClientFinding{
-				clientID: ScriptClientID,
+				clientID: semiont.ScriptClientID,
 				reason:   "the realm has no such client",
 				fix:      "a realm imported before this client existed will not have it",
 			})
 		default:
 			findings = append(findings, publicClientFinding{
-				clientID: ScriptClientID,
+				clientID: semiont.ScriptClientID,
 				reason:   fmt.Sprintf("device authorization refused (HTTP %d, %s)", code, oauthErr),
 				fix:      "the client exists but may not use the device grant",
 			})
@@ -375,10 +377,10 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	// as a redirect problem.
 	browserExists := true
 	if eps.device != "" {
-		if _, oauthErr, err := deviceGrantProbe(eps.device, BrowserClientID); err == nil && oauthErr == "invalid_client" {
+		if _, oauthErr, err := deviceGrantProbe(eps.device, semiont.BrowserClientID); err == nil && oauthErr == "invalid_client" {
 			browserExists = false
 			findings = append(findings, publicClientFinding{
-				clientID: BrowserClientID,
+				clientID: semiont.BrowserClientID,
 				reason:   "the realm has no such client",
 				fix:      "a realm imported before this client existed will not have it; nobody can sign in from a browser",
 			})
@@ -387,23 +389,23 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 
 	if browserExists && eps.authorization == "" {
 		findings = append(findings, publicClientFinding{
-			clientID: BrowserClientID,
+			clientID: semiont.BrowserClientID,
 			reason:   "the issuer publishes no authorization_endpoint",
 			fix:      "nobody could sign in from a browser against this issuer",
 		})
 	} else if browserExists {
-		if code, err := authorizationProbe(eps.authorization, BrowserClientID, probeRedirect, responseCode, withPKCE); err != nil {
-			findings = append(findings, publicClientFinding{clientID: BrowserClientID, reason: err.Error()})
+		if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirect, responseCode, withPKCE); err != nil {
+			findings = append(findings, publicClientFinding{clientID: semiont.BrowserClientID, reason: err.Error()})
 		} else if code != http.StatusOK {
 			findings = append(findings, publicClientFinding{
-				clientID: BrowserClientID,
+				clientID: semiont.BrowserClientID,
 				reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", probeRedirect, code),
 				fix:      "its registered redirect URIs do not cover the Browser; sign-in would fail at the issuer",
 			})
 		} else {
-			if code, err := authorizationProbe(eps.authorization, BrowserClientID, probeRedirectOtherPort, responseCode, withPKCE); err == nil && code != http.StatusOK {
+			if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirectOtherPort, responseCode, withPKCE); err == nil && code != http.StatusOK {
 				findings = append(findings, publicClientFinding{
-					clientID: BrowserClientID,
+					clientID: semiont.BrowserClientID,
 					warnOnly: true,
 					reason:   "the realm pins the Browser to port 3000",
 					fix:      "`--port` will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
@@ -421,9 +423,9 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			// than a warning: its neighbours here describe a realm that is
 			// merely behind, while this one is a live way to leak a bearer
 			// token, and a stack that starts is a stack that leaks it.
-			if code, err := authorizationProbe(eps.authorization, BrowserClientID, probeRedirect, responseToken, withoutPKCE); err == nil && code == http.StatusOK {
+			if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirect, responseToken, withoutPKCE); err == nil && code == http.StatusOK {
 				findings = append(findings, publicClientFinding{
-					clientID: BrowserClientID,
+					clientID: semiont.BrowserClientID,
 					reason:   "the realm allows the IMPLICIT flow — an authorization request with response_type=token is accepted",
 					fix:      "set `implicitFlowEnabled` to false on this client; the access token would come back in a redirect fragment rather than through the code exchange",
 				})
@@ -436,9 +438,9 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			if f, bad := verifyBrowserOrigin(issuerBase, defaultBrowserPort); bad {
 				findings = append(findings, f)
 			}
-			if code, err := authorizationProbe(eps.authorization, BrowserClientID, probeRedirect, responseCode, withoutPKCE); err == nil && code == http.StatusOK {
+			if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirect, responseCode, withoutPKCE); err == nil && code == http.StatusOK {
 				findings = append(findings, publicClientFinding{
-					clientID: BrowserClientID,
+					clientID: semiont.BrowserClientID,
 					warnOnly: true,
 					reason:   "the realm does not REQUIRE PKCE — an authorization request carrying no code challenge is accepted",
 					fix:      "set `pkce.code.challenge.method` to S256 on the client; this client holds no secret, so PKCE is what binds the code to its requester",
@@ -451,7 +453,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	// resource-owner grant hands a public client someone's password directly —
 	// no browser, nothing phishing-resistant, and it walks straight past the
 	// realm's required actions, including the first-sign-in profile form.
-	for _, id := range []string{BrowserClientID, ScriptClientID} {
+	for _, id := range []string{semiont.BrowserClientID, semiont.ScriptClientID} {
 		oauthErr, err := directAccessGrantProbe(eps.token, id)
 		if err != nil || oauthErr == "unauthorized_client" {
 			continue // unreachable, or correctly refused

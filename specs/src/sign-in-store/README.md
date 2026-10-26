@@ -60,8 +60,8 @@ other's.
 A reader that only reads takes no lock: the rename makes each document
 whole.
 
-Every writer takes the lock: the launcher
-(`apps/launcher/internal/launcher/tokens.go`), the Rust SDK
+Every writer takes the lock: the Go SDK (`packages/sdk-go`, `SignInStore`),
+through which the launcher keeps its sign-ins, the Rust SDK
 (`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
 Windows the lock is on one byte of the lock file, far past anything the file
 holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file

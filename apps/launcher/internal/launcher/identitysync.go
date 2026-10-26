@@ -29,6 +29,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 var adminHTTP = &http.Client{Transport: launcherTransport, Timeout: 15 * time.Second}
@@ -80,7 +82,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 	if err != nil {
 		return err
 	}
-	for _, id := range []string{BrowserClientID, ScriptClientID} {
+	for _, id := range []string{semiont.BrowserClientID, semiont.ScriptClientID} {
 		c, ok := clients[id]
 		if !ok {
 			continue // absent is a preflight refusal, not something to invent here
@@ -92,7 +94,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 			patch["implicitFlowEnabled"] = false
 			changes = append(changes, "implicit flow disabled")
 		}
-		if id == BrowserClientID {
+		if id == semiont.BrowserClientID {
 			have := stringsOf(c.rep["redirectUris"])
 			missing := []string{}
 			for _, want := range loopbackRedirectUris() {

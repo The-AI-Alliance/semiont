@@ -1,8 +1,8 @@
 // Code generated from specs/src/sign-in-store/SignIn.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-sign-in-go.mjs
-// The Rust side (semiont::sign_in_store) generates its entry from the same
-// schema.
+// The Rust (semiont::sign_in_store) and Python (semiont.sign_in) SDKs generate
+// their entries from the same schema.
 
 package semiont
 

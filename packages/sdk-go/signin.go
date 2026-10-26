@@ -114,7 +114,11 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 // code, onCode shows the person where to approve it, and the tokens come back
 // here: no password passes through this process.
 func SignInWithDevice(ctx context.Context, issuer Issuer, baseURL string, kept SignInKept, onCode func(DeviceCode)) (IssuerEndpoints, error) {
-	endpoints, tokens, err := issuer.SignInWithDeviceGrant(ctx, baseURL, onCode)
+	endpoints, err := issuer.Discover(ctx, baseURL)
+	if err != nil {
+		return IssuerEndpoints{}, err
+	}
+	tokens, err := issuer.SignInWithDeviceGrant(ctx, endpoints, onCode)
 	if err != nil {
 		return IssuerEndpoints{}, err
 	}

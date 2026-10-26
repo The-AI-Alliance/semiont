@@ -1945,12 +1945,13 @@ func countDevicePoll() int {
 	return devicePolls
 }
 
-// countBearerUse records one presentation of a bearer and returns its tally.
-func countBearerUse(authorization string) int {
+// countBearerUse records one presentation of a person token, by its tag, and
+// returns its tally.
+func countBearerUse(tag string) int {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()
-	bearerUses[authorization]++
-	return bearerUses[authorization]
+	bearerUses[tag]++
+	return bearerUses[tag]
 }
 
 // unsignedJWT renders claims as a JWT with `alg: none` and a stub signature.
@@ -1961,6 +1962,37 @@ func unsignedJWT(claims map[string]any) string {
 	b, _ := json.Marshal(claims)
 	enc := base64.RawURLEncoding.EncodeToString
 	return enc([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + enc(b) + ".fake"
+}
+
+// personToken is an access token the fake issuer issues a person: an
+// unsigned JWT naming who signed in, at which issuer, and when it expires, as
+// a real issuer's does, told apart from the issuer's other tokens by its tag.
+func personToken(issuer, tag string) string {
+	now := time.Now()
+	return unsignedJWT(map[string]any{
+		"tag": tag, "email": "admin@example.com", "iss": issuer,
+		"iat": now.Unix(), "exp": now.Add(300 * time.Second).Unix(),
+	})
+}
+
+// tokenTag is the tag of the person token an Authorization header bears; ""
+// for any other.
+func tokenTag(authorization string) string {
+	parts := strings.Split(strings.TrimPrefix(authorization, "Bearer "), ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Tag string `json:"tag"`
+	}
+	if json.Unmarshal(payload, &claims) != nil {
+		return ""
+	}
+	return claims.Tag
 }
 
 // servedRoutes: does this container answer that path? Everything else 404s.
@@ -2259,7 +2291,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							return
 						}
 						jsonOut(200, map[string]any{
-							"access_token": "fake-jwt-token", "refresh_token": "fake-refresh-token",
+							"access_token": personToken(issuer, "fake-jwt-token"), "refresh_token": "fake-refresh-token",
 							"token_type": "Bearer", "expires_in": 300,
 						})
 					case "client_credentials":
@@ -2309,7 +2341,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							return
 						}
 						jsonOut(200, map[string]any{
-							"access_token": "fake-jwt-token-2", "refresh_token": "fake-refresh-token",
+							"access_token": personToken(issuer, "fake-jwt-token-2"), "refresh_token": "fake-refresh-token",
 							"token_type": "Bearer", "expires_in": 300,
 						})
 					default:
@@ -2328,6 +2360,8 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// Session lifecycle. Login verifies its fresh token with the
 				// gateway once, so "stale" means stale AFTER that first use —
 				// an access token that expired between login and the verb.
+				// A person token is known by its tag: the login-issued token
+				// is fake-jwt-token, a renewed one fake-jwt-token-2.
 				// FAKERT_STALE_TOKEN=1: the login-issued token is accepted
 				// once, then reads as expired; the refresh grant above mints
 				// fake-jwt-token-2, which every bearer endpoint accepts.
@@ -2336,15 +2370,15 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// — the "refreshed but still rejected" scenario (account
 				// disabled right after login).
 				bearerOK := func() bool {
-					a := r.Header.Get("Authorization")
-					uses := countBearerUse(a)
+					tag := tokenTag(r.Header.Get("Authorization"))
+					uses := countBearerUse(tag)
 					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
-						return a == "Bearer fake-jwt-token" && uses == 1
+						return tag == "fake-jwt-token" && uses == 1
 					}
-					if a == "Bearer fake-jwt-token-2" {
+					if tag == "fake-jwt-token-2" {
 						return true
 					}
-					if a != "Bearer fake-jwt-token" {
+					if tag != "fake-jwt-token" {
 						return false
 					}
 					return os.Getenv("FAKERT_STALE_TOKEN") == "" || uses == 1
