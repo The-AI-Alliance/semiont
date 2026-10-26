@@ -25,6 +25,10 @@ export default function setup(project: TestProject): void {
       throw new Error(`A Rust driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);
     }
   }
+  const go = drivers['go']?.wire?.[0];
+  if (go !== undefined && !existsSync(go)) {
+    throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/sdk-go/conformance.`);
+  }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.

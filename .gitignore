@@ -119,3 +119,6 @@ apps/*/scripts/*.d.ts.map
 
 # Cargo's build output, for the whole Rust workspace (Cargo.toml).
 /target
+
+# The Go SDK's conformance drivers, built by CI and by hand (packages/sdk-go/conformance).
+/packages/sdk-go/conformance/bin/

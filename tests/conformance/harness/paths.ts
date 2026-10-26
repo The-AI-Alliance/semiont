@@ -47,6 +47,60 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
+/**
+ * The wire cases the Go SDK has not reached, each with what it lacks for the
+ * case. It arrives in steps (tests/conformance/sdk/README.md: an SDK that
+ * arrives in steps names what it has not reached), and each exemption is
+ * deleted in the change that turns its case green. A case the corpus gains is
+ * Go's to pass or to name here, or Go fails it.
+ */
+const GO_NOT_YET_REACHED: Readonly<Record<string, string>> = {
+  'attach-gate': 'the Go SDK sends no emit or request over a held stream yet',
+  'chunked-stream': 'the Go SDK holds no stream yet',
+  'content-read': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'content-upload': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'dedup-window': 'the Go SDK holds no stream yet',
+  'emit-budget-spent': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-counted': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-credential-limit-renewed': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-credential-refused-twice': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-credential-renewed': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-rate-limited': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-refused': 'the Go SDK sends no emit or request over a held stream yet',
+  'emit-uncounted': 'the Go SDK sends no emit or request over a held stream yet',
+  'failure-codes': 'the Go SDK sends no emit or request over a held stream yet',
+  'gateway-operations': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'job-create': 'the Go SDK sends no emit or request over a held stream yet',
+  'outage': 'the Go SDK holds no stream yet',
+  'overlap-dedup': 'the Go SDK holds no stream yet',
+  'passing-across-drop': 'the Go SDK holds no stream yet',
+  'passing-across-handoff': 'the Go SDK holds no stream yet',
+  'pending-replies': 'the Go SDK holds no stream yet',
+  'request-abandoned': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-abandoned-waiting': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-closed': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-credential-limit-refused-twice': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-credential-renewed': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-reply': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-timeout': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-unanswerable': 'the Go SDK sends no emit or request over a held stream yet',
+  'request-unsubscribed': 'the Go SDK sends no emit or request over a held stream yet',
+  'resumption': 'the Go SDK holds no stream yet',
+  'stream-credential-limit-renewed': 'the Go SDK sends no emit or request over a held stream yet',
+  'stream-credential-renewed': 'the Go SDK sends no emit or request over a held stream yet',
+  'stream-rate-limited': 'the Go SDK holds no stream yet',
+  'subscribe-matrix': 'the Go SDK holds no stream yet',
+  'telemetry': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'unauthenticated': 'the Go SDK holds no stream yet',
+  'unreachable': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'upload-cancelled': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'upload-credential-renewed': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+  'upload-progress': 'the Go SDK has no content transport, gateway operations or telemetry yet',
+};
+
+/** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
+export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-wire-driver');
+
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
@@ -70,6 +124,10 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
     live: { command: [PYTHON, join(PYTHON_SDK, 'conformance/live.py')], tier: 'parity' },
     worker: [PYTHON, join(PYTHON_SDK, 'conformance/worker.py')],
+  },
+  go: {
+    wire: [GO_WIRE_DRIVER],
+    exempt: GO_NOT_YET_REACHED,
   },
 };
 

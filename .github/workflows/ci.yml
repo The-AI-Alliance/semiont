@@ -419,7 +419,7 @@ jobs:
     name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -615,7 +615,7 @@ jobs:
     name: SDK Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true'
 
     steps:
       - name: Checkout code
@@ -661,6 +661,17 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v10.3.0
+
+      # The Go driver is a static binary, built from its own module so that
+      # what only a driver takes reaches nothing else.
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: packages/sdk-go/conformance/go.mod
+          cache: false
+
+      - name: Build the Go drivers
+        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's drivers, put through the corpus against the gateway; the
       # suite type-checks the TypeScript drivers and makes the Python SDK's
@@ -1861,14 +1872,16 @@ jobs:
 
       # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
       # the kinds of id (api/ids_gen.go, whose generator also holds
-      # oapi-codegen's exclude-schemas to the kinds) and the media types
-      # (mediatypes). TypeScript and Rust build theirs from the same files at
+      # oapi-codegen's exclude-schemas to the kinds), the error codes, the
+      # client's timing, and the media types (mediatypes). TypeScript and Rust build theirs from the same files at
       # build time; a Go module has no build step, so its are committed, and
       # are what can go stale. The bus vocabulary and the REST client have
       # steps of their own.
       - name: Spec tables vs the Go SDK's generated code
         run: |
           node scripts/spec/generate-identifiers-go.mjs --check
+          node scripts/spec/generate-error-codes-go.mjs --check
+          node scripts/spec/generate-client-timing-go.mjs --check
           node scripts/spec/generate-media-types-go.mjs --check
 
       # The launcher shares the sign-in store with the Rust SDK, and signs in
@@ -2022,6 +2035,10 @@ jobs:
       # live here, and a build-only step never ran a single one of them.
       - name: Vet, build and test sdk-go
         run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
+
+      # The SDK's conformance drivers are a module of their own.
+      - name: Vet the Go SDK's drivers
+        run: cd packages/sdk-go/conformance && go vet ./...
 
       # The launcher's deps are go.yaml.in/yaml and santhosh-tekuri/jsonschema
       # (the stack's documents and their schemas), golang.org/x/sys (the Windows build's
