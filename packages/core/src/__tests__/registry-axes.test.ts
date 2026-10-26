@@ -53,6 +53,7 @@ function baseRegistry() {
     // is the emittable set — an operation's request, or a kind.command —
     // which here is `demo:requested` alone.
     effect: { doc: '', writes: ['demo:requested'] as string[], reads: [] as string[] },
+    trace: { meaning: 'Where a relayed frame carries its trace.', field: '_carried' },
   };
 }
 
@@ -272,5 +273,23 @@ describe('registry payloads — stated by shape, never as a TypeScript string', 
     expect(complains(withChannel({ shape: 'empty', system: true, validate: null }), 'only a stored event can carry it')).toBe(true);
     const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', payload: 'DemoPayload', system: false, validate: null });
     expect(complains(reg, 'it is a flag (true or absent)')).toBe(true);
+  });
+});
+
+// The field a relayed frame's trace rides in is generated into every SDK and
+// the gateway from here, each constant documented by the meaning.
+describe('registry trace — the payload field a relayed frame\'s trace rides in', () => {
+  test('refuses a registry that states none', () => {
+    expect(complains({ ...baseRegistry(), trace: {} }, 'trace.field is undefined')).toBe(true);
+  });
+
+  test('refuses a field whose name does not begin with "_", which a channel\'s own field could share', () => {
+    const reg = baseRegistry();
+    expect(complains({ ...reg, trace: { ...reg.trace, field: 'carried' } }, 'a name that begins with "_"')).toBe(true);
+  });
+
+  test('refuses a field with no meaning', () => {
+    const reg = baseRegistry();
+    expect(complains({ ...reg, trace: { ...reg.trace, meaning: '' } }, 'trace states no meaning')).toBe(true);
   });
 });
