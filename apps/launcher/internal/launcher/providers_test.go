@@ -6,18 +6,18 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // servingAssessing: the anthropic fixture with the `mark` jobs of assessing
 // served by provider's model, reached as entry states.
-func servingAssessing(t *testing.T, provider semiont.ArchivistRosterRoleProvider, model string, entry stack.Provider) *stack.Stack {
+func servingAssessing(t *testing.T, provider api.ArchivistRosterRoleProvider, model string, entry stack.Provider) *stack.Stack {
 	t.Helper()
 	st := fixtureStack(t, "anthropic")
 	st.Inference.Spec.Providers[provider] = entry
-	st.Inference.Spec.Roster.Workers.Mark.Assessing = &semiont.ArchivistRosterRole{Provider: provider, Model: model}
+	st.Inference.Spec.Roster.Workers.Mark.Assessing = &api.ArchivistRosterRole{Provider: provider, Model: model}
 	return st
 }
 
@@ -26,14 +26,14 @@ func servingAssessing(t *testing.T, provider semiont.ArchivistRosterRoleProvider
 // one.
 func TestWorkerDocumentServesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 	baseURL := "http://vllm.internal:8000/v1"
-	b, err := workerDocument(placed(t, servingAssessing(t, semiont.ArchivistRosterRoleProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})))
+	b, err := workerDocument(placed(t, servingAssessing(t, api.ArchivistRosterRoleProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})))
 	if err != nil {
 		t.Fatal(err)
 	}
 	doc := workerDocumentFrom(t, b)
-	var served *semiont.WorkerAgentConfig
+	var served *api.WorkerAgentConfig
 	for i := range doc.Agents {
-		if doc.Agents[i].Agent.Provider == semiont.ArchivistRosterRoleProviderVllm {
+		if doc.Agents[i].Agent.Provider == api.ArchivistRosterRoleProviderVllm {
 			served = &doc.Agents[i]
 		}
 	}
@@ -50,7 +50,7 @@ func TestWorkerDocumentServesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 // whatever its providers, and so does the Librarian's.
 func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	baseURL := "https://api.openai.com/v1"
-	p := placed(t, servingAssessing(t, semiont.ArchivistRosterRoleProviderOpenai, "gpt-listed",
+	p := placed(t, servingAssessing(t, api.ArchivistRosterRoleProviderOpenai, "gpt-listed",
 		stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OPENAI_API_KEY"}}))
 	b, err := workerDocument(p)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	}
 	var keyed bool
 	for _, agent := range doc.Agents {
-		if agent.Agent.Provider == semiont.ArchivistRosterRoleProviderOpenai {
+		if agent.Agent.Provider == api.ArchivistRosterRoleProviderOpenai {
 			keyed = agent.ApiKeyEnv != nil && *agent.ApiKeyEnv == "OPENAI_API_KEY" && agent.BaseUrl == baseURL
 		}
 	}
@@ -94,10 +94,10 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 // the worker's document is written, naming the entry.
 func TestAProviderWithNoAddressIsRefused(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	st.Inference.Spec.Roster.Workers.Mark.Assessing = &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderTogether, Model: "m"}
+	st.Inference.Spec.Roster.Workers.Mark.Assessing = &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderTogether, Model: "m"}
 	mustRefuse(t, st, st.Files.Inference+": spec.roster.workers.mark.assessing.provider", `"together"`, "spec.providers.together")
 
-	st = servingAssessing(t, semiont.ArchivistRosterRoleProviderTogether, "m", stack.Provider{})
+	st = servingAssessing(t, api.ArchivistRosterRoleProviderTogether, "m", stack.Provider{})
 	_, err := workerDocument(placed(t, st))
 	if want := st.Files.Inference + ": spec.providers.together.baseURL"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("want a refusal naming %s, got %v", want, err)

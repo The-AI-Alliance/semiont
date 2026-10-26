@@ -12,7 +12,7 @@ package launcher
 import (
 	"encoding/json"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // librarianDocumentFile: the Librarian is configured by a document, not a copy
@@ -28,10 +28,10 @@ const librarianDocumentTarget = "/etc/semiont/librarian.json"
 // of its own, with where the roster binds each.
 var librarianActors = []struct {
 	name string
-	role func(semiont.ArchivistRoster) *semiont.ArchivistRosterRole
+	role func(api.ArchivistRoster) *api.ArchivistRosterRole
 }{
-	{"matcher", func(r semiont.ArchivistRoster) *semiont.ArchivistRosterRole { return r.Actors.Matcher }},
-	{"gatherer", func(r semiont.ArchivistRoster) *semiont.ArchivistRosterRole { return r.Actors.Gatherer }},
+	{"matcher", func(r api.ArchivistRoster) *api.ArchivistRosterRole { return r.Actors.Matcher }},
+	{"gatherer", func(r api.ArchivistRoster) *api.ArchivistRosterRole { return r.Actors.Gatherer }},
 }
 
 // librarianModel: the model one actor asks, as the Librarian's document states
@@ -40,7 +40,7 @@ var librarianActors = []struct {
 // which variable holds its key are decided as a worker's agent's are
 // (providerAddress, providerKeyName). An actor the roster binds no model to is
 // refused: the Librarian cannot start without both.
-func librarianModel(p placement, actor string, bound *semiont.ArchivistRosterRole) (model semiont.LibrarianModelConfig, err error) {
+func librarianModel(p placement, actor string, bound *api.ArchivistRosterRole) (model api.LibrarianModelConfig, err error) {
 	if bound == nil {
 		return model, planErr(p.st.Files.Inference, "spec.roster.actors."+actor, "is not bound: the Librarian has no model to ask — bind a provider and a model")
 	}
@@ -80,7 +80,7 @@ func librarianSecrets(p placement) []string {
 // provider the Smelter's (vectorsConfig, embeddingConfig).
 func librarianDocument(p placement) ([]byte, error) {
 	index := p.st.KnowledgeIndex.Spec
-	var doc semiont.LibrarianConfig
+	var doc api.LibrarianConfig
 	var err error
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
@@ -106,6 +106,6 @@ func librarianDocument(p placement) ([]byte, error) {
 	doc.Search.SemanticFloor = float32(index.Librarian.Search.SemanticFloor)
 	doc.Port = semiontDescriptor("librarian").ports[0].port
 	doc.LogLevel = index.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // archivistDocumentFile: the Archivist is configured by a document, not a
@@ -39,7 +39,7 @@ const stateHomeTarget = "/semiont-state"
 var archivistStaging = struct{ flushMs, maxWaitMs int }{flushMs: 250, maxWaitMs: 2_000}
 
 // rosterRoleType: one role, as the generated roster holds it.
-var rosterRoleType = reflect.TypeOf((*semiont.ArchivistRosterRole)(nil))
+var rosterRoleType = reflect.TypeOf((*api.ArchivistRosterRole)(nil))
 
 // jsonName: the name a generated field is written under.
 func jsonName(field reflect.StructField) string {
@@ -70,7 +70,7 @@ func workerJobs() []workerJob {
 			walk(field.Type.Elem(), above+jsonName(field)+".", here)
 		}
 	}
-	walk(reflect.TypeOf(semiont.ArchivistRoster{}.Workers), "", nil)
+	walk(reflect.TypeOf(api.ArchivistRoster{}.Workers), "", nil)
 	return jobs
 }
 
@@ -89,7 +89,7 @@ func (job workerJob) slot(workers reflect.Value) reflect.Value {
 
 // bound: the role a roster's `workers` binds to this job; nil when it binds
 // none, or none of the group above it.
-func (job workerJob) bound(workers reflect.Value) *semiont.ArchivistRosterRole {
+func (job workerJob) bound(workers reflect.Value) *api.ArchivistRosterRole {
 	for _, i := range job.at[:len(job.at)-1] {
 		group := workers.Field(i)
 		if group.IsNil() {
@@ -97,13 +97,13 @@ func (job workerJob) bound(workers reflect.Value) *semiont.ArchivistRosterRole {
 		}
 		workers = group.Elem()
 	}
-	return workers.Field(job.at[len(job.at)-1]).Interface().(*semiont.ArchivistRosterRole)
+	return workers.Field(job.at[len(job.at)-1]).Interface().(*api.ArchivistRosterRole)
 }
 
 // servedJob: a job, and the role serving it.
 type servedJob struct {
 	job  workerJob
-	role *semiont.ArchivistRosterRole
+	role *api.ArchivistRosterRole
 }
 
 // archivistDocument renders the document from the start's placement. Its
@@ -112,7 +112,7 @@ type servedJob struct {
 // (librarianModel), so `browse:agents` names exactly the agents the work goes
 // to.
 func archivistDocument(p placement) ([]byte, error) {
-	var doc semiont.ArchivistConfig
+	var doc api.ArchivistConfig
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Root = kbMountTarget
@@ -124,6 +124,6 @@ func archivistDocument(p placement) ([]byte, error) {
 	doc.Staging.FlushMs = archivistStaging.flushMs
 	doc.Staging.MaxWaitMs = archivistStaging.maxWaitMs
 	doc.LogLevel = p.st.KnowledgeBase.Spec.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

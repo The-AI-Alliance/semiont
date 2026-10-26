@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -154,16 +154,16 @@ func servedBy(models []servedModel, provider string) []string {
 // "workers.mark.tagging").
 type boundRole struct {
 	at   string
-	role semiont.ArchivistRosterRole
+	role api.ArchivistRosterRole
 }
 
 // rosterRoles: every role a roster binds — each actor's, then each job's, in
 // the roster's own order.
-func rosterRoles(roster semiont.ArchivistRoster) []boundRole {
+func rosterRoles(roster api.ArchivistRoster) []boundRole {
 	var bound []boundRole
 	for _, actor := range []struct {
 		name string
-		role *semiont.ArchivistRosterRole
+		role *api.ArchivistRosterRole
 	}{{"gatherer", roster.Actors.Gatherer}, {"matcher", roster.Actors.Matcher}} {
 		if actor.role != nil {
 			bound = append(bound, boundRole{at: "actors." + actor.name, role: *actor.role})
@@ -177,7 +177,7 @@ func rosterRoles(roster semiont.ArchivistRoster) []boundRole {
 
 // servedJobs: each job the roster binds a worker role to, in workerJobs'
 // order.
-func servedJobs(roster semiont.ArchivistRoster) []servedJob {
+func servedJobs(roster api.ArchivistRoster) []servedJob {
 	var served []servedJob
 	workers := reflect.ValueOf(roster.Workers)
 	for _, job := range workerJobs() {
@@ -215,9 +215,9 @@ func ollamaModels(st *stack.Stack) []modelNeed {
 	// Every actor/worker binding is the INFERENCE role however many bindings
 	// name the same model; the embedding role is added last, so Roles ends up
 	// in one order.
-	if st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderOllama].BaseURL == nil {
+	if st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama].BaseURL == nil {
 		for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-			if b.role.Provider == semiont.ArchivistRosterRoleProviderOllama {
+			if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
 				add(b.role.Model, roleInference)
 			}
 		}
@@ -287,7 +287,7 @@ func remoteInferenceDriver(st *stack.Stack) string {
 // inference role the remote-model check dials (saasBase), and the address a
 // worker's document gives an agent whose provider states none (workerdoc.go).
 func remoteProviderAddress(st *stack.Stack, driver string) (host string, port int) {
-	if p, ok := st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProvider(driver)]; ok && p.BaseURL != nil {
+	if p, ok := st.Inference.Spec.Providers[api.ArchivistRosterRoleProvider(driver)]; ok && p.BaseURL != nil {
 		host, port = parseHostPort(*p.BaseURL)
 		if port == 0 && strings.HasPrefix(*p.BaseURL, "https://") {
 			port = 443
@@ -509,13 +509,13 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 		if _, stated := providers[b.role.Provider]; !stated {
 			return nil, planErr(files.Inference, "spec.roster."+b.at+".provider", "is %q, and spec.providers says nothing of it — add spec.providers.%s", b.role.Provider, b.role.Provider)
 		}
-		if b.role.Provider == semiont.ArchivistRosterRoleProviderOllama {
+		if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
 			bindingsUseOllama = true
 		}
 	}
 	// inferenceOllama: where the Ollama that performs inference is — the
 	// Inference document's to say, and nil for the machine's.
-	inferenceOllama := providers[semiont.ArchivistRosterRoleProviderOllama].BaseURL
+	inferenceOllama := providers[api.ArchivistRosterRoleProviderOllama].BaseURL
 
 	// graph
 	{
@@ -729,7 +729,7 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 			Driver: driver, Address: host, Port: port,
 			Models: bindingModels(st),
 		}
-		if key := providers[semiont.ArchivistRosterRoleProvider(driver)].ApiKey; key != nil {
+		if key := providers[api.ArchivistRosterRoleProvider(driver)].ApiKey; key != nil {
 			rp.APIKey = key.FromEnv
 		}
 		plan.Roles["inference"] = rp

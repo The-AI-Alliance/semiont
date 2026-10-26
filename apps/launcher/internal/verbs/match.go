@@ -22,7 +22,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const matchIDs = "semiont match [options] -- <resourceId> <annotationId>"
@@ -148,6 +148,17 @@ options:
 		fmt.Fprintln(os.Stderr, "  semiont match --help")
 		return 1
 	}
+	var rid api.ResourceId
+	var aid api.AnnotationId
+	if !searching {
+		var ok bool
+		if rid, ok = parsed(u, "resource", resourceID, api.ParseResourceId); !ok {
+			return 1
+		}
+		if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+			return 1
+		}
+	}
 
 	t, ok := launcher.VerbSession(u, "match", repo, wantLocal)
 	if !ok {
@@ -160,7 +171,7 @@ options:
 		if limit == 0 {
 			limit = 20
 		}
-		req := semiont.MatchResourcesRequest{Search: search, Limit: &limit}
+		req := api.MatchResourcesRequest{Search: search, Limit: &limit}
 		if entityType != "" {
 			req.EntityType = &entityType
 		}
@@ -172,7 +183,7 @@ options:
 			fmt.Println(string(reply))
 			return 0
 		}
-		var found semiont.MatchResourcesResult
+		var found api.MatchResourcesResult
 		if json.Unmarshal(reply, &found) != nil {
 			return rawFallback(reply)
 		}
@@ -186,23 +197,23 @@ options:
 
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)
-	gathered, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
-		ResourceId:   resourceID,
-		AnnotationId: annotationID,
+	gathered, err := cli.Request(ctx, "gather:requested", api.GatherAnnotationRequest{
+		ResourceId:   rid,
+		AnnotationId: aid,
 	}, nil)
 	if err != nil {
 		return busFail(u, "match (gather step)", err)
 	}
-	var gc semiont.GatherAnnotationComplete
+	var gc api.GatherAnnotationComplete
 	if json.Unmarshal(gathered, &gc) != nil {
 		u.Fail("match: the gathered context could not be read.")
 		return 1
 	}
 
 	// Step 2: the scored search, grounded by that context.
-	req := semiont.MatchSearchRequest{
-		ResourceId:  resourceID,
-		ReferenceId: annotationID,
+	req := api.MatchSearchRequest{
+		ResourceId:  rid,
+		ReferenceId: aid,
 		Context:     gc.Response,
 		Limit:       &limit,
 	}
@@ -221,7 +232,7 @@ options:
 	// are JSON-LD (`@id`, not `id`), and hand-rolling that field name was
 	// exactly how this verb shipped printing blank identifiers. The schema
 	// owns the shape; Go should read it from there.
-	var results semiont.MatchSearchResult
+	var results api.MatchSearchResult
 	if json.Unmarshal(reply, &results) != nil {
 		return rawFallback(reply)
 	}

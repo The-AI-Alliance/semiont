@@ -473,7 +473,7 @@ done
 
 # --- sdk-go drift gate ---
 #
-# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
+# packages/sdk-go/api/client_gen.go is GENERATED from specs/openapi.json and
 # COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
 # automatically, so a spec change can leave it stale. This gate regenerates
 # to a scratch path inside the container (never the working tree — builds
@@ -482,7 +482,21 @@ done
 
 banner "SDK-GO DRIFT GATE"
 
-step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
+step "Checking the Go SDK's generated tables against specs/src..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
+  ok "the Go SDK's generated tables match specs/src"
+else
+  fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
+  echo ""
+  echo -e "  Regenerate and commit:"
+  echo ""
+  echo -e "    ${BOLD}npm run generate:go${RESET}   (packages/sdk-go)"
+  echo ""
+  exit 1
+fi
+
+step "Checking packages/sdk-go/api/client_gen.go against specs/openapi.json..."
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache
 # corrupt it — Go's cache locking is flock, which does not hold across VM
@@ -536,7 +550,7 @@ run_drift_check() {
     sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
              -config packages/sdk-go/oapi-codegen.yaml \
              -o /tmp/client_gen.check.go specs/openapi.json || exit 3
-           diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
+           diff -q /tmp/client_gen.check.go packages/sdk-go/api/client_gen.go >/dev/null || exit 4' \
     2>&1 | tee "$DRIFT_LOG" \
     || DRIFT_RC=$?
 }
@@ -572,12 +586,12 @@ case "$DRIFT_RC" in
     rm -f "$DRIFT_LOG"
     ;;
   4)
-    fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
+    fail "packages/sdk-go/api/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
     echo ""
     echo -e "  Regenerate and commit it:"
     echo ""
     echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-    echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
+    echo -e "    ${BOLD}git add packages/sdk-go/api/client_gen.go${RESET}   (then commit)"
     echo ""
     exit 1
     ;;

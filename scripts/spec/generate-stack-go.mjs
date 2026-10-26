@@ -87,10 +87,10 @@ function goType(schema, from, name) {
     if (path.startsWith(COMPONENTS)) {
       usesSDK = true;
       const base = path.slice(COMPONENTS.length).replace(/\.json$/, '');
-      if (fragment === '') return `semiont.${base}`;
+      if (fragment === '') return `api.${base}`;
       const property = fragment.match(/^\/properties\/([A-Za-z]+)$/);
       if (!property) refuse(from, `${name} refers to ${path}#${fragment}, which this generator does not render`);
-      return `semiont.${base}${pascal(property[1])}`;
+      return `api.${base}${pascal(property[1])}`;
     }
     if (fragment !== '') refuse(from, `${name} refers to ${path}#${fragment}, which this generator does not render`);
     const referred = schemaAt(path);
@@ -147,7 +147,7 @@ const typesText = `// Code generated from specs/src/stack and specs/src/kb-ident
 // Regenerate: node scripts/spec/generate-stack-go.mjs
 
 package stack
-${usesSDK ? '\nimport semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"\n' : ''}
+${usesSDK ? '\nimport "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"\n' : ''}
 ${[...types.values()].join('\n')}`;
 
 // ── the schemas ───────────────────────────────────────────────────────────

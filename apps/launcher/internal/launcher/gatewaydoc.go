@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // connectionAllowance: the memory a gateway's capacity sets aside for each open
@@ -38,7 +38,7 @@ func gatewayDocument(p placement, kbName, kbDomain string) ([]byte, error) {
 		return nil, fmt.Errorf("the knowledge base declares no site.domain in its .semiont/config.yaml: the gateway has no identity to run under")
 	}
 	kb := p.st.KnowledgeBase.Spec
-	var doc semiont.GatewayConfig
+	var doc api.GatewayConfig
 	doc.Kb.Name, doc.Kb.Domain = kbName, kbDomain
 	doc.Port = p.plan.GatewayPort
 	doc.PublicUrl = kb.Gateway.PublicURL
@@ -46,7 +46,7 @@ func gatewayDocument(p placement, kbName, kbDomain string) ([]byte, error) {
 	doc.Identity.SubjectClaim = kb.Issuer.SubjectClaim
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()
 
-	doc.Signal.Type = semiont.GatewayConfigSignalType(kb.Messaging.Signal.Type)
+	doc.Signal.Type = api.GatewayConfigSignalType(kb.Messaging.Signal.Type)
 	if kb.Messaging.Signal.Type == "nats" {
 		servers := p.brokerServers()
 		doc.Signal.Servers = &servers
@@ -62,7 +62,7 @@ func gatewayDocument(p placement, kbName, kbDomain string) ([]byte, error) {
 	}
 
 	doc.LogLevel = kb.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 
 	// Its capacity follows from the memory its container is given: half for
 	// the bytes queued to its streams, and the other half at a connection

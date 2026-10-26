@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -25,9 +25,9 @@ func externalGraph(st *stack.Stack) {
 	g.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.internal:7687", Password: stack.SecretRef{FromEnv: "GRAPH_PASSWORD"}}
 }
 
-func weaverDocumentFrom(t *testing.T, b []byte) (semiont.WeaverConfig, semiont.Neo4jGraphConfig) {
+func weaverDocumentFrom(t *testing.T, b []byte) (api.WeaverConfig, api.Neo4jGraphConfig) {
 	t.Helper()
-	var doc semiont.WeaverConfig
+	var doc api.WeaverConfig
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -40,7 +40,7 @@ func weaverDocumentFrom(t *testing.T, b []byte) (semiont.WeaverConfig, semiont.N
 	return doc, graph
 }
 
-func weaverDocumentOf(t *testing.T, p placement) (semiont.WeaverConfig, semiont.Neo4jGraphConfig) {
+func weaverDocumentOf(t *testing.T, p placement) (api.WeaverConfig, api.Neo4jGraphConfig) {
 	t.Helper()
 	b, err := weaverDocument(p)
 	if err != nil {
@@ -54,7 +54,7 @@ func weaverDocumentOf(t *testing.T, p placement) (semiont.WeaverConfig, semiont.
 // KnowledgeIndex's.
 func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeIndex.Spec.LogLevel = api.LogLevelDebug
 	doc, graph := weaverDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
@@ -62,8 +62,8 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
 		t.Errorf("identity.issuer = %q", doc.Identity.Issuer)
 	}
-	want := semiont.Neo4jGraphConfig{
-		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
+	want := api.Neo4jGraphConfig{
+		Type:        api.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
 		Database:    "neo4j",
@@ -81,7 +81,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Port != semiontDescriptor("weaver").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the KnowledgeIndex's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
@@ -56,7 +56,7 @@ func TestCeilingCell(t *testing.T) {
 		{1000000, 128000, "1M in / 128K out"},
 		{512, 512, "512 window"},
 	} {
-		got := ceilingCell(semiont.InferenceLimits{ContextTokens: c.ctx, MaxOutputTokens: c.out})
+		got := ceilingCell(api.InferenceLimits{ContextTokens: c.ctx, MaxOutputTokens: c.out})
 		if got != c.want {
 			t.Errorf("ceilingCell(%v, %v) = %q, want %q", c.ctx, c.out, got, c.want)
 		}
@@ -70,7 +70,7 @@ func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
 	// A mixed roster lists remote models too — these ARE the models this stack
 	// performs inference with, whoever serves them — each under the provider
 	// its role names.
-	st.Inference.Spec.Roster.Workers.Yield = &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5"}
+	st.Inference.Spec.Roster.Workers.Yield = &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5"}
 	got := bindingModels(st)
 	want := []servedModel{
 		{Model: "claude-sonnet-4-5", Provider: "anthropic"},

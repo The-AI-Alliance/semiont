@@ -12,7 +12,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const bindIDs = "semiont bind [options] -- <resourceId> <annotationId> <targetResourceId>"
@@ -101,6 +101,18 @@ options:
 		fmt.Print(bindUsage)
 		return 1
 	}
+	rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
+	aid, ok := parsed(u, "annotation", annotationID, api.ParseAnnotationId)
+	if !ok {
+		return 1
+	}
+	tid, ok := parsed(u, "target", target, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
 	op := "add"
 	if unbind {
 		op = "remove"
@@ -112,22 +124,22 @@ options:
 	}
 	cli := t.Transport()
 
-	var item semiont.AnnotationBody
-	purpose := semiont.BodyPurpose("linking")
+	var item api.AnnotationBody
+	purpose := api.BodyPurpose("linking")
 	// No `type` literal: AnnotationBody's discriminator means the generated
 	// FromSpecificResource stamps it (see mark.go).
-	if err := item.FromSpecificResource(semiont.SpecificResource{
-		Source: target, Purpose: &purpose,
+	if err := item.FromSpecificResource(api.SpecificResource{
+		Source: tid, Purpose: &purpose,
 	}); err != nil {
 		u.Fail("could not build the body item: %v", err)
 		return 1
 	}
-	cmd := semiont.BindUpdateBodyCommand{
-		ResourceId:   resourceID,
-		AnnotationId: annotationID,
+	cmd := api.BindUpdateBodyCommand{
+		ResourceId:   rid,
+		AnnotationId: aid,
 	}
-	cmd.Operations = []semiont.BindBodyOperation{{
-		Op:   semiont.BindBodyOperationOp(op),
+	cmd.Operations = []api.BindBodyOperation{{
+		Op:   api.BindBodyOperationOp(op),
 		Item: &item,
 	}}
 	reply, err := cli.Request(context.Background(), "bind:update-body", cmd, nil)

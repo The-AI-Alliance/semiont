@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // Health is what a caller needs to know whether the gateway is serving.
@@ -40,12 +42,12 @@ type Health interface {
 	// Cancellation and timeouts belong to ctx — this method imposes none of
 	// its own, so a probe with a budget sets a deadline and a boot-time wait
 	// can use a longer one.
-	HealthCheck(ctx context.Context) (*HealthResponse, error)
+	HealthCheck(ctx context.Context) (*api.HealthResponse, error)
 }
 
 // HealthClient is the HTTP implementation, over the generated client.
 type HealthClient struct {
-	c *ClientWithResponses
+	c *api.ClientWithResponses
 }
 
 // Asserted at compile time so a signature change on either side is a build
@@ -57,15 +59,15 @@ var _ Health = (*HealthClient)(nil)
 //
 // opts pass through to the generated constructor, so a caller can inject its
 // own HTTP doer; without one, cancel through ctx.
-func NewHealthClient(base string, opts ...ClientOption) (*HealthClient, error) {
-	c, err := NewClientWithResponses(base, opts...)
+func NewHealthClient(base string, opts ...api.ClientOption) (*HealthClient, error) {
+	c, err := api.NewClientWithResponses(base, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return &HealthClient{c: c}, nil
 }
 
-func (h *HealthClient) HealthCheck(ctx context.Context) (*HealthResponse, error) {
+func (h *HealthClient) HealthCheck(ctx context.Context) (*api.HealthResponse, error) {
 	// The RAW call, not GetHealthWithResponse: that wrapper decodes before
 	// it reports, so a 2xx with an unrecognised body comes back as an error
 	// and a live gateway reads as down. Status first, body second — which is
@@ -84,7 +86,7 @@ func (h *HealthClient) HealthCheck(ctx context.Context) (*HealthResponse, error)
 		// not a health failure — report it alive with no detail.
 		return nil, nil
 	}
-	var out HealthResponse
+	var out api.HealthResponse
 	if json.Unmarshal(body, &out) != nil {
 		return nil, nil
 	}

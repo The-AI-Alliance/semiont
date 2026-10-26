@@ -18,7 +18,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 func specFile(t *testing.T, path ...string) []byte {
@@ -54,16 +54,16 @@ func readSpecSchema(t *testing.T, file string) specSchema {
 
 // markJobSchemas: the schema of each motivation's mark job, by motivation, as
 // the MarkJobParams union names them.
-func markJobSchemas(t *testing.T) map[semiont.Motivation]specSchema {
+func markJobSchemas(t *testing.T) map[api.Motivation]specSchema {
 	t.Helper()
-	schemas := map[semiont.Motivation]specSchema{}
+	schemas := map[api.Motivation]specSchema{}
 	for _, member := range readSpecSchema(t, "MarkJobParams.json").OneOf {
 		schema := readSpecSchema(t, filepath.Base(member.Ref))
 		motivation := schema.Properties["motivation"].Enum
 		if len(motivation) != 1 {
 			t.Fatalf("%s states %d motivations, want the one it is for", member.Ref, len(motivation))
 		}
-		schemas[semiont.Motivation(motivation[0])] = schema
+		schemas[api.Motivation(motivation[0])] = schema
 	}
 	if len(schemas) == 0 {
 		t.Fatal("the spec's MarkJobParams names no member: these tests would pass for the wrong reason")
@@ -163,10 +163,10 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 	if len(cases) == 0 {
 		t.Fatal("the client surface states no cases for mark.delegate: this test would pass for the wrong reason")
 	}
-	asked := map[semiont.Motivation]bool{}
+	asked := map[api.Motivation]bool{}
 	for _, c := range cases {
 		var args struct {
-			ResourceId string         `json:"resourceId"`
+			ResourceId api.ResourceId `json:"resourceId"`
 			Params     map[string]any `json:"params"`
 		}
 		if err := json.Unmarshal(c.Args, &args); err != nil {
@@ -174,10 +174,10 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		}
 		motivation, _ := args.Params["motivation"].(string)
 		delete(args.Params, "motivation")
-		asked[semiont.Motivation(motivation)] = true
+		asked[api.Motivation(motivation)] = true
 		// Through the flags: what a caller types is what is sent.
 		given := givenBy(t, markJobFlags, flagsFor(t, markJobFlags, args.Params))
-		command, err := markJob(args.ResourceId, semiont.Motivation(motivation), given)
+		command, err := markJob(args.ResourceId, api.Motivation(motivation), given)
 		if err != nil {
 			t.Errorf("%s: refused: %v", c.Args, err)
 			continue
@@ -201,8 +201,12 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		t.Fatal("the spec's motivations could not be read")
 	}
 	schemas := markJobSchemas(t)
+	res1, err := api.ParseResourceId("res-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range motivations {
-		motivation := semiont.Motivation(name)
+		motivation := api.Motivation(name)
 		if !asked[motivation] {
 			t.Errorf("the client surface has no mark.delegate case for the motivation %q", motivation)
 		}
@@ -222,7 +226,7 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 			}
 		}
 		delete(given, "motivation")
-		if _, err := markJob("res-1", motivation, given); err != nil {
+		if _, err := markJob(res1, motivation, given); err != nil {
 			t.Errorf("the motivation %q cannot be delegated: %v", motivation, err)
 		}
 	}

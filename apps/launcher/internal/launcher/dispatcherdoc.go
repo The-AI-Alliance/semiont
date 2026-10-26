@@ -12,7 +12,7 @@ package launcher
 import (
 	"encoding/json"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // dispatcherDocumentFile: the dispatcher is configured by a document, not a
@@ -53,7 +53,7 @@ func dispatcherSecrets(p placement) []string {
 // dispatcherDocument renders the document from the start's placement.
 func dispatcherDocument(p placement) ([]byte, error) {
 	kb := p.st.KnowledgeBase.Spec
-	var doc semiont.DispatcherConfig
+	var doc api.DispatcherConfig
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Queue.Servers = p.brokerServers()
@@ -77,6 +77,6 @@ func dispatcherDocument(p placement) ([]byte, error) {
 	doc.Timing.BootDeadlineMs = dispatcherTiming.bootDeadlineMs
 
 	doc.LogLevel = kb.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

@@ -194,6 +194,29 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
+  # The Go SDK's conformance drivers (packages/sdk-go/conformance): a module of
+  # their own, so that what only a driver takes (an OTLP exporter) reaches no
+  # other module. gomod is not workspace-aware, so it has its own entry.
+  - package-ecosystem: "gomod"
+    directory: "/packages/sdk-go/conformance"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:go"
+    groups:
+      sdk-go-conformance:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "sdk-go"
+      include: "scope"
+
   # The Python projects: the SDK, the inference drivers, the graph stores, the
   # vector stores and the service package Semiont's Python services are built
   # from, and the four services themselves, the Worker (apps/worker), the

@@ -1,13 +1,22 @@
-# What oapi-codegen writes client_gen.go with. `always-prefix-enum-values` names
+# What oapi-codegen writes api/client_gen.go with. `always-prefix-enum-values` names
 # every enum constant <Type><Value>, so a schema that reuses a value renames no
 # constant. Each place that runs the generator gives the output's path itself
 # with `-o`: a path named here would win over the drift checks' scratch path.
-package: semiont
+package: api
 generate:
   models: true
   client: true
 output-options:
   # Every schema gets a type, also the bus's payloads, which no HTTP path reaches.
   skip-prune: true
+  # But not the kinds of id: oapi-codegen would make each an alias of string,
+  # which any text converts to. scripts/spec/generate-identifiers-go.mjs writes
+  # them into this package as types made only through their rule
+  # (api/ids_gen.go), and holds this list to specs/src/identifiers/kinds.json.
+  exclude-schemas:
+    - ResourceId
+    - AnnotationId
+    - JobId
+    - UserId
 compatibility:
   always-prefix-enum-values: true

@@ -14,16 +14,22 @@
 // A generator's characteristic failure is ABSENCE, and absence is only
 // visible against an independent count. Hence: spec says N, Go must have N.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SPEC = resolve(ROOT, 'specs/openapi.json');
-const CLIENT = resolve(ROOT, 'packages/sdk-go/client_gen.go');
+// Package api: oapi-codegen's client_gen.go, and ids_gen.go, which writes the
+// kinds of id the config excludes from it. Every generated file of the
+// package is read, so a schema's type counts wherever its generator put it.
+const API = resolve(ROOT, 'packages/sdk-go/api');
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
-const go = readFileSync(CLIENT, 'utf8');
+const go = readdirSync(API)
+  .filter((file) => file.endsWith('_gen.go'))
+  .map((file) => readFileSync(resolve(API, file), 'utf8'))
+  .join('\n');
 
 const schemas = Object.keys(spec.components?.schemas ?? {});
 if (schemas.length === 0) {
@@ -38,7 +44,7 @@ if (schemas.length === 0) {
 const missing = schemas.filter((name) => !new RegExp(`^type ${name}\\b`, 'm').test(go));
 
 if (missing.length > 0) {
-  console.error(`::error::packages/sdk-go/client_gen.go is missing ${missing.length} of ${schemas.length} schemas.`);
+  console.error(`::error::packages/sdk-go/api is missing ${missing.length} of ${schemas.length} schemas.`);
   console.error('');
   console.error('  Missing types:');
   for (const name of missing.slice(0, 25)) console.error(`    ${name}`);

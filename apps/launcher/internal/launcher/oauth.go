@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"golang.org/x/term"
 )
 
@@ -38,7 +38,7 @@ type issuerEndpoints struct {
 // discoverIssuer: the knowledge base names its issuer (resource metadata),
 // the issuer names its endpoints (OIDC discovery). No configuration on this
 // side — a client that knows a gateway's address knows everything.
-func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base string) (issuerEndpoints, error) {
+func discoverIssuer(ctx context.Context, cli *api.ClientWithResponses, base string) (issuerEndpoints, error) {
 	issuer, err := trustedIssuer(ctx, cli, base)
 	if err != nil {
 		return issuerEndpoints{}, err
@@ -61,7 +61,7 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 
 // trustedIssuer: the issuer a KB's resource metadata names — the gateway's
 // word, read before anything dials the issuer itself.
-func trustedIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base string) (string, error) {
+func trustedIssuer(ctx context.Context, cli *api.ClientWithResponses, base string) (string, error) {
 	meta, err := cli.GetProtectedResourceMetadataWithResponse(ctx)
 	if err != nil {
 		return "", fmt.Errorf("gateway unreachable at %s: %w", base, err)
@@ -74,7 +74,7 @@ func trustedIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base s
 
 // advertisedIssuer: trustedIssuer for a KB at base, on a fresh client.
 func advertisedIssuer(base string) (string, error) {
-	cli, err := semiont.NewClientWithResponses(base)
+	cli, err := api.NewClientWithResponses(base)
 	if err != nil {
 		return "", err
 	}

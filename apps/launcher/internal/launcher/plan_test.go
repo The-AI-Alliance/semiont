@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -348,7 +348,7 @@ func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
 // embedding still needs is the embedding's own, run from the catalog's image.
 func TestDerivePlanWithNothingBoundRunsNoInference(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	st.Inference.Spec.Roster = semiont.ArchivistRoster{}
+	st.Inference.Spec.Roster = api.ArchivistRoster{}
 	plan := mustPlan(t, st)
 	if got := plan.Roles["inference"].Presence; got != presenceAbsent {
 		t.Errorf("no bindings: inference should be absent, got %v", got)
@@ -464,16 +464,16 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 // the memory the WorkerPool states; absent when it binds none. An actor's
 // binding binds no job.
 func TestPlanRunsAWorkerOnlyWhenAJobIsBound(t *testing.T) {
-	claude := &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
+	claude := &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
 	for _, c := range []struct {
 		why  string
-		bind func(r *semiont.ArchivistRoster)
+		bind func(r *api.ArchivistRoster)
 		want presence
 	}{
-		{"every job is bound", func(r *semiont.ArchivistRoster) {}, presenceLauncher},
-		{"one job is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{}; r.Workers.Yield = claude }, presenceLauncher},
-		{"only an actor is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{}; r.Actors.Gatherer = claude }, presenceAbsent},
-		{"nothing is bound", func(r *semiont.ArchivistRoster) { *r = semiont.ArchivistRoster{} }, presenceAbsent},
+		{"every job is bound", func(r *api.ArchivistRoster) {}, presenceLauncher},
+		{"one job is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{}; r.Workers.Yield = claude }, presenceLauncher},
+		{"only an actor is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{}; r.Actors.Gatherer = claude }, presenceAbsent},
+		{"nothing is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{} }, presenceAbsent},
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.bind(&st.Inference.Spec.Roster)
@@ -505,7 +505,7 @@ func TestPlanRefusesAJobBoundToAWorkerTheKnowledgeBaseHasNot(t *testing.T) {
 
 	st = fixtureStack(t, "anthropic")
 	st.Workers = nil
-	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
+	st.Inference.Spec.Roster.Workers = api.ArchivistRoster{}.Workers
 	if got := mustPlan(t, st).Roles["worker"].Presence; got != presenceAbsent {
 		t.Errorf("a roster binding no job, with no workers.yaml, plans the worker %s", got)
 	}
@@ -516,7 +516,7 @@ func TestPlanRefusesAJobBoundToAWorkerTheKnowledgeBaseHasNot(t *testing.T) {
 func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 	bound := mustPlan(t, fixtureStack(t, "anthropic"))
 	st := fixtureStack(t, "anthropic")
-	st.Inference.Spec.Roster.Workers = semiont.ArchivistRoster{}.Workers
+	st.Inference.Spec.Roster.Workers = api.ArchivistRoster{}.Workers
 	unbound := mustPlan(t, st)
 	var want []int
 	for _, port := range portNumbers(planPortChecks(bound, true, exposure{})) {
@@ -569,7 +569,7 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 // placed lines and the models the machine's Ollama pulls agree on where each is.
 func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 	somewhere := "http://ollama.example.org:11500"
-	ollama := semiont.ArchivistRosterRoleProviderOllama
+	ollama := api.ArchivistRosterRoleProviderOllama
 
 	t.Run("the embedding's is somebody else's", func(t *testing.T) {
 		st := fixtureStack(t, "ollama-gemma")

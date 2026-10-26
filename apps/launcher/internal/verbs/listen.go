@@ -18,7 +18,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -183,18 +183,18 @@ func prefetchResourceNames(cli bus.Transport) map[string]string {
 	ctx, cancel := context.WithTimeout(context.Background(), prefetchTimeout)
 	defer cancel()
 	limit := prefetchLimit
-	req := semiont.BrowseResourcesRequest{}
+	req := api.BrowseResourcesRequest{}
 	req.Limit = &limit
 	reply, err := cli.Request(ctx, "browse:resources-requested", req, &bus.RequestOptions{Timeout: prefetchTimeout})
 	if err != nil {
 		return names
 	}
-	var r semiont.BrowseResourcesResult
+	var r api.BrowseResourcesResult
 	if json.Unmarshal(reply, &r) != nil {
 		return names
 	}
 	for _, res := range r.Response.Resources {
-		names[res.Id] = res.Name
+		names[res.Id.String()] = res.Name
 	}
 	return names
 }

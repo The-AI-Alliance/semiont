@@ -9,7 +9,7 @@
 //                                         specs/src/paths/bus_emit.json
 //
 // Payload STRUCTS are not generated here: the OpenAPI schemas a channel
-// carries already have Go types in packages/sdk-go/client_gen.go. What Go
+// carries already have Go types in packages/sdk-go/api/client_gen.go. What Go
 // needs from the registry is the vocabulary — which channels exist, which
 // schema each carries, and which triples form a request/reply operation.
 //

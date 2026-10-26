@@ -11,7 +11,7 @@ package launcher
 import (
 	"encoding/json"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // smelterDocumentFile: the Smelter is configured by a document, not a copy of
@@ -47,13 +47,13 @@ func embeddingSecrets(p placement) []string {
 // the service in a refusal. An ollama embedding that states no endpoint is
 // the machine's Ollama, at this start's address; a voyage one that states
 // none is asked at Voyage's own.
-func embeddingConfig(p placement, who string) (embedding semiont.EmbeddingConfig, err error) {
+func embeddingConfig(p placement, who string) (embedding api.EmbeddingConfig, err error) {
 	e := p.st.KnowledgeIndex.Spec.Embedding
 	switch e.Type {
-	case string(semiont.OllamaEmbeddingConfigTypeOllama):
-		err = embedding.FromOllamaEmbeddingConfig(semiont.OllamaEmbeddingConfig{Model: e.Model, BaseUrl: p.ollama(e.Endpoint)})
-	case string(semiont.VoyageEmbeddingConfigTypeVoyage):
-		voyage := semiont.VoyageEmbeddingConfig{Model: e.Model, Endpoint: voyageEmbeddingsEndpoint}
+	case string(api.OllamaEmbeddingConfigTypeOllama):
+		err = embedding.FromOllamaEmbeddingConfig(api.OllamaEmbeddingConfig{Model: e.Model, BaseUrl: p.ollama(e.Endpoint)})
+	case string(api.VoyageEmbeddingConfigTypeVoyage):
+		voyage := api.VoyageEmbeddingConfig{Model: e.Model, Endpoint: voyageEmbeddingsEndpoint}
 		if e.Endpoint != nil {
 			voyage.Endpoint = *e.Endpoint
 		}
@@ -71,12 +71,12 @@ func embeddingConfig(p placement, who string) (embedding semiont.EmbeddingConfig
 // vectorsConfig: the vector index a service reaches, as its document states
 // it. ONE decider, for the Smelter's document, which writes the index, and the
 // Librarian's, which searches it. who names the service in a refusal.
-func vectorsConfig(p placement, who string) (vectors semiont.VectorsConfig, err error) {
+func vectorsConfig(p placement, who string) (vectors api.VectorsConfig, err error) {
 	v := p.st.KnowledgeIndex.Spec.Vectors
-	if v.Type != string(semiont.QdrantVectorsConfigTypeQdrant) {
+	if v.Type != string(api.QdrantVectorsConfigTypeQdrant) {
 		return vectors, planErr(p.st.Files.KnowledgeIndex, "spec.vectors.type", "is %q: the launcher writes %s's document for a qdrant index alone", v.Type, who)
 	}
-	var qdrant semiont.QdrantVectorsConfig
+	var qdrant api.QdrantVectorsConfig
 	qdrant.Host, qdrant.Port = p.vectors()
 	err = vectors.FromQdrantVectorsConfig(qdrant)
 	return vectors, err
@@ -86,7 +86,7 @@ func vectorsConfig(p placement, who string) (vectors semiont.VectorsConfig, err 
 // Smelter keeps the anchored-text store at the Archivist (placement).
 func smelterDocument(p placement) ([]byte, error) {
 	index := p.st.KnowledgeIndex.Spec
-	var doc semiont.SmelterConfig
+	var doc api.SmelterConfig
 	var err error
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
@@ -102,6 +102,6 @@ func smelterDocument(p placement) ([]byte, error) {
 	doc.CursorsPath = cursorsPath("smelter")
 	doc.Port = semiontDescriptor("smelter").ports[0].port
 	doc.LogLevel = index.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

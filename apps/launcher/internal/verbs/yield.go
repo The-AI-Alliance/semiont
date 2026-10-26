@@ -21,7 +21,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
 )
@@ -153,17 +153,27 @@ options:
 		// What the job is asked to make is read before anything is gathered:
 		// a job the gateway would refuse is refused here, before the caller
 		// has paid for a gather.
-		var request semiont.GenerationJobRequest
+		var request api.GenerationJobRequest
 		if err := jobParams(given, yieldJobFlags, &request, "--delegate"); err != nil {
 			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  semiont yield --delegate --help")
 			return 1
 		}
+		rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+		if !ok {
+			return 1
+		}
+		var aid api.AnnotationId
+		if annotationID != "" {
+			if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+				return 1
+			}
+		}
 		t, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
 		}
-		return runYieldDelegate(u, t, resourceID, annotationID, request, asJSON)
+		return runYieldDelegate(u, t, rid, aid, request, asJSON)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -228,7 +238,7 @@ options:
 		return 1
 	}
 
-	cli, err := semiont.NewClientWithResponses(base)
+	cli, err := api.NewClientWithResponses(base)
 	if err != nil {
 		u.Fail("client: %v", err)
 		return 1
@@ -247,7 +257,7 @@ options:
 // The post runs under the session's renew-and-retry policy (session.go), the
 // same one every bus verb's calls run under: an expired access token is
 // plumbing, not the user's problem.
-func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.Session, root, up, name string) int {
+func yieldOne(u *launcher.UI, cli *api.ClientWithResponses, sess *launcher.Session, root, up, name string) int {
 	abs := up
 	if !filepath.IsAbs(abs) {
 		if a, err := filepath.Abs(abs); err == nil {
@@ -304,7 +314,7 @@ func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.S
 	}
 
 	body := buf.Bytes()
-	var resp *semiont.UploadResourceResponse
+	var resp *api.UploadResourceResponse
 	err = sess.Authorized(func(token string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -390,33 +400,33 @@ var yieldJobFlags = jobFlags{
 }
 
 // yieldJobResults: what a `yield` job reports.
-var yieldJobResults = resultMembers[semiont.YieldJobResult]{
-	{semiont.YieldJobDone{}, "the resource a yield job made"},
+var yieldJobResults = resultMembers[api.YieldJobResult]{
+	{api.YieldJobDone{}, "the resource a yield job made"},
 	declinedResult,
 }
 
-func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotationID string, request semiont.GenerationJobRequest, asJSON bool) int {
+func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
 	cli := t.Transport()
 	ctx := context.Background()
 
 	// Gather the grounding context first: a generation job requires it, and
 	// its focus names the resource or annotation the generation is about.
-	var gathered semiont.GatheredContext
-	if annotationID != "" {
-		reply, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
+	var gathered api.GatheredContext
+	if !annotationID.IsZero() {
+		reply, err := cli.Request(ctx, "gather:requested", api.GatherAnnotationRequest{
 			ResourceId: resourceID, AnnotationId: annotationID,
 		}, nil)
 		if err != nil {
 			return busFail(u, "yield --delegate (gather)", err)
 		}
-		var gc semiont.GatherAnnotationComplete
+		var gc api.GatherAnnotationComplete
 		if json.Unmarshal(reply, &gc) != nil {
 			u.Fail("yield --delegate: the gathered context could not be read.")
 			return 1
 		}
 		gathered = gc.Response
 	} else {
-		req := semiont.GatherResourceRequest{ResourceId: resourceID}
+		req := api.GatherResourceRequest{ResourceId: resourceID}
 		// Depth and maxResources are required by the schema. Left at Go's
 		// zero, the librarian asks Qdrant for `limit: 0` and the delegate
 		// dies in this gather with a bare "Unprocessable Entity".
@@ -428,7 +438,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 		if err != nil {
 			return busFail(u, "yield --delegate (gather)", err)
 		}
-		var gc semiont.GatherResourceComplete
+		var gc api.GatherResourceComplete
 		if json.Unmarshal(reply, &gc) != nil {
 			u.Fail("yield --delegate: the gathered context could not be read.")
 			return 1
@@ -441,25 +451,25 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 	// job's resource from its focus, so the command names none. The gather
 	// above is what puts the right focus there: an annotation's with two
 	// positionals, a resource's with one.
-	var params semiont.GenerationJobParams
+	var params api.GenerationJobParams
 	asked, err := json.Marshal(request)
 	if err == nil {
 		err = json.Unmarshal(asked, &params)
 	}
-	var create semiont.JobCreateCommand
+	var create api.JobCreateCommand
 	if err == nil {
 		params.Context = gathered
-		err = create.FromYieldJobCreateCommand(semiont.YieldJobCreateCommand{Params: params})
+		err = create.FromYieldJobCreateCommand(api.YieldJobCreateCommand{Params: params})
 	}
 	if err != nil {
 		u.Fail("yield --delegate: the job could not be described: %v", err)
 		return 1
 	}
-	job := delegatedJob[semiont.YieldJobCompleteCommand]{
+	job := delegatedJob[api.YieldJobCompleteCommand]{
 		verb: "yield --delegate", doing: "Generating", failed: "Generation",
-		check:  "semiont browse " + resourceID,
+		check:  "semiont browse " + resourceID.String(),
 		create: create,
-		jobOf:  func(done semiont.YieldJobCompleteCommand) semiont.JobId { return done.JobId },
+		jobOf:  func(done api.YieldJobCompleteCommand) api.JobId { return done.JobId },
 	}
 	done, raw, ok := job.run(u, cli)
 	if !ok {
@@ -471,7 +481,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 	if err != nil {
 		return job.resultFail(u, done.JobId, err)
 	}
-	declined, isDecline := result.(semiont.JobDeclined)
+	declined, isDecline := result.(api.JobDeclined)
 	if asJSON {
 		fmt.Println(string(raw))
 		// The exit code is a property of the outcome, not of the output
@@ -491,7 +501,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 		return 1
 	}
 	// A generation names the resource it produced.
-	if generated, ok := result.(semiont.YieldJobDone); ok {
+	if generated, ok := result.(api.YieldJobDone); ok {
 		u.Ok("Yielded %s → %s %s", request.StorageUri, generated.ResourceId, u.Dim(generated.ResourceName))
 		return 0
 	}

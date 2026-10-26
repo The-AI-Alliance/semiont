@@ -52,7 +52,7 @@ No language's types of the protocol are written by hand. The spec is bundled fir
 | Language | How | What it writes |
 |---|---|---|
 | TypeScript | `npm run generate:openapi --workspace=@semiont/core`, then `npm run build --workspace=@semiont/core` | `@semiont/core`'s types, and with the build `MARK_MOTIVATIONS`, the list a client words its copy by |
-| Go | `go generate ./...` in `packages/sdk-go` | [`client_gen.go`](../../packages/sdk-go/client_gen.go), which is committed |
+| Go | `go generate ./...` in `packages/sdk-go` | [`api/client_gen.go`](../../packages/sdk-go/api/client_gen.go), which is committed |
 | Python | `uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py` | [`types.py`](../../packages/sdk-python/src/semiont/types.py), which is committed |
 | Rust | nothing to run | `semiont::types`, made from `specs/src` by the SDK's build script when the crate is built |
 
