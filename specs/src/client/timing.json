@@ -90,6 +90,16 @@
       "docs": "How long bus-driven invalidations of one cache key fold together (CACHE-SEMANTICS B19). The first runs at once; any more inside the window become one refetch at its end. Each refetch is a request the session's principal pays for, and another principal's bulk write invalidates an observed key once per event."
     },
     {
+      "name": "saveDebounceMs",
+      "value": 50,
+      "docs": "How long a cache that keeps its values waits, after they last changed, before it saves them (CACHE-SEMANTICS B17): a burst of changes is one save. Disposing the cache makes a save it owes at once."
+    },
+    {
+      "name": "maxStoredBytesCount",
+      "value": 2097152,
+      "docs": "The largest document, in bytes, a cache keeps of its values (CACHE-SEMANTICS B17). One larger loses the entries that have gone longest without a new value until it fits: what an origin may keep is a few megabytes, and the cache shares it with everything else the origin keeps."
+    },
+    {
       "name": "jobSilenceMs",
       "value": 10000,
       "docs": "How long a job a client is following may say nothing before the client asks for its status. A job's progress and its end reach the client as passing frames, which a dropped stream loses and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every frame of the job starts the wait again."

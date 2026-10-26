@@ -6,8 +6,6 @@ package semiont
 
 import (
 	"context"
-	"errors"
-	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -48,110 +46,58 @@ func joined(directory []api.CollaboratorEntry, reported []api.InferencePairLimit
 type BrowseNamespace struct {
 	links   *links
 	content ContentTransport
+	live    *live
 }
 
-// Resource is one resource's description.
+// Resource is one resource's description. Watching it holds the resource's
+// scope.
 func (n *BrowseNamespace) Resource(resourceID api.ResourceId) *Cached[api.ResourceDescriptor] {
-	return &Cached[api.ResourceDescriptor]{fetch: func(ctx context.Context) (api.ResourceDescriptor, error) {
-		answer, err := ask(ctx, n.links, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: resourceID})
-		return answer.Response.Resource, err
-	}}
+	return keyed(n.links, n.live.resource, resourceID, itself[api.ResourceDescriptor], resourceID)
 }
 
 // Resources is a page of the knowledge base's resources, among those filters
-// admits. Finding resources by text is Match.Resources.
+// admits. It is kept true by what every client hears and by the events of the
+// resources this client holds the scope of, and by nothing else. Finding
+// resources by text is Match.Resources.
 func (n *BrowseNamespace) Resources(filters ResourceFilters) *Cached[api.ListResourcesResponse] {
-	limit, offset := filters.limit(), 0
-	request := api.BrowseResourcesRequest{Limit: &limit, Offset: &offset, Archived: filters.Archived, EntityType: filters.EntityType}
-	return &Cached[api.ListResourcesResponse]{fetch: func(ctx context.Context) (api.ListResourcesResponse, error) {
-		answer, err := ask(ctx, n.links, bus.BrowseResourcesRequested, request)
-		return answer.Response, err
-	}}
+	return keyed(n.links, n.live.lists, keyOf(filters), itself[api.ListResourcesResponse], api.ResourceId{})
 }
 
-// Annotations is a resource's annotations.
+// Annotations is a resource's annotations. Watching it holds the resource's
+// scope.
 func (n *BrowseNamespace) Annotations(resourceID api.ResourceId) *Cached[[]api.Annotation] {
-	return &Cached[[]api.Annotation]{fetch: func(ctx context.Context) ([]api.Annotation, error) {
-		answer, err := n.content.GetAnnotations(ctx, resourceID)
-		return answer.Annotations, err
-	}}
+	return keyed(n.links, n.live.annotations, resourceID, func(answer api.GetAnnotationsResponse) []api.Annotation { return answer.Annotations }, resourceID)
 }
 
-// Annotation is one annotation of a resource.
+// Annotation is one annotation of a resource. Watching it holds the
+// resource's scope.
 func (n *BrowseNamespace) Annotation(resourceID api.ResourceId, annotationID api.AnnotationId) *Cached[api.Annotation] {
-	return &Cached[api.Annotation]{fetch: func(ctx context.Context) (api.Annotation, error) {
-		answer, err := ask(ctx, n.links, bus.BrowseAnnotationRequested, api.BrowseAnnotationRequest{ResourceId: resourceID, AnnotationId: annotationID})
-		return answer.Response.Annotation, err
-	}}
+	n.live.annotationOn(annotationID, resourceID)
+	return keyed(n.links, n.live.annotation, annotationID, itself[api.Annotation], resourceID)
 }
 
 // EntityTypes is the knowledge base's entity types.
 func (n *BrowseNamespace) EntityTypes() *Cached[[]string] {
-	return &Cached[[]string]{fetch: func(ctx context.Context) ([]string, error) {
-		answer, err := ask(ctx, n.links, bus.BrowseEntityTypesRequested, api.BrowseEntityTypesRequest{})
-		return answer.Response.EntityTypes, err
-	}}
+	return keyed(n.links, n.live.entityTypes, whole{}, itself[[]string], api.ResourceId{})
 }
 
 // TagSchemas is the knowledge base's tag schemas.
 func (n *BrowseNamespace) TagSchemas() *Cached[[]api.TagSchema] {
-	return &Cached[[]api.TagSchema]{fetch: func(ctx context.Context) ([]api.TagSchema, error) {
-		answer, err := ask(ctx, n.links, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
-		return answer.Response.TagSchemas, err
-	}}
+	return keyed(n.links, n.live.tagSchemas, whole{}, itself[[]api.TagSchema], api.ResourceId{})
 }
 
 // Agents is the directory, asked for first, with each model's limits as the
 // services holding its credentials report them. A service that is down,
-// silent or mistaken reports none: its models show no limits, and the
-// directory is not held up by it for longer than a request waits.
+// silent or mistaken reports none: its models show no limits. A directory
+// that cannot be had fails the read at once.
 func (n *BrowseNamespace) Agents() *Cached[[]Collaborator] {
-	return &Cached[[]Collaborator]{fetch: func(ctx context.Context) ([]Collaborator, error) {
-		var directory api.BrowseAgentsResult
-		var unlisted error
-		reports := make([]api.InferenceLimitsResult, len(bus.LimitsOperations))
-		unreported := make([]error, len(bus.LimitsOperations))
-		// The directory is asked for first; each key holder's limits after it, while it is answered.
-		directoryAsked := make(chan struct{})
-		var once sync.Once
-		asking := func() { once.Do(func() { close(directoryAsked) }) }
-		var asked sync.WaitGroup
-		asked.Add(1 + len(bus.LimitsOperations))
-		go func() {
-			defer asked.Done()
-			defer asking()
-			directory, unlisted = requestAsking(ctx, n.links.wire, bus.BrowseAgentsRequested, api.BrowseAgentsRequest{}, n.links.timing.BusRequestTimeout, asking)
-		}()
-		for i, holder := range bus.LimitsOperations {
-			go func() {
-				defer asked.Done()
-				<-directoryAsked
-				reports[i], unreported[i] = ask(ctx, n.links, holder, api.InferenceLimitsRequest{})
-			}()
-		}
-		asked.Wait()
-		if unlisted != nil {
-			return nil, unlisted
-		}
-		var reported []api.InferencePairLimits
-		for i, report := range reports {
-			var refused Error
-			switch {
-			case unreported[i] == nil:
-				reported = append(reported, report.Response.Limits...)
-			case !errors.As(unreported[i], &refused):
-				return nil, unreported[i]
-			}
-		}
-		return joined(directory.Response.Agents, reported), nil
-	}}
+	return n.live.collaborators()
 }
 
 // Events is a resource's events, each with who it is attributed to.
+// Watching it holds the resource's scope.
 func (n *BrowseNamespace) Events(resourceID api.ResourceId) *Cached[[]api.AttributedEvent] {
-	return &Cached[[]api.AttributedEvent]{fetch: func(ctx context.Context) ([]api.AttributedEvent, error) {
-		return n.ResourceEvents(ctx, resourceID)
-	}}
+	return keyed(n.links, n.live.events, resourceID, itself[[]api.AttributedEvent], resourceID)
 }
 
 // ResourceContent is a resource's text, read out of its bytes by the rule

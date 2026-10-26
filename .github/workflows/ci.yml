@@ -663,8 +663,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v10.3.0
 
-      # The Go driver is a static binary, built from its own module so that
-      # what only a driver takes reaches nothing else.
+      # The Go drivers are static binaries, built from their own module so
+      # that what only a driver takes reaches nothing else.
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
@@ -1874,7 +1874,7 @@ jobs:
       # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
       # the kinds of id (api/ids_gen.go, whose generator also holds
       # oapi-codegen's exclude-schemas to the kinds), the error codes, the
-      # client's timing, the SDK telemetry table, the sign-in store's entry,
+      # client's timing, the cache-refresh table, the SDK telemetry table, the sign-in store's entry,
       # the OAuth clients and the sign-in scope, the media types
       # (mediatypes), and the Encoding Standard's labels and single-byte
       # encodings (encodings_gen.go). TypeScript and Rust build theirs from
@@ -1886,6 +1886,7 @@ jobs:
           node scripts/spec/generate-identifiers-go.mjs --check
           node scripts/spec/generate-error-codes-go.mjs --check
           node scripts/spec/generate-client-timing-go.mjs --check
+          node scripts/spec/generate-cache-refresh-go.mjs --check
           node scripts/spec/generate-sdk-telemetry-go.mjs --check
           node scripts/spec/generate-sign-in-go.mjs --check
           node scripts/spec/generate-oauth-clients-go.mjs --check

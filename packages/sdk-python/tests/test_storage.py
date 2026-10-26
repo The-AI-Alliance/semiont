@@ -5,7 +5,8 @@ from kb import RESOURCE, descriptor
 from pydantic import JsonValue, TypeAdapter
 
 from semiont.identifiers import ResourceId
-from semiont.storage import MAX_STORED_BYTES, MemoryStorage, StoragePersister
+from semiont.storage import MemoryStorage, StoragePersister
+from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.types import ResourceDescriptor
 
 KEY = "semiont.cache.kb.resource"
@@ -13,7 +14,7 @@ _JSON = TypeAdapter[JsonValue](JsonValue)
 
 
 def persister(
-    storage: MemoryStorage, version: int = 1, max_bytes: int = MAX_STORED_BYTES
+    storage: MemoryStorage, version: int = 1, max_bytes: int = MAX_STORED_BYTES_COUNT
 ) -> StoragePersister[ResourceId, ResourceDescriptor]:
     return StoragePersister(
         storage, KEY, key=TypeAdapter(ResourceId), value=TypeAdapter(ResourceDescriptor), version=version, max_bytes=max_bytes
@@ -132,7 +133,6 @@ def test_an_entry_that_is_not_this_caches_shape_is_one_it_never_kept() -> None:
 def test_a_document_too_large_loses_the_entries_that_have_gone_longest_without_a_new_value_until_it_fits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert MAX_STORED_BYTES == 2 * 1024 * 1024
     ids = [ResourceId(f"res-{n}") for n in range(1, 5)]
     values = {each: ResourceDescriptor.model_validate(descriptor(each)) for each in ids}
 

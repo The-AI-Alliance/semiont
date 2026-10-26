@@ -12,10 +12,7 @@
 
 use super::refresher::Subject;
 use crate::bus::{LIMITS_OPERATIONS, Operation, operation};
-use crate::cache::{
-    Cache, CacheKey, CachePersister, CacheState, CacheValue, MAX_STORED_BYTES, SAVE_DEBOUNCE,
-    StoragePersister,
-};
+use crate::cache::{Cache, CacheKey, CachePersister, CacheState, CacheValue, StoragePersister};
 use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
     BrowseAgentsRequested, BrowseAnnotationHistoryRequested, BrowseAnnotationRequested,
@@ -29,6 +26,7 @@ use crate::locked;
 use crate::refresh::CacheQuery;
 use crate::resources::decode_representation;
 use crate::state_unit::StateUnit;
+use crate::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
     Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
@@ -191,7 +189,7 @@ where
                 persistence.storage.clone(),
                 format!("semiont.cache.{}.{name}", persistence.key_prefix),
                 PERSISTED_VERSION,
-                MAX_STORED_BYTES,
+                MAX_STORED_BYTES_COUNT,
             ));
             Cache::persisted(fetch, persister, SAVE_DEBOUNCE)
         }

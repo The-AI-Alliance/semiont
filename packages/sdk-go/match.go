@@ -48,6 +48,7 @@ type MatchSearchOptions struct {
 // resources by text.
 type MatchNamespace struct {
 	links *links
+	live  *live
 }
 
 // Search is the candidates for a reference, given its gathered context.
@@ -87,10 +88,5 @@ func (n *MatchNamespace) RequestSearch(input api.MatchSearchRequest, correlation
 // those filters admits. The text is matched lexically and, when nothing
 // matches, by meaning: the answer's MatchKind says which it is.
 func (n *MatchNamespace) Resources(search string, filters ResourceFilters) *Cached[api.MatchResourcesResponse] {
-	limit, offset := filters.limit(), 0
-	request := api.MatchResourcesRequest{Search: search, Limit: &limit, Offset: &offset, Archived: filters.Archived, EntityType: filters.EntityType}
-	return &Cached[api.MatchResourcesResponse]{fetch: func(ctx context.Context) (api.MatchResourcesResponse, error) {
-		answer, err := ask(ctx, n.links, bus.MatchResourcesRequested, request)
-		return answer.Response, err
-	}}
+	return keyed(n.links, n.live.searches, searchKey{search: search, filters: keyOf(filters)}, itself[api.MatchResourcesResponse], api.ResourceId{})
 }

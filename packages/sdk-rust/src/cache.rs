@@ -44,10 +44,6 @@ use tokio::sync::watch;
 use tokio::task::AbortHandle;
 use tokio_stream::wrappers::WatchStream;
 
-/// How long a cache waits, after its values change, before it saves them: a
-/// burst of changes is one save.
-pub const SAVE_DEBOUNCE: Duration = Duration::from_millis(50);
-
 /// The state of a key.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CacheState<T> {
@@ -345,7 +341,7 @@ where
         F: Fn(K) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
     {
-        Cache::build(fetch, None, SAVE_DEBOUNCE)
+        Cache::build(fetch, None, crate::timing::SAVE_DEBOUNCE)
     }
 
     /// A cache that begins with what `persister` kept, and saves its values
@@ -594,9 +590,6 @@ where
 }
 
 // ── Keeping a cache in a `SessionStorage` ───────────────────────────────
-
-/// The largest document a persister writes, in bytes, unless told another.
-pub const MAX_STORED_BYTES: usize = 2 * 1024 * 1024;
 
 /// One entry as it is stored: the key, the value, and when the value was
 /// last written, in milliseconds since the epoch.

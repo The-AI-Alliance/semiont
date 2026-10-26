@@ -4,7 +4,7 @@
  * Contract under test:
  *  - load-on-construct: rehydrated entries are visible synchronously, and the
  *    first observe() of a rehydrated key revalidates it once (B18).
- *  - save-on-mutation: debounced (default 50 ms); bursts coalesce to one save.
+ *  - save-on-mutation: debounced (default `SAVE_DEBOUNCE_MS`); bursts coalesce to one save.
  *  - external change (cross-context): replaces the store; observers see it.
  *  - dispose: flushes a pending save synchronously, then goes inert (B16) —
  *    no save and no external-change application after disposal.

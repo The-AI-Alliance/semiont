@@ -29,7 +29,8 @@ from semiont.operations import (
     MATCH_RESOURCES_REQUESTED,
 )
 from semiont.refresh import CacheQuery, CacheRefreshWhen
-from semiont.storage import MAX_STORED_BYTES, SessionStorage, StoragePersister
+from semiont.storage import SessionStorage, StoragePersister
+from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.transport import ContentTransport
 from semiont.types import (
     Annotation,
@@ -175,7 +176,7 @@ class Live:
             return None
         kept_under = f"semiont.cache.{self._persistence.key_prefix}.{name}"
         return StoragePersister(
-            self._persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES
+            self._persistence.storage, kept_under, key=key, value=value, version=_KEPT_VERSION, max_bytes=MAX_STORED_BYTES_COUNT
         )
 
     # ── What each cache asks ────────────────────────────────────────────

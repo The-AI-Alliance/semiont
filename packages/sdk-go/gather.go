@@ -29,6 +29,7 @@ func GatherResourceDefaults() api.GatherResourceRequestOptions {
 // refers to a resource.
 type GatherNamespace struct {
 	links *links
+	live  *live
 }
 
 // Annotation is the context around one annotation, taking contextWindow
@@ -57,9 +58,7 @@ func (n *GatherNamespace) Resource(ctx context.Context, resourceID api.ResourceI
 }
 
 // ReferencedBy is the annotations elsewhere that refer to a resource.
+// Watching it holds the resource's scope.
 func (n *GatherNamespace) ReferencedBy(resourceID api.ResourceId) *Cached[[]api.GetReferencedByResponseReferencedByItem] {
-	return &Cached[[]api.GetReferencedByResponseReferencedByItem]{fetch: func(ctx context.Context) ([]api.GetReferencedByResponseReferencedByItem, error) {
-		answer, err := ask(ctx, n.links, bus.GatherReferencedByRequested, api.GatherReferencedByRequest{ResourceId: resourceID})
-		return answer.Response.ReferencedBy, err
-	}}
+	return keyed(n.links, n.live.referencedBy, resourceID, itself[[]api.GetReferencedByResponseReferencedByItem], resourceID)
 }

@@ -36,12 +36,10 @@ from typing import Final, Literal, Protocol, final, override
 
 from semiont.errors import BusRequestError, SemiontError
 from semiont.state_unit import StateUnit
+from semiont.timing import SAVE_DEBOUNCE_MS
 from semiont.watched import Variable
 
-__all__ = ["SAVE_DEBOUNCE_MS", "Cache", "CachePersister", "CacheState", "Failed", "Pending", "Ready", "Runs", "closed"]
-
-SAVE_DEBOUNCE_MS: Final = 50
-"""How long a cache waits, after its values change, before it saves them: a burst of changes is one save."""
+__all__ = ["Cache", "CachePersister", "CacheState", "Failed", "Pending", "Ready", "Runs", "closed"]
 
 
 @final

@@ -7,9 +7,7 @@
 //! that must see a state reads the observer before it causes the next.
 
 use futures_core::Stream;
-use semiont::cache::{
-    Cache, CachePersister, CacheState, MAX_STORED_BYTES, SAVE_DEBOUNCE, StoragePersister,
-};
+use semiont::cache::{Cache, CachePersister, CacheState, StoragePersister};
 use semiont::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use semiont::state_unit::StateUnit;
 use semiont::storage::{
@@ -18,6 +16,7 @@ use semiont::storage::{
 use semiont::testing::axioms::{
     AxiomSubject, Fresh, StreamSurface, Surface, assert_state_unit_axioms,
 };
+use semiont::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
@@ -766,7 +765,7 @@ fn entries(of: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    let persister = stored(&storage, 1, MAX_STORED_BYTES);
+    let persister = stored(&storage, 1, MAX_STORED_BYTES_COUNT);
     assert_eq!(persister.load(), None);
     persister.save(&entries(&[("a", "one"), ("b", "two")]));
 
@@ -777,7 +776,7 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     assert_eq!(document["entries"].as_array().map(Vec::len), Some(2));
 
     assert_eq!(
-        stored(&storage, 1, MAX_STORED_BYTES).load(),
+        stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(),
         Some(entries(&[("a", "one"), ("b", "two")]))
     );
 }
@@ -785,13 +784,13 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
 #[test]
 fn a_document_of_another_version_or_one_that_is_not_a_document_reads_as_nothing_kept() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    stored(&storage, 1, MAX_STORED_BYTES).save(&entries(&[("a", "one")]));
-    assert_eq!(stored(&storage, 2, MAX_STORED_BYTES).load(), None);
+    stored(&storage, 1, MAX_STORED_BYTES_COUNT).save(&entries(&[("a", "one")]));
+    assert_eq!(stored(&storage, 2, MAX_STORED_BYTES_COUNT).load(), None);
 
     storage.set("semiont.cache.kb.test", "{ not a document");
-    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES).load(), None);
+    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
     storage.set("semiont.cache.kb.test", "[1, 2, 3]");
-    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES).load(), None);
+    assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
 }
 
 #[test]
@@ -869,7 +868,7 @@ fn what_another_context_writes_under_the_caches_key_is_heard_and_under_another_k
         storage.clone(),
         "semiont.cache.kb.test",
         1,
-        MAX_STORED_BYTES,
+        MAX_STORED_BYTES_COUNT,
     );
     let heard: Arc<Mutex<Vec<HashMap<String, String>>>> = Arc::default();
     let hearing = heard.clone();

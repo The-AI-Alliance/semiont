@@ -15,7 +15,7 @@
  *   whatever a full-map re-save touched last).
  */
 
-import { isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
+import { MAX_STORED_BYTES_COUNT, isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
 
@@ -102,9 +102,6 @@ export function coupledLastEventId(
   };
 }
 
-/** localStorage origins cap around 5–10 MB; leave plenty for everyone else. */
-const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
-
 interface StoredDocument {
   version: number;
   writtenAt: number;
@@ -131,7 +128,7 @@ export function sessionStoragePersister<K, V>(opts: {
   storageKey: string;
   /** Schema version; mismatch discards on load. Bump when the value shape changes. */
   version: number;
-  /** Byte cap for the serialized document; oldest-written entries evicted first. */
+  /** Byte cap for the serialized document; oldest-written entries evicted first. Default `MAX_STORED_BYTES_COUNT`. */
   maxBytes?: number;
   /** Serialize a key to a JSON-safe value. Default identity (branded ids are strings). */
   keyToJson?: (k: K) => unknown;
@@ -139,7 +136,7 @@ export function sessionStoragePersister<K, V>(opts: {
   jsonToKey?: (j: unknown) => K;
 }): CachePersister<K, V> {
   const { storage, storageKey, version } = opts;
-  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  const maxBytes = opts.maxBytes ?? MAX_STORED_BYTES_COUNT;
   const keyToJson = opts.keyToJson ?? ((k: K) => k as unknown);
   const jsonToKey = opts.jsonToKey ?? ((j: unknown) => j as K);
 

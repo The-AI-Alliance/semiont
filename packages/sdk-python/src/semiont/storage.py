@@ -20,11 +20,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.cache import CachePersister
 
-__all__ = ["MAX_STORED_BYTES", "MemoryStorage", "SessionStorage", "StoragePersister"]
-
-
-MAX_STORED_BYTES: Final = 2 * 1024 * 1024
-"""The largest document a client's cache keeps, in bytes."""
+__all__ = ["MemoryStorage", "SessionStorage", "StoragePersister"]
 
 
 class SessionStorage(Protocol):

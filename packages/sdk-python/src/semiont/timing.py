@@ -36,12 +36,14 @@ __all__ = [
     "LINGER_MS",
     "MARK_COMMIT_TIMEOUT_MS",
     "MAX_RECONNECT_MS",
+    "MAX_STORED_BYTES_COUNT",
     "MIN_REFRESH_DELAY_MS",
     "RECONNECT_DEBOUNCE_MS",
     "RECONNECT_MS",
     "REFRESH_BEFORE_EXP_MS",
     "REFRESH_RETRY",
     "REQUEST_RETRY_PAUSE_MS",
+    "SAVE_DEBOUNCE_MS",
     "SEARCH_DEBOUNCE_MS",
     "SEEN_EVENT_IDS_COUNT",
     "TIMING_NAMES",
@@ -139,6 +141,16 @@ MIN_REFRESH_DELAY_MS: Final = 10000
 # observed key once per event.
 INVALIDATION_WINDOW_MS: Final = 1000
 
+# How long a cache that keeps its values waits, after they last changed, before it saves them
+# (CACHE-SEMANTICS B17): a burst of changes is one save. Disposing the cache makes a save it
+# owes at once.
+SAVE_DEBOUNCE_MS: Final = 50
+
+# The largest document, in bytes, a cache keeps of its values (CACHE-SEMANTICS B17). One larger
+# loses the entries that have gone longest without a new value until it fits: what an origin may
+# keep is a few megabytes, and the cache shares it with everything else the origin keeps.
+MAX_STORED_BYTES_COUNT: Final = 2097152
+
 # How long a job a client is following may say nothing before the client asks for its status. A
 # job's progress and its end reach the client as passing frames, which a dropped stream loses
 # and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every
@@ -233,6 +245,8 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "refreshBeforeExpMs",
     "minRefreshDelayMs",
     "invalidationWindowMs",
+    "saveDebounceMs",
+    "maxStoredBytesCount",
     "jobSilenceMs",
     "jobStatusPollMs",
     "generationStallFloorMs",

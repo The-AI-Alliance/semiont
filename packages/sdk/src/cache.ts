@@ -51,7 +51,7 @@
  *     stale-beats-error.
  */
 
-import { BusRequestError, type StateUnit } from '@semiont/core';
+import { BusRequestError, SAVE_DEBOUNCE_MS, type StateUnit } from '@semiont/core';
 import {
   BehaviorSubject,
   Observable,
@@ -161,7 +161,7 @@ export function createCache<K, V>(
   options?: {
     /** B17 — persistence seam. Omitted = in-memory only. */
     persister?: CachePersister<K, V>;
-    /** Debounce window for persister.save. Default 50 ms. */
+    /** Debounce window for persister.save. Default `SAVE_DEBOUNCE_MS`. */
     saveDebounceMs?: number;
   },
 ): Cache<K, V> {
@@ -222,7 +222,7 @@ export function createCache<K, V>(
    * save synchronously (the KB-switch teardown must not lose the last
    * write), then everything goes inert with the rest of B16.
    */
-  const saveDebounceMs = options?.saveDebounceMs ?? 50;
+  const saveDebounceMs = options?.saveDebounceMs ?? SAVE_DEBOUNCE_MS;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let unsubscribeExternal: (() => void) | null = null;
   /**
