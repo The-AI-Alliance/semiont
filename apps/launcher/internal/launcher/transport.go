@@ -72,21 +72,11 @@ func (g *GatewayUnreached) Error() string {
 	return fmt.Sprintf("the gateway at %s did not open the event stream", g.Base)
 }
 
-// bus opens the stack's bus. Its stream carries every operation's reply
-// channels, and channels besides: a verb that follows broadcasts names them.
-// A token the store already knows is expired is renewed before the stream
-// opens. When that renewal fails the stored token is still tried — clocks
-// skew, and the gateway is the judge — and the failure answers the gateway's
-// refusal; a token the issuer has just issued and the gateway refuses ends
-// the session before anything is sent.
+// bus opens the stack's bus, carrying the session's token, which the session
+// renews when the gateway refuses it. Its stream carries every operation's
+// reply channels, and channels besides: a verb that follows broadcasts names
+// them.
 func (s *Session) bus(channels []bus.Channel) *VerbBus {
-	s.renewal.Lock()
-	if s.expired() {
-		if rejected := s.renew(s.ended); rejected != nil && rejected.refresh == nil {
-			s.end(rejected)
-		}
-	}
-	s.renewal.Unlock()
 	transport := newTransport(semiont.HTTPTransportConfig{
 		BaseURL:   s.base,
 		Token:     s.token,
@@ -194,9 +184,7 @@ func (s *Session) refusal(err error) error {
 		// again with it, so this is the second refusal: unless the session has
 		// already ended for its own reason, the gateway refused a token the
 		// session had just renewed.
-		s.renewal.Lock()
 		s.end(&SessionRejected{cause: err})
-		s.renewal.Unlock()
 		return context.Cause(s.ended)
 	}
 	if errors.Is(err, context.Canceled) && s.ended.Err() != nil {

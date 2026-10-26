@@ -1,20 +1,20 @@
 package launcher
 
 // login.go — `semiont login`: sign in to a running stack's knowledge base
-// through the issuer it trusts (oauth.go: resource metadata → discovery →
-// device grant) and store the session tokens per stack (tokens.go). The
-// launcher never sees a password: the user approves the sign-in in a browser
-// they trust, and only the tokens reach this process.
+// through the issuer it trusts (the Go SDK's Issuer: resource metadata →
+// discovery → device grant) and keep the session in the sign-in store
+// (signins.go). The launcher never sees a password: the user approves the
+// sign-in in a browser they trust, and only the tokens reach this process.
 
 import (
 	"bufio"
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"golang.org/x/term"
 )
 
@@ -85,58 +85,55 @@ func Login(args []string) int {
 		key = "local"
 	}
 
-	cli, err := api.NewClientWithResponses(base)
-	if err != nil {
-		u.Fail("client: %v", err)
-		return 1
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	ep, err := discoverIssuer(ctx, cli, base)
-	cancel()
+	ctx := context.Background()
+	issuer := semiont.Issuer{HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming()}
+	endpoints, err := issuer.Discover(ctx, base)
 	if err != nil {
 		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1
 	}
-	u.Log("Issuer: %s %s", ep.Issuer, u.Dim("(named by the knowledge base's resource metadata)"))
+	u.Log("Issuer: %s %s", endpoints.Issuer, u.Dim("(named by the knowledge base's resource metadata)"))
 
-	tr, err := deviceLogin(context.Background(), u, ep)
+	tokens, err := issuer.SignInWithDeviceGrant(ctx, endpoints, func(code semiont.DeviceCode) {
+		promptToOpen(u, code)
+		u.Log("Waiting for approval at the issuer...")
+	})
 	if err != nil {
 		u.Fail("Sign-in failed: %v", err)
 		return 1
 	}
 
-	// The gateway is the judge of the token, not the issuer: a 401 here means
-	// the realm's audience mapper and the knowledge base's own resource
-	// identifier disagree, and storing the token would only defer that error
+	// The gateway is the judge of the token, not the issuer: a refusal here
+	// means the realm's audience mapper and the knowledge base's own resource
+	// identifier disagree, and keeping the token would only defer that error
 	// to the first verb.
-	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	me, err := cli.GetCurrentUserWithResponse(ctx, Bearer(tr.AccessToken))
-	cancel()
+	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
+		BaseURL: base, Token: semiont.NewWatched(tokens.Access),
+		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
+	})
+	me, err := asker.GetCurrentUser(ctx)
+	asker.Close()
+	if unauthorized(err) {
+		u.Fail("The issuer signed you in, but the gateway rejected the token — the realm's audience mapper and this knowledge base's resource identifier disagree.")
+		return 1
+	}
 	if err != nil {
 		u.Fail("Gateway unreachable at %s: %v", base, err)
 		return 1
 	}
-	if me.JSON200 == nil {
-		u.Fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — the realm's audience mapper and this knowledge base's resource identifier disagree.", me.HTTPResponse.StatusCode)
-		return 1
-	}
-	email := string(me.JSON200.Email)
-	now := time.Now().UTC()
-	if err := SaveToken(key, SignIn{
-		Token:              tr.AccessToken,
-		RefreshToken:       tr.RefreshToken,
-		Email:              email,
-		ObtainedAt:         now,
-		ExpiresAt:          expiresAt(now, tr.ExpiresIn),
-		Issuer:             ep.Issuer,
-		TokenEndpoint:      ep.Token,
-		RevocationEndpoint: ep.Revocation,
+
+	if err := keepSignIn(ctx, key, semiont.HeldSignIn{
+		Access:             tokens.Access,
+		Refresh:            tokens.Refresh,
+		ClientID:           semiont.ScriptClientID,
+		TokenEndpoint:      endpoints.Token,
+		RevocationEndpoint: endpoints.Revocation,
 	}); err != nil {
 		u.Fail("Token could not be stored (%v) — NOT logged in.", err)
 		return 1
 	}
-	u.Ok("Logged in to %s as %s %s", key, email, u.Dim("(token in "+tokensPath()+")"))
+	u.Ok("Logged in to %s as %s %s", key, me.Email, u.Dim("(token in "+tokensPath()+")"))
 	return 0
 }
 

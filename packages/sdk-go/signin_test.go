@@ -184,8 +184,12 @@ func TestADeviceSignInTheIssuerDeniesIsDenied(t *testing.T) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "access_denied"})
 		}
 	})
+	endpoints, err := issuerOf().Discover(context.Background(), s.gateway.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var failed *SignInError
-	_, _, err := issuerOf().SignInWithDeviceGrant(context.Background(), s.gateway.URL, func(DeviceCode) {})
+	_, err = issuerOf().SignInWithDeviceGrant(context.Background(), endpoints, func(DeviceCode) {})
 	if !errors.As(err, &failed) || failed.Code != SignInErrorCodeDenied {
 		t.Errorf("got %v, want denied", err)
 	}

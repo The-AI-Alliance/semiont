@@ -297,28 +297,24 @@ func codeExpired() *SignInError {
 	return signInUnanswered(SignInErrorCodeExpired, "The code expired before it was approved")
 }
 
-// SignInWithDeviceGrant signs a person in from a process with no browser. The
-// issuer the knowledge base at baseURL trusts mints a code, onCode shows the
-// person where to approve it, and the token endpoint is asked at the issuer's
+// SignInWithDeviceGrant signs a person in from a process with no browser, at
+// the issuer Discover found. The issuer mints a code, onCode shows the person
+// where to approve it, and the token endpoint is asked at the issuer's
 // interval until the tokens arrive. Cancelling ctx abandons the sign-in.
-func (i Issuer) SignInWithDeviceGrant(ctx context.Context, baseURL string, onCode func(DeviceCode)) (IssuerEndpoints, IssuedTokens, error) {
-	issuer, err := i.Discover(ctx, baseURL)
-	if err != nil {
-		return IssuerEndpoints{}, IssuedTokens{}, err
-	}
+func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoints, onCode func(DeviceCode)) (IssuedTokens, error) {
 	if issuer.Device == "" {
-		return IssuerEndpoints{}, IssuedTokens{}, signInUnanswered(SignInErrorCodeDiscovery, fmt.Sprintf(
+		return IssuedTokens{}, signInUnanswered(SignInErrorCodeDiscovery, fmt.Sprintf(
 			"Issuer %s offers no device authorization endpoint: the device grant needs one enabled for client %s", issuer.Issuer, ScriptClientID))
 	}
 	status, body, err := i.postForm(ctx, issuer.Device, url.Values{"client_id": {ScriptClientID}, "scope": {SignInScope}})
 	if err != nil {
-		return IssuerEndpoints{}, IssuedTokens{}, signInUnanswered(SignInErrorCodeExchange, "The issuer did not answer: "+err.Error())
+		return IssuedTokens{}, signInUnanswered(SignInErrorCodeExchange, "The issuer did not answer: "+err.Error())
 	}
 	deviceCode, hasDeviceCode := body.text("device_code")
 	userCode, hasUserCode := body.text("user_code")
 	verificationURI, hasVerificationURI := body.text("verification_uri")
 	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI {
-		return IssuerEndpoints{}, IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
+		return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
 	}
 	expiresIn, ok := body.seconds("expires_in")
 	if !ok {
@@ -335,37 +331,37 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, baseURL string, onCod
 	deadline := time.Now().Add(expiresIn)
 	for {
 		if !pause(ctx, interval) {
-			return IssuerEndpoints{}, IssuedTokens{}, ctx.Err()
+			return IssuedTokens{}, ctx.Err()
 		}
 		if time.Now().After(deadline) {
-			return IssuerEndpoints{}, IssuedTokens{}, codeExpired()
+			return IssuedTokens{}, codeExpired()
 		}
 		status, answered, err := i.postForm(ctx, issuer.Token, url.Values{
 			"grant_type": {deviceGrant}, "device_code": {deviceCode}, "client_id": {ScriptClientID},
 		})
 		if err != nil {
 			if ctx.Err() != nil {
-				return IssuerEndpoints{}, IssuedTokens{}, ctx.Err()
+				return IssuedTokens{}, ctx.Err()
 			}
-			return IssuerEndpoints{}, IssuedTokens{}, signInUnanswered(SignInErrorCodeExchange, "The issuer did not answer: "+err.Error())
+			return IssuedTokens{}, signInUnanswered(SignInErrorCodeExchange, "The issuer did not answer: "+err.Error())
 		}
 		if access, ok := answered.text("access_token"); status == http.StatusOK && ok {
 			refresh, ok := answered.text("refresh_token")
 			if !ok {
-				return IssuerEndpoints{}, IssuedTokens{}, signInRefused(SignInErrorCodeExchange, "The issuer returned no refresh token: the session could not outlive its first access token", status)
+				return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, "The issuer returned no refresh token: the session could not outlive its first access token", status)
 			}
-			return issuer, IssuedTokens{Access: access, Refresh: refresh}, nil
+			return IssuedTokens{Access: access, Refresh: refresh}, nil
 		}
 		switch failure, _ := answered.text("error"); failure {
 		case "authorization_pending":
 		case "slow_down":
 			interval += devicePoll
 		case "access_denied":
-			return IssuerEndpoints{}, IssuedTokens{}, signInRefused(SignInErrorCodeDenied, "The sign-in was denied at the issuer", status)
+			return IssuedTokens{}, signInRefused(SignInErrorCodeDenied, "The sign-in was denied at the issuer", status)
 		case "expired_token":
-			return IssuerEndpoints{}, IssuedTokens{}, codeExpired()
+			return IssuedTokens{}, codeExpired()
 		default:
-			return IssuerEndpoints{}, IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
+			return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
 		}
 	}
 }

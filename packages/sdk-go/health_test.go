@@ -1,80 +1,88 @@
 package semiont
 
+// The gateway's own operations: its liveness, where a success status is alive
+// and the body is detail; and a transport held only for them opens no stream.
+
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-// A healthy gateway answers, and the parsed body comes back.
-func TestHealthCheckReportsAServingGateway(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func healthOf(t *testing.T, serve http.HandlerFunc) (report string, ok bool, err error) {
+	t.Helper()
+	gateway := httptest.NewServer(serve)
+	defer gateway.Close()
+	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewWatched(""), HTTP: &http.Client{}, Timing: quickTiming()})
+	defer asker.Close()
+	health, ok, err := asker.HealthCheck(context.Background())
+	return health.Status, ok, err
+}
+
+func TestAServingGatewayIsAliveAndReportsItself(t *testing.T) {
+	status, ok, err := healthOf(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/health" {
-			t.Errorf("asked for %q, want /api/health — the route is the generated client's to know", r.URL.Path)
+			t.Errorf("asked %s", r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"healthy"}`))
-	}))
-	defer srv.Close()
-
-	cli, err := NewHealthClient(srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := cli.HealthCheck(context.Background())
-	if err != nil {
-		t.Fatalf("HealthCheck: %v", err)
-	}
-	if got == nil {
-		t.Fatal("a 2xx with a JSON body must parse")
+		writeJSON(w, http.StatusOK, map[string]any{"status": "operational", "version": "0.7.0", "timestamp": "2026-10-26T00:00:00.000Z"})
+	})
+	if err != nil || !ok || status != "operational" {
+		t.Errorf("got %q, %v, %v", status, ok, err)
 	}
 }
 
-// A gateway that answers with a failure status is DOWN, and says which status
-// — a caller that only wanted liveness compares against nil, but one deciding
-// whether to wait or abort needs the reason.
-func TestHealthCheckFailsOnANonSuccessStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer srv.Close()
-
-	cli, _ := NewHealthClient(srv.URL)
-	if _, err := cli.HealthCheck(context.Background()); err == nil {
-		t.Fatal("503 must be an error")
+// A gateway that answers with a failure status is down, and says which.
+func TestAGatewayThatAnswersAFailureIsDown(t *testing.T) {
+	_, _, err := healthOf(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotImplemented) })
+	var refused *TransportError
+	if !errors.As(err, &refused) {
+		t.Fatalf("a failure status read as alive (%v)", err)
+	}
+	if status, ok := refused.Status(); !ok || status != http.StatusNotImplemented {
+		t.Errorf("the failure says %d (%v)", status, ok)
 	}
 }
 
-// A 2xx that does not parse is still a LIVE service. Reporting it as down
-// over a schema mismatch is the opposite of what a liveness check is for.
-func TestHealthCheckTreatsAnUnparsableSuccessAsAlive(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`not json`))
-	}))
-	defer srv.Close()
-
-	cli, _ := NewHealthClient(srv.URL)
-	if _, err := cli.HealthCheck(context.Background()); err != nil {
-		t.Fatalf("a 2xx is alive whatever the body says: %v", err)
+// A success whose body does not read is a live gateway behind a schema this
+// client does not know: alive, with no report.
+func TestASuccessWithABodyThatDoesNotReadIsAlive(t *testing.T) {
+	_, ok, err := healthOf(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html>ok</html>"))
+	})
+	if err != nil || ok {
+		t.Errorf("got ok %v, err %v; want alive with no report", ok, err)
 	}
 }
 
-// The method imposes no budget of its own, so a caller's deadline is the only
-// thing bounding it. A probe whose ctx expired must return rather than hang.
-func TestHealthCheckHonoursTheContextDeadline(t *testing.T) {
-	block := make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-block
+// A transport that carries nothing opens no stream, token or not: asking who
+// a token is, or how the gateway is, makes no request of the bus.
+func TestATransportThatCarriesNothingOpensNoStream(t *testing.T) {
+	var subscribed atomic.Int32
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bus/subscribe":
+			subscribed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		case "/api/users/me":
+			writeJSON(w, http.StatusOK, map[string]any{"did": "did:web:example.org:users:alice", "email": "a@example.com", "domain": "example.org", "name": nil, "image": nil})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
-	defer func() { close(block); srv.Close() }()
-
-	cli, _ := NewHealthClient(srv.URL)
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	if _, err := cli.HealthCheck(ctx); err == nil {
-		t.Fatal("an expired context must surface as an error")
+	defer gateway.Close()
+	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewWatched(signedToken(1)), HTTP: &http.Client{}, Timing: quickTiming()})
+	user, err := asker.GetCurrentUser(context.Background())
+	time.Sleep(100 * time.Millisecond)
+	asker.Close()
+	if err != nil || user.Email != "a@example.com" {
+		t.Fatalf("asked who the token is: %v", err)
+	}
+	if n := subscribed.Load(); n != 0 {
+		t.Errorf("a transport with no channel opened %d stream(s)", n)
 	}
 }

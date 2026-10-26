@@ -466,7 +466,7 @@ func TestEveryRenewalIsTheTables(t *testing.T) {
 func TestAWaitingTakerGetsTheLockWhenTheHolderLetsGo(t *testing.T) {
 	path := filepath.Join(t.TempDir(), signInLock)
 	open := func() *os.File {
-		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+		f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o600)
 		if err != nil {
 			t.Fatal(err)
 		}

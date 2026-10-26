@@ -3,6 +3,8 @@
 package launcher
 
 import (
+	"context"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +12,8 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // inheritsFromItsParent: whether a path's access list still takes entries
@@ -131,7 +135,11 @@ func TestWhatTheLauncherKeepsIsClosedUnderAnOpenHome(t *testing.T) {
 		}
 	}
 
-	if err := SaveToken("local", signInFor(1)); err != nil {
+	claims := base64.RawURLEncoding.EncodeToString([]byte(`{"email":"a@example.com","iss":"http://issuer.example/realms/semiont","exp":4102444800}`))
+	if err := keepSignIn(context.Background(), "local", semiont.HeldSignIn{
+		Access: "eyJhbGciOiJub25lIn0." + claims + ".c2ln", Refresh: "refresh-1",
+		ClientID: semiont.ScriptClientID, TokenEndpoint: "http://issuer.example/token",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	closed("the sign-in store", tokensPath())
