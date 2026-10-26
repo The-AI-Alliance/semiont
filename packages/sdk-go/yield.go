@@ -23,7 +23,8 @@ func generationStallDeadline(timing Timing, maxTokens *float32) time.Duration {
 	if maxTokens != nil {
 		tokens = math.Max(float64(*maxTokens), 0)
 	}
-	grown := time.Duration(math.Round(float64(timing.GenerationStallPerToken) * tokens))
+	// Rounded to the millisecond, as every SDK states the wait.
+	grown := time.Duration(math.Round(float64(timing.GenerationStallPerToken.Milliseconds())*tokens)) * time.Millisecond
 	return max(timing.GenerationStallFloor, grown)
 }
 

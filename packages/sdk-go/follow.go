@@ -33,6 +33,8 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
@@ -153,26 +155,38 @@ type heard struct {
 }
 
 // hear reads frame as its channel's; false for one that is not its
-// channel's, which is nobody's to act on.
+// channel's, which is nobody's to act on. A completion is its channel's when
+// it is a completion of the verb it states, its result that verb's.
 func hear(frame Frame) (heard, bool) {
 	said := heard{channel: frame.Channel}
+	var ok bool
 	switch frame.Channel {
 	case bus.JobReportProgress.Channel():
-		if json.Unmarshal(frame.Payload, &said.progress) != nil {
+		if said.progress, ok = readAs[api.JobReportProgressCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.progress.JobId, said.progress.JobType
 	case bus.JobFail.Channel():
-		if json.Unmarshal(frame.Payload, &said.fail) != nil {
+		if said.fail, ok = readAs[api.JobFailCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.fail.JobId, said.fail.JobType
 	case bus.JobComplete.Channel():
 		var named struct {
-			JobID   api.JobId   `json:"jobId"`
-			JobType api.JobType `json:"jobType"`
+			JobID   api.JobId       `json:"jobId"`
+			JobType api.JobType     `json:"jobType"`
+			Result  json.RawMessage `json:"result"`
 		}
 		if json.Unmarshal(frame.Payload, &named) != nil {
+			return heard{}, false
+		}
+		switch named.JobType {
+		case api.JobTypeMark:
+			_, ok = readAs[api.MarkJobCompleteCommand](frame.Payload)
+		case api.JobTypeYield:
+			_, ok = readAs[api.YieldJobCompleteCommand](frame.Payload)
+		}
+		if !ok || (named.Result != nil && string(named.Result) != "null" && !isVerbsResult(named.JobType, named.Result)) {
 			return heard{}, false
 		}
 		said.jobID, said.jobType, said.complete = named.JobID, named.JobType, frame.Payload
@@ -180,6 +194,69 @@ func hear(frame Frame) (heard, bool) {
 		return heard{}, false
 	}
 	return said, true
+}
+
+// requiredOf is the members a generated type requires: those its JSON tag
+// writes without omitempty, as the generator writes every member a schema
+// leaves optional with omitempty, and no other.
+func requiredOf(generated reflect.Type) []string {
+	var required []string
+	for i := range generated.NumField() {
+		tag := generated.Field(i).Tag.Get("json")
+		name, options, _ := strings.Cut(tag, ",")
+		if name == "" || name == "-" || strings.Contains(options, "omitempty") {
+			continue
+		}
+		required = append(required, name)
+	}
+	return required
+}
+
+// carries is whether payload is an object carrying every member generated
+// requires.
+func carries(payload []byte, generated reflect.Type) bool {
+	var members map[string]json.RawMessage
+	if json.Unmarshal(payload, &members) != nil || members == nil {
+		return false
+	}
+	for _, name := range requiredOf(generated) {
+		if _, has := members[name]; !has {
+			return false
+		}
+	}
+	return true
+}
+
+// readAs is payload read as T, and whether it is one: an object carrying
+// every member T requires. Go's decoding refuses no member that is missing,
+// so what a schema requires is held here.
+func readAs[T any](payload []byte) (T, bool) {
+	var value T
+	if !carries(payload, reflect.TypeFor[T]()) || json.Unmarshal(payload, &value) != nil {
+		return value, false
+	}
+	return value, true
+}
+
+// resultMembers is each verb's result union: the spec's MarkJobResult and
+// YieldJobResult. Their members share no required member, so a result is the
+// one member whose required members it carries all of; the generated As*
+// accessors are bare decodings and cannot say.
+var resultMembers = map[api.JobType][]reflect.Type{
+	api.JobTypeMark:  {reflect.TypeFor[api.MarkJobDone](), reflect.TypeFor[api.JobDeclined]()},
+	api.JobTypeYield: {reflect.TypeFor[api.YieldJobDone](), reflect.TypeFor[api.JobDeclined]()},
+}
+
+// isVerbsResult is whether result is exactly one member of verb's result
+// union.
+func isVerbsResult(verb api.JobType, result []byte) bool {
+	matched := 0
+	for _, member := range resultMembers[verb] {
+		if carries(result, member) {
+			matched++
+		}
+	}
+	return matched == 1
 }
 
 // learned is the completion a complete status stands for, read as the
@@ -202,6 +279,9 @@ func learned[C any](delegated api.JobType, status api.JobStatusResponse, resourc
 		}
 		var fields map[string]json.RawMessage
 		if json.Unmarshal(raw, &fields) != nil || len(fields) > 0 {
+			if !isVerbsResult(delegated, raw) {
+				return unread("its `result` is malformed")
+			}
 			stated["result"] = json.RawMessage(raw)
 		}
 	}
@@ -281,6 +361,9 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 				return nil, created.err
 			}
 			creating = nil
+			if created.value.Response.JobId.IsZero() {
+				return nil, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: its `response.jobId` is missing", bus.JobCreate.Result().Channel()), TransportErrorCodeError)
+			}
 			jobID = created.value.Response.JobId
 			// Ahead of the frames held for it: the job's id is the first thing its follower gives.
 			report(JobCreated{Data: created.value.Response})

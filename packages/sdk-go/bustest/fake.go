@@ -39,6 +39,9 @@ type Requested struct {
 	Channel bus.Channel
 	Payload map[string]any
 	Scope   api.ResourceId
+	// CorrelationID is the request's key: what its reply is delivered
+	// under.
+	CorrelationID string
 }
 
 // Fake implements semiont.Transport. The zero value is not ready — use
@@ -60,6 +63,14 @@ type Fake struct {
 	// Rejections scripts the failure a request is answered with instead:
 	// request channel → the payload of the operation's failure.
 	Rejections map[bus.Channel]json.RawMessage
+	// Queued scripts the results the next requests of an operation are
+	// answered with, one each, in order, before Replies is asked: request
+	// channel → the payloads of the operation's result.
+	Queued map[bus.Channel][]json.RawMessage
+	// Unanswered names the request channels whose requests are recorded and
+	// never answered: a test answers one itself, by Deliver, under its
+	// CorrelationID.
+	Unanswered map[bus.Channel]bool
 
 	// Emits records every emit that awaits no reply, in order — a fan-out
 	// verb that drops its second command is invisible to a last-call-only
@@ -81,6 +92,8 @@ func NewFake() *Fake {
 	return &Fake{
 		Replies:    map[bus.Channel]json.RawMessage{},
 		Rejections: map[bus.Channel]json.RawMessage{},
+		Queued:     map[bus.Channel][]json.RawMessage{},
+		Unanswered: map[bus.Channel]bool{},
 		hub:        semiont.NewFrameHub(),
 		router:     semiont.NewReplyRouter(),
 		state:      semiont.NewWatched(semiont.ConnectionStateOpen),
@@ -100,15 +113,16 @@ func (f *Fake) BaseURL() string { return "http://fake.test" }
 
 // Emit records the frame. A request — an emit carrying a correlation id on
 // an operation's request channel — is answered at once, on the stream: with
-// its scripted rejection, or its scripted reply, or, when the test scripted
-// neither, a failure that says so. An unscripted operation is a test bug, and
+// its scripted rejection, or the next of its queued results, or its scripted
+// reply, or, when the test scripted none, a failure that says so; one on an
+// Unanswered channel is not answered. An unscripted operation is a test bug, and
 // a request left to wait out its deadline would hide it behind a timeout.
 func (f *Fake) Emit(_ context.Context, channel bus.Channel, payload map[string]any, envelope semiont.Envelope) (int, bool, error) {
 	f.mu.Lock()
 	if envelope.CorrelationID == "" {
 		f.Emits = append(f.Emits, Emitted{Channel: channel, Payload: payload, Scope: envelope.Scope})
 	} else {
-		f.Requests = append(f.Requests, Requested{Channel: channel, Payload: payload, Scope: envelope.Scope})
+		f.Requests = append(f.Requests, Requested{Channel: channel, Payload: payload, Scope: envelope.Scope, CorrelationID: envelope.CorrelationID})
 	}
 	if f.EmitErr != nil {
 		err := f.EmitErr
@@ -117,13 +131,16 @@ func (f *Fake) Emit(_ context.Context, channel bus.Channel, payload map[string]a
 	}
 	subscribers, counted := f.subscribers, f.counted
 	operation, isOperation := bus.Operations[channel]
-	if !isOperation || envelope.CorrelationID == "" {
+	if !isOperation || envelope.CorrelationID == "" || f.Unanswered[channel] {
 		f.mu.Unlock()
 		return subscribers, counted, nil
 	}
 	answer := semiont.Frame{Envelope: semiont.Envelope{CorrelationID: envelope.CorrelationID}}
 	if rejection, scripted := f.Rejections[channel]; scripted {
 		answer.Channel, answer.Payload = operation.Failure, rejection
+	} else if queued := f.Queued[channel]; len(queued) > 0 {
+		answer.Channel, answer.Payload = operation.Result, queued[0]
+		f.Queued[channel] = queued[1:]
 	} else if reply, scripted := f.Replies[channel]; scripted {
 		answer.Channel, answer.Payload = operation.Result, reply
 	} else {
