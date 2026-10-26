@@ -543,7 +543,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                 console.debug(`[bus LINGER] ${parsed.channel} delivered on superseded connection`);
               }
               // Tier 2: lift trace context off the SSE payload (the gateway's
-              // stream route puts it there, as `_trace`). The synchronous
+              // stream route puts it there, as `TRACE_FIELD`). The synchronous
               // fan-out to subscribers happens inside the bus.recv span,
               // so handlers see the parent trace.
               const carrier = extractTraceparent(

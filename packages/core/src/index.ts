@@ -86,7 +86,7 @@ export type {
   EmittableChannel,
   AnchorRect,
 } from './bus-protocol';
-export { ENRICHED_EVENT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+export { ENRICHED_EVENT_TYPES, CHANNEL_SCHEMAS, TRACE_FIELD } from './bus-protocol';
 export type { EnrichedEventType } from './bus-protocol';
 
 // Payload type aliases (OpenAPI schema shortcuts used across the codebase)

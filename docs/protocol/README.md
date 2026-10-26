@@ -57,7 +57,7 @@ Each verb's contract is in **[flows/](flows/README.md)**.
 
 ## One authority, three generated clients
 
-The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, and who receives each. [CHANNELS.md](CHANNELS.md) is the readable inventory.
+The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, who receives each, and the payload field a relayed frame's trace rides in. [CHANNELS.md](CHANNELS.md) is the readable inventory.
 
 The TypeScript, Rust, Go and Python clients each *generate* their channel tables from that file. Four implementations in four languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
 

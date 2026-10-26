@@ -4,6 +4,9 @@
 //! - Which channels a client hears globally, and which a resource's scope
 //!   carries. The two are disjoint: a channel in both would reach a client
 //!   twice, under two ids.
+//! - The field of a relayed frame's payload its trace rides in
+//!   (`TRACE_FIELD`), which a transport takes off before the frame is
+//!   delivered.
 //! - A type per channel (`job:create` is `JobCreate`) that names its
 //!   payload's type, so the bus's typed methods take and give a channel's own
 //!   payload and nothing else: a wrong payload for a channel does not

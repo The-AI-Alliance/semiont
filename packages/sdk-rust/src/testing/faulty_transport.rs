@@ -19,7 +19,7 @@
 //! the schedule fixes the run.
 
 use crate::bus::{operation, reply_names};
-use crate::channels::BRIDGED_CHANNELS;
+use crate::channels::{BRIDGED_CHANNELS, TRACE_FIELD};
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
@@ -69,7 +69,7 @@ pub struct RequestLogEntry {
 pub fn retry_key_of(channel: &str, payload: &Map<String, Value>) -> String {
     let mut fields: Vec<(&String, &Value)> = payload
         .iter()
-        .filter(|(key, _)| key.as_str() != "_trace" && key.as_str() != "_userId")
+        .filter(|(key, _)| key.as_str() != TRACE_FIELD && key.as_str() != "_userId")
         .collect();
     fields.sort_by(|a, b| a.0.cmp(b.0));
     let fields: Vec<Value> = fields

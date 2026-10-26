@@ -40,7 +40,7 @@ What is exported, and where, is read from the standard `OTEL_*` variables. They 
 
 ## In the browser
 
-The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`apps/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway in the `traceparent` header of each bus emit; the gateway hands trace context back to subscribers in the `_trace` field of each SSE payload.
+The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`apps/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway in the `traceparent` header of each bus emit; the gateway hands trace context back to subscribers in the trace field of each SSE payload.
 
 ## Universal API
 
@@ -64,7 +64,7 @@ await withSpan(
 
 ### Trace-context propagation
 
-Trace context crosses the bus in two forms. An outbound request (a bus emit, a content read or write) carries the active span in its W3C `traceparent` header, read with `getActiveTraceparent`. A frame the gateway relays over SSE has no headers of its own, so the gateway puts the context in the payload's `_trace` field: the receiver takes it off with `extractTraceparent` and runs its handlers under it with `withTraceparent`. `@semiont/http-transport` does both, so code that goes through a transport calls none of these:
+Trace context crosses the bus in two forms. An outbound request (a bus emit, a content read or write) carries the active span in its W3C `traceparent` header, read with `getActiveTraceparent`. A frame the gateway relays over SSE has no headers of its own, so the gateway puts the context in the payload's trace field, which the bus registry names and `@semiont/core` exports as `TRACE_FIELD`: the receiver takes it off with `extractTraceparent` and runs its handlers under it with `withTraceparent`. `@semiont/http-transport` does both, so code that goes through a transport calls none of these:
 
 ```ts
 import {
@@ -74,7 +74,7 @@ import {
   withSpan,
 } from '@semiont/observability';
 
-// Receiving: take `_trace` off the payload and continue its trace.
+// Receiving: take the trace field off the payload and continue its trace.
 const carrier = extractTraceparent(incoming);
 await withTraceparent(carrier, () =>
   withSpan('handle-incoming', () => process(incoming)),

@@ -3,7 +3,8 @@
 // specs/src/bus/registry.json, the same file the TypeScript and Go generators
 // read.
 //
-//   packages/sdk-python/src/semiont/channels.py    every channel, typed by its payload
+//   packages/sdk-python/src/semiont/channels.py    every channel, typed by its payload, and the field a
+//                                                  relayed frame's trace rides in
 //   packages/sdk-python/src/semiont/operations.py  every request, with its two replies
 //
 // A channel's payload type is DERIVED from its shape, as the TypeScript
@@ -22,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from '../spec/committed-source.mjs';
-import { pyBanner, pyConstant, pyString } from '../spec/python-source.mjs';
+import { pyBanner, pyComment, pyConstant, pyString } from '../spec/python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
@@ -120,6 +121,7 @@ __all__ = [
     "CHANNEL_NAMES",
     "PERSISTED_EVENT_TYPES",
     "RESOURCE_SCOPED_CHANNELS",
+    "TRACE_FIELD",
 ${payloads
   .map((p) => p.constant)
   .sort()
@@ -163,6 +165,9 @@ ${names(scoped)}
 PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
 ${names(reg.channels.filter((c) => c.event).map((c) => c.channel))}
 )
+
+${pyComment(reg.trace.meaning)}
+TRACE_FIELD: Final = ${pyString(reg.trace.field)}
 `;
 
 const byChannel = new Map(payloads.map((p) => [p.channel, p]));

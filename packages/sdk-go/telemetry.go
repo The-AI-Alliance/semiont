@@ -36,10 +36,6 @@ const instrumentationScope = "semiont"
 // configured with is not this SDK's to read.
 var w3c propagation.TraceContext
 
-// traceField is the payload field a relayed frame's trace rides in
-// (docs/protocol/EVENT-BUS.md, "Trace context").
-const traceField = "_trace"
-
 // TraceContext is a trace as the wire carries one: what a frame was sent
 // under. Its zero value is no trace.
 type TraceContext struct {
@@ -85,18 +81,18 @@ func carryTrace(ctx context.Context, header http.Header) {
 // trace. ok is false when the payload, having a trace, cannot be written
 // again without it: such a payload is not a frame's.
 func withoutTrace(payload json.RawMessage) (rest json.RawMessage, sentUnder TraceContext, ok bool) {
-	if !bytes.Contains(payload, []byte(`"`+traceField+`"`)) {
+	if !bytes.Contains(payload, []byte(`"`+bus.TraceField+`"`)) {
 		return payload, TraceContext{}, true
 	}
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(payload, &fields) != nil {
 		return nil, TraceContext{}, false
 	}
-	carried, has := fields[traceField]
+	carried, has := fields[bus.TraceField]
 	if !has {
 		return payload, TraceContext{}, true
 	}
-	delete(fields, traceField)
+	delete(fields, bus.TraceField)
 	rest, err := json.Marshal(fields)
 	if err != nil {
 		return nil, TraceContext{}, false

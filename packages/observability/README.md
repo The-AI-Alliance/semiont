@@ -45,7 +45,7 @@ const length = await withSpan('read-document', async (span) => {
 
 - **Off by default, and free when off.** With no exporter configured, the tracer and the meter are OpenTelemetry's own no-ops. Nothing here may do work, or fail, because telemetry is not set up.
 - **The main import runs in a browser.** It imports no Node builtin. What needs Node is in `/node`.
-- **One trace across the bus.** A request carries the active span as a W3C `traceparent` header, and a frame relayed over the stream carries it in its `_trace` field. A handler continues that trace rather than starting one.
+- **One trace across the bus.** A request carries the active span as a W3C `traceparent` header, and a frame relayed over the stream carries it in its payload's trace field (`TRACE_FIELD` in `@semiont/core`, generated from the bus registry). A handler continues that trace rather than starting one.
 - **No domain logic.** The package gives the helpers and the recorder. What is worth a span or a count is decided where the work happens.
 - **Initialized once.** `initObservabilityNode` is called at a process's entry point. A second call does nothing and returns `false`.
 

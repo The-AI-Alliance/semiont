@@ -91,6 +91,7 @@
     "lint:core-subpaths": "node scripts/lint/check-core-subpath-isolation.mjs",
     "lint:service-role": "node scripts/lint/check-service-role-agreement.mjs",
     "lint:attribution": "node scripts/lint/check-attribution-one-copy.mjs",
+    "lint:trace-field": "node scripts/lint/check-trace-field.mjs",
     "lint:coverage-roster": "node scripts/lint/check-coverage-roster-agreement.mjs",
     "lint:compliance-audits": "node scripts/lint/check-compliance-audits-run.mjs",
     "lint:vitest-coverage": "node scripts/lint/check-vitest-coverage-config.mjs",

@@ -25,7 +25,7 @@ use crate::sse::SseParser;
 use crate::transport::{Shared, locked, refusal};
 use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
-use semiont::channels::RESOURCE_SCOPED_CHANNELS;
+use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
@@ -38,9 +38,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::time::Instant;
-
-/// Where a frame's payload carries the trace it was sent under.
-const TRACE_FIELD: &str = "_trace";
 
 pub(crate) enum Command {
     /// A resource's scope got its first hold.

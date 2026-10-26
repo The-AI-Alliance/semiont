@@ -220,6 +220,8 @@ interface Registry {
   /** `scoped`: the channels delivered only to the subscribers of a resource's scope. */
   audience: { scoped: string[] };
   effect: { writes: string[]; reads: string[] };
+  /** `field`: the payload field a relayed frame's trace rides in. */
+  trace: { field: string };
 }
 
 let registryCache: Registry | undefined;

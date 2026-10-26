@@ -2,7 +2,7 @@
 // generate-ts.mjs — regenerate the TypeScript bus authority from
 // specs/src/bus/registry.json.
 //
-//   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
+//   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, and TRACE_FIELD)
 //   packages/core/src/persisted-events.ts    (the persisted-event catalog)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
@@ -162,7 +162,9 @@ const protocol =
   reg.docs.emittableChannel +
   '\nexport type EmittableChannel = {\n' +
   '  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n' +
-  '}[EventName];\n';
+  '}[EventName];\n\n' +
+  `/** ${reg.trace.meaning.replaceAll('*/', '*\\/')} */\n` +
+  `export const TRACE_FIELD = '${reg.trace.field}';\n`;
 
 // ── persisted-events.ts ────────────────────────────────────────────────
 // The catalog is the registry's stored-event channels, in their order: the

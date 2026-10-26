@@ -172,9 +172,9 @@ Two declarations make this work, and together they rule out a whole bug class (a
 
   A reply may also state what it answers for beside `response`, by stating a property of its request again: `gather:complete` carries the `annotationId` its request did. [`REPLY_NAMES`](../../packages/core/src/bus-operations.ts), generated beside `BUS_OPERATIONS`, lists those properties for every operation. Each list is what the reply's schema requires, without `response`; the generator refuses one the request's schema does not state.
 
-## Trace context: the `_trace` carrier
+## Trace context on a relayed frame
 
-Distributed traces ride on a relayed frame's payload. The `_trace` field carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
+Distributed traces ride on a relayed frame's payload, in the field the bus registry names: `trace` in [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) states the field and what it carries, and the gateway and every SDK are generated from it. It carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
 
 ```ts
 interface TraceCarrier {
@@ -186,11 +186,11 @@ interface TraceCarrier {
 The two directions carry it differently:
 
 - **Emit.** A client's `POST /bus/emit` carries the active span in the `traceparent` request header (`getActiveTraceparent()` in `@semiont/observability` reads it); the payload is left alone.
-- **Receive.** An SSE event has no headers of its own, so the gateway's stream route writes the trace context onto `payload._trace`. On receipt, `extractTraceparent(payload)` pulls and removes the field, returning the carrier so the handler runs under `withTraceparent(carrier, ...)`.
+- **Receive.** An SSE event has no headers of its own, so the gateway's stream route writes the trace context onto the payload's trace field. On receipt, `extractTraceparent(payload)` pulls and removes the field, returning the carrier so the handler runs under `withTraceparent(carrier, ...)`.
 
 The field is **internal plumbing**: subscribers see it stripped before delivery, and most consumer code never needs to touch it. A new wire transport mirrors the pattern — propagate on emit, extract before subscriber dispatch.
 
-For details on how `_trace` correlates with the grep-friendly `busLog` timeline and the OpenTelemetry span tree, see **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)**.
+For details on how a frame's trace correlates with the grep-friendly `busLog` timeline and the OpenTelemetry span tree, see **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)**.
 
 ## Resource scoping
 
@@ -455,5 +455,5 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
-- **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
+- **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how a frame's trace correlates with OpenTelemetry spans and the `busLog` grep timeline.
 - **[flows/README.md](flows/README.md)** — the eight verbs that organize the channel namespace.

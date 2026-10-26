@@ -168,6 +168,7 @@ __all__ = [
     "CHANNEL_NAMES",
     "PERSISTED_EVENT_TYPES",
     "RESOURCE_SCOPED_CHANNELS",
+    "TRACE_FIELD",
     "BECKON_FOCUS",
     "BECKON_HOVER",
     "BECKON_SPARKLE",
@@ -1267,3 +1268,11 @@ PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
     "job:completed",
     "job:failed",
 )
+
+# The field of a relayed frame's payload that carries the trace the frame was published under:
+# an object of W3C's `traceparent` and, when it has one, `tracestate`. A frame the gateway
+# relays over the stream has no headers of its own, so the gateway writes the field on its
+# payload, and a receiver takes it off before the payload is delivered and continues the trace
+# from it. No payload schema declares it, and no subscriber sees it. An emit carries its trace
+# in its request's `traceparent` header, and its payload carries no such field.
+TRACE_FIELD: Final = "_trace"

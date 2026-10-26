@@ -12,7 +12,7 @@ import { storedEvent } from '../harness/archivist';
 import { call } from '../harness/http';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
-import { metricName, operationFor, spanName, spec, telemetry } from '../harness/spec';
+import { metricName, operationFor, registry, spanName, spec, telemetry } from '../harness/spec';
 import { expectedOn, outsideTheTable } from '../harness/telemetry';
 import { eachPlane, PLANES } from '../harness/world';
 import type { Plane } from '../harness/gateway';
@@ -65,7 +65,7 @@ eachPlane(
       expect(span.service).toBe('semiont-gateway');
 
       const frame = await watcher.frame('beckon:focus', (f) => f.payload['annotationId'] === marker);
-      const carried = (frame.payload['_trace'] as { traceparent?: string } | undefined)?.traceparent ?? '';
+      const carried = (frame.payload[registry().trace.field] as { traceparent?: string } | undefined)?.traceparent ?? '';
       expect(carried.split('-')[1]).toBe(t.traceId);
     });
 

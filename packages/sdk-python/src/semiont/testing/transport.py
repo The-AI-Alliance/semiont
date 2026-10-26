@@ -29,6 +29,7 @@ from typing import Final, Literal, NoReturn, final, override
 from pydantic import JsonValue, TypeAdapter
 
 from semiont._reading import Reading
+from semiont.channels import TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
@@ -108,7 +109,7 @@ type Refuse = Callable[[str, Mapping[str, JsonValue]], Mapping[str, JsonValue] |
 _PAIRS: Final = TypeAdapter[list[tuple[str, JsonValue]]](list[tuple[str, JsonValue]])
 
 # What a gateway stamps on a payload: no part of what was asked.
-_STAMPED: Final = ("_trace", "_userId")
+_STAMPED: Final = (TRACE_FIELD, "_userId")
 
 
 @final
