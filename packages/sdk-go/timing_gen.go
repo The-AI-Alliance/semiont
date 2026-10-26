@@ -46,6 +46,16 @@ type Timing struct {
 	// docs/protocol/ARCHIVIST.md states, and this deadline is longer than that
 	// wait.
 	HttpRequestTimeout time.Duration
+	// RequestRetryPause is requestRetryPauseMs: The wait before an HTTP request
+	// that is neither the stream nor an emit is made a second time. It is made
+	// again when the gateway answered it with a status that promises recovery,
+	// or did not answer at all, on a method that cannot cause a second effect
+	// (`transport` in specs/src/retry/cases.json); once, after this wait, or
+	// after a refusal's `Retry-After` when that is longer. A request whose
+	// credential was refused is renewed and sent again at once, without this
+	// wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not
+	// made again.
+	RequestRetryPause time.Duration
 	// Reconnect is reconnectMs: The first wait before a failed stream is opened
 	// again. Each further failure doubles it, up to `maxReconnectMs`, and a
 	// successful open resets it. Also the cadence at which a transport with no
@@ -197,6 +207,7 @@ func DefaultTiming() Timing {
 		EmitTimeout:                       30000 * time.Millisecond,
 		EmitRetry:                         RetryPolicy{Attempts: 4, InitialDelay: 1000 * time.Millisecond, MaxDelay: 4000 * time.Millisecond},
 		HttpRequestTimeout:                30000 * time.Millisecond,
+		RequestRetryPause:                 300 * time.Millisecond,
 		Reconnect:                         5000 * time.Millisecond,
 		MaxReconnect:                      60000 * time.Millisecond,
 		DegradedThreshold:                 3000 * time.Millisecond,

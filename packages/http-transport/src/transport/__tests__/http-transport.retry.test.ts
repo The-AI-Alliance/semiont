@@ -12,7 +12,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { accessToken, baseUrl, resourceId } from '@semiont/core';
+import { REQUEST_RETRY_PAUSE_MS, accessToken, baseUrl, resourceId } from '@semiont/core';
 import { HttpTransport, currentUserOf } from '../http-transport';
 import { APIError } from '../api-error';
 
@@ -132,7 +132,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     transport.dispose();
   });
 
-  test('without a refresher, a POST is not retried at all — ky defaults exclude POST', async () => {
+  test('without a refresher, a POST that got a 503 is not made again — the rule repeats no POST', async () => {
     fetchMock.mockImplementation(async () => failWith(503));
     const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
 
@@ -142,6 +142,28 @@ describe('HttpTransport retry — what the caller receives', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     transport.dispose();
+  });
+
+  test('without a refresher, a GET that got a 503 is made again once, after the table\'s pause', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementation(async () => failWith(503));
+      const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+
+      const thrown = transport.getCurrentUser().then(() => null, (e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(REQUEST_RETRY_PAUSE_MS - 1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      await vi.runAllTimersAsync();
+      expect(await thrown).toMatchObject({ name: 'APIError', status: 503 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      transport.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -311,7 +333,7 @@ describe('currentUserOf — one request, and no transport behind it', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  test('a gateway that never answers is reported as unavailable, not as a refusal', async () => {
+  test('a gateway that never answers is asked once more, then reported as unavailable, not as a refusal', async () => {
     fetchMock.mockImplementation(async () => { throw new TypeError('fetch failed'); });
 
     const thrown = await currentUserOf(testBaseUrl, accessToken('tok-1')).then(() => null, (e: unknown) => e);
@@ -319,6 +341,7 @@ describe('currentUserOf — one request, and no transport behind it', () => {
     expect(thrown).toBeInstanceOf(APIError);
     expect((thrown as APIError).code).toBe('unavailable');
     expect((thrown as APIError).message).toContain('GET /api/users/me got no answer');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

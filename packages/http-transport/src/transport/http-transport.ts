@@ -10,7 +10,7 @@
  * once at construction.
  */
 
-import ky, { HTTPError, NetworkError, TimeoutError, type AfterResponseState, type KyInstance } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError, type AfterResponseState, type KyInstance, type RetryOptions } from 'ky';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, REQUEST_RETRY_PAUSE_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -50,7 +50,6 @@ export interface HttpTransportConfig {
   token$?: Watched<AccessToken | null>;
   /** The deadline on one request that is neither the stream nor an emit. Absent, `HTTP_REQUEST_TIMEOUT_MS`. */
   timeout?: number;
-  retry?: number;
   logger?: Logger;
   /**
    * Renews a refused credential (a 401, or a 429 `refusal-rate`): asked once
@@ -145,12 +144,45 @@ const refusedCredential = (error: Error): boolean =>
   error instanceof HTTPError && refusesCredential(error.response.status, error.data);
 
 /**
- * ky's `shouldRetry` where nothing renews the token: a refused credential is
- * final at once, and never sent again after a `Retry-After`. Everything else
- * is left to ky's own defaults.
+ * How every request is made a second time, whether or not anything renews
+ * its token: once, after `REQUEST_RETRY_PAUSE_MS`, for the statuses and
+ * methods `RETRY_RULES.transport` approves, or when it got no answer at all
+ * on a method that cannot cause a second effect. Where a refresher is
+ * configured, the renewal in the transport's `afterResponse` hook spends the
+ * same one attempt. A refused credential is never retried: it is renewed, or
+ * final.
+ *
+ * **`statusCodes` is a superset PRE-FILTER, not the decision**, and ky's
+ * default `methods` are the idempotent ones. `shouldRetry` is the
+ * authoritative gate and rejects what the lists over-admit; the hooks
+ * suite's census test pins that `statusCodes` stays a superset of what
+ * `RETRY_RULES.transport` can approve, so the two cannot drift apart.
  */
-const finalWhenCredentialRefused = ({ error }: { error: Error }): false | undefined =>
-  refusedCredential(error) ? false : undefined;
+const RETRY: RetryOptions = {
+  limit: 1,
+  statusCodes: [408, 413, 429, 500, 502, 503, 504],
+  delay: () => REQUEST_RETRY_PAUSE_MS,
+  // A refused credential first: it is never asked of the rule, which would
+  // retry a 429 `refusal-rate` after its `Retry-After` with the token
+  // refused. Then one rule, stated in core with its reasoning: every other
+  // status on idempotent methods only. A POST that got a 502 may already
+  // have been processed, and one of them mints a fresh resource id, so a
+  // repeat writes a second resource the caller never learns about.
+  //
+  // Narrowing only — `false` or `undefined`, never `true`. A `true` here
+  // would bypass ky's own remaining checks, including the one that retries
+  // `413` only when the response carries a retry-timing header. Deferring
+  // keeps that behavior exactly as it is.
+  shouldRetry: ({ error }: { error: Error }): false | undefined =>
+    refusedCredential(error) ||
+    (error instanceof HTTPError &&
+      !RETRY_RULES.transport.retryable({
+        status: error.response.status,
+        method: error.request.method,
+      }))
+      ? false
+      : undefined,
+};
 
 const withoutTrailingSlash = (baseUrl: BaseUrl): BaseUrl =>
   (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
@@ -168,7 +200,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<Use
     ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
-      retry: { shouldRetry: finalWhenCredentialRefused },
+      retry: RETRY,
       hooks: {
         beforeError: [
           async ({ request, error }) => {
@@ -214,56 +246,16 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private readonly config: HttpTransportConfig;
 
   constructor(config: HttpTransportConfig) {
-    const { baseUrl, timeout = HTTP_REQUEST_TIMEOUT_MS, retry = 2, logger, tokenRefresher } = config;
+    const { baseUrl, timeout = HTTP_REQUEST_TIMEOUT_MS, logger, tokenRefresher } = config;
     this.config = config;
 
     this.baseUrl = withoutTrailingSlash(baseUrl);
     this.token$ = config.token$ ?? watched(new BehaviorSubject<AccessToken | null>(null));
     this.logger = logger;
 
-    // Retry policy: when a refresher is configured, one attempt more, for the
-    // statuses and methods `RETRY_RULES.transport` approves; the renewal in
-    // the `afterResponse` hook below spends the same one attempt. Otherwise
-    // the plain `retry` number, which leaves ky's own defaults in place (they
-    // never retry POST). Either way a refused credential is never retried: it
-    // is renewed, or final.
-    //
-    // **`statusCodes` is a superset PRE-FILTER, not the decision**, and ky's
-    // default `methods` are the idempotent ones. `shouldRetry` is the
-    // authoritative gate and rejects what the lists over-admit; the hooks
-    // suite's census test pins that `statusCodes` stays a superset of what
-    // `RETRY_RULES.transport` can approve, so the two cannot drift apart.
-    const retryConfig = tokenRefresher
-      ? {
-          limit: 1,
-          statusCodes: [408, 413, 429, 500, 502, 503, 504],
-          // A refused credential first: it is never asked of the rule, which
-          // would retry a 429 `refusal-rate` after its `Retry-After` with the
-          // token refused. Then one rule, stated in core with its reasoning:
-          // every other status on idempotent methods only. A POST that got a
-          // 502 may already have been processed, and one of them mints a
-          // fresh resource id, so a repeat writes a second resource the
-          // caller never learns about.
-          //
-          // Narrowing only — `false` or `undefined`, never `true`. A `true`
-          // here would bypass ky's own remaining checks, including the one
-          // that retries `413` only when the response carries a retry-timing
-          // header. Deferring keeps that behavior exactly as it is.
-          shouldRetry: ({ error }: { error: Error }): false | undefined =>
-            refusedCredential(error) ||
-            (error instanceof HTTPError &&
-              !RETRY_RULES.transport.retryable({
-                status: error.response.status,
-                method: error.request.method,
-              }))
-              ? false
-              : undefined,
-        }
-      : { limit: retry, shouldRetry: finalWhenCredentialRefused };
-
     this.http = ky.create({
       timeout,
-      retry: retryConfig,
+      retry: RETRY,
       hooks: {
         beforeRequest: [
           ({ request }) => {

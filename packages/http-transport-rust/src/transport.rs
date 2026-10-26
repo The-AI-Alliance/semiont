@@ -36,9 +36,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
-/// The wait before a request that is safe to repeat is made a second time.
-const RETRY_PAUSE: Duration = Duration::from_millis(300);
-
 /// A request the gateway did not answer by its deadline.
 fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> TransportError {
     TransportError::without_response(
@@ -312,7 +309,7 @@ impl Shared {
                 Err(error) => {
                     if !retried && repeatable {
                         retried = true;
-                        tokio::time::sleep(RETRY_PAUSE).await;
+                        tokio::time::sleep(timing::REQUEST_RETRY_PAUSE).await;
                         continue;
                     }
                     return Err(self.failed(TransportError::without_response(
@@ -356,7 +353,10 @@ impl Shared {
                 })
             {
                 retried = true;
-                tokio::time::sleep(RETRY_PAUSE.max(stated_wait.unwrap_or_default())).await;
+                tokio::time::sleep(
+                    timing::REQUEST_RETRY_PAUSE.max(stated_wait.unwrap_or_default()),
+                )
+                .await;
                 continue;
             }
             return Err(self.failed(refused));

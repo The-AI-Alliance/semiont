@@ -26,6 +26,11 @@
       "docs": "The deadline on one HTTP request that is neither the stream nor an emit: one of the gateway's own operations (who a token is, a media token, an agent's token, the resource metadata, health, status), the wait for a resource's bytes to begin arriving, a read of a resource's description or of its anchored text, a request to the issuer (its discovery, a grant, a revocation), and a read of a launcher's discovery document. Unanswered here, the request fails as one that got no answer. Without it, a gateway or an issuer that accepts a connection and never answers holds a session's start, and every renewal after it, for as long as the process lives. An upload has no deadline: how long it takes is how large the resource is. A read of anchored text may be held by the Archivist while the Smelter reads the content, for the time docs/protocol/ARCHIVIST.md states, and this deadline is longer than that wait."
     },
     {
+      "name": "requestRetryPauseMs",
+      "value": 300,
+      "docs": "The wait before an HTTP request that is neither the stream nor an emit is made a second time. It is made again when the gateway answered it with a status that promises recovery, or did not answer at all, on a method that cannot cause a second effect (`transport` in specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when that is longer. A request whose credential was refused is renewed and sent again at once, without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made again."
+    },
+    {
       "name": "reconnectMs",
       "value": 5000,
       "docs": "The first wait before a failed stream is opened again. Each further failure doubles it, up to `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with no usable credential checks for one, which costs no request."

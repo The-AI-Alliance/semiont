@@ -111,6 +111,8 @@ async def as_me(kb: KbTarget, home: str) -> None:
 - **The store is the launcher's** ([`specs/src/sign-in-store`][sign-in-store]):
   the same file and the same lock, on macOS, Linux and Windows. A sign-in made
   here serves the launcher's verbs, and one it renewed serves this session.
+  A renewal another program made meanwhile stands, and a stack it signed out
+  stays signed out, as the store's `renewals` say, row for row.
   `MemorySignIn` keeps one for the life of the process instead, and
   `sign_out` revokes one at its issuer and forgets it.
 - **`SEMIONT_BUS_LOG` is the only environment variable the package reads**

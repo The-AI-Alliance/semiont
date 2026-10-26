@@ -129,14 +129,15 @@ type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
 /// Renew at the issuer the stored session of `kb_id` names. A renewal asked
 /// for while one is under way is that one: a stream refused and a request
 /// refused at the same moment spend one refresh token, not two, of which an
-/// issuer that rotates them would refuse the second.
+/// issuer that rotates them would refuse the second. It goes by the token the
+/// first of them holds.
 fn renewing_stored(
     storage: Arc<dyn SessionStorage>,
     kb_id: String,
     http: reqwest::Client,
     renewing: Renewing,
 ) -> Refresh {
-    Arc::new(move || {
+    Arc::new(move |holding: Option<String>| {
         let renewal = locked(&renewing)
             .entry(kb_id.clone())
             .or_insert_with(|| {
@@ -148,9 +149,14 @@ fn renewing_stored(
                 );
                 let once: BoxFuture<'static, Result<Option<String>, String>> =
                     Box::pin(async move {
-                        let renewed = refresh_stored_session(storage.as_ref(), &kb_id, &http)
-                            .await
-                            .map_err(|refused| refused.to_string());
+                        let renewed = refresh_stored_session(
+                            storage.as_ref(),
+                            &kb_id,
+                            holding.as_deref(),
+                            &http,
+                        )
+                        .await
+                        .map_err(|refused| refused.to_string());
                         locked(&renewing).remove(&kb_id);
                         renewed
                     });

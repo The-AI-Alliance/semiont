@@ -912,7 +912,7 @@ async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_kee
         granted("a2", Some("r2")),
     ]);
 
-    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", &world.http).await;
+    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http).await;
 
     assert_eq!(renewed, Ok(Some("a2".to_owned())));
     assert_eq!(world.token_forms().len(), 3);
@@ -934,7 +934,7 @@ async fn a_refused_grant_is_final_on_its_first_answer() {
         let before = world.token_forms().len();
         world.answers([refusal.clone(), granted("never", None)]);
 
-        let refused = refresh_stored_session(storage.as_ref(), "kb-a", &world.http)
+        let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
             .await
             .expect_err("the grant is refused");
 
@@ -960,7 +960,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
     let storage = storing(&world, "kb-a", "a1");
     world.answers((0..10).map(|_| (503, Value::Null)));
 
-    let refused = refresh_stored_session(storage.as_ref(), "kb-a", &world.http)
+    let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
         .await
         .expect_err("the budget is spent");
 
@@ -980,7 +980,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
             ..world.stored("a1", "r1")
         },
     );
-    let unanswered = refresh_stored_session(nowhere.as_ref(), "kb-a", &world.http)
+    let unanswered = refresh_stored_session(nowhere.as_ref(), "kb-a", Some("a1"), &world.http)
         .await
         .expect_err("nothing is there");
     assert_eq!(unanswered.status, None);
@@ -992,55 +992,222 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
     );
 }
 
-#[tokio::test]
-async fn with_nothing_stored_there_is_nothing_to_renew_and_that_is_no_failure() {
-    let world = World::start().await;
-    let storage = InMemorySessionStorage::new();
+// ── What a renewal keeps while other programs renew and sign out ──────
+//
+// Every renewal of specs/src/sign-in-store/cases.json, through
+// refresh_stored_session, over each storage a sign-in is kept in here.
 
-    assert_eq!(
-        refresh_stored_session(&storage, "kb-a", &world.http).await,
-        Ok(None)
-    );
-    assert!(world.token_forms().is_empty());
+/// The renewer's storage, on which another program acts between the
+/// renewal's read and its write: while its grant is in flight.
+struct Meanwhile {
+    renewer: Arc<dyn SessionStorage>,
+    act: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+}
+
+impl SessionStorage for Meanwhile {
+    fn get(&self, key: &str) -> Option<String> {
+        let found = self.renewer.get(key);
+        if let Some(act) = self.act.lock().unwrap().take() {
+            act();
+        }
+        found
+    }
+    fn set(&self, key: &str, value: &str) {
+        self.renewer.set(key, value);
+    }
+    fn delete(&self, key: &str) {
+        self.renewer.delete(key);
+    }
+    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+        self.renewer.update(key, change);
+    }
+    fn subscribe(
+        &self,
+        on_change: semiont::storage::StorageChange,
+    ) -> Option<semiont::storage::StorageSubscription> {
+        self.renewer.subscribe(on_change)
+    }
+}
+
+/// The name of an access token a renewal row minted: its `jti`.
+fn named(token: &str) -> String {
+    token
+        .split('.')
+        .nth(1)
+        .and_then(|claims| URL_SAFE_NO_PAD.decode(claims).ok())
+        .and_then(|claims| serde_json::from_slice::<Value>(&claims).ok())
+        .and_then(|claims| claims["jti"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| token.to_owned())
+}
+
+/// What one renewal row comes to over one storage: each way it is not the
+/// row's.
+async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
+    let world = World::start().await;
+    let home = StateHome::new();
+    let in_the_file = || -> Arc<dyn SessionStorage> {
+        Arc::new(SignInStore::at(
+            home.0.join(FILE_NAME),
+            Arc::new(InMemorySessionStorage::new()),
+            Arc::new(|why| panic!("the sign-in store: {why}")),
+        ))
+    };
+    // The renewer's storage, and another program's.
+    let (renewer, another) = match store {
+        "SignInStore" => (in_the_file(), in_the_file()),
+        _ => {
+            let shared: Arc<dyn SessionStorage> = Arc::new(InMemorySessionStorage::new());
+            (shared.clone(), shared)
+        }
+    };
+    let expired: Vec<&str> = row["expired"]
+        .as_array()
+        .expect("expired")
+        .iter()
+        .map(|name| name.as_str().expect("a name"))
+        .collect();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs() as i64;
+    // Each access token the row names is a JWT of its own.
+    let token = |name: &str| {
+        let expiry = if expired.contains(&name) {
+            now - 3600
+        } else {
+            now + 3600
+        };
+        let claims = json!({ "email": "alice@example.org", "iss": world.issuer(), "exp": expiry, "jti": name });
+        format!(
+            "{}.{}.sig",
+            URL_SAFE_NO_PAD.encode(r#"{"alg":"none"}"#),
+            URL_SAFE_NO_PAD.encode(claims.to_string())
+        )
+    };
+    let session = |stated: &Value| StoredSession {
+        access: token(stated["token"].as_str().expect("a token")),
+        refresh: stated["refreshToken"]
+            .as_str()
+            .expect("a refresh token")
+            .to_owned(),
+        client_id: "semiont-cli".to_owned(),
+        token_endpoint: format!("{}/token", world.issuer()),
+        revocation_endpoint: None,
+    };
+    store_session(another.as_ref(), "local", &session(&row["kept"]));
+    let meanwhile = &row["meanwhile"];
+    let act: Option<Box<dyn FnOnce() + Send>> = match meanwhile["does"].as_str() {
+        None => None,
+        Some("renews") => {
+            let (another, theirs) = (another.clone(), session(&meanwhile["theirs"]));
+            Some(Box::new(move || {
+                store_session(another.as_ref(), "local", &theirs)
+            }))
+        }
+        Some("signs-out") => {
+            let another = another.clone();
+            Some(Box::new(move || another.delete(&session_key("local"))))
+        }
+        Some(other) => panic!("another program {other}"),
+    };
+    let issues = &row["issues"];
+    world.answers([granted(
+        &token(issues["token"].as_str().expect("a token")),
+        issues["refreshToken"].as_str(),
+    )]);
+    let renewing: Arc<dyn SessionStorage> = match (meanwhile["when"].as_str(), act) {
+        (_, None) => renewer.clone(),
+        (Some("before"), Some(act)) => {
+            act();
+            renewer.clone()
+        }
+        (Some("during"), Some(act)) => Arc::new(Meanwhile {
+            renewer: renewer.clone(),
+            act: Mutex::new(Some(act)),
+        }),
+        (when, _) => panic!("another program acts {when:?}"),
+    };
+    let holding = row["holding"].as_str().map(token);
+
+    let given =
+        refresh_stored_session(renewing.as_ref(), "local", holding.as_deref(), &world.http).await;
+
+    let mut wrong = Vec::new();
+    let spent: Vec<String> = world
+        .token_forms()
+        .iter()
+        .map(|form| form["refresh_token"].clone())
+        .collect();
+    let spends: Vec<String> = row["spends"]
+        .as_str()
+        .map(str::to_owned)
+        .into_iter()
+        .collect();
+    if spent != spends {
+        wrong.push(format!("grants were made with {spent:?}, want {spends:?}"));
+    }
+    match given {
+        Ok(given) => {
+            let given = given.as_deref().map(named);
+            let gives = row["gives"].as_str().map(str::to_owned);
+            if given != gives {
+                wrong.push(format!("gave {given:?}, want {gives:?}"));
+            }
+        }
+        Err(failed) => wrong.push(format!("the renewal failed: {failed}")),
+    }
+    let left =
+        stored_session(renewer.as_ref(), "local").map(|left| (named(&left.access), left.refresh));
+    let leaves = row["leaves"].as_object().map(|leaves| {
+        (
+            leaves["token"].as_str().expect("a token").to_owned(),
+            leaves["refreshToken"]
+                .as_str()
+                .expect("a refresh token")
+                .to_owned(),
+        )
+    });
+    if left != leaves {
+        wrong.push(format!("the store holds {left:?}, want {leaves:?}"));
+    }
+    wrong
 }
 
 #[tokio::test]
-async fn a_session_signed_out_while_it_was_renewed_is_not_written_back_and_is_given_no_token() {
-    /// A storage that forgets the session the moment it is first read.
-    struct SignedOutMeanwhile(InMemorySessionStorage);
-    impl SessionStorage for SignedOutMeanwhile {
-        fn get(&self, key: &str) -> Option<String> {
-            let stored = self.0.get(key);
-            self.0.delete(key);
-            stored
-        }
-        fn set(&self, key: &str, value: &str) {
-            self.0.set(key, value);
-        }
-        fn delete(&self, key: &str) {
-            self.0.delete(key);
-        }
-        fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
-            self.0.update(key, change);
-        }
-        fn subscribe(
-            &self,
-            _: semiont::storage::StorageChange,
-        ) -> Option<semiont::storage::StorageSubscription> {
-            None
+async fn every_renewal_is_the_tables() {
+    let table: Value =
+        serde_json::from_str(include_str!("../../../specs/src/sign-in-store/cases.json"))
+            .expect("the table");
+    let rows = table["renewals"].as_array().expect("the renewals");
+    assert!(!rows.is_empty(), "the table has no renewals");
+    let members = HashSet::from([
+        "why",
+        "kept",
+        "holding",
+        "meanwhile",
+        "expired",
+        "issues",
+        "spends",
+        "leaves",
+        "gives",
+    ]);
+    let mut wrong = Vec::new();
+    for row in rows {
+        let stated: HashSet<&str> = row
+            .as_object()
+            .expect("a row")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(stated, members, "{row}");
+        let why = row["why"].as_str().expect("why");
+        for store in ["SignInStore", "InMemorySessionStorage"] {
+            for failure in renewed_as_the_row_says(row, store).await {
+                wrong.push(format!("{store}, {why}: {failure}"));
+            }
         }
     }
-    let world = World::start().await;
-    let storage = SignedOutMeanwhile(InMemorySessionStorage::new());
-    store_session(&storage, "kb-a", &world.stored("a1", "r1"));
-    world.answers([granted("a2", Some("r2"))]);
-
-    let renewed = refresh_stored_session(&storage, "kb-a", &world.http).await;
-
-    // The issuer renewed it, and there is no session left to hold the token.
-    assert_eq!(world.token_forms().len(), 1);
-    assert_eq!(renewed, Ok(None));
-    assert_eq!(storage.0.get(&session_key("kb-a")), None);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 #[tokio::test]
@@ -2243,6 +2410,7 @@ async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_
     let refused = ends(refresh_stored_session(
         storage.as_ref(),
         "kb-a",
+        Some("a1"),
         &world.http,
     ))
     .await
