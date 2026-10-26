@@ -20,24 +20,9 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { dirname, join, relative } from 'path';
-import { fileURLToPath } from 'url';
-
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SKIP = new Set(['node_modules', '.venv', 'dist', '.git', 'coverage', '.next', 'build']);
-
-function* sources(dir: string): Generator<string> {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP.has(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) yield* sources(full);
-    else if (/\.tsx?$/.test(entry)) yield full;
-  }
-}
-
-const stripComments = (source: string) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { REPO, stripComments, typeScriptFiles } from './repository-files';
 
 /** Any per-channel subscription that could feed a relay, capturing the channel.
  *  `stream`/`on` are payload-only; `frames` carries the envelope but is still a
@@ -65,20 +50,17 @@ function callbackBody(source: string, openParen: number): string {
 describe('a bus-to-bus relay forwards frames', () => {
   test('every relay goes through relayFrames', () => {
     const offenders: string[] = [];
-    for (const root of ['packages', 'apps']) {
-      for (const file of sources(join(REPO, root))) {
-        const path = relative(REPO, file);
-        if (path === RELAY_HOME) continue;
-        const source = stripComments(readFileSync(file, 'utf-8'));
-        for (const m of source.matchAll(CHANNEL_SUBSCRIBE)) {
-          const openParen = m.index + m[0].length - 1;
-          // Re-emitting the SAME channel is a relay. A different channel is a
-          // responder answering a request, which owes nothing to this rule.
-          const sameChannel = new RegExp(`\\.\\s*emit\\s*\\(\\s*${m[1]}\\s*,`);
-          if (!sameChannel.test(callbackBody(source, openParen))) continue;
-          const line = source.slice(0, m.index).split('\n').length;
-          offenders.push(`${path}:${line} — ${m[0].trim()}`);
-        }
+    for (const path of typeScriptFiles('packages', 'apps')) {
+      if (path === RELAY_HOME) continue;
+      const source = stripComments(readFileSync(join(REPO, path), 'utf-8'));
+      for (const m of source.matchAll(CHANNEL_SUBSCRIBE)) {
+        const openParen = m.index + m[0].length - 1;
+        // Re-emitting the SAME channel is a relay. A different channel is a
+        // responder answering a request, which owes nothing to this rule.
+        const sameChannel = new RegExp(`\\.\\s*emit\\s*\\(\\s*${m[1]}\\s*,`);
+        if (!sameChannel.test(callbackBody(source, openParen))) continue;
+        const line = source.slice(0, m.index).split('\n').length;
+        offenders.push(`${path}:${line} — ${m[0].trim()}`);
       }
     }
     expect(
