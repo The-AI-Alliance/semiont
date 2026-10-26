@@ -91,7 +91,7 @@ func TestYieldDelegateGathersCreatesAndFollowsItsJobInProcess(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
-	harness.MustContainAll(t, "output", out, "Generating", "res-new", "Generated")
+	harness.MustContainAll(t, "output", out, "Generating", "Yielded", "res-new", "Derived")
 
 	// The gather names its traversal: with none, the librarian would be asked for no resources at all.
 	gathers := requestsOf(fake, gathering)

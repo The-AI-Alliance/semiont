@@ -425,9 +425,17 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	// the one fix that applies.
 	harness.MustContainAll(t, "stderr", stderr, "browse", "session was rejected", "could not renew", "invalid_grant", "semiont login")
 	// A renewal that failed earns nothing more: no second grant, and nothing
-	// sent after the refusal.
-	if got := gateway.bearers(); len(got) != 1 {
-		t.Errorf("want the stored token shown once and nothing after, got %d bearer(s)", len(got))
+	// sent after the refusal. The stored token is shown once to be asked
+	// about, and at most once on the stream, which the client opens with the
+	// token its session holds while the session asks, as every SDK's does.
+	if n := gateway.times("/api/users/me", "token-1"); n != 1 {
+		t.Errorf("want the gateway asked once who the stored token is, got %d", n)
+	}
+	if n := gateway.times("/bus/subscribe", "token-1"); n > 1 {
+		t.Errorf("want the stored token offered to the stream at most once, got %d", n)
+	}
+	if got := gateway.bearers(); len(got) != gateway.times("/api/users/me", "token-1")+gateway.times("/bus/subscribe", "token-1") {
+		t.Errorf("want nothing shown but the stored token, asked about and offered to the stream, got %v", got)
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
@@ -458,9 +466,10 @@ func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
 		t.Errorf("claimed the refresh failed when it succeeded:\n%s", stderr)
 	}
 	// One renewal, and the gateway asked once who the renewed token is. A
-	// second refusal is not an invitation to loop.
-	if n := gateway.times("", "token-2"); n != 1 {
-		t.Errorf("want the renewed token shown exactly once, got %d", n)
+	// second refusal is not an invitation to loop: the renewed token is shown
+	// to be asked about, and at most once on the stream, never again.
+	if n := gateway.times("", "token-2"); n != gateway.times("/api/users/me", "token-2")+gateway.times("/bus/subscribe", "token-2") || gateway.times("/bus/subscribe", "token-2") > 1 {
+		t.Errorf("want the renewed token shown to be asked about and at most once on the stream, got %d showings", n)
 	}
 	if n := gateway.times("/api/users/me", "token-2"); n != 1 {
 		t.Errorf("want the gateway asked once who the renewed token is, got %d", n)
