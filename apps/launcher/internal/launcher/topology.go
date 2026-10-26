@@ -34,6 +34,14 @@ type placement struct {
 	rt   string
 	// addr: the address this start places the daemons it runs at.
 	addr string
+	// lan: this Mac's address on the network for a `network lan` start, where
+	// the issuer is; else empty.
+	lan string
+}
+
+// placementOf: a start's placement, where e publishes.
+func placementOf(fc flowCtx, e exposure) placement {
+	return placement{st: fc.stack, plan: fc.plan, rt: e.rt, addr: e.addr, lan: e.lan}
 }
 
 // placed: whether the launcher runs role's daemon in this start.
@@ -50,7 +58,7 @@ func (p placement) gatewayURL() string {
 
 // exposure: where this start publishes and probes each port, by who dials it.
 func (p placement) exposure() exposure {
-	return exposure{rt: p.rt, addr: p.addr}
+	return exposure{rt: p.rt, addr: p.addr, lan: p.lan}
 }
 
 // issuer: the issuer a container signs in at — the Keycloak the launcher runs
@@ -67,9 +75,14 @@ func (p placement) issuer() string {
 // keycloakHostname: the origin of the issuer the launcher's Keycloak serves.
 // Keycloak is started with it as its fixed hostname, so every token names this
 // issuer wherever it was asked for, and the endpoints a caller dials behind it
-// (token, keys) follow the address it asked at.
+// (token, keys) follow the address it asked at. Under `network lan` it is
+// this Mac's address on the network, where every client reaches it (D3a).
 func (p placement) keycloakHostname() string {
-	return fmt.Sprintf("http://%s:%d", identityHost(p.rt, p.addr), p.plan.Roles["identity"].Port)
+	host := identityHost(p.rt, p.addr)
+	if p.exposure().behindProxy("identity") {
+		host = p.lan
+	}
+	return fmt.Sprintf("http://%s:%d", host, p.plan.Roles["identity"].Port)
 }
 
 // archivist: where a service that reads the record reaches the Archivist —

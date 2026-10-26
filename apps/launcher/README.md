@@ -109,7 +109,10 @@ semiont stop
   holding `http://localhost:3000` literally will not follow it.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
-  own secrets come from (`secret`), the Browser's image (`browser-image`), and
+  own secrets come from (`secret`), the Browser's image (`browser-image`),
+  who reaches a local stack (`network`: `local`, or `lan`, where the network
+  reaches the gateway and the issuer's realm through the launcher's own
+  filtering proxy, `semiont issuer-proxy`, a recorded detached process), and
   the default store for new KBs (`secret-store --default`) on this machine;
   and for the KB you are in (or `--root`), its `config` (the Inference
   document a start runs), `keycloak-port` and `secret-store`.

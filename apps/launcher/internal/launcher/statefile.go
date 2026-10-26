@@ -56,8 +56,13 @@ type StackState struct {
 	KBDid     string    `json:"kbDid,omitempty"` // did:web from .semiont/config.yaml
 	Config    string    `json:"config,omitempty"`
 	HostAddr  string    `json:"hostAddr,omitempty"`
-	Stage     string    `json:"configStage,omitempty"`
-	Ports     []int     `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
+	// LanAddr: this Mac's address on the network, when the stack was started
+	// `network lan`; IssuerProxy the filtering proxy that serves the issuer
+	// there (issuerproxy.go). Both empty for a `local` stack.
+	LanAddr     string             `json:"lanAddr,omitempty"`
+	IssuerProxy *issuerProxyRecord `json:"issuerProxy,omitempty"`
+	Stage       string             `json:"configStage,omitempty"`
+	Ports       []int              `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
 	// Codespace: the placement facts a stack on a codespace has and a local
 	// one cannot. Its PRESENCE is the platform — there is no separate
 	// platform field to keep in sync with it, and no local stack carrying
@@ -78,6 +83,20 @@ type codespacePlacement struct {
 	// 0 when the KB trusts an issuer the codespace does not run.
 	KeycloakPort       int `json:"keycloakPort,omitempty"`
 	KeycloakForwardPID int `json:"keycloakForwardPid,omitempty"`
+}
+
+// issuerProxyRecord: the detached issuer proxy, and the arguments it was
+// started with, so status can start it again as it was.
+type issuerProxyRecord struct {
+	PID      int    `json:"pid"`
+	Listen   string `json:"listen"`
+	Upstream string `json:"upstream"`
+	Realm    string `json:"realm"`
+}
+
+// exposure: where this stack was published, as its record says.
+func (st *StackState) exposure() exposure {
+	return exposure{rt: st.Runtime, addr: st.HostAddr, lan: st.LanAddr}
 }
 
 // platform: derived from the record's shape, never stored beside it. A stack

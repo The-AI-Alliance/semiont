@@ -10,6 +10,11 @@ import "fmt"
 // port a container dials on the host's bridge address, which containers and
 // the host reach and the network does not. Under Docker and Podman every
 // port is still published on every interface, until D1 is ruled for them.
+//
+// With `semiont settings network lan` (D3), the network reaches two things
+// more: the gateway, published on every interface, and the issuer, at this
+// Mac's address on the network, served by the launcher's filtering proxy
+// (issuerproxy.go) with Keycloak behind it on the bridge address.
 
 // reach: who dials a port.
 type reach int
@@ -49,9 +54,13 @@ func reachOf(role string, hostPort int) reach {
 	return reachContainers
 }
 
-// exposure: a start's runtime and the host address its containers reach.
+// exposure: a start's runtime, the host address its containers reach, and,
+// under `network lan`, this Mac's address on the network.
 type exposure struct {
 	rt, addr string
+	// lan: this Mac's address on the network when the start is `network lan`,
+	// else empty. Only a confined runtime carries one (startNetwork).
+	lan string
 }
 
 // confined: whether this runtime publishes only where a port's dialers are.
@@ -60,16 +69,32 @@ func (e exposure) confined() bool {
 	return e.rt == "container"
 }
 
+// behindProxy: whether role's dialers reach it through the launcher's
+// filtering proxy rather than at its own publish — the issuer, under
+// `network lan` (D3b-A1). Its own port is then published for the proxy and
+// the launcher alone, on the bridge address, at the containers' side.
+func (e exposure) behindProxy(role string) bool {
+	return e.lan != "" && role == "identity"
+}
+
 // publishSpecs: the publish specs (`[address:]host:container`) of one of
 // role's ports — a person's on loopback, the containers' on the bridge
-// address, both for a port both dial.
+// address, both for a port both dial. Under `network lan` the gateway's
+// person side is published on every interface, and the issuer's own port
+// behind the proxy.
 func (e exposure) publishSpecs(role string, hostPort, ctrPort int) []string {
 	if !e.confined() {
 		return []string{fmt.Sprintf("%d:%d", hostPort, ctrPort)}
 	}
+	if e.behindProxy(role) {
+		return []string{fmt.Sprintf("%s:%d:%d", e.addr, hostPort+containersSide, ctrPort)}
+	}
 	r := reachOf(role, hostPort)
 	var specs []string
-	if r&reachPerson != 0 {
+	switch {
+	case r&reachPerson != 0 && e.lan != "" && role == "gateway":
+		specs = append(specs, fmt.Sprintf("%d:%d", hostPort, ctrPort))
+	case r&reachPerson != 0:
 		specs = append(specs, fmt.Sprintf("127.0.0.1:%d:%d", hostPort, ctrPort))
 	}
 	if r&reachContainers != 0 {
@@ -98,8 +123,12 @@ func (e exposure) containersPort(role string, hostPort int) int {
 }
 
 // containersSideNeed: the extra must-be-free port the containers' side of
-// role's port claims, when there is one.
+// role's port claims, when there is one: the containers' side of a port a
+// person dials too, or the issuer's own port behind the proxy.
 func (e exposure) containersSideNeed(role string, need portNeed) []portNeed {
+	if e.behindProxy(role) {
+		return []portNeed{{need.port + containersSide, need.label + " (behind the issuer proxy)"}}
+	}
 	if p := e.containersPort(role, need.port); p != need.port {
 		return []portNeed{{p, need.label + " (containers)"}}
 	}
@@ -112,17 +141,31 @@ func (e exposure) containersSideNeed(role string, need portNeed) []portNeed {
 // stack runs that root.
 func recordedExposure(key string) exposure {
 	if st := LoadStackSet().Stacks["local"]; st != nil && rootKey(st.KBDid, st.KBRoot) == key {
-		return exposure{rt: st.Runtime, addr: st.HostAddr}
+		return st.exposure()
 	}
 	return exposure{}
 }
 
 // probeHost: where the launcher asks role's port — loopback for a port a
 // person dials, else where the containers dial it (D5), so a probe passes
-// only on an address something uses.
+// only on an address something uses. The issuer behind the proxy is asked
+// where everyone dials it, at the network address.
 func (e exposure) probeHost(role string, hostPort int) string {
+	if e.behindProxy(role) {
+		return e.lan
+	}
 	if !e.confined() || reachOf(role, hostPort)&reachPerson != 0 {
 		return "localhost"
 	}
 	return e.addr
+}
+
+// keycloakAt: where the launcher reaches the Keycloak it runs on port, for
+// its own waits and its administration: where the issuer is asked, or, behind
+// the proxy, Keycloak's own publish on the bridge address.
+func (e exposure) keycloakAt(port int) (string, int) {
+	if e.behindProxy("identity") {
+		return e.addr, port + containersSide
+	}
+	return e.probeHost("identity", port), port
 }

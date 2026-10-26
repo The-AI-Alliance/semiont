@@ -63,6 +63,8 @@ var settingsTable = []setting{
 		set: setRuntime, unset: unsetRuntime},
 	{name: "browser-image", scope: scopeMachine, show: showBrowserImage, saves: []string{"rootsRegistry.BrowserImage"},
 		set: setBrowserImage, unset: unsetBrowserImage},
+	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
+		set: setNetwork, unset: unsetNetwork},
 	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"}},
 	{name: "secret-store", flag: "--default", scope: scopeMachine, show: showDefaultSecretStore,
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
@@ -99,6 +101,11 @@ Settings:
   secret          machine          Where your own secrets come from (pointers,
                                    never values): semiont settings secret --help
   browser-image   machine          The image the machine's Browser runs
+  network         machine          Who reaches a local stack: local, the
+                                   default, this machine alone; or lan, where
+                                   the network reaches its gateway and its
+                                   issuer too, over plain HTTP. Apple
+                                   container only.
   config          knowledge base   Which Inference document in
                                    .semiont/stack/inference/ a start runs
   keycloak-port   knowledge base   The port of this knowledge base's Keycloak
@@ -390,6 +397,49 @@ func setBrowserImage(u *UI, kb kbRoot, value string) bool {
 }
 
 func unsetBrowserImage(u *UI, kb kbRoot) bool { return recorded(u, setBrowserImagePref("")) }
+
+const (
+	networkLocal = "local"
+	networkLAN   = "lan"
+)
+
+// networkSetting: the network setting a start reads — local unless lan is
+// recorded.
+func networkSetting() string {
+	if loadRoots().Network == networkLAN {
+		return networkLAN
+	}
+	return networkLocal
+}
+
+func showNetwork(u *UI, kb kbRoot) []settingLine {
+	if networkSetting() == networkLAN {
+		return []settingLine{{networkLAN, "the gateway and the issuer answer the network, over plain HTTP; every start says so"}}
+	}
+	return []settingLine{{networkLocal, "the default: a stack answers this machine alone"}}
+}
+
+func setNetwork(u *UI, kb kbRoot, value string) bool {
+	switch value {
+	case networkLocal:
+		return unsetNetwork(u, kb)
+	case networkLAN:
+		return recorded(u, setNetworkPref(networkLAN))
+	}
+	u.Fail("%q is not a network setting: local or lan.", value)
+	return false
+}
+
+func unsetNetwork(u *UI, kb kbRoot) bool { return recorded(u, setNetworkPref("")) }
+
+func setNetworkPref(network string) error {
+	reg, err := readRoots()
+	if err != nil {
+		return err
+	}
+	reg.Network = network
+	return writeRoots(reg)
+}
 
 func setBrowserImagePref(img string) error {
 	reg, err := readRoots()

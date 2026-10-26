@@ -90,6 +90,21 @@ func identityEndpoint(rp rolePlan, e exposure) string {
 	return fmt.Sprintf("http://%s:%d%s", e.probeHost("identity", rp.Port), rp.Port, issuerPath(rp.Issuer))
 }
 
+// keycloakEndpoint: the realm at the Keycloak the launcher runs, where the
+// launcher itself reaches it for its waits and its administration — the
+// issuer's own address, or Keycloak behind the issuer proxy under `network
+// lan` (exposure.keycloakAt).
+func keycloakEndpoint(rp rolePlan, e exposure) string {
+	return keycloakBase(e, rp.Port) + issuerPath(rp.Issuer)
+}
+
+// keycloakBase: the origin of the Keycloak the launcher runs on port, where
+// the launcher reaches it: the base its admin API is called at.
+func keycloakBase(e exposure, port int) string {
+	host, p := e.keycloakAt(port)
+	return fmt.Sprintf("http://%s:%d", host, p)
+}
+
 // serviceClients: the realm's view of `stackServices` — every process that
 // PRESENTS a token to another Semiont service, and so needs an account. The
 // Browser presents none: it is a viewer, and the only one of ours without an
@@ -244,64 +259,20 @@ func natsConfString(text string) string {
 // the realm import and `semiont identity sync` cannot disagree about them: a
 // second copy for sync would be a mirror of the realm document, and the
 // loopback rule below is exactly the kind of detail a second copy loses.
-func browserClient(audience, addr string, browserPort int) map[string]any {
+//
+// The Browser is registered at loopback alone. A person on another machine
+// runs their own Browser, at their own loopback, which these entries match
+// too (LOCAL-ONLY-STACK D3): no Browser is ever reached at a network address.
+func browserClient(audience string, browserPort int) map[string]any {
 	c := publicClient(BrowserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true
-	c["redirectUris"] = browserRedirectUris(addr)
-	c["webOrigins"] = browserWebOrigins(addr, browserPort)
+	c["redirectUris"] = loopbackRedirectUris()
+	c["webOrigins"] = loopbackWebOrigins(browserPort)
 	c["attributes"] = map[string]string{
 		"pkce.code.challenge.method": "S256",
 		"post.logout.redirect.uris":  "+",
 	}
 	return c
-}
-
-// browserRedirectUris: loopback entries carry NO PORT, which is what makes any
-// port match.
-//
-// RFC 8252 §7.3 requires an authorization server to accept any port on a
-// loopback redirect, because only software already on the user's machine can
-// bind one — the port carries no security meaning there. Keycloak honours
-// that rule, but only when the registered URI omits the port: pinning
-// `localhost:3000` opts back out of it, and `semiont start --service browser
-// --port 3001` then produces a healthy stack nobody can sign in to.
-//
-// The LAN address stays pinned. It is not loopback, so the rule does not
-// apply and a wildcard port there would be a real widening.
-//
-// This rule governs the REDIRECT leg only. Its companion, browserWebOrigins,
-// states the opposite for CORS origins and says why: Keycloak matches those
-// exactly, so they carry the port.
-func browserRedirectUris(addr string) []string {
-	return []string{
-		"http://localhost/*",
-		"http://127.0.0.1/*",
-		"http://" + addr + ":3000/*",
-	}
-}
-
-// browserWebOrigins: CORS origins carry the PORT, which is the opposite of
-// what the redirect URIs above do — and deliberately so.
-//
-// The two are matched by different rules. A redirect URI is matched under RFC
-// 8252 §7.3, where a portless loopback entry accepts any port. A web origin is
-// matched EXACTLY: Keycloak compares the request's `Origin` header against this
-// list verbatim, and an origin that is not in it gets 403 `Invalid origin` with
-// no `Access-Control-Allow-Origin` header at all.
-//
-// That is why `webOrigins: ["+"]` — "derive these from the redirect URIs" — is
-// wrong here. It couples the two, so making the loopback redirects portless
-// (which the redirect leg needs) silently reduces the CORS set to
-// `http://localhost` on port 80, and the Browser's real origin is in no set at
-// all. The SPA does its PKCE token exchange client-side, cross-origin to the
-// issuer, so that POST is rejected and sign-in dies as `error=Verification`.
-//
-// The port is the Browser's configured one, so `--port` moves the origin with
-// it. A realm imports once and pins the port it was created with; `semiont
-// identity sync` reconciles this list afterwards, which is what makes the move
-// repairable.
-func browserWebOrigins(addr string, browserPort int) []string {
-	return append(loopbackWebOrigins(browserPort), fmt.Sprintf("http://%s:%d", addr, browserPort))
 }
 
 // runningBrowserPort: the port the Browser is actually on, for `identity sync`
@@ -324,9 +295,26 @@ func runningBrowserPort() int {
 	return defaultBrowserPort
 }
 
-// loopbackWebOrigins: the subset sync guarantees, for the same reason
-// loopbackRedirectUris is — the LAN address is deployment truth `identity sync`
-// cannot re-derive, so it adds the two it CAN derive and removes nothing.
+// loopbackWebOrigins: the Browser's CORS origins. They carry the PORT, which is
+// the opposite of what its redirect URIs do — and deliberately so.
+//
+// The two are matched by different rules. A redirect URI is matched under RFC
+// 8252 §7.3, where a portless loopback entry accepts any port. A web origin is
+// matched EXACTLY: Keycloak compares the request's `Origin` header against this
+// list verbatim, and an origin that is not in it gets 403 `Invalid origin` with
+// no `Access-Control-Allow-Origin` header at all.
+//
+// That is why `webOrigins: ["+"]` — "derive these from the redirect URIs" — is
+// wrong here. It couples the two, so making the loopback redirects portless
+// (which the redirect leg needs) silently reduces the CORS set to
+// `http://localhost` on port 80, and the Browser's real origin is in no set at
+// all. The SPA does its PKCE token exchange client-side, cross-origin to the
+// issuer, so that POST is rejected and sign-in dies as `error=Verification`.
+//
+// The port is the Browser's configured one, so `--port` moves the origin with
+// it. A realm imports once and pins the port it was created with; `semiont
+// identity sync` adds these when absent, which is what makes the move
+// repairable. It removes nothing: an origin somebody added is theirs.
 func loopbackWebOrigins(browserPort int) []string {
 	return []string{
 		fmt.Sprintf("http://localhost:%d", browserPort),
@@ -334,9 +322,19 @@ func loopbackWebOrigins(browserPort int) []string {
 	}
 }
 
-// loopbackRedirectUris: the subset sync guarantees. It adds these when absent
-// rather than replacing the list, because the LAN entry is deployment truth
-// this command cannot re-derive — and because removing nothing is what makes
+// loopbackRedirectUris: the Browser's redirect URIs. They carry NO PORT, which
+// is what makes any port match.
+//
+// RFC 8252 §7.3 requires an authorization server to accept any port on a
+// loopback redirect, because only software already on the user's machine can
+// bind one — the port carries no security meaning there. Keycloak honours
+// that rule, but only when the registered URI omits the port: pinning
+// `localhost:3000` opts back out of it, and `semiont start --service browser
+// --port 3001` then produces a healthy stack nobody can sign in to.
+//
+// This rule governs the REDIRECT leg only; loopbackWebOrigins states the
+// opposite for CORS origins and says why. `semiont identity sync` adds these
+// when absent rather than replacing the list: removing nothing is what makes
 // sync safe to run against a realm someone has customised.
 func loopbackRedirectUris() []string {
 	return []string{"http://localhost/*", "http://127.0.0.1/*"}
@@ -363,8 +361,8 @@ func cliClient(audience string) map[string]any {
 // function keeps the settings it was created with; `semiont identity sync`
 // reconciles clients, roles, redirect URIs, web origins and lifetime, and the
 // rest is a console or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
-	browser := browserClient(audience, addr, browserPort)
+func keycloakRealmJSON(realm, audience string, browserPort, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
+	browser := browserClient(audience, browserPort)
 	cli := cliClient(audience)
 	clients := []map[string]any{browser, cli}
 	// Ordered by `serviceClients`, not by map iteration: the rendered document
@@ -543,7 +541,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if !ok {
 		return nil, nil, "", false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, "", false
 	}
@@ -554,7 +552,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
-		"-e", "KC_HOSTNAME=" + (placement{st: fc.stack, plan: fc.plan, rt: x.rtName(), addr: addr}).keycloakHostname(),
+		"-e", "KC_HOSTNAME=" + placementOf(fc, x.exposure(addr)).keycloakHostname(),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
 	}, secrets, password, true
 }
