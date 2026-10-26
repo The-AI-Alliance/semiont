@@ -459,7 +459,7 @@ func (f *FaultyTransport) TrackReply(correlationID string, channels ...bus.Chann
 	return f.router.Track(correlationID, channels)
 }
 
-func (f *FaultyTransport) State() semiont.Watched[semiont.ConnectionState] { return f.state }
+func (f *FaultyTransport) State() semiont.Watched[semiont.ConnectionState] { return f.state.Reading() }
 
 func (f *FaultyTransport) BridgeInto(sink semiont.FrameSink) { f.hub.Bridge(sink) }
 

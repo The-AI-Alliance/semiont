@@ -212,7 +212,7 @@ func (t *HTTPTransport) TrackReply(correlationID string, channels ...bus.Channel
 	return t.shared.router.Track(correlationID, channels)
 }
 
-func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state }
+func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state.Reading() }
 
 // Failures is the failures the transport meets from now on: what a server
 // refused, and what the gateway never answered, each as it is returned to

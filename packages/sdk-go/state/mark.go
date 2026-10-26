@@ -82,31 +82,33 @@ func NewMarkStateUnit(client *semiont.Client, resourceID api.ResourceId) *MarkSt
 }
 
 // PendingAnnotation is the annotation being composed, or nil.
-func (u *MarkStateUnit) PendingAnnotation() semiont.Watched[*PendingAnnotation] { return u.pending }
+func (u *MarkStateUnit) PendingAnnotation() semiont.Watched[*PendingAnnotation] {
+	return u.pending.Reading()
+}
 
 // DelegatingMotivation is the motivation of the delegated job that is
 // running, or none.
 func (u *MarkStateUnit) DelegatingMotivation() semiont.Watched[api.Motivation] {
-	return u.delegating
+	return u.delegating.Reading()
 }
 
 // Progress is the progress of the delegated job that is running, or of the
 // last one until it is dismissed.
-func (u *MarkStateUnit) Progress() semiont.Watched[*api.JobProgress] { return u.progress }
+func (u *MarkStateUnit) Progress() semiont.Watched[*api.JobProgress] { return u.progress.Reading() }
 
 // ProgressMotivation is the motivation of the run whose progress Progress
 // holds, until the progress is dismissed or cleared by a failure.
 func (u *MarkStateUnit) ProgressMotivation() semiont.Watched[api.Motivation] {
-	return u.progressMotivation
+	return u.progressMotivation.Reading()
 }
 
 // Failure is why the last delegated job ended without completing, until it
 // is dismissed or the next job begins.
-func (u *MarkStateUnit) Failure() semiont.Watched[error] { return u.failure }
+func (u *MarkStateUnit) Failure() semiont.Watched[error] { return u.failure.Reading() }
 
 // JobId is the delegated job's id, from the queue's answer to its creation
 // to its end: what Job.Cancel names.
-func (u *MarkStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID }
+func (u *MarkStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID.Reading() }
 
 // RequestDelegate delegates the annotating of this unit's resource, as the
 // mark job of params: what Mark.Delegate takes.

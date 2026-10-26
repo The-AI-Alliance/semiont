@@ -50,23 +50,23 @@ func NewYieldStateUnit(client *semiont.Client, locale string) *YieldStateUnit {
 
 // IsGenerating is whether a run is under way: from its first progress to its
 // end.
-func (u *YieldStateUnit) IsGenerating() semiont.Watched[bool] { return u.generating }
+func (u *YieldStateUnit) IsGenerating() semiont.Watched[bool] { return u.generating.Reading() }
 
 // Progress is the run's progress, and the last run's until it is dismissed.
-func (u *YieldStateUnit) Progress() semiont.Watched[*api.JobProgress] { return u.progress }
+func (u *YieldStateUnit) Progress() semiont.Watched[*api.JobProgress] { return u.progress.Reading() }
 
 // Outcome is what the last finished run produced; nil while one runs, and
 // once dismissed.
-func (u *YieldStateUnit) Outcome() semiont.Watched[*api.YieldJobDone] { return u.outcome }
+func (u *YieldStateUnit) Outcome() semiont.Watched[*api.YieldJobDone] { return u.outcome.Reading() }
 
 // Failure is why the last run ended without a result: it failed, stalled or
 // was cancelled. Nil while one runs, after one that completed, and once
 // dismissed.
-func (u *YieldStateUnit) Failure() semiont.Watched[error] { return u.failure }
+func (u *YieldStateUnit) Failure() semiont.Watched[error] { return u.failure.Reading() }
 
 // JobId is the generation job's id, from the queue's answer to its creation
 // to its end: what Job.Cancel names.
-func (u *YieldStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID }
+func (u *YieldStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID.Reading() }
 
 // Generate generates a resource from a gathered context, as Yield.Delegate
 // does, given stallDeadline as it is. It is written in this unit's locale

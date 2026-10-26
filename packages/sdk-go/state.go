@@ -161,3 +161,16 @@ func (v *Variable[T]) Changes(ctx context.Context) iter.Seq[T] {
 		}
 	}
 }
+
+// Reading is the variable as its readers hold it: its value and its changes,
+// with no way to set it. What a unit hands out of what it holds.
+func (v *Variable[T]) Reading() Watched[T] { return readOnly[T]{v} }
+
+// readOnly is a Variable read and never written.
+type readOnly[T comparable] struct {
+	variable *Variable[T]
+}
+
+func (r readOnly[T]) Value() T { return r.variable.Value() }
+
+func (r readOnly[T]) Changes(ctx context.Context) iter.Seq[T] { return r.variable.Changes(ctx) }

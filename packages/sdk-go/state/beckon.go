@@ -36,7 +36,7 @@ func NewBeckonStateUnit(client *semiont.Client) *BeckonStateUnit {
 // HoveredAnnotationId is the annotation this viewer hovers, or the zero
 // AnnotationId when it hovers none.
 func (u *BeckonStateUnit) HoveredAnnotationId() semiont.Watched[api.AnnotationId] {
-	return u.hovered
+	return u.hovered.Reading()
 }
 
 // Focus signals: turn this viewer's focus to an annotation.

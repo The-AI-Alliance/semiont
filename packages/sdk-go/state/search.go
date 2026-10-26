@@ -74,11 +74,11 @@ func NewSearchPipeline[T any](search func(ctx context.Context, query string) ite
 }
 
 // Query is the query as it was last set.
-func (p *SearchPipeline[T]) Query() semiont.Watched[string] { return p.query }
+func (p *SearchPipeline[T]) Query() semiont.Watched[string] { return p.query.Reading() }
 
 // State is the results of the query it last settled on, and whether more are
 // on their way.
-func (p *SearchPipeline[T]) State() semiont.Watched[*SearchState[T]] { return p.state }
+func (p *SearchPipeline[T]) State() semiont.Watched[*SearchState[T]] { return p.state.Reading() }
 
 // SetQuery sets the query. The same query again is no change, and waits no
 // longer.

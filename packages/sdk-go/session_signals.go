@@ -56,15 +56,17 @@ func NewSessionSignals() *SessionSignals {
 
 // SessionEnded is the session's end: it expired, or its credential was
 // refused.
-func (s *SessionSignals) SessionEnded() Watched[*SessionEnded] { return s.sessionEnded }
+func (s *SessionSignals) SessionEnded() Watched[*SessionEnded] { return s.sessionEnded.Reading() }
 
 // PermissionDenied is a request refused for lack of permission.
-func (s *SessionSignals) PermissionDenied() Watched[*PermissionDenied] { return s.permissionDenied }
+func (s *SessionSignals) PermissionDenied() Watched[*PermissionDenied] {
+	return s.permissionDenied.Reading()
+}
 
 // KbIdentityConflict is a different knowledge base answering at the entry's
 // address.
 func (s *SessionSignals) KbIdentityConflict() Watched[*KbIdentityConflict] {
-	return s.kbIdentityConflict
+	return s.kbIdentityConflict.Reading()
 }
 
 // NotifySessionEnded raises that the session ended, and why.

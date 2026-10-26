@@ -77,28 +77,32 @@ func NewGatherStateUnit(client *semiont.Client, resourceID api.ResourceId) *Gath
 
 // Context is the context around the annotation last asked about.
 func (u *GatherStateUnit) Context() semiont.Watched[*api.GatheredContext] {
-	return u.annotation.context
+	return u.annotation.context.Reading()
 }
 
 // Loading is whether the annotation's gather is under way.
-func (u *GatherStateUnit) Loading() semiont.Watched[bool] { return u.annotation.loading }
+func (u *GatherStateUnit) Loading() semiont.Watched[bool] { return u.annotation.loading.Reading() }
 
 // Error is the failure the annotation's gather met.
-func (u *GatherStateUnit) Error() semiont.Watched[error] { return u.annotation.err }
+func (u *GatherStateUnit) Error() semiont.Watched[error] { return u.annotation.err.Reading() }
 
 // AnnotationId is the annotation last asked about.
-func (u *GatherStateUnit) AnnotationId() semiont.Watched[api.AnnotationId] { return u.annotationID }
+func (u *GatherStateUnit) AnnotationId() semiont.Watched[api.AnnotationId] {
+	return u.annotationID.Reading()
+}
 
 // ResourceContext is the context around the resource last asked about.
 func (u *GatherStateUnit) ResourceContext() semiont.Watched[*api.GatheredContext] {
-	return u.resource.context
+	return u.resource.context.Reading()
 }
 
 // ResourceLoading is whether the resource's gather is under way.
-func (u *GatherStateUnit) ResourceLoading() semiont.Watched[bool] { return u.resource.loading }
+func (u *GatherStateUnit) ResourceLoading() semiont.Watched[bool] {
+	return u.resource.loading.Reading()
+}
 
 // ResourceError is the failure the resource's gather met.
-func (u *GatherStateUnit) ResourceError() semiont.Watched[error] { return u.resource.err }
+func (u *GatherStateUnit) ResourceError() semiont.Watched[error] { return u.resource.err.Reading() }
 
 // GatherAnnotation gathers the context around an annotation of this unit's
 // resource, taking what Gather.Annotation takes.

@@ -231,11 +231,11 @@ func (s *Session) Client() *Client { return s.config.Client }
 
 // Token is the token the transport sends: the present one, and each after it;
 // "" for none.
-func (s *Session) Token() Watched[string] { return s.config.Token }
+func (s *Session) Token() Watched[string] { return s.config.Token.Reading() }
 
 // User is who the gateway said the session's token is: nil until it has
 // said, and once the session is signed out.
-func (s *Session) User() Watched[*api.UserResponse] { return s.user }
+func (s *Session) User() Watched[*api.UserResponse] { return s.user.Reading() }
 
 // StreamState is the state of the client's connection.
 func (s *Session) StreamState() Watched[ConnectionState] { return s.config.Client.Transport.State() }
