@@ -79,6 +79,9 @@ type Fake struct {
 	// Requests records every request, in order, with its payload.
 	Requests []Requested
 
+	// holds is how many holds each resource's scope has.
+	holds map[api.ResourceId]int
+
 	hub       *semiont.FrameHub
 	router    *semiont.ReplyRouter
 	state     *semiont.Watched[semiont.ConnectionState]
@@ -94,6 +97,7 @@ func NewFake() *Fake {
 		Rejections: map[bus.Channel]json.RawMessage{},
 		Queued:     map[bus.Channel][]json.RawMessage{},
 		Unanswered: map[bus.Channel]bool{},
+		holds:      map[api.ResourceId]int{},
 		hub:        semiont.NewFrameHub(),
 		router:     semiont.NewReplyRouter(),
 		state:      semiont.NewWatched(semiont.ConnectionStateOpen),
@@ -177,9 +181,35 @@ func (f *Fake) BridgeInto(sink semiont.FrameSink) { f.hub.Bridge(sink) }
 
 func (f *Fake) IsSubscribed(bus.Channel) bool { return true }
 
-// SubscribeToResource holds nothing: every frame Deliver is given reaches
-// its channel's listeners.
-func (f *Fake) SubscribeToResource(api.ResourceId) (release func()) { return func() {} }
+// SubscribeToResource takes one hold on resource's scope, which Holds
+// counts; release lets it go, once. Every frame Deliver is given reaches its
+// channel's listeners whatever is held.
+func (f *Fake) SubscribeToResource(resource api.ResourceId) (release func()) {
+	f.mu.Lock()
+	f.holds[resource]++
+	f.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.holds[resource]--; f.holds[resource] == 0 {
+				delete(f.holds, resource)
+			}
+		})
+	}
+}
+
+// Holds is how many holds resource's scope has now.
+func (f *Fake) Holds(resource api.ResourceId) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.holds[resource]
+}
+
+// SetState moves the connection's state, as a stream that drops and opens
+// again would.
+func (f *Fake) SetState(state semiont.ConnectionState) { f.state.Set(state) }
 
 func (f *Fake) TrackReply(correlationID string, channels ...bus.Channel) *semiont.PendingReply {
 	return f.router.Track(correlationID, channels)
