@@ -3,6 +3,7 @@ package semiont
 // A client's own bus: frames published and read inside one process.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"iter"
@@ -74,15 +75,15 @@ func (b *EventBus) Deliver(frame Frame) {
 
 // FramesOn is the frames published on channel from now on: to everyone when
 // scope is the zero ResourceId, and into scope otherwise. One reader, taken
-// when FramesOn is called and let go when the loop over what it returns
-// stops; of a closed bus, a sequence that has ended.
-func (b *EventBus) FramesOn(channel bus.Channel, scope api.ResourceId) iter.Seq[Frame] {
+// when FramesOn is called and let go when the loop over what it returns stops
+// or ctx is done; of a closed bus, a sequence that has ended.
+func (b *EventBus) FramesOn(ctx context.Context, channel bus.Channel, scope api.ResourceId) iter.Seq[Frame] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	q := newQueue[Frame]()
 	if b.closed {
 		q.close()
-		return q.all(func() {})
+		return q.all(nil, func() {})
 	}
 	key := eventView{channel, scope}
 	view, ok := b.views[key]
@@ -91,16 +92,16 @@ func (b *EventBus) FramesOn(channel bus.Channel, scope api.ResourceId) iter.Seq[
 		b.views[key] = view
 	}
 	view.join(q)
-	return q.all(func() { view.leave(q) })
+	return q.all(ctx.Done(), func() { view.leave(q) })
 }
 
 // FramesAmong is the frames published to everyone on any of channels from
 // now on, in the order they were published. One reader, taken when
-// FramesAmong is called and let go when the loop over what it returns stops;
-// of a closed bus, a sequence that has ended.
-func (b *EventBus) FramesAmong(channels ...bus.Channel) iter.Seq[Frame] {
+// FramesAmong is called and let go when the loop over what it returns stops
+// or ctx is done; of a closed bus, a sequence that has ended.
+func (b *EventBus) FramesAmong(ctx context.Context, channels ...bus.Channel) iter.Seq[Frame] {
 	q, leave := b.listenAmong(channels...)
-	return q.all(leave)
+	return q.all(ctx.Done(), leave)
 }
 
 // listenAmong is a reader of what is published to everyone on any of
@@ -149,9 +150,9 @@ func Publish[P any](b *EventBus, c bus.Global[P], payload P, envelope Envelope) 
 	return nil
 }
 
-// Published is the frames published to everyone on c from now on, each with
-// its payload decoded. One whose payload is not c's is given as its error,
-// and the frames after it follow.
-func Published[P any](b *EventBus, c bus.Global[P]) iter.Seq2[Delivered[P], error] {
-	return typed[P](b.FramesOn(c.Channel(), api.ResourceId{}))
+// Published is the frames published to everyone on c from now on, until ctx
+// is done, each with its payload decoded. One whose payload is not c's is
+// given as its error, and the frames after it follow.
+func Published[P any](ctx context.Context, b *EventBus, c bus.Global[P]) iter.Seq2[Delivered[P], error] {
+	return typed[P](b.FramesOn(ctx, c.Channel(), api.ResourceId{}))
 }

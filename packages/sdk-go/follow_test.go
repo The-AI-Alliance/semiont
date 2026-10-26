@@ -245,7 +245,7 @@ func waitedWithin[C any](t *testing.T, ch <-chan waitedFor[C], limit time.Durati
 func TestAJobReportsItsProgressAndEndsWithItsCompletion(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	sent := created(t, fake, 1)
 	if want := map[string]any{"jobType": "mark", "resourceId": "res-1", "params": map[string]any{"motivation": "highlighting"}}; !reflect.DeepEqual(normal(t, sent.Payload), want) {
 		t.Fatalf("job:create sent %v, want %v", normal(t, sent.Payload), want)
@@ -283,7 +283,7 @@ func TestAJobReportsItsProgressAndEndsWithItsCompletion(t *testing.T) {
 func TestAJobIsNamedBeforeAnythingElseOfItIsGiven(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	say(t, c, jobComplete, "job-1", "mark", nil)
 	got := followedWithin(t, followed, time.Second)
@@ -366,7 +366,7 @@ func TestADelegationIsWaitedForOrRangedOverAndOnce(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	read := highlighting(t, c)
-	followed := following(read.Events())
+	followed := following(read.Events(context.Background()))
 	created(t, fake, 1)
 	say(t, c, jobComplete, "job-1", "mark", nil)
 	if got := followedWithin(t, followed, time.Second); !slices.Equal(got.kinds, []string{"created job-1", "complete"}) {
@@ -375,7 +375,7 @@ func TestADelegationIsWaitedForOrRangedOverAndOnce(t *testing.T) {
 	if _, err := read.Wait(context.Background()); err == nil {
 		t.Fatal("a delegation ranged over is waited for too")
 	}
-	for _, err := range read.Events() {
+	for _, err := range read.Events(context.Background()) {
 		if err == nil {
 			t.Fatal("a delegation ranged over is ranged over again")
 		}
@@ -385,7 +385,7 @@ func TestADelegationIsWaitedForOrRangedOverAndOnce(t *testing.T) {
 	awaited := highlighting(t, c)
 	waited := waiting(awaited)
 	created(t, fake, 2)
-	for _, err := range awaited.Events() {
+	for _, err := range awaited.Events(context.Background()) {
 		if err == nil {
 			t.Fatal("a delegation waited for is ranged over too")
 		}
@@ -413,7 +413,7 @@ func TestNothingIsSentUntilADelegationIsWaitedForOrRangedOver(t *testing.T) {
 func TestFramesThatArriveBeforeTheJobsIdIsKnownAreKeptAndHandledInTheOrderTheyCame(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, false, semiont.DefaultTiming())
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	request := created(t, fake, 1)
 	say(t, c, jobProgress, "job-1", "mark", progressOf(10))
 	say(t, c, jobProgress, "job-2", "mark", progressOf(99))
@@ -435,7 +435,7 @@ func TestASilentJobIsAskedForItsStatusUntilItsStatusIsAnEnd(t *testing.T) {
 	silence, poll := 200*time.Millisecond, 300*time.Millisecond
 	c, fake := jobWorld(t, true, jobTiming(silence, poll))
 	fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "running", nil), statusOf(t, "complete", nil)}
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	time.Sleep(silence / 2)
 	if asked := requestsOn(fake, jobStatus); len(asked) != 0 {
@@ -477,7 +477,7 @@ func TestAStatusCarriesTheResultItsJobWasStoredWithAndAnEmptyOneIsNone(t *testin
 			t.Parallel()
 			client, fake := jobWorld(t, true, jobTiming(50*time.Millisecond, 50*time.Millisecond))
 			fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", map[string]any{"result": c.result})}
-			got := followedWithin(t, following(highlighting(t, client).Events()), 2*time.Second)
+			got := followedWithin(t, following(highlighting(t, client).Events(context.Background())), 2*time.Second)
 			if !slices.Equal(got.kinds, []string{"created job-1", "complete"}) {
 				t.Fatalf("the follower gave %v", got.kinds)
 			}
@@ -542,9 +542,9 @@ func TestAStatusWhoseCompletionIsNotTheVerbsEndsTheFollowerAndIsNoFailureOfTheJo
 			fake.Queued[jobStatus] = []json.RawMessage{statusOf(t, "complete", c.said)}
 			var events iter.Seq2[semiont.JobEvent, error]
 			if c.delegated == api.JobTypeMark {
-				events = highlighting(t, client).Events()
+				events = highlighting(t, client).Events(context.Background())
 			} else {
-				events = generation(t, client, 0, nil).Events()
+				events = generation(t, client, 0, nil).Events(context.Background())
 			}
 			// What the knowledge base answered is not the protocol's: no completion is made of it, and the job is not said to have failed.
 			if got := followedWithin(t, following(events), 2*time.Second); !slices.Equal(got.kinds, []string{"created job-1", "error error"}) {
@@ -577,7 +577,7 @@ func TestEveryFrameOfTheJobStartsTheSilenceAgain(t *testing.T) {
 	t.Parallel()
 	silence := 300 * time.Millisecond
 	c, fake := jobWorld(t, true, jobTiming(silence, silence))
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	time.Sleep(200 * time.Millisecond)
 	say(t, c, jobProgress, "job-1", "mark", progressOf(10))
@@ -629,7 +629,7 @@ func TestAFailureTheQueueWillRetryIsReportedAndFollowedPast(t *testing.T) {
 	t.Parallel()
 	silence := 100 * time.Millisecond
 	c, fake := jobWorld(t, true, jobTiming(silence, silence))
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	say(t, c, jobFail, "job-1", "mark", map[string]any{"error": "a blip", "willRetry": true})
 	// The attempt that died is not asked about, however long the next takes.
@@ -748,7 +748,7 @@ func TestACreationThatNamesNoJobIsItsFollowersFailure(t *testing.T) {
 func TestAFrameThatIsNotItsChannelsIsNobodysToActOn(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	var made map[string]any
 	if err := json.Unmarshal([]byte(generated), &made); err != nil {
@@ -831,7 +831,7 @@ func TestWhatAGenerationSaysStartsItsStallDeadlineAgainAndASetbackIsFollowedPast
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	stall, step := 600*time.Millisecond, 350*time.Millisecond
-	followed := following(generation(t, c, stall, nil).Events())
+	followed := following(generation(t, c, stall, nil).Events(context.Background()))
 	created(t, fake, 1)
 	time.Sleep(step)
 	say(t, c, jobProgress, "job-1", "yield", progressOf(10))
@@ -896,7 +896,7 @@ func TestAClientThatClosesEndsTheJobsItWasFollowing(t *testing.T) {
 	t.Parallel()
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	fake.Queued[jobCreate] = append(fake.Queued[jobCreate], json.RawMessage(`{"response":{"jobId":"job-2"}}`))
-	followed := following(highlighting(t, c).Events())
+	followed := following(highlighting(t, c).Events(context.Background()))
 	created(t, fake, 1)
 	waited := waiting(highlighting(t, c))
 	created(t, fake, 2)

@@ -89,7 +89,7 @@ type delegation struct {
 // completed as another verb's, and that was said.
 func follow[C any](u *launcher.UI, c *launcher.VerbClient, d delegation, job *semiont.Delegation[C]) (done C, ok bool) {
 	var jobID api.JobId
-	for event, err := range job.Events() {
+	for event, err := range job.Events(c.Context()) {
 		if err != nil {
 			var failed *semiont.JobError
 			switch {

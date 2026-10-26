@@ -102,8 +102,9 @@ func (e JobCompleted[C]) MarshalJSON() ([]byte, error)  { return kinded("complet
 // api.YieldJobCompleteCommand, whose Result is the resource a yield job made
 // or a decline. A job that does not complete is a failure, given where the
 // completion would have been. Nothing is sent until it is first waited for or
-// ranged over; its caller abandons it by cancelling Wait's context or
-// stopping the loop: the job goes on, and is followed no more.
+// ranged over; its caller abandons it by cancelling the context it gave Wait
+// or Events, or by stopping the loop: the job goes on, and is followed no
+// more.
 type Delegation[C any] struct {
 	following *Running[JobEvent]
 }
@@ -122,10 +123,11 @@ func (d *Delegation[C]) Wait(ctx context.Context) (C, error) {
 	return completed.Data, nil
 }
 
-// Events follows the job as it is ranged over: every event, the completion
-// the last, or the failure where the completion would have been.
-func (d *Delegation[C]) Events() iter.Seq2[JobEvent, error] {
-	return d.following.Events()
+// Events follows the job as it is ranged over, until ctx is done: every
+// event, the completion the last, or the failure where the completion would
+// have been.
+func (d *Delegation[C]) Events(ctx context.Context) iter.Seq2[JobEvent, error] {
+	return d.following.Events(ctx)
 }
 
 // follow creates a job and follows it to the completion its verb's jobs give,

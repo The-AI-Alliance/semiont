@@ -867,7 +867,7 @@ func (c *Claims) All() iter.Seq2[HeldJob, error] {
 			return
 		}
 		for {
-			item, ok := c.handed.next()
+			item, ok := c.handed.next(nil)
 			if !ok {
 				return
 			}

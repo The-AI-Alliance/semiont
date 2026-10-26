@@ -489,19 +489,19 @@ func firstPayload[P any](events iter.Seq2[semiont.Delivered[P], error]) (P, erro
 // frame is published.
 var events = map[string]func(c *semiont.Client) func() (any, error){
 	"job.queued": func(c *semiont.Client) func() (any, error) {
-		e := c.Job.Queued()
+		e := c.Job.Queued(context.Background())
 		return func() (any, error) { return firstPayload(e) }
 	},
 	"job.progress": func(c *semiont.Client) func() (any, error) {
-		e := c.Job.Progress()
+		e := c.Job.Progress(context.Background())
 		return func() (any, error) { return firstPayload(e) }
 	},
 	"job.complete": func(c *semiont.Client) func() (any, error) {
-		e := c.Job.Complete()
+		e := c.Job.Complete(context.Background())
 		return func() (any, error) { return firstPayload(e) }
 	},
 	"job.fail": func(c *semiont.Client) func() (any, error) {
-		e := c.Job.Fail()
+		e := c.Job.Fail(context.Background())
 		return func() (any, error) { return firstPayload(e) }
 	},
 }
@@ -723,7 +723,7 @@ func TestAMethodDoesWhatItsRowSays(t *testing.T) {
 				if !ok {
 					t.Fatalf("this runner has no call of %s", rc.name)
 				}
-				published := w.client.Bus.FramesOn(bus.Channel(channel), api.ResourceId{})
+				published := w.client.Bus.FramesOn(context.Background(), bus.Channel(channel), api.ResourceId{})
 				w.start(func(ctx context.Context) { run(ctx, w.client, a) })
 				frame := within(t, why+": a frame published on "+channel, func() semiont.Frame {
 					for frame := range published {

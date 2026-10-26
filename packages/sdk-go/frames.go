@@ -81,8 +81,8 @@ func (q *queue[T]) close() {
 }
 
 // next is the next item, waiting for one; false once the queue has closed and
-// is empty.
-func (q *queue[T]) next() (T, bool) {
+// is empty, or stop is closed first. A nil stop never is.
+func (q *queue[T]) next(stop <-chan struct{}) (T, bool) {
 	for {
 		q.mu.Lock()
 		if len(q.items) > 0 {
@@ -99,7 +99,12 @@ func (q *queue[T]) next() (T, bool) {
 			return zero, false
 		}
 		q.mu.Unlock()
-		<-q.ready
+		select {
+		case <-q.ready:
+		case <-stop:
+			var zero T
+			return zero, false
+		}
 	}
 }
 
@@ -113,13 +118,14 @@ func (q *queue[T]) drain() (items []T, closed bool) {
 	return items, q.closed
 }
 
-// all is what the queue is given, until it closes or the loop over it stops;
-// leave is called once either happens.
-func (q *queue[T]) all(leave func()) iter.Seq[T] {
+// all is what the queue is given, until it closes, stop is closed, or the
+// loop over it stops; leave is called once any of them happens. A nil stop is
+// never closed: the loop is ended by its reader.
+func (q *queue[T]) all(stop <-chan struct{}, leave func()) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		defer leave()
 		for {
-			item, ok := q.next()
+			item, ok := q.next(stop)
 			if !ok || !yield(item) {
 				return
 			}
@@ -221,7 +227,7 @@ func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
 	defer h.mu.Unlock()
 	if h.closed {
 		q.close()
-		return q.all(func() {})
+		return q.all(nil, func() {})
 	}
 	joined := make([]*broadcast[Frame], 0, len(channels))
 	for _, channel := range channels {
@@ -233,7 +239,7 @@ func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
 		b.join(q)
 		joined = append(joined, b)
 	}
-	return q.all(func() {
+	return q.all(nil, func() {
 		for _, b := range joined {
 			b.leave(q)
 		}
@@ -306,7 +312,7 @@ func (f *failureStream) failures() iter.Seq[*TransportError] {
 	if q == nil {
 		q = f.b.listen()
 	}
-	return q.all(func() { f.b.leave(q) })
+	return q.all(nil, func() { f.b.leave(q) })
 }
 
 // report hands err to every listener, and returns it for its caller.

@@ -119,7 +119,7 @@ func NewUpload(work func(report func(UploadProgress)) (api.CreateResourceRespons
 // Progress is how much has been sent, each time more has, never less than it
 // last said, until the upload ends or the loop over it stops.
 func (u *Upload) Progress() iter.Seq[UploadProgress] {
-	return u.progress.all(func() {})
+	return u.progress.all(nil, func() {})
 }
 
 // Wait is what the gateway answers: the new resource's id. A second Wait is

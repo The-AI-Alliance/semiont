@@ -549,7 +549,7 @@ func (l *live) unobserve(args protocol.Arguments) error {
 // completion.
 func following[C any](observer string, job *semiont.Delegation[C], done func()) {
 	defer done()
-	for event, err := range job.Events() {
+	for event, err := range job.Events(context.Background()) {
 		if err != nil {
 			var failed semiont.Error
 			if errors.As(err, &failed) {
