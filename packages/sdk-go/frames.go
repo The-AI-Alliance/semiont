@@ -26,12 +26,16 @@ type Envelope struct {
 	Scope api.ResourceId
 }
 
-// Frame is a frame as a transport delivers it: its channel, its envelope and
-// its payload. The payload carries no routing.
+// Frame is a frame as a transport delivers it: its channel, its envelope, its
+// payload, and the trace it was sent under. The payload carries no routing,
+// and not the trace.
 type Frame struct {
 	Channel bus.Channel
 	Envelope
 	Payload json.RawMessage
+	// Trace is the trace the work done for the frame continues (Continuing);
+	// the zero TraceContext when it was sent under none.
+	Trace TraceContext
 }
 
 // queue is one listener's: every item given to it, in order, however far

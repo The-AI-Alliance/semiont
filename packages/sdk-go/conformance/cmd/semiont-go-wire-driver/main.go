@@ -3,10 +3,6 @@
 // (tests/conformance/sdk/README.md, § The driver protocol). It holds a
 // transport, and reaches it only as an application does, through what the
 // SDK exports, so what the suite observes is what a caller of the SDK gets.
-//
-// An operation the Go SDK cannot do yet is answered unsupported; the suite
-// holds the Go SDK exempt from each wire case that asks one
-// (tests/conformance/harness/paths.ts).
 package main
 
 import (
@@ -566,7 +562,11 @@ func (w *wire) Finish() {
 }
 
 func main() {
+	flush, exporting := protocol.Exporting()
 	protocol.Serve(func(abandoner protocol.Abandoner) protocol.Driver {
 		return &wire{abandoner: abandoner, held: map[string][]func(){}}
 	})
+	if exporting {
+		flush()
+	}
 }

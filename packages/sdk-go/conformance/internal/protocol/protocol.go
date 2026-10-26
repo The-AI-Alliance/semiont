@@ -204,7 +204,6 @@ func Serve(makeDriver func(Abandoner) Driver) {
 	}
 	driver.Finish()
 	operations.Wait()
-	os.Exit(0)
 }
 
 // answer answers the operation id, once.

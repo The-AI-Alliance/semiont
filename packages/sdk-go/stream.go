@@ -404,7 +404,11 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	if trimmed := bytes.TrimSpace(read.Payload); len(trimmed) == 0 || trimmed[0] != '{' {
 		return
 	}
-	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: read.Payload}
+	payload, sentUnder, ok := withoutTrace(read.Payload)
+	if !ok {
+		return
+	}
+	frame := Frame{Channel: bus.Channel(*read.Channel), Payload: payload}
 	if read.CorrelationID != nil {
 		frame.CorrelationID = *read.CorrelationID
 	}
@@ -416,6 +420,7 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		}
 		frame.Scope = scope
 	}
+	frame.Trace = received(frame.Channel, frame.Scope, sentUnder)
 	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
 	// recorded event's id (p-…) is one, and it always comes on its scope.

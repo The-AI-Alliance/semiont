@@ -138,6 +138,8 @@ func (t *HTTPTransport) Emit(ctx context.Context, channel bus.Channel, payload m
 		scope := envelope.Scope
 		body.Scope = &scope
 	}
+	ctx, span := emitting(ctx, channel, envelope.Scope)
+	defer span.End()
 	return t.shared.emit(ctx, body)
 }
 
@@ -309,6 +311,7 @@ func (s *transportShared) emitOnce(ctx context.Context, token string, body []byt
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+token)
+	carryTrace(ctx, request.Header)
 	response, err := s.http.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {

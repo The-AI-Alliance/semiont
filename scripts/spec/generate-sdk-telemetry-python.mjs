@@ -8,57 +8,29 @@
 // The output is committed; `--check` compares without writing (the CI drift
 // gate).
 
-import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from './committed-source.mjs';
 import { pyBanner, pyComment, pyConstant, pyString } from './python-source.mjs';
+import { CHANNEL, readSdkTelemetry } from './sdk-telemetry-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/sdk-telemetry/telemetry.json');
 const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/telemetry_table.py');
 const CHECK = process.argv.includes('--check');
 
-/** OTLP's span kinds, and the one instrument the table states. */
-const SPAN_KINDS = ['internal', 'server', 'client', 'producer', 'consumer'];
-const INSTRUMENTS = ['counter'];
-/** What stands for the bus channel in a span's name. */
-const CHANNEL = '{channel}';
-
 function refuse(message) {
   console.error(`✗ ${TABLE}: ${message}`);
   process.exit(1);
 }
 
-const table = JSON.parse(readFileSync(TABLE, 'utf8'));
-if (!Array.isArray(table.spans) || !Array.isArray(table.metrics)) refuse('it states no spans, or no metrics');
-
-function attributesOf(row) {
-  if (typeof row.name !== 'string' || row.name === '') refuse('a row has no name');
-  if (typeof row.meaning !== 'string' || row.meaning === '') refuse(`${row.name} does not say what it means`);
-  if (!Array.isArray(row.attributes)) refuse(`${row.name} lists no attributes`);
-  const keys = row.attributes.map((attribute) => {
-    if (typeof attribute.key !== 'string' || attribute.key === '') refuse(`${row.name} has an attribute with no key`);
-    return attribute.key;
-  });
-  if (new Set(keys).size !== keys.length) refuse(`${row.name} lists an attribute twice`);
-  return { all: keys, always: row.attributes.filter((attribute) => attribute.only === undefined).map((attribute) => attribute.key) };
-}
+const table = readSdkTelemetry(TABLE, refuse);
 
 /** The name of a row's constant: its name, without what stands for the channel. */
 const constantOf = (name) => pyConstant(name.replace(`:${CHANNEL}`, ''));
 
-const spans = table.spans.map((row) => {
-  const { all, always } = attributesOf(row);
-  if (!SPAN_KINDS.includes(row.kind)) refuse(`${row.name} is of kind ${JSON.stringify(row.kind)}, which is not one of OTLP's`);
-  if (row.name.replace(CHANNEL, '').includes('{')) refuse(`${row.name} has a placeholder this script does not know`);
-  return { name: row.name, kind: row.kind, meaning: row.meaning, all, always, constant: constantOf(row.name) };
-});
-const metrics = table.metrics.map((row) => {
-  const { all, always } = attributesOf(row);
-  if (!INSTRUMENTS.includes(row.instrument)) refuse(`${row.name} is a ${JSON.stringify(row.instrument)}, which this script does not know`);
-  return { name: row.name, instrument: row.instrument, meaning: row.meaning, all, always, constant: constantOf(row.name) };
-});
+const spans = table.spans.map((row) => ({ ...row, constant: constantOf(row.name) }));
+const metrics = table.metrics.map((row) => ({ ...row, constant: constantOf(row.name) }));
 
 const constants = [...spans, ...metrics].map((row) => row.constant);
 if (new Set(constants).size !== constants.length) refuse('two rows would be the same Python constant');

@@ -260,6 +260,8 @@ func (c *HTTPContentTransport) PutBinary(ctx context.Context, putting PutBinaryR
 	go func() {
 		defer close(upload.done)
 		defer upload.progress.close()
+		ctx, span := uploading(ctx, putting.Format, len(putting.Bytes))
+		defer span.End()
 		body, contentType, err := form(putting)
 		if err != nil {
 			upload.err = c.shared.failures.report(transportErrorWithoutResponse(fmt.Sprintf("an upload that cannot be written: %v", err), TransportErrorCodeError))
@@ -302,6 +304,8 @@ func interrupted(resource api.ResourceId, err error) *TransportError {
 
 // GetBinary reads a resource's bytes, whole.
 func (c *HTTPContentTransport) GetBinary(ctx context.Context, resource api.ResourceId) (Content, error) {
+	ctx, span := getting(ctx, resource, false)
+	defer span.End()
 	got, err := c.read(ctx, resource)
 	if err != nil {
 		return Content{}, err
@@ -343,6 +347,8 @@ func (s *streamed) Close() error {
 // GetBinaryStream reads a resource's bytes as a stream; its reader is closed
 // by its caller.
 func (c *HTTPContentTransport) GetBinaryStream(ctx context.Context, resource api.ResourceId) (ContentStream, error) {
+	ctx, span := getting(ctx, resource, true)
+	defer span.End()
 	got, err := c.read(ctx, resource)
 	if err != nil {
 		return ContentStream{}, err
@@ -359,11 +365,15 @@ func (c *HTTPContentTransport) get(resource api.ResourceId, suffix string) reque
 
 // GetResourceGraph reads a resource's description as linked data.
 func (c *HTTPContentTransport) GetResourceGraph(ctx context.Context, resource api.ResourceId) (api.GetResourceResponse, error) {
+	ctx, span := reading(ctx, spanContentGetGraph, resource)
+	defer span.End()
 	return answer[api.GetResourceResponse](ctx, c.shared, c.get(resource, "/jsonld"))
 }
 
 // GetAnnotations reads a resource's annotations.
 func (c *HTTPContentTransport) GetAnnotations(ctx context.Context, resource api.ResourceId) (api.GetAnnotationsResponse, error) {
+	ctx, span := reading(ctx, spanContentGetAnnotations, resource)
+	defer span.End()
 	return answer[api.GetAnnotationsResponse](ctx, c.shared, c.get(resource, "/annotations"))
 }
 
@@ -371,6 +381,8 @@ func (c *HTTPContentTransport) GetAnnotations(ctx context.Context, resource api.
 // this read while the Smelter settles the content, and the gateway passes
 // that wait through: the deadline (Timing.HttpRequestTimeout) outlasts it.
 func (c *HTTPContentTransport) GetAnchoredText(ctx context.Context, resource api.ResourceId) (api.AnchoredTextAnswer, error) {
+	ctx, span := reading(ctx, spanContentGetAnchoredText, resource)
+	defer span.End()
 	return answer[api.AnchoredTextAnswer](ctx, c.shared, c.get(resource, "/anchored-text"))
 }
 

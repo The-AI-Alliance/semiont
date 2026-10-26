@@ -47,17 +47,6 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
-/**
- * The wire cases the Go SDK has not reached, each with what it lacks for the
- * case. It arrives in steps (tests/conformance/sdk/README.md: an SDK that
- * arrives in steps names what it has not reached), and each exemption is
- * deleted in the change that turns its case green. A case the corpus gains is
- * Go's to pass or to name here, or Go fails it.
- */
-const GO_NOT_YET_REACHED: Readonly<Record<string, string>> = {
-  'telemetry': 'the Go SDK reports no telemetry yet',
-};
-
 /** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
 export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-wire-driver');
 
@@ -87,7 +76,6 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   go: {
     wire: [GO_WIRE_DRIVER],
-    exempt: GO_NOT_YET_REACHED,
   },
 };
 

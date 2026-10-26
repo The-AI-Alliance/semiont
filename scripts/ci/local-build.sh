@@ -484,7 +484,7 @@ banner "SDK-GO DRIFT GATE"
 
 step "Checking the Go SDK's generated tables against specs/src..."
 if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
+  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-sdk-telemetry-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
   ok "the Go SDK's generated tables match specs/src"
 else
   fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."

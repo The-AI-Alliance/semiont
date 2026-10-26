@@ -93,6 +93,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		if spec.authenticated && token != "" {
 			made.Header.Set("Authorization", "Bearer "+token)
 		}
+		carryTrace(ctx, made.Header)
 		response, err := s.http.Do(made)
 		// The answer has begun, or there is none: the deadline is spent either
 		// way, and must not cut a body being read.
