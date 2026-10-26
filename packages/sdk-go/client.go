@@ -22,6 +22,10 @@ type ClientConfig struct {
 	// Timing is the waits the client keeps: DefaultTiming(), unless a caller
 	// that must not wait them out says otherwise.
 	Timing Timing
+	// Persistence is where the client keeps what its queries hold, so the
+	// next client of the same knowledge base shows it at once; nil for a
+	// client that keeps nothing.
+	Persistence *CachePersistence
 }
 
 // Client is a client of one knowledge base. Its namespaces are its fields:
@@ -72,7 +76,9 @@ type Client struct {
 	// System is what the knowledge base says about itself.
 	System *SystemNamespace
 
-	links *links
+	links     *links
+	live      *live
+	refresher *refresher
 }
 
 // NewClient is a client over config's transport, content and gateway.
@@ -82,29 +88,41 @@ func NewClient(config ClientConfig) *Client {
 	life, end := context.WithCancel(context.Background())
 	l := &links{transport: config.Transport, wire: wire, own: own, timing: config.Timing, life: life, end: end}
 	config.Transport.BridgeInto(own)
+	queries := newLive(l, config.Content, config.Persistence)
+	keeping := newRefresher(l, queries)
+	keeping.start()
 	return &Client{
 		Transport: config.Transport,
 		Bus:       own,
 		Wire:      wire,
 		Frame:     &FrameNamespace{links: l},
-		Browse:    &BrowseNamespace{links: l, content: config.Content},
+		Browse:    &BrowseNamespace{links: l, content: config.Content, live: queries},
 		Mark:      &MarkNamespace{links: l},
 		Bind:      &BindNamespace{links: l},
-		Gather:    &GatherNamespace{links: l},
-		Match:     &MatchNamespace{links: l},
+		Gather:    &GatherNamespace{links: l, live: queries},
+		Match:     &MatchNamespace{links: l, live: queries},
 		Yield:     &YieldNamespace{links: l, content: config.Content},
 		Beckon:    &BeckonNamespace{links: l},
 		Job:       &JobNamespace{links: l},
 		Auth:      &AuthNamespace{gateway: config.Gateway},
 		System:    &SystemNamespace{gateway: config.Gateway},
 		links:     l,
+		live:      queries,
+		refresher: keeping,
 	}
 }
 
-// Close ends the client: its own bus ends, so every reader of it and every
-// followed job does, and then the work it started has ended. Closing twice
-// is closing once.
+// PersistenceSettled reports whether every cache the client keeps is at rest:
+// none is fetching, and none owes a save.
+func (c *Client) PersistenceSettled() bool { return c.live.persistenceSettled() }
+
+// Close ends the client. Its queries end first: every watcher's states end,
+// and a read asked for after is refused as closed. Then its own bus ends, so
+// every reader of it and every followed job does, and then the work it
+// started has ended. Closing twice is closing once.
 func (c *Client) Close() {
+	c.refresher.dispose()
+	c.live.dispose()
 	c.Bus.Close()
 	c.links.close()
 }
