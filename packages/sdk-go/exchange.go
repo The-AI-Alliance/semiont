@@ -17,10 +17,6 @@ import (
 	"time"
 )
 
-// retryPause is the wait before a request is made a second time. The Rust and
-// Python SDKs wait the same, each stating it as this does; no table states it.
-const retryPause = 300 * time.Millisecond
-
 // request is what one request is made of.
 type request struct {
 	method string
@@ -112,7 +108,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 				return answered{}, s.failures.report(unanswered(spec.method, spec.path, spec.deadline))
 			case !retried && repeatable:
 				retried = true
-				if !pause(ctx, retryPause) {
+				if !pause(ctx, s.timing.RequestRetryPause) {
 					return answered{}, ctx.Err()
 				}
 				continue
@@ -136,7 +132,7 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 			}
 		} else if status := response.StatusCode; !retried && RetryRuleTransport.Retryable(RetryFacts{Status: &status, Method: &spec.method}) {
 			retried = true
-			if !pause(ctx, max(retryPause, wait)) {
+			if !pause(ctx, max(s.timing.RequestRetryPause, wait)) {
 				return answered{}, ctx.Err()
 			}
 			continue

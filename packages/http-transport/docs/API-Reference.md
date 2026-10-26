@@ -17,7 +17,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 - **`channels`** narrows what the stream carries. A worker that awaits only some operations names their reply channels, and is sent nothing else.
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
-- **`timeout`** and **`retry`** bound a plain request. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
+- **`timeout`** bounds a plain request. One is made a second time at most once, after `REQUEST_RETRY_PAUSE_MS`, when `RETRY_RULES.transport` approves its status and method, with or without a `tokenRefresher`. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
 
 ### `TokenRefresher`
 

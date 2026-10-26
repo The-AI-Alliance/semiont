@@ -17,7 +17,7 @@ once, and one in flight, which the closing ends, is not made again.
 
 import asyncio
 from collections.abc import AsyncIterable, Awaitable, Callable, Coroutine
-from typing import Final, final
+from typing import final
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
@@ -29,6 +29,7 @@ from semiont.events import Broadcast
 from semiont.http._withheld import why_unanswered
 from semiont.model import WireModel
 from semiont.retry import TRANSPORT, RetryFacts, retry_after_ms
+from semiont.timing import REQUEST_RETRY_PAUSE_MS
 from semiont.types import ErrorResponse, LimitRefusal
 from semiont.watched import Watched
 
@@ -41,9 +42,6 @@ renewed. Whoever gives a transport one also feeds the transport's token, so
 the two never hold different ones. It is asked once per outage when the stream's
 credential is refused, and once per request or emit whose credential is
 refused."""
-
-# The wait before a request that is safe to repeat is made a second time.
-_RETRY_PAUSE_MS: Final = 300
 
 
 def refusal(message: str, status: int, body: bytes | None, stated_wait_ms: int | None) -> TransportError:
@@ -173,7 +171,7 @@ class Exchange:
             except httpx.HTTPError as error:
                 if repeatable and not retried and not self._closing.is_set():
                     retried = True
-                    await asyncio.sleep(_RETRY_PAUSE_MS / 1000)
+                    await asyncio.sleep(REQUEST_RETRY_PAUSE_MS / 1000)
                     continue
                 raise self.failed(TransportError.without_response(f"{method} {path} got no answer: {why_unanswered(error)}")) from None
             if response.is_success:
@@ -204,7 +202,7 @@ class Exchange:
                 raise self.failed(refused)
             if not retried and not self._closing.is_set() and TRANSPORT.retryable(RetryFacts(status=status, method=method)):
                 retried = True
-                await asyncio.sleep(max(_RETRY_PAUSE_MS, stated_wait_ms or 0) / 1000)
+                await asyncio.sleep(max(REQUEST_RETRY_PAUSE_MS, stated_wait_ms or 0) / 1000)
                 continue
             raise self.failed(refused)
 
