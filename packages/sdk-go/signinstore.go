@@ -246,12 +246,13 @@ func (e *signInEntry) Keep(_ context.Context, signIn HeldSignIn) error {
 	})
 }
 
-// Renewed keeps the tokens a renewal issued for the refresh token spent. When
-// what is kept no longer holds spent, another program renewed the sign-in
-// meanwhile: its tokens stand, and its access token is the one given. False
-// when nothing is kept: a stack signed out while it was being renewed stays
-// signed out.
-func (e *signInEntry) Renewed(_ context.Context, spent, access, refresh string) (string, bool, error) {
+// Renewed keeps the tokens a renewal of read issued. When what is kept no
+// longer holds read's tokens, another program renewed the sign-in meanwhile,
+// or signed in again: its tokens stand, and its access token is the one
+// given. The refresh token alone does not tell, since an issuer that rotates
+// none leaves it as it was. False when nothing is kept: a stack signed out
+// while it was being renewed stays signed out.
+func (e *signInEntry) Renewed(_ context.Context, read HeldSignIn, access, refresh string) (string, bool, error) {
 	var current string
 	var kept bool
 	err := e.store.change(func(document map[string]json.RawMessage) (bool, error) {
@@ -260,7 +261,7 @@ func (e *signInEntry) Renewed(_ context.Context, spent, access, refresh string) 
 			return false, nil
 		}
 		kept = true
-		if before.RefreshToken != spent {
+		if before.Token != read.Access || before.RefreshToken != read.Refresh {
 			current = before.Token
 			return false, nil
 		}

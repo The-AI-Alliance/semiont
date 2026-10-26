@@ -2,8 +2,8 @@
 
 One standalone contract: `<stateDir>/tokens.json`, where the semiont launcher
 (Go, `apps/launcher`) keeps the session of each stack a person has signed in
-to, and where an application built on the Rust SDK or the Python SDK finds
-it. One sign-in serves the launcher's verbs and that application.
+to, and where an application built on the Go, Rust or Python SDK finds it.
+One sign-in serves the launcher's verbs and that application.
 
 It is a contract because programs in three languages read and write the
 file. Like [discovery](../discovery/README.md), its schema refs nothing
@@ -39,8 +39,9 @@ written by a later release, is written back as it was.
 ## Where it is
 
 `<stateDir>` is the launcher's state home:
-[`cases.json`](cases.json) says where that is on each system — macOS, Windows,
-and everything else — and every program that finds the file runs those cases.
+[`cases.json`](cases.json)'s `cases` say where that is on each system — macOS,
+Windows, and everything else. Each SDK that reads the store runs them, and the
+launcher finds its state home through the Go SDK's.
 
 The file holds bearer credentials. It is created with mode `0600`, and
 written by writing a sibling temporary file and renaming it over the old
@@ -65,5 +66,30 @@ through which the launcher keeps its sign-ins, the Rust SDK
 (`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
 Windows the lock is on one byte of the lock file, far past anything the file
 holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
-holds that byte too. Each generates its entry from `SignIn.json` and runs
-every case of `cases.json`.
+holds that byte too. Each generates its entry from `SignIn.json`.
+
+## Renewing it
+
+A renewal reads the stack's sign-in, makes the refresh grant at its issuer,
+and writes what the issuer issued. Other programs renew the same sign-in, and
+sign the stack out, while it does. Three rules keep what each of them did:
+
+1. **A refresh token another program replaced is not spent.** Before the
+   grant: when the kept access token is not the one the renewer holds (the
+   one the gateway refused, or the one due) and has not expired, another
+   program has already renewed. That access token is given as it is, and no
+   grant is made.
+2. **A renewal another program made meanwhile stands.** After the grant,
+   under the lock: the renewal writes its tokens only when the kept sign-in
+   still holds the access token and the refresh token it read. When either is
+   another, another program renewed, or signed in again, while the grant was
+   in flight. Its tokens stand, the ones this renewal was issued are dropped,
+   and this renewal gives the kept access token. The refresh token alone does
+   not tell: an issuer that rotates none leaves it as it was.
+3. **A stack signed out meanwhile stays signed out.** When the sign-in is gone
+   by the time the renewal comes to write, nothing is written back, and the
+   new access token is given to nobody. When it is gone before the renewal
+   reads, there is nothing to renew, and no grant is made.
+
+Each SDK that reads the store runs every case of `cases.json`'s `renewals`
+through its renewal, over each store it has, as the table's `$comment` says.

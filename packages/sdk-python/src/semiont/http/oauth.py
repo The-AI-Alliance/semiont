@@ -21,6 +21,7 @@ renewal, and the session waiting on it, for as long as the process lives.
 """
 
 import asyncio
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, final
@@ -34,7 +35,7 @@ from semiont.http.transport import HttpTransport
 from semiont.identity import encode_uri_component
 from semiont.oauth_clients import SCRIPT_CLIENT_ID, SIGN_IN_SCOPE
 from semiont.retry import REFRESH, RetryFacts, retry_with_backoff
-from semiont.session import SignInKept
+from semiont.session import SignInKept, is_token_expired
 from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
 from semiont.watched import Variable
 
@@ -224,22 +225,29 @@ async def refresh_at_issuer(http: httpx.AsyncClient, token_endpoint: str, client
     return IssuedTokens(access=access, refresh=text_in(answer, "refresh_token") or refresh_token)
 
 
-async def renew_kept(kept: SignInKept) -> str | None:
+async def renew_kept(kept: SignInKept, holding: str | None) -> str | None:
     """Renew a kept sign-in at its issuer, and keep what it rotated.
 
     The new access token; nothing when no sign-in is kept, which is an absence
-    and not a failure. A renewal that fails says why in the issuer's own
-    words, and, when the retry budget ran out, how many attempts it took to
-    give up.
+    and not a failure. `holding` is the token its holder has: the one the
+    gateway refused, or the one due. A kept token that is not it, and has not
+    expired, was renewed some other way meanwhile, and is given as it is, so no
+    refresh token another program already replaced is spent. A renewal that
+    fails says why in the issuer's own words, and, when the retry budget ran
+    out, how many attempts it took to give up.
 
-    What is kept is written against what is kept then: a sign-in that was
-    signed out, or ended, while it was being renewed is gone. It is not
-    written back, and its new token is given to nobody: a session that is over
-    is not handed a credential again.
+    What is kept is written against what is kept then
+    (`specs/src/sign-in-store/README.md`, Renewing it). A renewal another
+    program made while the grant was in flight stands, and its access token is
+    the one given. A sign-in that was signed out, or ended, while it was being
+    renewed is gone: it is not written back, and its new token is given to
+    nobody, since a session that is over is not handed a credential again.
     """
     held = await kept.held()
     if held is None:
         return None
+    if held.access != holding and not is_token_expired(held.access, now=time.time()):
+        return held.access
     attempts = 0
     async with issuer_client() as http:
 
@@ -262,7 +270,7 @@ async def renew_kept(kept: SignInKept) -> str | None:
             raise SignInError(
                 "exchange", f"The session could not be renewed after {attempts} attempts: {error.message}", status=error.status
             ) from error
-    return tokens.access if await kept.renewed(tokens.access, tokens.refresh) else None
+    return await kept.renewed(held, tokens.access, tokens.refresh)
 
 
 async def revoke_at_issuer(http: httpx.AsyncClient, revocation_endpoint: str, client_id: str, refresh_token: str) -> None:

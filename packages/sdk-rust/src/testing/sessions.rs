@@ -185,7 +185,7 @@ impl SessionFactory for ScriptedSessions {
             storage: options.storage,
             client,
             token: watch::channel(None).0,
-            refresh: Some(Arc::new(move || {
+            refresh: Some(Arc::new(move |_holding| {
                 let answer = {
                     let mut scripted = locked(&renewing.scripted);
                     scripted.renewed += 1;

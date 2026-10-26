@@ -1,8 +1,9 @@
 """The sign-ins `semiont login` keeps (`specs/src/sign-in-store/README.md`), as this package reads and writes them.
 
 Where the file is, is `test_state_dir.py`'s. Here: what an entry holds, what
-a renewal keeps, what is written back untouched, and the lock every writer of
-the file takes.
+a renewal keeps while other programs renew and sign out (every renewal of
+`specs/src/sign-in-store/cases.json`), what is written back untouched, and the
+lock every writer of the file takes.
 """
 
 import asyncio
@@ -12,21 +13,29 @@ import stat
 import subprocess
 import sys
 import threading
-from collections.abc import Callable, Generator
+import time
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import final, override
+from urllib.parse import parse_qs
 
 import pytest
 from aio import run, soon
-from spec import SPEC, JsonObject, read, strings
+from gateway_server import GatewayServer
+from issuer import TOKEN, says
+from pydantic import JsonValue
+from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import jwt, token
 
 from semiont.errors import SignInError
-from semiont.session import HeldSignIn
+from semiont.http.oauth import renew_kept
+from semiont.session import HeldSignIn, MemorySignIn, SignInKept
 from semiont.sign_in import SignIn
 from semiont.sign_in_store import FILE_NAME, SignInStore
 
 SCHEMA = read(SPEC / "sign-in-store/SignIn.json")
+RENEWALS = objects(read(SPEC / "sign-in-store/cases.json")["renewals"], "renewals")
 ISSUER = "https://issuer.test/realms/semiont"
 
 
@@ -126,12 +135,13 @@ def test_what_is_no_sign_in_is_not_kept(tmp_path: Path) -> None:
 def test_a_renewal_keeps_who_signed_in_and_where_and_changes_the_tokens(tmp_path: Path) -> None:
     path = tmp_path / FILE_NAME
     kept = SignInStore(path).entry("local")
-    run(kept.keep(held(signed_in(1))))
+    first = held(signed_in(1))
+    run(kept.keep(first))
     before = entry(path, "local")
     # The renewed token names another address: the entry keeps the one the sign-in learned.
     renewed = signed_in(2, email="alice@elsewhere.example")
 
-    assert run(kept.renewed(renewed, "refresh-2"))
+    assert run(kept.renewed(first, renewed, "refresh-2")) == renewed
 
     after = entry(path, "local")
     assert (after["token"], after["refreshToken"]) == (renewed, "refresh-2")
@@ -140,15 +150,13 @@ def test_a_renewal_keeps_who_signed_in_and_where_and_changes_the_tokens(tmp_path
     assert run(kept.held()) == held(renewed, "refresh-2")
 
 
-def test_a_sign_in_that_ended_while_it_was_renewed_is_not_written_back(tmp_path: Path) -> None:
+def test_forgetting_what_is_not_kept_changes_nothing(tmp_path: Path) -> None:
     path = tmp_path / FILE_NAME
     kept = SignInStore(path).entry("local")
     run(kept.keep(held(signed_in(1))))
     run(kept.forget())
 
-    assert not run(kept.renewed(signed_in(2), "refresh-2"))
     assert document(path) == {}
-    # Forgetting what is not kept changes nothing.
     wrote = path.stat().st_mtime_ns
     run(kept.forget())
     assert path.stat().st_mtime_ns == wrote
@@ -175,15 +183,167 @@ def test_what_the_file_holds_that_is_not_this_sign_in_is_written_back_as_it_was(
     }
     path.write_text(json.dumps(others))
 
-    run(store.entry("local").keep(held(signed_in(1))))
-    assert run(store.entry("local").renewed(signed_in(2), "refresh-2"))
+    first = held(signed_in(1))
+    run(store.entry("local").keep(first))
+    renewed = signed_in(2)
+    assert run(store.entry("local").renewed(first, renewed, "refresh-2")) == renewed
     assert {key: value for key, value in document(path).items() if key != "local"} == others
     # What is not a sign-in is none to hold, and is not renewed into one.
     assert run(store.entry("later").held()) is None
-    assert not run(store.entry("later").renewed(signed_in(3), "refresh-3"))
+    assert run(store.entry("later").renewed(held(signed_in(3)), signed_in(3), "refresh-3")) is None
 
     run(store.entry("local").forget())
     assert document(path) == others
+
+
+# ── What a renewal keeps while other programs renew and sign out ────────
+
+RENEWAL_MEMBERS = {"why", "kept", "holding", "meanwhile", "expired", "issues", "spends", "leaves", "gives"}
+
+type Holds = Callable[[], Awaitable[tuple[str, str] | None]]
+"""The tokens a store holds for the stack: its access token and its refresh token, when it holds a sign-in."""
+
+
+def file_store(directory: Path) -> tuple[SignInKept, SignInKept, Holds]:
+    """The renewer's entry, another program's, and what the file holds."""
+    path = directory / "state" / FILE_NAME
+
+    async def holds() -> tuple[str, str] | None:
+        found = SignInStore(path).read().get("local")
+        if found is None:
+            return None
+        assert isinstance(found, dict)
+        access, refresh = found["token"], found["refreshToken"]
+        assert isinstance(access, str)
+        assert isinstance(refresh, str)
+        return access, refresh
+
+    return SignInStore(path).entry("local"), SignInStore(path).entry("local"), holds
+
+
+def memory_store(_directory: Path) -> tuple[SignInKept, SignInKept, Holds]:
+    """One sign-in kept in memory, which the renewer and another holder share."""
+    kept = MemorySignIn()
+
+    async def holds() -> tuple[str, str] | None:
+        found = await kept.held()
+        return None if found is None else (found.access, found.refresh)
+
+    return kept, kept, holds
+
+
+STORES = {"SignInStore": file_store, "MemorySignIn": memory_store}
+
+
+@final
+class Meanwhile(SignInKept):
+    """The renewer's sign-in, on which another program acts between the renewal's read and its write: while its grant is in flight."""
+
+    def __init__(self, kept: SignInKept, act: Callable[[], Awaitable[None]]) -> None:
+        self._kept = kept
+        self._act = act
+
+    @override
+    async def held(self) -> HeldSignIn | None:
+        found = await self._kept.held()
+        await self._act()
+        return found
+
+    @override
+    async def keep(self, sign_in: HeldSignIn) -> None:
+        await self._kept.keep(sign_in)
+
+    @override
+    async def renewed(self, read: HeldSignIn, access: str, refresh: str) -> str | None:
+        return await self._kept.renewed(read, access, refresh)
+
+    @override
+    async def forget(self) -> None:
+        await self._kept.forget()
+
+
+def tokens_of(stated: JsonObject, what: str) -> tuple[str, str | None]:
+    """A sign-in as the table states one: its access token's name and its refresh token, when it states one."""
+    refresh = stated.get("refreshToken")
+    assert refresh is None or isinstance(refresh, str), what
+    return text(stated["token"], what), refresh
+
+
+def optional_text(value: JsonValue, what: str) -> str | None:
+    return None if value is None else text(value, what)
+
+
+@pytest.mark.parametrize("row", RENEWALS, ids=[text(row["why"], "why") for row in RENEWALS])
+@pytest.mark.parametrize("store", STORES)
+def test_every_renewal_is_the_tables(store: str, row: JsonObject, tmp_path: Path) -> None:
+    assert set(row) == RENEWAL_MEMBERS
+    expired = strings(row["expired"], "expired")
+    renewer, another, holds = STORES[store](tmp_path)
+    # Each access token the row names is a JWT of its own.
+    minted: dict[str, str] = {}
+
+    def named(name: str) -> str:
+        if name not in minted:
+            now = int(time.time())
+            expiry = now - 3600 if name in expired else now + 3600
+            minted[name] = jwt({"email": "alice@example.org", "iss": ISSUER, "exp": expiry, "jti": name})
+        return minted[name]
+
+    def name_of(access: str | None) -> str | None:
+        return next((name for name, minted_token in minted.items() if minted_token == access), access)
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+
+            def sign_in(stated: JsonValue, what: str) -> HeldSignIn:
+                assert isinstance(stated, dict), what
+                access, refresh = tokens_of(stated, what)
+                assert refresh is not None, what
+                return HeldSignIn(access=named(access), refresh=refresh, client_id="semiont-cli", token_endpoint=f"{gateway.origin}{TOKEN}")
+
+            await another.keep(sign_in(row["kept"], "kept"))
+            meanwhile = row["meanwhile"]
+            assert meanwhile is None or isinstance(meanwhile, dict)
+
+            async def act() -> None:
+                assert meanwhile is not None
+                does = meanwhile["does"]
+                if does == "renews":
+                    await another.keep(sign_in(meanwhile["theirs"], "theirs"))
+                else:
+                    assert does == "signs-out", does
+                    await another.forget()
+
+            issues = row["issues"]
+            assert isinstance(issues, dict)
+            issued_access, issued_refresh = tokens_of(issues, "issues")
+            issued: JsonObject = {"access_token": named(issued_access), "token_type": "Bearer"}
+            if issued_refresh is not None:
+                issued["refresh_token"] = issued_refresh
+            gateway.scripted[("POST", TOKEN)] = [says(issued)]
+            renewing = renewer
+            if meanwhile is not None:
+                if meanwhile["when"] == "before":
+                    await act()
+                else:
+                    assert meanwhile["when"] == "during", meanwhile["when"]
+                    renewing = Meanwhile(renewer, act)
+            holding = optional_text(row["holding"], "holding")
+
+            given = await soon(renew_kept(renewing, None if holding is None else named(holding)))
+
+            spent = [parse_qs(asked.body.decode())["refresh_token"][0] for asked in gateway.of("POST", TOKEN)]
+            spends = optional_text(row["spends"], "spends")
+            assert spent == ([] if spends is None else [spends]), "the grants made"
+            assert name_of(given) == optional_text(row["gives"], "gives"), "the access token given"
+            left = await holds()
+            leaves = row["leaves"]
+            assert leaves is None or isinstance(leaves, dict)
+            assert (None if left is None else (name_of(left[0]), left[1])) == (None if leaves is None else tokens_of(leaves, "leaves")), (
+                "what the store holds"
+            )
+
+    run(scenario())
 
 
 def put(key: str, value: int) -> Callable[[JsonObject], bool]:

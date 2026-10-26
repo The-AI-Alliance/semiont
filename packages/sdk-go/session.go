@@ -48,13 +48,13 @@ type SignInKept interface {
 	Held(ctx context.Context) (HeldSignIn, bool, error)
 	// Keep keeps signIn, in place of whatever was kept.
 	Keep(ctx context.Context, signIn HeldSignIn) error
-	// Renewed keeps the tokens a renewal issued for the refresh token spent,
-	// against what is kept now, and is the access token kept then. When what
-	// is kept no longer holds spent, it was renewed some other way meanwhile:
-	// that stands, and its access token is the one given. False when nothing
-	// is kept: a sign-in that was signed out, or ended, while it was being
-	// renewed is gone, and is not written back.
-	Renewed(ctx context.Context, spent, access, refresh string) (string, bool, error)
+	// Renewed keeps the tokens a renewal of read issued, against what is kept
+	// now, and is the access token kept then. When what is kept no longer
+	// holds read's tokens, it was renewed some other way meanwhile: that
+	// stands, and its access token is the one given. False when nothing is
+	// kept: a sign-in that was signed out, or ended, while it was being renewed
+	// is gone, and is not written back.
+	Renewed(ctx context.Context, read HeldSignIn, access, refresh string) (string, bool, error)
 	// Forget keeps the sign-in no more.
 	Forget(ctx context.Context) error
 }
@@ -82,13 +82,13 @@ func (m *MemorySignIn) Keep(_ context.Context, signIn HeldSignIn) error {
 	return nil
 }
 
-func (m *MemorySignIn) Renewed(_ context.Context, spent, access, refresh string) (string, bool, error) {
+func (m *MemorySignIn) Renewed(_ context.Context, read HeldSignIn, access, refresh string) (string, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.has {
 		return "", false, nil
 	}
-	if m.signIn.Refresh != spent {
+	if m.signIn.Access != read.Access || m.signIn.Refresh != read.Refresh {
 		return m.signIn.Access, true, nil
 	}
 	m.signIn.Access, m.signIn.Refresh = access, refresh

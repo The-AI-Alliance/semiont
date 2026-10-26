@@ -246,21 +246,6 @@ func TestARenewalIsTriedAgainOnlyWhenTheIssuerSaysNotNow(t *testing.T) {
 	}
 }
 
-// What another program already renewed is used as it is: no refresh token it
-// replaced is spent.
-func TestARenewalSpendsNoRefreshTokenAnotherProgramReplaced(t *testing.T) {
-	s := newStack(t)
-	s.set(func() { s.token = issuing(2) })
-	_, entry := keptAt(t, s, 9)
-	renewed, err := issuerOf().RenewKept(context.Background(), entry, signedToken(1))
-	if err != nil || renewed != signedToken(9) {
-		t.Fatalf("renewed with %v", err)
-	}
-	if grants := s.grantsMade(); grants != 0 {
-		t.Errorf("%d grants were made with a refresh token already replaced", grants)
-	}
-}
-
 // A resumed session: the gateway refuses the kept token, the session renews
 // it at the issuer and keeps the rotation, and the gateway accepts the new
 // one.
