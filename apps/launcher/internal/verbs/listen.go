@@ -129,20 +129,20 @@ func Listen(args []string) int {
 		}
 	}
 
-	t, ok := launcher.VerbSession(u, "listen", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "listen", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
+	defer sess.Close()
 	// The stream names the channels globally; a scope's arrive on the scope.
 	var global []bus.Channel
 	if scope == "" {
 		global = channels
 	}
-	b := t.Bus(global...)
-	defer b.Close()
+	c := sess.Client(global...)
+	defer c.Close()
 	if scope != "" {
-		release := b.Transport().SubscribeToResource(rid)
+		release := c.Transport.SubscribeToResource(rid)
 		defer release()
 	}
 	var heard []bus.Channel
@@ -151,34 +151,34 @@ func Listen(args []string) int {
 			heard = append(heard, ch)
 		}
 	}
-	frames, stopFrames, err := arrivals(b.Transport(), heard)
+	frames, stopFrames, err := arrivals(c.Transport, heard)
 	if err != nil {
 		return busFail(u, "listen", err)
 	}
 	defer stopFrames()
 
-	ctx, stop := signal.NotifyContext(b.Context(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(c.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	down := dropped(ctx, b.Transport())
+	down := dropped(ctx, c.Transport)
 
+	// Listening is said once the stream is held, never before.
+	if err := c.Reached(); err != nil {
+		return busFail(u, "listen", err)
+	}
 	// Resource names, asked ONCE, on the stream the events arrive on. Not per
 	// event: one request up front, then never again; ids the prefetch misses
 	// render as ids. Events that arrive meanwhile wait for it.
-	render := newListenRenderer(prefetchResourceNames(b))
+	render := newListenRenderer(prefetchResourceNames(c))
 
-	// Listening is said once the stream is held, never before.
-	if err := b.Reached(); err != nil {
-		return busFail(u, "listen", err)
-	}
 	opened := false
-	for state := range b.Transport().StateChanges(ctx) {
+	for state := range c.Transport.StateChanges(ctx) {
 		if state == semiont.ConnectionStateOpen {
 			opened = true
 			break
 		}
 	}
 	if !opened {
-		return listenStopped(u, b)
+		return listenStopped(u, c)
 	}
 
 	where := "this KB"
@@ -197,7 +197,7 @@ func Listen(args []string) int {
 	for {
 		select {
 		case <-ctx.Done():
-			return listenStopped(u, b)
+			return listenStopped(u, c)
 		case <-down:
 			// The stream ended on its own — say so rather than exiting 0 as
 			// though the user had asked to stop.
@@ -211,9 +211,9 @@ func Listen(args []string) int {
 
 // listenStopped ends a `listen` that was stopped: by the user, or by the
 // gateway refusing the session for good.
-func listenStopped(u *launcher.UI, b *launcher.VerbBus) int {
-	if b.Context().Err() != nil {
-		return busFail(u, "listen", context.Cause(b.Context()))
+func listenStopped(u *launcher.UI, c *launcher.VerbClient) int {
+	if c.Context().Err() != nil {
+		return busFail(u, "listen", context.Cause(c.Context()))
 	}
 	fmt.Println()
 	u.Log("Stopped.")
@@ -224,20 +224,15 @@ func listenStopped(u *launcher.UI, b *launcher.VerbBus) int {
 // uses. Best effort by design: a KB that cannot answer, or answers partially,
 // costs the console nothing — every id still renders as an id. Failing the
 // whole `listen` because a cosmetic lookup failed would be the wrong trade.
-func prefetchResourceNames(b *launcher.VerbBus) map[string]string {
+func prefetchResourceNames(c *launcher.VerbClient) map[string]string {
 	names := map[string]string{}
-	limit := prefetchLimit
-	req := api.BrowseResourcesRequest{}
-	req.Limit = &limit
-	reply, err := b.Request("browse:resources-requested", req, prefetchTimeout)
+	ctx, cancel := context.WithTimeout(c.Context(), prefetchTimeout)
+	defer cancel()
+	page, err := c.Browse.Resources(semiont.ResourceFilters{Limit: prefetchLimit}).Fresh(ctx)
 	if err != nil {
 		return names
 	}
-	var r api.BrowseResourcesResult
-	if json.Unmarshal(reply, &r.Response) != nil {
-		return names
-	}
-	for _, res := range r.Response.Resources {
+	for _, res := range page.Resources {
 		names[res.Id.String()] = res.Name
 	}
 	return names

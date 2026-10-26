@@ -31,18 +31,18 @@ func reply(body string) []byte {
 
 // ── browse ──────────────────────────────────────────────────────────────
 
-func TestBrowseJSONPassesThroughInProcess(t *testing.T) {
+func TestBrowseJSONPrintsTheResponseInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
+	fake.Replies["browse:resources-requested"] = reply(`{"total":0,"resources":[],"offset":0,"limit":20}`)
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
 			t.Fatalf("browse --json: exit %d", code)
 		}
 	})
-	// The reply's response, as the gateway sent it.
-	harness.MustContainAll(t, "raw response", out, `{"resources":[],"total":0}`)
+	// The reply's response, as the SDK read it: its members in the schema's order.
+	harness.MustContainAll(t, "response", out, `{"limit":20,"offset":0,"resources":[],"total":0}`)
 }
 
 func TestBrowseSendsItsFilters(t *testing.T) {

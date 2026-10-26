@@ -19,13 +19,11 @@ package launcher
 // silent about the rest.
 
 import (
-	"encoding/json"
-	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -43,20 +41,6 @@ const statusCeilingTimeout = 3 * time.Second
 type modelCeilings map[string]api.InferenceLimits
 
 func ceilingKey(provider, model string) string { return provider + "\x00" + model }
-
-// limitsOperations: the operations that report inference limits, one per
-// service holding inference credentials, named <flow>:limits-requested in the
-// generated registry — the same derivation the TypeScript SDK makes.
-func limitsOperations() []bus.Channel {
-	var ops []bus.Channel
-	for ch := range bus.Operations {
-		if strings.HasSuffix(string(ch), ":limits-requested") {
-			ops = append(ops, ch)
-		}
-	}
-	sort.Slice(ops, func(i, j int) bool { return ops[i] < ops[j] })
-	return ops
-}
 
 // fetchModelCeilings asks every key holder on the local stack for its models'
 // limits and indexes what they report. A nil or partial result is the answer
@@ -78,21 +62,20 @@ func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 		return nil
 	}
 	defer sess.Close()
-	platform := sess.bus(nil)
+	platform := sess.Client()
 	defer platform.Close()
+	if platform.Reached() != nil {
+		return nil
+	}
 	var (
 		mu  sync.Mutex
 		wg  sync.WaitGroup
 		out = modelCeilings{}
 	)
-	for _, op := range limitsOperations() {
+	for _, op := range bus.LimitsOperations {
 		wg.Go(func() {
-			reply, err := platform.Request(op, api.InferenceLimitsRequest{}, statusCeilingTimeout)
+			r, err := semiont.Request(platform.Context(), platform.Wire, op, api.InferenceLimitsRequest{}, statusCeilingTimeout)
 			if err != nil {
-				return
-			}
-			var r api.InferenceLimitsResult
-			if json.Unmarshal(reply, &r.Response) != nil {
 				return
 			}
 			mu.Lock()

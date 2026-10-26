@@ -9682,7 +9682,7 @@ func TestYieldDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("a yield job that completed as a mark job must fail the command\nstdout:\n%s", stdout)
 	}
-	mustContain(t, "refusal", stderr, `Job fake-job-1 completed as a "mark" job, and yield --delegate created a "yield" job.`, "What the job did:  semiont browse res-src")
+	mustContain(t, "refusal", stderr, `yield --delegate: The job:complete of job fake-job-1 is a mark job's, and the job delegated is a yield job.`, "What the job did:  semiont browse res-src")
 	if strings.Contains(stdout, "Yielded") {
 		t.Errorf("claimed a yield that never happened:\n%s", stdout)
 	}
@@ -9867,24 +9867,6 @@ func TestMarkDelegateReportsADecline(t *testing.T) {
 	mustContain(t, "raw completion", stdout, `"declined":true`, `"no-text-layer"`)
 }
 
-// A job's result is its verb's. A mark job that completes with the resource a
-// yield job makes annotated nothing anyone can count: the command says what it
-// was handed and fails, in either output format, and does not call it a mark.
-func TestMarkDelegateRefusesAResultThatIsNotAMarkJobs(t *testing.T) {
-	s := busScenario(t, `FAKERT_JOB_RESULT={"resourceId":"res-new","resourceName":"Generated","truncated":false}`)
-	for _, format := range [][]string{nil, {"--json"}} {
-		stdout, stderr, code := s.run(t, append([]string{"mark", "--delegate", "res-1", "--motivation", "highlighting"}, format...)...)
-		if code == 0 {
-			t.Fatalf("%v: a mark job that reported a yield job's resource must fail the command\nstdout:\n%s", format, stdout)
-		}
-		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither a mark job's counts nor a decline: {"resourceId":"res-new","resourceName":"Generated","truncated":false}`, "What the job did:  semiont browse res-1 --annotations")
-		mustNotContain(t, "a type's name in what a user reads", stderr, "MarkJobDone", "JobDeclined")
-		if strings.Contains(stdout, "Marked") {
-			t.Errorf("%v: claimed a mark that never happened:\n%s", format, stdout)
-		}
-	}
-}
-
 // A completion is its verb's by its jobType. A mark job whose completion names
 // the other verb annotated nothing this command can count: it says what the
 // job completed as and what it created, and fails.
@@ -9894,7 +9876,7 @@ func TestMarkDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("a mark job that completed as a yield job must fail the command\nstdout:\n%s", stdout)
 	}
-	mustContain(t, "refusal", stderr, `Job fake-job-1 completed as a "yield" job, and mark --delegate created a "mark" job.`, "What the job did:  semiont browse res-1 --annotations")
+	mustContain(t, "refusal", stderr, `mark --delegate: The job:complete of job fake-job-1 is a yield job's, and the job delegated is a mark job.`, "What the job did:  semiont browse res-1 --annotations")
 	if strings.Contains(stdout, "Marked") {
 		t.Errorf("claimed a mark that never happened:\n%s", stdout)
 	}

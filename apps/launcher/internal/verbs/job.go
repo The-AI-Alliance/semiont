@@ -1,16 +1,16 @@
 package verbs
 
-// job.go — the job lifecycle a delegated verb follows. `yield --delegate` and
-// `mark --delegate` are not one request and its reply: each creates a job
-// (job:create → job:created names it) and then follows job:report-progress,
-// job:complete and job:fail, which are BROADCASTS correlated by jobId — not by
-// the correlationId a request uses. Their frames are therefore taken BEFORE
-// the job is created: the jobId is unknown at that moment, so frames wait and
-// are filtered once it arrives. Taking them after would race a fast job.
+// job.go — the job a delegated verb follows. `yield --delegate` and
+// `mark --delegate` are not one request and its reply: each delegates a job
+// through the SDK (Mark.Delegate, Yield.Delegate), whose follower creates it,
+// hears its progress and its end, and asks for its status when it falls
+// silent. What is the launcher's here is the narration, and what the job's
+// result is said as.
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -27,11 +27,8 @@ import (
 )
 
 // jobChannels: the broadcasts a delegated job is followed on. A delegated
-// verb's bus carries them (launcher.VerbTarget.Bus).
-var jobChannels = []bus.Channel{"job:report-progress", "job:complete", "job:fail"}
-
-// requestWithin: how long a verb waits for a request's reply.
-var requestWithin = semiont.DefaultTiming().BusRequestTimeout
+// verb's client hears them, so its follower does (launcher.Session.Client).
+var jobChannels = []bus.Channel{bus.JobReportProgress.Channel(), bus.JobComplete.Channel(), bus.JobFail.Channel()}
 
 // arrivals is the frames of channels, delivered from when it is called, on
 // one channel; stop lets them go. The frames that arrive while nobody reads
@@ -75,148 +72,73 @@ func dropped(ctx context.Context, transport semiont.Transport) <-chan struct{} {
 	return out
 }
 
-// delegatedJob: one job a verb creates and follows to its end. C is the verb:
-// the member of the JobCompleteCommand union its jobType names, which is what
-// the job's completion is read as.
-type delegatedJob[C any] struct {
-	verb string // names the verb in a refusal: "mark --delegate"
-	// doing and note narrate the start: "Annotating res-1 (highlighting; job
-	// job-1)". note may be empty.
+// delegation is how a delegated verb names its job to a human: what it is
+// doing ("Annotating res-1", "Generating"), a note on it ("highlighting"),
+// what failed when it fails ("Annotation"), and the command that shows what
+// the job has done.
+type delegation struct {
+	verb        string // names the verb in a refusal: "mark --delegate"
 	doing, note string
-	failed      string // what failed, in "Annotation failed: …"
-	check       string // the command that shows what the job has done
-	create      api.JobCreateCommand
-	jobOf       func(C) api.JobId // the job a completion is of
+	failed      string
+	check       string
 }
 
-// run creates the job and follows it, on a bus that carries jobChannels. It
-// returns the job:complete the job ended with, read as the verb's and as it
-// arrived. ok=false: the job failed, could not be created or followed, or
+// follow narrates job until it ends: the job's id as soon as the queue names
+// it, its progress, and each attempt the queue runs again. It gives the
+// completion. ok=false: the job failed, could not be created or followed, or
 // completed as another verb's, and that was said.
-func (j delegatedJob[C]) run(u *launcher.UI, b *launcher.VerbBus) (done C, raw json.RawMessage, ok bool) {
-	ctx, cancel := context.WithCancel(b.Context())
-	defer cancel()
-	frames, stop, err := arrivals(b.Transport(), jobChannels)
-	if err != nil {
-		busFail(u, j.verb, err)
-		return done, nil, false
-	}
-	defer stop()
-	down := dropped(ctx, b.Transport())
-
-	created, err := b.Request("job:create", j.create, requestWithin)
-	if err != nil {
-		busFail(u, j.verb, err)
-		return done, nil, false
-	}
-	var jc api.JobCreatedResult
-	if json.Unmarshal(created, &jc.Response) != nil || jc.Response.JobId.IsZero() {
-		u.Fail("%s: the gateway accepted the job but named no jobId.", j.verb)
-		return done, nil, false
-	}
-	jobID := jc.Response.JobId
-	note := "job " + jobID.String()
-	if j.note != "" {
-		note = j.note + "; " + note
-	}
-	u.Log("%s %s", j.doing, u.Dim("("+note+")"))
-
-	// A job can run for minutes; narrate it rather than leaving a silent
-	// terminal. Each job channel carries its own command schema, so each is
-	// read with its own generated type. These are broadcasts, and every
-	// viewer of the KB sees them: another job's are skipped.
-	for {
-		var frame semiont.Frame
-		select {
-		case <-ctx.Done():
-			busFail(u, j.verb, context.Cause(ctx))
-			return done, nil, false
-		case <-down:
-			u.Fail("The event stream closed before job %s finished.", jobID)
-			fmt.Fprintln(os.Stderr, "  The job may still be running:  "+j.check)
-			return done, nil, false
-		case frame = <-frames:
-		}
-		switch frame.Channel {
-		case "job:report-progress":
-			var p api.JobReportProgressCommand
-			if json.Unmarshal(frame.Payload, &p) != nil || p.JobId != jobID || p.Progress == nil {
-				continue
+func follow[C any](u *launcher.UI, c *launcher.VerbClient, d delegation, job *semiont.Delegation[C]) (done C, ok bool) {
+	var jobID api.JobId
+	for event, err := range job.Events() {
+		if err != nil {
+			var failed *semiont.JobError
+			switch {
+			case errors.As(err, &failed):
+				u.Fail("%s failed: %s", d.failed, failed.Message)
+				if failed.Code != semiont.JobErrorCodeFailed {
+					fmt.Fprintln(os.Stderr, "  What the job did:  "+d.check)
+				}
+			case jobID.IsZero():
+				busFail(u, d.verb, c.Refusal(err))
+			default:
+				refused := c.Refusal(err)
+				var rej *launcher.SessionRejected
+				if errors.As(refused, &rej) {
+					launcher.RejectedFail(u, d.verb, rej)
+					break
+				}
+				u.Fail("%s: %v.", d.verb, refused)
+				fmt.Fprintln(os.Stderr, "  What the job did:  "+d.check)
 			}
+			return done, false
+		}
+		switch e := event.(type) {
+		case semiont.JobCreated:
+			jobID = e.Data.JobId
+			note := "job " + jobID.String()
+			if d.note != "" {
+				note = d.note + "; " + note
+			}
+			u.Log("%s %s", d.doing, u.Dim("("+note+")"))
+		case semiont.JobProgressed:
 			// JobProgress is the one progress shape for every job type. The
 			// wire carries a code and typed params, never a sentence: each
 			// client owns its own words. A code this launcher does not know
 			// prints nothing rather than an empty bullet.
-			if text := progressText(p.Progress.Message); text != "" {
+			if text := progressText(e.Data.Message); text != "" {
 				u.Log("%s", u.Dim(text))
 			}
-		case "job:fail":
-			var f api.JobFailCommand
-			if json.Unmarshal(frame.Payload, &f) != nil || f.JobId != jobID {
-				continue
+		case semiont.JobAttemptFailed:
+			attempt := "An attempt"
+			if e.Data.Attempt != nil {
+				attempt = fmt.Sprintf("Attempt %d", *e.Data.Attempt)
 			}
-			// A failure the queue will retry is an event of a job still
-			// running: a fresh attempt continues it, and stopping here would
-			// report a recovering run as a failed one. Absent reads as
-			// terminal, the safe direction: a command that ends early is
-			// seen, one that never ends is not.
-			if f.WillRetry != nil && *f.WillRetry {
-				attempt := "An attempt"
-				if f.Attempt != nil {
-					attempt = fmt.Sprintf("Attempt %d", *f.Attempt)
-				}
-				u.Log("%s", u.Dim(fmt.Sprintf("%s failed (%s); the queue is running the job again", attempt, f.Error)))
-				continue
-			}
-			u.Fail("%s failed: %s", j.failed, f.Error)
-			return done, nil, false
-		case "job:complete":
-			completed, mine, err := j.completion(jobID, frame.Payload)
-			if !mine {
-				continue
-			}
-			if err != nil {
-				u.Fail("Job %s %v.", jobID, err)
-				fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
-				return done, nil, false
-			}
-			return completed, frame.Payload, true
+			u.Log("%s", u.Dim(fmt.Sprintf("%s failed (%s); the queue is running the job again", attempt, e.Data.Error)))
+		case semiont.JobCompleted[C]:
+			return e.Data, true
 		}
 	}
-}
-
-// completion reads a job:complete as the completion of the job this verb
-// created. mine=false: it is another job's. An error: it is this job's, and
-// the union reads it as another verb's or as none: what the job completed as,
-// said after its name.
-func (j delegatedJob[C]) completion(jobID api.JobId, payload json.RawMessage) (done C, mine bool, err error) {
-	// Whose job it is: every member of the union names its job, so the
-	// payload is read as this verb's to learn that much.
-	var read C
-	if json.Unmarshal(payload, &read) != nil || j.jobOf(read) != jobID {
-		return done, false, nil
-	}
-	// Whose verb it is: the union's to say, by its discriminator.
-	var completed api.JobCompleteCommand
-	if err := completed.UnmarshalJSON(payload); err != nil {
-		return done, true, err
-	}
-	member, err := completed.ValueByDiscriminator()
-	done, isVerbs := member.(C)
-	if err != nil || !isVerbs {
-		as := "a job that names no type"
-		if said, _ := completed.Discriminator(); said != "" {
-			as = fmt.Sprintf("a %q job", said)
-		}
-		return done, true, fmt.Errorf("completed as %s, and %s created a %q job", as, j.verb, j.jobType())
-	}
-	return done, true, nil
-}
-
-// jobType: the verb's job type, as the job:create this verb sends states it.
-func (j delegatedJob[C]) jobType() string {
-	jobType, _ := j.create.Discriminator()
-	return jobType
+	return done, false
 }
 
 // wireMembers: the members a generated type names, each with whether its
@@ -431,9 +353,9 @@ func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, er
 
 // resultFail says that a job completed with a result that is not its verb's,
 // and fails the command: a completion nobody can read is not a success.
-func (j delegatedJob[C]) resultFail(u *launcher.UI, jobID api.JobId, err error) int {
+func (d delegation) resultFail(u *launcher.UI, jobID api.JobId, err error) int {
 	u.Fail("Job %s completed with %v", jobID, err)
-	fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
+	fmt.Fprintln(os.Stderr, "  What the job did:  "+d.check)
 	return 1
 }
 

@@ -19,6 +19,7 @@ import (
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 func specFile(t *testing.T, path ...string) []byte {
@@ -175,14 +176,18 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		motivation, _ := args.Params["motivation"].(string)
 		delete(args.Params, "motivation")
 		asked[api.Motivation(motivation)] = true
-		// Through the flags: what a caller types is what is sent.
-		given := givenBy(t, markJobFlags, flagsFor(t, markJobFlags, args.Params))
-		command, err := markJob(args.ResourceId, api.Motivation(motivation), given)
-		if err != nil {
-			t.Errorf("%s: refused: %v", c.Args, err)
+		// Through the flags and the SDK: what a caller types is what is sent.
+		argv := append([]string{"--delegate", args.ResourceId.String(), "--motivation", motivation}, flagsFor(t, markJobFlags, args.Params)...)
+		fake, restore := withFake(t)
+		// The fake answers no job:create it was not told to: what was sent is what is held.
+		harness.CaptureStdout(t, func() { Mark(argv) })
+		restore()
+		_, requests := fake.Sent()
+		if len(requests) == 0 || requests[0].Channel != bus.JobCreate.Request().Channel() {
+			t.Errorf("%s: sent no job:create (%v)", c.Args, fake.Ops())
 			continue
 		}
-		sent, err := json.Marshal(command)
+		sent, err := json.Marshal(requests[0].Payload)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,10 +206,6 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		t.Fatal("the spec's motivations could not be read")
 	}
 	schemas := markJobSchemas(t)
-	res1, err := api.ParseResourceId("res-1")
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, name := range motivations {
 		motivation := api.Motivation(name)
 		if !asked[motivation] {
@@ -226,7 +227,7 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 			}
 		}
 		delete(given, "motivation")
-		if _, err := markJob(res1, motivation, given); err != nil {
+		if _, err := markParams(motivation, given); err != nil {
 			t.Errorf("the motivation %q cannot be delegated: %v", motivation, err)
 		}
 	}

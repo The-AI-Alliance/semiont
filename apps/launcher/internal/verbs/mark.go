@@ -119,44 +119,38 @@ var markJobFlags = jobFlags{
 	"--category":        {"categories", flagList},
 }
 
-// markJob: the job:create a delegated mark sends: a `mark` job on the
-// resource, its parameters the chosen motivation's generated type holding what
-// the flags gave.
-func markJob(resourceID api.ResourceId, motivation api.Motivation, given map[string]any) (api.JobCreateCommand, error) {
-	var create api.JobCreateCommand
+// markParams: the parameters of the job a delegated mark asks for: the
+// chosen motivation's generated type, holding what the flags gave.
+func markParams(motivation api.Motivation, given map[string]any) (api.MarkJobParams, error) {
+	var params api.MarkJobParams
 	if !motivation.Valid() {
-		return create, fmt.Errorf("--motivation wants a motivation a mark can be delegated for, got %q", motivation)
+		return params, fmt.Errorf("--motivation wants a motivation a mark can be delegated for, got %q", motivation)
 	}
 	described := map[string]any{"motivation": motivation}
 	for param, value := range given {
 		described[param] = value
 	}
 	// The union says which generated type holds this motivation's parameters.
-	var params api.MarkJobParams
 	written, err := json.Marshal(described)
 	if err == nil {
 		err = params.UnmarshalJSON(written)
 	}
 	if err != nil {
-		return create, err
+		return params, err
 	}
 	generated, err := params.ValueByDiscriminator()
 	if err != nil {
-		return create, err
+		return params, err
 	}
 	held := reflect.New(reflect.TypeOf(generated))
 	if err := jobParams(described, markJobFlags, held.Interface(), string(motivation)); err != nil {
-		return create, err
+		return params, err
 	}
 	// What is sent is what that type writes.
 	if written, err = json.Marshal(held.Interface()); err == nil {
 		err = params.UnmarshalJSON(written)
 	}
-	if err != nil {
-		return create, err
-	}
-	err = create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: resourceID, Params: params})
-	return create, err
+	return params, err
 }
 
 func Mark(args []string) int {
@@ -284,18 +278,18 @@ options:
 			return 1
 		}
 		chosen := api.Motivation(motivation)
-		command, err := markJob(rid, chosen, given)
+		params, err := markParams(chosen, given)
 		if err != nil {
 			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		t, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
+		sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
 		if !ok {
 			return 1
 		}
-		defer t.Close()
-		return runMarkDelegate(u, t, command, resourceID, chosen, asJSON)
+		defer sess.Close()
+		return runMarkDelegate(u, sess, rid, params, chosen, asJSON)
 	}
 	if len(delegateOnly) > 0 {
 		u.Fail("%s belongs to --delegate, where the stack does the annotating.", delegateOnly[0])
@@ -338,18 +332,20 @@ options:
 		}
 	}
 
-	t, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "mark", err)
+	}
 
 	if deleteID != "" {
-		_, err := b.Request("mark:delete", api.MarkDeleteCommand{AnnotationId: did, ResourceId: &rid}, requestWithin)
-		if err != nil {
-			return busFail(u, "mark --delete", err)
+		if err := c.Mark.Delete(c.Context(), rid, did); err != nil {
+			return busFail(u, "mark --delete", c.Refusal(err))
 		}
 		u.Ok("Deleted annotation %s", deleteID)
 		return 0
@@ -461,25 +457,14 @@ options:
 		request.Body = &body
 	}
 
-	reply, err := b.Request("mark:create-request", api.MarkCreateRequest{ResourceId: rid, Request: request}, requestWithin)
+	created, err := c.Mark.Annotation(c.Context(), request)
 	if err != nil {
-		return busFail(u, "mark", err)
+		return busFail(u, "mark", c.Refusal(err))
 	}
 	if asJSON {
-		fmt.Println(string(reply))
-		return 0
+		return printJSON(u, created)
 	}
-	var ok2 api.MarkCreateOk
-	if json.Unmarshal(reply, &ok2.Response) != nil {
-		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
-		return 0
-	}
-	id := ok2.Response.AnnotationId
-	if id.IsZero() {
-		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
-		return 0
-	}
-	u.Ok("Marked %s → %s %s", resourceID, id, u.Dim("("+motivation+")"))
+	u.Ok("Marked %s → %s %s", resourceID, created.AnnotationId, u.Dim("("+motivation+")"))
 	return 0
 }
 
@@ -502,27 +487,29 @@ var markNouns = map[api.Motivation]string{
 	api.MotivationTagging:      "tag",
 }
 
-// runMarkDelegate creates the annotation job and follows it to its end.
-func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command api.JobCreateCommand, resourceID string, motivation api.Motivation, asJSON bool) int {
-	job := delegatedJob[api.MarkJobCompleteCommand]{
-		verb: "mark --delegate", doing: "Annotating " + resourceID, note: string(motivation), failed: "Annotation",
-		check:  "semiont browse " + resourceID + " --annotations",
-		create: command,
-		jobOf:  func(done api.MarkJobCompleteCommand) api.JobId { return done.JobId },
+// runMarkDelegate delegates the annotating of a resource and follows the job
+// to its end.
+func runMarkDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.ResourceId, params api.MarkJobParams, motivation api.Motivation, asJSON bool) int {
+	d := delegation{
+		verb: "mark --delegate", doing: "Annotating " + resourceID.String(), note: string(motivation), failed: "Annotation",
+		check: "semiont browse " + resourceID.String() + " --annotations",
 	}
-	b := t.Bus(jobChannels...)
-	defer b.Close()
-	done, raw, ok := job.run(u, b)
+	c := sess.Client(jobChannels...)
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, d.verb, err)
+	}
+	done, ok := follow(u, c, d, c.Mark.Delegate(resourceID, params))
 	if !ok {
 		return 1
 	}
 	result, err := jobResult(done.Result, markJobResults)
 	if err != nil {
-		return job.resultFail(u, done.JobId, err)
+		return d.resultFail(u, done.JobId, err)
 	}
 	declined, isDecline := result.(api.JobDeclined)
 	if asJSON {
-		fmt.Println(string(raw))
+		printJSON(u, done)
 		// The exit code is a property of the outcome, not of the output
 		// format.
 		if isDecline {

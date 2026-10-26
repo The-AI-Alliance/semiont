@@ -13,7 +13,6 @@ package verbs
 // just be a rejected request.
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
@@ -159,35 +159,33 @@ options:
 		}
 	}
 
-	t, ok := launcher.VerbSession(u, "match", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "match", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "match", err)
+	}
 
 	if searching {
 		if limit == 0 {
 			limit = 20
 		}
-		req := api.MatchResourcesRequest{Search: search, Limit: &limit}
+		filters := semiont.ResourceFilters{Limit: limit}
 		if entityType != "" {
-			req.EntityType = &entityType
+			filters.EntityType = &entityType
 		}
-		reply, err := b.Request("match:resources-requested", req, requestWithin)
+		found, err := c.Match.Resources(search, filters).Fresh(c.Context())
 		if err != nil {
-			return busFail(u, "match", err)
+			return busFail(u, "match", c.Refusal(err))
 		}
 		if asJSON {
-			fmt.Println(string(reply))
-			return 0
+			return printJSON(u, found)
 		}
-		var found api.MatchResourcesResult
-		if json.Unmarshal(reply, &found.Response) != nil {
-			return rawFallback(reply)
-		}
-		printResources(u, found.Response.Resources, found.Response.Total)
+		printResources(u, found.Resources, found.Total)
 		return 0
 	}
 
@@ -197,44 +195,19 @@ options:
 
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)
-	gathered, err := b.Request("gather:requested", api.GatherAnnotationRequest{
-		ResourceId:   rid,
-		AnnotationId: aid,
-	}, requestWithin)
+	gathered, err := c.Gather.Annotation(rid, aid, 0).Wait(c.Context())
 	if err != nil {
-		return busFail(u, "match (gather step)", err)
-	}
-	var gc api.GatherAnnotationComplete
-	if json.Unmarshal(gathered, &gc.Response) != nil {
-		u.Fail("match: the gathered context could not be read.")
-		return 1
+		return busFail(u, "match (gather step)", c.Refusal(err))
 	}
 
 	// Step 2: the scored search, grounded by that context.
-	req := api.MatchSearchRequest{
-		ResourceId:  rid,
-		ReferenceId: aid,
-		Context:     gc.Response,
-		Limit:       &limit,
-	}
 	semantic := !noSemantic
-	req.UseSemanticScoring = &semantic
-	reply, err := b.Request("match:search-requested", req, requestWithin)
+	results, err := c.Match.Search(rid, aid, gathered.Response, semiont.MatchSearchOptions{Limit: limit, UseSemanticScoring: &semantic}).Wait(c.Context())
 	if err != nil {
-		return busFail(u, "match", err)
+		return busFail(u, "match", c.Refusal(err))
 	}
 	if asJSON {
-		fmt.Println(string(reply))
-		return 0
-	}
-
-	// Parsed with the GENERATED type, not a hand-rolled struct: resources
-	// are JSON-LD (`@id`, not `id`), and hand-rolling that field name was
-	// exactly how this verb shipped printing blank identifiers. The schema
-	// owns the shape; Go should read it from there.
-	var results api.MatchSearchResult
-	if json.Unmarshal(reply, &results.Response) != nil {
-		return rawFallback(reply)
+		return printJSON(u, results.Response)
 	}
 	rows := results.Response
 	if len(rows) == 0 {

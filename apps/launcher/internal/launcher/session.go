@@ -20,7 +20,6 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 // Session is one command's session with a stack: the SDK's session over the
@@ -185,30 +184,6 @@ func (s *Session) Refresh(ctx context.Context) (token string, ok bool) {
 	return renewed, true
 }
 
-// Authorized runs one call of the gateway's HTTP API under the session's
-// access token and keeps it authorized: a call the gateway answers with 401
-// earns one renewal and one retry under the renewed token. A second refusal is
-// the gateway refusing the account, not a race.
-//
-// op receives the token to send and reports a 401 as a *semiont.TransportError
-// coded unauthorized; any other error comes back as it is. A rejection comes
-// back as a *SessionRejected, which says whether a renewal was even possible.
-func (s *Session) Authorized(op func(token string) error) error {
-	err := op(s.token.Value())
-	if !unauthorized(err) {
-		return err
-	}
-	renewed, ok := s.Refresh(context.Background())
-	if !ok {
-		return context.Cause(s.ended)
-	}
-	if err = op(renewed); unauthorized(err) {
-		s.end(&SessionRejected{cause: err})
-		return context.Cause(s.ended)
-	}
-	return err
-}
-
 // unauthorized: the gateway refused the token a call bore.
 func unauthorized(err error) bool {
 	var refused *semiont.TransportError
@@ -246,50 +221,19 @@ func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 	return 1
 }
 
-// VerbTarget is what every knowledge verb needs: which stack, its gateway
-// base URL, and a session that keeps itself authorized.
-type VerbTarget struct {
-	base string // gateway base URL (local record, or a codespace's forward)
-	sess *Session
-}
-
-// Bus opens the stack's bus for one command: a transport carrying the
-// session's token, renewed by the session when the gateway refuses it. Its
-// stream carries every operation's reply channels and, besides, channels: the
-// broadcasts a verb follows. Close it when the command is done.
-func (t VerbTarget) Bus(channels ...bus.Channel) *VerbBus {
-	return t.sess.bus(channels)
-}
-
-// API is the gateway's HTTP API, for a verb that reads what the bus does not
-// carry. Each call of it runs under Authorized.
-func (t VerbTarget) API() (*api.ClientWithResponses, error) {
-	return api.NewClientWithResponses(t.base)
-}
-
-// Authorized runs op, one call of the gateway's HTTP API, under the session's
-// renew-and-retry policy.
-func (t VerbTarget) Authorized(op func(token string) error) error {
-	return t.sess.Authorized(op)
-}
-
-// Close ends the command's session.
-func (t VerbTarget) Close() { t.sess.Close() }
-
-// VerbSession resolves a verb's target in one place, because nine verbs asking
-// the same questions nine different ways is how they drift. Refusals are
-// printed here with their fix-it lines; ok=false means stop.
-func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
+// VerbSession resolves a verb's stack and its session in one place, because
+// nine verbs asking the same questions nine different ways is how they drift.
+// Refusals are printed here with their fix-it lines; ok=false means stop.
+func VerbSession(u *UI, verb, repo string, wantLocal bool) (*Session, bool) {
 	ss := LoadStackSet()
 	target, ok := SelectVerbStack(u, verb, ss, repo, wantLocal)
 	if !ok {
-		return VerbTarget{}, false
+		return nil, false
 	}
-	var t VerbTarget
-	key := ""
+	var base, key string
 	if target != nil {
-		if t.base, ok = ForwardedBase(u, target, verb); !ok {
-			return VerbTarget{}, false
+		if base, ok = ForwardedBase(u, target, verb); !ok {
+			return nil, false
 		}
 		key = "codespace:" + target.Codespace.Repo
 	} else {
@@ -297,15 +241,12 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 		if local == nil {
 			u.Fail("%s needs a running stack, and none is recorded.", verb)
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
-			return VerbTarget{}, false
+			return nil, false
 		}
-		t.base = GatewayBase(local)
+		base = GatewayBase(local)
 		key = "local"
 	}
-	if t.sess, ok = LoadSession(u, verb, key, t.base); !ok {
-		return VerbTarget{}, false
-	}
-	return t, true
+	return LoadSession(u, verb, key, base)
 }
 
 const logoutUsage = `Usage: semiont logout [--repo <owner/name> | --runtime <rt>]

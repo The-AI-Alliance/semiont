@@ -27,7 +27,6 @@ Options:
   --annotation <id>    The linking annotation (bare: second)
   --target <id>        The resource it refers to (bare: third)
   --unbind <id>        Remove that target instead of adding it
-  --json               Raw JSON reply
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
@@ -44,7 +43,7 @@ func Bind(args []string) int {
 	u := launcher.NewUI(false)
 	var positional []string
 	var resourceID, annotationID, target, repo string
-	unbind, asJSON, wantLocal := false, false, false
+	unbind, wantLocal := false, false
 
 options:
 	for i := 0; i < len(args); i++ {
@@ -72,8 +71,6 @@ options:
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
-		case "--json":
-			asJSON, ok = true, true
 		case "--":
 			// Every word after it is an id, whatever it begins with.
 			positional = append(positional, args[i+1:]...)
@@ -117,13 +114,16 @@ options:
 		op = "remove"
 	}
 
-	t, ok := launcher.VerbSession(u, "bind", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "bind", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "bind", err)
+	}
 
 	var item api.AnnotationBody
 	purpose := api.BodyPurpose("linking")
@@ -135,21 +135,12 @@ options:
 		u.Fail("could not build the body item: %v", err)
 		return 1
 	}
-	cmd := api.BindUpdateBodyCommand{
-		ResourceId:   rid,
-		AnnotationId: aid,
-	}
-	cmd.Operations = []api.BindBodyOperation{{
+	operations := []api.BindBodyOperation{{
 		Op:   api.BindBodyOperationOp(op),
 		Item: &item,
 	}}
-	reply, err := b.Request("bind:update-body", cmd, requestWithin)
-	if err != nil {
-		return busFail(u, "bind", err)
-	}
-	if asJSON {
-		fmt.Println(string(reply))
-		return 0
+	if err := c.Bind.Body(c.Context(), rid, aid, operations); err != nil {
+		return busFail(u, "bind", c.Refusal(err))
 	}
 	if unbind {
 		u.Ok("Unbound %s from %s", annotationID, target)

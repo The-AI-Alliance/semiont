@@ -12,6 +12,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -145,38 +146,36 @@ options:
 		}
 	}
 
-	t, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	defer t.Close()
-	b := t.Bus()
-	defer b.Close()
+	defer sess.Close()
+	c := sess.Client()
+	defer c.Close()
 
 	// Two signals, one act. Focus SCROLLS, so beckoning three references in a
 	// row scroll-fights and only the last survives; sparkle is inert-but-visible,
 	// which is what makes it the branch menu — light up three and let the
 	// participant choose. They are mutually exclusive by construction: this
 	// emits one channel, never both.
-	channel := bus.Channel("beckon:focus")
-	var payload any
-	if sparkle {
-		channel = bus.Channel("beckon:sparkle")
-		payload = api.BeckonSparkleEvent{AnnotationId: aid}
-	} else {
-		// BeckonFocusEvent carries a resource and an annotation — and nothing
-		// else. An earlier version sent a `message` field the schema does not
-		// declare; the flag is gone rather than quietly dropped on the wire.
-		ev := api.BeckonFocusEvent{ResourceId: &rid}
-		if annotation != "" {
-			ev.AnnotationId = &aid
-		}
-		payload = ev
+	channel := bus.BeckonFocus.Channel()
+	var subscribers int
+	var counted bool
+	var err error
+	switch {
+	case sparkle:
+		channel = bus.BeckonSparkle.Channel()
+		subscribers, counted, err = c.Beckon.SparkleAll(c.Context(), aid)
+	case annotation != "":
+		subscribers, counted, err = c.Beckon.Attention(c.Context(), rid, aid)
+	default:
+		// The focus a resource alone is: the event's annotation is optional,
+		// and attention names one.
+		subscribers, counted, err = semiont.Emit(c.Context(), c.Wire, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: &rid}, semiont.Envelope{})
 	}
-
-	subscribers, counted, err := b.Emit(channel, payload)
 	if err != nil {
-		return busFail(u, "beckon", err)
+		return busFail(u, "beckon", c.Refusal(err))
 	}
 
 	target := resource

@@ -32,7 +32,7 @@ var allowedLauncherSurface = map[string]bool{
 	"UI": true, "NewUI": true, "AnsiGreen": true, "AnsiYellow": true,
 	// Session and credentials.
 	"Session": true, "SessionRejected": true, "LoadSession": true, "RejectedFail": true,
-	"VerbSession": true, "VerbTarget": true, "VerbBus": true, "Bearer": true,
+	"VerbSession": true, "VerbClient": true,
 	"LoadTokens": true,
 	// Recorded state, and which stack a verb talks to.
 	"StackSet": true, "StackState": true, "ServiceState": true, "StateDir": true,

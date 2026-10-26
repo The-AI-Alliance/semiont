@@ -1,8 +1,8 @@
 package launcher
 
-// transport.go — where a verb gets its bus: one transport per command,
-// holding one stream to the stack's gateway, carrying the session's token and
-// renewed by the session when the gateway refuses it.
+// transport.go — where a verb gets its client: the SDK's client over one
+// transport per command, holding one stream to the stack's gateway, carrying
+// the session's token and renewed by the session when the gateway refuses it.
 //
 // The transport is made in one place, behind a swappable function, so a verb
 // can be observed in process: a test hands it a fake. This is the seam, not a
@@ -10,14 +10,11 @@ package launcher
 // plain package-level func rather than a registry.
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -51,12 +48,20 @@ func replyChannels() []bus.Channel {
 	return channels
 }
 
-// VerbBus is one command's bus: a transport to its stack's gateway, carrying
-// the session's token. Close it when the command is done.
-type VerbBus struct {
-	sess      *Session
-	transport semiont.Transport
-	wire      *semiont.Wire
+// VerbClient is one command's client of its stack: the SDK's client over a
+// transport to the stack's gateway, carrying the session's token and renewed
+// by the session when the gateway refuses it. Its content and the gateway's
+// own operations go over a second transport with the same token, which
+// carries no channel and so opens no stream. A session that ends closes the
+// client, so whatever the command waits on ends with it. Close it when the
+// command is done.
+type VerbClient struct {
+	*semiont.Client
+	sess   *Session
+	bus    semiont.Transport
+	direct *semiont.HTTPTransport
+	// unhook lets go of the session's end, which closes the client.
+	unhook func() bool
 
 	reach       sync.Once
 	unreachable error
@@ -72,111 +77,70 @@ func (g *GatewayUnreached) Error() string {
 	return fmt.Sprintf("the gateway at %s did not open the event stream", g.Base)
 }
 
-// bus opens the stack's bus, carrying the session's token, which the session
-// renews when the gateway refuses it. Its stream carries every operation's
-// reply channels, and channels besides: a verb that follows broadcasts names
-// them.
-func (s *Session) bus(channels []bus.Channel) *VerbBus {
-	transport := newTransport(semiont.HTTPTransportConfig{
+// Client opens the stack's client for one command. Its stream carries every
+// operation's reply channels, and channels besides: the broadcasts a verb
+// follows.
+func (s *Session) Client(channels ...bus.Channel) *VerbClient {
+	config := semiont.HTTPTransportConfig{
 		BaseURL:   s.base,
 		Token:     s.token,
 		Refresher: s,
-		Channels:  append(replyChannels(), channels...),
 		HTTP:      &http.Client{Transport: launcherTransport},
 		Timing:    semiont.DefaultTiming(),
+	}
+	direct := semiont.NewHTTPTransport(config)
+	config.Channels = append(replyChannels(), channels...)
+	transport := newTransport(config)
+	client := semiont.NewClient(semiont.ClientConfig{
+		Transport: transport,
+		Content:   semiont.NewHTTPContentTransport(direct),
+		Gateway:   direct,
+		Timing:    semiont.DefaultTiming(),
 	})
-	return &VerbBus{sess: s, transport: transport, wire: semiont.NewWire(transport)}
+	return &VerbClient{Client: client, sess: s, bus: transport, direct: direct, unhook: context.AfterFunc(s.ended, client.Close)}
 }
 
-// Request asks the operation whose request channel is op, with request — the
-// generated type of its payload — and waits up to within for the reply: its
-// response, or nil when it carries none. A session the gateway refused for
-// good ends the wait, and is the error: a *SessionRejected.
-func (b *VerbBus) Request(op bus.Channel, request any, within time.Duration) (json.RawMessage, error) {
-	if err := b.Reached(); err != nil {
-		return nil, err
-	}
-	payload, err := payloadOf(request)
-	if err != nil {
-		return nil, err
-	}
-	response, err := b.wire.RequestOf(b.sess.ended, op, payload, within)
-	if err != nil {
-		return nil, b.sess.refusal(err)
-	}
-	return response, nil
-}
-
-// Emit sends event — the generated type of channel's payload — as one frame
-// that awaits no reply. It reports how many subscribers the gateway counted,
-// and counted=false when it gave no count, which is not a zero.
-func (b *VerbBus) Emit(channel bus.Channel, event any) (subscribers int, counted bool, err error) {
-	payload, err := payloadOf(event)
-	if err != nil {
-		return 0, false, err
-	}
-	subscribers, counted, err = b.wire.EmitOn(b.sess.ended, channel, payload, semiont.Envelope{})
-	if err != nil {
-		return 0, false, b.sess.refusal(err)
-	}
-	return subscribers, counted, nil
-}
+// Context ends when the gateway has refused the session's token for good,
+// with the session's *SessionRejected as its cause. A verb asks under it.
+func (c *VerbClient) Context() context.Context { return c.sess.ended }
 
 // Reached waits, once, for the stream's first connect to settle: nil when it
 // opens, a *GatewayUnreached when it fails. Only the first connect is judged
 // here: a stream that has opened and drops is the transport's to reopen, and
 // a request waits for it. A refused token, or a session that ended, is
-// answered by what the verb does next.
-func (b *VerbBus) Reached() error {
-	b.reach.Do(func() {
-		for state := range b.transport.StateChanges(b.sess.ended) {
+// answered by what the verb does next. A verb calls it before its first
+// request.
+func (c *VerbClient) Reached() error {
+	c.reach.Do(func() {
+		for state := range c.bus.StateChanges(c.sess.ended) {
 			switch state {
 			case semiont.ConnectionStateOpen, semiont.ConnectionStateUnauthenticated, semiont.ConnectionStateClosed:
 				return
 			case semiont.ConnectionStateReconnecting, semiont.ConnectionStateDegraded:
-				b.unreachable = &GatewayUnreached{Base: b.sess.base}
+				c.unreachable = &GatewayUnreached{Base: c.sess.base}
 				return
 			}
 		}
 	})
-	return b.unreachable
+	return c.unreachable
 }
 
-// Transport is the bus's transport, for what a verb takes from it directly:
-// the frames of a channel, a resource's scope, the stream's state.
-func (b *VerbBus) Transport() semiont.Transport { return b.transport }
+// Refusal is err, returned by one of the client's calls, as a verb reports
+// it: the session's rejection when the session is over, as it came
+// otherwise.
+func (c *VerbClient) Refusal(err error) error { return c.sess.refusal(err) }
 
-// Context ends when the gateway has refused the session's token for good,
-// with the session's *SessionRejected as its cause. A verb that waits on
-// frames waits under it.
-func (b *VerbBus) Context() context.Context { return b.sess.ended }
-
-// Close stops the transport and every sequence of frames taken from it.
-func (b *VerbBus) Close() { b.transport.Close() }
-
-// payloadOf is a request or an event, a generated type, as the JSON object a
-// frame carries. Numbers are kept as the text they were written as, so none
-// is rounded on its way to the wire.
-func payloadOf(v any) (map[string]any, error) {
-	encoded, err := json.Marshal(v)
-	if err != nil {
-		return nil, fmt.Errorf("encoding %T: %w", v, err)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.UseNumber()
-	var payload map[string]any
-	if err := decoder.Decode(&payload); err != nil {
-		return nil, fmt.Errorf("%T is not a JSON object: %w", v, err)
-	}
-	if payload == nil {
-		return nil, fmt.Errorf("%T encodes as null, not a JSON object", v)
-	}
-	return payload, nil
+// Close ends the client, and then both its transports.
+func (c *VerbClient) Close() {
+	c.unhook()
+	c.Client.Close()
+	c.bus.Close()
+	c.direct.Close()
 }
 
-// refusal is a bus error as a verb reports it. A refused credential, and a
-// wait the session's end cut short, are the session's rejection; anything
-// else is as it came.
+// refusal is an error of one of a client's calls as a verb reports it. A
+// refused credential, and anything that failed once the session was over, are
+// the session's rejection; anything else is as it came.
 func (s *Session) refusal(err error) error {
 	var refused *semiont.TransportError
 	if errors.As(err, &refused) && refused.Code == semiont.TransportErrorCodeUnauthorized {
@@ -187,7 +151,7 @@ func (s *Session) refusal(err error) error {
 		s.end(&SessionRejected{cause: err})
 		return context.Cause(s.ended)
 	}
-	if errors.Is(err, context.Canceled) && s.ended.Err() != nil {
+	if s.ended.Err() != nil {
 		return context.Cause(s.ended)
 	}
 	return err
