@@ -70,7 +70,9 @@ func (u *YieldStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID.Rea
 
 // Generate generates a resource from a gathered context, as Yield.Delegate
 // does, given stallDeadline as it is. It is written in this unit's locale
-// when params states no language.
+// when params states no language. Runs are asked for in the order they are
+// begun: a run asks for its job once the run begun before it has had its
+// job's creation answered, or has ended.
 func (u *YieldStateUnit) Generate(params api.GenerationJobParams, stallDeadline time.Duration) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -85,7 +87,8 @@ func (u *YieldStateUnit) Generate(params api.GenerationJobParams, stallDeadline 
 		locale := u.locale
 		params.Language = &locale
 	}
-	go u.run(u.client.Yield.Delegate(params, stallDeadline))
+	before, answered := u.nextRun()
+	go u.run(u.client.Yield.Delegate(params, stallDeadline), before, answered)
 }
 
 // DismissProgress clears the display of a run: its progress, its outcome and
@@ -101,11 +104,17 @@ func (u *YieldStateUnit) DismissProgress() {
 	u.failure.Set(nil)
 }
 
-// run follows a run to its end.
-func (u *YieldStateUnit) run(run *semiont.Delegation[api.YieldJobCompleteCommand]) {
+// run follows a run to its end, once its turn comes.
+func (u *YieldStateUnit) run(run *semiont.Delegation[api.YieldJobCompleteCommand], before <-chan struct{}, answered func()) {
+	defer answered()
+	if !u.inTurn(before) {
+		return
+	}
 	// This job's id. At the job's end it is let go only while it is still the one held: a run begun later replaces it.
 	var created api.JobId
 	for event, err := range run.Events(u.alive) {
+		// The first event answers the job's creation, or ends the run.
+		answered()
 		u.mu.Lock()
 		if u.closed {
 			// Closed while the run goes on: the reading stops, and the delegation is abandoned.

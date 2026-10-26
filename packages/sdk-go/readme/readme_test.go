@@ -91,9 +91,10 @@ func TestEachGoBlockOfTheREADMEIsAProgramOfThisPackageWordForWord(t *testing.T) 
 
 // ── Stand-ins ───────────────────────────────────────────────────────────
 
-// signedToken is a JWT that expires in an hour, n telling one from another.
+// signedToken is a JWT an issuer signed for alice, which expires in an hour,
+// n telling one from another.
 func signedToken(n int) string {
-	claims, err := json.Marshal(map[string]any{"email": "alice@example.org", "exp": time.Now().Add(time.Hour).Unix(), "n": n})
+	claims, err := json.Marshal(map[string]any{"iss": "https://kb.example/realms/semiont", "email": "alice@example.org", "exp": time.Now().Add(time.Hour).Unix(), "n": n})
 	if err != nil {
 		panic(err)
 	}

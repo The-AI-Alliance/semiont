@@ -18,11 +18,40 @@ type life struct {
 	closed bool
 	alive  context.Context
 	end    context.CancelFunc
+	// lastRun is done once the job the unit asked for last has had its
+	// creation answered, or its run has ended.
+	lastRun <-chan struct{}
 }
 
 func newLife() life {
 	alive, end := context.WithCancel(context.Background())
-	return life{alive: alive, end: end}
+	none := make(chan struct{})
+	close(none)
+	return life{alive: alive, end: end, lastRun: none}
+}
+
+// nextRun is the place of a job's run begun now. The run asks for its job
+// once before is done, and calls answered once the job's creation is answered
+// or the run has ended. So the jobs a unit asks for are asked for in the
+// order their runs began, which the goroutines the runs read on do not keep.
+// Called with mu held.
+func (l *life) nextRun() (before <-chan struct{}, answered func()) {
+	before = l.lastRun
+	mine := make(chan struct{})
+	l.lastRun = mine
+	var once sync.Once
+	return before, func() { once.Do(func() { close(mine) }) }
+}
+
+// inTurn waits for before: true once it is done, false when the unit closed
+// first.
+func (l *life) inTurn(before <-chan struct{}) bool {
+	select {
+	case <-before:
+		return true
+	case <-l.alive.Done():
+		return false
+	}
 }
 
 // close marks the unit closed and stops its work, and reports whether it was

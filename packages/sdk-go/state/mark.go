@@ -111,7 +111,9 @@ func (u *MarkStateUnit) Failure() semiont.Watched[error] { return u.failure.Read
 func (u *MarkStateUnit) JobId() semiont.Watched[api.JobId] { return u.jobID.Reading() }
 
 // RequestDelegate delegates the annotating of this unit's resource, as the
-// mark job of params: what Mark.Delegate takes.
+// mark job of params: what Mark.Delegate takes. Jobs are asked for in the
+// order they are delegated: a job is asked for once the one delegated before
+// it has had its creation answered, or its following has ended.
 func (u *MarkStateUnit) RequestDelegate(params api.MarkJobParams) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -132,7 +134,8 @@ func (u *MarkStateUnit) RequestDelegate(params api.MarkJobParams) {
 		u.progressMotivation.Set("")
 		return
 	}
-	go u.follow(u.client.Mark.Delegate(u.resourceID, params), motivation)
+	before, answered := u.nextRun()
+	go u.follow(u.client.Mark.Delegate(u.resourceID, params), motivation, before, answered)
 }
 
 // CancelPending drops the annotation that is pending.
@@ -205,8 +208,12 @@ type jobHeard struct {
 	err   error
 }
 
-// follow follows a delegated job to its end.
-func (u *MarkStateUnit) follow(run *semiont.Delegation[api.MarkJobCompleteCommand], motivation api.Motivation) {
+// follow follows a delegated job to its end, once its turn comes.
+func (u *MarkStateUnit) follow(run *semiont.Delegation[api.MarkJobCompleteCommand], motivation api.Motivation, before <-chan struct{}, answered func()) {
+	defer answered()
+	if !u.inTurn(before) {
+		return
+	}
 	// The job's events, read on a goroutine of their own: a silence gives up
 	// waiting for the next, never the reading, since a quiet job is still
 	// followed.
@@ -241,6 +248,8 @@ func (u *MarkStateUnit) follow(run *semiont.Delegation[api.MarkJobCompleteComman
 			u.goneQuiet(motivation)
 			continue
 		case said, open := <-heard:
+			// The first event answers the job's creation, or ends the following.
+			answered()
 			if !open {
 				u.ended(created)
 				return

@@ -303,14 +303,26 @@ type pulled struct {
 	ok  bool
 }
 
+// asking pulls the next of the claims, and came is what they hand out. The
+// first pull begins claiming.
+func (h *handed) asking() (came <-chan pulled) {
+	pulling := make(chan pulled, 1)
+	go func() {
+		job, err, ok := h.next()
+		pulling <- pulled{job, err, ok}
+	}()
+	return pulling
+}
+
 // take is what the claims hand out next, within two seconds.
 func (h *handed) take(t *testing.T) pulled {
 	t.Helper()
-	came := make(chan pulled, 1)
-	go func() {
-		job, err, ok := h.next()
-		came <- pulled{job, err, ok}
-	}()
+	return cameWithin(t, h.asking())
+}
+
+// cameWithin is what came, within two seconds.
+func cameWithin(t *testing.T, came <-chan pulled) pulled {
+	t.Helper()
 	select {
 	case one := <-came:
 		return one
@@ -763,10 +775,10 @@ func TestAWorkerThatClosesFailsTheJobItHoldsAndClaimsNothingMore(t *testing.T) {
 func TestClosingTheClientEndsTheClaimsForWhoeverRangesOverThem(t *testing.T) {
 	w := newClaimWorld(t, DefaultTiming())
 	claims := w.client.Job.Claim(filters(t, everything))
-	pull := pulling(t, claims)
+	came := pulling(t, claims).asking()
 	eventually(t, "a claim", func() bool { return len(w.wire.sent(bus.JobClaim.Request().Channel())) == 1 })
 	w.client.Close()
-	if one := pull.take(t); one.ok {
+	if one := cameWithin(t, came); one.ok {
 		t.Fatalf("the claims of a closed client handed out %+v", one)
 	}
 }
