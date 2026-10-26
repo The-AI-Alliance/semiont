@@ -962,12 +962,37 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
 		t.Fatalf("settings network lan: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// A proxy left running would hold 8080 for every later scenario.
-	t.Cleanup(func() { killRecordedIssuerProxy(t, s) })
+	// Every proxy this test sees is ended at its end, whatever the record says
+	// by then: a proxy left running would hold 8080 for every later scenario.
+	var proxies []int
+	t.Cleanup(func() {
+		for _, pid := range append(proxies, recordedIssuerProxyPID(t, s)) {
+			if pid == 0 {
+				continue
+			}
+			if p, err := os.FindProcess(pid); err == nil {
+				_ = p.Kill()
+			}
+		}
+	})
+	// The fake runtime answers `ps` and `tasklist` for every process, and names
+	// one it was not told of "fakeproc". The proxy is the launcher run again,
+	// which the real commands name as the launcher, so the fake is told so.
+	claimProxy := func() int {
+		t.Helper()
+		pid := recordedIssuerProxyPID(t, s)
+		if pid == 0 {
+			t.Fatal("the record names no issuer proxy")
+		}
+		proxies = append(proxies, pid)
+		s.extraEnv = append(s.extraEnv, fmt.Sprintf("FAKERT_PS_%d=%s", pid, filepath.Base(launcherBin)))
+		return pid
+	}
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
+	before := claimProxy()
 	mustContain(t, "stdout", stdout,
 		"Answering the network at 192.168.2.10",
 		"http://192.168.2.10:4000",
@@ -996,12 +1021,11 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	mustContain(t, "status", sstdout, "network lan", "issuer proxy: pid")
 	// Restarting the issuer replaces its proxy: the old one leaves the
 	// issuer's port before the restart checks it, and a new one serves it.
-	before := recordedIssuerProxyPID(t, s)
 	if stdout, stderr, code := s.run(t, "start", "--service", "identity"); code != 0 {
 		t.Fatalf("start --service identity: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	if after := recordedIssuerProxyPID(t, s); after == 0 || after == before {
-		t.Errorf("after an issuer restart the record names proxy pid %d, before %d: want a new one", after, before)
+	if after := claimProxy(); after == before {
+		t.Errorf("after an issuer restart the record names proxy pid %d, the one before it: want a new one", after)
 	}
 	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
 		t.Errorf("after an issuer restart the realm through the proxy answered %d", got)
@@ -1041,17 +1065,6 @@ func recordedIssuerProxyPID(t *testing.T, s *scenario) int {
 		return 0
 	}
 	return doc.Stacks["local"].IssuerProxy.PID
-}
-
-// killRecordedIssuerProxy ends the issuer proxy s's stack record names, if a
-// test left one running.
-func killRecordedIssuerProxy(t *testing.T, s *scenario) {
-	t.Helper()
-	if pid := recordedIssuerProxyPID(t, s); pid != 0 {
-		if p, err := os.FindProcess(pid); err == nil {
-			_ = p.Kill()
-		}
-	}
 }
 
 // The issuer's port is the launcher's to place, like its host — one Keycloak
