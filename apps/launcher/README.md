@@ -548,9 +548,8 @@ the launcher does not understand is written back as it was, and a file it
 cannot read is never written over. A renewal reads the store again before it
 writes: tokens another program renewed meanwhile stand, and a stack signed
 out meanwhile stays signed out. The entry's shape, the two OAuth client ids
-and the sign-in scope are generated from the spec (`npm run
-generate:launcher-contracts`), the state home runs the spec's cases, and CI
-fails when any of them drifts.
+and the sign-in scope are generated from the spec (`npm run generate:go`),
+the state home runs the spec's cases, and CI fails when any of them drifts.
 
 ### Delegating to the stack
 
