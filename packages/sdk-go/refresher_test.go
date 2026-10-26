@@ -113,6 +113,7 @@ func TestEachRowOfTheRefreshTableDoesWhatItStatesToWhatIsHeld(t *testing.T) {
 				for _, each := range everything(t, w.client) {
 					untilReady(t, watch(t, each.query))
 				}
+				w.everyHolderAsked(t)
 				res1, ann1 := resourceOf(t, "res-1"), annotationIdOf(t, "ann-1")
 				one := watch(t, w.client.Browse.Annotation(res1, ann1))
 				untilReady(t, one)
@@ -308,6 +309,7 @@ func TestAnEventThatCannotBeReadAsksAgainForEverythingHeld(t *testing.T) {
 	for _, each := range everything(t, w.client) {
 		untilReady(t, watch(t, each.query))
 	}
+	w.everyHolderAsked(t)
 	// Something changed and nothing says what.
 	m := w.mark()
 	w.transport.Deliver(frameOf(t, bus.MarkAdded.Channel(), map[string]any{"not": "a recorded event"}, semiont.Envelope{}))

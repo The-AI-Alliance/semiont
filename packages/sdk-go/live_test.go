@@ -231,6 +231,26 @@ func (w *liveWorld) asksCome(t *testing.T, m askedMark, want map[string]int) {
 	}
 }
 
+// everyHolderAsked waits until each key holder has been asked for its models'
+// limits. The collaborators are ready as soon as the directory answers, and
+// the holders' requests may still be on their way.
+func (w *liveWorld) everyHolderAsked(t *testing.T) {
+	t.Helper()
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		asked := w.askedSince(askedMark{})
+		unasked := 0
+		for _, operation := range bus.LimitsOperations {
+			if asked[string(operation.Request().Channel())] == 0 {
+				unasked++
+			}
+		}
+		if unasked == 0 {
+			return
+		}
+	}
+	t.Fatal("not every key holder was asked for its models' limits")
+}
+
 // reopen drops the stream and opens it again. The refresher reads only the
 // latest state, so it is given a while to see the drop.
 func (w *liveWorld) reopen() {
