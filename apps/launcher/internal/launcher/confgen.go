@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -83,7 +83,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 
 	var kb stack.KnowledgeBase
 	kb.ApiVersion, kb.Kind, kb.Metadata = meta("KnowledgeBase", initKnowledgeBase)
-	kb.Spec.LogLevel = semiont.LogLevelInfo
+	kb.Spec.LogLevel = api.LogLevelInfo
 	kb.Spec.Gateway.Image, kb.Spec.Gateway.Resources = service("gateway")
 	kb.Spec.Gateway.Port = semiontDescriptor("gateway").ports[0].port
 	kb.Spec.Gateway.PublicURL = fmt.Sprintf("http://localhost:%d", kb.Spec.Gateway.Port)
@@ -100,7 +100,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 
 	var index stack.KnowledgeIndex
 	index.ApiVersion, index.Kind, index.Metadata = meta("KnowledgeIndex", "index")
-	index.Spec.KnowledgeBase, index.Spec.LogLevel = initKnowledgeBase, semiont.LogLevelInfo
+	index.Spec.KnowledgeBase, index.Spec.LogLevel = initKnowledgeBase, api.LogLevelInfo
 	index.Spec.Graph.Type, index.Spec.Graph.Username, index.Spec.Graph.Database = "neo4j", "neo4j", "neo4j"
 	index.Spec.Graph.Image, index.Spec.Graph.Resources = daemon("graph", "neo4j")
 	index.Spec.Vectors.Type = "qdrant"
@@ -125,25 +125,25 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 
 	var workers stack.WorkerPool
 	workers.ApiVersion, workers.Kind, workers.Metadata = meta("WorkerPool", "workers")
-	workers.Spec.KnowledgeBase, workers.Spec.LogLevel = initKnowledgeBase, semiont.LogLevelInfo
+	workers.Spec.KnowledgeBase, workers.Spec.LogLevel = initKnowledgeBase, api.LogLevelInfo
 	workers.Spec.Worker.Image, workers.Spec.Worker.Resources = service("worker")
 
 	var inference stack.Inference
 	inference.ApiVersion, inference.Kind, inference.Metadata = meta("Inference", name)
-	provider := semiont.ArchivistRosterRoleProvider(p.Inference)
+	provider := api.ArchivistRosterRoleProvider(p.Inference)
 	switch provider {
-	case semiont.ArchivistRosterRoleProviderAnthropic:
+	case api.ArchivistRosterRoleProviderAnthropic:
 		baseURL := p.AnthropicEndpoint
-		inference.Spec.Providers = map[semiont.ArchivistRosterRoleProvider]stack.Provider{
+		inference.Spec.Providers = map[api.ArchivistRosterRoleProvider]stack.Provider{
 			provider: {BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}},
 		}
-	case semiont.ArchivistRosterRoleProviderOllama:
-		inference.Spec.Providers = map[semiont.ArchivistRosterRoleProvider]stack.Provider{provider: {}}
+	case api.ArchivistRosterRoleProviderOllama:
+		inference.Spec.Providers = map[api.ArchivistRosterRoleProvider]stack.Provider{provider: {}}
 	default:
 		return nil, fmt.Errorf("the provider %q: init writes an Inference document for anthropic or ollama", p.Inference)
 	}
-	role := func() *semiont.ArchivistRosterRole {
-		return &semiont.ArchivistRosterRole{Provider: provider, Model: p.Model}
+	role := func() *api.ArchivistRosterRole {
+		return &api.ArchivistRosterRole{Provider: provider, Model: p.Model}
 	}
 	inference.Spec.Roster.Actors.Gatherer, inference.Spec.Roster.Actors.Matcher = role(), role()
 	workerRoster := reflect.ValueOf(&inference.Spec.Roster.Workers).Elem()

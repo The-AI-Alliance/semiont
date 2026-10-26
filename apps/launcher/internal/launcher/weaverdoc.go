@@ -13,7 +13,7 @@ package launcher
 import (
 	"encoding/json"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // weaverDocumentFile: the Weaver is configured by a document, not a copy of
@@ -49,12 +49,12 @@ func graphSecrets(p placement) []string {
 // graphConfig: the graph database a service reaches, as its document states
 // it. ONE decider, for the Weaver's document, which writes the graph, and the
 // Librarian's, which reads it. who names the service in a refusal.
-func graphConfig(p placement, who string) (graph semiont.GraphConfig, err error) {
+func graphConfig(p placement, who string) (graph api.GraphConfig, err error) {
 	g := p.st.KnowledgeIndex.Spec.Graph
-	if g.Type != string(semiont.Neo4jGraphConfigTypeNeo4j) {
+	if g.Type != string(api.Neo4jGraphConfigTypeNeo4j) {
 		return graph, planErr(p.st.Files.KnowledgeIndex, "spec.graph.type", "is %q: the launcher writes %s's document for a neo4j graph alone", g.Type, who)
 	}
-	neo4j := semiont.Neo4jGraphConfig{Username: g.Username, Database: g.Database, Uri: p.graphURI()}
+	neo4j := api.Neo4jGraphConfig{Username: g.Username, Database: g.Database, Uri: p.graphURI()}
 	if g.External != nil {
 		neo4j.PasswordEnv = g.External.Password.FromEnv
 	} else {
@@ -69,7 +69,7 @@ func graphConfig(p placement, who string) (graph semiont.GraphConfig, err error)
 // weaverDocument renders the document from the start's placement. The Weaver
 // reads the record by position at the Archivist (placement).
 func weaverDocument(p placement) ([]byte, error) {
-	var doc semiont.WeaverConfig
+	var doc api.WeaverConfig
 	var err error
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
@@ -80,6 +80,6 @@ func weaverDocument(p placement) ([]byte, error) {
 	doc.CursorsPath = cursorsPath("weaver")
 	doc.Port = semiontDescriptor("weaver").ports[0].port
 	doc.LogLevel = p.st.KnowledgeIndex.Spec.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

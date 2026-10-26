@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unicode"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
@@ -94,7 +94,7 @@ func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
 	}
 	named := 0
 	for _, word := range strings.FieldsFunc(example, func(r rune) bool { return !unicode.IsLetter(r) }) {
-		if semiont.Motivation(word).Valid() {
+		if api.Motivation(word).Valid() {
 			named++
 			if !jobs["mark."+word] {
 				t.Errorf("the example names %s, and the roster has no mark.%s job", word, word)
@@ -167,7 +167,7 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
 	providers := st.Inference.Spec.Providers
-	if _, ollama := providers[semiont.ArchivistRosterRoleProviderOllama]; !ollama || len(providers) != 1 {
+	if _, ollama := providers[api.ArchivistRosterRoleProviderOllama]; !ollama || len(providers) != 1 {
 		t.Errorf("the bare KB's providers are %v, want Ollama alone — no credential needed", providers)
 	}
 }
@@ -194,7 +194,7 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 		t.Fatalf("no documents a start reads were written: %v", err)
 	}
 	// Needed at start, not at birth.
-	if key := st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic].ApiKey; key == nil || key.FromEnv != "ANTHROPIC_API_KEY" {
+	if key := st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic].ApiKey; key == nil || key.FromEnv != "ANTHROPIC_API_KEY" {
 		t.Errorf("the Inference document names the key as %+v, want the variable ANTHROPIC_API_KEY", key)
 	}
 	for _, b := range rosterRoles(st.Inference.Spec.Roster) {

@@ -13,7 +13,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -151,12 +151,12 @@ options:
 	var payload any
 	if sparkle {
 		channel = bus.Channel("beckon:sparkle")
-		payload = semiont.BeckonSparkleEvent{AnnotationId: annotation}
+		payload = api.BeckonSparkleEvent{AnnotationId: annotation}
 	} else {
 		// BeckonFocusEvent carries a resource and an annotation — and nothing
 		// else. An earlier version sent a `message` field the schema does not
 		// declare; the flag is gone rather than quietly dropped on the wire.
-		ev := semiont.BeckonFocusEvent{ResourceId: &resource}
+		ev := api.BeckonFocusEvent{ResourceId: &resource}
 		if annotation != "" {
 			ev.AnnotationId = &annotation
 		}

@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // workerDocumentFile: the worker is configured by a document, not a copy of
@@ -30,15 +30,15 @@ const workerDocumentTarget = "/etc/semiont/worker.json"
 // "mark.<motivation>" is the `mark` jobs of that motivation, and "yield" the
 // `yield` jobs. TestEveryRosterJobHasAFilter holds it to every job the roster
 // has a worker role for.
-func jobFilter(job string) (filter semiont.JobFilter, err error) {
+func jobFilter(job string) (filter api.JobFilter, err error) {
 	jobType, motivation, _ := strings.Cut(job, ".")
 	switch {
-	case jobType == string(semiont.MarkJobFilterJobTypeMark) && semiont.Motivation(motivation).Valid():
-		var mark semiont.MarkJobFilter
-		mark.Params.Motivation = semiont.Motivation(motivation)
+	case jobType == string(api.MarkJobFilterJobTypeMark) && api.Motivation(motivation).Valid():
+		var mark api.MarkJobFilter
+		mark.Params.Motivation = api.Motivation(motivation)
 		err = filter.FromMarkJobFilter(mark)
-	case job == string(semiont.YieldJobFilterJobTypeYield):
-		err = filter.FromYieldJobFilter(semiont.YieldJobFilter{})
+	case job == string(api.YieldJobFilterJobTypeYield):
+		err = filter.FromYieldJobFilter(api.YieldJobFilter{})
 	default:
 		err = fmt.Errorf("the roster has a worker role for %q, and no job filter names that job", job)
 	}
@@ -52,14 +52,14 @@ func jobFilter(job string) (filter semiont.JobFilter, err error) {
 // Every other provider states one: the launcher keeps no vendor's address but
 // Anthropic's, and runs no server but Ollama's. ONE decider, for the worker's
 // agents and the Librarian's two models. who names the service in a refusal.
-func providerAddress(p placement, provider semiont.ArchivistRosterRoleProvider, who string) (string, error) {
+func providerAddress(p placement, provider api.ArchivistRosterRoleProvider, who string) (string, error) {
 	baseURL := p.st.Inference.Spec.Providers[provider].BaseURL
 	switch {
-	case provider == semiont.ArchivistRosterRoleProviderOllama:
+	case provider == api.ArchivistRosterRoleProviderOllama:
 		return p.ollama(baseURL), nil
 	case baseURL != nil:
 		return *baseURL, nil
-	case provider == semiont.ArchivistRosterRoleProviderAnthropic:
+	case provider == api.ArchivistRosterRoleProviderAnthropic:
 		return saasBase(remoteProviderAddress(p.st, string(provider))), nil
 	}
 	return "", planErr(p.st.Files.Inference, "spec.providers."+string(provider)+".baseURL", "is not stated: %s has no address to reach %s at", who, provider)
@@ -67,7 +67,7 @@ func providerAddress(p placement, provider semiont.ArchivistRosterRoleProvider, 
 
 // providerKeyName: the variable holding a provider's key, as its entry in the
 // Inference document names it; none when it names none.
-func providerKeyName(p placement, provider semiont.ArchivistRosterRoleProvider) *string {
+func providerKeyName(p placement, provider api.ArchivistRosterRoleProvider) *string {
 	if key := p.st.Inference.Spec.Providers[provider].ApiKey; key != nil {
 		return &key.FromEnv
 	}
@@ -113,18 +113,18 @@ func errNoWorkerJob(inference string) error {
 // agents, and is refused: the document's `agents` is never empty. A start of
 // such a roster runs no worker and writes no document (workerPlan), and a
 // worker asked for by name is refused before anything runs (flowOneService).
-func workerAgents(p placement) ([]semiont.WorkerAgentConfig, error) {
+func workerAgents(p placement) ([]api.WorkerAgentConfig, error) {
 	served := servedJobs(p.st.Inference.Spec.Roster)
 	if len(served) == 0 {
 		return nil, errNoWorkerJob(p.st.Files.Inference)
 	}
-	var agents []semiont.WorkerAgentConfig
+	var agents []api.WorkerAgentConfig
 	for _, s := range served {
 		filter, err := jobFilter(s.job.name)
 		if err != nil {
 			return nil, err
 		}
-		engine := semiont.WorkerAgentConfig{Agent: *s.role, ApiKeyEnv: providerKeyName(p, s.role.Provider)}
+		engine := api.WorkerAgentConfig{Agent: *s.role, ApiKeyEnv: providerKeyName(p, s.role.Provider)}
 		if engine.BaseUrl, err = providerAddress(p, s.role.Provider, "the worker"); err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func workerAgents(p placement) ([]semiont.WorkerAgentConfig, error) {
 
 // sameEngine: whether two agents are one — the same provider and model, at
 // the same address, under the same key.
-func sameEngine(a, b semiont.WorkerAgentConfig) bool {
+func sameEngine(a, b api.WorkerAgentConfig) bool {
 	return a.Agent == b.Agent && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
 }
 
@@ -150,7 +150,7 @@ func sameEngine(a, b semiont.WorkerAgentConfig) bool {
 // staged only for a worker the plan runs, and derivePlan refuses a roster that
 // binds the worker a job when there is no WorkerPool document.
 func workerDocument(p placement) ([]byte, error) {
-	var doc semiont.WorkerConfig
+	var doc api.WorkerConfig
 	var err error
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
@@ -160,6 +160,6 @@ func workerDocument(p placement) ([]byte, error) {
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
 	doc.LogLevel = p.st.Workers.Spec.LogLevel
-	doc.LogFormat = semiont.LogFormatJson
+	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

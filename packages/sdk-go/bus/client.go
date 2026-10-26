@@ -6,7 +6,7 @@ package bus
 //
 // Wire shape, as the gateway implements it (apps/gateway/src/routes/bus.rs, stream.rs):
 //   POST /bus/emit          {channel, payload, clientId, scope?}
-//   POST /bus/subscribe     the generated semiont.BusSubscribeRequest — this
+//   POST /bus/subscribe     the generated api.BusSubscribeRequest — this
 //     file marshals that type rather than restating its fields, so a schema
 //     change is a compile error here instead of a silently missing field
 //     (the same reason the TS client's body carries
@@ -32,7 +32,7 @@ import (
 
 	"github.com/google/uuid"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // Event is one delivered bus event.
@@ -139,7 +139,7 @@ func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope st
 	if resp.StatusCode/100 != 2 {
 		return 0, false, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode, RetryAfter: retryAfter(resp.Header)}
 	}
-	var accepted semiont.BusEmitAccepted
+	var accepted api.BusEmitAccepted
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if err != nil || json.Unmarshal(raw, &accepted) != nil {
 		return 0, false, nil
@@ -184,7 +184,7 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	for _, ch := range channels {
 		global = append(global, string(ch))
 	}
-	body := semiont.BusSubscribeRequest{ClientId: c.clientID, Global: &global}
+	body := api.BusSubscribeRequest{ClientId: c.clientID, Global: &global}
 	if len(scoped) > 0 {
 		entryChannels := make([]string, 0, len(scoped))
 		for _, ch := range scoped {

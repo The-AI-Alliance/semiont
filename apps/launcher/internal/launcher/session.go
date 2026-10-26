@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -220,8 +220,8 @@ func (t VerbTarget) Transport() bus.Transport {
 
 // API is the gateway's HTTP API, for a verb that reads what the bus does not
 // carry. Each call of it runs under Authorized.
-func (t VerbTarget) API() (*semiont.ClientWithResponses, error) {
-	return semiont.NewClientWithResponses(t.base)
+func (t VerbTarget) API() (*api.ClientWithResponses, error) {
+	return api.NewClientWithResponses(t.base)
 }
 
 // Authorized runs op, one call of the gateway's HTTP API, under the session's
@@ -338,7 +338,7 @@ func Logout(args []string) int {
 }
 
 // Bearer is the RequestEditorFn stamping the session's Authorization header.
-func Bearer(token string) semiont.RequestEditorFn {
+func Bearer(token string) api.RequestEditorFn {
 	return func(_ context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", "Bearer "+token)
 		return nil

@@ -21,7 +21,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -232,14 +232,14 @@ options:
 		d := drive{
 			subject: resourceID,
 			channel: bus.BrowseResourceOpen,
-			payload: semiont.BrowseResourceOpenEvent{ResourceId: resourceID},
+			payload: api.BrowseResourceOpenEvent{ResourceId: resourceID},
 			retry:   fmt.Sprintf("semiont browse %s --browser", resourceID),
 		}
 		if annotation != "" {
 			d = drive{
 				subject: "annotation " + annotation,
 				channel: bus.BrowseClick,
-				payload: semiont.BrowseClickEvent{AnnotationId: annotation},
+				payload: api.BrowseClickEvent{AnnotationId: annotation},
 				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
 			}
 		}
@@ -279,16 +279,16 @@ options:
 	switch {
 	case entityTypes:
 		op = "browse:entity-types-requested"
-		payload = semiont.BrowseEntityTypesRequest{}
+		payload = api.BrowseEntityTypesRequest{}
 	case tagSchemas:
 		op = "browse:tag-schemas-requested"
-		payload = semiont.BrowseTagSchemasRequest{}
+		payload = api.BrowseTagSchemasRequest{}
 	case resourceID != "":
 		op = "browse:resource-requested"
-		payload = semiont.BrowseResourceRequest{ResourceId: resourceID}
+		payload = api.BrowseResourceRequest{ResourceId: resourceID}
 	default:
 		op = "browse:resources-requested"
-		req := semiont.BrowseResourcesRequest{}
+		req := api.BrowseResourcesRequest{}
 		req.Limit = &limit
 		if entityType != "" {
 			req.EntityType = &entityType
@@ -313,13 +313,13 @@ options:
 // annotationsOf reads a resource's annotations over the gateway's HTTP API,
 // under the session's renew-and-retry policy. A failure is printed here in
 // the launcher's voice; ok=false means stop.
-func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID string) (*semiont.GetResourceAnnotationsResponse, bool) {
+func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID string) (*api.GetResourceAnnotationsResponse, bool) {
 	cli, err := t.API()
 	if err != nil {
 		u.Fail("client: %v", err)
 		return nil, false
 	}
-	var resp *semiont.GetResourceAnnotationsResponse
+	var resp *api.GetResourceAnnotationsResponse
 	err = t.Authorized(func(token string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -359,7 +359,7 @@ func annotationsOf(u *launcher.UI, t launcher.VerbTarget, resourceID string) (*s
 // many annotations it has, which the reply does not carry: they are read
 // over the HTTP API.
 func renderResource(u *launcher.UI, t launcher.VerbTarget, resourceID string, reply json.RawMessage) int {
-	var r semiont.BrowseResourceResult
+	var r api.BrowseResourceResult
 	if err := json.Unmarshal(reply, &r); err != nil {
 		return rawFallback(reply)
 	}
@@ -377,7 +377,7 @@ func renderResource(u *launcher.UI, t launcher.VerbTarget, resourceID string, re
 
 // printAnnotations prints a resource's annotations: each one's id and
 // motivation, and how many of how many.
-func printAnnotations(u *launcher.UI, list semiont.GetAnnotationsResponse) {
+func printAnnotations(u *launcher.UI, list api.GetAnnotationsResponse) {
 	if len(list.Annotations) == 0 {
 		u.Log("No annotations on that resource.")
 		return
@@ -491,13 +491,13 @@ func busFail(u *launcher.UI, verb string, err error) int {
 func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 	switch op {
 	case "browse:resources-requested":
-		var r semiont.BrowseResourcesResult
+		var r api.BrowseResourcesResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
 		printResources(u, r.Response.Resources, int(r.Response.Total))
 	case "browse:entity-types-requested":
-		var r semiont.BrowseEntityTypesResult
+		var r api.BrowseEntityTypesResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
@@ -509,7 +509,7 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 			fmt.Printf("  %s\n", e)
 		}
 	case "browse:tag-schemas-requested":
-		var r semiont.BrowseTagSchemasResult
+		var r api.BrowseTagSchemasResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
@@ -533,7 +533,7 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 
 // printResources prints one page of resources: the table `browse` lists and
 // `match --search` finds.
-func printResources(u *launcher.UI, resources []semiont.ResourceDescriptor, total int) {
+func printResources(u *launcher.UI, resources []api.ResourceDescriptor, total int) {
 	if len(resources) == 0 {
 		u.Log("No resources match.")
 		return

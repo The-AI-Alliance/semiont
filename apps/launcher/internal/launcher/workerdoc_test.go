@@ -11,20 +11,20 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
 // anthropicHaiku: Anthropic's haiku, as a roster binds it.
-func anthropicHaiku() *semiont.ArchivistRosterRole {
-	return &semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
+func anthropicHaiku() *api.ArchivistRosterRole {
+	return &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
 }
 
 // withAnthropic: st with the anthropic provider stated, at Anthropic's own
 // address, under the key named ANTHROPIC_API_KEY.
 func withAnthropic(st *stack.Stack) {
-	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = stack.Provider{ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = stack.Provider{ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
 }
 
 // threeEngines: the ollama-gemma fixture with its highlighting jobs bound to
@@ -38,9 +38,9 @@ func threeEngines(t *testing.T) *stack.Stack {
 	return st
 }
 
-func workerDocumentFrom(t *testing.T, b []byte) semiont.WorkerConfig {
+func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 	t.Helper()
-	var doc semiont.WorkerConfig
+	var doc api.WorkerConfig
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -49,7 +49,7 @@ func workerDocumentFrom(t *testing.T, b []byte) semiont.WorkerConfig {
 	return doc
 }
 
-func workerDocumentOf(t *testing.T, p placement) semiont.WorkerConfig {
+func workerDocumentOf(t *testing.T, p placement) api.WorkerConfig {
 	t.Helper()
 	b, err := workerDocument(p)
 	if err != nil {
@@ -60,7 +60,7 @@ func workerDocumentOf(t *testing.T, p placement) semiont.WorkerConfig {
 
 // jobOf: the job a filter names, as the roster keys it: "mark.tagging",
 // "yield".
-func jobOf(t *testing.T, filter semiont.JobFilter) string {
+func jobOf(t *testing.T, filter api.JobFilter) string {
 	t.Helper()
 	b, err := json.Marshal(filter)
 	if err != nil {
@@ -85,7 +85,7 @@ func jobOf(t *testing.T, filter semiont.JobFilter) string {
 
 // acceptedBy: the jobs each agent of a document accepts, in the document's
 // order, each agent written "provider/model: job job".
-func acceptedBy(t *testing.T, doc semiont.WorkerConfig) []string {
+func acceptedBy(t *testing.T, doc api.WorkerConfig) []string {
 	t.Helper()
 	var agents []string
 	for _, agent := range doc.Agents {
@@ -100,9 +100,9 @@ func acceptedBy(t *testing.T, doc semiont.WorkerConfig) []string {
 
 // documentServes: the agent a document gives each job. A job two agents accept
 // is a job two workers would claim.
-func documentServes(t *testing.T, doc semiont.WorkerConfig) map[string]semiont.ArchivistRosterRole {
+func documentServes(t *testing.T, doc api.WorkerConfig) map[string]api.ArchivistRosterRole {
 	t.Helper()
-	serves := map[string]semiont.ArchivistRosterRole{}
+	serves := map[string]api.ArchivistRosterRole{}
 	for _, agent := range doc.Agents {
 		for _, filter := range agent.Accepts {
 			job := jobOf(t, filter)
@@ -116,10 +116,10 @@ func documentServes(t *testing.T, doc semiont.WorkerConfig) map[string]semiont.A
 }
 
 // rosterServes: the agent a roster gives each job.
-func rosterServes(roster semiont.ArchivistRoster) map[string]semiont.ArchivistRosterRole {
-	serves := map[string]semiont.ArchivistRosterRole{}
+func rosterServes(roster api.ArchivistRoster) map[string]api.ArchivistRosterRole {
+	serves := map[string]api.ArchivistRosterRole{}
 	for _, job := range workerJobs() {
-		if role := job.slot(reflect.ValueOf(&roster.Workers).Elem()).Interface().(*semiont.ArchivistRosterRole); role != nil {
+		if role := job.slot(reflect.ValueOf(&roster.Workers).Elem()).Interface().(*api.ArchivistRosterRole); role != nil {
 			serves[job.name] = *role
 		}
 	}
@@ -130,7 +130,7 @@ func rosterServes(roster semiont.ArchivistRoster) map[string]semiont.ArchivistRo
 // level is the WorkerPool's. Jobs one engine serves are one agent.
 func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	st.Workers.Spec.LogLevel = semiont.LogLevelDebug
+	st.Workers.Spec.LogLevel = api.LogLevelDebug
 	doc := workerDocumentOf(t, placed(t, st))
 	want := []string{
 		"anthropic/claude-sonnet-4-5-20250929: mark.assessing mark.linking yield",
@@ -156,7 +156,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Port != semiontDescriptor("worker").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("log = %q %q, want the WorkerPool's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
@@ -285,7 +285,7 @@ func TestWorkerDocumentNamesAKey(t *testing.T) {
 	p := placed(t, threeEngines(t))
 	for _, agent := range workerDocumentOf(t, p).Agents {
 		switch agent.Agent.Provider {
-		case semiont.ArchivistRosterRoleProviderAnthropic:
+		case api.ArchivistRosterRoleProviderAnthropic:
 			if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "ANTHROPIC_API_KEY" {
 				t.Errorf("the anthropic agent's apiKeyEnv = %v, want the key named", agent.ApiKeyEnv)
 			}
@@ -323,10 +323,10 @@ func TestWorkerIsHandedOnlyTheKeysItsAgentsUse(t *testing.T) {
 func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
 	st := threeEngines(t)
 	baseURL := "https://ollama.internal"
-	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
+	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
 	p := placed(t, st)
 	for _, agent := range workerDocumentOf(t, p).Agents {
-		if agent.Agent.Provider != semiont.ArchivistRosterRoleProviderOllama {
+		if agent.Agent.Provider != api.ArchivistRosterRoleProviderOllama {
 			continue
 		}
 		if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "OLLAMA_API_KEY" {
@@ -343,12 +343,12 @@ func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
 func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
 	st := threeEngines(t)
 	ollama, proxy := "http://ollama.internal:11434", "https://proxy.internal/v1"
-	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &ollama}
-	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &ollama}
+	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
 	for _, agent := range workerDocumentOf(t, placed(t, st)).Agents {
-		want := map[semiont.ArchivistRosterRoleProvider]string{
-			semiont.ArchivistRosterRoleProviderOllama:    ollama,
-			semiont.ArchivistRosterRoleProviderAnthropic: proxy,
+		want := map[api.ArchivistRosterRoleProvider]string{
+			api.ArchivistRosterRoleProviderOllama:    ollama,
+			api.ArchivistRosterRoleProviderAnthropic: proxy,
 		}[agent.Agent.Provider]
 		if agent.BaseUrl != want {
 			t.Errorf("%s/%s is reached at %q, want %q, as its entry states", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
@@ -360,9 +360,9 @@ func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
 // itself reaches Anthropic for the remote-model check: one decider.
 func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	anthropic := st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic]
+	anthropic := st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic]
 	anthropic.BaseURL = nil
-	st.Inference.Spec.Providers[semiont.ArchivistRosterRoleProviderAnthropic] = anthropic
+	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = anthropic
 	p := placed(t, st)
 	rp := p.plan.Roles["inference"]
 	if rp.Driver != "anthropic" {

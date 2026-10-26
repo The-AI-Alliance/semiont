@@ -64,7 +64,7 @@ import (
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -1637,12 +1637,12 @@ func busSubscriberCount(channel string) int {
 
 // fakeMarkResults: what a `mark` job of each motivation completes with when a
 // test scripts no result. The counts differ, so a test can tell which job ran.
-var fakeMarkResults = map[semiont.Motivation]semiont.MarkJobDone{
-	semiont.MotivationHighlighting: {Found: 4, Persisted: 3},
-	semiont.MotivationCommenting:   {Found: 2, Persisted: 2},
-	semiont.MotivationAssessing:    {Found: 1, Persisted: 1},
-	semiont.MotivationLinking:      {Found: 5, Persisted: 4, Errors: fakeCount(1)},
-	semiont.MotivationTagging:      {Found: 6, Persisted: 6, ByCategory: &map[string]int{"rule": 4, "issue": 2}},
+var fakeMarkResults = map[api.Motivation]api.MarkJobDone{
+	api.MotivationHighlighting: {Found: 4, Persisted: 3},
+	api.MotivationCommenting:   {Found: 2, Persisted: 2},
+	api.MotivationAssessing:    {Found: 1, Persisted: 1},
+	api.MotivationLinking:      {Found: 5, Persisted: 4, Errors: fakeCount(1)},
+	api.MotivationTagging:      {Found: 6, Persisted: 6, ByCategory: &map[string]int{"rule": 4, "issue": 2}},
 }
 
 func fakeCount(n int) *int { return &n }
@@ -1656,31 +1656,31 @@ func fakeCount(n int) *int { return &n }
 // description is of no job this fake runs, or the completion is one it cannot
 // write: a verb that is none, or a `mark` completion with neither a scripted
 // result nor a motivation to take counts from.
-func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted string) (completion semiont.JobCompleteCommand, ok bool) {
+func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted string) (completion api.JobCompleteCommand, ok bool) {
 	jobType, _ := description["jobType"].(string)
-	if !semiont.JobType(jobType).Valid() {
+	if !api.JobType(jobType).Valid() {
 		return completion, false
 	}
 	if as != "" {
 		jobType = as
 	}
 	var err error
-	switch semiont.JobType(jobType) {
-	case semiont.JobTypeYield:
-		var result semiont.YieldJobResult
+	switch api.JobType(jobType) {
+	case api.JobTypeYield:
+		var result api.YieldJobResult
 		if scripted != "" {
 			err = result.UnmarshalJSON([]byte(scripted))
 		} else {
-			err = result.FromYieldJobDone(semiont.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"})
+			err = result.FromYieldJobDone(api.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"})
 		}
 		if err == nil {
-			err = completion.FromYieldJobCompleteCommand(semiont.YieldJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+			err = completion.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
 		}
-	case semiont.JobTypeMark:
-		var result semiont.MarkJobResult
+	case api.JobTypeMark:
+		var result api.MarkJobResult
 		params, _ := description["params"].(map[string]any)
 		motivation, _ := params["motivation"].(string)
-		counts, counted := fakeMarkResults[semiont.Motivation(motivation)]
+		counts, counted := fakeMarkResults[api.Motivation(motivation)]
 		switch {
 		case scripted != "":
 			err = result.UnmarshalJSON([]byte(scripted))
@@ -1690,7 +1690,7 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 			return completion, false
 		}
 		if err == nil {
-			err = completion.FromMarkJobCompleteCommand(semiont.MarkJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+			err = completion.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
 		}
 	default:
 		return completion, false
@@ -1701,16 +1701,16 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 // fakeCreated: the last progress message of a `mark` job that did its work and
 // reports this fake's own counts: how many annotations it created, and the
 // job's motivation. ok=false: the job is not such a job.
-func fakeCreated(description map[string]any) (message semiont.JobProgressMessage, ok bool) {
+func fakeCreated(description map[string]any) (message api.JobProgressMessage, ok bool) {
 	jobType, _ := description["jobType"].(string)
 	params, _ := description["params"].(map[string]any)
 	motivation, _ := params["motivation"].(string)
-	counts, counted := fakeMarkResults[semiont.Motivation(motivation)]
-	if semiont.JobType(jobType) != semiont.JobTypeMark || !counted {
+	counts, counted := fakeMarkResults[api.Motivation(motivation)]
+	if api.JobType(jobType) != api.JobTypeMark || !counted {
 		return message, false
 	}
-	err := message.FromJobProgressCompleteCreated(semiont.JobProgressCompleteCreated{
-		Count: counts.Persisted, Motivation: semiont.Motivation(motivation),
+	err := message.FromJobProgressCompleteCreated(api.JobProgressCompleteCreated{
+		Count: counts.Persisted, Motivation: api.Motivation(motivation),
 	})
 	return message, err == nil
 }
@@ -2379,7 +2379,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								return frame
 							}
 							code := "analyzing"
-							if semiont.JobType(jobType) == semiont.JobTypeYield {
+							if api.JobType(jobType) == api.JobTypeYield {
 								code = "generating-resource"
 							}
 							busPublish("job:report-progress", "", job(map[string]any{

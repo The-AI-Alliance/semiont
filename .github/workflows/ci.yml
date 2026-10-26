@@ -1890,15 +1890,15 @@ jobs:
       - name: Bundle the OpenAPI spec
         run: npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json
 
-      # Authority: specs/openapi.json → packages/sdk-go/client_gen.go.
+      # Authority: specs/openapi.json → packages/sdk-go/api/client_gen.go.
       # Deterministic because the generator version is pinned.
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
             -config packages/sdk-go/oapi-codegen.yaml \
             -o /tmp/client_gen.check.go specs/openapi.json
-          if ! diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go; then
-            echo "::error::packages/sdk-go/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
+          if ! diff -q /tmp/client_gen.check.go packages/sdk-go/api/client_gen.go; then
+            echo "::error::packages/sdk-go/api/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
             exit 1
           fi
           echo "sdk-go client matches the spec"

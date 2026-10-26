@@ -22,7 +22,8 @@ it does have.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `semiont` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled |
+| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled |
+| `semiont` | `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving | hand-written |
 | [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations. `Transport`, and `Client`, its implementation over HTTP | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json), and two hand-written files |
 | `bustest` | `Fake`, a `bus.Transport` with no server, for tests | hand-written |
 | [`mediatypes`](#the-mediatypes-package) | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
@@ -60,7 +61,7 @@ cd packages/sdk-go && go generate ./...
 
 That runs the pinned generator (`oapi-codegen@v2.6.0`) in a `golang`
 container at the toolchain `go.mod` names, so no Go is needed on the host. It
-reads the bundle `npm run openapi:bundle` writes and rewrites `client_gen.go`.
+reads the bundle `npm run openapi:bundle` writes and rewrites `api/client_gen.go`.
 Commit the result. CI runs the same generator and fails while the committed
 client differs from what the spec generates.
 
@@ -100,7 +101,7 @@ npm run generate:bus:check    # verify without writing, as CI does
 
 A channel whose payload exists only in TypeScript (DOM geometry, callbacks) is
 left out: it never crosses the wire. Payload structs are not generated here.
-The schema a channel carries has its Go type in `client_gen.go`. See
+The schema a channel carries has its Go type in `api/client_gen.go`. See
 [the event bus](../../docs/protocol/EVENT-BUS.md).
 
 Two files are hand-written. `transport.go` states what a consumer needs of the

@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-func dispatcherDocumentFrom(t *testing.T, b []byte) semiont.DispatcherConfig {
+func dispatcherDocumentFrom(t *testing.T, b []byte) api.DispatcherConfig {
 	t.Helper()
-	var doc semiont.DispatcherConfig
+	var doc api.DispatcherConfig
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -25,7 +25,7 @@ func dispatcherDocumentFrom(t *testing.T, b []byte) semiont.DispatcherConfig {
 	return doc
 }
 
-func dispatcherDocumentOf(t *testing.T, p placement) semiont.DispatcherConfig {
+func dispatcherDocumentOf(t *testing.T, p placement) api.DispatcherConfig {
 	t.Helper()
 	b, err := dispatcherDocument(p)
 	if err != nil {
@@ -41,7 +41,7 @@ func dispatcherDocumentOf(t *testing.T, p placement) semiont.DispatcherConfig {
 func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeBase.Spec.Gateway.Port = 4100
-	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeBase.Spec.LogLevel = api.LogLevelDebug
 	p := placed(t, st)
 	doc := dispatcherDocumentOf(t, p)
 	if doc.GatewayUrl != "http://192.168.64.1:14100" {
@@ -63,7 +63,7 @@ func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Port != semiontDescriptor("dispatcher").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 	if doc.Timing.TickMs != 30_000 || doc.Timing.StaleRunningMs != 30*60_000 || doc.Timing.AckWaitMs != 30_000 ||

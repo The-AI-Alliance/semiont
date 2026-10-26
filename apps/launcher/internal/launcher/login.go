@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"golang.org/x/term"
 )
 
@@ -85,7 +85,7 @@ func Login(args []string) int {
 		key = "local"
 	}
 
-	cli, err := semiont.NewClientWithResponses(base)
+	cli, err := api.NewClientWithResponses(base)
 	if err != nil {
 		u.Fail("client: %v", err)
 		return 1

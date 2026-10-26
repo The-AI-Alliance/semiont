@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -41,7 +41,7 @@ const statusCeilingTimeout = 3 * time.Second
 
 // modelCeilings maps a (provider, model) pair to the ceilings the platform
 // discovered for it — the granularity the inference clients discover at.
-type modelCeilings map[string]semiont.InferenceLimits
+type modelCeilings map[string]api.InferenceLimits
 
 func ceilingKey(provider, model string) string { return provider + "\x00" + model }
 
@@ -90,13 +90,13 @@ func fetchModelCeilings(st *StackState) modelCeilings {
 			reply, err := transport.Request(
 				context.Background(),
 				op,
-				semiont.InferenceLimitsRequest{},
+				api.InferenceLimitsRequest{},
 				&bus.RequestOptions{Timeout: statusCeilingTimeout},
 			)
 			if err != nil {
 				return
 			}
-			var r semiont.InferenceLimitsResult
+			var r api.InferenceLimitsResult
 			if json.Unmarshal(reply, &r) != nil {
 				return
 			}
@@ -115,7 +115,7 @@ func fetchModelCeilings(st *StackState) modelCeilings {
 // CollaborationPanel's, so the same model reads the same in the terminal and
 // in the browser; the shared-window sentinel is the schema's own
 // (maxOutputTokens === contextTokens means one window, not two ceilings).
-func ceilingCell(l semiont.InferenceLimits) string {
+func ceilingCell(l api.InferenceLimits) string {
 	if l.MaxOutputTokens == l.ContextTokens {
 		return formatTokens(l.ContextTokens) + " window"
 	}

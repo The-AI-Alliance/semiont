@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -23,9 +23,9 @@ func voyageEmbedding(st *stack.Stack) {
 	e.ApiKey = &stack.SecretRef{FromEnv: "VOYAGE_API_KEY"}
 }
 
-func smelterDocumentFrom(t *testing.T, b []byte) semiont.SmelterConfig {
+func smelterDocumentFrom(t *testing.T, b []byte) api.SmelterConfig {
 	t.Helper()
-	var doc semiont.SmelterConfig
+	var doc api.SmelterConfig
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -34,7 +34,7 @@ func smelterDocumentFrom(t *testing.T, b []byte) semiont.SmelterConfig {
 	return doc
 }
 
-func smelterDocumentOf(t *testing.T, p placement) semiont.SmelterConfig {
+func smelterDocumentOf(t *testing.T, p placement) api.SmelterConfig {
 	t.Helper()
 	b, err := smelterDocument(p)
 	if err != nil {
@@ -64,7 +64,7 @@ func shapeOf[T any](t *testing.T, union json.Marshaler) T {
 // the numbers the KnowledgeIndex's, and the log level the KnowledgeIndex's.
 func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeIndex.Spec.LogLevel = api.LogLevelDebug
 	doc := smelterDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
@@ -75,16 +75,16 @@ func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
 		t.Errorf("archivist = %+v, want where this start places the Archivist", doc.Archivist)
 	}
-	wantEmbedding := semiont.OllamaEmbeddingConfig{
-		Type:    semiont.OllamaEmbeddingConfigTypeOllama,
+	wantEmbedding := api.OllamaEmbeddingConfig{
+		Type:    api.OllamaEmbeddingConfigTypeOllama,
 		Model:   "nomic-embed-text",
 		BaseUrl: "http://192.168.64.1:11434",
 	}
-	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
+	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
-	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
+	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
+	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
 	if doc.Chunking.ChunkSize != 512 || doc.Chunking.Overlap != 64 {
@@ -103,7 +103,7 @@ func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.CursorsPath != "/tmp/semiont/smelter-cursors.json" {
 		t.Errorf("cursorsPath = %q, want the Smelter's file of the container's own disk", doc.CursorsPath)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the KnowledgeIndex's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
@@ -133,13 +133,13 @@ func TestSmelterDocumentNamesVoyagesKey(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	voyageEmbedding(st)
 	p := placed(t, st)
-	want := semiont.VoyageEmbeddingConfig{
-		Type:      semiont.VoyageEmbeddingConfigTypeVoyage,
+	want := api.VoyageEmbeddingConfig{
+		Type:      api.VoyageEmbeddingConfigTypeVoyage,
 		Model:     "voyage-3",
 		Endpoint:  "https://api.voyageai.com/v1/embeddings",
 		ApiKeyEnv: "VOYAGE_API_KEY",
 	}
-	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentOf(t, p).Embedding); got != want {
+	if got := shapeOf[api.VoyageEmbeddingConfig](t, smelterDocumentOf(t, p).Embedding); got != want {
 		t.Errorf("embedding = %+v, want %+v", got, want)
 	}
 	if got := embeddingSecrets(p); len(got) != 1 || got[0] != "VOYAGE_API_KEY" {
@@ -153,7 +153,7 @@ func TestSmelterDocumentNamesVoyagesKey(t *testing.T) {
 	voyageEmbedding(st)
 	endpoint := "https://voyage.internal/v1/embeddings"
 	st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
-	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, smelterDocumentOf(t, placed(t, st)).Embedding).Endpoint; got != endpoint {
+	if got := shapeOf[api.VoyageEmbeddingConfig](t, smelterDocumentOf(t, placed(t, st)).Embedding).Endpoint; got != endpoint {
 		t.Errorf("a stated endpoint is written %q, want it as the KnowledgeIndex states it", got)
 	}
 }
@@ -170,10 +170,10 @@ func TestSmelterDocumentStatesWhatSomebodyElseRunsAsWritten(t *testing.T) {
 	st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
 	st.KnowledgeBase.Spec.Archivist.Address = &stack.HostPort{Host: "archivist.internal", Port: 9999}
 	doc := smelterDocumentOf(t, placed(t, st))
-	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got.Host != "qdrant.internal" || got.Port != 7000 {
+	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got.Host != "qdrant.internal" || got.Port != 7000 {
 		t.Errorf("vectors = %+v, want somebody else's Qdrant as its document states it", got)
 	}
-	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding).BaseUrl; got != endpoint {
+	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding).BaseUrl; got != endpoint {
 		t.Errorf("embedding.baseUrl = %q, want somebody else's Ollama as its document states it", got)
 	}
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {

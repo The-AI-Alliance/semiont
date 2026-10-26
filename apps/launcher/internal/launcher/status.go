@@ -15,6 +15,7 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
@@ -816,7 +817,7 @@ func printSessions(u *UI, ss *StackSet) {
 		}
 		state := "unverified (stack not reachable)"
 		if base != "" {
-			if cli, err := semiont.NewClientWithResponses(base); err == nil {
+			if cli, err := api.NewClientWithResponses(base); err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				resp, err := cli.GetCurrentUserWithResponse(ctx, Bearer(e.Token))
 				cancel()

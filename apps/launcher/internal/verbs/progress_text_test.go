@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 func TestProgressTextCoversEveryCode(t *testing.T) {
@@ -31,7 +31,7 @@ func TestProgressTextCoversEveryCode(t *testing.T) {
 		`{"code":"complete-created","count":4,"motivation":"linking"}`,
 	}
 	for _, raw := range payloads {
-		var m semiont.JobProgressMessage
+		var m api.JobProgressMessage
 		if err := json.Unmarshal([]byte(raw), &m); err != nil {
 			t.Fatalf("unmarshal %s: %v", raw, err)
 		}
@@ -45,7 +45,7 @@ func TestProgressTextCoversEveryCode(t *testing.T) {
 // no noun for, as a newer stack's may be, prints nothing, as a code it does
 // not know does: a count with no noun says nothing.
 func TestProgressTextSaysNothingOfAMotivationWithNoNoun(t *testing.T) {
-	var m semiont.JobProgressMessage
+	var m api.JobProgressMessage
 	if err := json.Unmarshal([]byte(`{"code":"complete-created","count":2,"motivation":"bookmarking"}`), &m); err != nil {
 		t.Fatal(err)
 	}

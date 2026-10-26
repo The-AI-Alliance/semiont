@@ -18,7 +18,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const markIDs = "semiont mark [options] -- <resourceId>"
@@ -123,8 +123,8 @@ var markJobFlags = jobFlags{
 // markJob: the job:create a delegated mark sends: a `mark` job on the
 // resource, its parameters the chosen motivation's generated type holding what
 // the flags gave.
-func markJob(resourceID string, motivation semiont.Motivation, given map[string]any) (semiont.JobCreateCommand, error) {
-	var create semiont.JobCreateCommand
+func markJob(resourceID string, motivation api.Motivation, given map[string]any) (api.JobCreateCommand, error) {
+	var create api.JobCreateCommand
 	if !motivation.Valid() {
 		return create, fmt.Errorf("--motivation wants a motivation a mark can be delegated for, got %q", motivation)
 	}
@@ -133,7 +133,7 @@ func markJob(resourceID string, motivation semiont.Motivation, given map[string]
 		described[param] = value
 	}
 	// The union says which generated type holds this motivation's parameters.
-	var params semiont.MarkJobParams
+	var params api.MarkJobParams
 	written, err := json.Marshal(described)
 	if err == nil {
 		err = params.UnmarshalJSON(written)
@@ -156,7 +156,7 @@ func markJob(resourceID string, motivation semiont.Motivation, given map[string]
 	if err != nil {
 		return create, err
 	}
-	err = create.FromMarkJobCreateCommand(semiont.MarkJobCreateCommand{ResourceId: resourceID, Params: params})
+	err = create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: resourceID, Params: params})
 	return create, err
 }
 
@@ -280,7 +280,7 @@ options:
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		chosen := semiont.Motivation(motivation)
+		chosen := api.Motivation(motivation)
 		command, err := markJob(resourceID, chosen, given)
 		if err != nil {
 			u.Fail("%v", err)
@@ -326,7 +326,7 @@ options:
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",
-			semiont.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceID}, nil)
+			api.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceID}, nil)
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}
@@ -358,11 +358,11 @@ options:
 	// stamps it on the way in. A literal beside these fields would be
 	// overwritten with the same value — and would quietly absorb a typo
 	// rather than failing.
-	target := semiont.AnnotationTarget{Source: resourceID}
-	var one semiont.Selector
+	target := api.AnnotationTarget{Source: resourceID}
+	var one api.Selector
 	switch {
 	case quote != "":
-		sel := semiont.TextQuoteSelector{Exact: quote}
+		sel := api.TextQuoteSelector{Exact: quote}
 		if prefix != "" {
 			sel.Prefix = &prefix
 		}
@@ -373,7 +373,7 @@ options:
 			return markBuildFail(err)
 		}
 	case start >= 0:
-		if err := one.FromTextPositionSelector(semiont.TextPositionSelector{
+		if err := one.FromTextPositionSelector(api.TextPositionSelector{
 			Start: start, End: end,
 		}); err != nil {
 			return markBuildFail(err)
@@ -381,18 +381,18 @@ options:
 	}
 	if quote != "" || start >= 0 {
 		// A selector is one selector or a list of them: this is one.
-		var selector semiont.AnnotationSelector
+		var selector api.AnnotationSelector
 		if err := selector.FromSelector(one); err != nil {
 			return markBuildFail(err)
 		}
 		target.Selector = &selector
 	}
 
-	var bodies []semiont.AnnotationBody
+	var bodies []api.AnnotationBody
 	if bodyText != "" {
-		var b semiont.AnnotationBody
-		purpose := semiont.BodyPurpose("commenting")
-		if err := b.FromTextualBody(semiont.TextualBody{
+		var b api.AnnotationBody
+		purpose := api.BodyPurpose("commenting")
+		if err := b.FromTextualBody(api.TextualBody{
 			Value: bodyText, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
@@ -400,9 +400,9 @@ options:
 		bodies = append(bodies, b)
 	}
 	if link != "" {
-		var b semiont.AnnotationBody
-		purpose := semiont.BodyPurpose("linking")
-		if err := b.FromSpecificResource(semiont.SpecificResource{
+		var b api.AnnotationBody
+		purpose := api.BodyPurpose("linking")
+		if err := b.FromSpecificResource(api.SpecificResource{
 			Source: link, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
@@ -410,9 +410,9 @@ options:
 		bodies = append(bodies, b)
 	}
 	for _, et := range entityTypes {
-		var b semiont.AnnotationBody
-		purpose := semiont.BodyPurpose("tagging")
-		if err := b.FromTextualBody(semiont.TextualBody{
+		var b api.AnnotationBody
+		purpose := api.BodyPurpose("tagging")
+		if err := b.FromTextualBody(api.TextualBody{
 			Value: et, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
@@ -420,20 +420,20 @@ options:
 		bodies = append(bodies, b)
 	}
 
-	request := semiont.CreateAnnotationRequest{
+	request := api.CreateAnnotationRequest{
 		Target:     target,
-		Motivation: semiont.Motivation(motivation),
+		Motivation: api.Motivation(motivation),
 	}
 	// The body is a union of "one body" or "a list of bodies" — the schema
 	// models both, so use the list form only when there is more than one.
 	if len(bodies) == 1 {
-		var body semiont.AnnotationBodies
+		var body api.AnnotationBodies
 		if err := body.FromAnnotationBody(bodies[0]); err != nil {
 			return markBuildFail(err)
 		}
 		request.Body = &body
 	} else if len(bodies) > 1 {
-		var body semiont.AnnotationBodies
+		var body api.AnnotationBodies
 		if err := body.FromAnnotationBodies1(bodies); err != nil {
 			return markBuildFail(err)
 		}
@@ -441,7 +441,7 @@ options:
 	}
 
 	reply, err := cli.Request(context.Background(), "mark:create-request",
-		semiont.MarkCreateRequest{ResourceId: resourceID, Request: request}, nil)
+		api.MarkCreateRequest{ResourceId: resourceID, Request: request}, nil)
 	if err != nil {
 		return busFail(u, "mark", err)
 	}
@@ -449,7 +449,7 @@ options:
 		fmt.Println(string(reply))
 		return 0
 	}
-	var ok2 semiont.MarkCreateOk
+	var ok2 api.MarkCreateOk
 	if json.Unmarshal(reply, &ok2) != nil {
 		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 		return 0
@@ -464,8 +464,8 @@ options:
 }
 
 // markJobResults: what a `mark` job reports.
-var markJobResults = resultMembers[semiont.MarkJobResult]{
-	{semiont.MarkJobDone{}, "a mark job's counts"},
+var markJobResults = resultMembers[api.MarkJobResult]{
+	{api.MarkJobDone{}, "a mark job's counts"},
 	declinedResult,
 }
 
@@ -474,21 +474,21 @@ var markJobResults = resultMembers[semiont.MarkJobResult]{
 // line it ends with ("created 3 highlights (4 found)") both word the job's
 // motivation from here. TestEveryMotivationHasItsNoun holds the table to the
 // spec's motivations.
-var markNouns = map[semiont.Motivation]string{
-	semiont.MotivationHighlighting: "highlight",
-	semiont.MotivationCommenting:   "comment",
-	semiont.MotivationAssessing:    "assessment",
-	semiont.MotivationLinking:      "reference",
-	semiont.MotivationTagging:      "tag",
+var markNouns = map[api.Motivation]string{
+	api.MotivationHighlighting: "highlight",
+	api.MotivationCommenting:   "comment",
+	api.MotivationAssessing:    "assessment",
+	api.MotivationLinking:      "reference",
+	api.MotivationTagging:      "tag",
 }
 
 // runMarkDelegate creates the annotation job and follows it to its end.
-func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobCreateCommand, resourceID string, motivation semiont.Motivation, asJSON bool) int {
-	job := delegatedJob[semiont.MarkJobCompleteCommand]{
+func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command api.JobCreateCommand, resourceID string, motivation api.Motivation, asJSON bool) int {
+	job := delegatedJob[api.MarkJobCompleteCommand]{
 		verb: "mark --delegate", doing: "Annotating " + resourceID, note: string(motivation), failed: "Annotation",
 		check:  "semiont browse " + resourceID + " --annotations",
 		create: command,
-		jobOf:  func(done semiont.MarkJobCompleteCommand) semiont.JobId { return done.JobId },
+		jobOf:  func(done api.MarkJobCompleteCommand) api.JobId { return done.JobId },
 	}
 	done, raw, ok := job.run(u, t.Transport())
 	if !ok {
@@ -498,7 +498,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 	if err != nil {
 		return job.resultFail(u, done.JobId, err)
 	}
-	declined, isDecline := result.(semiont.JobDeclined)
+	declined, isDecline := result.(api.JobDeclined)
 	if asJSON {
 		fmt.Println(string(raw))
 		// The exit code is a property of the outcome, not of the output
@@ -516,7 +516,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 		fmt.Fprintln(os.Stderr, "  Nothing was annotated.")
 		return 1
 	}
-	if detected, ok := result.(semiont.MarkJobDone); ok {
+	if detected, ok := result.(api.MarkJobDone); ok {
 		u.Ok("Marked %s: %s", resourceID, markedText(motivation, detected))
 		return 0
 	}
@@ -527,7 +527,7 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 // markedText: what a completed mark job did, in the words of its last
 // progress line: "created 4 references (5 found, 1 error)". A tagging job's
 // count per category follows: ": issue 2, rule 4".
-func markedText(motivation semiont.Motivation, result semiont.MarkJobDone) string {
+func markedText(motivation api.Motivation, result api.MarkJobDone) string {
 	text := fmt.Sprintf("created %s (%d found", plural(result.Persisted, markNouns[motivation]), result.Found)
 	if result.Errors != nil {
 		text += ", " + plural(*result.Errors, "error")

@@ -14,7 +14,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // A verb's result has no discriminant: each of its two members is told from
@@ -23,20 +23,20 @@ import (
 // result among them.
 func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 	const counts, resource, decline = `{"found":4,"persisted":3}`, `{"resourceId":"res-new","resourceName":"Generated","truncated":false}`, `{"declined":true,"reason":"encrypted"}`
-	declined := semiont.JobDeclined{Declined: true, Reason: "encrypted"}
+	declined := api.JobDeclined{Declined: true, Reason: "encrypted"}
 	for _, c := range []struct {
 		name, result string
 		mark, yield  any // nil: an error
 	}{
-		{"a mark job's counts", counts, semiont.MarkJobDone{Found: 4, Persisted: 3}, nil},
-		{"the resource a yield job made", resource, nil, semiont.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"}},
+		{"a mark job's counts", counts, api.MarkJobDone{Found: 4, Persisted: 3}, nil},
+		{"the resource a yield job made", resource, nil, api.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"}},
 		{"a decline", decline, declined, declined},
 		{"no member's required members", `{}`, nil, nil},
 		{"half of a member's required members", `{"found":4,"resourceId":"res-new"}`, nil, nil},
 		{"both members' required members", `{"found":4,"persisted":3,"resourceId":"res-new","resourceName":"Generated","truncated":false,"declined":true,"reason":"empty"}`, nil, nil},
 	} {
-		var asMark semiont.MarkJobResult
-		var asYield semiont.YieldJobResult
+		var asMark api.MarkJobResult
+		var asYield api.YieldJobResult
 		if asMark.UnmarshalJSON([]byte(c.result)) != nil || asYield.UnmarshalJSON([]byte(c.result)) != nil {
 			t.Fatalf("%s: not JSON: %s", c.name, c.result)
 		}
@@ -63,7 +63,7 @@ func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 		}
 	}
 	// A completion may report nothing: its schema does not require a result.
-	if got, err := jobResult[semiont.MarkJobResult](nil, markJobResults); got != nil || err != nil {
+	if got, err := jobResult[api.MarkJobResult](nil, markJobResults); got != nil || err != nil {
 		t.Errorf("a completion with no result is read as %#v (%v)", got, err)
 	}
 }
@@ -103,18 +103,18 @@ func TestJobResultReadsEveryMemberOfItsVerbsUnion(t *testing.T) {
 // by the union's own discriminator, and one the union reads as another verb's
 // (or as none) is an error that names both.
 func TestACompletionIsReadAsItsVerbs(t *testing.T) {
-	var create semiont.JobCreateCommand
-	if err := create.FromMarkJobCreateCommand(semiont.MarkJobCreateCommand{ResourceId: "res-1"}); err != nil {
+	var create api.JobCreateCommand
+	if err := create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: "res-1"}); err != nil {
 		t.Fatal(err)
 	}
-	job := delegatedJob[semiont.MarkJobCompleteCommand]{
+	job := delegatedJob[api.MarkJobCompleteCommand]{
 		verb: "mark --delegate", create: create,
-		jobOf: func(done semiont.MarkJobCompleteCommand) semiont.JobId { return done.JobId },
+		jobOf: func(done api.MarkJobCompleteCommand) api.JobId { return done.JobId },
 	}
 	// Written by the generated types, so that what each verb's completion
 	// names its job by is the generator's to say.
-	written := func(from func(*semiont.JobCompleteCommand) error) json.RawMessage {
-		var completion semiont.JobCompleteCommand
+	written := func(from func(*api.JobCompleteCommand) error) json.RawMessage {
+		var completion api.JobCompleteCommand
 		if err := from(&completion); err != nil {
 			t.Fatal(err)
 		}
@@ -125,17 +125,17 @@ func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 		return payload
 	}
 	marks := func(jobID string) json.RawMessage {
-		return written(func(c *semiont.JobCompleteCommand) error {
-			return c.FromMarkJobCompleteCommand(semiont.MarkJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+		return written(func(c *api.JobCompleteCommand) error {
+			return c.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
 		})
 	}
 	yields := func(jobID string) json.RawMessage {
-		return written(func(c *semiont.JobCompleteCommand) error {
-			return c.FromYieldJobCompleteCommand(semiont.YieldJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+		return written(func(c *api.JobCompleteCommand) error {
+			return c.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
 		})
 	}
 
-	if done, mine, err := job.completion("job-1", marks("job-1")); !mine || err != nil || done.JobId != "job-1" || done.JobType != semiont.MarkJobCompleteCommandJobTypeMark {
+	if done, mine, err := job.completion("job-1", marks("job-1")); !mine || err != nil || done.JobId != "job-1" || done.JobType != api.MarkJobCompleteCommandJobTypeMark {
 		t.Errorf("this job's completion is read as %+v (mine %v, %v)", done, mine, err)
 	}
 	for name, payload := range map[string]json.RawMessage{
@@ -167,10 +167,10 @@ func TestEveryMotivationHasItsNoun(t *testing.T) {
 	if len(motivations) == 0 {
 		t.Fatal("the spec's motivations could not be read")
 	}
-	stated := map[semiont.Motivation]bool{}
+	stated := map[api.Motivation]bool{}
 	for _, motivation := range motivations {
-		stated[semiont.Motivation(motivation)] = true
-		if markNouns[semiont.Motivation(motivation)] == "" {
+		stated[api.Motivation(motivation)] = true
+		if markNouns[api.Motivation(motivation)] == "" {
 			t.Errorf("the motivation %q has no noun", motivation)
 		}
 	}
@@ -186,23 +186,23 @@ func TestEveryMotivationHasItsNoun(t *testing.T) {
 func TestMarkedTextSaysWhatAMarkJobDid(t *testing.T) {
 	one, issue := 1, map[string]int{"rule": 4, "issue": 2}
 	for _, c := range []struct {
-		motivation semiont.Motivation
-		result     semiont.MarkJobDone
+		motivation api.Motivation
+		result     api.MarkJobDone
 		want       string
 	}{
-		{"highlighting", semiont.MarkJobDone{Found: 4, Persisted: 3}, "created 3 highlights (4 found)"},
-		{"commenting", semiont.MarkJobDone{Found: 2, Persisted: 2}, "created 2 comments (2 found)"},
-		{"assessing", semiont.MarkJobDone{Found: 1, Persisted: 1}, "created 1 assessment (1 found)"},
-		{"linking", semiont.MarkJobDone{Found: 5, Persisted: 4, Errors: &one}, "created 4 references (5 found, 1 error)"},
-		{"tagging", semiont.MarkJobDone{Found: 6, Persisted: 6, ByCategory: &issue}, "created 6 tags (6 found): issue 2, rule 4"},
+		{"highlighting", api.MarkJobDone{Found: 4, Persisted: 3}, "created 3 highlights (4 found)"},
+		{"commenting", api.MarkJobDone{Found: 2, Persisted: 2}, "created 2 comments (2 found)"},
+		{"assessing", api.MarkJobDone{Found: 1, Persisted: 1}, "created 1 assessment (1 found)"},
+		{"linking", api.MarkJobDone{Found: 5, Persisted: 4, Errors: &one}, "created 4 references (5 found, 1 error)"},
+		{"tagging", api.MarkJobDone{Found: 6, Persisted: 6, ByCategory: &issue}, "created 6 tags (6 found): issue 2, rule 4"},
 	} {
 		if got := markedText(c.motivation, c.result); got != c.want {
 			t.Errorf("%s: %q, want %q", c.motivation, got, c.want)
 		}
 		// The last line counts what the job's last progress message counted,
 		// in the words that message is given.
-		var created semiont.JobProgressMessage
-		if err := created.FromJobProgressCompleteCreated(semiont.JobProgressCompleteCreated{Count: c.result.Persisted, Motivation: c.motivation}); err != nil {
+		var created api.JobProgressMessage
+		if err := created.FromJobProgressCompleteCreated(api.JobProgressCompleteCreated{Count: c.result.Persisted, Motivation: c.motivation}); err != nil {
 			t.Fatalf("%s: not a progress message: %v", c.motivation, err)
 		}
 		progress := progressText(&created)

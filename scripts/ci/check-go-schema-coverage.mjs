@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SPEC = resolve(ROOT, 'specs/openapi.json');
-const CLIENT = resolve(ROOT, 'packages/sdk-go/client_gen.go');
+const CLIENT = resolve(ROOT, 'packages/sdk-go/api/client_gen.go');
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
 const go = readFileSync(CLIENT, 'utf8');
@@ -38,7 +38,7 @@ if (schemas.length === 0) {
 const missing = schemas.filter((name) => !new RegExp(`^type ${name}\\b`, 'm').test(go));
 
 if (missing.length > 0) {
-  console.error(`::error::packages/sdk-go/client_gen.go is missing ${missing.length} of ${schemas.length} schemas.`);
+  console.error(`::error::packages/sdk-go/api/client_gen.go is missing ${missing.length} of ${schemas.length} schemas.`);
   console.error('');
   console.error('  Missing types:');
   for (const name of missing.slice(0, 25)) console.error(`    ${name}`);

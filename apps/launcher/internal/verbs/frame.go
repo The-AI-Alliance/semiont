@@ -16,7 +16,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const frameUsage = `Usage: semiont frame --entity-type <name> [--entity-type <name> ...]
@@ -110,7 +110,7 @@ func Frame(args []string) int {
 	var added []string
 	for _, et := range entityTypes {
 		_, err := cli.Request(context.Background(), "frame:add-entity-type",
-			semiont.FrameAddEntityTypeCommand{Tag: et}, nil)
+			api.FrameAddEntityTypeCommand{Tag: et}, nil)
 		if err != nil {
 			code := busFail(u, "frame", err)
 			if len(added) > 0 {

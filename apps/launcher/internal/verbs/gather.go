@@ -12,7 +12,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -167,17 +167,17 @@ options:
 	var payload any
 	if annotationID != "" {
 		op = "gather:requested" // annotation focus
-		req := semiont.GatherAnnotationRequest{
+		req := api.GatherAnnotationRequest{
 			ResourceId:   resourceID,
 			AnnotationId: annotationID,
 		}
 		if contextWindow > 0 {
-			req.Options = &semiont.GatherAnnotationOptions{ContextWindow: &contextWindow}
+			req.Options = &api.GatherAnnotationOptions{ContextWindow: &contextWindow}
 		}
 		payload = req
 	} else {
 		op = "gather:resource-requested"
-		req := semiont.GatherResourceRequest{ResourceId: resourceID}
+		req := api.GatherResourceRequest{ResourceId: resourceID}
 		req.Options.IncludeContent = !noContent
 		req.Options.IncludeSummary = summary
 		req.Options.Depth = depth
@@ -199,15 +199,15 @@ options:
 	// hand-rolled unwrapping — and no chance of guessing a field name the
 	// schema never had. Routing keys are not in here: correlationId rides
 	// the envelope, which the bus client consumed before handing this over.
-	var gathered semiont.GatheredContext
+	var gathered api.GatheredContext
 	if annotationID != "" {
-		var r semiont.GatherAnnotationComplete
+		var r api.GatherAnnotationComplete
 		if json.Unmarshal(reply, &r) != nil {
 			return rawFallback(reply)
 		}
 		gathered = r.Response
 	} else {
-		var r semiont.GatherResourceComplete
+		var r api.GatherResourceComplete
 		if json.Unmarshal(reply, &r) != nil {
 			return rawFallback(reply)
 		}

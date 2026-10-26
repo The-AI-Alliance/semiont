@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -22,9 +22,9 @@ func externalBroker(st *stack.Stack) {
 	}
 }
 
-func gatewayDocumentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
+func gatewayDocumentFrom(t *testing.T, b []byte) api.GatewayConfig {
 	t.Helper()
-	var doc semiont.GatewayConfig
+	var doc api.GatewayConfig
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -35,7 +35,7 @@ func gatewayDocumentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
 
 // gatewayDocumentOf: the gateway's document for p, under the example
 // knowledge base's name and domain.
-func gatewayDocumentOf(t *testing.T, p placement) semiont.GatewayConfig {
+func gatewayDocumentOf(t *testing.T, p placement) api.GatewayConfig {
 	t.Helper()
 	b, err := gatewayDocument(p, "Example KB", "example.github.io:example-kb")
 	if err != nil {
@@ -50,7 +50,7 @@ func TestGatewayDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeBase.Spec.Gateway.PublicURL = "https://kb.example.com"
 	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
-	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeBase.Spec.LogLevel = api.LogLevelDebug
 	doc := gatewayDocumentOf(t, placed(t, st))
 	if doc.Kb.Name != "Example KB" || doc.Kb.Domain != "example.github.io:example-kb" {
 		t.Errorf("kb = %+v, want the committed name and domain", doc.Kb)
@@ -67,7 +67,7 @@ func TestGatewayDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Signal.Type != "nats" || doc.Signal.Servers == nil || *doc.Signal.Servers != "192.168.64.1:4222" {
 		t.Errorf("signal = %+v", doc.Signal)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }

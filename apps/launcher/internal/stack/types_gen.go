@@ -4,7 +4,7 @@
 
 package stack
 
-import semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 // KnowledgeBase: A knowledge base's record and the services that keep it: the
 // Gateway, the Dispatcher, the Archivist, and the broker between them. They
@@ -47,7 +47,7 @@ type Metadata struct {
 type KnowledgeBaseSpec struct {
 	// How much a service logs: the least severe level it writes, from error, the
 	// most severe, to debug.
-	LogLevel semiont.LogLevel `json:"logLevel"`
+	LogLevel api.LogLevel `json:"logLevel"`
 
 	// The Gateway: where every client and every service reaches the knowledge
 	// base.
@@ -240,7 +240,7 @@ type KnowledgeIndexSpec struct {
 
 	// How much a service logs: the least severe level it writes, from error, the
 	// most severe, to debug.
-	LogLevel semiont.LogLevel `json:"logLevel"`
+	LogLevel api.LogLevel `json:"logLevel"`
 
 	// The graph store the Weaver writes and the Librarian reads.
 	Graph KnowledgeIndexGraph `json:"graph"`
@@ -501,7 +501,7 @@ type WorkerPoolSpec struct {
 
 	// How much a service logs: the least severe level it writes, from error, the
 	// most severe, to debug.
-	LogLevel semiont.LogLevel `json:"logLevel"`
+	LogLevel api.LogLevel `json:"logLevel"`
 
 	// The Worker.
 	Worker WorkerPoolWorker `json:"worker"`
@@ -540,11 +540,11 @@ type Inference struct {
 // InferenceSpec: The providers, and who serves each role.
 type InferenceSpec struct {
 	// Each provider a role names, and how it is reached.
-	Providers map[semiont.ArchivistRosterRoleProvider]Provider `json:"providers"`
+	Providers map[api.ArchivistRosterRoleProvider]Provider `json:"providers"`
 
 	// The provider and model serving each role: every job a worker does, and
 	// each Librarian actor that asks a model.
-	Roster semiont.ArchivistRoster `json:"roster"`
+	Roster api.ArchivistRoster `json:"roster"`
 }
 
 // Provider: How an inference provider is reached.

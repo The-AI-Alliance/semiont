@@ -12,7 +12,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const bindIDs = "semiont bind [options] -- <resourceId> <annotationId> <targetResourceId>"
@@ -112,22 +112,22 @@ options:
 	}
 	cli := t.Transport()
 
-	var item semiont.AnnotationBody
-	purpose := semiont.BodyPurpose("linking")
+	var item api.AnnotationBody
+	purpose := api.BodyPurpose("linking")
 	// No `type` literal: AnnotationBody's discriminator means the generated
 	// FromSpecificResource stamps it (see mark.go).
-	if err := item.FromSpecificResource(semiont.SpecificResource{
+	if err := item.FromSpecificResource(api.SpecificResource{
 		Source: target, Purpose: &purpose,
 	}); err != nil {
 		u.Fail("could not build the body item: %v", err)
 		return 1
 	}
-	cmd := semiont.BindUpdateBodyCommand{
+	cmd := api.BindUpdateBodyCommand{
 		ResourceId:   resourceID,
 		AnnotationId: annotationID,
 	}
-	cmd.Operations = []semiont.BindBodyOperation{{
-		Op:   semiont.BindBodyOperationOp(op),
+	cmd.Operations = []api.BindBodyOperation{{
+		Op:   api.BindBodyOperationOp(op),
 		Item: &item,
 	}}
 	reply, err := cli.Request(context.Background(), "bind:update-body", cmd, nil)

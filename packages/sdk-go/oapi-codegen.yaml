@@ -1,8 +1,8 @@
-# What oapi-codegen writes client_gen.go with. `always-prefix-enum-values` names
+# What oapi-codegen writes api/client_gen.go with. `always-prefix-enum-values` names
 # every enum constant <Type><Value>, so a schema that reuses a value renames no
 # constant. Each place that runs the generator gives the output's path itself
 # with `-o`: a path named here would win over the drift checks' scratch path.
-package: semiont
+package: api
 generate:
   models: true
   client: true

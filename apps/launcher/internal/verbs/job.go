@@ -22,7 +22,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -36,8 +36,8 @@ type delegatedJob[C any] struct {
 	doing, note string
 	failed      string // what failed, in "Annotation failed: …"
 	check       string // the command that shows what the job has done
-	create      semiont.JobCreateCommand
-	jobOf       func(C) semiont.JobId // the job a completion is of
+	create      api.JobCreateCommand
+	jobOf       func(C) api.JobId // the job a completion is of
 }
 
 // run creates the job and follows it. It returns the job:complete the job
@@ -58,7 +58,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 		busFail(u, j.verb, err)
 		return done, nil, false
 	}
-	var jc semiont.JobCreatedResult
+	var jc api.JobCreatedResult
 	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
 		u.Fail("%s: the gateway accepted the job but named no jobId.", j.verb)
 		return done, nil, false
@@ -83,7 +83,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 		}
 		switch ev.Channel {
 		case "job:report-progress":
-			var p semiont.JobReportProgressCommand
+			var p api.JobReportProgressCommand
 			if json.Unmarshal(ev.Payload, &p) != nil || p.JobId != jobID || p.Progress == nil {
 				continue
 			}
@@ -95,7 +95,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 				u.Log("%s", u.Dim(text))
 			}
 		case "job:fail":
-			var f semiont.JobFailCommand
+			var f api.JobFailCommand
 			if json.Unmarshal(ev.Payload, &f) != nil || f.JobId != jobID {
 				continue
 			}
@@ -133,7 +133,7 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 // created. mine=false: it is another job's. An error: it is this job's, and
 // the union reads it as another verb's or as none: what the job completed as,
 // said after its name.
-func (j delegatedJob[C]) completion(jobID semiont.JobId, payload json.RawMessage) (done C, mine bool, err error) {
+func (j delegatedJob[C]) completion(jobID api.JobId, payload json.RawMessage) (done C, mine bool, err error) {
 	// Whose job it is: every member of the union names its job, so the
 	// payload is read as this verb's to learn that much.
 	var read C
@@ -141,7 +141,7 @@ func (j delegatedJob[C]) completion(jobID semiont.JobId, payload json.RawMessage
 		return done, false, nil
 	}
 	// Whose verb it is: the union's to say, by its discriminator.
-	var completed semiont.JobCompleteCommand
+	var completed api.JobCompleteCommand
 	if err := completed.UnmarshalJSON(payload); err != nil {
 		return done, true, err
 	}
@@ -330,7 +330,7 @@ type resultMember struct {
 type resultMembers[R json.Marshaler] []resultMember
 
 // declinedResult: the member each verb's result union has.
-var declinedResult = resultMember{semiont.JobDeclined{}, "a decline"}
+var declinedResult = resultMember{api.JobDeclined{}, "a decline"}
 
 // jobResult: what a completed job reported, as the member of its verb's
 // result union it is; nil when it reported nothing. An error: what it reported
@@ -375,7 +375,7 @@ func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, er
 
 // resultFail says that a job completed with a result that is not its verb's,
 // and fails the command: a completion nobody can read is not a success.
-func (j delegatedJob[C]) resultFail(u *launcher.UI, jobID semiont.JobId, err error) int {
+func (j delegatedJob[C]) resultFail(u *launcher.UI, jobID api.JobId, err error) int {
 	u.Fail("Job %s completed with %v", jobID, err)
 	fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
 	return 1
@@ -400,7 +400,7 @@ func carriesRequired(carried map[string]json.RawMessage, members map[string]bool
 // An unrecognized reason falls back to the raw code rather than an empty
 // string: for a CLI a bare token is still diagnostic, and a decline the user
 // cannot name is worse than an ugly one.
-func declineText(reason semiont.JobDeclinedReason) string {
+func declineText(reason api.JobDeclinedReason) string {
 	switch reason {
 	case "no-text-layer":
 		return "this PDF is a scan whose text could not be recognized, so there was nothing to annotate"
@@ -425,7 +425,7 @@ func declineText(reason semiont.JobDeclinedReason) string {
 // code renders "", and the caller prints nothing for it: a new code degrades
 // legibly instead of breaking an old launcher. So does what a mark job
 // created, of a motivation markNouns has no noun for.
-func progressText(m *semiont.JobProgressMessage) string {
+func progressText(m *api.JobProgressMessage) string {
 	if m == nil {
 		return ""
 	}
@@ -434,10 +434,10 @@ func progressText(m *semiont.JobProgressMessage) string {
 		return ""
 	}
 	var flat struct {
-		Code       string             `json:"code"`
-		EntityType string             `json:"entityType"`
-		Count      int                `json:"count"`
-		Motivation semiont.Motivation `json:"motivation"`
+		Code       string         `json:"code"`
+		EntityType string         `json:"entityType"`
+		Count      int            `json:"count"`
+		Motivation api.Motivation `json:"motivation"`
 	}
 	if json.Unmarshal(raw, &flat) != nil {
 		return ""

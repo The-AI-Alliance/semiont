@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
@@ -27,9 +27,9 @@ func mixedActors(t *testing.T) *stack.Stack {
 	return st
 }
 
-func librarianDocumentFrom(t *testing.T, b []byte) semiont.LibrarianConfig {
+func librarianDocumentFrom(t *testing.T, b []byte) api.LibrarianConfig {
 	t.Helper()
-	var doc semiont.LibrarianConfig
+	var doc api.LibrarianConfig
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -38,7 +38,7 @@ func librarianDocumentFrom(t *testing.T, b []byte) semiont.LibrarianConfig {
 	return doc
 }
 
-func librarianDocumentOf(t *testing.T, p placement) semiont.LibrarianConfig {
+func librarianDocumentOf(t *testing.T, p placement) api.LibrarianConfig {
 	t.Helper()
 	b, err := librarianDocument(p)
 	if err != nil {
@@ -52,7 +52,7 @@ func librarianDocumentOf(t *testing.T, p placement) semiont.LibrarianConfig {
 // KnowledgeIndex's.
 func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := mixedActors(t)
-	st.KnowledgeIndex.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeIndex.Spec.LogLevel = api.LogLevelDebug
 	doc := librarianDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
@@ -63,32 +63,32 @@ func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
 		t.Errorf("archivist = %+v, want where this start places the Archivist", doc.Archivist)
 	}
-	wantGraph := semiont.Neo4jGraphConfig{
-		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
+	wantGraph := api.Neo4jGraphConfig{
+		Type:        api.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
 		Database:    "neo4j",
 		PasswordEnv: daemonPasswords["graph"].env,
 	}
-	if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph); got != wantGraph {
+	if got := shapeOf[api.Neo4jGraphConfig](t, doc.Graph); got != wantGraph {
 		t.Errorf("graph = %+v, want %+v", got, wantGraph)
 	}
-	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
-	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
+	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
+	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
-	wantEmbedding := semiont.OllamaEmbeddingConfig{
-		Type:    semiont.OllamaEmbeddingConfigTypeOllama,
+	wantEmbedding := api.OllamaEmbeddingConfig{
+		Type:    api.OllamaEmbeddingConfigTypeOllama,
 		Model:   "nomic-embed-text",
 		BaseUrl: "http://192.168.64.1:11434",
 	}
-	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
+	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
 	if doc.Matcher.Agent != *anthropicHaiku() || doc.Matcher.BaseUrl != "https://api.anthropic.com" || doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
 		t.Errorf("matcher = %+v, want %+v at Anthropic's own address, its key named ANTHROPIC_API_KEY", doc.Matcher, *anthropicHaiku())
 	}
-	gatherer := semiont.ArchivistRosterRole{Provider: semiont.ArchivistRosterRoleProviderOllama, Model: "gemma4:26b"}
+	gatherer := api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderOllama, Model: "gemma4:26b"}
 	if doc.Gatherer.Agent != gatherer || doc.Gatherer.BaseUrl != "http://192.168.64.1:11434" || doc.Gatherer.ApiKeyEnv != nil {
 		t.Errorf("gatherer = %+v, want %+v at the Ollama this start places, with no key", doc.Gatherer, gatherer)
 	}
@@ -98,7 +98,7 @@ func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Port != semiontDescriptor("librarian").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the KnowledgeIndex's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
@@ -129,14 +129,14 @@ func TestLibrarianDocumentSharesTheWeaversGraphAndTheSmeltersIndex(t *testing.T)
 		p := placed(t, st)
 		doc := librarianDocumentOf(t, p)
 		_, weaversGraph := weaverDocumentOf(t, p)
-		if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph); got != weaversGraph {
+		if got := shapeOf[api.Neo4jGraphConfig](t, doc.Graph); got != weaversGraph {
 			t.Errorf("%s: the Librarian's graph is %+v, the Weaver's %+v", why, got, weaversGraph)
 		}
 		smelters := smelterDocumentOf(t, p)
-		if mine, theirs := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors), shapeOf[semiont.QdrantVectorsConfig](t, smelters.Vectors); mine != theirs {
+		if mine, theirs := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors), shapeOf[api.QdrantVectorsConfig](t, smelters.Vectors); mine != theirs {
 			t.Errorf("%s: the Librarian's vectors are %+v, the Smelter's %+v", why, mine, theirs)
 		}
-		if mine, theirs := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding), shapeOf[semiont.OllamaEmbeddingConfig](t, smelters.Embedding); mine != theirs {
+		if mine, theirs := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding), shapeOf[api.OllamaEmbeddingConfig](t, smelters.Embedding); mine != theirs {
 			t.Errorf("%s: the Librarian's embedding is %+v, the Smelter's %+v", why, mine, theirs)
 		}
 		if doc.Archivist.Host != smelters.Archivist.Host || doc.Archivist.Port != smelters.Archivist.Port {
@@ -155,10 +155,10 @@ func TestLibrarianDocumentNamesItsSecrets(t *testing.T) {
 	voyageEmbedding(st)
 	p := placed(t, st)
 	doc := librarianDocumentOf(t, p)
-	if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph).PasswordEnv; got != "GRAPH_PASSWORD" {
+	if got := shapeOf[api.Neo4jGraphConfig](t, doc.Graph).PasswordEnv; got != "GRAPH_PASSWORD" {
 		t.Errorf("graph.passwordEnv = %q, want the variable the KnowledgeIndex names", got)
 	}
-	if got := shapeOf[semiont.VoyageEmbeddingConfig](t, doc.Embedding).ApiKeyEnv; got != "VOYAGE_API_KEY" {
+	if got := shapeOf[api.VoyageEmbeddingConfig](t, doc.Embedding).ApiKeyEnv; got != "VOYAGE_API_KEY" {
 		t.Errorf("embedding.apiKeyEnv = %q, want the variable the KnowledgeIndex names", got)
 	}
 	if doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
@@ -188,7 +188,7 @@ func TestLibrarianModelsAreReachedWhereTheWorkersAgentsAre(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for actor, model := range map[string]semiont.LibrarianModelConfig{"matcher": doc.Matcher, "gatherer": doc.Gatherer} {
+	for actor, model := range map[string]api.LibrarianModelConfig{"matcher": doc.Matcher, "gatherer": doc.Gatherer} {
 		found := false
 		for _, agent := range agents {
 			if agent.Agent != model.Agent {

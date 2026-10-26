@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )
 
-func archivistDocumentFrom(t *testing.T, b []byte) semiont.ArchivistConfig {
+func archivistDocumentFrom(t *testing.T, b []byte) api.ArchivistConfig {
 	t.Helper()
-	var doc semiont.ArchivistConfig
+	var doc api.ArchivistConfig
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
@@ -22,7 +22,7 @@ func archivistDocumentFrom(t *testing.T, b []byte) semiont.ArchivistConfig {
 	return doc
 }
 
-func archivistDocumentOf(t *testing.T, p placement) semiont.ArchivistConfig {
+func archivistDocumentOf(t *testing.T, p placement) api.ArchivistConfig {
 	t.Helper()
 	b, err := archivistDocument(p)
 	if err != nil {
@@ -37,7 +37,7 @@ func archivistDocumentOf(t *testing.T, p placement) semiont.ArchivistConfig {
 // KnowledgeBase's.
 func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	st.KnowledgeBase.Spec.LogLevel = semiont.LogLevelDebug
+	st.KnowledgeBase.Spec.LogLevel = api.LogLevelDebug
 	doc := archivistDocumentOf(t, placed(t, st))
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
@@ -57,7 +57,7 @@ func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Staging.FlushMs != 250 || doc.Staging.MaxWaitMs != 2_000 {
 		t.Errorf("staging = %+v, want the bounds a deployment runs with", doc.Staging)
 	}
-	if doc.LogLevel != semiont.LogLevelDebug || doc.LogFormat != semiont.LogFormatJson {
+	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 	if !reflect.DeepEqual(doc.Roster, st.Inference.Spec.Roster) {

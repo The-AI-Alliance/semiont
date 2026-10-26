@@ -339,7 +339,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build` over every npm workspace |
-| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
+| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for the launcher; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
