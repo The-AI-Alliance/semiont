@@ -30,7 +30,7 @@
     "@types/node": "^26.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "jose": "^6.2.12",
+    "jose": "^6.2.13",
     "nats": "^2.29.3",
     "neo4j-driver": "^6.2.0",
     "typescript": "^6.0.2",

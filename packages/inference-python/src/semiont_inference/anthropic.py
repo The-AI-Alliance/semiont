@@ -4,7 +4,7 @@ The library is not a dependency of this package. It comes with the extra
 `semiont-inference[anthropic]`, and this module is the one place it is
 imported: whoever does not ask for this driver does not need it.
 
-What this driver leans on in the library (`anthropic`, read at 1.13.0), so
+What this driver leans on in the library (`anthropic`, read at 1.17.0), so
 that a new release of it is read for the same:
 
 - It refuses to wait for a whole answer it reckons could take over ten
@@ -29,6 +29,13 @@ that a new release of it is read for the same:
   (`DefaultAsyncHttpxClient`), with one hook.
 - It builds a reply into typed models without checking it, so a member its
   types promise can be absent.
+- It traces its own calls, wherever the process has a tracer, and sends
+  each call's trace context to the provider in a `traceparent` header: both
+  by default. A service exports the spans its row of
+  `specs/src/service-telemetry/telemetry.json` lists and no others, and a
+  provider is no party to its traces, so the client is made with both off
+  (`open_telemetry`). `False` alone would turn off the spans and leave the
+  header.
 - Its failures: `APIStatusError` carries the status the provider refused
   with; `APIConnectionError` carries none. It has no failure of its own for a
   call that was cancelled, and catches no cancellation.
@@ -361,13 +368,15 @@ class AnthropicInferenceClient:
         ten minutes for each of the rest): the library refuses to wait for a
         whole answer only while that is so. Its HTTP client is the library's
         own default, made here so that it carries the hook that stops the
-        library at a wait too long.
+        library at a wait too long. Its tracing is off, and so is the trace
+        context it would send the provider.
         """
         return AsyncAnthropic(
             api_key=self._api_key,
             base_url=self._base_url,
             max_retries=_MAX_RETRIES,
             http_client=DefaultAsyncHttpxClient(event_hooks={"response": [_stop_at_a_wait_too_long]}),
+            open_telemetry={"traces": False, "propagation": False},
         )
 
     async def _discover(self) -> _Discovery:

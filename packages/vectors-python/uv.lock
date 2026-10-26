@@ -585,7 +585,7 @@ conformance = [
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
 ]
 dev = [
-    { name = "datamodel-code-generator", specifier = "==0.83.0" },
+    { name = "datamodel-code-generator", specifier = "==0.86.0" },
     { name = "hypothesis", specifier = ">=6.130,<7" },
     { name = "mypy", specifier = "==2.4.0" },
     { name = "pyright", specifier = "==1.1.414" },
