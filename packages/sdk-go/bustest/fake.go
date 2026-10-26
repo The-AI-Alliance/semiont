@@ -38,6 +38,7 @@ type Emitted struct {
 type Requested struct {
 	Channel bus.Channel
 	Payload map[string]any
+	Scope   api.ResourceId
 }
 
 // Fake implements semiont.Transport. The zero value is not ready — use
@@ -107,7 +108,7 @@ func (f *Fake) Emit(_ context.Context, channel bus.Channel, payload map[string]a
 	if envelope.CorrelationID == "" {
 		f.Emits = append(f.Emits, Emitted{Channel: channel, Payload: payload, Scope: envelope.Scope})
 	} else {
-		f.Requests = append(f.Requests, Requested{Channel: channel, Payload: payload})
+		f.Requests = append(f.Requests, Requested{Channel: channel, Payload: payload, Scope: envelope.Scope})
 	}
 	if f.EmitErr != nil {
 		err := f.EmitErr
@@ -153,6 +154,10 @@ func (f *Fake) Frames(channels ...bus.Channel) (iter.Seq[semiont.Frame], error) 
 	return f.hub.Frames(channels...), nil
 }
 
+// BridgeInto delivers into sink every frame Deliver is given from now on,
+// each published to everyone there whichever scope it came on.
+func (f *Fake) BridgeInto(sink semiont.FrameSink) { f.hub.Bridge(sink) }
+
 func (f *Fake) IsSubscribed(bus.Channel) bool { return true }
 
 // SubscribeToResource holds nothing: every frame Deliver is given reaches
@@ -181,6 +186,14 @@ func (f *Fake) Close() {
 		f.hub.Close()
 		close(f.closed)
 	})
+}
+
+// Sent is what has been sent so far, in order: every emit that awaits no
+// reply, and every request. Safe to call while sending goes on.
+func (f *Fake) Sent() (emits []Emitted, requests []Requested) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]Emitted(nil), f.Emits...), append([]Requested(nil), f.Requests...)
 }
 
 // Ops is the recorded operations in order — the common assertion, without

@@ -251,14 +251,14 @@ options:
 	if toBrowser {
 		d := drive{
 			subject: resourceID,
-			channel: bus.BrowseResourceOpen,
+			channel: bus.BrowseResourceOpen.Channel(),
 			payload: api.BrowseResourceOpenEvent{ResourceId: rid},
 			retry:   fmt.Sprintf("semiont browse %s --browser", resourceID),
 		}
 		if annotation != "" {
 			d = drive{
 				subject: "annotation " + annotation,
-				channel: bus.BrowseClick,
+				channel: bus.BrowseClick.Channel(),
 				payload: api.BrowseClickEvent{AnnotationId: aid},
 				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
 			}

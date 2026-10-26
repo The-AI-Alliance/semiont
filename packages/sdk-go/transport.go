@@ -39,6 +39,12 @@ type Transport interface {
 	// StateChanges is the connection's state now and each state it moves to,
 	// until ctx is done or the loop over it stops.
 	StateChanges(ctx context.Context) iter.Seq[ConnectionState]
+	// BridgeInto delivers into sink, the client's own bus, every frame the
+	// transport delivers from now on, each published to everyone there
+	// whichever scope it came on. The bus is the client's: a transport never
+	// makes one (docs/protocol/TRANSPORT-CONTRACT.md § The bus belongs to the
+	// client).
+	BridgeInto(sink FrameSink)
 	// Failures is the failures the transport meets from now on, each as it is
 	// returned to its caller. A listener taken as soon as the transport is
 	// made hears every one, from its first request.

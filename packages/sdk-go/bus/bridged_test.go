@@ -53,16 +53,6 @@ func TestBroadcastsAreDisjointFromOperationReplies(t *testing.T) {
 	}
 }
 
-// Every operation must be emittable: Bus.request sends on the request channel,
-// and /bus/emit validates it against the schema ChannelSchemas names.
-func TestEveryOperationRequestIsEmittable(t *testing.T) {
-	for req := range Operations {
-		if !req.Emittable() {
-			t.Errorf("operation %q has no entry in ChannelSchemas — Emit refuses it, so the operation can never be invoked", req)
-		}
-	}
-}
-
 // Bridged() is the predicate callers use; it must agree with the slice
 // BridgedChannels exposes, or `listen` warns about channels it then receives.
 func TestBridgedAgreesWithTheChannelList(t *testing.T) {

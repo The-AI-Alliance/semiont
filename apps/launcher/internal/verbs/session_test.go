@@ -399,7 +399,7 @@ func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 			t.Errorf("beckon: exit %d — a session the issuer can renew must not fail", code)
 		}
 	})
-	if emits := gateway.acceptedEmits(); len(emits) != 1 || emits[0] != bus.BeckonFocus {
+	if emits := gateway.acceptedEmits(); len(emits) != 1 || emits[0] != bus.BeckonFocus.Channel() {
 		t.Errorf("want the one signal accepted, got %v", emits)
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {

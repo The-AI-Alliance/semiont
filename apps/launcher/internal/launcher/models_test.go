@@ -148,7 +148,7 @@ func TestWriteVettedStackRefusesUnstartable(t *testing.T) {
 // of it would leave the tour blocking forever on a stream that can never
 // produce an event.
 func TestPresenceChannelsAreSubscribable(t *testing.T) {
-	for _, ch := range []bus.Channel{bus.SessionJoined, bus.SessionLeft} {
+	for _, ch := range []bus.Channel{bus.SessionJoined.Channel(), bus.SessionLeft.Channel()} {
 		if !bus.Bridged(ch) {
 			t.Errorf("%s is not bridged — `semiont listen --channel %s` would warn and hang", ch, ch)
 		}

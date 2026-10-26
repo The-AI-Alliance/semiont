@@ -162,7 +162,7 @@ func (g *stubGateway) client() (*HTTPTransport, *http.Client) {
 	return NewHTTPTransport(HTTPTransportConfig{
 		BaseURL:  g.URL,
 		Token:    NewWatched("a-token"),
-		Channels: []bus.Channel{bus.BeckonFocus},
+		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
 		HTTP:     httpClient,
 		Timing:   timing,
 	}), httpClient
@@ -214,7 +214,7 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 	gateway := newStubGateway(t)
 	before := runtime.NumGoroutine()
 	transport, httpClient := gateway.client()
-	frames, err := transport.Frames(bus.BeckonFocus)
+	frames, err := transport.Frames(bus.BeckonFocus.Channel())
 	if err != nil {
 		t.Fatal(err)
 	}

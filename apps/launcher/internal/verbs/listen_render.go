@@ -106,10 +106,10 @@ func (r *listenRenderer) line(u *launcher.UI, frame semiont.Frame) string {
 	// Presence gets its own shape: the event is the transition, the number is
 	// the state, and both belong on the line.
 	switch frame.Channel {
-	case bus.SessionJoined, bus.SessionLeft:
+	case bus.SessionJoined.Channel(), bus.SessionLeft.Channel():
 		who := shortParticipant(p.Participant)
 		verb, mark := "joined", u.Wrap(launcher.AnsiGreen, "●")
-		if frame.Channel == bus.SessionLeft {
+		if frame.Channel == bus.SessionLeft.Channel() {
 			verb, mark = "left", u.Dim("○")
 			delete(r.present, p.ConnectionID)
 		} else {

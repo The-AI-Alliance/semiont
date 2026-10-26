@@ -1,703 +1,165 @@
 // Code generated from specs/src/bus/registry.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/bus/generate-go.mjs
-// The TypeScript side (packages/core/src/bus-protocol.ts) generates from the
-// same registry, so the two languages cannot drift apart by hand.
 
 package bus
 
-// Channel is a bus channel name. Only channels the gateway will accept on
-// /bus/emit have an entry in ChannelSchemas; emitting anything else is a
-// client bug the server rejects.
+import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+
+// Channel is a bus channel's name: what a channel chosen at run time is
+// given as, and what each typed value below is named by.
 type Channel string
 
-const (
-	// payload: StoredEvent(yield:created) — not emittable
-	YieldCreated Channel = "yield:created"
-
-	// payload: StoredEvent(yield:cloned) — not emittable
-	YieldCloned Channel = "yield:cloned"
-
-	// payload: StoredEvent(yield:updated) — not emittable
-	YieldUpdated Channel = "yield:updated"
-
-	// payload: StoredEvent(yield:moved) — not emittable
-	YieldMoved Channel = "yield:moved"
-
-	// payload: StoredEvent(yield:representation-added) — not emittable
-	YieldRepresentationAdded Channel = "yield:representation-added"
-
-	// payload: StoredEvent(yield:representation-removed) — not emittable
-	YieldRepresentationRemoved Channel = "yield:representation-removed"
-
-	// payload: YieldCreateCommand
-	YieldCreate Channel = "yield:create"
-
-	// payload: YieldClonePersistCommand
-	YieldClonePersist Channel = "yield:clone-persist"
-
-	// payload: YieldUpdateCommand
-	YieldUpdate Channel = "yield:update"
-
-	// no payload — not emittable
-	YieldClone Channel = "yield:clone"
-
-	// payload: YieldCloneTokenRequest
-	YieldCloneTokenRequested Channel = "yield:clone-token-requested"
-
-	// payload: YieldCloneResourceRequest
-	YieldCloneResourceRequested Channel = "yield:clone-resource-requested"
-
-	// payload: YieldCloneCreateCommand
-	YieldCloneCreate Channel = "yield:clone-create"
-
-	// payload: YieldCreateOk
-	YieldCreateOk Channel = "yield:create-ok"
-
-	// payload: CommandError
-	YieldCreateFailed Channel = "yield:create-failed"
-
-	// payload: YieldClonePersistOk
-	YieldClonePersistOk Channel = "yield:clone-persist-ok"
-
-	// not emittable (no registered schema)
-	YieldClonePersistFailed Channel = "yield:clone-persist-failed"
-
-	// payload: YieldUpdateOk
-	YieldUpdateOk Channel = "yield:update-ok"
-
-	// not emittable (no registered schema)
-	YieldUpdateFailed Channel = "yield:update-failed"
-
-	// not emittable (no registered schema)
-	YieldCloneTokenGenerated Channel = "yield:clone-token-generated"
-
-	// not emittable (no registered schema)
-	YieldCloneTokenFailed Channel = "yield:clone-token-failed"
-
-	// not emittable (no registered schema)
-	YieldCloneResourceResult Channel = "yield:clone-resource-result"
-
-	// not emittable (no registered schema)
-	YieldCloneResourceFailed Channel = "yield:clone-resource-failed"
-
-	// payload: YieldCloneCreated
-	YieldCloneCreated Channel = "yield:clone-created"
-
-	// not emittable (no registered schema)
-	YieldCloneCreateFailed Channel = "yield:clone-create-failed"
-
-	// payload: EnrichedEvent(mark:added) — not emittable
-	MarkAdded Channel = "mark:added"
-
-	// payload: StoredEvent(mark:removed) — not emittable
-	MarkRemoved Channel = "mark:removed"
-
-	// payload: EnrichedEvent(mark:body-updated) — not emittable
-	MarkBodyUpdated Channel = "mark:body-updated"
-
-	// payload: StoredEvent(mark:entity-tag-added) — not emittable
-	MarkEntityTagAdded Channel = "mark:entity-tag-added"
-
-	// payload: StoredEvent(mark:entity-tag-removed) — not emittable
-	MarkEntityTagRemoved Channel = "mark:entity-tag-removed"
-
-	// payload: StoredEvent(mark:archived) — not emittable
-	MarkArchived Channel = "mark:archived"
-
-	// payload: StoredEvent(mark:unarchived) — not emittable
-	MarkUnarchived Channel = "mark:unarchived"
-
-	// payload: MarkCreateRequest
-	MarkCreateRequest Channel = "mark:create-request"
-
-	// payload: MarkDeleteCommand
-	MarkDelete Channel = "mark:delete"
-
-	// payload: MarkUpdateBodyCommand
-	MarkUpdateBody Channel = "mark:update-body"
-
-	// payload: MarkArchiveCommand
-	MarkArchive Channel = "mark:archive"
-
-	// payload: MarkUnarchiveCommand
-	MarkUnarchive Channel = "mark:unarchive"
-
-	// payload: MarkUpdateEntityTypesCommand
-	MarkUpdateEntityTypes Channel = "mark:update-entity-types"
-
-	// payload: MarkCreateOk
-	MarkCreateOk Channel = "mark:create-ok"
-
-	// payload: CommandError
-	MarkCreateFailed Channel = "mark:create-failed"
-
-	// payload: MarkCommitCommand
-	MarkCommit Channel = "mark:commit"
-
-	// payload: MarkCommitOk
-	MarkCommitOk Channel = "mark:commit-ok"
-
-	// payload: CommandError
-	MarkCommitFailed Channel = "mark:commit-failed"
-
-	// payload: MarkDeleteOk
-	MarkDeleteOk Channel = "mark:delete-ok"
-
-	// payload: CommandError
-	MarkDeleteFailed Channel = "mark:delete-failed"
-
-	// not emittable (no registered schema)
-	MarkArchiveOk Channel = "mark:archive-ok"
-
-	// payload: CommandError
-	MarkArchiveFailed Channel = "mark:archive-failed"
-
-	// not emittable (no registered schema)
-	MarkUnarchiveOk Channel = "mark:unarchive-ok"
-
-	// payload: CommandError
-	MarkUnarchiveFailed Channel = "mark:unarchive-failed"
-
-	// not emittable (no registered schema)
-	MarkUpdateEntityTypesOk Channel = "mark:update-entity-types-ok"
-
-	// payload: CommandError
-	MarkUpdateEntityTypesFailed Channel = "mark:update-entity-types-failed"
-
-	// payload: CommandError
-	MarkBodyUpdateFailed Channel = "mark:body-update-failed"
-
-	// payload: MarkRequestedEvent
-	MarkRequested Channel = "mark:requested"
-
-	// payload: MarkSubmitEvent
-	MarkSubmit Channel = "mark:submit"
-
-	// not emittable (no registered schema)
-	MarkDelegateTimeout Channel = "mark:delegate-timeout"
-
-	// not emittable (no registered schema)
-	MarkCreateError Channel = "mark:create-error"
-
-	// not emittable (no registered schema)
-	MarkDeleteError Channel = "mark:delete-error"
-
-	// not emittable (no registered schema)
-	BindBodyError Channel = "bind:body-error"
-
-	// payload: StoredEvent(frame:entity-type-added) — not emittable
-	FrameEntityTypeAdded Channel = "frame:entity-type-added"
-
-	// payload: StoredEvent(frame:tag-schema-added) — not emittable
-	FrameTagSchemaAdded Channel = "frame:tag-schema-added"
-
-	// payload: FrameAddEntityTypeCommand
-	FrameAddEntityType Channel = "frame:add-entity-type"
-
-	// payload: FrameAddTagSchemaCommand
-	FrameAddTagSchema Channel = "frame:add-tag-schema"
-
-	// not emittable (no registered schema)
-	FrameEntityTypeAddOk Channel = "frame:entity-type-add-ok"
-
-	// payload: CommandError
-	FrameEntityTypeAddFailed Channel = "frame:entity-type-add-failed"
-
-	// not emittable (no registered schema)
-	FrameTagSchemaAddOk Channel = "frame:tag-schema-add-ok"
-
-	// payload: CommandError
-	FrameTagSchemaAddFailed Channel = "frame:tag-schema-add-failed"
-
-	// payload: StoredEvent(person:profiled) — not emittable
-	PersonProfiled Channel = "person:profiled"
-
-	// payload: PersonProfileCommand
-	PersonProfile Channel = "person:profile"
-
-	// payload: BindInitiateCommand
-	BindInitiate Channel = "bind:initiate"
-
-	// payload: BindUpdateBodyCommand
-	BindUpdateBody Channel = "bind:update-body"
-
-	// payload: BindBodyUpdated
-	BindBodyUpdated Channel = "bind:body-updated"
-
-	// payload: CommandError
-	BindBodyUpdateFailed Channel = "bind:body-update-failed"
-
-	// payload: MatchSearchRequest
-	MatchSearchRequested Channel = "match:search-requested"
-
-	// payload: MatchSearchResult
-	MatchSearchResults Channel = "match:search-results"
-
-	// payload: MatchSearchFailed
-	MatchSearchFailed Channel = "match:search-failed"
-
-	// payload: MatchResourcesRequest
-	MatchResourcesRequested Channel = "match:resources-requested"
-
-	// payload: MatchResourcesResult
-	MatchResourcesResult Channel = "match:resources-result"
-
-	// not emittable (no registered schema)
-	MatchResourcesFailed Channel = "match:resources-failed"
-
-	// payload: InferenceLimitsRequest
-	MatchLimitsRequested Channel = "match:limits-requested"
-
-	// payload: InferenceLimitsResult
-	MatchLimitsResult Channel = "match:limits-result"
-
-	// not emittable (no registered schema)
-	MatchLimitsFailed Channel = "match:limits-failed"
-
-	// payload: GatherAnnotationRequest
-	GatherRequested Channel = "gather:requested"
-
-	// payload: GatherAnnotationComplete
-	GatherComplete Channel = "gather:complete"
-
-	// not emittable (no registered schema)
-	GatherFailed Channel = "gather:failed"
-
-	// payload: GatherResourceRequest
-	GatherResourceRequested Channel = "gather:resource-requested"
-
-	// payload: GatherResourceComplete
-	GatherResourceComplete Channel = "gather:resource-complete"
-
-	// not emittable (no registered schema)
-	GatherResourceFailed Channel = "gather:resource-failed"
-
-	// payload: GatherSummaryRequest
-	GatherSummaryRequested Channel = "gather:summary-requested"
-
-	// not emittable (no registered schema)
-	GatherSummaryResult Channel = "gather:summary-result"
-
-	// not emittable (no registered schema)
-	GatherSummaryFailed Channel = "gather:summary-failed"
-
-	// payload: GatherReferencedByRequest
-	GatherReferencedByRequested Channel = "gather:referenced-by-requested"
-
-	// payload: GatherReferencedByResult
-	GatherReferencedByResult Channel = "gather:referenced-by-result"
-
-	// not emittable (no registered schema)
-	GatherReferencedByFailed Channel = "gather:referenced-by-failed"
-
-	// payload: InferenceLimitsRequest
-	GatherLimitsRequested Channel = "gather:limits-requested"
-
-	// payload: InferenceLimitsResult
-	GatherLimitsResult Channel = "gather:limits-result"
-
-	// not emittable (no registered schema)
-	GatherLimitsFailed Channel = "gather:limits-failed"
-
-	// payload: BrowseResourceRequest
-	BrowseResourceRequested Channel = "browse:resource-requested"
-
-	// payload: BrowseResourceResult
-	BrowseResourceResult Channel = "browse:resource-result"
-
-	// not emittable (no registered schema)
-	BrowseResourceFailed Channel = "browse:resource-failed"
-
-	// payload: BrowseResourcesRequest
-	BrowseResourcesRequested Channel = "browse:resources-requested"
-
-	// payload: BrowseResourcesResult
-	BrowseResourcesResult Channel = "browse:resources-result"
-
-	// not emittable (no registered schema)
-	BrowseResourcesFailed Channel = "browse:resources-failed"
-
-	// payload: BrowseAnnotationRequest
-	BrowseAnnotationRequested Channel = "browse:annotation-requested"
-
-	// payload: BrowseAnnotationResult
-	BrowseAnnotationResult Channel = "browse:annotation-result"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationFailed Channel = "browse:annotation-failed"
-
-	// payload: BrowseEventsRequest
-	BrowseEventsRequested Channel = "browse:events-requested"
-
-	// payload: BrowseEventsResult
-	BrowseEventsResult Channel = "browse:events-result"
-
-	// not emittable (no registered schema)
-	BrowseEventsFailed Channel = "browse:events-failed"
-
-	// payload: BrowseAnnotationHistoryRequest
-	BrowseAnnotationHistoryRequested Channel = "browse:annotation-history-requested"
-
-	// payload: BrowseAnnotationHistoryResult
-	BrowseAnnotationHistoryResult Channel = "browse:annotation-history-result"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationHistoryFailed Channel = "browse:annotation-history-failed"
-
-	// payload: BrowseEntityTypesRequest
-	BrowseEntityTypesRequested Channel = "browse:entity-types-requested"
-
-	// payload: BrowseEntityTypesResult
-	BrowseEntityTypesResult Channel = "browse:entity-types-result"
-
-	// not emittable (no registered schema)
-	BrowseEntityTypesFailed Channel = "browse:entity-types-failed"
-
-	// payload: BrowseTagSchemasRequest
-	BrowseTagSchemasRequested Channel = "browse:tag-schemas-requested"
-
-	// payload: BrowseTagSchemasResult
-	BrowseTagSchemasResult Channel = "browse:tag-schemas-result"
-
-	// not emittable (no registered schema)
-	BrowseTagSchemasFailed Channel = "browse:tag-schemas-failed"
-
-	// payload: BrowseAgentsRequest
-	BrowseAgentsRequested Channel = "browse:agents-requested"
-
-	// payload: BrowseAgentsResult
-	BrowseAgentsResult Channel = "browse:agents-result"
-
-	// not emittable (no registered schema)
-	BrowseAgentsFailed Channel = "browse:agents-failed"
-
-	// payload: BrowsePeopleRequest
-	BrowsePeopleRequested Channel = "browse:people-requested"
-
-	// payload: BrowsePeopleResult
-	BrowsePeopleResult Channel = "browse:people-result"
-
-	// not emittable (no registered schema)
-	BrowsePeopleFailed Channel = "browse:people-failed"
-
-	// payload: BrowseKbRequest
-	BrowseKbRequested Channel = "browse:kb-requested"
-
-	// payload: BrowseKbResult
-	BrowseKbResult Channel = "browse:kb-result"
-
-	// not emittable (no registered schema)
-	BrowseKbFailed Channel = "browse:kb-failed"
-
-	// payload: BrowseDirectoryRequest
-	BrowseDirectoryRequested Channel = "browse:directory-requested"
-
-	// payload: BrowseDirectoryResult
-	BrowseDirectoryResult Channel = "browse:directory-result"
-
-	// not emittable (no registered schema)
-	BrowseDirectoryFailed Channel = "browse:directory-failed"
-
-	// payload: BrowseClickEvent
-	BrowseClick Channel = "browse:click"
-
-	// payload: BrowseResourceOpenEvent
-	BrowseResourceOpen Channel = "browse:resource-open"
-
-	// payload: BrowseResourceViewedEvent
-	BrowseResourceViewed Channel = "browse:resource-viewed"
-
-	// payload: BrowseEntityTypeClickedEvent
-	BrowseEntityTypeClicked Channel = "browse:entity-type-clicked"
-
-	// payload: BrowsePanelToggleEvent
-	PanelToggle Channel = "panel:toggle"
-
-	// not emittable (no registered schema)
-	PanelOpen Channel = "panel:open"
-
-	// no payload — not emittable
-	PanelClose Channel = "panel:close"
-
-	// no payload — not emittable
-	ShellSidebarToggle Channel = "shell:sidebar-toggle"
-
-	// payload: BrowseResourceCloseEvent
-	TabsClose Channel = "tabs:close"
-
-	// payload: BrowseResourceReorderEvent
-	TabsReorder Channel = "tabs:reorder"
-
-	// payload: BrowseLinkClickedEvent
-	NavLinkClicked Channel = "nav:link-clicked"
-
-	// payload: BrowseRouterPushEvent
-	NavPush Channel = "nav:push"
-
-	// not emittable (no registered schema)
-	NavExternal Channel = "nav:external"
-
-	// payload: BeckonHoverEvent
-	BeckonHover Channel = "beckon:hover"
-
-	// payload: BeckonFocusEvent
-	BeckonFocus Channel = "beckon:focus"
-
-	// payload: BeckonSparkleEvent
-	BeckonSparkle Channel = "beckon:sparkle"
-
-	// payload: StoredEvent(job:started) — not emittable
-	JobStarted Channel = "job:started"
-
-	// payload: StoredEvent(job:assigned) — not emittable
-	JobAssigned Channel = "job:assigned"
-
-	// payload: StoredEvent(job:completed) — not emittable
-	JobCompleted Channel = "job:completed"
-
-	// payload: StoredEvent(job:failed) — not emittable
-	JobFailed Channel = "job:failed"
-
-	// payload: JobStartCommand
-	JobStart Channel = "job:start"
-
-	// payload: JobAssignCommand
-	JobAssign Channel = "job:assign"
-
-	// payload: JobReportProgressCommand
-	JobReportProgress Channel = "job:report-progress"
-
-	// payload: JobCompleteCommand
-	JobComplete Channel = "job:complete"
-
-	// payload: JobFailCommand
-	JobFail Channel = "job:fail"
-
-	// payload: JobCheckpointCommand
-	JobCheckpoint Channel = "job:checkpoint"
-
-	// payload: JobQueuedEvent
-	JobQueued Channel = "job:queued"
-
-	// payload: JobCancelRequest
-	JobCancelRequested Channel = "job:cancel-requested"
-
-	// payload: JobCancelCommand
-	JobCancel Channel = "job:cancel"
-
-	// payload: InferenceLimitsRequest
-	JobLimitsRequested Channel = "job:limits-requested"
-
-	// payload: InferenceLimitsResult
-	JobLimitsResult Channel = "job:limits-result"
-
-	// not emittable (no registered schema)
-	JobLimitsFailed Channel = "job:limits-failed"
-
-	// payload: JobStatusRequest
-	JobStatusRequested Channel = "job:status-requested"
-
-	// payload: JobCreateCommand
-	JobCreate Channel = "job:create"
-
-	// payload: JobClaimCommand
-	JobClaim Channel = "job:claim"
-
-	// payload: JobStatusResult
-	JobStatusResult Channel = "job:status-result"
-
-	// not emittable (no registered schema)
-	JobStatusFailed Channel = "job:status-failed"
-
-	// payload: JobCreatedResult
-	JobCreated Channel = "job:created"
-
-	// not emittable (no registered schema)
-	JobCreateFailed Channel = "job:create-failed"
-
-	// not emittable (no registered schema)
-	JobClaimed Channel = "job:claimed"
-
-	// not emittable (no registered schema)
-	JobClaimFailed Channel = "job:claim-failed"
-
-	// not emittable (no registered schema)
-	JobCancelOk Channel = "job:cancel-ok"
-
-	// payload: CommandError
-	JobCancelFailed Channel = "job:cancel-failed"
-
-	// not emittable (no registered schema)
-	WeaveApplied Channel = "weave:applied"
-
-	// not emittable (no registered schema)
-	SmeltSettled Channel = "smelt:settled"
-
-	// payload: WeaveRebuildCommand
-	WeaveRebuild Channel = "weave:rebuild"
-
-	// not emittable (no registered schema)
-	WeaveRebuildOk Channel = "weave:rebuild-ok"
-
-	// not emittable (no registered schema)
-	WeaveRebuildFailed Channel = "weave:rebuild-failed"
-
-	// payload: SmeltRebuildAnchorsCommand
-	SmeltRebuildAnchors Channel = "smelt:rebuild-anchors"
-
-	// not emittable (no registered schema)
-	SmeltRebuildAnchorsOk Channel = "smelt:rebuild-anchors-ok"
-
-	// not emittable (no registered schema)
-	SmeltRebuildAnchorsFailed Channel = "smelt:rebuild-anchors-failed"
-
-	// payload: SettingsThemeChangedEvent
-	SettingsThemeChanged Channel = "settings:theme-changed"
-
-	// no payload — not emittable
-	SettingsLineNumbersToggled Channel = "settings:line-numbers-toggled"
-
-	// payload: SettingsLocaleChangedEvent
-	SettingsLocaleChanged Channel = "settings:locale-changed"
-
-	// payload: SettingsHoverDelayChangedEvent
-	SettingsHoverDelayChanged Channel = "settings:hover-delay-changed"
-
-	// not emittable (no registered schema)
-	BusResumeGap Channel = "bus:resume-gap"
-
-	// payload: SessionJoinedEvent
-	SessionJoined Channel = "session:joined"
-
-	// payload: SessionLeftEvent
-	SessionLeft Channel = "session:left"
+// Every channel that is no operation's request, typed by the payload it
+// carries. An operation's request is the operation (operations_gen.go).
+var (
+	YieldCreated                  = Recorded[api.StoredEventResponse, api.ResourceCreatedPayload]{"yield:created"}
+	YieldCloned                   = Recorded[api.StoredEventResponse, api.ResourceClonedPayload]{"yield:cloned"}
+	YieldUpdated                  = Recorded[api.StoredEventResponse, api.ResourceUpdatedPayload]{"yield:updated"}
+	YieldMoved                    = Recorded[api.StoredEventResponse, api.ResourceMovedPayload]{"yield:moved"}
+	YieldRepresentationAdded      = Scoped[api.StoredEventResponse, api.RepresentationAddedPayload]{"yield:representation-added"}
+	YieldRepresentationRemoved    = Scoped[api.StoredEventResponse, api.RepresentationRemovedPayload]{"yield:representation-removed"}
+	YieldClone                    = Of[Empty]{"yield:clone"}
+	YieldCreateOk                 = Emittable[api.YieldCreateOk]{"yield:create-ok"}
+	YieldCreateFailed             = Emittable[api.CommandError]{"yield:create-failed"}
+	YieldClonePersistOk           = Emittable[api.YieldClonePersistOk]{"yield:clone-persist-ok"}
+	YieldClonePersistFailed       = Of[api.CommandError]{"yield:clone-persist-failed"}
+	YieldUpdateOk                 = Emittable[api.YieldUpdateOk]{"yield:update-ok"}
+	YieldUpdateFailed             = Of[api.CommandError]{"yield:update-failed"}
+	YieldCloneTokenGenerated      = Of[Response[api.CloneResourceWithTokenResponse]]{"yield:clone-token-generated"}
+	YieldCloneTokenFailed         = Of[api.CommandError]{"yield:clone-token-failed"}
+	YieldCloneResourceResult      = Of[Response[api.GetResourceByTokenResponse]]{"yield:clone-resource-result"}
+	YieldCloneResourceFailed      = Of[api.CommandError]{"yield:clone-resource-failed"}
+	YieldCloneCreated             = Emittable[api.YieldCloneCreated]{"yield:clone-created"}
+	YieldCloneCreateFailed        = Of[api.CommandError]{"yield:clone-create-failed"}
+	MarkAdded                     = Scoped[api.EnrichedResourceEvent, api.AnnotationAddedPayload]{"mark:added"}
+	MarkRemoved                   = Scoped[api.StoredEventResponse, api.AnnotationRemovedPayload]{"mark:removed"}
+	MarkBodyUpdated               = Scoped[api.EnrichedResourceEvent, api.AnnotationBodyUpdatedPayload]{"mark:body-updated"}
+	MarkEntityTagAdded            = Scoped[api.StoredEventResponse, api.EntityTagChangedPayload]{"mark:entity-tag-added"}
+	MarkEntityTagRemoved          = Scoped[api.StoredEventResponse, api.EntityTagChangedPayload]{"mark:entity-tag-removed"}
+	MarkArchived                  = Scoped[api.StoredEventResponse, api.ResourceArchivedPayload]{"mark:archived"}
+	MarkUnarchived                = Scoped[api.StoredEventResponse, api.ResourceUnarchivedPayload]{"mark:unarchived"}
+	MarkUpdateBody                = Emittable[api.MarkUpdateBodyCommand]{"mark:update-body"}
+	MarkCreateOk                  = Emittable[api.MarkCreateOk]{"mark:create-ok"}
+	MarkCreateFailed              = Emittable[api.CommandError]{"mark:create-failed"}
+	MarkCommitOk                  = Emittable[api.MarkCommitOk]{"mark:commit-ok"}
+	MarkCommitFailed              = Emittable[api.CommandError]{"mark:commit-failed"}
+	MarkDeleteOk                  = Emittable[api.MarkDeleteOk]{"mark:delete-ok"}
+	MarkDeleteFailed              = Emittable[api.CommandError]{"mark:delete-failed"}
+	MarkArchiveOk                 = Of[Empty]{"mark:archive-ok"}
+	MarkArchiveFailed             = Emittable[api.CommandError]{"mark:archive-failed"}
+	MarkUnarchiveOk               = Of[Empty]{"mark:unarchive-ok"}
+	MarkUnarchiveFailed           = Emittable[api.CommandError]{"mark:unarchive-failed"}
+	MarkUpdateEntityTypesOk       = Of[Empty]{"mark:update-entity-types-ok"}
+	MarkUpdateEntityTypesFailed   = Emittable[api.CommandError]{"mark:update-entity-types-failed"}
+	MarkBodyUpdateFailed          = Emittable[api.CommandError]{"mark:body-update-failed"}
+	MarkRequested                 = Emittable[api.MarkRequestedEvent]{"mark:requested"}
+	MarkSubmit                    = Emittable[api.MarkSubmitEvent]{"mark:submit"}
+	MarkDelegateTimeout           = Of[api.MarkDelegateTimeoutEvent]{"mark:delegate-timeout"}
+	MarkCreateError               = Of[api.ResourceErrorEvent]{"mark:create-error"}
+	MarkDeleteError               = Of[api.ResourceErrorEvent]{"mark:delete-error"}
+	BindBodyError                 = Of[api.ResourceErrorEvent]{"bind:body-error"}
+	FrameEntityTypeAdded          = Recorded[api.StoredEventResponse, api.EntityTypeAddedPayload]{"frame:entity-type-added"}
+	FrameTagSchemaAdded           = Recorded[api.StoredEventResponse, api.TagSchemaAddedPayload]{"frame:tag-schema-added"}
+	FrameEntityTypeAddOk          = Of[Empty]{"frame:entity-type-add-ok"}
+	FrameEntityTypeAddFailed      = Emittable[api.CommandError]{"frame:entity-type-add-failed"}
+	FrameTagSchemaAddOk           = Of[Empty]{"frame:tag-schema-add-ok"}
+	FrameTagSchemaAddFailed       = Emittable[api.CommandError]{"frame:tag-schema-add-failed"}
+	PersonProfiled                = Recorded[api.StoredEventResponse, api.PersonProfiledPayload]{"person:profiled"}
+	PersonProfile                 = Emittable[api.PersonProfileCommand]{"person:profile"}
+	BindInitiate                  = Emittable[api.BindInitiateCommand]{"bind:initiate"}
+	BindBodyUpdated               = Emittable[api.BindBodyUpdated]{"bind:body-updated"}
+	BindBodyUpdateFailed          = Emittable[api.CommandError]{"bind:body-update-failed"}
+	MatchSearchResults            = Emittable[api.MatchSearchResult]{"match:search-results"}
+	MatchSearchFailed             = Emittable[api.MatchSearchFailed]{"match:search-failed"}
+	MatchResourcesResult          = Emittable[api.MatchResourcesResult]{"match:resources-result"}
+	MatchResourcesFailed          = Of[api.CommandError]{"match:resources-failed"}
+	MatchLimitsResult             = Emittable[api.InferenceLimitsResult]{"match:limits-result"}
+	MatchLimitsFailed             = Of[api.CommandError]{"match:limits-failed"}
+	GatherComplete                = Emittable[api.GatherAnnotationComplete]{"gather:complete"}
+	GatherFailed                  = Of[api.GatherFailed]{"gather:failed"}
+	GatherResourceComplete        = Emittable[api.GatherResourceComplete]{"gather:resource-complete"}
+	GatherResourceFailed          = Of[api.GatherResourceFailed]{"gather:resource-failed"}
+	GatherSummaryResult           = Of[Response[api.ContextualSummaryResponse]]{"gather:summary-result"}
+	GatherSummaryFailed           = Of[api.CommandError]{"gather:summary-failed"}
+	GatherReferencedByResult      = Emittable[api.GatherReferencedByResult]{"gather:referenced-by-result"}
+	GatherReferencedByFailed      = Of[api.CommandError]{"gather:referenced-by-failed"}
+	GatherLimitsResult            = Emittable[api.InferenceLimitsResult]{"gather:limits-result"}
+	GatherLimitsFailed            = Of[api.CommandError]{"gather:limits-failed"}
+	BrowseResourceResult          = Emittable[api.BrowseResourceResult]{"browse:resource-result"}
+	BrowseResourceFailed          = Of[api.CommandError]{"browse:resource-failed"}
+	BrowseResourcesResult         = Emittable[api.BrowseResourcesResult]{"browse:resources-result"}
+	BrowseResourcesFailed         = Of[api.CommandError]{"browse:resources-failed"}
+	BrowseAnnotationResult        = Emittable[api.BrowseAnnotationResult]{"browse:annotation-result"}
+	BrowseAnnotationFailed        = Of[api.CommandError]{"browse:annotation-failed"}
+	BrowseEventsResult            = Emittable[api.BrowseEventsResult]{"browse:events-result"}
+	BrowseEventsFailed            = Of[api.CommandError]{"browse:events-failed"}
+	BrowseAnnotationHistoryResult = Emittable[api.BrowseAnnotationHistoryResult]{"browse:annotation-history-result"}
+	BrowseAnnotationHistoryFailed = Of[api.CommandError]{"browse:annotation-history-failed"}
+	BrowseEntityTypesResult       = Emittable[api.BrowseEntityTypesResult]{"browse:entity-types-result"}
+	BrowseEntityTypesFailed       = Of[api.CommandError]{"browse:entity-types-failed"}
+	BrowseTagSchemasResult        = Emittable[api.BrowseTagSchemasResult]{"browse:tag-schemas-result"}
+	BrowseTagSchemasFailed        = Of[api.CommandError]{"browse:tag-schemas-failed"}
+	BrowseAgentsResult            = Emittable[api.BrowseAgentsResult]{"browse:agents-result"}
+	BrowseAgentsFailed            = Of[api.CommandError]{"browse:agents-failed"}
+	BrowsePeopleResult            = Emittable[api.BrowsePeopleResult]{"browse:people-result"}
+	BrowsePeopleFailed            = Of[api.CommandError]{"browse:people-failed"}
+	BrowseKbResult                = Emittable[api.BrowseKbResult]{"browse:kb-result"}
+	BrowseKbFailed                = Of[api.CommandError]{"browse:kb-failed"}
+	BrowseDirectoryResult         = Emittable[api.BrowseDirectoryResult]{"browse:directory-result"}
+	BrowseDirectoryFailed         = Of[api.BrowseDirectoryFailed]{"browse:directory-failed"}
+	BrowseClick                   = Emittable[api.BrowseClickEvent]{"browse:click"}
+	BrowseResourceOpen            = Emittable[api.BrowseResourceOpenEvent]{"browse:resource-open"}
+	BrowseResourceViewed          = Emittable[api.BrowseResourceViewedEvent]{"browse:resource-viewed"}
+	BrowseEntityTypeClicked       = Emittable[api.BrowseEntityTypeClickedEvent]{"browse:entity-type-clicked"}
+	PanelToggle                   = Emittable[api.BrowsePanelToggleEvent]{"panel:toggle"}
+	PanelOpen                     = Of[api.BrowsePanelOpenEvent]{"panel:open"}
+	PanelClose                    = Of[Empty]{"panel:close"}
+	ShellSidebarToggle            = Of[Empty]{"shell:sidebar-toggle"}
+	TabsClose                     = Emittable[api.BrowseResourceCloseEvent]{"tabs:close"}
+	TabsReorder                   = Emittable[api.BrowseResourceReorderEvent]{"tabs:reorder"}
+	NavLinkClicked                = Emittable[api.BrowseLinkClickedEvent]{"nav:link-clicked"}
+	NavPush                       = Emittable[api.BrowseRouterPushEvent]{"nav:push"}
+	NavExternal                   = Of[api.BrowseExternalNavigateEvent]{"nav:external"}
+	BeckonHover                   = Emittable[api.BeckonHoverEvent]{"beckon:hover"}
+	BeckonFocus                   = Emittable[api.BeckonFocusEvent]{"beckon:focus"}
+	BeckonSparkle                 = Emittable[api.BeckonSparkleEvent]{"beckon:sparkle"}
+	JobStarted                    = Scoped[api.StoredEventResponse, api.JobStartedPayload]{"job:started"}
+	JobAssigned                   = Scoped[api.StoredEventResponse, api.JobAssignedPayload]{"job:assigned"}
+	JobCompleted                  = Scoped[api.StoredEventResponse, api.JobCompletedPayload]{"job:completed"}
+	JobFailed                     = Scoped[api.StoredEventResponse, api.JobFailedPayload]{"job:failed"}
+	JobStart                      = Emittable[api.JobStartCommand]{"job:start"}
+	JobAssign                     = Emittable[api.JobAssignCommand]{"job:assign"}
+	JobReportProgress             = Emittable[api.JobReportProgressCommand]{"job:report-progress"}
+	JobComplete                   = Emittable[api.JobCompleteCommand]{"job:complete"}
+	JobFail                       = Emittable[api.JobFailCommand]{"job:fail"}
+	JobCheckpoint                 = Emittable[api.JobCheckpointCommand]{"job:checkpoint"}
+	JobQueued                     = Emittable[api.JobQueuedEvent]{"job:queued"}
+	JobCancel                     = Emittable[api.JobCancelCommand]{"job:cancel"}
+	JobLimitsResult               = Emittable[api.InferenceLimitsResult]{"job:limits-result"}
+	JobLimitsFailed               = Of[api.CommandError]{"job:limits-failed"}
+	JobStatusResult               = Emittable[api.JobStatusResult]{"job:status-result"}
+	JobStatusFailed               = Of[api.CommandError]{"job:status-failed"}
+	JobCreated                    = Emittable[api.JobCreatedResult]{"job:created"}
+	JobCreateFailed               = Of[api.CommandError]{"job:create-failed"}
+	JobClaimed                    = Of[api.JobClaimedResult]{"job:claimed"}
+	JobClaimFailed                = Of[api.CommandError]{"job:claim-failed"}
+	JobCancelOk                   = Of[Response[api.JobCancelResult]]{"job:cancel-ok"}
+	JobCancelFailed               = Emittable[api.CommandError]{"job:cancel-failed"}
+	WeaveApplied                  = Of[api.WeaveApplied]{"weave:applied"}
+	SmeltSettled                  = Of[api.SmeltSettled]{"smelt:settled"}
+	WeaveRebuildOk                = Of[Empty]{"weave:rebuild-ok"}
+	WeaveRebuildFailed            = Of[api.CommandError]{"weave:rebuild-failed"}
+	SmeltRebuildAnchorsOk         = Of[Empty]{"smelt:rebuild-anchors-ok"}
+	SmeltRebuildAnchorsFailed     = Of[api.CommandError]{"smelt:rebuild-anchors-failed"}
+	SettingsThemeChanged          = Emittable[api.SettingsThemeChangedEvent]{"settings:theme-changed"}
+	SettingsLineNumbersToggled    = Of[Empty]{"settings:line-numbers-toggled"}
+	SettingsLocaleChanged         = Emittable[api.SettingsLocaleChangedEvent]{"settings:locale-changed"}
+	SettingsHoverDelayChanged     = Emittable[api.SettingsHoverDelayChangedEvent]{"settings:hover-delay-changed"}
+	BusResumeGap                  = Of[api.BusResumeGap]{"bus:resume-gap"}
+	SessionJoined                 = Emittable[api.SessionJoinedEvent]{"session:joined"}
+	SessionLeft                   = Emittable[api.SessionLeftEvent]{"session:left"}
 )
-
-// ChannelSchemas maps an emittable channel to the OpenAPI schema name its
-// payload must satisfy — the same mapping the gateway validates against.
-// A channel absent from this map is not emittable.
-var ChannelSchemas = map[Channel]string{
-	YieldCreate:                      "YieldCreateCommand",
-	YieldClonePersist:                "YieldClonePersistCommand",
-	YieldUpdate:                      "YieldUpdateCommand",
-	YieldCloneTokenRequested:         "YieldCloneTokenRequest",
-	YieldCloneResourceRequested:      "YieldCloneResourceRequest",
-	YieldCloneCreate:                 "YieldCloneCreateCommand",
-	YieldCreateOk:                    "YieldCreateOk",
-	YieldCreateFailed:                "CommandError",
-	YieldClonePersistOk:              "YieldClonePersistOk",
-	YieldUpdateOk:                    "YieldUpdateOk",
-	YieldCloneCreated:                "YieldCloneCreated",
-	MarkCreateRequest:                "MarkCreateRequest",
-	MarkDelete:                       "MarkDeleteCommand",
-	MarkUpdateBody:                   "MarkUpdateBodyCommand",
-	MarkArchive:                      "MarkArchiveCommand",
-	MarkUnarchive:                    "MarkUnarchiveCommand",
-	MarkUpdateEntityTypes:            "MarkUpdateEntityTypesCommand",
-	MarkCreateOk:                     "MarkCreateOk",
-	MarkCreateFailed:                 "CommandError",
-	MarkCommit:                       "MarkCommitCommand",
-	MarkCommitOk:                     "MarkCommitOk",
-	MarkCommitFailed:                 "CommandError",
-	MarkDeleteOk:                     "MarkDeleteOk",
-	MarkDeleteFailed:                 "CommandError",
-	MarkArchiveFailed:                "CommandError",
-	MarkUnarchiveFailed:              "CommandError",
-	MarkUpdateEntityTypesFailed:      "CommandError",
-	MarkBodyUpdateFailed:             "CommandError",
-	MarkRequested:                    "MarkRequestedEvent",
-	MarkSubmit:                       "MarkSubmitEvent",
-	FrameAddEntityType:               "FrameAddEntityTypeCommand",
-	FrameAddTagSchema:                "FrameAddTagSchemaCommand",
-	FrameEntityTypeAddFailed:         "CommandError",
-	FrameTagSchemaAddFailed:          "CommandError",
-	PersonProfile:                    "PersonProfileCommand",
-	BindInitiate:                     "BindInitiateCommand",
-	BindUpdateBody:                   "BindUpdateBodyCommand",
-	BindBodyUpdated:                  "BindBodyUpdated",
-	BindBodyUpdateFailed:             "CommandError",
-	MatchSearchRequested:             "MatchSearchRequest",
-	MatchSearchResults:               "MatchSearchResult",
-	MatchSearchFailed:                "MatchSearchFailed",
-	MatchResourcesRequested:          "MatchResourcesRequest",
-	MatchResourcesResult:             "MatchResourcesResult",
-	MatchLimitsRequested:             "InferenceLimitsRequest",
-	MatchLimitsResult:                "InferenceLimitsResult",
-	GatherRequested:                  "GatherAnnotationRequest",
-	GatherComplete:                   "GatherAnnotationComplete",
-	GatherResourceRequested:          "GatherResourceRequest",
-	GatherResourceComplete:           "GatherResourceComplete",
-	GatherSummaryRequested:           "GatherSummaryRequest",
-	GatherReferencedByRequested:      "GatherReferencedByRequest",
-	GatherReferencedByResult:         "GatherReferencedByResult",
-	GatherLimitsRequested:            "InferenceLimitsRequest",
-	GatherLimitsResult:               "InferenceLimitsResult",
-	BrowseResourceRequested:          "BrowseResourceRequest",
-	BrowseResourceResult:             "BrowseResourceResult",
-	BrowseResourcesRequested:         "BrowseResourcesRequest",
-	BrowseResourcesResult:            "BrowseResourcesResult",
-	BrowseAnnotationRequested:        "BrowseAnnotationRequest",
-	BrowseAnnotationResult:           "BrowseAnnotationResult",
-	BrowseEventsRequested:            "BrowseEventsRequest",
-	BrowseEventsResult:               "BrowseEventsResult",
-	BrowseAnnotationHistoryRequested: "BrowseAnnotationHistoryRequest",
-	BrowseAnnotationHistoryResult:    "BrowseAnnotationHistoryResult",
-	BrowseEntityTypesRequested:       "BrowseEntityTypesRequest",
-	BrowseEntityTypesResult:          "BrowseEntityTypesResult",
-	BrowseTagSchemasRequested:        "BrowseTagSchemasRequest",
-	BrowseTagSchemasResult:           "BrowseTagSchemasResult",
-	BrowseAgentsRequested:            "BrowseAgentsRequest",
-	BrowseAgentsResult:               "BrowseAgentsResult",
-	BrowsePeopleRequested:            "BrowsePeopleRequest",
-	BrowsePeopleResult:               "BrowsePeopleResult",
-	BrowseKbRequested:                "BrowseKbRequest",
-	BrowseKbResult:                   "BrowseKbResult",
-	BrowseDirectoryRequested:         "BrowseDirectoryRequest",
-	BrowseDirectoryResult:            "BrowseDirectoryResult",
-	BrowseClick:                      "BrowseClickEvent",
-	BrowseResourceOpen:               "BrowseResourceOpenEvent",
-	BrowseResourceViewed:             "BrowseResourceViewedEvent",
-	BrowseEntityTypeClicked:          "BrowseEntityTypeClickedEvent",
-	PanelToggle:                      "BrowsePanelToggleEvent",
-	TabsClose:                        "BrowseResourceCloseEvent",
-	TabsReorder:                      "BrowseResourceReorderEvent",
-	NavLinkClicked:                   "BrowseLinkClickedEvent",
-	NavPush:                          "BrowseRouterPushEvent",
-	BeckonHover:                      "BeckonHoverEvent",
-	BeckonFocus:                      "BeckonFocusEvent",
-	BeckonSparkle:                    "BeckonSparkleEvent",
-	JobStart:                         "JobStartCommand",
-	JobAssign:                        "JobAssignCommand",
-	JobReportProgress:                "JobReportProgressCommand",
-	JobComplete:                      "JobCompleteCommand",
-	JobFail:                          "JobFailCommand",
-	JobCheckpoint:                    "JobCheckpointCommand",
-	JobQueued:                        "JobQueuedEvent",
-	JobCancelRequested:               "JobCancelRequest",
-	JobCancel:                        "JobCancelCommand",
-	JobLimitsRequested:               "InferenceLimitsRequest",
-	JobLimitsResult:                  "InferenceLimitsResult",
-	JobStatusRequested:               "JobStatusRequest",
-	JobCreate:                        "JobCreateCommand",
-	JobClaim:                         "JobClaimCommand",
-	JobStatusResult:                  "JobStatusResult",
-	JobCreated:                       "JobCreatedResult",
-	JobCancelFailed:                  "CommandError",
-	WeaveRebuild:                     "WeaveRebuildCommand",
-	SmeltRebuildAnchors:              "SmeltRebuildAnchorsCommand",
-	SettingsThemeChanged:             "SettingsThemeChangedEvent",
-	SettingsLocaleChanged:            "SettingsLocaleChangedEvent",
-	SettingsHoverDelayChanged:        "SettingsHoverDelayChangedEvent",
-	SessionJoined:                    "SessionJoinedEvent",
-	SessionLeft:                      "SessionLeftEvent",
-}
-
-// Emittable reports whether the gateway accepts this channel on /bus/emit.
-func (c Channel) Emittable() bool {
-	_, ok := ChannelSchemas[c]
-	return ok
-}
 
 // The field of a relayed frame's payload that carries the trace the frame was
 // published under: an object of W3C's `traceparent` and, when it has one,
