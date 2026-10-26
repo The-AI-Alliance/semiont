@@ -24,7 +24,7 @@
  *    both ways:
  *      app:    the directories under apps/
  *      tests:  the directories under tests/
- *      spec:   the parts of the spec, listed below by who honours them; every
+ *      spec:   the parts of the spec, by who honours them (SPEC_PARTS); every
  *              directory under specs/src/, and every file directly in it, is
  *              in exactly one
  *      verb:   the namespaces of specs/src/client/surface.json, but the ones
@@ -32,14 +32,17 @@
  *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
  *    sdk: has a label for every SDK the repository holds (packages/sdk, the
  *    TypeScript one, and each packages/sdk-<language>), and for the languages
- *    ruled ahead of their SDKs. kind: and media: are vocabularies, and
- *    nothing owns them.
+ *    ruled ahead of their SDKs. The app:, tests: and sdk: values the
+ *    repository owns are the labels its files give (path-labels.mjs), the
+ *    rule the Path Labels workflow applies to a pull request's files. kind:
+ *    and media: are vocabularies, and nothing owns them.
  * 4. Every entry of .github/dependabot.yml states its labels. One that states
  *    none gets Dependabot's own, which the next sync deletes; a label it
  *    names that does not exist it never applies. They are kind:dependencies
- *    and, when every directory of the entry is in one app, test suite or SDK,
- *    that one's label. An entry that reaches several is labelled by none of
- *    them: each of its pull requests may touch any one.
+ *    and, when every directory of the entry gives one path label, that label.
+ *    An entry that reaches several is labelled by none of them: each of its
+ *    pull requests may touch any one, and gets the ones its files give from
+ *    the Path Labels workflow.
  *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
@@ -47,6 +50,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { pathLabel, SPEC_PARTS } from './path-labels.mjs';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -79,25 +83,14 @@ const VERB_GROUPS = {
   attention: ['beckon'],
 };
 
-/** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
-const SPEC_PARTS = {
-  protocol: ['openapi.json', 'components', 'paths', 'bus', 'identifiers', 'principals', 'jobs', 'media-types', 'locales'],
-  sdk: ['client', 'session', 'retry', 'resources', 'errors', 'sdk-telemetry'],
-  services: ['archivist', 'librarian', 'smelter', 'weaver', 'worker', 'follower', 'graph', 'vectors', 'text', 'annotations', 'service-environment', 'service-telemetry'],
-  launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
-};
-
-/** The directory of packages/ that holds the TypeScript SDK; every other SDK's is sdk-<language>. */
-const TYPESCRIPT_SDK = 'sdk';
-
 const failures = [];
 const fail = (message) => failures.push(message);
 const files = repositoryFiles(ROOT);
 
-/** The directories directly under `top`, as git holds them. */
-const directoriesUnder = (top) => new Set(files.filter((file) => file.startsWith(`${top}/`) && file.split('/').length > 2).map((file) => file.split('/')[1]));
-const sdkLanguage = (directory) => (directory === TYPESCRIPT_SDK ? 'typescript' : directory.slice('sdk-'.length));
-const isSdk = (directory) => directory === TYPESCRIPT_SDK || directory.startsWith('sdk-');
+/** The labels the repository's files give (path-labels.mjs). */
+const pathLabels = new Set(files.map(pathLabel).filter((label) => label !== null));
+/** The values of a dimension that the repository's files give. */
+const givenIn = (dimension) => new Set([...pathLabels].filter((label) => label.startsWith(`${dimension}:`)).map((label) => label.slice(dimension.length + 1)));
 
 // Rule 1: each entry is a label GitHub can hold.
 const entries = yaml.load(readFileSync(join(ROOT, LABELS), 'utf8'), { schema: yaml.FAILSAFE_SCHEMA });
@@ -186,8 +179,8 @@ function heldBothWays(dimension, owned, owner) {
   for (const value of owned) if (!have.has(value)) fail(`${owner} has ${value}, and ${LABELS} has no ${dimension}:${value}`);
   for (const value of have) if (!owned.has(value)) fail(`${dimension}:${value} names nothing ${owner} has`);
 }
-heldBothWays('app', directoriesUnder('apps'), 'apps/');
-heldBothWays('tests', directoriesUnder('tests'), 'tests/');
+heldBothWays('app', givenIn('app'), 'apps/');
+heldBothWays('tests', givenIn('tests'), 'tests/');
 
 /** What specs/src holds: its directories, and the files directly in it. */
 const specEntries = new Set(files.filter((file) => file.startsWith('specs/src/')).map((file) => file.split('/')[2]));
@@ -214,22 +207,13 @@ const kinds = files
   .map((kind) => kind.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase());
 heldBothWays('stack', new Set(kinds), `the kinds of ${STACK}`);
 
-const sdks = [...directoriesUnder('packages')].filter(isSdk);
-if (sdks.length === 0) fail('packages/ holds no SDK: the check has lost what it reads');
-for (const directory of sdks) {
-  if (!valuesOf('sdk').has(sdkLanguage(directory))) fail(`packages/${directory} is an SDK, and ${LABELS} has no sdk:${sdkLanguage(directory)}`);
+const sdks = givenIn('sdk');
+if (sdks.size === 0) fail('packages/ holds no SDK: the check has lost what it reads');
+for (const language of sdks) {
+  if (!valuesOf('sdk').has(language)) fail(`packages/ holds the ${language} SDK, and ${LABELS} has no sdk:${language}`);
 }
 
 // Rule 4: Dependabot applies labels the file has, and the ones its directories give it.
-/** The label of the one app, test suite or SDK a directory is in, or null for one in none. */
-function ownLabel(directory) {
-  const [top, below] = directory.replace(/^\/+/, '').split('/');
-  if (below === undefined || below === '') return null;
-  if (top === 'apps') return `app:${below}`;
-  if (top === 'tests') return `tests:${below}`;
-  if (top === 'packages' && isSdk(below)) return `sdk:${sdkLanguage(below)}`;
-  return null;
-}
 const labelNames = new Set(labels.map((label) => label.name));
 const updates = yaml.load(readFileSync(join(ROOT, DEPENDABOT), 'utf8')).updates;
 for (const update of updates) {
@@ -240,10 +224,10 @@ for (const update of updates) {
     continue;
   }
   for (const label of update.labels) if (!labelNames.has(label)) fail(`${at} applies ${label}, which ${LABELS} does not have`);
-  const reached = new Set(directories.map(ownLabel));
+  const reached = new Set(directories.map((directory) => pathLabel(`${directory.replace(/\/+$/, '')}/`)));
   const given = ['kind:dependencies', ...(reached.size === 1 && !reached.has(null) ? reached : [])];
   if ([...update.labels].sort().join() !== [...given].sort().join()) {
-    fail(`${at} applies ${update.labels.join(', ')}, and its directories give it ${given.join(', ')}: kind:dependencies, and the one app, test suite or SDK they are all in`);
+    fail(`${at} applies ${update.labels.join(', ')}, and its directories give it ${given.join(', ')}: kind:dependencies, and the one path label they all give`);
   }
 }
 

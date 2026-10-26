@@ -61,6 +61,13 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - On a pull request, or a branch dispatched by hand, changes nothing: the log is what that file would do
 - `crazy-max/ghaction-github-labeler`
 
+### Path Labels (`path-labels.yml`)
+**A pull request's `app:`, `sdk:`, `tests:` and `spec:` labels, from the files it changes**:
+- `.github/scripts/label-pull-request.mjs` adds the label of the app, test suite, SDK or part of the spec each changed file is in, by the rule of `scripts/lint/path-labels.mjs`, which `npm run lint:labels` holds `labels.yml` to; a renamed file gives the labels of both its paths
+- It only adds: a label put on by hand or by Dependabot stays, and a label the repository does not have is skipped and named
+- Runs as `pull_request_target`, so a pull request from Dependabot or a fork can be labelled: the workflow is main's, and it checks out main, never the pull request
+- `kind:`, `verb:`, `stack:` and `media:` are the author's to choose
+
 ## 🔧 Configuration Files
 
 ### Dependabot (`dependabot.yml`)
@@ -76,7 +83,7 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 - `npm run lint:node-version` (Architecture Compliance) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
 - `npm run lint:nats-version` (Architecture Compliance) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
-- Each entry's labels are `kind:dependencies` and, when all its directories are in one app, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`
+- Each entry's labels are `kind:dependencies` and, when all its directories are in one app, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`. The Path Labels workflow adds the labels of the files each pull request changes
 
 ### Labels (`labels.yml`)
 **Every label the repository has**, each a name, a colour and a description:
@@ -157,6 +164,12 @@ session code.
 - push: [main] # changes to labels.yml or the workflow; the one run that changes labels
 - pull_request: [main, develop] # changes to labels.yml or the workflow; a dry run
 - workflow_dispatch: # Manual trigger; a dry run but on main
+```
+
+### Path Labels
+```yaml
+# Runs on:
+- pull_request_target: [opened, synchronize, reopened] # every pull request, as main has the workflow
 ```
 
 ## 🛡️ Security Workflow Details
