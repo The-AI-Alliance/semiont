@@ -55,64 +55,105 @@ func allowed(from, to ConnectionState) bool {
 	}
 }
 
-// Watched is a value that changes: what it is now, and what it becomes. A
-// reader is given the present value at once and then each change; one that
-// falls behind is given the latest value in place of the ones it missed,
-// because a state is what is true now.
-type Watched[T comparable] struct {
+// Watched is what a reader of a changing value holds: its value now, and
+// each value it becomes. A reader is given the present value at once and then
+// each change; one that falls behind is given the latest value in place of
+// the ones it missed, because a state is what is true now. Its changes end
+// when the value can change no more.
+type Watched[T any] interface {
+	// Value is the value now.
+	Value() T
+	// Changes is the value now and each value it becomes, until the value
+	// can change no more, ctx is done, or the loop over it stops.
+	Changes(ctx context.Context) iter.Seq[T]
+}
+
+// Variable is a value its owner changes, and anyone may watch.
+type Variable[T comparable] struct {
 	mu    sync.Mutex
 	value T
-	// changed is closed when value next changes, and then replaced.
+	// version counts the changes, so a reader knows which it has been given.
+	version int
+	ended   bool
+	// changed is closed when value next changes, and then replaced; closed
+	// for good when the variable ends.
 	changed chan struct{}
 }
 
-// NewWatched is a Watched whose value is value.
-func NewWatched[T comparable](value T) *Watched[T] {
-	return &Watched[T]{value: value, changed: make(chan struct{})}
+var _ Watched[int] = (*Variable[int])(nil)
+
+// NewVariable is a Variable whose value is value.
+func NewVariable[T comparable](value T) *Variable[T] {
+	return &Variable[T]{value: value, changed: make(chan struct{})}
 }
 
 // Value is the value now.
-func (w *Watched[T]) Value() T {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.value
+func (v *Variable[T]) Value() T {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.value
 }
 
 // Set makes value the value. Setting the value it already has changes
-// nothing.
-func (w *Watched[T]) Set(value T) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.value == value {
+// nothing, and after End nothing does.
+func (v *Variable[T]) Set(value T) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.ended || v.value == value {
 		return
 	}
-	w.value = value
-	close(w.changed)
-	w.changed = make(chan struct{})
+	v.value = value
+	v.version++
+	close(v.changed)
+	v.changed = make(chan struct{})
+}
+
+// End says the value will not change again: each reader's changes end once
+// it has been given this one. Ending twice is ending once.
+func (v *Variable[T]) End() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.ended {
+		return
+	}
+	v.ended = true
+	close(v.changed)
 }
 
 // watch is the value now, and a channel closed when it next changes.
-func (w *Watched[T]) watch() (T, <-chan struct{}) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.value, w.changed
+func (v *Variable[T]) watch() (T, <-chan struct{}) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.value, v.changed
 }
 
-// Changes is the value now and each value it becomes, until ctx is done or
-// the loop over it stops.
-func (w *Watched[T]) Changes(ctx context.Context) iter.Seq[T] {
+func (v *Variable[T]) Changes(ctx context.Context) iter.Seq[T] {
 	return func(yield func(T) bool) {
-		value, changed := w.watch()
+		v.mu.Lock()
+		value, seen, changed := v.value, v.version, v.changed
+		v.mu.Unlock()
 		for {
 			if !yield(value) {
 				return
 			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-changed:
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-changed:
+				}
+				v.mu.Lock()
+				value, changed = v.value, v.changed
+				version, ended := v.version, v.ended
+				v.mu.Unlock()
+				if version != seen {
+					seen = version
+					break
+				}
+				if ended {
+					return
+				}
 			}
-			value, changed = w.watch()
 		}
 	}
 }

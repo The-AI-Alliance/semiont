@@ -78,8 +78,8 @@ func (k *cacheKey[V]) known() bool {
 	return k.inFlight != nil || !pending
 }
 
-// cache is a read-through cache of V by K. Its fetches run as the client's
-// work (run), each asking fetch for a key's value.
+// Cache is a read-through cache of V by K, and a StateUnit. Its fetches run
+// as the client's work (run), each asking fetch for a key's value.
 //
 // A key has one state, and every observer of the key holds it. Observing is
 // the live view: the first observer of a key with nothing starts a fetch;
@@ -93,25 +93,27 @@ func (k *cacheKey[V]) known() bool {
 // asked for again the first time it is observed: nothing says it is still
 // true. An observer that falls behind is given the latest state, not each one
 // it missed.
-type cache[K comparable, V any] struct {
+type Cache[K comparable, V any] struct {
 	fetch     func(ctx context.Context, key K) (V, error)
 	run       func(work func(ctx context.Context))
 	persister CachePersister[K, V]
 	saveWait  time.Duration
 
-	mu       sync.Mutex
-	keys     map[K]*cacheKey[V]
-	kept     map[K]bool
-	fetches  int
-	saving   *time.Timer
-	disposed bool
+	mu      sync.Mutex
+	keys    map[K]*cacheKey[V]
+	kept    map[K]bool
+	fetches int
+	saving  *time.Timer
+	closed  bool
 }
 
-// newCache is a cache whose fetches run by run and ask fetch. With a
+var _ StateUnit = (*Cache[string, string])(nil)
+
+// NewCache is a cache whose fetches run by run and ask fetch. With a
 // persister, it begins with what that kept, and saves to it saveWait after
 // its values last changed; persister is nil for a cache that keeps nothing.
-func newCache[K comparable, V any](fetch func(ctx context.Context, key K) (V, error), run func(work func(ctx context.Context)), persister CachePersister[K, V], saveWait time.Duration) *cache[K, V] {
-	c := &cache[K, V]{fetch: fetch, run: run, persister: persister, saveWait: saveWait, keys: map[K]*cacheKey[V]{}, kept: map[K]bool{}}
+func NewCache[K comparable, V any](fetch func(ctx context.Context, key K) (V, error), run func(work func(ctx context.Context)), persister CachePersister[K, V], saveWait time.Duration) *Cache[K, V] {
+	c := &Cache[K, V]{fetch: fetch, run: run, persister: persister, saveWait: saveWait, keys: map[K]*cacheKey[V]{}, kept: map[K]bool{}}
 	if persister != nil {
 		for key, value := range persister.Load() {
 			c.keys[key] = &cacheKey[V]{state: Ready[V]{Value: value}, changed: make(chan struct{})}
@@ -123,7 +125,7 @@ func newCache[K comparable, V any](fetch func(ctx context.Context, key K) (V, er
 
 // held is the key's, made pending when the cache has none. Called with mu
 // held.
-func (c *cache[K, V]) held(key K) *cacheKey[V] {
+func (c *Cache[K, V]) held(key K) *cacheKey[V] {
 	k, ok := c.keys[key]
 	if !ok {
 		k = &cacheKey[V]{state: Pending{}, changed: make(chan struct{})}
@@ -140,7 +142,7 @@ func (k *cacheKey[V]) set(state CacheState) {
 }
 
 // values is every key's value. Called with mu held.
-func (c *cache[K, V]) values() map[K]V {
+func (c *Cache[K, V]) values() map[K]V {
 	values := map[K]V{}
 	for key, k := range c.keys {
 		if ready, ok := k.state.(Ready[V]); ok {
@@ -152,7 +154,7 @@ func (c *cache[K, V]) values() map[K]V {
 
 // oweASave saves the values once they have stopped changing. Called with mu
 // held.
-func (c *cache[K, V]) oweASave() {
+func (c *Cache[K, V]) oweASave() {
 	if c.persister == nil {
 		return
 	}
@@ -161,7 +163,7 @@ func (c *cache[K, V]) oweASave() {
 	}
 	c.saving = time.AfterFunc(c.saveWait, func() {
 		c.mu.Lock()
-		if c.disposed {
+		if c.closed {
 			c.mu.Unlock()
 			return
 		}
@@ -174,7 +176,7 @@ func (c *cache[K, V]) oweASave() {
 
 // fetching starts a fetch for key, or joins the one in flight. Called with mu
 // held.
-func (c *cache[K, V]) fetching(key K) *flight[V] {
+func (c *Cache[K, V]) fetching(key K) *flight[V] {
 	// Asked for by this cache now, whichever path asked.
 	delete(c.kept, key)
 	k := c.held(key)
@@ -193,7 +195,7 @@ func (c *cache[K, V]) fetching(key K) *flight[V] {
 		}
 		// A value from any fetch is written, the newest last: each is at
 		// least as new as what was there. A failure writes nothing. One
-		// answered after the cache was disposed has no key to write to.
+		// answered after the cache was closed has no key to write to.
 		if err == nil {
 			if k, ok := c.keys[key]; ok {
 				k.set(Ready[V]{Value: value})
@@ -226,14 +228,14 @@ func awaited[V any](ctx context.Context, f *flight[V]) (V, error) {
 // revalidate fetches for the live view: a failure is tried once more, and a
 // key with no value whose retry also fails becomes Failed. Called with mu
 // held.
-func (c *cache[K, V]) revalidate(key K) {
+func (c *Cache[K, V]) revalidate(key K) {
 	first := c.fetching(key)
 	c.run(func(ctx context.Context) {
 		if _, err := awaited(ctx, first); !retried(err) {
 			return
 		}
 		c.mu.Lock()
-		if c.disposed {
+		if c.closed {
 			c.mu.Unlock()
 			return
 		}
@@ -245,7 +247,7 @@ func (c *cache[K, V]) revalidate(key K) {
 		}
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		if k, ok := c.keys[key]; ok && !c.disposed {
+		if k, ok := c.keys[key]; ok && !c.closed {
 			if _, ready := k.state.(Ready[V]); !ready {
 				k.set(Failed{Err: err})
 			}
@@ -260,14 +262,14 @@ func retried(err error) bool {
 	return err != nil && !errors.Is(err, context.Canceled)
 }
 
-// observe is the key's state, now and as it changes, until the cache is
-// disposed or ctx is done. Observing is what asks, once the sequence is
+// Observe is the key's state, now and as it changes, until the cache is
+// closed or ctx is done. Observing is what asks, once the sequence is
 // ranged over: a key with nothing is fetched, a failed key is tried again,
 // and a value an earlier cache kept is asked for anew while it is shown.
-func (c *cache[K, V]) observe(ctx context.Context, key K) iter.Seq[CacheState] {
+func (c *Cache[K, V]) Observe(ctx context.Context, key K) iter.Seq[CacheState] {
 	return func(yield func(CacheState) bool) {
 		c.mu.Lock()
-		if c.disposed {
+		if c.closed {
 			c.mu.Unlock()
 			return
 		}
@@ -290,9 +292,9 @@ func (c *cache[K, V]) observe(ctx context.Context, key K) iter.Seq[CacheState] {
 		c.mu.Unlock()
 		for {
 			c.mu.Lock()
-			state, changed, disposed := k.state, k.changed, c.disposed
+			state, changed, closed := k.state, k.changed, c.closed
 			c.mu.Unlock()
-			if disposed || !yield(state) {
+			if closed || !yield(state) {
 				return
 			}
 			select {
@@ -304,12 +306,12 @@ func (c *cache[K, V]) observe(ctx context.Context, key K) iter.Seq[CacheState] {
 	}
 }
 
-// fetchNow asks for the key's value now: what the service answers, which
+// Fetch asks for the key's value now: what the service answers, which
 // every observer of the key is given too; or the failure, which only this
 // caller is. Concurrent asks for one key share one fetch.
-func (c *cache[K, V]) fetchNow(ctx context.Context, key K) (V, error) {
+func (c *Cache[K, V]) Fetch(ctx context.Context, key K) (V, error) {
 	c.mu.Lock()
-	if c.disposed {
+	if c.closed {
 		c.mu.Unlock()
 		var none V
 		return none, closedRead()
@@ -319,8 +321,8 @@ func (c *cache[K, V]) fetchNow(ctx context.Context, key K) (V, error) {
 	return awaited(ctx, f)
 }
 
-// get is the key's value now, asking for nothing; false when it has none.
-func (c *cache[K, V]) get(key K) (V, bool) {
+// Get is the key's value now, asking for nothing; false when it has none.
+func (c *Cache[K, V]) Get(key K) (V, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if k, ok := c.keys[key]; ok {
@@ -332,17 +334,17 @@ func (c *cache[K, V]) get(key K) (V, bool) {
 	return none, false
 }
 
-// known reports whether anything has asked for the key and not let go of it:
+// Known reports whether anything has asked for the key and not let go of it:
 // it has a value or a failure, or a fetch for it is in flight.
-func (c *cache[K, V]) known(key K) bool {
+func (c *Cache[K, V]) Known(key K) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	k, ok := c.keys[key]
 	return ok && k.known()
 }
 
-// heldKeys is every key the cache knows.
-func (c *cache[K, V]) heldKeys() []K {
+// Keys is every key the cache knows.
+func (c *Cache[K, V]) Keys() []K {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var keys []K
@@ -354,9 +356,9 @@ func (c *cache[K, V]) heldKeys() []K {
 	return keys
 }
 
-// persistencePending reports whether a cache that keeps its values has not
+// PersistencePending reports whether a cache that keeps its values has not
 // yet kept what it knows: a fetch is in flight, or a save is owed.
-func (c *cache[K, V]) persistencePending() bool {
+func (c *Cache[K, V]) PersistencePending() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.persister == nil {
@@ -373,13 +375,13 @@ func (c *cache[K, V]) persistencePending() bool {
 	return false
 }
 
-// invalidate says the key's value is out of date: it is asked for again,
+// Invalidate says the key's value is out of date: it is asked for again,
 // shown meanwhile. A fetch already in flight is not waited on: its answer may
 // never come.
-func (c *cache[K, V]) invalidate(key K) {
+func (c *Cache[K, V]) Invalidate(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.disposed {
+	if c.closed {
 		return
 	}
 	k := c.held(key)
@@ -390,19 +392,19 @@ func (c *cache[K, V]) invalidate(key K) {
 	c.revalidate(key)
 }
 
-// invalidateAll is invalidate, of every key the cache knows.
-func (c *cache[K, V]) invalidateAll() {
-	for _, key := range c.heldKeys() {
-		c.invalidate(key)
+// InvalidateAll is Invalidate, of every key the cache knows.
+func (c *Cache[K, V]) InvalidateAll() {
+	for _, key := range c.Keys() {
+		c.Invalidate(key)
 	}
 }
 
-// remove says the key's entity is gone: its value is dropped and the key is
+// Remove says the key's entity is gone: its value is dropped and the key is
 // failed with gone, at once, for every observer. Nothing is asked for.
-func (c *cache[K, V]) remove(key K, gone error) {
+func (c *Cache[K, V]) Remove(key K, gone error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.disposed {
+	if c.closed {
 		return
 	}
 	k := c.held(key)
@@ -411,11 +413,11 @@ func (c *cache[K, V]) remove(key K, gone error) {
 	c.oweASave()
 }
 
-// write makes value the key's, asking for nothing.
-func (c *cache[K, V]) write(key K, value V) {
+// Set makes value the key's, asking for nothing.
+func (c *Cache[K, V]) Set(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.disposed {
+	if c.closed {
 		return
 	}
 	delete(c.kept, key)
@@ -423,12 +425,12 @@ func (c *cache[K, V]) write(key K, value V) {
 	c.oweASave()
 }
 
-// dispose ends the cache: a save that was owed is made now, every
-// observer's states end, and nothing is fetched or written after. Disposing
-// twice is disposing once.
-func (c *cache[K, V]) dispose() {
+// Close ends the cache: a save that was owed is made now, every
+// observer's states end, and nothing is fetched or written after. Closing
+// twice is closing once.
+func (c *Cache[K, V]) Close() {
 	c.mu.Lock()
-	if c.disposed {
+	if c.closed {
 		c.mu.Unlock()
 		return
 	}
@@ -438,7 +440,7 @@ func (c *cache[K, V]) dispose() {
 		c.saving = nil
 		owed = c.values()
 	}
-	c.disposed = true
+	c.closed = true
 	for _, k := range c.keys {
 		close(k.changed)
 	}

@@ -78,7 +78,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   go: {
     wire: [GO_WIRE_DRIVER],
-    live: { command: [GO_LIVE_DRIVER], tier: 'fleet' },
+    live: { command: [GO_LIVE_DRIVER], tier: 'parity' },
   },
 };
 

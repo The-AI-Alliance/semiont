@@ -26,7 +26,7 @@ import (
 type renewals struct {
 	mu     sync.Mutex
 	tokens []string
-	token  *semiont.Watched[string]
+	token  *semiont.Variable[string]
 }
 
 func (r *renewals) Refresh(context.Context) (string, bool) {
@@ -42,7 +42,7 @@ func (r *renewals) Refresh(context.Context) (string, bool) {
 }
 
 type client struct {
-	token     *semiont.Watched[string]
+	token     *semiont.Variable[string]
 	transport *semiont.HTTPTransport
 	wire      *semiont.Wire
 	content   *semiont.HTTPContentTransport
@@ -264,7 +264,7 @@ func (w *wire) open(args protocol.Arguments) (any, error) {
 	for i, name := range names {
 		channels[i] = bus.Channel(name)
 	}
-	token := semiont.NewWatched(stated)
+	token := semiont.NewVariable(stated)
 	config := semiont.HTTPTransportConfig{BaseURL: baseURL, Token: token, Channels: channels, HTTP: &http.Client{}, Timing: timing}
 	if _, given := args["renewals"]; given {
 		tokens, err := protocol.Texts(args, "renewals")

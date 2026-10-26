@@ -54,7 +54,7 @@ func (r *renewing) renew(ctx context.Context, once func(context.Context) (string
 // answer.
 func asking(baseURL string, client *http.Client, timing Timing) func(context.Context, string) (api.UserResponse, error) {
 	return func(ctx context.Context, token string) (api.UserResponse, error) {
-		asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewWatched(token), HTTP: client, Timing: timing})
+		asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(token), HTTP: client, Timing: timing})
 		defer asker.Close()
 		return asker.GetCurrentUser(ctx)
 	}
@@ -71,7 +71,7 @@ type ResumeConfig struct {
 	Kept SignInKept
 	// Token is the token the session holds, which the transport that carries
 	// it is given too, with the session as its refresher.
-	Token *Watched[string]
+	Token *Variable[string]
 	// HTTP is the client every request of the gateway and the issuer is made
 	// over.
 	HTTP   *http.Client

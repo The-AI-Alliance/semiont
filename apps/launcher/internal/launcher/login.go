@@ -109,7 +109,7 @@ func Login(args []string) int {
 	// identifier disagree, and keeping the token would only defer that error
 	// to the first verb.
 	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
-		BaseURL: base, Token: semiont.NewWatched(tokens.Access),
+		BaseURL: base, Token: semiont.NewVariable(tokens.Access),
 		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
 	})
 	me, err := asker.GetCurrentUser(ctx)

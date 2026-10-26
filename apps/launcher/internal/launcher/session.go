@@ -30,7 +30,7 @@ type Session struct {
 	key    string // token/stack key: "local" or "codespace:<repo>"
 	base   string // the stack's gateway base URL, which the tokens are for
 	signIn semiont.SignIn
-	token  *semiont.Watched[string]
+	token  *semiont.Variable[string]
 	sdk    *semiont.Session
 
 	// ended is done once the session is over for this command, with a
@@ -88,7 +88,7 @@ func resume(u *UI, key, base string) (*Session, error) {
 		return nil, errNoSession
 	}
 	ended, stop := context.WithCancelCause(context.Background())
-	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewWatched(""), ended: ended, stop: stop}
+	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewVariable(""), ended: ended, stop: stop}
 	// A sign-in that cannot be renewed is no session the SDK holds: its token
 	// is sent as it is, and the gateway is the judge.
 	if signIn.RefreshToken == "" {

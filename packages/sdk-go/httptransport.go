@@ -38,7 +38,7 @@ type HTTPTransportConfig struct {
 	// Token is the credential each request carries, as it is now; the empty
 	// string is none. The stream watches it: a client with none, or with one
 	// the gateway refused, opens its stream when it changes.
-	Token *Watched[string]
+	Token *Variable[string]
 	// Refresher renews a refused token; nil for a client that cannot renew
 	// its token.
 	Refresher TokenRefresher
@@ -54,7 +54,7 @@ type HTTPTransportConfig struct {
 type transportShared struct {
 	baseURL   string
 	http      *http.Client
-	token     *Watched[string]
+	token     *Variable[string]
 	refresher TokenRefresher
 	// clientID is this client's address for correlated replies: one per
 	// transport, not per connection, so both streams of a handoff present the
@@ -71,7 +71,7 @@ type transportShared struct {
 // background as soon as there is a token. Close stops it.
 type HTTPTransport struct {
 	shared   *transportShared
-	state    *Watched[ConnectionState]
+	state    *Variable[ConnectionState]
 	commands chan<- command
 	stopped  <-chan struct{}
 
@@ -97,7 +97,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		router:    NewReplyRouter(),
 		failures:  newFailureStream(),
 	}
-	state := NewWatched(ConnectionStateInitial)
+	state := NewVariable(ConnectionStateInitial)
 	s := newStream(shared, state)
 	stopped := make(chan struct{})
 	go s.run(stopped)

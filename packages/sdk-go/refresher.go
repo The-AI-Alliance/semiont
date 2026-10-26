@@ -274,9 +274,9 @@ func (r *refresher) frameTagSchemaAdded(frame Frame) (cacheSubject, error) {
 
 // again asks again for one key of c, when c holds it (B20), through the key's
 // window (B19).
-func again[K comparable, V any](r *refresher, c *cache[K, V], key K, window string) {
-	if c.known(key) {
-		r.windows.run(window, func() { c.invalidate(key) })
+func again[K comparable, V any](r *refresher, c *Cache[K, V], key K, window string) {
+	if c.Known(key) {
+		r.windows.run(window, func() { c.Invalidate(key) })
 	}
 }
 
@@ -293,25 +293,25 @@ func reached(reach CacheRefreshReach, subject cacheSubject, held []api.ResourceI
 }
 
 func (r *refresher) refetchResource(reach CacheRefreshReach, subject cacheSubject) {
-	for _, resource := range reached(reach, subject, r.live.resource.heldKeys()) {
+	for _, resource := range reached(reach, subject, r.live.resource.Keys()) {
 		again(r, r.live.resource, resource, "resource/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchAnnotations(reach CacheRefreshReach, subject cacheSubject) {
-	for _, resource := range reached(reach, subject, r.live.annotations.heldKeys()) {
+	for _, resource := range reached(reach, subject, r.live.annotations.Keys()) {
 		again(r, r.live.annotations, resource, "annotations/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchEvents(reach CacheRefreshReach, subject cacheSubject) {
-	for _, resource := range reached(reach, subject, r.live.events.heldKeys()) {
+	for _, resource := range reached(reach, subject, r.live.events.Keys()) {
 		again(r, r.live.events, resource, "events/"+resource.String())
 	}
 }
 
 func (r *refresher) refetchReferencedBy(reach CacheRefreshReach, subject cacheSubject) {
-	for _, resource := range reached(reach, subject, r.live.referencedBy.heldKeys()) {
+	for _, resource := range reached(reach, subject, r.live.referencedBy.Keys()) {
 		again(r, r.live.referencedBy, resource, "referenced-by/"+resource.String())
 	}
 }
@@ -322,7 +322,7 @@ func (r *refresher) refetchAnnotation(reach CacheRefreshReach, subject cacheSubj
 	var annotations []api.AnnotationId
 	switch {
 	case reach == CacheRefreshReachHeld:
-		annotations = r.live.annotation.heldKeys()
+		annotations = r.live.annotation.Keys()
 	case !subject.annotation.IsZero():
 		annotations = []api.AnnotationId{subject.annotation}
 	default:
@@ -335,11 +335,11 @@ func (r *refresher) refetchAnnotation(reach CacheRefreshReach, subject cacheSubj
 
 // An event does not say which lists it changes, nor which searches would now find its resource.
 func (r *refresher) refetchResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run("resource-lists", r.live.lists.invalidateAll)
+	r.windows.run("resource-lists", r.live.lists.InvalidateAll)
 }
 
 func (r *refresher) refetchMatchedResources(CacheRefreshReach, cacheSubject) {
-	r.windows.run("matched-resources", r.live.searches.invalidateAll)
+	r.windows.run("matched-resources", r.live.searches.InvalidateAll)
 }
 
 func (r *refresher) refetchEntityTypes(CacheRefreshReach, cacheSubject) {
@@ -351,7 +351,7 @@ func (r *refresher) refetchTagSchemas(CacheRefreshReach, cacheSubject) {
 }
 
 func (r *refresher) refetchAgents(CacheRefreshReach, cacheSubject) {
-	if r.live.agents.known(whole{}) {
+	if r.live.agents.Known(whole{}) {
 		r.windows.run("agents", r.live.invalidateAgents)
 	}
 }

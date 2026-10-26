@@ -413,7 +413,7 @@ func (l *live) open(args protocol.Arguments) error {
 		return protocol.Misused("persist must be true or false")
 	}
 	transport := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
-		BaseURL: baseURL, Token: semiont.NewWatched(token), Channels: bus.BridgedChannels, HTTP: &http.Client{}, Timing: timing,
+		BaseURL: baseURL, Token: semiont.NewVariable(token), Channels: bus.BridgedChannels, HTTP: &http.Client{}, Timing: timing,
 	})
 	// Taken at once, so every failure from the first request on is heard.
 	failures := transport.Failures()

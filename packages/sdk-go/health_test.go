@@ -17,7 +17,7 @@ func healthOf(t *testing.T, serve http.HandlerFunc) (report string, ok bool, err
 	t.Helper()
 	gateway := httptest.NewServer(serve)
 	defer gateway.Close()
-	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewWatched(""), HTTP: &http.Client{}, Timing: quickTiming()})
+	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewVariable(""), HTTP: &http.Client{}, Timing: quickTiming()})
 	defer asker.Close()
 	health, ok, err := asker.HealthCheck(context.Background())
 	return health.Status, ok, err
@@ -75,7 +75,7 @@ func TestATransportThatCarriesNothingOpensNoStream(t *testing.T) {
 		}
 	}))
 	defer gateway.Close()
-	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewWatched(signedToken(1)), HTTP: &http.Client{}, Timing: quickTiming()})
+	asker := NewHTTPTransport(HTTPTransportConfig{BaseURL: gateway.URL, Token: NewVariable(signedToken(1)), HTTP: &http.Client{}, Timing: quickTiming()})
 	user, err := asker.GetCurrentUser(context.Background())
 	time.Sleep(100 * time.Millisecond)
 	asker.Close()

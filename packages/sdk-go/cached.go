@@ -80,10 +80,10 @@ func itself[V any](value V) V { return value }
 // keyed is the query answered by key of c, as view shows its value. scope,
 // when it is not the zero ResourceId, is the resource the query is of, whose
 // scope is held while the query is watched.
-func keyed[K comparable, V, T any](l *links, c *cache[K, V], key K, view func(V) T, scope api.ResourceId) *Cached[T] {
+func keyed[K comparable, V, T any](l *links, c *Cache[K, V], key K, view func(V) T, scope api.ResourceId) *Cached[T] {
 	q := &Cached[T]{
 		fresh: func(ctx context.Context) (T, error) {
-			value, err := c.fetchNow(ctx, key)
+			value, err := c.Fetch(ctx, key)
 			if err != nil {
 				var none T
 				return none, err
@@ -92,14 +92,14 @@ func keyed[K comparable, V, T any](l *links, c *cache[K, V], key K, view func(V)
 		},
 		watch: func(ctx context.Context) iter.Seq[CacheState] {
 			return func(yield func(CacheState) bool) {
-				for state := range c.observe(ctx, key) {
+				for state := range c.Observe(ctx, key) {
 					if !yield(shown(state, view)) {
 						return
 					}
 				}
 			}
 		},
-		invalidate: func() { c.invalidate(key) },
+		invalidate: func() { c.Invalidate(key) },
 	}
 	if !scope.IsZero() {
 		q.hold = func() func() { return l.transport.SubscribeToResource(scope) }

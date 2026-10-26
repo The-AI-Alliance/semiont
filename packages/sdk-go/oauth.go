@@ -166,7 +166,7 @@ func (i Issuer) do(request *http.Request) (int, issuerAnswer, error) {
 func (i Issuer) Discover(ctx context.Context, baseURL string) (IssuerEndpoints, error) {
 	// Its resource metadata is public: asked with no token, by a transport
 	// that opens no stream without one.
-	asking := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewWatched(""), HTTP: i.HTTP, Timing: i.Timing})
+	asking := NewHTTPTransport(HTTPTransportConfig{BaseURL: baseURL, Token: NewVariable(""), HTTP: i.HTTP, Timing: i.Timing})
 	metadata, err := asking.GetProtectedResourceMetadata(ctx)
 	asking.Close()
 	if err != nil {

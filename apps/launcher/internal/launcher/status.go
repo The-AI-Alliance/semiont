@@ -1078,7 +1078,7 @@ func roleHealthy(role, endpoint string) bool {
 	}
 	// Asked with no token, by a transport that opens no stream without one.
 	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
-		BaseURL: base, Token: semiont.NewWatched(""),
+		BaseURL: base, Token: semiont.NewVariable(""),
 		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
 	})
 	defer asker.Close()
