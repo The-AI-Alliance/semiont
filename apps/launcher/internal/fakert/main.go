@@ -1576,19 +1576,19 @@ func busybox(args []string, joined string) {
 	}
 }
 
-// The fake bus is a BROADCAST, like the real one: every open subscription
-// receives every event on a channel it subscribed to. Handing each emitted
-// request to exactly one stream would make a flow with two concurrent
-// subscriptions (yield --delegate: one for job:* lifecycle, one inside the
-// request/reply helper) lose its reply to the wrong stream and time out. A
-// fake with different delivery semantics than the real bus tests a protocol
-// nobody implements.
+// The fake bus delivers as the real one does: a broadcast reaches every open
+// subscription that names its channel, and a correlated reply only the
+// subscriptions of the client that asked (docs/protocol/TRANSPORT-HTTP.md §
+// POST /bus/subscribe). A fake with different delivery semantics than the
+// real bus tests a protocol nobody implements.
 type busSub struct {
+	clientID string
 	channels map[string]bool
 	out      chan busFrame
 }
 
 type busFrame struct {
+	id      string // the event id the stream writes it under
 	channel string
 	corrID  string // ENVELOPE, never inside the payload — see busPublish
 	payload map[string]any
@@ -1597,10 +1597,21 @@ type busFrame struct {
 var (
 	busMu   sync.Mutex
 	busSubs []*busSub
+	// busPublished counts the frames published, for each broadcast's id.
+	busPublished int
+	// busRetained is every reply published, by its correlationId, and the
+	// client it answered: what a stream naming the id in pendingReplies is
+	// sent again, as the gateway's retention sends it.
+	busRetained = map[string]retainedReply{}
 )
 
-func busSubscribe(channels []string) *busSub {
-	sub := &busSub{channels: map[string]bool{}, out: make(chan busFrame, 64)}
+type retainedReply struct {
+	clientID string
+	frame    busFrame
+}
+
+func busSubscribe(clientID string, channels []string) *busSub {
+	sub := &busSub{clientID: clientID, channels: map[string]bool{}, out: make(chan busFrame, 64)}
 	for _, c := range channels {
 		sub.channels[c] = true
 	}
@@ -1608,6 +1619,20 @@ func busSubscribe(channels []string) *busSub {
 	busSubs = append(busSubs, sub)
 	busMu.Unlock()
 	return sub
+}
+
+// busPending is the retained replies to correlationIDs that answered
+// clientID, in the order named.
+func busPending(clientID string, correlationIDs []string) []busFrame {
+	busMu.Lock()
+	defer busMu.Unlock()
+	var frames []busFrame
+	for _, id := range correlationIDs {
+		if r, ok := busRetained[id]; ok && r.clientID == clientID {
+			frames = append(frames, r.frame)
+		}
+	}
+	return frames
 }
 
 func busUnsubscribe(target *busSub) {
@@ -1728,19 +1753,30 @@ func fakeCreated(description map[string]any) (message api.JobProgressMessage, ok
 // busPublish fans one frame out to every subscriber listening on its channel.
 // corrID rides the ENVELOPE beside the channel, which is where the real
 // gateway puts it (apps/gateway/src/routes/stream.rs writes
-// `{channel, correlationId, payload}`) and where the Go client reads it.
-// Job lifecycle events pass "" — they are keyed by jobId, not by the
-// correlation key of the request that created the job.
-func busPublish(channel, corrID string, payload map[string]any) {
+// `{channel, correlationId, payload}`) and where the Go client reads it. A
+// frame carrying one is a reply: it reaches only clientID's subscriptions,
+// under the id `e-<channel>:<correlationId>`, and is retained for a stream
+// that names it in pendingReplies. Job lifecycle events pass "" — they are
+// keyed by jobId, not by the correlation key of the request that created the
+// job — and are broadcast, each under an id of its own.
+func busPublish(channel, corrID, clientID string, payload map[string]any) {
 	busMu.Lock()
+	frame := busFrame{channel: channel, corrID: corrID, payload: payload}
+	if corrID != "" {
+		frame.id = "e-" + channel + ":" + corrID
+		busRetained[corrID] = retainedReply{clientID: clientID, frame: frame}
+	} else {
+		busPublished++
+		frame.id = fmt.Sprintf("e-%d", busPublished)
+	}
 	subs := append([]*busSub(nil), busSubs...)
 	busMu.Unlock()
 	for _, s := range subs {
-		if !s.channels[channel] {
+		if !s.channels[channel] || (corrID != "" && s.clientID != clientID) {
 			continue
 		}
 		select {
-		case s.out <- busFrame{channel: channel, corrID: corrID, payload: payload}:
+		case s.out <- frame:
 		default: // a stalled reader must not wedge the emitter
 		}
 	}
@@ -2348,6 +2384,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					var body struct {
 						Channel       string         `json:"channel"`
+						ClientID      string         `json:"clientId,omitempty"`
 						CorrelationID string         `json:"correlationId,omitempty"`
 						Payload       map[string]any `json:"payload"`
 					}
@@ -2366,7 +2403,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					cid := body.CorrelationID
 					if ch, payload := busReplyFor(body.Channel); ch != "" {
-						busPublish(ch, cid, payload)
+						busPublish(ch, cid, body.ClientID, payload)
 						// A created job then runs: progress, then a terminal
 						// event, both keyed by jobId — never the correlationId
 						// the request used.
@@ -2392,14 +2429,14 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							if api.JobType(jobType) == api.JobTypeYield {
 								code = "generating-resource"
 							}
-							busPublish("job:report-progress", "", job(map[string]any{
+							busPublish("job:report-progress", "", "", job(map[string]any{
 								"progress": map[string]any{"message": map[string]any{"code": code}}}))
 							// FAKERT_JOB_RETRY=<message>: the first attempt fails and
 							// the queue runs the job again. That failure is an event
 							// of a job still running, and the terminal event follows.
 							if msg := os.Getenv("FAKERT_JOB_RETRY"); msg != "" {
-								busPublish("job:fail", "", job(map[string]any{"error": msg, "attempt": 1, "willRetry": true}))
-								busPublish("job:report-progress", "", job(map[string]any{
+								busPublish("job:fail", "", "", job(map[string]any{"error": msg, "attempt": 1, "willRetry": true}))
+								busPublish("job:report-progress", "", "", job(map[string]any{
 									"attempt": 2, "progress": map[string]any{"message": map[string]any{"code": code}}}))
 							}
 							// FAKERT_JOB_RESULT=<json>: the result this job
@@ -2424,17 +2461,17 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							}
 							switch msg := os.Getenv("FAKERT_JOB_FAIL"); {
 							case msg != "":
-								busPublish("job:fail", "", job(map[string]any{"error": msg}))
+								busPublish("job:fail", "", "", job(map[string]any{"error": msg}))
 							case !described:
-								busPublish("job:fail", "", job(map[string]any{"error": "fakert runs no job of this description"}))
+								busPublish("job:fail", "", "", job(map[string]any{"error": "fakert runs no job of this description"}))
 							default:
 								// A mark job that did its work says what it created
 								// before it completes. One a test scripts another
 								// ending for does not.
 								if created, did := fakeCreated(body.Payload); did && scripted == "" && as == "" {
-									busPublish("job:report-progress", "", job(map[string]any{"progress": map[string]any{"message": created}}))
+									busPublish("job:report-progress", "", "", job(map[string]any{"progress": map[string]any{"message": created}}))
 								}
-								busPublish("job:complete", "", completed)
+								busPublish("job:complete", "", "", completed)
 							}
 						}
 					}
@@ -2465,9 +2502,10 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					// does — otherwise a client that omits it passes the launcher
 					// tests and surfaces only against a real gateway.
 					var matrix struct {
-						Global   []string `json:"global"`
-						ClientID string   `json:"clientId"`
-						Scoped   []struct {
+						Global         []string `json:"global"`
+						ClientID       string   `json:"clientId"`
+						PendingReplies []string `json:"pendingReplies"`
+						Scoped         []struct {
 							Scope    string   `json:"scope"`
 							Channels []string `json:"channels"`
 						} `json:"scoped"`
@@ -2481,10 +2519,26 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					for _, e := range matrix.Scoped {
 						chans = append(chans, e.Channels...)
 					}
-					sub := busSubscribe(chans)
+					sub := busSubscribe(matrix.ClientID, chans)
 					defer busUnsubscribe(sub)
 					w.Header().Set("Content-Type", "text/event-stream")
 					w.WriteHeader(http.StatusOK)
+					write := func(fr busFrame) {
+						frame := map[string]any{"channel": fr.channel, "payload": fr.payload}
+						if fr.corrID != "" {
+							frame["correlationId"] = fr.corrID
+						}
+						data, _ := json.Marshal(frame)
+						fmt.Fprintf(w, "event: bus-event\nid: %s\ndata: %s\n\n", fr.id, data)
+						if f, ok := w.(http.Flusher); ok {
+							f.Flush()
+						}
+					}
+					// The replies the client still awaits come first, then
+					// the live frames.
+					for _, fr := range busPending(matrix.ClientID, matrix.PendingReplies) {
+						write(fr)
+					}
 					if f, ok := w.(http.Flusher); ok {
 						f.Flush() // headers = subscribed
 					}
@@ -2493,15 +2547,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						case <-r.Context().Done():
 							return
 						case fr := <-sub.out:
-							frame := map[string]any{"channel": fr.channel, "payload": fr.payload}
-							if fr.corrID != "" {
-								frame["correlationId"] = fr.corrID
-							}
-							data, _ := json.Marshal(frame)
-							fmt.Fprintf(w, "event: bus-event\ndata: %s\n\n", data)
-							if f, ok := w.(http.Flusher); ok {
-								f.Flush()
-							}
+							write(fr)
 						}
 					}
 				}

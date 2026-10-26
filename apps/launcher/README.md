@@ -445,8 +445,8 @@ semiont stop
   publishes a ceiling for a remote model it REPLACES the context figure
   `/v1/models` reported — one number, from one source; that probe keeps
   rendering only what it alone knows. No stack, no session, an unreachable or
-  wedged gateway (the request is bounded well under the bus client's 30 s
-  default), or an entry whose discovery failed: the row renders with
+  wedged gateway (the request is bounded well under the 30 s a verb waits
+  for a reply), or an entry whose discovery failed: the row renders with
   no ceiling and no error. And a ceiling appears only where the
   record can say which provider serves THAT model — a row whose driver says
   `ollama` listing a model Ollama does not serve gets nothing, the same
@@ -736,17 +736,18 @@ origin (precedence: flag → record → `http://localhost:3000`).
   14:07:41 ○ alice@example.com left    — 0 connections watching
 ```
 
-Resource names come from ONE lookup at startup, not one per event: a lookup is
-a correlated request, which opens its own connection, and every connection
-publishes presence — so resolving inline would generate the churn the console
-is trying to report. Ids the prefetch misses render as ids; nothing blocks and
-nothing blanks. Presence is counted by CONNECTION, not by person: one human
+Resource names come from ONE lookup at startup, not one per event, asked on
+the stream the events arrive on. Ids the lookup misses render as ids; nothing
+blocks and nothing blanks. Presence is counted by CONNECTION, not by person: one human
 with two tabs is two connections, and a count keyed on identity would report
 one viewer for two and none when the duplicate closed.
 
 The stream is inbound only, and says so on startup — your own `beckon` and
 `browse --browser` cues are not echoed back, so silence where a cue should
-appear is not evidence the cue failed.
+appear is not evidence the cue failed. `--scope <resourceId>` streams what one
+resource's scope carries (its annotations, representations and jobs) in place
+of the KB's broadcasts. A stream that drops ends the command: what was
+broadcast while it was down is not sent again.
 
 ### Memory ceilings
 

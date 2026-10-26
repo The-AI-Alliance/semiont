@@ -7,7 +7,6 @@ package verbs
 // protocol cannot back up.
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -150,7 +149,8 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	// Two signals, one act. Focus SCROLLS, so beckoning three references in a
 	// row scroll-fights and only the last survives; sparkle is inert-but-visible,
@@ -173,7 +173,7 @@ options:
 		payload = ev
 	}
 
-	subscribers, counted, err := cli.Emit(context.Background(), channel, payload, "")
+	subscribers, counted, err := b.Emit(channel, payload)
 	if err != nil {
 		return busFail(u, "beckon", err)
 	}

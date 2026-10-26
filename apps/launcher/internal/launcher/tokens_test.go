@@ -183,7 +183,7 @@ func sessionAt(t *testing.T, endpoint string) *Session {
 	if err := SaveToken("local", e); err != nil {
 		t.Fatal(err)
 	}
-	s, ok := LoadSession(NewUI(true), "local")
+	s, ok := LoadSession(NewUI(true), "local", "http://localhost:4000")
 	if !ok {
 		t.Fatal("no session was loaded")
 	}

@@ -19,7 +19,6 @@ package launcher
 // silent about the rest.
 
 import (
-	"context"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -31,8 +30,8 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-// statusCeilingTimeout bounds each bus request status makes. The client's
-// default is 30 seconds — right for a verb whose whole job is the exchange,
+// statusCeilingTimeout bounds each bus request status makes. A verb waits 30
+// seconds for its reply — right for a verb whose whole job is the exchange,
 // and far too long for a decoration on a report: a wedged key holder would
 // stall `semiont status` for half a minute. Matched to the other status
 // probes, which give a live fact 2–3 seconds to arrive or go unreported. The
@@ -63,7 +62,7 @@ func limitsOperations() []bus.Channel {
 // limits and indexes what they report. A nil or partial result is the answer
 // for every unhappy path, and callers need not tell them apart: "no ceiling
 // to show" is one outcome however it arose.
-func fetchModelCeilings(st *StackState) modelCeilings {
+func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 	if st == nil {
 		return nil
 	}
@@ -71,33 +70,28 @@ func fetchModelCeilings(st *StackState) modelCeilings {
 	if base == "" {
 		return nil
 	}
-	// The same credential printSessions verifies with. No session means no
-	// report — status never prompts and never resolves secrets.
+	// The same credential printSessions verifies with, renewed as every
+	// verb's is when the gateway refuses it. No session means no report, and
+	// no refusal printed: status never prompts and never resolves secrets.
 	e, ok := LoadTokens()["local"]
 	if !ok || e.Token == "" {
 		return nil
 	}
-	transport := newTransport(base, e.Token)
+	platform := newSession(u, "local", base, e).bus(nil)
+	defer platform.Close()
 	var (
 		mu  sync.Mutex
 		wg  sync.WaitGroup
 		out = modelCeilings{}
 	)
 	for _, op := range limitsOperations() {
-		wg.Add(1)
-		go func(op bus.Channel) {
-			defer wg.Done()
-			reply, err := transport.Request(
-				context.Background(),
-				op,
-				api.InferenceLimitsRequest{},
-				&bus.RequestOptions{Timeout: statusCeilingTimeout},
-			)
+		wg.Go(func() {
+			reply, err := platform.Request(op, api.InferenceLimitsRequest{}, statusCeilingTimeout)
 			if err != nil {
 				return
 			}
 			var r api.InferenceLimitsResult
-			if json.Unmarshal(reply, &r) != nil {
+			if json.Unmarshal(reply, &r.Response) != nil {
 				return
 			}
 			mu.Lock()
@@ -105,7 +99,7 @@ func fetchModelCeilings(st *StackState) modelCeilings {
 			for _, pair := range r.Response.Limits {
 				out[ceilingKey(pair.Provider, pair.Model)] = pair.Limits
 			}
-		}(op)
+		})
 	}
 	wg.Wait()
 	return out

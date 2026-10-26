@@ -24,8 +24,8 @@ it does have.
 |---|---|---|
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others), which the wire types carry | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
 | `semiont` | `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving. `retry.go`: the retry rules (`RetryRuleBoot`, `RetryRuleTransport`, `RetryRuleRefresh`), `RetryPolicy`, `RetryAfter` and `EqualJitter`. `errorcodes_gen.go`: the failure vocabularies, a type each with a constant per code, `BusRequestErrorCodeOfWire` and `TransportErrorCodeOfStatus`. `timing_gen.go`: `Timing`, a field per entry, and `DefaultTiming` | hand-written; [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json); [`specs/src/client/timing.json`](../../specs/src/client/timing.json) |
-| [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations. `Transport`, and `Client`, its implementation over HTTP | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json), and two hand-written files |
-| `bustest` | `Fake`, a `bus.Transport` with no server, for tests | hand-written |
+| [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json) |
+| `bustest` | `Fake`, a `semiont.Transport` with no server, for tests | hand-written |
 | [`mediatypes`](#the-mediatypes-package) | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
 
 Everything generated is committed, as the monorepo's other generated
@@ -35,7 +35,8 @@ spec shows up as a diff someone reviews.
 ## How the launcher uses it
 
 - **The eight verbs** (`semiont yield`, `semiont browse` and the rest) are
-  requests and emits over `bus.Transport`. What a verb means is in the spec
+  requests, emits and frames over a `semiont.Transport`, one per command,
+  whose token the launcher's session renews. What a verb means is in the spec
   and the services behind the gateway, not in Go.
 - **`semiont yield --upload`** sends a file's bytes with the generated
   `UploadResourceWithBodyWithResponse`, and `mediatypes.ForExtension` names the
@@ -104,18 +105,14 @@ left out: it never crosses the wire. Payload structs are not generated here.
 The schema a channel carries has its Go type in `api/client_gen.go`. See
 [the event bus](../../docs/protocol/EVENT-BUS.md).
 
-Two files are hand-written. `transport.go` states what a consumer needs of the
-bus as the `Transport` interface: `BaseURL`, `Emit`, `Subscribe` and
-`Request`. `client.go` is `Client`, its implementation over HTTP:
-`POST /bus/emit`, the event stream of `POST /bus/subscribe`, and the
-correlated request and reply. The stream's reader takes a line twice as long as
-the largest emit the gateway takes, room for the payload and the envelope a
-frame carries it in; a longer line ends the stream, and a request waiting on it
-fails saying so.
+Nothing in it is hand-written. What carries the bus is package `semiont`'s
+`Transport`, held to the SDK conformance suite.
 
-`bustest.Fake` implements `bus.Transport` in process. It records every `Emit`
-and `Request` with its payload, and answers each request with the reply the
-test scripted. It does not model `Subscribe`, which returns an error.
+`bustest.Fake` implements `semiont.Transport` in process. It records every
+emit with its payload, a request apart from an emit that awaits no reply, and
+answers each request at once with the reply or the failure the test
+scripted, through the same reply router and frame hub a transport uses. Its
+stream is open from the start.
 
 ## The `mediatypes` package
 

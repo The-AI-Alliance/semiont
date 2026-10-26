@@ -11,11 +11,9 @@ package verbs
 //
 //   - NAMES, not ids. `browse:resource-viewed` carries a resourceId; the guide
 //     knows their tour by title. Names are prefetched ONCE at startup (see
-//     prefetchResourceNames) rather than resolved per event: a per-event lookup
-//     is a correlated bus Request, which opens its own SSE connection — and
-//     every SSE connection publishes session:joined/left. Resolving names
-//     inline would make the console generate the very presence churn it is
-//     trying to report.
+//     prefetchResourceNames) rather than resolved per event: a request per
+//     event would hold the line it renders behind a round trip, and one up
+//     front costs a console nothing.
 //   - PRESENCE as state. session:joined/left are events; "who is here now" is
 //     a number. Kept by connectionId, never by participant: one person with two
 //     tabs is two connections, and a map keyed on the DID would report one
@@ -36,6 +34,7 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -91,7 +90,7 @@ func shortParticipant(did string) string {
 
 // line renders ONE event for a human and folds it into the renderer's state.
 // Returns the text to print; callers print it verbatim.
-func (r *listenRenderer) line(u *launcher.UI, ev bus.Event) string {
+func (r *listenRenderer) line(u *launcher.UI, frame semiont.Frame) string {
 	var p struct {
 		ResourceID   string `json:"resourceId"`
 		AnnotationID string `json:"annotationId"`
@@ -101,16 +100,16 @@ func (r *listenRenderer) line(u *launcher.UI, ev bus.Event) string {
 		Participant  string `json:"participant"`
 		ConnectionID string `json:"connectionId"`
 	}
-	_ = json.Unmarshal(ev.Payload, &p)
+	_ = json.Unmarshal(frame.Payload, &p)
 	stamp := u.Dim(time.Now().Format("15:04:05"))
 
 	// Presence gets its own shape: the event is the transition, the number is
 	// the state, and both belong on the line.
-	switch ev.Channel {
+	switch frame.Channel {
 	case bus.SessionJoined, bus.SessionLeft:
 		who := shortParticipant(p.Participant)
 		verb, mark := "joined", u.Wrap(launcher.AnsiGreen, "●")
-		if ev.Channel == bus.SessionLeft {
+		if frame.Channel == bus.SessionLeft {
 			verb, mark = "left", u.Dim("○")
 			delete(r.present, p.ConnectionID)
 		} else {
@@ -134,7 +133,7 @@ func (r *listenRenderer) line(u *launcher.UI, ev bus.Event) string {
 			bits = append(bits, kv.k+"="+kv.v)
 		}
 	}
-	return fmt.Sprintf("  %s %-28s %s", stamp, ev.Channel, u.Dim(strings.Join(bits, "  ")))
+	return fmt.Sprintf("  %s %-28s %s", stamp, frame.Channel, u.Dim(strings.Join(bits, "  ")))
 }
 
 // plural renders "1 connection" / "2 connections" — English-only, which is
