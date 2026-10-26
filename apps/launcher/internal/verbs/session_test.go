@@ -227,10 +227,16 @@ func (g *gatewayStub) times(route, token string) int {
 // gatewayFixture is verbFixture with the recorded stack's gateway the stub.
 func gatewayFixture(t *testing.T, gateway *gatewayStub) {
 	t.Helper()
+	gatewayAt(t, gateway.URL)
+}
+
+// gatewayAt is verbFixture with the recorded stack's gateway at base.
+func gatewayAt(t *testing.T, base string) {
+	t.Helper()
 	verbFixture(t)
 	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
 		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
-			"gateway": {Endpoint: gateway.URL + "/api/health"},
+			"gateway": {Endpoint: base + "/api/health"},
 		}},
 	}}
 	b, _ := json.MarshalIndent(ss, "", "  ")
@@ -246,6 +252,28 @@ func only(token string) func(string) bool {
 
 // nothing accepts no token.
 func nothing(string) bool { return false }
+
+// A gateway that is not there is said at once. The transport takes a first
+// connect that gets no answer as a state, not a failure, and a request waits
+// out its deadline for a stream to open; the verb must not: it fails as soon
+// as the first connect does, naming the gateway.
+func TestBusVerbAgainstAGatewayThatIsNotThereFailsAtOnce(t *testing.T) {
+	gone := httptest.NewServer(http.NotFoundHandler())
+	base := gone.URL
+	gone.Close()
+	gatewayAt(t, base)
+
+	began := time.Now()
+	_, stderr := harness.CaptureOutput(t, func() {
+		if code := Browse([]string{"--json"}); code == 0 {
+			t.Error("browse: exit 0 against a gateway that is not there")
+		}
+	})
+	if took := time.Since(began); took > 10*time.Second {
+		t.Errorf("browse took %s to fail: it waited out the request's deadline", took.Round(time.Second))
+	}
+	harness.MustContainAll(t, "stderr", stderr, base, "did not open the event stream")
+}
 
 func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))

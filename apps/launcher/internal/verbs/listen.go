@@ -166,6 +166,9 @@ func Listen(args []string) int {
 	render := newListenRenderer(prefetchResourceNames(b))
 
 	// Listening is said once the stream is held, never before.
+	if err := b.Reached(); err != nil {
+		return busFail(u, "listen", err)
+	}
 	opened := false
 	for state := range b.Transport().StateChanges(ctx) {
 		if state == semiont.ConnectionStateOpen {

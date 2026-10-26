@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
@@ -56,6 +57,19 @@ type VerbBus struct {
 	sess      *Session
 	transport semiont.Transport
 	wire      *semiont.Wire
+
+	reach       sync.Once
+	unreachable error
+}
+
+// GatewayUnreached is a command whose stream's first connect failed: the
+// gateway did not answer, or answered with a refusal that was not of the
+// token. The command says so at once, where a request would wait out its
+// deadline for a stream that may never open.
+type GatewayUnreached struct{ Base string }
+
+func (g *GatewayUnreached) Error() string {
+	return fmt.Sprintf("the gateway at %s did not open the event stream", g.Base)
 }
 
 // bus opens the stack's bus. Its stream carries every operation's reply
@@ -89,6 +103,9 @@ func (s *Session) bus(channels []bus.Channel) *VerbBus {
 // response, or nil when it carries none. A session the gateway refused for
 // good ends the wait, and is the error: a *SessionRejected.
 func (b *VerbBus) Request(op bus.Channel, request any, within time.Duration) (json.RawMessage, error) {
+	if err := b.Reached(); err != nil {
+		return nil, err
+	}
 	payload, err := payloadOf(request)
 	if err != nil {
 		return nil, err
@@ -113,6 +130,26 @@ func (b *VerbBus) Emit(channel bus.Channel, event any) (subscribers int, counted
 		return 0, false, b.sess.refusal(err)
 	}
 	return subscribers, counted, nil
+}
+
+// Reached waits, once, for the stream's first connect to settle: nil when it
+// opens, a *GatewayUnreached when it fails. Only the first connect is judged
+// here: a stream that has opened and drops is the transport's to reopen, and
+// a request waits for it. A refused token, or a session that ended, is
+// answered by what the verb does next.
+func (b *VerbBus) Reached() error {
+	b.reach.Do(func() {
+		for state := range b.transport.StateChanges(b.sess.ended) {
+			switch state {
+			case semiont.ConnectionStateOpen, semiont.ConnectionStateUnauthenticated, semiont.ConnectionStateClosed:
+				return
+			case semiont.ConnectionStateReconnecting, semiont.ConnectionStateDegraded:
+				b.unreachable = &GatewayUnreached{Base: b.sess.base}
+				return
+			}
+		}
+	})
+	return b.unreachable
 }
 
 // Transport is the bus's transport, for what a verb takes from it directly:

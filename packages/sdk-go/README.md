@@ -1,8 +1,8 @@
 # Semiont Go client
 
 The Go client the [`semiont` launcher](../../apps/launcher/README.md) is built
-on: the gateway's HTTP operations as generated Go, and the event bus's
-vocabulary with a client that speaks it. Module
+on: the gateway's HTTP operations as generated Go, the event bus's vocabulary,
+and a transport that speaks it. Module
 `github.com/The-AI-Alliance/semiont/packages/sdk-go`, package `semiont`.
 
 ```go
@@ -13,17 +13,17 @@ A program that builds on a knowledge base uses the
 [TypeScript](../sdk/README.md), [Rust](../sdk-rust/README.md) or
 [Python](../sdk-python/README.md) SDK: a client of the eight verbs, with
 sessions and live queries, held to a
-[conformance suite](../../tests/conformance/sdk/README.md). This module sits
-below those. It has no verb namespaces, no sessions and no cache, and that
-suite does not run it. The launcher's commands are written directly on what
-it does have.
+[conformance suite](../../tests/conformance/sdk/README.md). This module's
+transport is held to that suite's wire cases, as theirs are. It has no verb
+namespaces, no sessions and no cache: the launcher's commands are written
+directly on the transport.
 
 ## What is in it
 
 | Package | Holds | Generated from |
 |---|---|---|
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others), which the wire types carry | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
-| `semiont` | `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving. `retry.go`: the retry rules (`RetryRuleBoot`, `RetryRuleTransport`, `RetryRuleRefresh`), `RetryPolicy`, `RetryAfter` and `EqualJitter`. `errorcodes_gen.go`: the failure vocabularies, a type each with a constant per code, `BusRequestErrorCodeOfWire` and `TransportErrorCodeOfStatus`. `timing_gen.go`: `Timing`, a field per entry, and `DefaultTiming` | hand-written; [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json); [`specs/src/client/timing.json`](../../specs/src/client/timing.json) |
+| `semiont` | `httptransport.go` and `stream.go`: `HTTPTransport`, a `Transport` holding one stream to the gateway, its emits, and the gateway's own operations. `wire.go`: `Wire`, its emits, frames and requests by channel. `content.go`: `HTTPContentTransport`, uploads and reads of a resource. `errors.go`: `Error`, `TransportError` and `BusRequestError`. `telemetry.go`: the spans and the count a transport reports, and `Frame.Trace`. `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving. `retry.go`: the retry rules (`RetryRuleBoot`, `RetryRuleTransport`, `RetryRuleRefresh`), `RetryPolicy`, `RetryAfter` and `EqualJitter`. `errorcodes_gen.go`: the failure vocabularies, a type each with a constant per code, `BusRequestErrorCodeOfWire` and `TransportErrorCodeOfStatus`. `timing_gen.go`: `Timing`, a field per entry, and `DefaultTiming`. `telemetry_gen.go`: the SDK telemetry table's names, kinds and attribute keys | hand-written; [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json); [`specs/src/client/timing.json`](../../specs/src/client/timing.json); [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json) |
 | [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json) |
 | `bustest` | `Fake`, a `semiont.Transport` with no server, for tests | hand-written |
 | [`mediatypes`](#the-mediatypes-package) | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
