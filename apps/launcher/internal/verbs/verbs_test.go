@@ -22,10 +22,9 @@ import (
 // understands; a family tested only against a double can agree with a bug in
 // our own client.
 
-// reply wraps a scripted response the way the gateway does — the verbs are
-// handed a reply PAYLOAD and decode `{response}`, so a bare body would fail to
-// parse and the test would be measuring the wrong thing. No correlationId: it
-// rides the envelope and the bus client has already consumed it.
+// reply wraps a scripted response the way the gateway does: a result's
+// payload is `{response}`, and the SDK hands a verb the response inside it.
+// No correlationId: it rides the envelope, which the fake fills.
 func reply(body string) []byte {
 	return []byte(`{"response":` + body + `}`)
 }
@@ -42,9 +41,8 @@ func TestBrowseJSONPassesThroughInProcess(t *testing.T) {
 			t.Fatalf("browse --json: exit %d", code)
 		}
 	})
-	if !strings.Contains(out, `"response"`) {
-		t.Errorf("--json must print the RAW reply, got:\n%s", out)
-	}
+	// The reply's response, as the gateway sent it.
+	harness.MustContainAll(t, "raw response", out, `{"resources":[],"total":0}`)
 }
 
 func TestBrowseSendsItsFilters(t *testing.T) {
@@ -122,7 +120,7 @@ func TestMatchSearchJSONCarriesTheMatchKind(t *testing.T) {
 			t.Fatalf("match --search --json: exit %d", code)
 		}
 	})
-	harness.MustContainAll(t, "raw reply", out, `"response"`, `"matchKind":"semantic"`)
+	harness.MustContainAll(t, "raw response", out, `"matchKind":"semantic"`)
 }
 
 func TestMatchRefusalsInProcess(t *testing.T) {
@@ -301,7 +299,7 @@ func TestBrowseAnnotationRefusals(t *testing.T) {
 func TestBrowseReportsARejection(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.RequestErr = &bus.RequestError{Channel: "browse:resource-failed", Message: "resource vanished"}
+	fake.Rejections["browse:resource-requested"] = []byte(`{"message":"resource vanished"}`)
 
 	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"res-9"}); code == 0 {

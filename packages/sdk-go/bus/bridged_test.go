@@ -11,7 +11,7 @@ package bus
 
 import "testing"
 
-// Subscribe sends the channels it is given as the `global` list of a POST
+// A transport sends the channels it is given as the `global` list of a POST
 // /bus/subscribe body, and the gateway registers one route per entry with no
 // dedup: subscribed whole, a bridged set holding a duplicate would deliver
 // every frame on that channel twice.

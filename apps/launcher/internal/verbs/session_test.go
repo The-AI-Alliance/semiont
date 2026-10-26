@@ -3,27 +3,34 @@ package verbs
 // The invisible session refresh, as EVERY verb gets it.
 //
 // `semiont login` stores a short-lived access token and the refresh token that
-// renews it. A verb whose request the gateway answers with 401 must renew the
-// session at the issuer, retry ONCE under the renewed token, and save the
-// rotation — and must send the user back to `semiont login` only when that
-// renewal itself fails. Without that, a five-minute access token means a
-// `browse` at minute six prints "the session was rejected" with no refresh
-// attempted.
+// renews it. A verb whose token the gateway refuses must renew the session at
+// the issuer, go on under the renewed token, and save the rotation — and must
+// send the user back to `semiont login` only when that renewal itself fails,
+// or the gateway refuses the token it renewed to. Without that, a five-minute
+// access token means a `browse` at minute six prints "the session was
+// rejected" with no refresh attempted.
 //
-// In process, through the transport seam: the fakes are keyed by TOKEN, so
-// which token reached the wire, and in what order, is the assertion. The
-// issuer is the one real HTTP server here — the refresh grant is plain HTTP
-// the launcher speaks itself, so it is exercised for real.
+// In process, over the SDK's real transport: the gateway is a stub that
+// accepts the bearers each test says it does, and records every one it was
+// shown. The SDK's transport keeps the rule that a refused request is renewed
+// once and sent once more (the SDK conformance suite holds it); what is the
+// launcher's, and asserted here, is the session it asks: how many grants the
+// issuer sees, what is saved, and what the user is told. The issuer is the one
+// other real HTTP server here — the refresh grant is plain HTTP the launcher
+// speaks itself, so it is exercised for real.
 //
 // Failure messages name counts and positions, never a token's value: even a
 // stub's token stays out of test output on principle.
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -33,7 +40,6 @@ import (
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
 // issuerStub is the token endpoint: it answers the refresh grant as scripted
@@ -82,64 +88,171 @@ func storeSession(t *testing.T, issuer *issuerStub, expiresAt time.Time) {
 	}
 }
 
-// transportsByToken hands each token its own fake and records the order in
-// which the verb asked for transports. A token no fake was scripted for is a
-// test failure, not a silent fallback — the fakes ARE the expectation.
-func transportsByToken(t *testing.T, fakes map[string]*bustest.Fake) (built *[]string, restore func()) {
+// shown is one bearer the gateway stub was shown: on which route, and
+// whether it accepted it.
+type shown struct {
+	route    string
+	token    string
+	accepted bool
+}
+
+// gatewayStub is the stack's gateway, as much of it as a verb's session
+// meets: the bus's two routes, and who a token is. It accepts the bearers
+// accepts says it does and refuses every other with 401. A request on an
+// operation it was given a reply for is answered on the requester's stream.
+type gatewayStub struct {
+	*httptest.Server
+	accepts func(token string) bool
+	// replies: request channel → the response its result carries.
+	replies map[bus.Channel]string
+
+	mu    sync.Mutex
+	shown []shown
+	// emits is the channels of the emits it accepted, in order.
+	emits []bus.Channel
+	// streams: clientId → the events its stream is sent.
+	streams map[string]chan string
+	done    chan struct{}
+}
+
+func newGatewayStub(t *testing.T, accepts func(token string) bool) *gatewayStub {
 	t.Helper()
-	var order []string
-	restore = launcher.UseTransport(func(base, token string) bus.Transport {
-		order = append(order, token)
-		f, ok := fakes[token]
-		if !ok {
-			t.Errorf("transport #%d was built for a token no fake was scripted for", len(order))
-			f = rejecting()
-		}
-		f.Base, f.Token = base, token
-		return f
-	})
-	return &order, restore
+	g := &gatewayStub{
+		accepts: accepts,
+		replies: map[bus.Channel]string{},
+		streams: map[string]chan string{},
+		done:    make(chan struct{}),
+	}
+	g.Server = httptest.NewServer(http.HandlerFunc(g.serve))
+	// Cleanups run last first: the held streams end, then the server closes.
+	t.Cleanup(g.Close)
+	t.Cleanup(func() { close(g.done) })
+	return g
 }
 
-// rejecting is a gateway that answers every call with 401.
-func rejecting() *bustest.Fake {
-	f := bustest.NewFake()
-	unauthorized := &bus.StatusError{Op: "subscribe", Status: http.StatusUnauthorized}
-	f.RequestErr, f.EmitErr = unauthorized, unauthorized
-	return f
+func (g *gatewayStub) admit(r *http.Request) bool {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	accepted := g.accepts(token)
+	g.mu.Lock()
+	g.shown = append(g.shown, shown{route: r.URL.Path, token: token, accepted: accepted})
+	g.mu.Unlock()
+	return accepted
 }
 
-// answering is a gateway that accepts the token: it answers `browse` and
-// counts one subscriber for a signal.
-func answering() *bustest.Fake {
-	f := bustest.NewFake()
-	f.Counted(1)
-	f.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
-	return f
-}
-
-// wantOrder checks which token each transport was built for, by position.
-func wantOrder(t *testing.T, built *[]string, want ...string) {
-	t.Helper()
-	got := *built
-	if len(got) != len(want) {
-		t.Errorf("want %d transport(s) built, got %d", len(want), len(got))
+func (g *gatewayStub) serve(w http.ResponseWriter, r *http.Request) {
+	if !g.admit(r) {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("transport #%d was built for the wrong token", i+1)
+	switch r.URL.Path {
+	case "/api/users/me":
+		w.WriteHeader(http.StatusOK)
+	case "/bus/subscribe":
+		var body struct {
+			ClientID string `json:"clientId"`
 		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		events := make(chan string, 16)
+		g.mu.Lock()
+		g.streams[body.ClientID] = events
+		g.mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher := w.(http.Flusher)
+		flusher.Flush()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-g.done:
+				return
+			case event := <-events:
+				_, _ = io.WriteString(w, event)
+				flusher.Flush()
+			}
+		}
+	case "/bus/emit":
+		var body struct {
+			Channel       bus.Channel `json:"channel"`
+			ClientID      string      `json:"clientId"`
+			CorrelationID string      `json:"correlationId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		g.mu.Lock()
+		g.emits = append(g.emits, body.Channel)
+		response, scripted := g.replies[body.Channel]
+		stream := g.streams[body.ClientID]
+		g.mu.Unlock()
+		if operation, isOperation := bus.Operations[body.Channel]; isOperation && scripted && body.CorrelationID != "" && stream != nil {
+			data, _ := json.Marshal(map[string]any{
+				"channel":       operation.Result,
+				"correlationId": body.CorrelationID,
+				"payload":       json.RawMessage(`{"response":` + response + `}`),
+			})
+			stream <- fmt.Sprintf("event: bus-event\nid: e-%s:%s\ndata: %s\n\n", operation.Result, body.CorrelationID, data)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = io.WriteString(w, `{"subscribers":1}`)
+	default:
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
-func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
+// bearers is every bearer the gateway was shown, in order.
+func (g *gatewayStub) bearers() []shown {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]shown(nil), g.shown...)
+}
+
+// acceptedEmits is the channels of the emits the gateway accepted, in order.
+func (g *gatewayStub) acceptedEmits() []bus.Channel {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]bus.Channel(nil), g.emits...)
+}
+
+// times is how often token was shown on route; "" is every route.
+func (g *gatewayStub) times(route, token string) int {
+	n := 0
+	for _, s := range g.bearers() {
+		if s.token == token && (route == "" || s.route == route) {
+			n++
+		}
+	}
+	return n
+}
+
+// gatewayFixture is verbFixture with the recorded stack's gateway the stub.
+func gatewayFixture(t *testing.T, gateway *gatewayStub) {
+	t.Helper()
 	verbFixture(t)
+	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
+		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
+			"gateway": {Endpoint: gateway.URL + "/api/health"},
+		}},
+	}}
+	b, _ := json.MarshalIndent(ss, "", "  ")
+	if err := os.WriteFile(filepath.Join(launcher.StateDir(), "stack.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// only accepts one token.
+func only(token string) func(string) bool {
+	return func(presented string) bool { return presented == token }
+}
+
+// nothing accepts no token.
+func nothing(string) bool { return false }
+
+func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
+	gateway := newGatewayStub(t, only("token-2"))
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed)
 	storeSession(t, issuer, time.Time{})
-	stale, fresh := rejecting(), answering()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
-	defer restore()
 
 	stdout, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
@@ -147,12 +260,24 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 		}
 	})
 
-	// One request under the rejected token, one under the renewed one — and
-	// the renewed one SECOND.
-	if len(stale.Requests) != 1 || len(fresh.Requests) != 1 {
-		t.Errorf("want one request per token (rejected, then retried), got %d then %d", len(stale.Requests), len(fresh.Requests))
+	// The stale token was refused, and once the renewed one was offered it
+	// was never offered again.
+	renewedAt := -1
+	for i, s := range gateway.bearers() {
+		switch {
+		case s.token == "token-2" && renewedAt < 0:
+			renewedAt = i
+		case s.token == "token-1" && renewedAt >= 0:
+			t.Errorf("bearer #%d is the stale token, offered after the renewed one", i+1)
+		}
 	}
-	wantOrder(t, built, "token-1", "token-2")
+	if gateway.times("", "token-1") == 0 || renewedAt < 0 {
+		t.Errorf("want the stale token refused and then the renewed one used")
+	}
+	// The request went out once, under the renewed token.
+	if emits := gateway.acceptedEmits(); len(emits) != 1 || emits[0] != "browse:resources-requested" {
+		t.Errorf("want the one request accepted, got %v", emits)
+	}
 
 	// Exactly one refresh grant: the public client's, with the stored refresh token.
 	grants := issuer.refreshGrants()
@@ -187,37 +312,35 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 	}
 }
 
-// The same policy for a fire-and-forget verb: an Emit is refused the way a
-// Request is, and renewed the same way.
+// The same session for a fire-and-forget verb. Its emit and its stream are
+// refused together, and answered by one renewal.
 func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, only("token-2"))
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed)
 	storeSession(t, issuer, time.Time{})
-	stale, fresh := rejecting(), answering()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
-	defer restore()
 
 	harness.CaptureOutput(t, func() {
 		if code := Beckon([]string{"--resource", "res-1", "--annotation", "ann-2"}); code != 0 {
 			t.Errorf("beckon: exit %d — a session the issuer can renew must not fail", code)
 		}
 	})
-	if len(stale.Emits) != 1 || len(fresh.Emits) != 1 {
-		t.Errorf("want one emit per token (rejected, then retried), got %d then %d", len(stale.Emits), len(fresh.Emits))
+	if emits := gateway.acceptedEmits(); len(emits) != 1 || emits[0] != bus.BeckonFocus {
+		t.Errorf("want the one signal accepted, got %v", emits)
 	}
-	wantOrder(t, built, "token-1", "token-2")
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
+	}
+	if e := launcher.LoadTokens()["local"]; e.Token != "token-2" {
+		t.Errorf("tokens.json was not rotated to the renewed access token")
 	}
 }
 
 func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusBadRequest, `{"error":"invalid_grant","error_description":"Token is not active"}`)
 	storeSession(t, issuer, time.Time{})
-	stale := rejecting()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale})
-	defer restore()
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -227,11 +350,11 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	// The refusal names the verb, the rejection, WHY the renewal failed, and
 	// the one fix that applies.
 	harness.MustContainAll(t, "stderr", stderr, "browse", "session was rejected", "could not renew", "invalid_grant", "semiont login")
-	// A renewal that failed earns no retry, and no second grant.
-	if len(stale.Requests) != 1 {
-		t.Errorf("want exactly one request (no retry without a renewed token), got %d", len(stale.Requests))
+	// A renewal that failed earns nothing more: no second grant, and nothing
+	// sent after the refusal.
+	if got := gateway.bearers(); len(got) != 1 {
+		t.Errorf("want the stored token shown once and nothing after, got %d bearer(s)", len(got))
 	}
-	wantOrder(t, built, "token-1")
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
 	}
@@ -242,12 +365,10 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 }
 
 func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed)
 	storeSession(t, issuer, time.Time{})
-	stale, fresh := rejecting(), rejecting()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
-	defer restore()
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -260,10 +381,13 @@ func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
 	if strings.Contains(stderr, "could not renew") {
 		t.Errorf("claimed the refresh failed when it succeeded:\n%s", stderr)
 	}
-	// One renewal, one retry. A second rejection is not an invitation to loop.
-	wantOrder(t, built, "token-1", "token-2")
-	if len(fresh.Requests) != 1 {
-		t.Errorf("want exactly one retry, got %d", len(fresh.Requests))
+	// One renewal, and the gateway asked once who the renewed token is. A
+	// second refusal is not an invitation to loop.
+	if n := gateway.times("", "token-2"); n != 1 {
+		t.Errorf("want the renewed token shown exactly once, got %d", n)
+	}
+	if n := gateway.times("/api/users/me", "token-2"); n != 1 {
+		t.Errorf("want the gateway asked once who the renewed token is, got %d", n)
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
@@ -273,10 +397,8 @@ func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
 // A session with nothing to renew from — the fixture's bare access token — is
 // refused plainly, without a grant nobody could send.
 func TestBusVerbWithNoRefreshTokenReportsRejection(t *testing.T) {
-	verbFixture(t)
-	stale := rejecting()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"test-token": stale})
-	defer restore()
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -284,33 +406,30 @@ func TestBusVerbWithNoRefreshTokenReportsRejection(t *testing.T) {
 		}
 	})
 	harness.MustContainAll(t, "stderr", stderr, "session was rejected", "semiont login")
-	wantOrder(t, built, "test-token")
-	if len(stale.Requests) != 1 {
-		t.Errorf("want exactly one request, got %d", len(stale.Requests))
+	if got := gateway.bearers(); len(got) != 1 {
+		t.Errorf("want the stored token shown once and nothing after, got %d bearer(s)", len(got))
 	}
 }
 
 // PROACTIVE: a token the store already knows is expired is renewed before the
-// first request, so the verb never spends a round-trip to be told 401.
+// stream opens, so the verb never spends a round-trip to be told 401.
 func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, only("token-2"))
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed)
 	storeSession(t, issuer, time.Now().Add(-time.Minute))
-	stale, fresh := rejecting(), answering()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
-	defer restore()
 
 	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
 			t.Errorf("browse: exit %d", code)
 		}
 	})
-	if len(stale.Requests) != 0 {
-		t.Errorf("an access token known to be expired still reached the wire (%d request(s))", len(stale.Requests))
+	if n := gateway.times("", "token-1"); n != 0 {
+		t.Errorf("an access token known to be expired still reached the gateway (%d time(s))", n)
 	}
-	wantOrder(t, built, "token-2")
-	if len(fresh.Requests) != 1 {
-		t.Errorf("want exactly one request under the renewed token, got %d", len(fresh.Requests))
+	if emits := gateway.acceptedEmits(); len(emits) != 1 {
+		t.Errorf("want exactly one request under the renewed token, got %d", len(emits))
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant, got %d", n)
@@ -320,34 +439,33 @@ func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
 // …and one that is NOT yet expired is sent as it is. Renewing on every call
 // would make the refresh token the access token.
 func TestALiveSessionIsSentWithoutRenewal(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, only("token-1"))
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed)
 	storeSession(t, issuer, time.Now().Add(time.Hour))
-	live := answering()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": live})
-	defer restore()
 
 	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
 			t.Errorf("browse: exit %d", code)
 		}
 	})
-	wantOrder(t, built, "token-1")
 	if n := len(issuer.refreshGrants()); n != 0 {
 		t.Errorf("a live session was renewed unasked (%d grant(s))", n)
+	}
+	if n := gateway.times("/api/users/me", "token-1"); n != 0 {
+		t.Errorf("a live session's token was asked about unasked (%d time(s))", n)
 	}
 }
 
 // When the proactive renewal fails (issuer down, refresh token expired), the
 // stored token is still TRIED — clocks skew, and the gateway is the judge — and
-// a 401 then is reported without a second grant.
+// a refusal then is reported without a second grant.
 func TestExpiredSessionWhoseRenewalFailsIsStillTriedOnce(t *testing.T) {
-	verbFixture(t)
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusBadRequest, `{"error":"invalid_grant"}`)
 	storeSession(t, issuer, time.Now().Add(-time.Minute))
-	stale := rejecting()
-	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale})
-	defer restore()
 
 	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
@@ -355,9 +473,8 @@ func TestExpiredSessionWhoseRenewalFailsIsStillTriedOnce(t *testing.T) {
 		}
 	})
 	harness.MustContainAll(t, "stderr", stderr, "session was rejected", "could not renew", "semiont login")
-	wantOrder(t, built, "token-1")
-	if len(stale.Requests) != 1 {
-		t.Errorf("want the stored token tried exactly once, got %d request(s)", len(stale.Requests))
+	if n := gateway.times("", "token-1"); n != 1 {
+		t.Errorf("want the stored token tried exactly once, got %d time(s)", n)
 	}
 	if n := len(issuer.refreshGrants()); n != 1 {
 		t.Errorf("want exactly one refresh grant (not one per attempt), got %d", n)

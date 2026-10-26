@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
@@ -55,8 +57,9 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	verbFixture(t)
 	fake := bustest.NewFake()
 	fake.Counted(2)
-	restore := launcher.UseTransport(func(base, token string) bus.Transport {
-		fake.Base, fake.Token = base, token
+	var built []semiont.HTTPTransportConfig
+	restore := launcher.UseTransport(func(config semiont.HTTPTransportConfig) semiont.Transport {
+		built = append(built, config)
 		return fake
 	})
 	defer restore()
@@ -80,8 +83,23 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	}
 	// The transport is also how the token and base reach the wire — a seam that
 	// dropped either would still emit, and still be wrong.
-	if fake.Token != "test-token" {
-		t.Errorf("transport built with token %q, want the stored one", fake.Token)
+	if len(built) != 1 {
+		t.Fatalf("want exactly one transport for one command, got %d", len(built))
+	}
+	config := built[0]
+	if config.Token.Value() != "test-token" {
+		t.Errorf("transport built with token %q, want the stored one", config.Token.Value())
+	}
+	if config.BaseURL != "http://localhost:4000" {
+		t.Errorf("transport built for %q, want the recorded gateway", config.BaseURL)
+	}
+	if config.Refresher == nil {
+		t.Error("transport built with no refresher: a refused token could never be renewed")
+	}
+	// The command's own stream is no audience for its signal: a stream that
+	// named beckon:focus would be counted among the subscribers it reports.
+	if slices.Contains(config.Channels, bus.BeckonFocus) {
+		t.Errorf("the command's stream names %s, the channel it emits on", bus.BeckonFocus)
 	}
 }
 
@@ -102,10 +120,7 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 		if c.counted {
 			fake.Counted(c.subscribers)
 		}
-		restore := launcher.UseTransport(func(base, token string) bus.Transport {
-			fake.Base, fake.Token = base, token
-			return fake
-		})
+		restore := launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake })
 		out := harness.CaptureStdout(t, func() {
 			if code := Beckon([]string{"--resource", "res-1", "--annotation", "ann-2"}); code != 0 {
 				t.Fatalf("beckon: exit %d", code)

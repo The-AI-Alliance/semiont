@@ -6,7 +6,6 @@ package verbs
 // operations — so unbinding is the same call with op "remove".
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -122,7 +121,8 @@ options:
 	if !ok {
 		return 1
 	}
-	cli := t.Transport()
+	b := t.Bus()
+	defer b.Close()
 
 	var item api.AnnotationBody
 	purpose := api.BodyPurpose("linking")
@@ -142,7 +142,7 @@ options:
 		Op:   api.BindBodyOperationOp(op),
 		Item: &item,
 	}}
-	reply, err := cli.Request(context.Background(), "bind:update-body", cmd, nil)
+	reply, err := b.Request("bind:update-body", cmd, requestWithin)
 	if err != nil {
 		return busFail(u, "bind", err)
 	}

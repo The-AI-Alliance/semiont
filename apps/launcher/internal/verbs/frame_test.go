@@ -7,6 +7,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
@@ -27,10 +28,7 @@ func withFake(t *testing.T) (*bustest.Fake, func()) {
 	t.Helper()
 	verbFixture(t)
 	fake := bustest.NewFake()
-	restore := launcher.UseTransport(func(base, token string) bus.Transport {
-		fake.Base, fake.Token = base, token
-		return fake
-	})
+	restore := launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake })
 	return fake, restore
 }
 
@@ -68,10 +66,11 @@ func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	// A rejection arrives on the operation's failure channel, which the client
-	// surfaces as *bus.RequestError — the type busFail unwraps to print the
-	// gateway's own words. A plain error would take a different branch.
-	fake.RequestErr = &bus.RequestError{Channel: "frame:add-entity-type-failed", Message: "vocabulary is frozen"}
+	// A rejection arrives on the operation's failure channel, which the SDK
+	// surfaces as a *semiont.BusRequestError carrying it — what busFail reads
+	// to print the gateway's own words. A plain error would take a different
+	// branch.
+	fake.Rejections["frame:add-entity-type"] = []byte(`{"message":"vocabulary is frozen"}`)
 
 	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code == 0 {
