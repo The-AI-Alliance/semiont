@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -43,8 +44,11 @@ func Exporting() (flush func(), exporting bool) {
 	described := resource.NewSchemaless(attribute.String("service.name", "semiont-conformance-driver"))
 	tracers := sdktrace.NewTracerProvider(sdktrace.WithBatcher(spans), sdktrace.WithResource(described))
 	meters := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(counts)), sdkmetric.WithResource(described))
+	// As an application turns tracing on: its providers, and W3C's propagator,
+	// which the SDK reads to carry a trace.
 	otel.SetTracerProvider(tracers)
 	otel.SetMeterProvider(meters)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 	return func() {
 		// What could not be sent is said, and the driver exits failing: the
 		// suite reads what arrived only from a driver that exited cleanly.

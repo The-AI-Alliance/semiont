@@ -3,7 +3,8 @@
 The conformance suite holds it from outside, through an exporter. This holds
 it here, in memory: every row arrives, of its kind, with the attributes every
 one of them carries; nothing arrives under a row's name with an attribute the
-row does not list; and a trace crosses the wire in both directions.
+row does not list; a trace crosses the wire in both directions; and it
+travels by the propagator the process is configured with, or not at all.
 """
 
 import re
@@ -12,6 +13,8 @@ import pytest
 from aio import run, soon
 from gateway_server import GatewayServer
 from opentelemetry import metrics, trace
+from opentelemetry.propagate import get_global_textmap, set_global_textmap
+from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader, Sum
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -19,10 +22,11 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind
 
+from semiont import telemetry
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
 from semiont.telemetry_table import METRICS, SPANS, SpanKindName, SpanRow
-from semiont.transport import Frame, PutBinaryRequest
+from semiont.transport import Frame, PutBinaryRequest, TraceContext
 from semiont.watched import Variable, reached
 
 KINDS: dict[SpanKindName, SpanKind] = {"client": SpanKind.CLIENT, "consumer": SpanKind.CONSUMER, "producer": SpanKind.PRODUCER}
@@ -147,3 +151,17 @@ def test_the_emits_sent_are_counted(exported: tuple[InMemorySpanExporter, InMemo
     before = sent()
     run(traffic())
     assert sent() - before == 2
+
+
+def test_with_no_propagator_no_trace_travels(exported: tuple[InMemorySpanExporter, InMemoryMetricReader]) -> None:
+    """Which propagator carries a trace is the application's: with none configured, none travels, and a frame keeps the trace it brought."""
+    configured = get_global_textmap()
+    set_global_textmap(CompositePropagator([]))
+    try:
+        with trace.get_tracer("test").start_as_current_span("work"):
+            assert telemetry.trace_headers() == {}, "a request made in a trace carries one with no propagator to write it"
+            assert telemetry.active() is None
+        sent = TraceContext(traceparent=SENT_UNDER, tracestate=None)
+        assert telemetry.received("beckon:focus", None, sent) == sent, "a frame is continued in another trace than the one it brought"
+    finally:
+        set_global_textmap(configured)
