@@ -1,0 +1,37 @@
+name: Path Labels
+
+# Adds to every pull request the labels of the files it changes: the app, test
+# suite, SDK or part of the spec each is in (scripts/lint/path-labels.mjs, the
+# rule lint:labels holds .github/labels.yml to). It only adds; the other
+# labels are the author's to choose.
+#
+# pull_request_target runs the workflow as main has it, with a token that can
+# label: under pull_request, a pull request from Dependabot or a fork gets a
+# read-only one. So it checks out main, never the pull request's code, and
+# reads the pull request's files from the API.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+# One run per pull request: a push cancels the run of the push before it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Label from paths
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Add the labels of the changed files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/label-pull-request.mjs ${{ github.repository }} ${{ github.event.pull_request.number }}

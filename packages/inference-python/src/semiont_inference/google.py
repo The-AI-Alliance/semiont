@@ -65,7 +65,7 @@ read by people. On the paid tier it is not, and it is kept fifty-five days
 to detect abuse, which nothing of this API turns off.
 
 **What the library does on its own, and what is done about each**
-(`google-genai`, read at 2.29.0, so that a new release of it is read for the
+(`google-genai`, read at 2.31.0, so that a new release of it is read for the
 same):
 
 - It turns to Vertex AI where `GOOGLE_GENAI_USE_VERTEXAI` or
@@ -103,6 +103,11 @@ same):
   is given them (`_ATTEMPTS`, `_ASKED_AGAIN` and the waits beside them).
 - It runs every generation through its loop of automatic function calls,
   and logs that it does. That is turned off: no function is offered.
+- It continues a generation on its own: a reply that ends `CONTINUATION`
+  with a continuation token is followed by the same request with that token,
+  until the model finishes, and the replies are merged. That is turned off
+  (`automatic_continuation`): one generation is one request, and its reason
+  for stopping is the provider's word.
 - It builds a reply into typed models, takes the first of several
   candidates, and warns of a finish reason it does not know. A generation's
   reply is asked for as the HTTP response it was, and read here as the JSON
@@ -653,6 +658,7 @@ class GoogleInferenceClient:
             response_mime_type=None if held_to is None else "application/json",
             response_json_schema=held_to,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            automatic_continuation=False,
             # The reply as the HTTP response it was, and not as the library's models of it.
             should_return_http_response=True,
             # Nothing is to be kept. The library has no field for `store`: this is put into the request's body as it is written.

@@ -107,7 +107,8 @@
     "lint:state-unit-census": "node scripts/lint/check-state-unit-census.mjs",
     "lint:state-unit-cases": "node scripts/lint/check-state-unit-cases.mjs",
     "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs",
-    "lint:workflows": "node scripts/lint/check-workflows.mjs"
+    "lint:workflows": "node scripts/lint/check-workflows.mjs",
+    "lint:labels": "node scripts/lint/check-labels.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
@@ -129,7 +130,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.109",
+    "@opencode-ai/models": "0.0.112",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",

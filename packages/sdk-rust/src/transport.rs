@@ -393,7 +393,8 @@ pub trait Transport: Send + Sync + 'static {
     /// The connection's state: the current value, and each change after it.
     fn state(&self) -> watch::Receiver<ConnectionState>;
 
-    /// The failures the transport meets, from now on.
+    /// The failures the transport meets, from now on. A listener taken as
+    /// soon as the transport is made hears every one, from its first request.
     fn failures(&self) -> Failures;
 
     /// Await the reply to `correlation_id` on one of `reply_channels`. A
