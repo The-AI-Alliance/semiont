@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"math"
 	"os"
 	"reflect"
@@ -36,29 +35,24 @@ var requestWithin = semiont.DefaultTiming().BusRequestTimeout
 
 // arrivals is the frames of channels, delivered from when it is called, on
 // one channel; stop lets them go. The frames that arrive while nobody reads
-// wait, in order.
+// wait, in the order the stream delivered them, whatever their channel: a
+// job's progress is read before the completion that followed it.
 func arrivals(transport semiont.Transport, channels []bus.Channel) (frames <-chan semiont.Frame, stop func(), err error) {
-	listeners := make([]iter.Seq[semiont.Frame], 0, len(channels))
-	for _, channel := range channels {
-		listener, err := transport.Frames(channel)
-		if err != nil {
-			return nil, nil, err
-		}
-		listeners = append(listeners, listener)
+	listener, err := transport.Frames(channels...)
+	if err != nil {
+		return nil, nil, err
 	}
 	out := make(chan semiont.Frame)
 	stopped := make(chan struct{})
-	for _, listener := range listeners {
-		go func() {
-			for frame := range listener {
-				select {
-				case out <- frame:
-				case <-stopped:
-					return
-				}
+	go func() {
+		for frame := range listener {
+			select {
+			case out <- frame:
+			case <-stopped:
+				return
 			}
-		}()
-	}
+		}
+	}()
 	return out, func() { close(stopped) }, nil
 }
 

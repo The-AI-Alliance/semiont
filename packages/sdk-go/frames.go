@@ -131,14 +131,20 @@ func newBroadcast[T any]() *broadcast[T] {
 // that has ended.
 func (b *broadcast[T]) listen() *queue[T] {
 	q := newQueue[T]()
+	b.join(q)
+	return q
+}
+
+// join makes q a listener: it is given what is given from now on. Joining a
+// closed broadcast ends q.
+func (b *broadcast[T]) join(q *queue[T]) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
 		q.close()
-		return q
+		return
 	}
 	b.listeners[q] = struct{}{}
-	return q
 }
 
 // leave stops q's listening and ends it.
@@ -185,23 +191,33 @@ func NewFrameHub() *FrameHub {
 	return &FrameHub{channels: map[bus.Channel]*broadcast[Frame]{}}
 }
 
-// Frames is the frames delivered on channel from now on: the listener is
-// taken when frames is called, and let go when the loop over what it returns
-// stops or the hub closes. Of a closed hub, a sequence that has ended.
-func (h *FrameHub) Frames(channel bus.Channel) iter.Seq[Frame] {
+// Frames is the frames delivered on any of channels from now on, in the order
+// they were delivered: one listener, taken when Frames is called, and let go
+// when the loop over what it returns stops or the hub closes. Of a closed hub,
+// a sequence that has ended.
+func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
+	q := newQueue[Frame]()
 	h.mu.Lock()
-	b, ok := h.channels[channel]
-	if !ok {
-		b = newBroadcast[Frame]()
-		if h.closed {
-			b.close()
-		} else {
+	defer h.mu.Unlock()
+	if h.closed {
+		q.close()
+		return q.all(func() {})
+	}
+	joined := make([]*broadcast[Frame], 0, len(channels))
+	for _, channel := range channels {
+		b, ok := h.channels[channel]
+		if !ok {
+			b = newBroadcast[Frame]()
 			h.channels[channel] = b
 		}
+		b.join(q)
+		joined = append(joined, b)
 	}
-	h.mu.Unlock()
-	q := b.listen()
-	return q.all(func() { b.leave(q) })
+	return q.all(func() {
+		for _, b := range joined {
+			b.leave(q)
+		}
+	})
 }
 
 // Deliver hands frame to its channel's listeners.
