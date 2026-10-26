@@ -40,10 +40,12 @@ import (
 const sdk = "go"
 
 type surfaceCase struct {
-	Why           string                       `json:"why"`
-	Args          map[string]json.RawMessage   `json:"args"`
-	Sends         json.RawMessage              `json:"sends"`
-	Answers       *json.RawMessage             `json:"answers"`
+	Why   string                     `json:"why"`
+	Args  map[string]json.RawMessage `json:"args"`
+	Sends json.RawMessage            `json:"sends"`
+	// Answers is what the row's operation is answered with: absent (empty)
+	// for none scripted, `null` for a reply that carries no response.
+	Answers       json.RawMessage              `json:"answers"`
 	Then          []map[string]json.RawMessage `json:"then"`
 	CorrelationID *string                      `json:"correlationId"`
 }
@@ -707,10 +709,10 @@ func TestAMethodDoesWhatItsRowSays(t *testing.T) {
 
 			w := newSurfaceWorld()
 			defer w.over()
-			if rc.c.Answers != nil {
+			if len(rc.c.Answers) > 0 {
 				reply := json.RawMessage(`{}`)
-				if string(*rc.c.Answers) != "null" {
-					reply = json.RawMessage(fmt.Sprintf(`{"response":%s}`, resolved(t, table.Fixtures, *rc.c.Answers)))
+				if string(rc.c.Answers) != "null" {
+					reply = json.RawMessage(fmt.Sprintf(`{"response":%s}`, resolved(t, table.Fixtures, rc.c.Answers)))
 				}
 				w.transport.Replies[bus.Channel(channel)] = reply
 			}
