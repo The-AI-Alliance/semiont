@@ -5,11 +5,15 @@
  * Detects:
  * 1. Inline hooks in conditional JSX (the killer pattern from ResourceViewer bug)
  * 2. Multiple useEventSubscriptions calls (should be combined into one)
+ *
+ * The files read are the ones git says the repository holds
+ * (scripts/lint/repository-files.mjs).
  */
 
 import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
+import { repositoryFiles } from '../lint/repository-files.mjs';
 
 interface HookViolation {
   filePath: string;
@@ -198,10 +202,6 @@ class HooksOrderingAuditor {
    * Analyze a single file
    */
   analyzeFile(filePath: string): void {
-    if (!fs.existsSync(filePath)) {
-      return;
-    }
-
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
     const sourceFile = ts.createSourceFile(
       filePath,
@@ -229,44 +229,16 @@ class HooksOrderingAuditor {
   }
 
   /**
-   * Recursively find all .ts and .tsx files
+   * Analyze the .ts and .tsx files under each of `dirs`, directories relative
+   * to `root`, that git says the repository holds, tests left out
    */
-  private findSourceFiles(dir: string): string[] {
-    const files: string[] = [];
-
-    if (!fs.existsSync(dir)) {
-      return files;
-    }
-
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-
-      // Skip node_modules, dist, build, etc.
-      if (entry.isDirectory()) {
-        if (!['node_modules', 'dist', 'build', '.next', 'coverage'].includes(entry.name)) {
-          files.push(...this.findSourceFiles(fullPath));
-        }
-      } else if (entry.isFile() && /\.(tsx?)$/.test(entry.name)) {
-        // Skip test files
-        if (!/\.(test|spec)\.(tsx?)$/.test(entry.name)) {
-          files.push(fullPath);
-        }
-      }
-    }
-
-    return files;
-  }
-
-  /**
-   * Analyze all files in directories
-   */
-  analyzeDirectories(dirs: string[]): void {
+  analyzeDirectories(root: string, dirs: string[]): void {
+    const files: string[] = repositoryFiles(root).filter(
+      (file: string) => /\.tsx?$/.test(file) && !/\.(test|spec)\.tsx?$/.test(file),
+    );
     for (const dir of dirs) {
-      const files = this.findSourceFiles(dir);
-      for (const file of files) {
-        this.analyzeFile(file);
+      for (const file of files.filter((f) => f.startsWith(`${dir}/`))) {
+        this.analyzeFile(path.join(root, file));
       }
     }
   }
@@ -357,12 +329,8 @@ if (require.main === module) {
   const auditor = new HooksOrderingAuditor();
 
   const repoRoot = path.resolve(__dirname, '../..');
-  const dirs = [
-    path.join(repoRoot, 'packages/react-ui/src'),
-    path.join(repoRoot, 'apps/browser/src'),
-  ];
 
-  auditor.analyzeDirectories(dirs);
+  auditor.analyzeDirectories(repoRoot, ['packages/react-ui/src', 'apps/browser/src']);
   auditor.printReport();
 }
 
