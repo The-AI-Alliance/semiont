@@ -41,6 +41,7 @@ __all__ = [
     "RECONNECT_MS",
     "REFRESH_BEFORE_EXP_MS",
     "REFRESH_RETRY",
+    "REQUEST_RETRY_PAUSE_MS",
     "SEARCH_DEBOUNCE_MS",
     "SEEN_EVENT_IDS_COUNT",
     "TIMING_NAMES",
@@ -73,6 +74,15 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 # anchored text may be held by the Archivist while the Smelter reads the content, for the time
 # docs/protocol/ARCHIVIST.md states, and this deadline is longer than that wait.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
+
+# The wait before an HTTP request that is neither the stream nor an emit is made a second time.
+# It is made again when the gateway answered it with a status that promises recovery, or did not
+# answer at all, on a method that cannot cause a second effect (`transport` in
+# specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when
+# that is longer. A request whose credential was refused is renewed and sent again at once,
+# without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made
+# again.
+REQUEST_RETRY_PAUSE_MS: Final = 300
 
 # The first wait before a failed stream is opened again. Each further failure doubles it, up to
 # `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with
@@ -211,6 +221,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "emitTimeoutMs",
     "emitRetry",
     "httpRequestTimeoutMs",
+    "requestRetryPauseMs",
     "reconnectMs",
     "maxReconnectMs",
     "degradedThresholdMs",
