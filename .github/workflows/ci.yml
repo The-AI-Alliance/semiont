@@ -691,7 +691,7 @@ jobs:
     name: Worker Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true'
 
     steps:
       - name: Checkout code
@@ -737,6 +737,17 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v10.3.0
+
+      # The Go worker driver is a static binary, built from the drivers' own
+      # module, as the SDK suite's are.
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: packages/sdk-go/conformance/go.mod
+          cache: false
+
+      - name: Build the Go drivers
+        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's worker driver, put through the corpus against the gateway;
       # the suite type-checks the TypeScript driver and makes the Python SDK's
