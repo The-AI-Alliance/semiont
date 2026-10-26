@@ -29,13 +29,14 @@ from kb import (
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
-from semiont.cache import SAVE_DEBOUNCE_MS, Failed, Pending, Ready
+from semiont.cache import Failed, Pending, Ready
 from semiont.client import CachePersistence, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.namespaces.browse import Collaborator
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
 from semiont.testing import FaultyTransport, StubGateway
+from semiont.timing import SAVE_DEBOUNCE_MS
 
 type Client = SemiontClient[FaultyTransport]
 

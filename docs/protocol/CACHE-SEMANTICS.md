@@ -389,10 +389,13 @@ cache durable, per-KB rehydration:
 3. **Settled values only.** The store never contains B15 failure markers,
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.
-4. **Saves are debounced** (default 50 ms) and **`dispose()` flushes a
-   pending save synchronously before going inert** — the flush is part of
-   the disposal act, so a KB switch cannot lose the last write; nothing
-   may save after disposal (B16 extends to the persister).
+4. **Saves are debounced** (`saveDebounceMs` in
+   [`specs/src/client/timing.json`](../../specs/src/client/timing.json)) and
+   **`dispose()` flushes a pending save synchronously before going inert** —
+   the flush is part of the disposal act, so a KB switch cannot lose the last
+   write; nothing may save after disposal (B16 extends to the persister). A
+   document larger than `maxStoredBytesCount` loses the entries that have gone
+   longest without a new value until it fits.
 5. **Version-gated.** A stored document whose version doesn't match (or
    that fails to parse) reads as empty — never an error into the cache.
 6. **Cross-context sync** rides the persister's `subscribe` (the

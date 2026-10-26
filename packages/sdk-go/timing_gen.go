@@ -114,6 +114,17 @@ type Timing struct {
 	// end. Each refetch is a request the session's principal pays for, and
 	// another principal's bulk write invalidates an observed key once per event.
 	InvalidationWindow time.Duration
+	// SaveDebounce is saveDebounceMs: How long a cache that keeps its values
+	// waits, after they last changed, before it saves them (CACHE-SEMANTICS
+	// B17): a burst of changes is one save. Disposing the cache makes a save it
+	// owes at once.
+	SaveDebounce time.Duration
+	// MaxStoredBytesCount is maxStoredBytesCount: The largest document, in
+	// bytes, a cache keeps of its values (CACHE-SEMANTICS B17). One larger loses
+	// the entries that have gone longest without a new value until it fits: what
+	// an origin may keep is a few megabytes, and the cache shares it with
+	// everything else the origin keeps.
+	MaxStoredBytesCount int
 	// JobSilence is jobSilenceMs: How long a job a client is following may say
 	// nothing before the client asks for its status. A job's progress and its
 	// end reach the client as passing frames, which a dropped stream loses and
@@ -219,6 +230,8 @@ func DefaultTiming() Timing {
 		RefreshBeforeExp:                  300000 * time.Millisecond,
 		MinRefreshDelay:                   10000 * time.Millisecond,
 		InvalidationWindow:                1000 * time.Millisecond,
+		SaveDebounce:                      50 * time.Millisecond,
+		MaxStoredBytesCount:               2097152,
 		JobSilence:                        10000 * time.Millisecond,
 		JobStatusPoll:                     5000 * time.Millisecond,
 		GenerationStallFloor:              120000 * time.Millisecond,
