@@ -204,7 +204,7 @@ func TestFakeGatewaySurvivesConcurrentRequests(t *testing.T) {
 		if err != nil {
 			return 0, err
 		}
-		req.Header.Set("Authorization", "Bearer fake-jwt-token")
+		req.Header.Set("Authorization", "Bearer "+tokenTagged("fake-jwt-token"))
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return 0, err

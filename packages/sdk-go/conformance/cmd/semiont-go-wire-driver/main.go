@@ -541,7 +541,8 @@ func (w *wire) gateway(ctx context.Context, op string) (any, error) {
 	}
 	switch op {
 	case "health":
-		return c.transport.HealthCheck(ctx)
+		report, _, err := c.transport.HealthCheck(ctx)
+		return report, err
 	case "status":
 		return c.transport.GetStatus(ctx)
 	case "current-user":

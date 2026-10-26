@@ -294,6 +294,7 @@ options:
 		if !ok {
 			return 1
 		}
+		defer t.Close()
 		return runMarkDelegate(u, t, command, resourceID, chosen, asJSON)
 	}
 	if len(delegateOnly) > 0 {
@@ -341,6 +342,7 @@ options:
 	if !ok {
 		return 1
 	}
+	defer t.Close()
 	b := t.Bus()
 	defer b.Close()
 
