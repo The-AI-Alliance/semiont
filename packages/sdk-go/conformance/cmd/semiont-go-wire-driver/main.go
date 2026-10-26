@@ -11,7 +11,9 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -47,6 +49,7 @@ type client struct {
 	token     *semiont.Watched[string]
 	transport *semiont.HTTPTransport
 	wire      *semiont.Wire
+	content   *semiont.HTTPContentTransport
 }
 
 type wire struct {
@@ -65,7 +68,11 @@ type wire struct {
 }
 
 func (w *wire) Operations() []string {
-	return []string{"open", "close", "set-token", "listen", "subscribe-resource", "release-resource", "emit", "request", "abandon", "sync"}
+	return []string{
+		"open", "close", "set-token", "listen", "subscribe-resource", "release-resource", "emit", "request", "abandon",
+		"put", "upload", "get", "get-stream", "graph", "annotations", "anchored-text",
+		"health", "status", "current-user", "media-token", "protected-resource-metadata", "sync",
+	}
 }
 
 func (w *wire) current() (*client, error) {
@@ -159,6 +166,18 @@ func (w *wire) Run(ctx context.Context, id uint64, op string, args protocol.Argu
 			return nil, protocol.Misused("no such request is unsettled")
 		}
 		return nil, nil
+	case "put":
+		return w.put(ctx, args, false, id)
+	case "upload":
+		return w.put(ctx, args, true, id)
+	case "get":
+		return w.get(ctx, args, false)
+	case "get-stream":
+		return w.get(ctx, args, true)
+	case "graph", "annotations", "anchored-text", "media-token":
+		return w.ofResource(ctx, op, args)
+	case "health", "status", "current-user", "protected-resource-metadata":
+		return w.gateway(ctx, op)
 	case "sync":
 		// Answers after everything the transport reported before it: the
 		// suite's way to know it has read every state the connection was in.
@@ -263,7 +282,7 @@ func (w *wire) open(args protocol.Arguments) (any, error) {
 	failures := transport.Failures()
 	reporting, stop := context.WithCancel(context.Background())
 	w.mu.Lock()
-	w.client = &client{token: token, transport: transport, wire: semiont.NewWire(transport)}
+	w.client = &client{token: token, transport: transport, wire: semiont.NewWire(transport), content: semiont.NewHTTPContentTransport(transport)}
 	w.stopReporting = stop
 	w.mu.Unlock()
 	w.reporters.Add(2)
@@ -378,6 +397,161 @@ func (w *wire) request(ctx context.Context, args protocol.Arguments) (any, error
 		return map[string]any{}, nil
 	}
 	return map[string]any{"response": response}, nil
+}
+
+// resource is the argument name, a resource's id; one the kind refuses is the
+// suite's mistake, since an application could not have made it.
+func resource(args protocol.Arguments, name string) (api.ResourceId, error) {
+	text, err := protocol.Text(args, name)
+	if err != nil {
+		return api.ResourceId{}, err
+	}
+	id, err := api.ParseResourceId(text)
+	if err != nil {
+		return api.ResourceId{}, protocol.Misused("%s: %v", name, err)
+	}
+	return id, nil
+}
+
+// put is an upload. reporting, it reports its progress as it is sent, under
+// the id of its operation.
+func (w *wire) put(ctx context.Context, args protocol.Arguments, reporting bool, id uint64) (any, error) {
+	c, err := w.current()
+	if err != nil {
+		return nil, err
+	}
+	var request semiont.PutBinaryRequest
+	for name, field := range map[string]*string{"name": &request.Name, "format": &request.Format, "storageUri": &request.StorageURI} {
+		if *field, err = protocol.Text(args, name); err != nil {
+			return nil, err
+		}
+	}
+	encoded, err := protocol.Text(args, "bytes")
+	if err != nil {
+		return nil, err
+	}
+	if request.Bytes, err = base64.StdEncoding.DecodeString(encoded); err != nil {
+		return nil, protocol.Misused("bytes is not base64: %v", err)
+	}
+	for name, field := range map[string]*string{"language": &request.Language, "generationPrompt": &request.GenerationPrompt} {
+		if text, ok, err := protocol.OptionalText(args, name); err != nil {
+			return nil, err
+		} else if ok {
+			*field = text
+		}
+	}
+	if _, given := args["entityTypes"]; given {
+		if request.EntityTypes, err = protocol.Texts(args, "entityTypes"); err != nil {
+			return nil, err
+		}
+	}
+	if _, given := args["sourceResourceId"]; given {
+		if request.SourceResourceID, err = resource(args, "sourceResourceId"); err != nil {
+			return nil, err
+		}
+	}
+	if text, ok, err := protocol.OptionalText(args, "sourceAnnotationId"); err != nil {
+		return nil, err
+	} else if ok {
+		if request.SourceAnnotationID, err = api.ParseAnnotationId(text); err != nil {
+			return nil, protocol.Misused("sourceAnnotationId: %v", err)
+		}
+	}
+	if text, ok, err := protocol.OptionalText(args, "jobId"); err != nil {
+		return nil, err
+	} else if ok {
+		if request.JobID, err = api.ParseJobId(text); err != nil {
+			return nil, protocol.Misused("jobId: %v", err)
+		}
+	}
+	if raw, given := args["isDraft"]; given {
+		var draft bool
+		if json.Unmarshal(raw, &draft) != nil {
+			return nil, protocol.Misused("isDraft must be a boolean")
+		}
+		request.IsDraft = &draft
+	}
+	upload := c.content.PutBinary(ctx, request)
+	if reporting {
+		for progress := range upload.Progress() {
+			protocol.Say(map[string]any{"progress": map[string]any{"upload": id, "bytesUploaded": progress.BytesUploaded, "totalBytes": progress.TotalBytes}})
+		}
+	}
+	created, err := upload.Wait(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"resourceId": created.ResourceId.String()}, nil
+}
+
+func (w *wire) get(ctx context.Context, args protocol.Arguments, asStream bool) (any, error) {
+	c, err := w.current()
+	if err != nil {
+		return nil, err
+	}
+	id, err := resource(args, "resource")
+	if err != nil {
+		return nil, err
+	}
+	var contentType string
+	var bytes []byte
+	if asStream {
+		stream, err := c.content.GetBinaryStream(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		defer stream.Bytes.Close()
+		if bytes, err = io.ReadAll(stream.Bytes); err != nil {
+			return nil, err
+		}
+		contentType = stream.ContentType
+	} else {
+		content, err := c.content.GetBinary(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		contentType, bytes = content.ContentType, content.Bytes
+	}
+	return map[string]any{"contentType": contentType, "bytes": base64.StdEncoding.EncodeToString(bytes)}, nil
+}
+
+// ofResource is a read of one resource, or a media token for it: what the
+// gateway answered.
+func (w *wire) ofResource(ctx context.Context, op string, args protocol.Arguments) (any, error) {
+	c, err := w.current()
+	if err != nil {
+		return nil, err
+	}
+	id, err := resource(args, "resource")
+	if err != nil {
+		return nil, err
+	}
+	switch op {
+	case "graph":
+		return c.content.GetResourceGraph(ctx, id)
+	case "annotations":
+		return c.content.GetAnnotations(ctx, id)
+	case "anchored-text":
+		return c.content.GetAnchoredText(ctx, id)
+	}
+	return c.transport.GetMediaToken(ctx, id)
+}
+
+// gateway is one of the gateway's own operations: what it answered.
+func (w *wire) gateway(ctx context.Context, op string) (any, error) {
+	c, err := w.current()
+	if err != nil {
+		return nil, err
+	}
+	switch op {
+	case "health":
+		return c.transport.HealthCheck(ctx)
+	case "status":
+		return c.transport.GetStatus(ctx)
+	case "current-user":
+		return c.transport.GetCurrentUser(ctx)
+	}
+	return c.transport.GetProtectedResourceMetadata(ctx)
 }
 
 func (w *wire) Finish() {

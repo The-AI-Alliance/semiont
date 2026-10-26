@@ -55,16 +55,7 @@ export interface SdkDrivers {
  * Go's to pass or to name here, or Go fails it.
  */
 const GO_NOT_YET_REACHED: Readonly<Record<string, string>> = {
-  'content-read': 'the Go SDK has no content transport or gateway operations yet',
-  'content-upload': 'the Go SDK has no content transport or gateway operations yet',
-  'gateway-operations': 'the Go SDK has no content transport or gateway operations yet',
-  'request-credential-limit-refused-twice': 'the Go SDK has no content transport or gateway operations yet',
-  'request-credential-renewed': 'the Go SDK has no content transport or gateway operations yet',
-  'telemetry': 'the Go SDK has no content transport or gateway operations yet',
-  'unreachable': 'the Go SDK has no content transport or gateway operations yet',
-  'upload-cancelled': 'the Go SDK has no content transport or gateway operations yet',
-  'upload-credential-renewed': 'the Go SDK has no content transport or gateway operations yet',
-  'upload-progress': 'the Go SDK has no content transport or gateway operations yet',
+  'telemetry': 'the Go SDK reports no telemetry yet',
 };
 
 /** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
