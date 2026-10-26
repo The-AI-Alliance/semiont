@@ -19,21 +19,24 @@ type awaitedReply struct {
 	reply chan Frame
 }
 
-type replyRouter struct {
+// ReplyRouter is the replies a transport's requests still await. A test double
+// of a transport routes its replies through one, as a transport does.
+type ReplyRouter struct {
 	mu      sync.Mutex
 	awaited map[string]*awaitedReply
 	closed  bool
 }
 
-func newReplyRouter() *replyRouter {
-	return &replyRouter{awaited: map[string]*awaitedReply{}}
+// NewReplyRouter is a router awaiting nothing.
+func NewReplyRouter() *ReplyRouter {
+	return &ReplyRouter{awaited: map[string]*awaitedReply{}}
 }
 
 // PendingReply is a reply a request awaits. Release stops the wait: the
 // transport names the reply no more, and one that comes anyway reaches
 // nobody.
 type PendingReply struct {
-	router        *replyRouter
+	router        *ReplyRouter
 	correlationID string
 	reply         chan Frame
 }
@@ -45,9 +48,9 @@ func (p *PendingReply) Reply() <-chan Frame { return p.reply }
 // Release stops the wait.
 func (p *PendingReply) Release() { p.router.release(p.correlationID, p.reply) }
 
-// track awaits the reply to correlationID on one of channels, until the
+// Track awaits the reply to correlationID on one of channels, until the
 // PendingReply is released.
-func (r *replyRouter) track(correlationID string, channels []bus.Channel) *PendingReply {
+func (r *ReplyRouter) Track(correlationID string, channels []bus.Channel) *PendingReply {
 	pending := &PendingReply{router: r, correlationID: correlationID, reply: make(chan Frame, 1)}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -59,7 +62,7 @@ func (r *replyRouter) track(correlationID string, channels []bus.Channel) *Pendi
 	return pending
 }
 
-func (r *replyRouter) release(correlationID string, reply chan Frame) {
+func (r *ReplyRouter) release(correlationID string, reply chan Frame) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if awaited, ok := r.awaited[correlationID]; ok && awaited.reply == reply {
@@ -67,8 +70,8 @@ func (r *replyRouter) release(correlationID string, reply chan Frame) {
 	}
 }
 
-// route hands frame to the request that awaits it, if one does.
-func (r *replyRouter) route(frame Frame) {
+// Route hands frame to the request that awaits it, if one does.
+func (r *ReplyRouter) Route(frame Frame) {
 	if frame.CorrelationID == "" {
 		return
 	}
@@ -82,8 +85,8 @@ func (r *replyRouter) route(frame Frame) {
 	awaited.reply <- frame
 }
 
-// ids is the correlation ids still awaited, in name order.
-func (r *replyRouter) ids() []string {
+// IDs is the correlation ids still awaited, in name order.
+func (r *ReplyRouter) IDs() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ids := make([]string, 0, len(r.awaited))
@@ -94,9 +97,9 @@ func (r *replyRouter) ids() []string {
 	return ids
 }
 
-// close ends every wait: each request still pending learns no reply will
+// Close ends every wait: each request still pending learns no reply will
 // come.
-func (r *replyRouter) close() {
+func (r *ReplyRouter) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.closed = true

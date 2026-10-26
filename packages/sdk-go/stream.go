@@ -320,7 +320,7 @@ func (s *stream) subscription() api.BusSubscribeRequest {
 		scoped = append(scoped, entry)
 	}
 	body := api.BusSubscribeRequest{ClientId: s.shared.clientID, Global: &global, Scoped: &scoped}
-	if awaited := s.shared.router.ids(); len(awaited) > 0 {
+	if awaited := s.shared.router.IDs(); len(awaited) > 0 {
 		body.PendingReplies = &awaited
 	}
 	return body
@@ -416,13 +416,13 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		}
 		frame.Scope = scope
 	}
-	s.shared.router.route(frame)
+	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
 	// recorded event's id (p-…) is one, and it always comes on its scope.
 	if hasID && !frame.Scope.IsZero() && strings.HasPrefix(id, "p-") {
 		s.watermarks[frame.Scope] = id
 	}
-	s.shared.hub.deliver(frame)
+	s.shared.hub.Deliver(frame)
 }
 
 func (s *stream) refused(conn uint64, err *TransportError) {
@@ -622,8 +622,8 @@ func (s *stream) close() {
 	s.lingering = nil
 	s.retryAt, s.debounceAt, s.lazyAt, s.degradedAt = nil, nil, nil, nil
 	s.wg.Wait()
-	s.shared.hub.close()
-	s.shared.router.close()
+	s.shared.hub.Close()
+	s.shared.router.Close()
 	s.shared.failures.close()
 }
 

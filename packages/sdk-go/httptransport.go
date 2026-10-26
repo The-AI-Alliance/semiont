@@ -62,8 +62,8 @@ type transportShared struct {
 	clientID string
 	global   []bus.Channel
 	timing   Timing
-	hub      *frameHub
-	router   *replyRouter
+	hub      *FrameHub
+	router   *ReplyRouter
 	failures *failureStream
 }
 
@@ -93,8 +93,8 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		clientID:  uuid.NewString(),
 		global:    slices.Clone(config.Channels),
 		timing:    config.Timing,
-		hub:       newFrameHub(),
-		router:    newReplyRouter(),
+		hub:       NewFrameHub(),
+		router:    NewReplyRouter(),
 		failures:  newFailureStream(),
 	}
 	state := NewWatched(ConnectionStateInitial)
@@ -152,7 +152,7 @@ func (t *HTTPTransport) Frames(channel bus.Channel) (iter.Seq[Frame], error) {
 			Message: fmt.Sprintf("this transport's stream does not carry %s: nothing on it can be delivered", channel),
 		}
 	}
-	return t.shared.hub.frames(channel), nil
+	return t.shared.hub.Frames(channel), nil
 }
 
 // IsSubscribed reports whether the stream delivers channel globally: whether
@@ -192,7 +192,7 @@ func (t *HTTPTransport) SubscribeToResource(resource api.ResourceId) (release fu
 // TrackReply awaits the reply to correlationID on one of channels. A request
 // calls it before it emits, so its reply cannot arrive unawaited.
 func (t *HTTPTransport) TrackReply(correlationID string, channels ...bus.Channel) *PendingReply {
-	return t.shared.router.track(correlationID, channels)
+	return t.shared.router.Track(correlationID, channels)
 }
 
 // State is the connection's state now.

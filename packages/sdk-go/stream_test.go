@@ -69,14 +69,14 @@ func TestTheBackoffWaitsBetweenHalfItsCapAndItsCap(t *testing.T) {
 }
 
 func TestASlowListenerDelaysNoOther(t *testing.T) {
-	hub := newFrameHub()
-	slow := hub.frames("beckon:focus")
-	fast := hub.frames("beckon:focus")
+	hub := NewFrameHub()
+	slow := hub.Frames("beckon:focus")
+	fast := hub.Frames("beckon:focus")
 	const count = 1000
 	for n := range count {
-		hub.deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"n":%d}`, n))})
+		hub.Deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"n":%d}`, n))})
 	}
-	hub.close()
+	hub.Close()
 	read := func(frames func(func(Frame) bool)) []string {
 		var got []string
 		for frame := range frames {

@@ -167,22 +167,24 @@ func (b *broadcast[T]) close() {
 	clear(b.listeners)
 }
 
-// frameHub is the frames of every channel anybody listens to, a broadcast per
-// channel.
-type frameHub struct {
+// FrameHub is the frames of every channel anybody listens to, a broadcast per
+// channel. What a transport delivers goes through one; so does what a test
+// double of a transport delivers.
+type FrameHub struct {
 	mu       sync.Mutex
 	channels map[bus.Channel]*broadcast[Frame]
 	closed   bool
 }
 
-func newFrameHub() *frameHub {
-	return &frameHub{channels: map[bus.Channel]*broadcast[Frame]{}}
+// NewFrameHub is a hub with no listener.
+func NewFrameHub() *FrameHub {
+	return &FrameHub{channels: map[bus.Channel]*broadcast[Frame]{}}
 }
 
-// frames is the frames delivered on channel from now on: the listener is
+// Frames is the frames delivered on channel from now on: the listener is
 // taken when frames is called, and let go when the loop over what it returns
 // stops or the hub closes. Of a closed hub, a sequence that has ended.
-func (h *frameHub) frames(channel bus.Channel) iter.Seq[Frame] {
+func (h *FrameHub) Frames(channel bus.Channel) iter.Seq[Frame] {
 	h.mu.Lock()
 	b, ok := h.channels[channel]
 	if !ok {
@@ -198,8 +200,8 @@ func (h *frameHub) frames(channel bus.Channel) iter.Seq[Frame] {
 	return q.all(func() { b.leave(q) })
 }
 
-// deliver hands frame to its channel's listeners.
-func (h *frameHub) deliver(frame Frame) {
+// Deliver hands frame to its channel's listeners.
+func (h *FrameHub) Deliver(frame Frame) {
 	h.mu.Lock()
 	b, ok := h.channels[frame.Channel]
 	h.mu.Unlock()
@@ -208,8 +210,8 @@ func (h *frameHub) deliver(frame Frame) {
 	}
 }
 
-// close ends every listener's sequence, and every one taken later.
-func (h *frameHub) close() {
+// Close ends every listener's sequence, and every one taken later.
+func (h *FrameHub) Close() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.closed = true
