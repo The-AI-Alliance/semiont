@@ -9,7 +9,7 @@ A new request clears what the last one left. Requests are not cancelled by the
 next: each lands when it is answered.
 """
 
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from types import TracebackType
 from typing import Final, Self, final, override
 
@@ -40,10 +40,12 @@ class _Slot:
         self.error.set(None)
         self.context.set(None)
 
-    async def land(self, gathering: Awaitable[GatheredContext]) -> None:
-        """Hold what `gathering` comes to: the context is there before the gather is said to be over, for a reader told so."""
+    async def land(self, start: Callable[[], Awaitable[GatheredContext]]) -> None:
+        """Hold what the gather `start` begins comes to: the context is there before the gather is said to be over, for a reader told so."""
         try:
-            self.context.set(await gathering)
+            # Begun here, not by the caller: a task cancelled before its first turn never enters
+            # this body, and would leave what it was handed unawaited.
+            self.context.set(await start())
         except SemiontError as error:
             self.error.set(error)
         self.loading.set(False)
@@ -104,7 +106,7 @@ class GatherStateUnit(StateUnit):
             return
         self._annotation.begin()
         self._annotation_id.set(annotation_id)
-        self._tasks.run(self._annotation.land(self._gather_annotation(annotation_id, context_window)))
+        self._tasks.run(self._annotation.land(lambda: self._gather_annotation(annotation_id, context_window)))
 
     def gather_resource(
         self,
@@ -120,15 +122,18 @@ class GatherStateUnit(StateUnit):
         if self._disposed:
             return
         self._resource.begin()
-        gathering = self._client.gather.resource(
-            resource_id,
-            depth=depth,
-            max_resources=max_resources,
-            include_content=include_content,
-            include_summary=include_summary,
-            exclude_entity_types=exclude_entity_types,
+        self._tasks.run(
+            self._resource.land(
+                lambda: self._client.gather.resource(
+                    resource_id,
+                    depth=depth,
+                    max_resources=max_resources,
+                    include_content=include_content,
+                    include_summary=include_summary,
+                    exclude_entity_types=exclude_entity_types,
+                )
+            )
         )
-        self._tasks.run(self._resource.land(gathering))
 
     async def _gather_annotation(self, annotation_id: AnnotationId, context_window: int) -> GatheredContext:
         complete = await self._client.gather.annotation(self._resource_id, annotation_id, context_window=context_window)
