@@ -1875,11 +1875,12 @@ jobs:
       # the kinds of id (api/ids_gen.go, whose generator also holds
       # oapi-codegen's exclude-schemas to the kinds), the error codes, the
       # client's timing, the SDK telemetry table, the sign-in store's entry,
-      # the OAuth clients and the sign-in scope, and the media types
-      # (mediatypes). TypeScript and Rust build theirs from the same files at
-      # build time; a Go module has no build step, so its are committed, and
-      # are what can go stale. The bus vocabulary and the REST client have
-      # steps of their own.
+      # the OAuth clients and the sign-in scope, the media types
+      # (mediatypes), and the Encoding Standard's labels and single-byte
+      # encodings (encodings_gen.go). TypeScript and Rust build theirs from
+      # the same files at build time; a Go module has no build step, so its
+      # are committed, and are what can go stale. The bus vocabulary and the
+      # REST client have steps of their own.
       - name: Spec tables vs the Go SDK's generated code
         run: |
           node scripts/spec/generate-identifiers-go.mjs --check
@@ -1889,6 +1890,7 @@ jobs:
           node scripts/spec/generate-sign-in-go.mjs --check
           node scripts/spec/generate-oauth-clients-go.mjs --check
           node scripts/spec/generate-media-types-go.mjs --check
+          node scripts/spec/generate-encodings-go.mjs --check
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the

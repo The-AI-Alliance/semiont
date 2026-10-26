@@ -6,80 +6,93 @@
 
 package mediatypes
 
+// TextSource is where a type's text comes from: decoded from its own bytes,
+// derived by reading them, or nowhere.
+type TextSource string
+
+const (
+	TextSourceDecode       TextSource = "decode"
+	TextSourcePdfTextLayer TextSource = "pdf-text-layer"
+	TextSourceNone         TextSource = "none"
+)
+
 // Row is one media type a knowledge base admits, with the extension a stored
-// name takes for it.
+// name takes for it, where its text comes from, and whether it is offered
+// where a person writes a resource.
 type Row struct {
-	MediaType string
-	Extension string
+	MediaType  string
+	Extension  string
+	TextSource TextSource
+	Authorable bool
 }
 
 // Rows is the registry, in its own order: 63 media types. The order is
 // read: two types that share an extension resolve, from the extension, to the
 // first row that states it.
 var Rows = []Row{
-	{MediaType: "text/markdown", Extension: ".md"},
-	{MediaType: "text/plain", Extension: ".txt"},
-	{MediaType: "text/html", Extension: ".html"},
-	{MediaType: "application/json", Extension: ".json"},
-	{MediaType: "image/png", Extension: ".png"},
-	{MediaType: "image/jpeg", Extension: ".jpg"},
-	{MediaType: "application/pdf", Extension: ".pdf"},
-	{MediaType: "text/css", Extension: ".css"},
-	{MediaType: "text/csv", Extension: ".csv"},
-	{MediaType: "text/xml", Extension: ".xml"},
-	{MediaType: "application/xml", Extension: ".xml"},
-	{MediaType: "application/yaml", Extension: ".yaml"},
-	{MediaType: "application/x-yaml", Extension: ".yaml"},
-	{MediaType: "text/javascript", Extension: ".js"},
-	{MediaType: "application/javascript", Extension: ".js"},
-	{MediaType: "text/x-typescript", Extension: ".ts"},
-	{MediaType: "application/typescript", Extension: ".ts"},
-	{MediaType: "text/x-python", Extension: ".py"},
-	{MediaType: "text/x-java", Extension: ".java"},
-	{MediaType: "text/x-c", Extension: ".c"},
-	{MediaType: "text/x-c++", Extension: ".cpp"},
-	{MediaType: "text/x-csharp", Extension: ".cs"},
-	{MediaType: "text/x-go", Extension: ".go"},
-	{MediaType: "text/x-rust", Extension: ".rs"},
-	{MediaType: "text/x-ruby", Extension: ".rb"},
-	{MediaType: "text/x-php", Extension: ".php"},
-	{MediaType: "text/x-swift", Extension: ".swift"},
-	{MediaType: "text/x-kotlin", Extension: ".kt"},
-	{MediaType: "text/x-shell", Extension: ".sh"},
-	{MediaType: "application/msword", Extension: ".doc"},
-	{MediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Extension: ".docx"},
-	{MediaType: "application/vnd.ms-excel", Extension: ".xls"},
-	{MediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Extension: ".xlsx"},
-	{MediaType: "application/vnd.ms-powerpoint", Extension: ".ppt"},
-	{MediaType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", Extension: ".pptx"},
-	{MediaType: "application/zip", Extension: ".zip"},
-	{MediaType: "application/gzip", Extension: ".gz"},
-	{MediaType: "application/x-tar", Extension: ".tar"},
-	{MediaType: "application/x-7z-compressed", Extension: ".7z"},
-	{MediaType: "application/octet-stream", Extension: ".bin"},
-	{MediaType: "application/wasm", Extension: ".wasm"},
-	{MediaType: "image/gif", Extension: ".gif"},
-	{MediaType: "image/webp", Extension: ".webp"},
-	{MediaType: "image/svg+xml", Extension: ".svg"},
-	{MediaType: "image/bmp", Extension: ".bmp"},
-	{MediaType: "image/tiff", Extension: ".tiff"},
-	{MediaType: "image/x-icon", Extension: ".ico"},
-	{MediaType: "video/mp4", Extension: ".mp4"},
-	{MediaType: "video/mpeg", Extension: ".mpeg"},
-	{MediaType: "video/webm", Extension: ".webm"},
-	{MediaType: "video/ogg", Extension: ".ogv"},
-	{MediaType: "video/quicktime", Extension: ".mov"},
-	{MediaType: "video/x-msvideo", Extension: ".avi"},
-	{MediaType: "audio/mpeg", Extension: ".mp3"},
-	{MediaType: "audio/wav", Extension: ".wav"},
-	{MediaType: "audio/ogg", Extension: ".ogg"},
-	{MediaType: "audio/webm", Extension: ".webm"},
-	{MediaType: "audio/aac", Extension: ".aac"},
-	{MediaType: "audio/flac", Extension: ".flac"},
-	{MediaType: "font/woff", Extension: ".woff"},
-	{MediaType: "font/woff2", Extension: ".woff2"},
-	{MediaType: "font/ttf", Extension: ".ttf"},
-	{MediaType: "font/otf", Extension: ".otf"},
+	{MediaType: "text/markdown", Extension: ".md", TextSource: TextSourceDecode, Authorable: true},
+	{MediaType: "text/plain", Extension: ".txt", TextSource: TextSourceDecode, Authorable: true},
+	{MediaType: "text/html", Extension: ".html", TextSource: TextSourceDecode, Authorable: true},
+	{MediaType: "application/json", Extension: ".json", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "image/png", Extension: ".png", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/jpeg", Extension: ".jpg", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/pdf", Extension: ".pdf", TextSource: TextSourcePdfTextLayer, Authorable: false},
+	{MediaType: "text/css", Extension: ".css", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/csv", Extension: ".csv", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/xml", Extension: ".xml", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/xml", Extension: ".xml", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/yaml", Extension: ".yaml", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/x-yaml", Extension: ".yaml", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/javascript", Extension: ".js", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/javascript", Extension: ".js", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-typescript", Extension: ".ts", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/typescript", Extension: ".ts", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-python", Extension: ".py", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-java", Extension: ".java", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-c", Extension: ".c", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-c++", Extension: ".cpp", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-csharp", Extension: ".cs", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-go", Extension: ".go", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-rust", Extension: ".rs", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-ruby", Extension: ".rb", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-php", Extension: ".php", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-swift", Extension: ".swift", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-kotlin", Extension: ".kt", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "text/x-shell", Extension: ".sh", TextSource: TextSourceDecode, Authorable: false},
+	{MediaType: "application/msword", Extension: ".doc", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Extension: ".docx", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/vnd.ms-excel", Extension: ".xls", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Extension: ".xlsx", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/vnd.ms-powerpoint", Extension: ".ppt", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", Extension: ".pptx", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/zip", Extension: ".zip", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/gzip", Extension: ".gz", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/x-tar", Extension: ".tar", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/x-7z-compressed", Extension: ".7z", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/octet-stream", Extension: ".bin", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "application/wasm", Extension: ".wasm", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/gif", Extension: ".gif", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/webp", Extension: ".webp", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/svg+xml", Extension: ".svg", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/bmp", Extension: ".bmp", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/tiff", Extension: ".tiff", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "image/x-icon", Extension: ".ico", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/mp4", Extension: ".mp4", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/mpeg", Extension: ".mpeg", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/webm", Extension: ".webm", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/ogg", Extension: ".ogv", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/quicktime", Extension: ".mov", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "video/x-msvideo", Extension: ".avi", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/mpeg", Extension: ".mp3", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/wav", Extension: ".wav", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/ogg", Extension: ".ogg", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/webm", Extension: ".webm", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/aac", Extension: ".aac", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "audio/flac", Extension: ".flac", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "font/woff", Extension: ".woff", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "font/woff2", Extension: ".woff2", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "font/ttf", Extension: ".ttf", TextSource: TextSourceNone, Authorable: false},
+	{MediaType: "font/otf", Extension: ".otf", TextSource: TextSourceNone, Authorable: false},
 }
 
 // ExtensionAliases are other spellings of an extension, each with the one a
