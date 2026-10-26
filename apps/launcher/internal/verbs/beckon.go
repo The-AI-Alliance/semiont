@@ -135,6 +135,16 @@ options:
 		u.Fail("--sparkle marks one annotation, so it needs --annotation <id>")
 		return 1
 	}
+	rid, ok := parsed(u, "resource", resource, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
+	var aid api.AnnotationId
+	if annotation != "" {
+		if aid, ok = parsed(u, "annotation", annotation, api.ParseAnnotationId); !ok {
+			return 1
+		}
+	}
 
 	t, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
 	if !ok {
@@ -151,14 +161,14 @@ options:
 	var payload any
 	if sparkle {
 		channel = bus.Channel("beckon:sparkle")
-		payload = api.BeckonSparkleEvent{AnnotationId: annotation}
+		payload = api.BeckonSparkleEvent{AnnotationId: aid}
 	} else {
 		// BeckonFocusEvent carries a resource and an annotation — and nothing
 		// else. An earlier version sent a `message` field the schema does not
 		// declare; the flag is gone rather than quietly dropped on the wire.
-		ev := api.BeckonFocusEvent{ResourceId: &resource}
+		ev := api.BeckonFocusEvent{ResourceId: &rid}
 		if annotation != "" {
-			ev.AnnotationId = &annotation
+			ev.AnnotationId = &aid
 		}
 		payload = ev
 	}

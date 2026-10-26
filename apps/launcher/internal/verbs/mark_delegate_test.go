@@ -166,7 +166,7 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 	asked := map[api.Motivation]bool{}
 	for _, c := range cases {
 		var args struct {
-			ResourceId string         `json:"resourceId"`
+			ResourceId api.ResourceId `json:"resourceId"`
 			Params     map[string]any `json:"params"`
 		}
 		if err := json.Unmarshal(c.Args, &args); err != nil {
@@ -201,6 +201,10 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		t.Fatal("the spec's motivations could not be read")
 	}
 	schemas := markJobSchemas(t)
+	res1, err := api.ParseResourceId("res-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range motivations {
 		motivation := api.Motivation(name)
 		if !asked[motivation] {
@@ -222,7 +226,7 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 			}
 		}
 		delete(given, "motivation")
-		if _, err := markJob("res-1", motivation, given); err != nil {
+		if _, err := markJob(res1, motivation, given); err != nil {
 			t.Errorf("the motivation %q cannot be delegated: %v", motivation, err)
 		}
 	}

@@ -194,7 +194,7 @@ func prefetchResourceNames(cli bus.Transport) map[string]string {
 		return names
 	}
 	for _, res := range r.Response.Resources {
-		names[res.Id] = res.Name
+		names[res.Id.String()] = res.Name
 	}
 	return names
 }

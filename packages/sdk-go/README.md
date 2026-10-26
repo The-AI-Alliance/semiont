@@ -22,7 +22,7 @@ it does have.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled |
+| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others), which the wire types carry | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
 | `semiont` | `health.go`: the `Health` interface and `HealthClient`, which asks the gateway whether it is serving | hand-written |
 | [`bus`](#the-bus-package) | The bus's channels, the schema each emittable channel carries, and its request and reply operations. `Transport`, and `Client`, its implementation over HTTP | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) and the largest emit of [`specs/src/paths/bus_emit.json`](../../specs/src/paths/bus_emit.json), and two hand-written files |
 | `bustest` | `Fake`, a `bus.Transport` with no server, for tests | hand-written |
@@ -126,11 +126,11 @@ media type a file's extension stands for: the first row that states the
 extension, after the registry's aliases.
 
 ```sh
-npm run generate:media-types-go          # regenerate
+npm run generate:go          # regenerate the Go SDK's tables
 ```
 
 ```sh
-npm run generate:media-types-go:check    # verify without writing, as CI does
+npm run generate:go:check    # verify without writing, as CI does
 ```
 
 ## License

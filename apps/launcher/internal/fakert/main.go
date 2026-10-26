@@ -1664,17 +1664,27 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 	if as != "" {
 		jobType = as
 	}
-	var err error
+	job, err := api.ParseJobId(jobID)
+	if err != nil {
+		return completion, false
+	}
+	resource, err := api.ParseResourceId(resourceID)
+	if err != nil {
+		return completion, false
+	}
 	switch api.JobType(jobType) {
 	case api.JobTypeYield:
 		var result api.YieldJobResult
 		if scripted != "" {
 			err = result.UnmarshalJSON([]byte(scripted))
 		} else {
-			err = result.FromYieldJobDone(api.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"})
+			var generated api.ResourceId
+			if generated, err = api.ParseResourceId("res-new"); err == nil {
+				err = result.FromYieldJobDone(api.YieldJobDone{ResourceId: generated, ResourceName: "Generated"})
+			}
 		}
 		if err == nil {
-			err = completion.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+			err = completion.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: job, ResourceId: resource, Result: &result})
 		}
 	case api.JobTypeMark:
 		var result api.MarkJobResult
@@ -1690,7 +1700,7 @@ func fakeCompletion(description map[string]any, as, jobID, resourceID, scripted 
 			return completion, false
 		}
 		if err == nil {
-			err = completion.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+			err = completion.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: job, ResourceId: resource, Result: &result})
 		}
 	default:
 		return completion, false

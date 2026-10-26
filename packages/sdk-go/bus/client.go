@@ -186,15 +186,19 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	}
 	body := api.BusSubscribeRequest{ClientId: c.clientID, Global: &global}
 	if len(scoped) > 0 {
+		resource, err := api.ParseResourceId(scope)
+		if err != nil {
+			return nil, fmt.Errorf("subscribe: %w", err)
+		}
 		entryChannels := make([]string, 0, len(scoped))
 		for _, ch := range scoped {
 			entryChannels = append(entryChannels, string(ch))
 		}
 		body.Scoped = &[]struct {
-			Channels    []string `json:"channels"`
-			LastEventId *string  `json:"lastEventId,omitempty"`
-			Scope       string   `json:"scope"`
-		}{{Scope: scope, Channels: entryChannels}}
+			Channels    []string       `json:"channels"`
+			LastEventId *string        `json:"lastEventId,omitempty"`
+			Scope       api.ResourceId `json:"scope"`
+		}{{Scope: resource, Channels: entryChannels}}
 	}
 
 	sctx, cancel := context.WithCancel(ctx)

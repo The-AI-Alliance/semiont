@@ -159,11 +159,21 @@ options:
 			fmt.Fprintln(os.Stderr, "  semiont yield --delegate --help")
 			return 1
 		}
+		rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+		if !ok {
+			return 1
+		}
+		var aid api.AnnotationId
+		if annotationID != "" {
+			if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+				return 1
+			}
+		}
 		t, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
 		}
-		return runYieldDelegate(u, t, resourceID, annotationID, request, asJSON)
+		return runYieldDelegate(u, t, rid, aid, request, asJSON)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -395,14 +405,14 @@ var yieldJobResults = resultMembers[api.YieldJobResult]{
 	declinedResult,
 }
 
-func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotationID string, request api.GenerationJobRequest, asJSON bool) int {
+func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
 	cli := t.Transport()
 	ctx := context.Background()
 
 	// Gather the grounding context first: a generation job requires it, and
 	// its focus names the resource or annotation the generation is about.
 	var gathered api.GatheredContext
-	if annotationID != "" {
+	if !annotationID.IsZero() {
 		reply, err := cli.Request(ctx, "gather:requested", api.GatherAnnotationRequest{
 			ResourceId: resourceID, AnnotationId: annotationID,
 		}, nil)
@@ -457,7 +467,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, resourceID, annotat
 	}
 	job := delegatedJob[api.YieldJobCompleteCommand]{
 		verb: "yield --delegate", doing: "Generating", failed: "Generation",
-		check:  "semiont browse " + resourceID,
+		check:  "semiont browse " + resourceID.String(),
 		create: create,
 		jobOf:  func(done api.YieldJobCompleteCommand) api.JobId { return done.JobId },
 	}

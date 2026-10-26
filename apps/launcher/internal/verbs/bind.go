@@ -101,6 +101,18 @@ options:
 		fmt.Print(bindUsage)
 		return 1
 	}
+	rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
+	aid, ok := parsed(u, "annotation", annotationID, api.ParseAnnotationId)
+	if !ok {
+		return 1
+	}
+	tid, ok := parsed(u, "target", target, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
 	op := "add"
 	if unbind {
 		op = "remove"
@@ -117,14 +129,14 @@ options:
 	// No `type` literal: AnnotationBody's discriminator means the generated
 	// FromSpecificResource stamps it (see mark.go).
 	if err := item.FromSpecificResource(api.SpecificResource{
-		Source: target, Purpose: &purpose,
+		Source: tid, Purpose: &purpose,
 	}); err != nil {
 		u.Fail("could not build the body item: %v", err)
 		return 1
 	}
 	cmd := api.BindUpdateBodyCommand{
-		ResourceId:   resourceID,
-		AnnotationId: annotationID,
+		ResourceId:   rid,
+		AnnotationId: aid,
 	}
 	cmd.Operations = []api.BindBodyOperation{{
 		Op:   api.BindBodyOperationOp(op),

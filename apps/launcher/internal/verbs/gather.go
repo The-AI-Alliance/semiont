@@ -153,6 +153,16 @@ options:
 		fmt.Print(gatherUsage)
 		return 1
 	}
+	rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
+	var aid api.AnnotationId
+	if annotationID != "" {
+		if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+			return 1
+		}
+	}
 
 	t, ok := launcher.VerbSession(u, "gather", repo, wantLocal)
 	if !ok {
@@ -168,8 +178,8 @@ options:
 	if annotationID != "" {
 		op = "gather:requested" // annotation focus
 		req := api.GatherAnnotationRequest{
-			ResourceId:   resourceID,
-			AnnotationId: annotationID,
+			ResourceId:   rid,
+			AnnotationId: aid,
 		}
 		if contextWindow > 0 {
 			req.Options = &api.GatherAnnotationOptions{ContextWindow: &contextWindow}
@@ -177,7 +187,7 @@ options:
 		payload = req
 	} else {
 		op = "gather:resource-requested"
-		req := api.GatherResourceRequest{ResourceId: resourceID}
+		req := api.GatherResourceRequest{ResourceId: rid}
 		req.Options.IncludeContent = !noContent
 		req.Options.IncludeSummary = summary
 		req.Options.Depth = depth

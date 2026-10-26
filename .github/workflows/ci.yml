@@ -1859,12 +1859,17 @@ jobs:
           node scripts/spec/generate-media-types-python.mjs --check
           node scripts/spec/generate-encodings-python.mjs --check
 
-      # Authority: specs/src/media-types/registry.json → Go
-      # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built
-      # from the same registry at build time; the Go one is committed, so it
-      # is the one that can go stale.
-      - name: Media-type registry vs generated Go
-        run: node scripts/spec/generate-media-types-go.mjs --check
+      # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
+      # the kinds of id (api/ids_gen.go, whose generator also holds
+      # oapi-codegen's exclude-schemas to the kinds) and the media types
+      # (mediatypes). TypeScript and Rust build theirs from the same files at
+      # build time; a Go module has no build step, so its are committed, and
+      # are what can go stale. The bus vocabulary and the REST client have
+      # steps of their own.
+      - name: Spec tables vs the Go SDK's generated code
+        run: |
+          node scripts/spec/generate-identifiers-go.mjs --check
+          node scripts/spec/generate-media-types-go.mjs --check
 
       # The launcher shares the sign-in store with the Rust SDK, and signs in
       # as the clients every SDK does. Its entry type, the client ids and the

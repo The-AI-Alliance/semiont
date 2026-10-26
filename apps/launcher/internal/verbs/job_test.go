@@ -21,6 +21,26 @@ import (
 // the other by the members it alone carries. Each is read as its own type, and
 // a result that is not exactly one of the verb's is an error: the other verb's
 // result among them.
+// resourceIdOf and jobIdOf are a test's ids, made as every id is: through
+// the kind's rule.
+func resourceIdOf(t *testing.T, text string) api.ResourceId {
+	t.Helper()
+	id, err := api.ParseResourceId(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func jobIdOf(t *testing.T, text string) api.JobId {
+	t.Helper()
+	id, err := api.ParseJobId(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 	const counts, resource, decline = `{"found":4,"persisted":3}`, `{"resourceId":"res-new","resourceName":"Generated","truncated":false}`, `{"declined":true,"reason":"encrypted"}`
 	declined := api.JobDeclined{Declined: true, Reason: "encrypted"}
@@ -29,7 +49,7 @@ func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 		mark, yield  any // nil: an error
 	}{
 		{"a mark job's counts", counts, api.MarkJobDone{Found: 4, Persisted: 3}, nil},
-		{"the resource a yield job made", resource, nil, api.YieldJobDone{ResourceId: "res-new", ResourceName: "Generated"}},
+		{"the resource a yield job made", resource, nil, api.YieldJobDone{ResourceId: resourceIdOf(t, "res-new"), ResourceName: "Generated"}},
 		{"a decline", decline, declined, declined},
 		{"no member's required members", `{}`, nil, nil},
 		{"half of a member's required members", `{"found":4,"resourceId":"res-new"}`, nil, nil},
@@ -104,7 +124,7 @@ func TestJobResultReadsEveryMemberOfItsVerbsUnion(t *testing.T) {
 // (or as none) is an error that names both.
 func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 	var create api.JobCreateCommand
-	if err := create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: "res-1"}); err != nil {
+	if err := create.FromMarkJobCreateCommand(api.MarkJobCreateCommand{ResourceId: resourceIdOf(t, "res-1")}); err != nil {
 		t.Fatal(err)
 	}
 	job := delegatedJob[api.MarkJobCompleteCommand]{
@@ -126,16 +146,17 @@ func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 	}
 	marks := func(jobID string) json.RawMessage {
 		return written(func(c *api.JobCompleteCommand) error {
-			return c.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+			return c.FromMarkJobCompleteCommand(api.MarkJobCompleteCommand{JobId: jobIdOf(t, jobID), ResourceId: resourceIdOf(t, "res-1")})
 		})
 	}
 	yields := func(jobID string) json.RawMessage {
 		return written(func(c *api.JobCompleteCommand) error {
-			return c.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+			return c.FromYieldJobCompleteCommand(api.YieldJobCompleteCommand{JobId: jobIdOf(t, jobID), ResourceId: resourceIdOf(t, "res-1")})
 		})
 	}
 
-	if done, mine, err := job.completion("job-1", marks("job-1")); !mine || err != nil || done.JobId != "job-1" || done.JobType != api.MarkJobCompleteCommandJobTypeMark {
+	job1 := jobIdOf(t, "job-1")
+	if done, mine, err := job.completion(job1, marks("job-1")); !mine || err != nil || done.JobId != job1 || done.JobType != api.MarkJobCompleteCommandJobTypeMark {
 		t.Errorf("this job's completion is read as %+v (mine %v, %v)", done, mine, err)
 	}
 	for name, payload := range map[string]json.RawMessage{
@@ -143,7 +164,7 @@ func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 		"another yield job's": yields("job-2"),
 		"not an object":       json.RawMessage(`"job-1"`),
 	} {
-		if _, mine, err := job.completion("job-1", payload); mine || err != nil {
+		if _, mine, err := job.completion(job1, payload); mine || err != nil {
 			t.Errorf("%s completion %s is taken as this job's (mine %v, %v)", name, payload, mine, err)
 		}
 	}
@@ -152,7 +173,7 @@ func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 		`a "frame" job`:            json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark"`, `"jobType":"frame"`, 1)),
 		`a job that names no type`: json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark",`, ``, 1)),
 	} {
-		_, mine, err := job.completion("job-1", payload)
+		_, mine, err := job.completion(job1, payload)
 		want := `completed as ` + as + `, and mark --delegate created a "mark" job`
 		if !mine || err == nil || err.Error() != want {
 			t.Errorf("this job's completion %s: mine %v, error %v; want the error %q", payload, mine, err, want)

@@ -482,6 +482,20 @@ done
 
 banner "SDK-GO DRIFT GATE"
 
+step "Checking the Go SDK's generated tables against specs/src..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
+  ok "the Go SDK's generated tables match specs/src"
+else
+  fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
+  echo ""
+  echo -e "  Regenerate and commit:"
+  echo ""
+  echo -e "    ${BOLD}npm run generate:go${RESET}   (packages/sdk-go)"
+  echo ""
+  exit 1
+fi
+
 step "Checking packages/sdk-go/api/client_gen.go against specs/openapi.json..."
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache

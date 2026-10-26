@@ -148,6 +148,17 @@ options:
 		fmt.Fprintln(os.Stderr, "  semiont match --help")
 		return 1
 	}
+	var rid api.ResourceId
+	var aid api.AnnotationId
+	if !searching {
+		var ok bool
+		if rid, ok = parsed(u, "resource", resourceID, api.ParseResourceId); !ok {
+			return 1
+		}
+		if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+			return 1
+		}
+	}
 
 	t, ok := launcher.VerbSession(u, "match", repo, wantLocal)
 	if !ok {
@@ -187,8 +198,8 @@ options:
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)
 	gathered, err := cli.Request(ctx, "gather:requested", api.GatherAnnotationRequest{
-		ResourceId:   resourceID,
-		AnnotationId: annotationID,
+		ResourceId:   rid,
+		AnnotationId: aid,
 	}, nil)
 	if err != nil {
 		return busFail(u, "match (gather step)", err)
@@ -201,8 +212,8 @@ options:
 
 	// Step 2: the scored search, grounded by that context.
 	req := api.MatchSearchRequest{
-		ResourceId:  resourceID,
-		ReferenceId: annotationID,
+		ResourceId:  rid,
+		ReferenceId: aid,
 		Context:     gc.Response,
 		Limit:       &limit,
 	}

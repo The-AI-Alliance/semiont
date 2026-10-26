@@ -123,7 +123,7 @@ var markJobFlags = jobFlags{
 // markJob: the job:create a delegated mark sends: a `mark` job on the
 // resource, its parameters the chosen motivation's generated type holding what
 // the flags gave.
-func markJob(resourceID string, motivation api.Motivation, given map[string]any) (api.JobCreateCommand, error) {
+func markJob(resourceID api.ResourceId, motivation api.Motivation, given map[string]any) (api.JobCreateCommand, error) {
 	var create api.JobCreateCommand
 	if !motivation.Valid() {
 		return create, fmt.Errorf("--motivation wants a motivation a mark can be delegated for, got %q", motivation)
@@ -280,8 +280,12 @@ options:
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
+		rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+		if !ok {
+			return 1
+		}
 		chosen := api.Motivation(motivation)
-		command, err := markJob(resourceID, chosen, given)
+		command, err := markJob(rid, chosen, given)
 		if err != nil {
 			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
@@ -317,6 +321,22 @@ options:
 		u.Fail("--quote and --start/--end are two ways to say the same thing; pick one.")
 		return 1
 	}
+	rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+	if !ok {
+		return 1
+	}
+	var did api.AnnotationId
+	if deleteID != "" {
+		if did, ok = parsed(u, "annotation", deleteID, api.ParseAnnotationId); !ok {
+			return 1
+		}
+	}
+	var lid api.ResourceId
+	if link != "" {
+		if lid, ok = parsed(u, "link's target", link, api.ParseResourceId); !ok {
+			return 1
+		}
+	}
 
 	t, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
 	if !ok {
@@ -326,7 +346,7 @@ options:
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",
-			api.MarkDeleteCommand{AnnotationId: deleteID, ResourceId: &resourceID}, nil)
+			api.MarkDeleteCommand{AnnotationId: did, ResourceId: &rid}, nil)
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}
@@ -358,7 +378,7 @@ options:
 	// stamps it on the way in. A literal beside these fields would be
 	// overwritten with the same value — and would quietly absorb a typo
 	// rather than failing.
-	target := api.AnnotationTarget{Source: resourceID}
+	target := api.AnnotationTarget{Source: rid}
 	var one api.Selector
 	switch {
 	case quote != "":
@@ -403,7 +423,7 @@ options:
 		var b api.AnnotationBody
 		purpose := api.BodyPurpose("linking")
 		if err := b.FromSpecificResource(api.SpecificResource{
-			Source: link, Purpose: &purpose,
+			Source: lid, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
 		}
@@ -441,7 +461,7 @@ options:
 	}
 
 	reply, err := cli.Request(context.Background(), "mark:create-request",
-		api.MarkCreateRequest{ResourceId: resourceID, Request: request}, nil)
+		api.MarkCreateRequest{ResourceId: rid, Request: request}, nil)
 	if err != nil {
 		return busFail(u, "mark", err)
 	}
@@ -455,7 +475,7 @@ options:
 		return 0
 	}
 	id := ok2.Response.AnnotationId
-	if id == "" {
+	if id.IsZero() {
 		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 		return 0
 	}

@@ -59,12 +59,12 @@ func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw jso
 		return done, nil, false
 	}
 	var jc api.JobCreatedResult
-	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
+	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId.IsZero() {
 		u.Fail("%s: the gateway accepted the job but named no jobId.", j.verb)
 		return done, nil, false
 	}
 	jobID := jc.Response.JobId
-	note := "job " + jobID
+	note := "job " + jobID.String()
 	if j.note != "" {
 		note = j.note + "; " + note
 	}
