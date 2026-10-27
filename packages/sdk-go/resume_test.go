@@ -7,6 +7,7 @@ package semiont
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -83,6 +84,37 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	caches.Delete(keptCacheKey)
 	if _, ok := storage.Get(keptCacheKey); ok {
 		t.Fatal("forgetting what a cache kept left it in the storage beneath")
+	}
+}
+
+// full is a storage that holds what it has, and takes no write of the cache
+// keptCacheKey names.
+type full struct{ *MemoryStorage }
+
+func (f full) Set(key, value string) error {
+	if key == keptCacheKey {
+		return errors.New("the storage is full")
+	}
+	return f.MemoryStorage.Set(key, value)
+}
+
+func TestAPlaceIsWrittenAfterTheCachesOwnWriteSoOneThatFailsLeavesNoPlaceAheadOfIt(t *testing.T) {
+	storage := full{NewMemoryStorage()}
+	kept := NewCoupledBookmarks(storage, keptPlacesKey)
+	caches := kept.Storage()
+	kept.Save(mustResource(t, "res-1"), "p-7")
+	if err := caches.Set(keptCacheKey, "{}"); err == nil || err.Error() != "the storage is full" {
+		t.Fatalf("the cache's failed write said %v", err)
+	}
+	// The cache kept nothing of what the place names, and no place says it did.
+	if _, ok := storage.Get(keptPlacesKey); ok {
+		t.Fatal("a place was written though the cache's write failed")
+	}
+	if err := caches.Set("semiont.cache.kb-a.annotations", "{}"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := kept.Load(), placesOf(t, map[string]string{"res-1": "p-7"}); !maps.Equal(got, want) {
+		t.Fatalf("places kept %v, want %v", got, want)
 	}
 }
 

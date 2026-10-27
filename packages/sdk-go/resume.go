@@ -90,14 +90,14 @@ func (b *CoupledBookmarks) SetFlushGate(atRest func() bool) {
 	b.atRest = atRest
 }
 
-// flush writes what is remembered, when the gate allows it. The lock is held
-// throughout, so no place reached after the gate was asked is written on its
-// word.
-func (b *CoupledBookmarks) flush() {
+// flush writes what is remembered, when the gate allows it; the error when
+// the storage could not. The lock is held throughout, so no place reached
+// after the gate was asked is written on its word.
+func (b *CoupledBookmarks) flush() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.pending) == 0 || (b.atRest != nil && !b.atRest()) {
-		return
+		return nil
 	}
 	places := b.Load()
 	maps.Copy(places, b.pending)
@@ -107,7 +107,7 @@ func (b *CoupledBookmarks) flush() {
 		// Every scope was read from storage or delivered on the stream, so none is the zero id, the one a ResourceId refuses to write.
 		panic(err)
 	}
-	b.storage.Set(b.key, string(written))
+	return b.storage.Set(b.key, string(written))
 }
 
 // carrying is the storage beneath, where each write carries the places with
@@ -116,9 +116,12 @@ type carrying struct{ places *CoupledBookmarks }
 
 func (c carrying) Get(key string) (string, bool) { return c.places.storage.Get(key) }
 
-func (c carrying) Set(key, value string) {
-	c.places.storage.Set(key, value)
-	c.places.flush()
+func (c carrying) Set(key, value string) error {
+	if err := c.places.storage.Set(key, value); err != nil {
+		// A write that failed carries no place.
+		return err
+	}
+	return c.places.flush()
 }
 
 func (c carrying) Delete(key string) { c.places.storage.Delete(key) }
