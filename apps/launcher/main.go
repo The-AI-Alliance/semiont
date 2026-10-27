@@ -51,6 +51,7 @@ Knowledge base (need login):
   match     Search the KB: resources by text, or what an annotation could bind to
   beckon    Draw attention to a resource or annotation
   listen    Follow the KB's live event stream
+  mcp       Serve the signed-in KBs to an AI application over MCP (stdio)
 
 Data:
   export    Write a KB's durable state to a .tar.gz (no stack needed)
@@ -102,6 +103,8 @@ func main() {
 		code = verbs.Frame(rest)
 	case "listen":
 		code = verbs.Listen(rest)
+	case "mcp":
+		code = verbs.MCP(rest)
 	case "settings":
 		code = launcher.Settings(rest)
 	case "identity":

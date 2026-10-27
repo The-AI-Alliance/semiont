@@ -13,10 +13,13 @@ set -euo pipefail
 # A6 — no package configures Ajv against the OpenAPI spec. The validators are
 #      generated from `specs/openapi.json` into `@semiont/core/openapi` by
 #      scripts/spec/generate-validators.mjs, which is the only place that may
-#      construct an Ajv instance over spec schemas.
+#      construct an Ajv instance over spec schemas. The `nullable` conversion
+#      is scripts/spec/openapi-schema.mjs's alone, which every generator that
+#      hands a component to a JSON Schema validator calls.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENERATOR="scripts/spec/generate-validators.mjs"
+CONVERTER="scripts/spec/openapi-schema.mjs"
 
 violations=0
 
@@ -46,20 +49,23 @@ if [ -n "$offenders" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# A6b: nobody re-implements the 3.0 → draft-07 conversion.
+# A6b: nobody re-implements the 3.0 → JSON Schema conversion.
 #
-# `nullable` is OpenAPI vocabulary Ajv does not know. Converting it is the
-# generator's job; a copy elsewhere is the mirror this gate exists to stop.
+# `nullable` is OpenAPI vocabulary JSON Schema does not have. Converting it is
+# the shared reader's job, which the validator generator calls; a copy
+# elsewhere is the mirror this gate exists to stop.
 # ---------------------------------------------------------------------------
 if converters=$(grep -rn "nullable === true\|convertNullable" \
       --include="*.ts" --include="*.tsx" --include="*.mjs" --include="*.js" \
       "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/scripts" 2>/dev/null \
       | grep -v "/node_modules/" \
       | grep -v "/dist/" \
-      | grep -v "$GENERATOR"); then
+      | grep -v "$CONVERTER" \
+      | grep -v "$GENERATOR:[0-9]*:import { convertNullable } from './openapi-schema.mjs';" \
+      | grep -v "$GENERATOR:[0-9]*:  convertNullable(converted);"); then
   echo ""
   echo "❌ A6: the OpenAPI 3.0 \`nullable\` conversion is reimplemented."
-  echo "   It belongs to $GENERATOR and runs at build time."
+  echo "   It belongs to $CONVERTER, which $GENERATOR calls at build time."
   echo "$converters" | sed 's|^|   |'
   violations=$((violations + 1))
 fi
