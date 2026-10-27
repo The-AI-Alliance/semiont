@@ -1,0 +1,348 @@
+{
+  "$comment": "The tools `semiont mcp` serves: a curated set, named by Semiont's verbs. Each tool names the SDK methods it calls, as specs/src/client/surface.json names them, and its arguments and result by where the spec states them; scripts/spec/generate-mcp-tools-go.mjs writes mcp_tools_gen.go from this file, each schema self-contained. An argument is a member of a component (`from` and `member`), required when the component requires it, unless `optional` says why the tool leaves it out or `required` with `why` says why the tool asks for it; or, by `name` with `required`, a whole component (`schema`), a list of a component or of a member of one (`listOf`), or the tool's own (`own`: the MCP layer's schema, not the spec's). `kb` is added to every tool that calls an SDK method. A member whose name starts with `_` is the gateway's (docs/protocol/EVENT-BUS.md) and is never an argument. A result is a whole component (`component`), or an object of members, each `required` or not and named as an argument is; a tool with no result answers in text alone. `leftOut` is every method of surface.json no tool calls, with its reason: TestMCPToolsCensus holds the tools and it to surface.json both ways.",
+  "tools": [
+    {
+      "name": "knowledge_bases",
+      "title": "Knowledge bases",
+      "description": "The knowledge bases this machine has a sign-in for, each with the key every other tool takes as `kb`. Each says who is signed in, whether that sign-in renews itself, and, for a codespace's, whether its forward to this machine is up.",
+      "calls": [],
+      "readOnly": true,
+      "arguments": [],
+      "result": {
+        "knowledgeBases": {
+          "required": true,
+          "own": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kb", "signedInAs", "renews"],
+              "additionalProperties": false,
+              "properties": {
+                "kb": { "type": "string", "description": "The key a tool's `kb` names it by: `local`, or `codespace:<owner>/<name>`." },
+                "did": { "type": "string", "description": "The knowledge base's did:web, when the launcher recorded it." },
+                "root": { "type": "string", "description": "A local knowledge base's directory." },
+                "repo": { "type": "string", "description": "A codespace knowledge base's repository." },
+                "signedInAs": { "type": "string", "description": "Whom `semiont login` signed in." },
+                "renews": { "type": "boolean", "description": "Whether the sign-in renews itself. One that does not ends when its access token does." },
+                "forwardUp": { "type": "boolean", "description": "A codespace knowledge base's: whether its forward to this machine is up. When it is down, `semiont status --repo <repo>` re-establishes it." }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "match_resources",
+      "title": "Search resources",
+      "description": "Resources whose text or meaning matches a search, best first.",
+      "calls": ["match.resources"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "MatchResourcesRequest", "member": "search" },
+        { "from": "MatchResourcesRequest", "member": "archived" },
+        { "from": "MatchResourcesRequest", "member": "entityType" },
+        { "from": "MatchResourcesRequest", "member": "limit" }
+      ],
+      "result": { "component": "MatchResourcesResponse" }
+    },
+    {
+      "name": "browse_resources",
+      "title": "List resources",
+      "description": "The knowledge base's resources, newest first.",
+      "calls": ["browse.resources"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "BrowseResourcesRequest", "member": "archived" },
+        { "from": "BrowseResourcesRequest", "member": "entityType" },
+        { "from": "BrowseResourcesRequest", "member": "limit" }
+      ],
+      "result": { "component": "ListResourcesResponse" }
+    },
+    {
+      "name": "browse_resource",
+      "title": "Read a resource",
+      "description": "A resource's descriptor, and its text when `withText` asks for it.",
+      "calls": ["browse.resource", "browse.resourceContent"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "BrowseResourceRequest", "member": "resourceId" },
+        { "name": "withText", "required": false, "own": { "type": "boolean", "description": "Also give the resource's text." } }
+      ],
+      "result": {
+        "resource": { "required": true, "schema": "ResourceDescriptor" },
+        "text": { "required": false, "own": { "type": "string", "description": "The resource's text, when `withText` asked for it." } }
+      }
+    },
+    {
+      "name": "browse_annotations",
+      "title": "List a resource's annotations",
+      "description": "Every annotation on a resource, each in full.",
+      "calls": ["browse.annotations"],
+      "readOnly": true,
+      "arguments": [
+        { "name": "resourceId", "schema": "ResourceId", "required": true }
+      ],
+      "result": {
+        "annotations": { "required": true, "listOf": "Annotation" }
+      }
+    },
+    {
+      "name": "gather_annotation",
+      "title": "Gather an annotation's context",
+      "description": "The context around one annotation: the passage it marks, what surrounds it, and what it refers to, as a model is given it.",
+      "calls": ["gather.annotation"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "GatherAnnotationRequest", "member": "resourceId" },
+        { "from": "GatherAnnotationRequest", "member": "annotationId" },
+        { "from": "GatherAnnotationOptions", "member": "contextWindow" }
+      ],
+      "result": { "component": "GatherAnnotationComplete" }
+    },
+    {
+      "name": "gather_resource",
+      "title": "Gather a resource's context",
+      "description": "The context around a whole resource: the resource and what it links to and what cites it, out to `options.depth` links.",
+      "calls": ["gather.resource"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "GatherResourceRequest", "member": "resourceId" },
+        { "from": "GatherResourceRequest", "member": "options", "optional": "Left out, the SDK's stated options apply (two links out, ten resources, their content, no summary: GatherResourceDefaults)." }
+      ],
+      "result": { "context": { "required": true, "schema": "GatheredContext" } }
+    },
+    {
+      "name": "browse_related",
+      "title": "A resource's relations",
+      "description": "What a resource links to and is linked from, and the annotations elsewhere that refer to it.",
+      "calls": ["browse.resourceGraph", "gather.referencedBy"],
+      "readOnly": true,
+      "arguments": [
+        { "name": "resourceId", "schema": "ResourceId", "required": true }
+      ],
+      "result": {
+        "graph": { "required": true, "schema": "GetResourceResponse" },
+        "referencedBy": { "required": true, "from": "GetReferencedByResponse", "member": "referencedBy" }
+      }
+    },
+    {
+      "name": "mark_annotation",
+      "title": "Annotate a resource",
+      "description": "Create one annotation: a motivation, a target (the resource, and where in it), and its body.",
+      "calls": ["mark.annotation"],
+      "arguments": [
+        { "from": "CreateAnnotationRequest", "member": "motivation" },
+        { "from": "CreateAnnotationRequest", "member": "target" },
+        { "from": "CreateAnnotationRequest", "member": "body" }
+      ],
+      "result": { "component": "MarkCreateOkResponse" }
+    },
+    {
+      "name": "mark_delete",
+      "title": "Delete an annotation",
+      "description": "Delete one annotation from a resource.",
+      "calls": ["mark.delete"],
+      "destructive": true,
+      "arguments": [
+        { "name": "resourceId", "schema": "ResourceId", "required": true },
+        { "from": "MarkDeleteCommand", "member": "annotationId" }
+      ]
+    },
+    {
+      "name": "mark_archive",
+      "title": "Archive a resource",
+      "description": "Archive a resource: it leaves the lists that do not ask for archived resources.",
+      "calls": ["mark.archive"],
+      "destructive": true,
+      "arguments": [
+        { "from": "MarkArchiveCommand", "member": "resourceId" }
+      ]
+    },
+    {
+      "name": "mark_delegate",
+      "title": "Have the stack annotate a resource",
+      "description": "The stack's worker reads the whole resource and writes the annotations `params` asks for, as a job. The call waits for the job and answers its completion; cancelling the call cancels the job.",
+      "calls": ["mark.delegate"],
+      "arguments": [
+        { "name": "resourceId", "schema": "ResourceId", "required": true },
+        { "name": "params", "schema": "MarkJobParams", "required": true }
+      ],
+      "result": { "component": "MarkJobCompleteCommand" }
+    },
+    {
+      "name": "match_link_targets",
+      "title": "Find what a reference could link to",
+      "description": "The resources a reference annotation could link to, scored, grounded in the annotation's gathered context.",
+      "calls": ["gather.annotation", "match.search"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "MatchSearchRequest", "member": "resourceId" },
+        { "from": "MatchSearchRequest", "member": "referenceId" },
+        { "from": "GatherAnnotationOptions", "member": "contextWindow" },
+        { "from": "MatchSearchRequest", "member": "limit" },
+        { "from": "MatchSearchRequest", "member": "useSemanticScoring" }
+      ],
+      "result": { "component": "MatchSearchResult" }
+    },
+    {
+      "name": "bind_link",
+      "title": "Change an annotation's body",
+      "description": "Add, remove or replace items of an annotation's body: how a reference is linked to the resource it names.",
+      "calls": ["bind.body"],
+      "arguments": [
+        { "from": "BindUpdateBodyCommand", "member": "resourceId" },
+        { "from": "BindUpdateBodyCommand", "member": "annotationId" },
+        { "from": "BindUpdateBodyCommand", "member": "operations" }
+      ]
+    },
+    {
+      "name": "yield_resource",
+      "title": "Create a resource",
+      "description": "Create a resource from text the caller gives, in the media type it names.",
+      "calls": ["yield.resource"],
+      "arguments": [
+        { "from": "ResourceUpload", "member": "name" },
+        { "from": "ResourceUpload", "member": "file" },
+        { "from": "ResourceUpload", "member": "format" },
+        { "from": "ResourceUpload", "member": "storageUri" },
+        { "from": "ResourceUpload", "member": "language" }
+      ],
+      "result": { "resourceId": { "required": true, "schema": "ResourceId" } }
+    },
+    {
+      "name": "yield_generate",
+      "title": "Have the stack generate a resource",
+      "description": "Gather an annotation's context, then have the stack's worker generate a resource from it, as a job. The call waits for the job and answers its completion; cancelling the call cancels the job.",
+      "calls": ["gather.annotation", "yield.delegate"],
+      "arguments": [
+        { "from": "GatherAnnotationRequest", "member": "resourceId" },
+        { "from": "GatherAnnotationRequest", "member": "annotationId" },
+        { "from": "GatherAnnotationOptions", "member": "contextWindow" },
+        { "from": "GenerationJobRequest", "member": "title" },
+        { "from": "GenerationJobRequest", "member": "storageUri" },
+        { "from": "GenerationJobRequest", "member": "prompt" },
+        { "from": "GenerationJobRequest", "member": "entityTypes" },
+        { "from": "GenerationJobRequest", "member": "language" },
+        { "from": "GenerationJobRequest", "member": "sourceLanguage" },
+        { "from": "GenerationJobRequest", "member": "temperature" },
+        { "from": "GenerationJobRequest", "member": "maxTokens" },
+        { "from": "GenerationJobRequest", "member": "outputMediaType" },
+        { "from": "GenerationJobRequest", "member": "task" },
+        { "from": "GenerationJobRequest", "member": "structure" },
+        { "from": "GenerationJobRequest", "member": "cite" }
+      ],
+      "result": { "component": "YieldJobCompleteCommand" }
+    },
+    {
+      "name": "browse_vocabulary",
+      "title": "The vocabulary",
+      "description": "The knowledge base's entity types and tag schemas.",
+      "calls": ["browse.entityTypes", "browse.tagSchemas"],
+      "readOnly": true,
+      "arguments": [],
+      "result": {
+        "entityTypes": { "required": true, "own": { "type": "array", "items": { "type": "string" } } },
+        "tagSchemas": { "required": true, "listOf": "TagSchema" }
+      }
+    },
+    {
+      "name": "frame_entity_types",
+      "title": "Add entity types",
+      "description": "Add entity types to the knowledge base's vocabulary.",
+      "calls": ["frame.addEntityTypes"],
+      "arguments": [
+        { "name": "entityTypes", "required": true, "listOf": { "from": "FrameAddEntityTypeCommand", "member": "tag" } }
+      ]
+    },
+    {
+      "name": "frame_tag_schema",
+      "title": "Add a tag schema",
+      "description": "Add a tag schema, its categories with it, to the knowledge base's vocabulary.",
+      "calls": ["frame.addTagSchema"],
+      "arguments": [
+        { "from": "FrameAddTagSchemaCommand", "member": "schema" }
+      ]
+    },
+    {
+      "name": "job_status",
+      "title": "A job's status",
+      "description": "Where a job stands, as an MCP task would say it: working (with its last progress), completed (with its result), or cancelled. A job that failed answers as an error with the worker's words. A job that is not the caller's, or that the queue no longer keeps, is unknown.",
+      "calls": ["job.status"],
+      "readOnly": true,
+      "arguments": [
+        { "from": "JobStatusRequest", "member": "jobId" }
+      ],
+      "result": {
+        "jobId": { "required": true, "schema": "JobId" },
+        "status": { "required": true, "own": { "type": "string", "enum": ["working", "completed", "cancelled"] } },
+        "statusMessage": { "required": false, "own": { "type": "string", "description": "The job's last progress." } },
+        "result": { "required": false, "schema": "JobStoredResult" }
+      }
+    },
+    {
+      "name": "job_cancel",
+      "title": "Cancel a job",
+      "description": "Ask the queue to cancel a job: a pending one at once, a running one when its worker stops. `cancelled` is whether the queue accepted the ask, not whether the work stopped.",
+      "calls": ["job.cancel"],
+      "arguments": [
+        { "from": "JobCancelRequest", "member": "jobId" }
+      ],
+      "result": { "cancelled": { "required": true, "own": { "type": "boolean" } } }
+    },
+    {
+      "name": "beckon_attention",
+      "title": "Draw a person's attention",
+      "description": "Draw the attention of whoever is watching the knowledge base in a Browser to an annotation, on the resource it is on. `resourceId` is a guard, not a destination: a Browser showing another resource ignores the beckon. Answers how many Browsers it reached, when the gateway counted them.",
+      "calls": ["beckon.attention"],
+      "arguments": [
+        { "from": "BeckonFocusEvent", "member": "annotationId", "required": true, "why": "A beckon with no annotation draws nothing (GUIDED-TOUR D7)." },
+        { "from": "BeckonFocusEvent", "member": "resourceId", "required": true, "why": "The Go SDK's beckon.attention sends its guard always, and an unstated one would be sent empty, which names no resource." }
+      ],
+      "result": { "reached": { "required": false, "own": { "type": "integer", "minimum": 0, "description": "How many Browsers the beckon reached; absent when the gateway kept no count." } } }
+    }
+  ],
+  "leftOut": {
+    "browse.annotation": "browse_annotations gives every annotation on a resource in full.",
+    "browse.agents": "Not yet asked for.",
+    "browse.events": "Not yet asked for.",
+    "browse.resourceAnchoredText": "Not yet asked for.",
+    "browse.resourceRepresentation": "Not yet asked for.",
+    "browse.resourceRepresentationStream": "Not yet asked for.",
+    "browse.resourceEvents": "Not yet asked for.",
+    "browse.annotationHistory": "Not yet asked for.",
+    "browse.files": "Not yet asked for.",
+    "browse.kb": "Not yet asked for: knowledge_bases states what the launcher recorded, and asks no knowledge base.",
+    "browse.click": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "browse.openResource": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "browse.resourceViewed": "A signal: tells the others that a person viewed a resource, which an agent is not doing.",
+    "frame.addEntityType": "frame_entity_types adds one entity type as it adds several.",
+    "mark.unarchive": "Not yet asked for.",
+    "mark.updateEntityTypes": "Not yet asked for.",
+    "mark.request": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "mark.submit": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "mark.reportDeleteError": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "bind.initiate": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "bind.reportBodyError": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "match.requestSearch": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "yield.cloneToken": "The Browser's clone flow.",
+    "yield.fromToken": "The Browser's clone flow.",
+    "yield.createFromToken": "The Browser's clone flow.",
+    "yield.clone": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "beckon.click": "Drives a person's Browser.",
+    "beckon.openResource": "Drives a person's Browser.",
+    "beckon.sparkleAll": "Drives a person's Browser.",
+    "beckon.hover": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "beckon.sparkle": "A signal: published on the client's own bus and nowhere else, an application's own state.",
+    "job.queued": "Events a follower reads: a delegating tool follows them itself.",
+    "job.progress": "Events a follower reads: a delegating tool follows them itself.",
+    "job.complete": "Events a follower reads: a delegating tool follows them itself.",
+    "job.fail": "Events a follower reads: a delegating tool follows them itself.",
+    "job.pollUntilComplete": "A delegating tool follows its job, and job_status reads one once.",
+    "job.claim": "A worker's: a claim hands out a held job, whose lease assumes a process that keeps reporting in, not a conversation. A worker stays an SDK program.",
+    "auth.me": "Not yet asked for.",
+    "auth.mediaToken": "Plumbing an agent has no task for.",
+    "auth.protectedResourceMetadata": "Plumbing an agent has no task for.",
+    "system.healthCheck": "Plumbing an agent has no task for.",
+    "system.status": "Not yet asked for."
+  }
+}

@@ -1912,6 +1912,14 @@ jobs:
       - name: Knowledge base documents vs the launcher's generated Go
         run: node scripts/spec/generate-stack-go.mjs --check
 
+      # `semiont mcp`'s tools (apps/launcher/internal/verbs/mcp-tools.json) and
+      # the components they name → each tool's input and output schema, made
+      # self-contained, and the SDK methods no tool calls
+      # (apps/launcher/internal/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
+      # the launcher's suite, holds the table to the client surface both ways.
+      - name: MCP tools vs the launcher's generated Go
+        run: node scripts/spec/generate-mcp-tools-go.mjs --check
+
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:

@@ -173,6 +173,10 @@ func (s *Session) end(rejected *SessionRejected) {
 	s.token.Set("")
 }
 
+// User is whom the gateway said the session's token is: nil when it was not
+// asked, or did not answer.
+func (s *Session) User() *api.UserResponse { return s.sdk.User().Value() }
+
 // Close ends the SDK's session, so it renews nothing more, and then the
 // command's client.
 func (s *Session) Close() {
