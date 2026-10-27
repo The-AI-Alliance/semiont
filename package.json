@@ -20,6 +20,8 @@
     "generate:go:check": "node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-sdk-telemetry-go.mjs --check && node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check",
     "generate:stack-go": "node scripts/spec/generate-stack-go.mjs",
     "generate:stack-go:check": "node scripts/spec/generate-stack-go.mjs --check",
+    "generate:mcp-tools-go": "node scripts/spec/generate-mcp-tools-go.mjs",
+    "generate:mcp-tools-go:check": "node scripts/spec/generate-mcp-tools-go.mjs --check",
     "generate:encoding-cases": "node scripts/spec/generate-encoding-cases.mjs",
     "generate:encoding-cases:check": "node scripts/spec/generate-encoding-cases.mjs --check",
     "generate:model-catalogue": "node scripts/inference/generate-model-catalogue.mjs --out packages/inference-python/tests/catalogue",
@@ -129,7 +131,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.112",
+    "@opencode-ai/models": "0.0.113",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",

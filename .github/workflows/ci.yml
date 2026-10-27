@@ -168,7 +168,6 @@ jobs:
               - 'apps/desktop/**'
               - 'packages/core/**'
               - 'packages/http-transport/**'
-              - 'packages/mcp-server/**'
               - 'packages/observability/**'
               - 'packages/react-ui/**'
               - 'packages/sdk/**'
@@ -656,12 +655,12 @@ jobs:
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       # The Go drivers are static binaries, built from their own module so
       # that what only a driver takes reaches nothing else.
@@ -731,12 +730,12 @@ jobs:
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       # The Go worker driver is a static binary, built from the drivers' own
       # module, as the SDK suite's are.
@@ -828,12 +827,12 @@ jobs:
       # the Python the SDK's floor names, without the development group, with
       # every database's client.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Weaver's environment
         run: uv sync --locked --no-dev --all-extras --project apps/weaver
@@ -916,12 +915,12 @@ jobs:
       # Python the SDK's floor names, without the development group. It reads a
       # scanned page with the `tesseract` program, as its image does.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the tesseract program
         run: |
@@ -1033,12 +1032,12 @@ jobs:
       # provider's library. The Smelter reads a scanned page with the
       # `tesseract` program, as its image does.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the tesseract program
         run: |
@@ -1110,12 +1109,12 @@ jobs:
       # Python the SDK's floor names, without the development group, with every
       # provider's library.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Worker service's environment
         run: uv sync --locked --no-dev --all-extras --project apps/worker
@@ -1155,12 +1154,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1215,12 +1214,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1252,12 +1251,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1305,12 +1304,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1358,12 +1357,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1425,12 +1424,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1473,12 +1472,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         working-directory: packages/graph-python
@@ -1527,12 +1526,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1574,12 +1573,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         working-directory: packages/vectors-python
@@ -1628,12 +1627,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1683,12 +1682,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the tesseract program
         run: |
@@ -1743,12 +1742,12 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1912,6 +1911,14 @@ jobs:
       - name: Knowledge base documents vs the launcher's generated Go
         run: node scripts/spec/generate-stack-go.mjs --check
 
+      # `semiont mcp`'s tools (apps/launcher/internal/verbs/mcp-tools.json) and
+      # the components they name → each tool's input and output schema, made
+      # self-contained, and the SDK methods no tool calls
+      # (apps/launcher/internal/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
+      # the launcher's suite, holds the table to the client surface both ways.
+      - name: MCP tools vs the launcher's generated Go
+        run: node scripts/spec/generate-mcp-tools-go.mjs --check
+
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:
@@ -1944,12 +1951,12 @@ jobs:
       # Its independent oracle is the package's own suite, which holds the
       # generated models to the spec's schemas and to the kinds of id.
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
 
       - name: OpenAPI spec vs the Python SDK's generated models
         run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check

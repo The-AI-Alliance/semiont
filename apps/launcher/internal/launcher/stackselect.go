@@ -7,6 +7,7 @@ package launcher
 // something to do silently.
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -95,15 +96,57 @@ func repoCodespaceStack(u *UI, ss *StackSet, repo string) (*StackState, bool) {
 	return &StackState{Codespace: &codespacePlacement{Name: name, Repo: repo}, Services: map[string]ServiceState{}}, true
 }
 
-// ForwardedBase: the URL a verb dials for a codespace stack's KB — its
-// forward on this machine. An adopted codespace has none until start (or
-// status) establishes it, so refuse with that remedy rather than dial
-// localhost:0.
+// CodespaceUnreachable: a codespace stack whose KB this machine cannot reach.
+// An adopted codespace has no forward until start establishes it; a recorded
+// forward that is down is re-established by status, when the codespace is
+// running, and status says how to resume one that is not.
+type CodespaceUnreachable struct {
+	Repo, Name string
+	// Recorded: a forward is recorded on this machine, and it is down.
+	Recorded bool
+}
+
+func (c *CodespaceUnreachable) Error() string {
+	if c.Recorded {
+		return fmt.Sprintf("%s's codespace %s is forwarded to this machine, and the forward is down", c.Repo, c.Name)
+	}
+	return fmt.Sprintf("%s's codespace %s is not forwarded to this machine", c.Repo, c.Name)
+}
+
+// Remedy is the command that restores the forward, and what it is said as.
+func (c *CodespaceUnreachable) Remedy() (said, command string) {
+	if c.Recorded {
+		return "Re-establish the forward", "semiont status --repo " + c.Repo
+	}
+	return "Resume it and forward the KB", "semiont start --runtime codespace --repo " + c.Repo
+}
+
+// CodespaceBase: the URL that reaches a codespace stack's KB, its forward on
+// this machine, when one is recorded and up (forwardAlive: the process is
+// ours and the port answers); a *CodespaceUnreachable otherwise. Nothing is
+// started: a forward's lifetime is the commands' that own it.
+func CodespaceBase(target *StackState) (string, error) {
+	cs := target.Codespace
+	if cs.ForwardPort == 0 {
+		return "", &CodespaceUnreachable{Repo: cs.Repo, Name: cs.Name}
+	}
+	if !forwardAlive(cs.ForwardPID, cs.ForwardPort) {
+		return "", &CodespaceUnreachable{Repo: cs.Repo, Name: cs.Name, Recorded: true}
+	}
+	return fmt.Sprintf("http://localhost:%d", cs.ForwardPort), nil
+}
+
+// ForwardedBase: the URL a verb dials for a codespace stack's KB
+// (CodespaceBase). ok=false: it cannot be reached, which was said for verb
+// with the command that restores it.
 func ForwardedBase(u *UI, target *StackState, verb string) (string, bool) {
-	if target.Codespace.ForwardPort == 0 {
-		u.Fail("%s's codespace %s is not forwarded to this machine, so %s cannot reach its KB.", target.Codespace.Repo, target.Codespace.Name, verb)
-		fmt.Fprintln(os.Stderr, "  Resume it and forward the KB:  semiont start --runtime codespace --repo "+target.Codespace.Repo)
+	base, err := CodespaceBase(target)
+	var unreachable *CodespaceUnreachable
+	if errors.As(err, &unreachable) {
+		u.Fail("%v, so %s cannot reach its KB.", unreachable, verb)
+		said, command := unreachable.Remedy()
+		fmt.Fprintf(os.Stderr, "  %s:  %s\n", said, command)
 		return "", false
 	}
-	return fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort), true
+	return base, true
 }

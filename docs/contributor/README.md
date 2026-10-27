@@ -54,7 +54,6 @@ semiont/
 │   ├── http-transport/     # The SDK's transport over a gateway
 │   ├── react-ui/           # React components and hooks
 │   ├── observability/      # Tracing and metrics for the TypeScript transport
-│   ├── mcp-server/         # A Model Context Protocol server over the SDK
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share

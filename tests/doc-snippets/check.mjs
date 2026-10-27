@@ -16,7 +16,7 @@
 //     the sdk suite.
 //   - packages: the READMEs of the packages the SDK is built on
 //     (packages/*/README.md, but the sdk's and react-ui's, which the suites
-//     beside this one hold, and mcp-server's, which shows no TypeScript). Node's types are on, and there is no prelude: a
+//     beside this one hold). Node's types are on, and there is no prelude: a
 //     fence there is a whole example, and imports or declares what it uses.
 //   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
