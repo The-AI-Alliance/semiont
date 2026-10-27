@@ -246,6 +246,6 @@ A dispatcher that exports answers a claim in the trace of the claim
   `async with job`), the job's code also runs in it. In TypeScript what the
   job states is the trace OpenTelemetry has active as the reply arrives: a
   process that has set up no OpenTelemetry has no trace, and its held jobs
-  state none. In Rust and Python it is what the reply's frame carried,
+  state none. In Rust, Python and Go it is what the reply's frame carried,
   whatever the process has set up.
   *Held by `worker/job-trace`.*

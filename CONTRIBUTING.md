@@ -26,7 +26,7 @@ We also welcome contributions that bring Semiont to new user interfaces and inte
 - **Browser extensions** (Chrome, Firefox, Safari)
 - **IDE integrations** (VS Code, IntelliJ)
 
-Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript, Rust and Python SDKs and the embeddable React components.
+Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript, Rust, Python and Go SDKs and the embeddable React components.
 
 ## 📋 Table of Contents
 

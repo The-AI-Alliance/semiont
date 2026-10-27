@@ -101,10 +101,11 @@ extending this axis.
 
 Read it with `textSourceOf(format)`. On a registry miss, base types under
 `text/*` fall back to `decode` — RFC 2046 guarantees the `text` top-level type is
-textual — and everything else is `none`. The Rust and Python SDKs read the
+textual — and everything else is `none`. The Rust, Python and Go SDKs read the
 column from their own generated tables and answer the same, a registry miss
-included (`text_source_of`, in each SDK's `media_types`); the case table
-`specs/src/media-types/cases.json` holds the three to one answer.
+included (`text_source_of` in Rust's and Python's `media_types`, `TextSourceOf`
+in Go's `mediatypes`); the case table `specs/src/media-types/cases.json` holds
+the four to one answer.
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
   What text the bytes are is protocol:

@@ -55,7 +55,7 @@ const span = reconcile(rightText, { exact: 'café' });
 - What the encoding does not have is U+FFFD.
 - A charset that is no label of the standard, or that the platform's `TextDecoder` does not decode, throws a `SemiontError` whose `code` is `error` and whose message names the charset. Nothing is read as UTF-8 in its place.
 
-The cases are [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../specs/src/text/encoding-cases.json), which the Rust and Python SDKs' readers run too.
+The cases are [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../specs/src/text/encoding-cases.json), which the Rust, Python and Go SDKs' readers run too.
 
 ## Text Context Extraction
 
@@ -355,7 +355,7 @@ const draft = isDraft(resource);
 
 Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is `decodeWithCharset`'s, above: the one every reader of a resource's text keeps.
 
-A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust and Python SDKs run them through theirs.
+A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust, Python and Go SDKs run them through theirs.
 
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';

@@ -4,9 +4,9 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
-Building in Rust or Python? The recipes are the same: the namespaces and methods match, and
-the [Rust](../../packages/sdk-rust/README.md) and [Python](../../packages/sdk-python/README.md)
-READMEs show each call in their own language.
+Building in Rust, Python or Go? The recipes are the same: the namespaces and methods match, and
+the [Rust](../../packages/sdk-rust/README.md), [Python](../../packages/sdk-python/README.md)
+and [Go](../../packages/sdk-go/README.md) READMEs show each call in their own language.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
@@ -163,7 +163,7 @@ for (const ann of annotations) {
 The Rust and Python SDKs have the same readers (`semiont::annotations`,
 `semiont.annotations`), and one table,
 [`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all three to the
-same answer for the same annotation.
+same answer for the same annotation. The Go SDK has none of them.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -403,7 +403,7 @@ The Rust and Python SDKs have the same three (`semiont::annotations`,
 `semiont.annotations`), and two tables,
 [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
 [`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all three to
-the same answer.
+the same answer. The Go SDK has none of them.
 
 ## 10. Find link candidates (semantic search)
 
