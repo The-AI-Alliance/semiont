@@ -91,11 +91,13 @@ def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_what_
             with pytest.raises(ProviderStatusError) as unlearned:
                 await client.limits()
             # A refused discovery is classed as a refused generation is, by its status: the library's failure is its cause.
-            assert (
-                str(unlearned.value) == "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404"
-            )
-            assert unlearned.value.status == 404
             assert isinstance(unlearned.value.__cause__, anthropic.NotFoundError)
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404: "
+                + refusal_said(unlearned.value)
+            )
+            assert "model: claude-unknown" in str(unlearned.value)
+            assert unlearned.value.status == 404
             assert played.probed == []
 
             # A later call asks again.
@@ -225,14 +227,16 @@ def test_the_model_is_probed_once_and_the_omission_is_warned_of_once(caplog: pyt
 
 
 @pytest.mark.parametrize(
-    ("refusal", "asked"),
+    ("said", "refusal", "asked"),
     [
-        (refused(500, "api_error", "overloaded"), 3),
-        (refused(400, "invalid_request_error", "max_tokens: must be at least 2"), 1),
+        ("overloaded", refused(500, "api_error", "overloaded"), 3),
+        ("max_tokens: must be at least 2", refused(400, "invalid_request_error", "max_tokens: must be at least 2"), 1),
     ],
     ids=["a failure of the provider", "a 400 that is not about the temperature"],
 )
-def test_a_probe_refused_for_another_reason_fails_the_discovery_with_its_status_and_is_not_kept(refusal: Answer, asked: int) -> None:
+def test_a_probe_refused_for_another_reason_fails_the_discovery_with_its_status_and_words_and_is_not_kept(
+    said: str, refusal: Answer, asked: int
+) -> None:
     async def scenario() -> None:
         async with Anthropic() as played:
             played.probes = [refusal] * asked
@@ -240,9 +244,12 @@ def test_a_probe_refused_for_another_reason_fails_the_discovery_with_its_status_
             client = driver(played)
             with pytest.raises(ProviderStatusError) as failed:
                 await client.generate_text("p", 100, 0)
-            assert str(failed.value) == f"Sampling-parameter probe failed for 'claude-x': refused with status {refusal.status}"
-            assert failed.value.status == refusal.status
             assert isinstance(failed.value.__cause__, anthropic.APIStatusError)
+            assert str(failed.value) == (
+                f"Sampling-parameter probe failed for 'claude-x': refused with status {refusal.status}: {refusal_said(failed.value)}"
+            )
+            assert said in str(failed.value)
+            assert failed.value.status == refusal.status
             assert len(played.probed) == asked
             assert played.generations == []
 
@@ -644,6 +651,34 @@ def not_waited(header: str, stated: str) -> str:
     return f"; the provider said to wait ({header}: {stated}), which is longer than the 120 seconds this driver waits"
 
 
+def refusal_said(failure: ProviderStatusError) -> str:
+    """The library's words for the refusal `failure` was raised from: what a refused discovery's text carries after its status."""
+    cause = failure.__cause__
+    assert isinstance(cause, anthropic.APIStatusError)
+    return cause.message
+
+
+USAGE_LIMIT = "You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC."
+
+
+def test_a_probe_refused_for_a_spent_usage_limit_says_so_and_when_access_returns_in_the_failure_s_own_text() -> None:
+    # The case found live: a fresh worker's first call is the probe, and a spent usage limit refuses
+    # it with a 400 whose body alone says why and until when. Without those words a 400 reads as a
+    # retired model or a bad key, and the reason survived only in a chained traceback.
+    async def scenario() -> None:
+        async with Anthropic() as played:
+            played.probes = [refused(400, "invalid_request_error", USAGE_LIMIT)]
+            played.script(reply("never asked for"))
+            with pytest.raises(ProviderStatusError) as unlearned:
+                await driver(played).generate_text("p", 100, 0)
+            assert USAGE_LIMIT in str(unlearned.value)
+            assert unlearned.value.status == 400
+            assert len(played.probed) == 1
+            assert played.generations == []
+
+    run(scenario())
+
+
 def generations_at(played: Anthropic) -> list[float]:
     """When each generation arrived, by the loop's clock."""
     return [asked.at for asked in played.messages if asked.json().get("max_tokens") != 1]
@@ -732,7 +767,9 @@ def test_a_models_api_that_says_to_wait_over_two_minutes_is_asked_once_and_the_f
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             assert str(unlearned.value) == (
-                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429" + not_waited(header, stated)
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+                + not_waited(header, stated)
             )
             assert unlearned.value.status == 429
             assert len(played.retrievals) == 1
@@ -748,7 +785,10 @@ def test_a_models_api_that_says_to_wait_two_minutes_is_waited_for_and_asked_thre
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             # A wait that was waited is not spoken of: the failure is the refusal's alone.
-            assert str(unlearned.value) == "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429"
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+            )
             at = [asked.at for asked in played.asked]
             assert len(at) == 3
             assert all(120.0 <= later - earlier < 122.0 for earlier, later in itertools.pairwise(at)), at
@@ -763,8 +803,10 @@ def test_a_probe_that_says_to_wait_over_two_minutes_is_asked_once_and_the_failur
             played.script(reply("answered once the model is learned of, which it is not"))
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).generate_text("p", 100, 0))
-            assert str(unlearned.value) == "Sampling-parameter probe failed for 'claude-x': refused with status 429" + not_waited(
-                "retry-after", "121"
+            assert str(unlearned.value) == (
+                "Sampling-parameter probe failed for 'claude-x': refused with status 429: "
+                + refusal_said(unlearned.value)
+                + not_waited("retry-after", "121")
             )
             assert unlearned.value.status == 429
             assert len(played.probed) == 1

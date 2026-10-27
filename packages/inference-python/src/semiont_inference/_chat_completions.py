@@ -136,7 +136,7 @@ class ChatCompletions:
                 headers = request_headers(library, api_key=self._api_key, with_a_body=False)
                 listed = await library.get("/models", cast_to=str, options={"headers": headers, "timeout": _LIST_TIMEOUT})
         except APIStatusError as refused:
-            raise refused_discovery(learning, refused.status_code) from refused
+            raise refused_discovery(learning, refused.status_code, refused.message) from refused
         except Exception as unlearned:
             raise RuntimeError(learning) from unlearned
         try:

@@ -76,15 +76,18 @@ def test_the_architectures_own_context_length_is_taken_before_any_other() -> Non
     run(scenario())
 
 
-def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_the_status_and_are_not_kept() -> None:
+def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_the_status_and_ollama_s_words_and_are_not_kept() -> None:
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.show = saying({"error": "the model is loading"}, status=500)
             client = OllamaInferenceClient(model="llama3", base_url=ollama.origin)
             with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A refused discovery is classed as a refused generation is, by its status.
-            assert str(refused.value) == "Failed to discover model limits: /api/show returned 500 for 'llama3'"
+            # A refused discovery is classed as a refused generation is, by its status, and says what Ollama said.
+            assert str(refused.value).startswith(
+                "Failed to discover model limits for 'llama3' from Ollama's /api/show: refused with status 500: "
+            )
+            assert "the model is loading" in str(refused.value)
             assert refused.value.status == 500
 
             # The provider recovers, and the next call asks again.
