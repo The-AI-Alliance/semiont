@@ -11,6 +11,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { trace } from '@opentelemetry/api';
 
 interface NodeModule {
   initObservabilityNode: (config: { serviceName: string; serviceVersion?: string }) => boolean;
@@ -30,6 +31,8 @@ const PRESERVED_ENVS = [
   'OTEL_SERVICE_NAME',
   'OTEL_METRIC_EXPORT_INTERVAL',
   'OTEL_METRICS_EXPORTER',
+  'OTEL_TRACES_SAMPLER',
+  'OTEL_TRACES_SAMPLER_ARG',
 ] as const;
 
 /** Every event `initObservabilityNode` attaches to the real `process`. */
@@ -140,6 +143,39 @@ describe('initObservabilityNode', () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const { initObservabilityNode } = await loadFresh();
     expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
+  });
+});
+
+describe('initObservabilityNode — OTEL_TRACES_SAMPLER', () => {
+  /** Whether a span started with no parent, under the sampler the variables name, records. */
+  async function records(sampler: string | undefined, arg?: string): Promise<boolean> {
+    process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
+    if (sampler !== undefined) process.env['OTEL_TRACES_SAMPLER'] = sampler;
+    if (arg !== undefined) process.env['OTEL_TRACES_SAMPLER_ARG'] = arg;
+    // The global tracer provider is set once per process; each case installs its own.
+    trace.disable();
+    const { initObservabilityNode } = await loadFresh();
+    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    const span = trace.getTracer('probe').startSpan('probe');
+    const recording = span.isRecording();
+    span.end();
+    return recording;
+  }
+
+  it.each([
+    ['unset', undefined, undefined, true],
+    ['always_on', 'always_on', undefined, true],
+    ['always_off', 'always_off', undefined, false],
+    ['parentbased_always_on', 'parentbased_always_on', undefined, true],
+    ['parentbased_always_off', 'parentbased_always_off', undefined, false],
+    ['traceidratio at 0', 'traceidratio', '0', false],
+    ['traceidratio at 1', 'traceidratio', '1', true],
+    ['parentbased_traceidratio at 0', 'parentbased_traceidratio', '0', false],
+    ['traceidratio with a ratio out of range, read as 1', 'traceidratio', '2', true],
+    ['traceidratio with no ratio, read as 1', 'traceidratio', undefined, true],
+    ['an unknown sampler, read as parentbased_always_on', 'xray', undefined, true],
+  ])('%s', async (_case, sampler, arg, recording) => {
+    expect(await records(sampler, arg)).toBe(recording);
   });
 });
 

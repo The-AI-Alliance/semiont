@@ -3,10 +3,9 @@
  *
  * `tracing.ts` keeps a module-level `providerInstance` singleton, so each
  * test resets the module via `vi.resetModules()` to exercise the early-
- * return / register branches in isolation. The underlying
- * `WebTracerProvider.register()` is fine to call in a Node test runner
- * — it installs a `StackContextManager` and the W3C propagator, both of
- * which are platform-agnostic.
+ * return / install branches in isolation. What it installs is fine in a
+ * Node test runner: a `StackContextManager` and the W3C propagators are
+ * platform-agnostic.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -33,7 +32,7 @@ async function loadFresh(): Promise<WebModule> {
 }
 
 afterEach(() => {
-  // Reset the globals the WebTracerProvider may have set, so subsequent
+  // Reset the globals `initObservabilityWeb` may have set, so subsequent
   // tests start from a clean slate.
   trace.disable();
   propagation.disable();
@@ -100,6 +99,23 @@ describe('initObservabilityWeb', () => {
         enabled: true,
       }),
     ).toBe(true);
+  });
+
+  it('installs a recording tracer, a context manager and the W3C trace-context and baggage propagators', async () => {
+    const { initObservabilityWeb } = await loadFresh();
+    expect(initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true })).toBe(true);
+
+    const span = trace.getTracer('probe').startSpan('probe');
+    expect(span.isRecording()).toBe(true);
+    const within = trace.setSpan(context.active(), span);
+    context.with(within, () => {
+      expect(trace.getActiveSpan()).toBe(span);
+    });
+    const carrier: Record<string, string> = {};
+    propagation.inject(within, carrier);
+    expect(Object.keys(carrier)).toContain('traceparent');
+    expect(propagation.fields()).toEqual(expect.arrayContaining(['traceparent', 'tracestate', 'baggage']));
+    span.end();
   });
 
   it('is idempotent — second call returns false', async () => {
