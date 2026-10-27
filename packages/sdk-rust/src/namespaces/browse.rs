@@ -52,7 +52,7 @@ use tokio_stream::wrappers::WatchStream;
 /// How many resources a list or a search asks for when its caller states no
 /// limit. Every SDK asks for as many: the cases of
 /// specs/src/client/surface.json hold each to it.
-const LIST_LIMIT: i64 = 100;
+const LIST_LIMIT: u64 = 100;
 
 /// The key of a query the knowledge base has one of.
 pub(super) const WHOLE: &str = "_";
@@ -67,15 +67,23 @@ const PERSISTED_VERSION: u64 = 1;
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct ResourceFilters {
     /// How many resources at most: a hundred when not stated.
-    pub limit: Option<i64>,
+    pub limit: Option<u64>,
+    /// How many of the resources admitted are passed over before the page
+    /// begins: none when not stated.
+    pub offset: Option<u64>,
     pub archived: Option<bool>,
     pub entity_type: Option<String>,
 }
 
 impl ResourceFilters {
     /// How many resources a request with these filters asks for.
-    pub(crate) fn limit(&self) -> i64 {
+    pub(crate) fn limit(&self) -> u64 {
         self.limit.unwrap_or(LIST_LIMIT)
+    }
+
+    /// How many resources a request with these filters passes over.
+    pub(crate) fn offset(&self) -> u64 {
+        self.offset.unwrap_or(0)
     }
 }
 
@@ -234,8 +242,8 @@ impl Live {
                     let request = BrowseResourcesRequest {
                         limit: Some(filters.limit()),
                         archived: filters.archived,
+                        offset: Some(filters.offset()),
                         entity_type: filters.entity_type,
-                        offset: Some(0),
                     };
                     let answer = links.request::<BrowseResourcesRequested>(&request).await?;
                     Ok(answer.response)

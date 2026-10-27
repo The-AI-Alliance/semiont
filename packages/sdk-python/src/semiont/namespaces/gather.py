@@ -5,6 +5,7 @@ from typing import Final, final
 
 from semiont.cached import Cached, Keyed, itself
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.model import stated
 from semiont.namespaces.links import Links
 from semiont.namespaces.live import Live
 from semiont.operations import GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED
@@ -37,12 +38,25 @@ class GatherNamespace:
         self._live: Final = live
 
     def annotation(
-        self, resource_id: ResourceId, annotation_id: AnnotationId, *, context_window: int = _CONTEXT_WINDOW
+        self,
+        resource_id: ResourceId,
+        annotation_id: AnnotationId,
+        *,
+        context_window: int = _CONTEXT_WINDOW,
+        include_source_context: bool | None = None,
+        include_target_context: bool | None = None,
     ) -> Running[GatherAnnotationComplete]:
-        """The context around one annotation, taking `context_window` characters of its source: two thousand when none is stated."""
-        request = GatherAnnotationRequest(
-            annotation_id=annotation_id, resource_id=resource_id, options=GatherAnnotationOptions(context_window=context_window)
+        """The context around one annotation, taking `context_window` characters of its source: two thousand when none is stated.
+
+        The source's context and the target's are each included or left out
+        as stated, and as the gatherer decides when not.
+        """
+        options = GatherAnnotationOptions(
+            context_window=context_window,
+            include_source_context=include_source_context,
+            include_target_context=include_target_context,
         )
+        request = GatherAnnotationRequest(annotation_id=annotation_id, resource_id=resource_id, options=stated(options))
         return Running(lambda _: self._links.run(self._links.request(GATHER_REQUESTED, request)))
 
     async def resource(

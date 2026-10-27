@@ -16,6 +16,7 @@ Signatures are read by `scripts/lint/check-client-surface.mjs`.
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
+from functools import partial
 from typing import Final, final
 
 import pytest
@@ -141,25 +142,33 @@ class Filters:
     def __init__(self, args: Args) -> None:
         stated = args.get("filters", {})
         assert isinstance(stated, dict)
-        unknown = set(stated) - {"limit", "archived", "entityType"}
+        unknown = set(stated) - {"limit", "offset", "archived", "entityType"}
         assert not unknown, f"the case filters by {unknown}, which this SDK's lists do not take"
         self.limit = whole(stated["limit"], "limit") if "limit" in stated else None
+        self.offset = whole(stated["offset"], "offset") if "offset" in stated else None
         self.archived = flag(stated["archived"], "archived") if "archived" in stated else None
         self.entity_type = text(stated["entityType"], "entityType") if "entityType" in stated else None
 
 
 def listed(client: Client, args: Args) -> Awaitable[object]:
+    # What the case does not state is what the SDK sends unasked.
     filters = Filters(args)
-    if filters.limit is None:
-        return client.browse.resources(archived=filters.archived, entity_type=filters.entity_type).fresh()
-    return client.browse.resources(limit=filters.limit, archived=filters.archived, entity_type=filters.entity_type).fresh()
+    resources = partial(client.browse.resources, archived=filters.archived, entity_type=filters.entity_type)
+    if filters.limit is not None:
+        resources = partial(resources, limit=filters.limit)
+    if filters.offset is not None:
+        resources = partial(resources, offset=filters.offset)
+    return resources().fresh()
 
 
 def found(client: Client, args: Args) -> Awaitable[object]:
-    filters, search = Filters(args), text(args["search"], "search")
-    if filters.limit is None:
-        return client.match.resources(search, archived=filters.archived, entity_type=filters.entity_type).fresh()
-    return client.match.resources(search, limit=filters.limit, archived=filters.archived, entity_type=filters.entity_type).fresh()
+    filters = Filters(args)
+    resources = partial(client.match.resources, text(args["search"], "search"), archived=filters.archived, entity_type=filters.entity_type)
+    if filters.limit is not None:
+        resources = partial(resources, limit=filters.limit)
+    if filters.offset is not None:
+        resources = partial(resources, offset=filters.offset)
+    return resources().fresh()
 
 
 def directory(client: Client, args: Args) -> Awaitable[object]:
@@ -170,10 +179,19 @@ def directory(client: Client, args: Args) -> Awaitable[object]:
 
 
 def gathered_annotation(client: Client, args: Args) -> Awaitable[object]:
-    window = options(args).get("contextWindow")
-    if window is None:
-        return client.gather.annotation(rid(args), aid(args))
-    return client.gather.annotation(rid(args), aid(args), context_window=whole(window, "contextWindow"))
+    stated = options(args)
+    unknown = set(stated) - {"contextWindow", "includeSourceContext", "includeTargetContext"}
+    assert not unknown, f"the case states {unknown}, which gather.annotation does not take"
+    gather = partial(
+        client.gather.annotation,
+        rid(args),
+        aid(args),
+        include_source_context=flag(stated["includeSourceContext"], "includeSourceContext") if "includeSourceContext" in stated else None,
+        include_target_context=flag(stated["includeTargetContext"], "includeTargetContext") if "includeTargetContext" in stated else None,
+    )
+    if "contextWindow" in stated:
+        gather = partial(gather, context_window=whole(stated["contextWindow"], "contextWindow"))
+    return gather()
 
 
 def gathered_resource(client: Client, args: Args) -> Awaitable[object]:

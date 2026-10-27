@@ -227,10 +227,13 @@ func decodeInto[T any](a args, raw json.RawMessage) T {
 
 // filters is the filters a list or a search is given.
 func (a args) filters() semiont.ResourceFilters {
-	stated := a.stated("filters", "archived", "entityType", "limit")
+	stated := a.stated("filters", "archived", "entityType", "limit", "offset")
 	var filters semiont.ResourceFilters
 	if raw, ok := stated["limit"]; ok {
 		filters.Limit = decodeInto[int](a, raw)
+	}
+	if raw, ok := stated["offset"]; ok {
+		filters.Offset = decodeInto[int](a, raw)
 	}
 	if raw, ok := stated["archived"]; ok {
 		archived := decodeInto[bool](a, raw)
@@ -346,11 +349,12 @@ var calls = map[string]call{
 		c.Bind.ReportBodyError(decodeInto[api.ResourceErrorEvent](a, a.given["input"]))
 	},
 	"gather.annotation": func(ctx context.Context, c *semiont.Client, a args) {
-		var window int
-		if raw, ok := a.stated("options", "contextWindow")["contextWindow"]; ok {
-			window = decodeInto[int](a, raw)
+		a.stated("options", "contextWindow", "includeSourceContext", "includeTargetContext")
+		var options api.GatherAnnotationOptions
+		if a.has("options") {
+			options = decodeInto[api.GatherAnnotationOptions](a, a.given["options"])
 		}
-		_, _ = c.Gather.Annotation(a.rid("resourceId"), a.aid("annotationId"), window).Wait(ctx)
+		_, _ = c.Gather.Annotation(a.rid("resourceId"), a.aid("annotationId"), options).Wait(ctx)
 	},
 	"gather.resource": func(ctx context.Context, c *semiont.Client, a args) {
 		options := semiont.GatherResourceDefaults()

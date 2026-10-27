@@ -42,9 +42,9 @@ impl MatchNamespace {
                         // A page's limit is 1 to 200 on the wire. One this type cannot state is sent as
                         // the largest it can, which the gateway refuses, as it refuses any out of bounds.
                         limit: Some(u16::try_from(filters.limit()).unwrap_or(u16::MAX)),
+                        offset: Some(filters.offset()),
                         archived: filters.archived,
                         entity_type: filters.entity_type,
-                        offset: Some(0),
                     };
                     let answer = links.request::<MatchResourcesRequested>(&request).await?;
                     Ok(answer.response)

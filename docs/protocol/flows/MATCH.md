@@ -7,7 +7,7 @@ Match searches the knowledge base: for what a reference could refer to, ranking 
 | SDK method | Returns | On the wire | Answered by |
 |---|---|---|---|
 | `match.search` | a stream that gives the ranked candidates | `match:search-requested` | the librarian |
-| `match.resources` | a live query that gives a page of the resources a text finds, with the total | `match:resources-requested` | the librarian |
+| `match.resources` | a live query that gives a page of the resources a text finds, with the total: `limit` resources (a hundred when none is stated) after the first `offset` (none when none is stated) | `match:resources-requested` | the librarian |
 
 `match.search` takes the reference and the context [Gather](GATHER.md) assembled around it. Its options are a limit on the number of candidates, and whether a model re-ranks them.
 

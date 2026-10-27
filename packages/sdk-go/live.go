@@ -22,6 +22,7 @@ type whole struct{}
 // ResourceFilters, so two lists of the same filters are one key.
 type filterKey struct {
 	limit         int
+	offset        int
 	archived      bool
 	hasArchived   bool
 	entityType    string
@@ -29,7 +30,7 @@ type filterKey struct {
 }
 
 func keyOf(filters ResourceFilters) filterKey {
-	key := filterKey{limit: filters.limit()}
+	key := filterKey{limit: filters.limit(), offset: filters.Offset}
 	if filters.Archived != nil {
 		key.archived, key.hasArchived = *filters.Archived, true
 	}
@@ -39,7 +40,7 @@ func keyOf(filters ResourceFilters) filterKey {
 	return key
 }
 
-// request is the filters key as a list asks for it: the first page.
+// request is the filters key as a list asks for it.
 func (k filterKey) request() (limit, offset int, archived *bool, entityType *string) {
 	if k.hasArchived {
 		archived = &k.archived
@@ -47,7 +48,7 @@ func (k filterKey) request() (limit, offset int, archived *bool, entityType *str
 	if k.hasEntityType {
 		entityType = &k.entityType
 	}
-	return k.limit, 0, archived, entityType
+	return k.limit, k.offset, archived, entityType
 }
 
 // searchKey is a search for resources by text, among those its filters admit.

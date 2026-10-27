@@ -14,7 +14,9 @@ use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::state_unit::StateUnit;
 use crate::types::AnnotationId;
-use crate::types::{GatherResourceRequestOptions, GatheredContext, ResourceId};
+use crate::types::{
+    GatherAnnotationOptions, GatherResourceRequestOptions, GatheredContext, ResourceId,
+};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -118,9 +120,12 @@ impl GatherStateUnit {
     }
 
     /// Gather the context around one of this unit's resource's annotations,
-    /// taking `context_window` characters of the resource, as
-    /// `client.gather.annotation` does.
-    pub fn gather_annotation(&self, annotation_id: &AnnotationId, context_window: Option<u16>) {
+    /// as `options` say, as `client.gather.annotation` does.
+    pub fn gather_annotation(
+        &self,
+        annotation_id: &AnnotationId,
+        options: GatherAnnotationOptions,
+    ) {
         self.shared.annotation.begin();
         self.shared.annotation_id.set(Some(annotation_id.clone()));
         let (shared, annotation_id) = (self.shared.clone(), annotation_id.clone());
@@ -128,7 +133,7 @@ impl GatherStateUnit {
             let gathered = shared
                 .client
                 .gather
-                .annotation(&shared.resource_id, &annotation_id, context_window)
+                .annotation(&shared.resource_id, &annotation_id, options)
                 .await;
             shared
                 .annotation
