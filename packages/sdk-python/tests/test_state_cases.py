@@ -105,7 +105,7 @@ def search_pipeline(searches: Searches, made: JsonObject) -> SearchPipeline[str]
 
 MAKERS: Final[Mapping[str, Make]] = {
     "match": lambda client, searches, made: MatchStateUnit(client),
-    "beckon": lambda client, searches, made: BeckonStateUnit(client),
+    "beckon": lambda client, searches, made: BeckonStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
     "hoverDwell": lambda client, searches, made: HoverDwell(client.beckon.hover, round(duration_ms(made["delayMs"]))),
     "gather": lambda client, searches, made: GatherStateUnit(client, ResourceId(text(made["resourceId"], "a resource"))),
     "search": lambda client, searches, made: search_pipeline(searches, made),

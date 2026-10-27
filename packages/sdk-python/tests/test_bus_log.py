@@ -68,9 +68,15 @@ def written(capsys: pytest.CaptureFixture[str]) -> list[str]:
 def test_a_line_is_the_operation_the_channel_and_the_payload_as_json_all_on_one_line_of_stdout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    bus_log("EMIT", "beckon:focus", {"annotationId": "a-1", "said": "two\nlines", "naïve": [1, {"left": None, "right": True}]})
+    bus_log(
+        "EMIT",
+        "beckon:focus",
+        {"resourceId": "res-1", "annotationId": "a-1", "said": "two\nlines", "naïve": [1, {"left": None, "right": True}]},
+    )
     captured = capsys.readouterr()
-    assert captured.out == '[bus EMIT] beckon:focus {"annotationId":"a-1","said":"two\\nlines","naïve":[1,{"left":null,"right":true}]}\n'
+    assert captured.out == (
+        '[bus EMIT] beckon:focus {"resourceId":"res-1","annotationId":"a-1","said":"two\\nlines","naïve":[1,{"left":null,"right":true}]}\n'
+    )
     assert captured.err == ""
 
 
@@ -102,7 +108,7 @@ def test_a_note_is_a_line_about_a_channel_that_is_no_frame(capsys: pytest.Captur
 
 @pytest.mark.usefixtures("not_logging_the_bus")
 def test_unset_nothing_is_written(capsys: pytest.CaptureFixture[str]) -> None:
-    bus_log("EMIT", "beckon:focus", {"annotationId": "a-1"})
+    bus_log("EMIT", "beckon:focus", {"resourceId": "res-1", "annotationId": "a-1"})
     bus_note("LINGER", "beckon:focus", "delivered on superseded connection")
     assert capsys.readouterr().out == ""
 
@@ -114,7 +120,7 @@ def test_set_is_any_value_that_is_not_empty(
     monkeypatch.setenv("SEMIONT_BUS_LOG", value)
     enabled.cache_clear()
     try:
-        bus_log("EMIT", "beckon:focus", {})
+        bus_log("EMIT", "beckon:focus", {"resourceId": "res-1"})
         assert len(written(capsys)) == lines
     finally:
         enabled.cache_clear()
@@ -126,10 +132,10 @@ def test_the_variable_is_read_once_when_the_first_line_would_be_written(
     monkeypatch.setenv("SEMIONT_BUS_LOG", "1")
     enabled.cache_clear()
     try:
-        bus_log("EMIT", "beckon:focus", {})
+        bus_log("EMIT", "beckon:focus", {"resourceId": "res-1"})
         # What the process is started with decides: the variable changed afterwards changes nothing.
         monkeypatch.delenv("SEMIONT_BUS_LOG")
-        bus_log("EMIT", "beckon:focus", {})
+        bus_log("EMIT", "beckon:focus", {"resourceId": "res-1"})
         assert len(written(capsys)) == 2
     finally:
         enabled.cache_clear()
@@ -292,17 +298,17 @@ def test_a_transport_writes_a_line_for_each_frame_it_sends(capsys: pytest.Captur
     async def scenario() -> None:
         async with GatewayServer() as gateway, transport_to(gateway) as transport:
             await opened(transport)
-            await transport.emit("beckon:focus", {"annotationId": "a-1"}, correlation_id=CORRELATION)
-            await transport.emit("beckon:focus", {"annotationId": "a-2"}, scope=RESOURCE)
+            await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "a-1"}, correlation_id=CORRELATION)
+            await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "a-2"}, scope=RESOURCE)
             with telemetry.continuing(TRACE):
-                await transport.emit("beckon:focus", {})
+                await transport.emit("beckon:focus", {"resourceId": "res-1"})
             assert len(gateway.emits) == 3
 
     run(scenario())
     assert written(capsys) == [
-        '[bus EMIT] beckon:focus cid=a89a670a {"annotationId":"a-1"}',
-        '[bus EMIT] beckon:focus scope=res-1 {"annotationId":"a-2"}',
-        "[bus EMIT] beckon:focus trace=8f3ca4ed {}",
+        '[bus EMIT] beckon:focus cid=a89a670a {"resourceId":"res-1","annotationId":"a-1"}',
+        '[bus EMIT] beckon:focus scope=res-1 {"resourceId":"res-1","annotationId":"a-2"}',
+        '[bus EMIT] beckon:focus trace=8f3ca4ed {"resourceId":"res-1"}',
     ]
 
 
@@ -315,11 +321,11 @@ def test_an_emit_the_gateway_refuses_is_a_line_all_the_same_and_one_however_many
             await opened(transport)
             gateway.scripted["POST", "/bus/emit"] = [Answer(status=503, body=b"{}"), Answer(status=503, body=b"{}")]
             with pytest.raises(SemiontError):
-                await transport.emit("beckon:focus", {"annotationId": "a-1"})
+                await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "a-1"})
             assert len(gateway.emits) == 2
 
     run(scenario())
-    assert written(capsys) == ['[bus EMIT] beckon:focus {"annotationId":"a-1"}']
+    assert written(capsys) == ['[bus EMIT] beckon:focus {"resourceId":"res-1","annotationId":"a-1"}']
 
 
 @pytest.mark.usefixtures("logging_the_bus")
@@ -327,6 +333,7 @@ def test_a_transport_writes_a_line_for_each_frame_it_receives_as_the_frame_carri
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     carried: dict[str, JsonValue] = {
+        "resourceId": "res-1",
         "annotationId": "a-1",
         "_userId": "did:web:example.org:users:a",
         "_trace": {"traceparent": TRACE.traceparent},
@@ -343,18 +350,18 @@ def test_a_transport_writes_a_line_for_each_frame_it_receives_as_the_frame_carri
             gateway.write("event: ping\ndata:\n\n")
             # A channel nobody here reads is received all the same.
             gateway.send("e-3", {"channel": "mark:added", "payload": {}})
-            gateway.send("e-4", {"channel": "beckon:focus", "payload": {}})
+            gateway.send("e-4", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}})
             assert [(await soon(anext(frames))).payload for _ in range(2)] == [
-                {"annotationId": "a-1", "_userId": "did:web:example.org:users:a"},
-                {},
+                {"resourceId": "res-1", "annotationId": "a-1", "_userId": "did:web:example.org:users:a"},
+                {"resourceId": "res-1"},
             ]
 
     run(scenario())
     assert written(capsys) == [
-        '[bus RECV] beckon:focus scope=res-1 cid=a89a670a {"annotationId":"a-1","_userId":"did:web:example.org:users:a",'
-        '"_trace":{"traceparent":"00-8f3ca4ed5a6b7c8d9e0f112233445566-b7ad6b7169203331-01"}}',
+        '[bus RECV] beckon:focus scope=res-1 cid=a89a670a {"resourceId":"res-1","annotationId":"a-1",'
+        '"_userId":"did:web:example.org:users:a","_trace":{"traceparent":"00-8f3ca4ed5a6b7c8d9e0f112233445566-b7ad6b7169203331-01"}}',
         "[bus RECV] mark:added {}",
-        "[bus RECV] beckon:focus {}",
+        '[bus RECV] beckon:focus {"resourceId":"res-1"}',
     ]
 
 
@@ -373,15 +380,15 @@ def test_a_frame_a_retired_connection_delivers_is_noted_as_one(capsys: pytest.Ca
                 # The second stream has taken over once its opening has been read.
                 await settle()
                 # With no id nothing tells the two copies apart, so each stream delivers its own.
-                gateway.send(None, {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}})
+                gateway.send(None, {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "a-1"}})
                 for _ in range(2):
                     await soon(anext(frames))
 
     run(scenario())
     assert sorted(written(capsys)) == [
         "[bus LINGER] beckon:focus delivered on superseded connection",
-        '[bus RECV] beckon:focus {"annotationId":"a-1"}',
-        '[bus RECV] beckon:focus {"annotationId":"a-1"}',
+        '[bus RECV] beckon:focus {"resourceId":"res-1","annotationId":"a-1"}',
+        '[bus RECV] beckon:focus {"resourceId":"res-1","annotationId":"a-1"}',
     ]
 
 
@@ -432,8 +439,8 @@ def test_unset_a_transport_writes_nothing(capsys: pytest.CaptureFixture[str]) ->
             await opened(transport)
             frames = transport.frames("beckon:focus")
             gateway.stored["res-1"] = ("text/plain", b"what the resource says")
-            await transport.emit("beckon:focus", {"annotationId": "a-1"})
-            gateway.send("e-1", {"channel": "beckon:focus", "payload": {}})
+            await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "a-1"})
+            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}})
             await soon(anext(frames))
             await transport.content.get_binary(RESOURCE)
             await transport.content.put_binary(PutBinaryRequest(name="n", file=b"b", format="text/plain", storage_uri="file://n.txt"))

@@ -160,7 +160,7 @@ async def emit(gateway: GatewayServer, said: Answer, held: str = "t") -> Semiont
     # An emit that got no answer is made again, as often as its budget allows.
     gateway.scripted[("POST", "/bus/emit")] = [said, said]
     async with HttpTransport(gateway.origin, token=Variable[str | None](held), channels=("beckon:focus",), timing=QUICK) as transport:
-        return await raised(transport.emit("beckon:focus", {}))
+        return await raised(transport.emit("beckon:focus", {"resourceId": "res-1"}))
 
 
 SITES: Final[dict[str, tuple[Site, Saying, tuple[str, ...]]]] = {
@@ -373,12 +373,12 @@ def test_what_a_stream_carries_that_is_no_frame_is_said_by_what_it_lacks_and_in_
         ):
             await soon(reached(transport.state, lambda state: state == "open"))
             frames = transport.frames("beckon:focus")
-            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"token": CARRIED}, "scope": 5})
+            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "token": CARRIED}, "scope": 5})
             gateway.send("e-2", {"payload": {"token": CARRIED}})
             gateway.write(f'id: e-3\nevent: bus-event\ndata: {{"token": "{CARRIED}" not json\n\n')
-            gateway.send("e-4", {"channel": "beckon:focus", "payload": {}})
+            gateway.send("e-4", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}})
             # The stream is read in order: what came before this frame has been read.
-            assert (await soon(anext(frames))).payload == {}
+            assert (await soon(anext(frames))).payload == {"resourceId": "res-1"}
 
     with caplog.at_level(logging.WARNING, logger="semiont.http"):
         run(scenario())

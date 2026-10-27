@@ -68,7 +68,12 @@ async def traffic() -> tuple[Frame, str | None]:
         await soon(reached(transport.state, lambda state: state == "open"))
         frames = transport.frames("beckon:focus")
         gateway.send(
-            "e-1", {"channel": "beckon:focus", "scope": "res-1", "payload": {"annotationId": "a-1", "_trace": {"traceparent": SENT_UNDER}}}
+            "e-1",
+            {
+                "channel": "beckon:focus",
+                "scope": "res-1",
+                "payload": {"resourceId": "res-1", "annotationId": "a-1", "_trace": {"traceparent": SENT_UNDER}},
+            },
         )
         frame = await soon(anext(frames))
         await transport.emit("beckon:sparkle", {"annotationId": "a-2"})

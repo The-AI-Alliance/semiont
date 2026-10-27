@@ -70,10 +70,10 @@ describe('HttpTransport ITransport delegation', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:focus', payload: { annotationId: 'a-1' },
+      channel: 'beckon:focus', payload: { resourceId: 'res-1', annotationId: 'a-1' },
     })));
     await vi.waitFor(() => expect(seen).toHaveLength(1));
-    expect(seen[0]).toEqual({ annotationId: 'a-1' });
+    expect(seen[0]).toEqual({ resourceId: 'res-1', annotationId: 'a-1' });
 
     // A different channel must not reach this subscriber — the filter is the
     // whole reason `stream` takes a channel rather than returning everything.
@@ -81,14 +81,14 @@ describe('HttpTransport ITransport delegation', () => {
       channel: 'beckon:sparkle', payload: { annotationId: 'a-2' },
     })));
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:focus', payload: { annotationId: 'a-3' },
+      channel: 'beckon:focus', payload: { resourceId: 'res-1', annotationId: 'a-3' },
     })));
     await vi.waitFor(() => expect(seen).toHaveLength(2));
     expect(seen.map((p) => p.annotationId)).toEqual(['a-1', 'a-3']);
 
     off();
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:focus', payload: { annotationId: 'a-4' },
+      channel: 'beckon:focus', payload: { resourceId: 'res-1', annotationId: 'a-4' },
     })));
     await new Promise((r) => setTimeout(r, 10));
     expect(seen).toHaveLength(2);
@@ -107,9 +107,9 @@ describe('HttpTransport ITransport delegation', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:focus', payload: { annotationId: 'a-1' },
+      channel: 'beckon:focus', payload: { resourceId: 'res-1', annotationId: 'a-1' },
     })));
-    await vi.waitFor(() => expect(seen).toEqual([{ annotationId: 'a-1' }]));
+    await vi.waitFor(() => expect(seen).toEqual([{ resourceId: 'res-1', annotationId: 'a-1' }]));
 
     sub.unsubscribe();
     transport.dispose();

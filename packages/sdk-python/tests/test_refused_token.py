@@ -325,7 +325,7 @@ def test_an_emit_whose_token_is_refused_is_sent_again_at_once_with_the_token_its
             async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=("beckon:focus",)) as transport:
                 await state_is(transport, "open")
                 failures = transport.failures()
-                assert await soon(transport.emit("beckon:focus", {})) == 1
+                assert await soon(transport.emit("beckon:focus", {"resourceId": "res-1"})) == 1
                 assert sent_with(gateway, "POST", "/bus/emit") == ["Bearer stale", "Bearer fresh"]
                 assert source.asked == 1
                 # An emit accepted in the end failed nobody.
@@ -346,7 +346,7 @@ def test_an_emit_whose_renewed_token_is_refused_too_fails_as_unauthorized_and_is
                 await state_is(transport, "open")
                 failures = transport.failures()
                 with pytest.raises(TransportError) as refused:
-                    await soon(transport.emit("beckon:focus", {}))
+                    await soon(transport.emit("beckon:focus", {"resourceId": "res-1"}))
                 # Neither waited out nor made again inside the emit's budget, though the budget allows another attempt.
                 assert (refused.value.code, refused.value.status) == ("unauthorized", 429)
                 assert await soon(anext(failures)) is refused.value

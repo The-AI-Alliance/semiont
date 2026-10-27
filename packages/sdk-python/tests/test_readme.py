@@ -333,7 +333,7 @@ def test_state_units_shows_what_is_hovered_as_it_changes_until_the_unit_is_dispo
     async def watched() -> None:
         made = create_test_client()
         async with made.client as client:
-            beckon = BeckonStateUnit(client)
+            beckon = BeckonStateUnit(client, RESOURCE)
             watching = asyncio.ensure_future(state_units.show_hover(beckon))
             await settle()
             client.beckon.hover(ANNOTATION)

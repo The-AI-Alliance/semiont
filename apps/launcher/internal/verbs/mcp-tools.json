@@ -298,7 +298,7 @@
       "calls": ["beckon.attention"],
       "arguments": [
         { "from": "BeckonFocusEvent", "member": "annotationId", "required": true, "why": "A beckon with no annotation draws nothing (GUIDED-TOUR D7)." },
-        { "from": "BeckonFocusEvent", "member": "resourceId", "required": true, "why": "Every SDK's beckon.attention requires the guard: a focus that names no resource would leave each Browser showing another resource to look the annotation up before ignoring it." }
+        { "from": "BeckonFocusEvent", "member": "resourceId" }
       ],
       "result": { "reached": { "required": false, "own": { "type": "integer", "minimum": 0, "description": "How many Browsers the beckon reached; absent when the gateway kept no count." } } }
     }

@@ -171,7 +171,7 @@ options:
 	default:
 		// The focus a resource alone is: the event's annotation is optional,
 		// and attention names one.
-		subscribers, counted, err = semiont.Emit(c.Context(), c.Wire, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: &rid}, semiont.Envelope{})
+		subscribers, counted, err = semiont.Emit(c.Context(), c.Wire, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: rid}, semiont.Envelope{})
 	}
 	if err != nil {
 		return busFail(u, "beckon", c.Refusal(err))

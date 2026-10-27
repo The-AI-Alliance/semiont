@@ -82,7 +82,7 @@ eachPlane('two replicas on one broker', (world) => {
     const here = await world().subscribe(await world().person('here'), { clientId: randomUUID(), global: [BROADCAST] });
     const there = await world().subscribe(await world().person('there'), { clientId: randomUUID(), global: [BROADCAST] }, b.origin);
     const annotationId = randomUUID();
-    expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+    expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId, resourceId: 'res-1' } })).status).toBe(202);
     const carried = (m: StreamMessage) => m.frame?.channel === BROADCAST && m.frame.payload['annotationId'] === annotationId;
     const id = (await here.next('the frame on the replica it was emitted through', carried)).id;
     expect((await there.next('the frame on the other replica', carried)).id).toBe(id);
@@ -101,7 +101,7 @@ eachPlane('two replicas on one broker', (world) => {
       try {
         await stream.next('the stream\'s first message', () => true);
         const annotationId = randomUUID();
-        expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+        expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId, resourceId: 'res-1' } })).status).toBe(202);
         await stream.frame(BROADCAST, (f) => f.payload['annotationId'] === annotationId, 5_000);
       } finally {
         clearTimeout(release);

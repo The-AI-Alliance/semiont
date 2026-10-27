@@ -831,7 +831,7 @@
     },
     {
       "unit": "beckon",
-      "docs": "Attention: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus for one clicked here or by another participant.",
+      "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
       "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit" },
       "members": [
         { "member": "hoveredAnnotationId" },

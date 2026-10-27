@@ -31,7 +31,7 @@ impl BeckonNamespace {
         self.links
             .drive::<BeckonFocus>(&BeckonFocusEvent {
                 annotation_id: Some(annotation_id.clone()),
-                resource_id: Some(resource_id.clone()),
+                resource_id: resource_id.clone(),
             })
             .await
     }

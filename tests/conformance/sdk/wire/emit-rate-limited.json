@@ -7,9 +7,9 @@
     {"state": "open"},
     {"backend": "refuse", "with": {"wire": "POST /bus/emit", "status": 429, "retryAfter": 1, "body": {"error": "The principal's emits have used its bucket", "code": "emit-rate"}, "times": 1}},
 
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "as": "emitted"},
-    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "as": "refused"},
-    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "waited": "refused"},
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}}, "as": "emitted"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "as": "refused"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "waited": "refused"},
     {"settles": "emitted"}
   ]
 }

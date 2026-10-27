@@ -13,7 +13,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { baseUrl, type SemiontError } from '@semiont/core';
+import { baseUrl, resourceId, type SemiontError } from '@semiont/core';
 
 // Mock `ky` with a real `HTTPError` class — defined *inside* the factory to
 // avoid vitest's mock-hoisting TDZ — so the hook's `error instanceof HTTPError`
@@ -430,7 +430,7 @@ describe('HttpTransport errors$ bridge (refused emits)', () => {
     const seen: SemiontError[] = [];
     transport.errors$.subscribe((e) => seen.push(e));
 
-    const thrown = await transport.emit('beckon:focus', {}).catch((error: unknown) => error);
+    const thrown = await transport.emit('beckon:focus', { resourceId: resourceId('res-1') }).catch((error: unknown) => error);
     expect(thrown).toBeInstanceOf(APIError);
     expect((thrown as APIError).code).toBe('bad-request');
     expect(seen).toEqual([thrown]);

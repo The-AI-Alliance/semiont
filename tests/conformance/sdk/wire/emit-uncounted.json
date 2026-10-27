@@ -8,7 +8,7 @@
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
     {"state": "open"},
 
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "returns": {}},
-    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "answer": {}}
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}}, "returns": {}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "answer": {}}
   ]
 }

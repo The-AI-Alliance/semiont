@@ -29,15 +29,15 @@ eachPlane('the client proxy', (world) => {
   it('carries a stream and an emit through to the gateway, and records each request with its body', async () => {
     const clientId = randomUUID();
     const watcher = await world().subscribe(await world().person('watcher'), { clientId, global: [BROADCAST] }, proxy.origin);
-    const emitted = await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId: 'a-1' } }, proxy.origin);
+    const emitted = await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId: 'a-1', resourceId: 'res-1' } }, proxy.origin);
 
     expect(emitted.status).toBe(202);
-    expect((await watcher.frame(BROADCAST)).payload).toMatchObject({ annotationId: 'a-1' });
+    expect((await watcher.frame(BROADCAST)).payload).toMatchObject({ annotationId: 'a-1', resourceId: 'res-1' });
 
     const subscribe = await proxy.next('the subscribe', (r) => r.path === '/bus/subscribe');
     expect(subscribe).toMatchObject({ method: 'POST', status: 200, json: { clientId, global: [BROADCAST] } });
     const emit = await proxy.next('the emit', (r) => r.path === '/bus/emit' && r.status !== undefined);
-    expect(emit).toMatchObject({ method: 'POST', status: 202, json: { channel: BROADCAST, payload: { annotationId: 'a-1' } } });
+    expect(emit).toMatchObject({ method: 'POST', status: 202, json: { channel: BROADCAST, payload: { annotationId: 'a-1', resourceId: 'res-1' } } });
     expect(proxy.requests.indexOf(subscribe)).toBeLessThan(proxy.requests.indexOf(emit));
   });
 
@@ -65,7 +65,7 @@ eachPlane('the client proxy', (world) => {
   });
 
   it('answers a refusal with the status the gateway gave, and records it', async () => {
-    const refused = await call(proxy.origin, 'POST', '/bus/emit', { json: { channel: BROADCAST, payload: {} } });
+    const refused = await call(proxy.origin, 'POST', '/bus/emit', { json: { channel: BROADCAST, payload: { resourceId: 'res-1' } } });
 
     expect(refused.status).toBe(401);
     expect(await proxy.next('the refused emit', (r) => r.path === '/bus/emit' && r.status !== undefined)).toMatchObject({ status: 401 });
@@ -105,7 +105,7 @@ eachPlane('the client proxy', (world) => {
     const refusal = { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '2' }, body: JSON.stringify({ error: 'refused', code: 'emit-rate' }) };
     proxy.answer((r) => r.path === '/bus/emit', refusal, 1);
     const token = await world().person('emitter');
-    const emit = { channel: BROADCAST, payload: {} };
+    const emit = { channel: BROADCAST, payload: { resourceId: 'res-1' } };
 
     const refused = await world().emit(token, emit, proxy.origin);
     expect(refused.status).toBe(429);

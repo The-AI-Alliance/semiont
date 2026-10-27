@@ -259,8 +259,10 @@ def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bu
         heard = transport.frames("beckon:focus")
         on_the_bus = client.bus.frames(BECKON_FOCUS)
         # One subscriber reached: this transport delivers whatever is emitted through it.
-        assert await transport.emit("beckon:focus", {"annotationId": "ann-1"}, scope=RESOURCE) == 1
-        assert await soon(anext(heard)) == Frame(channel="beckon:focus", payload={"annotationId": "ann-1"}, scope=RESOURCE)
+        assert await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "ann-1"}, scope=RESOURCE) == 1
+        assert await soon(anext(heard)) == Frame(
+            channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "ann-1"}, scope=RESOURCE
+        )
         assert (await soon(anext(on_the_bus))).payload.annotation_id == "ann-1"
         # It is no request: the log does not hold it.
         assert transport.request_log == []
@@ -270,7 +272,7 @@ def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bu
         scheduled = FaultyTransport([Deliver(), RejectEmit()], make_response=lambda operation, payload: None)
         carried = Carried()
         scheduled.bridge_into(carried)
-        await scheduled.emit("beckon:focus", {"annotationId": "ann-1"})
+        await scheduled.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "ann-1"})
         assert await scheduled.emit(ASK, ASKED, correlation_id="cid-1") == 1
         # Its reply comes after the emit has been accepted, as a wire's does.
         assert carried.channels == ["beckon:focus", ASK]
@@ -410,9 +412,9 @@ def test_a_closed_transport_has_ended_everything_and_does_nothing_more() -> None
             assert closed.value.code == "bus.closed"
 
         # Nothing is sent, delivered, failed or changed after: the reply that was on its way never comes.
-        assert await transport.emit("beckon:focus", {"annotationId": "ann-1"}) is None
+        assert await transport.emit("beckon:focus", {"resourceId": "res-1", "annotationId": "ann-1"}) is None
         assert len(transport.emitted) == 2
-        transport.deliver(Frame(channel="beckon:focus", payload={}))
+        transport.deliver(Frame(channel="beckon:focus", payload={"resourceId": "res-1"}))
         transport.fail(TransportError("error", "after the end"))
         transport.set_state("open")
         await pass_time(0.2, step=0.05)

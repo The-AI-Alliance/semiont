@@ -32,7 +32,7 @@ const unroled = async (world: World): Promise<Array<[string, string]>> => [
 
 /** `count` emits at once. */
 const burst = (world: World, token: string, count: number): Promise<Reply[]> =>
-  Promise.all(Array.from({ length: count }, () => world.emit(token, { channel: 'beckon:focus', payload: {} })));
+  Promise.all(Array.from({ length: count }, () => world.emit(token, { channel: 'beckon:focus', payload: { resourceId: 'res-1' } })));
 
 eachPlane('what one principal may take', (world) => {
   it('past its emit bucket a principal holding no role is refused 429 emit-rate, told when to return, and admitted then — a person and an agent alike', async () => {
@@ -56,7 +56,7 @@ eachPlane('what one principal may take', (world) => {
       const wait = Number(refused.at(-1)!.headers.get('retry-after'));
       expect(wait, `${kind}: Retry-After`).toBeGreaterThanOrEqual(1);
       await new Promise((r) => setTimeout(r, wait * 1000));
-      const after = await world().emit(token, { channel: 'beckon:focus', payload: {} });
+      const after = await world().emit(token, { channel: 'beckon:focus', payload: { resourceId: 'res-1' } });
       expect(after.status, `${kind}: admitted after Retry-After`).toBe(202);
     }
   });

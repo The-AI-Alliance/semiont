@@ -50,7 +50,7 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
       />,
     );
 
-    client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7') });
+    client.bus.emit('beckon:focus', { resourceId: resourceId('res-1'), annotationId: annotationId('ann-7') });
 
     expect(scrollSpy).toHaveBeenCalledTimes(1);
     expect(scrollSpy.mock.calls[0]?.[0]).toBe('ann-7');
@@ -97,13 +97,10 @@ describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('still scrolls when the event names no resource at all', () => {
-    // `resourceId` is optional in the schema (`required: []`), and the in-app
-    // emitters — the history panel, the annotation list — omit it because they
-    // are already scoped to the open resource. A guard that treated absence as
-    // "not mine" would break every one of them.
+  it('hands the scroll no annotation when the focus names this resource and no annotation', () => {
     const client = renderAt('res-1');
-    client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7') });
+    client.bus.emit('beckon:focus', { resourceId: resourceId('res-1') });
     expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(scrollSpy.mock.calls[0]?.[0]).toBeNull();
   });
 });

@@ -66,12 +66,12 @@ eachPlane('subscribing', (world) => {
     const emitter = await world().person('emitter');
 
     const unscopedMark = randomUUID();
-    await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: unscopedMark } });
+    await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: unscopedMark, resourceId: 'res-1' } });
     const unscoped = await global.frame(BROADCAST, (f) => f.payload['annotationId'] === unscopedMark);
     expect(unscoped.scope).toBeUndefined();
 
     const scopedMark = randomUUID();
-    await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: scopedMark }, scope });
+    await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: scopedMark, resourceId: scope }, scope });
     const inScope = await scoped.frame(BROADCAST, (f) => f.payload['annotationId'] === scopedMark);
     expect(inScope.scope).toBe(scope);
 
@@ -95,7 +95,7 @@ eachPlane('subscribing', (world) => {
     const emitter = await world().person('emitter');
     const mark = randomUUID();
     for (const scope of [a, b, undefined]) {
-      const reply = await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: mark, at: scope ?? 'global' }, ...(scope ? { scope } : {}) });
+      const reply = await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: mark, resourceId: 'res-1', at: scope ?? 'global' }, ...(scope ? { scope } : {}) });
       expect(reply.status, reply.text).toBe(202);
     }
     await stream.next('all three frames', () => stream.frames(BROADCAST).filter((f) => f.payload['annotationId'] === mark).length === 3);
@@ -130,7 +130,7 @@ eachPlane('subscribing', (world) => {
     const second = await world().subscribe(await world().person('another'), { clientId: randomUUID(), global: [BROADCAST] });
     const emitter = await world().person('emitter');
     const marks: string[] = Array.from({ length: 5 }, () => randomUUID());
-    for (const annotationId of marks) expect((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+    for (const annotationId of marks) expect((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId, resourceId: 'res-1' } })).status).toBe(202);
     for (const stream of [first, second]) {
       await stream.next('the fifth frame', () => stream.frames(BROADCAST).some((f) => f.payload['annotationId'] === marks[4]));
       expect(stream.frames(BROADCAST).map((f) => f.payload['annotationId']).filter((m) => marks.includes(String(m)))).toEqual(marks);
@@ -145,7 +145,7 @@ eachPlane('subscribing', (world) => {
     const replacement = await world().subscribe(token, { clientId, global: [BROADCAST] });
     const emitter = await world().person('emitter');
     const marks = [randomUUID(), randomUUID()];
-    for (const annotationId of marks) expect((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+    for (const annotationId of marks) expect((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId, resourceId: 'res-1' } })).status).toBe(202);
     const idsOn = (stream: BusStream) =>
       Promise.all(marks.map(async (mark) => (await stream.next(`the frame marked ${mark}`, (m) => m.frame?.channel === BROADCAST && m.frame.payload['annotationId'] === mark)).id));
     const ids = await idsOn(old);

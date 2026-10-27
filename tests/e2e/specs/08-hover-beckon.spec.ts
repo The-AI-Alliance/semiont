@@ -5,7 +5,7 @@ import { openResourceByName } from '../fixtures/discover';
  * Smoke test: hovering an annotation fires `beckon:hover` on the bus
  * and BeckonStateUnit reacts by firing `beckon:sparkle`.
  *
- * `createBeckonStateUnit` takes the client,
+ * `createBeckonStateUnit` takes the client and its resource,
  * observes through `client.bus.on('beckon:hover').subscribe(...)`
  * and reacts with `client.bus.emit('beckon:sparkle', ...)`. If the factory's
  * internal bus wiring broke, the hover would still fire `beckon:hover`
