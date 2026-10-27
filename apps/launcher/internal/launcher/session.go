@@ -362,11 +362,3 @@ func Logout(args []string) int {
 	}
 	return 0
 }
-
-// Bearer is the RequestEditorFn stamping the session's Authorization header.
-func Bearer(token string) api.RequestEditorFn {
-	return func(_ context.Context, req *http.Request) error {
-		req.Header.Set("Authorization", "Bearer "+token)
-		return nil
-	}
-}
