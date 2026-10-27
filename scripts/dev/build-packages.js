@@ -41,7 +41,7 @@ try {
 // the order is wrong.)
 //
 // Restrict to `publish: true` — non-publishable entries (test-utils,
-// mcp-server, desktop) have build paths that don't fit this iteration.
+// desktop) have build paths that don't fit this iteration.
 // Desktop in particular runs `tauri build`, which has no place in
 // the npm dev/CI loop.
 const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf-8'));

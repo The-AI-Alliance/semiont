@@ -168,7 +168,6 @@ jobs:
               - 'apps/desktop/**'
               - 'packages/core/**'
               - 'packages/http-transport/**'
-              - 'packages/mcp-server/**'
               - 'packages/observability/**'
               - 'packages/react-ui/**'
               - 'packages/sdk/**'

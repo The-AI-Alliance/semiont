@@ -15,7 +15,6 @@ graph BT
 
     %% Layer 3: What an application is built from
     react["@semiont/react-ui<br/><i>React components & hooks</i>"]
-    mcp["@semiont/mcp-server<br/><i>Model Context Protocol server</i>"]
 
     %% Layer 2: SDK
     sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, cache</i>"]
@@ -34,9 +33,6 @@ graph BT
     react --> sdk
     react --> api
     react --> core
-    mcp --> sdk
-    mcp --> api
-    mcp --> core
 
     sdk --> api
     sdk --> obs
@@ -56,7 +52,7 @@ graph BT
     class core,obs layer0
     class api layer1
     class sdk layer2
-    class react,mcp layer3
+    class react layer3
     class browser layer4
 ```
 
@@ -156,7 +152,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 4. **The spec is the boundary between languages.** No package of one language depends on a package of another: not a crate, an npm package, a Python project or a Go module. What they agree on is in `specs/`, and each side generates its types from it.
 
-5. **Platform independence.** The npm packages work in both a browser and Node.js, but for `@semiont/mcp-server`, which is a Node program. Where one has a Node-only part it is a subpath of its own (`@semiont/observability/node`).
+5. **Platform independence.** The npm packages work in both a browser and Node.js. Where one has a Node-only part it is a subpath of its own (`@semiont/observability/node`).
 
 ## See also
 
