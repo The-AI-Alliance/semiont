@@ -38,26 +38,59 @@ func TestMCPAGatherSendsTheWindowStatedAndRefusesOneOutOfBounds(t *testing.T) {
 	gathering := bus.GatherRequested.Request().Channel()
 
 	// No window stated: the tool states none of its own, and the SDK sends
-	// the one its surface states for a call that states none.
+	// the one its surface states for a call that states none. Neither context
+	// is asked for or refused.
 	callTool(t, cs, "gather_annotation", map[string]any{"resourceId": "res-1", "annotationId": "ann-1"})
 	gathers := requestsOf(fake, gathering)
 	if len(gathers) != 1 {
 		t.Fatalf("gathered %d times, want once", len(gathers))
 	}
-	if payload := string(gathers[0].Payload); !strings.Contains(payload, `"contextWindow":2000`) {
+	payload := string(gathers[0].Payload)
+	if !strings.Contains(payload, `"contextWindow":2000`) {
 		t.Errorf("a gather that stated no window did not send the surface's: %s", payload)
 	}
+	for _, unstated := range []string{"includeSourceContext", "includeTargetContext"} {
+		if strings.Contains(payload, unstated) {
+			t.Errorf("a gather that stated no %s sent one: %s", unstated, payload)
+		}
+	}
 
-	callTool(t, cs, "gather_annotation", map[string]any{"resourceId": "res-1", "annotationId": "ann-1", "contextWindow": 500})
-	if gathers = requestsOf(fake, gathering); len(gathers) != 2 || !strings.Contains(string(gathers[1].Payload), `"contextWindow":500`) {
-		t.Errorf("a gather that stated 500 did not send it: %v", gathers)
+	// What is stated is sent, a false among it.
+	callTool(t, cs, "gather_annotation", map[string]any{"resourceId": "res-1", "annotationId": "ann-1",
+		"options": map[string]any{"contextWindow": 500, "includeSourceContext": false, "includeTargetContext": true}})
+	if gathers = requestsOf(fake, gathering); len(gathers) != 2 {
+		t.Fatalf("gathered %d times, want twice", len(gathers))
+	}
+	for _, stated := range []string{`"contextWindow":500`, `"includeSourceContext":false`, `"includeTargetContext":true`} {
+		if !strings.Contains(string(gathers[1].Payload), stated) {
+			t.Errorf("a gather that stated %s did not send it: %s", stated, gathers[1].Payload)
+		}
 	}
 
 	for _, outside := range []int{50, 9000} {
-		refusedNaming(t, "a window outside 100 to 5000", callTool(t, cs, "gather_annotation", map[string]any{"resourceId": "res-1", "annotationId": "ann-1", "contextWindow": outside}), "`contextWindow`")
+		refusedNaming(t, "a window outside 100 to 5000", callTool(t, cs, "gather_annotation", map[string]any{"resourceId": "res-1", "annotationId": "ann-1",
+			"options": map[string]any{"contextWindow": outside}}), "`options.contextWindow`")
 	}
+	// A gather inside a composite is held to the same schema, under `gather`.
+	refusedNaming(t, "match_link_targets with a window of 50", callTool(t, cs, "match_link_targets", map[string]any{"resourceId": "res-1", "referenceId": "ann-1",
+		"gather": map[string]any{"contextWindow": 50}}), "`gather.contextWindow`")
 	if gathers = requestsOf(fake, gathering); len(gathers) != 2 {
 		t.Errorf("a refused window was sent: %d gathers", len(gathers))
+	}
+}
+
+func TestMCPAListSendsTheOffsetStated(t *testing.T) {
+	cs, fake, _ := mcpFixture(t)
+	callTool(t, cs, "browse_resources", map[string]any{"offset": 20})
+	callTool(t, cs, "match_resources", map[string]any{"search": "cat", "offset": 20})
+	for _, channel := range []bus.Channel{bus.BrowseResourcesRequested.Request().Channel(), bus.MatchResourcesRequested.Request().Channel()} {
+		sent := requestsOf(fake, channel)
+		if len(sent) != 1 || !strings.Contains(string(sent[0].Payload), `"offset":20`) {
+			t.Errorf("%s did not send the offset stated: %v", channel, sent)
+		}
+	}
+	for _, tool := range []map[string]any{{"offset": -1}, {"offset": 1.5}} {
+		refusedNaming(t, "browse_resources with an offset of "+jsonText(tool["offset"]), callTool(t, cs, "browse_resources", tool), "`offset`")
 	}
 }
 
@@ -85,8 +118,8 @@ func TestMCPAListSendsNoFilterItWasNotGiven(t *testing.T) {
 	for _, limit := range []any{"ten", 0, 2.5} {
 		refusedNaming(t, "match_resources with a limit of "+jsonText(limit), callTool(t, cs, "match_resources", map[string]any{"search": "cat", "limit": limit}), "`limit`")
 	}
-	// browse_resources' is a whole number; the spec bounds it no further.
-	for _, limit := range []any{"ten", 2.5} {
+	// browse_resources' is a whole number from 1, with no greatest.
+	for _, limit := range []any{"ten", 0, 2.5} {
 		refusedNaming(t, "browse_resources with a limit of "+jsonText(limit), callTool(t, cs, "browse_resources", map[string]any{"limit": limit}), "`limit`")
 	}
 	if len(fake.RequestLog()) != 2 {
@@ -171,6 +204,6 @@ func TestMCPAResourceWithNoMediaTypeIsRefused(t *testing.T) {
 func TestMCPSeveralFaultsAreRefusedTogether(t *testing.T) {
 	cs, _, _ := mcpFixture(t)
 	refusedNaming(t, "a gather with four faults", callTool(t, cs, "gather_annotation", map[string]any{
-		"resourceId": "not an id!", "contextWindow": 50, "colour": "red",
-	}), "`resourceId`", "`annotationId`", "`contextWindow`", "`colour`")
+		"resourceId": "not an id!", "options": map[string]any{"contextWindow": 50}, "colour": "red",
+	}), "`resourceId`", "`annotationId`", "`options.contextWindow`", "`colour`")
 }
