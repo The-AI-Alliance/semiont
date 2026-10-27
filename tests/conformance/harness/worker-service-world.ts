@@ -39,10 +39,9 @@ export const ANTHROPIC_KEY_VARIABLE = 'WORKER_SERVICE_ANTHROPIC_KEY';
 
 /**
  * What the stand-in Anthropic says of a model unless a case says otherwise: it
- * reads far more than it writes, answers in a schema, and takes a
- * `temperature`.
+ * reads far more than it writes, and answers in a schema.
  */
-export const ANTHROPIC_MODEL: ModelFacts = { maxInputTokens: 200_000, maxOutputTokens: 64_000, structuredOutputs: true, acceptsTemperature: true };
+export const ANTHROPIC_MODEL: ModelFacts = { maxInputTokens: 200_000, maxOutputTokens: 64_000, structuredOutputs: true };
 
 export type RunningJob = components['schemas']['JobRunning'];
 export type JobFilter = components['schemas']['JobFilter'];

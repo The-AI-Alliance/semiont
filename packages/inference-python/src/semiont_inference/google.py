@@ -612,7 +612,7 @@ class GoogleInferenceClient:
             async with self._library(_DISCOVERY_TIMEOUT) as library:
                 model = await library.aio.models.get(model=self.model_id)
         except errors.APIError as refused:
-            raise refused_discovery(learning, refused.code) from refused
+            raise refused_discovery(learning, refused.code, str(refused)) from refused
         except Exception as unlearned:
             raise RuntimeError(learning) from unlearned
         if model.input_token_limit is None or model.output_token_limit is None:

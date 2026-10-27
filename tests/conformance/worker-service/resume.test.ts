@@ -6,12 +6,12 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService, type RunningJob } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markerHighlight, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT, textAnnotation, withoutCreated } from './support';
+import { COUNT_FORMAT, counting, expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markerHighlight, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT, textAnnotation, withoutCreated } from './support';
 
 const found = (...markers: number[]) => ({ response: JSON.stringify(markers.map((n) => ({ exact: `marker ${n}` }))) });
 
 const EXTRACTION = { num_predict: 5318, num_ctx: 5758, temperature: 0 };
-const COUNT = { num_predict: 16, num_ctx: 244, temperature: 0 };
+const COUNT = { num_predict: 32, num_ctx: 272, temperature: 0 };
 /** The size, in tokens, a linking job cuts the short text at. */
 const LINKING_SIZE = 2658;
 
@@ -102,13 +102,13 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
     const agent = w.agents[0]!;
     const job = markJob(w, 'resume-units', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 2, completedUnits: ['Person'] });
     const resourceId = String(job.params.resourceId);
-    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, { response: '1' });
+    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, counting(1));
     const served = await w.start();
     const completion = await settled(served, job);
 
     expect(served.payloads('job:start')).toEqual([{ ...identity(job), attempt: 3 }]);
     // Only the unfinished type is asked for: its extraction, and its count.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT)]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     const commits = served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']));
     expect(commits).toHaveLength(1);
     expect(commits[0]!.map((a) => (a['body'] as Array<{ value: string }>)[0]!.value)).toEqual(['Place']);
@@ -151,14 +151,14 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
           { exact: 'London', entityType: 'Place', prefix: 'ignored it. ', suffix: ' was wrong' },
         ]),
       },
-      { response: '3' },
+      counting(3),
     );
     const served = await w.start();
     const completion = await settled(served, job);
 
     expect(served.payloads('job:start')).toEqual([{ ...identity(job), attempt: 2 }]);
     // The finished type is not asked about again.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT)]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
 
     const reference = [{ type: 'TextualBody', value: 'Place', purpose: 'tagging', format: 'text/plain', language: 'en' }];
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
@@ -232,12 +232,12 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
     const person = { next: TEXT.length, size: LINKING_SIZE, found: 2, emitted: 2, errors: 0 };
     const job = markJob(w, 'resume-ended', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 1, unitCursors: { Person: person } });
     const resourceId = String(job.params.resourceId);
-    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, { response: '1' });
+    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, counting(1));
     const served = await w.start();
     const completion = await settled(served, job);
 
     // Nothing is asked about the type that has no text left.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT)]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
       [
         textAnnotation(

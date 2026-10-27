@@ -40,14 +40,15 @@ Each file runs its cases in a world of its own
   unanswered, and `POST /api/generate` with what the case scripted, and
   records every request as it was sent;
 - a stand-in Anthropic ([harness/anthropic.ts](../harness/anthropic.ts)),
-  which the `baseUrl` of an Anthropic agent names. It answers `GET
-  /v1/models/{model}` with what a case said of the model, the probe of
-  whether the model takes a `temperature` from the same, and any other `POST
+  which the `baseUrl` of an Anthropic agent names. It plays the provider
+  under version 2026-10-21 of its API: it takes a request only with the key
+  as `Authorization: Bearer <key>`, and refuses with 400, on every model, a
+  generation that carries `temperature`, `top_p` or `top_k`. It answers `GET
+  /v1/models/{model}` with what a case said of the model, and `POST
   /v1/messages` with what the case scripted: an answer, as one message or as
   the stream of events the request asked for, a refusal, a held answer, or a
   connection ended unanswered. A refusal may carry headers, and so may one
-  of the Models API or of the probe. It records every request with its
-  headers.
+  of the Models API. It records every request with its headers.
   Its key reaches the service in the variable the agent's `apiKeyEnv` names,
   which is none the provider's own library reads;
 - the suite itself on the bus, as the two parties a worker asks things of
@@ -71,7 +72,8 @@ Whatever a case is about, it also fails a service that:
 - asks a provider for a generation the case did not script, or for any path
   but the two of Ollama's and the two of Anthropic's above;
 - asks the stand-in Anthropic for anything without the key, or about a model
-  the case has not described;
+  the case has not described, or for a generation that carries
+  `temperature`, `top_p` or `top_k`;
 - puts on the bus, or has the gateway ask the Archivist for, what the spec
   does not allow.
 
@@ -86,8 +88,9 @@ the Archivist's spec.
   prompt, less its one final line end. A case holds the whole body of each
   request to the provider and the order the requests arrive in: of Ollama,
   the model, the prompt, `stream`, `think`, the three `options` and the
-  `format`; of Anthropic, the model, `max_tokens`, the `temperature`, the one
-  message, the `output_config` and, of a long generation, `stream`.
+  `format`; of Anthropic, the model, `max_tokens`, the one message, the
+  `output_config` and, of a long generation, `stream`, and no
+  `temperature`.
 - **Annotations** are compared whole: `id`, selectors, body and `generator`,
   in the batches they were committed in. `created` must be an instant and is
   otherwise the service's own. The annotations a `yield` job commits are on,
@@ -122,7 +125,7 @@ the Archivist's spec.
 | `highlighting` | `highlighting.test.ts` | J1, J2, D1 to D3, D8, D9, D11 to D13, D15 to D17, K1 |
 | `commenting` | `commenting.test.ts` | D8, D9, D12, D17, K2 |
 | `assessing` | `assessing.test.ts` | D5, D12, D17, K3 |
-| `linking` | `linking.test.ts` | D8, D12 to D15, D18, K4, K5 |
+| `linking` | `linking.test.ts` | D8, D12 to D15, D18, K4 to K6 |
 | `tagging` | `tagging.test.ts` | D9, D12, D14, D15, D19, K7 |
 | `anchoring` | `anchoring.test.ts` | D8 |
 | `prompts` | `prompts.test.ts` | D2, D3, K1 to K4, K7 |
@@ -157,7 +160,7 @@ rule names exists, and every case is named by a rule.
 | A real dispatcher, Archivist or Smelter | The suite stands in for them, so that it can hand a service answers a correct one never gives and see every message |
 | M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation and every asking of it, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
 | D7, the size of a piece following the provider's usage | Not written. On a model whose window is shared, as the stand-in Ollama's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills. A model of the stand-in Anthropic has two ceilings, and a case on it could hold the rule |
-| K6, and F7 for an answer not had in time or unreadable for a reason the provider does not state | Not written: `halved.test.ts` holds the halving of a piece whose answer is cut off, and `failures.test.ts` that of one whose model finished and could not be read. A generation not had in time takes the ten minutes of F9 |
+| K6 for a piece taken to have missed mentions that can be cut smaller, and F7 for an answer not had in time or unreadable for a reason the provider does not state | Not written: `linking.test.ts` holds a count that answers no count, `halved.test.ts` holds the halving of a piece whose answer is cut off, and `failures.test.ts` that of one whose model finished and could not be read. A generation not had in time takes the ten minutes of F9 |
 | The commit whose acknowledgement is lost | [WORKER-CONTRACT A5](../../../docs/protocol/WORKER-CONTRACT.md#committing-annotations), held by the worker suite: a service waits a minute for an acknowledgement |
 
 ## Adding an implementation

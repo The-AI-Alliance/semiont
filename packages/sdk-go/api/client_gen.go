@@ -3075,8 +3075,12 @@ type BrowseResourceViewedEvent struct {
 type BrowseResourcesRequest struct {
 	Archived   *bool   `json:"archived,omitempty"`
 	EntityType *string `json:"entityType,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-	Offset     *int    `json:"offset,omitempty"`
+
+	// Limit The most resources a page has.
+	Limit *int `json:"limit,omitempty"`
+
+	// Offset How many of the resources the filters admit are passed over before the page begins.
+	Offset *int `json:"offset,omitempty"`
 }
 
 // BrowseResourcesResult Result of browsing resources
@@ -5288,6 +5292,9 @@ type MarkJobDone struct {
 
 	// Persisted What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed.
 	Persisted int `json:"persisted"`
+
+	// UncheckedPieces Pieces whose yield was to be checked against a count and was not: the count failed, was cut off, or answered no count. What they found was kept unchecked. Absent means none: every piece that was to be checked was. A job whose provider checks no yield has none.
+	UncheckedPieces *int `json:"uncheckedPieces,omitempty"`
 
 	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
 	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`

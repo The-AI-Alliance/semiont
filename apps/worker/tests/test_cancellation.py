@@ -62,7 +62,7 @@ from semiont_worker.detection.annotation_detection import (
 )
 from semiont_worker.detection.chunk_plan import AdaptiveChunk, ChunkCursor, DetectionBudget, derive_detection_budget, run_adaptive_chunks
 from semiont_worker.detection.chunk_size import CallOutcome
-from semiont_worker.detection.entity_extractor import Mention, extract_entities
+from semiont_worker.detection.entity_extractor import COUNT_ELEMENT_SCHEMA, Mention, extract_entities
 from semiont_worker.detection.parsers import AssessmentMatch, CommentMatch, TagMatch
 from semiont_worker.detection.prompts import assessment_prompt, comment_prompt, highlight_prompt, mention_prompt, tag_prompt
 from semiont_worker.generation.resource_generation import GeneratedDocument
@@ -223,6 +223,7 @@ async def mentions(client: InferenceClient, cancelled: Watched[bool], on_activit
         on_activity=on_activity,
         on_under_report=untold,
         on_counted=untold,
+        on_unchecked=lambda: None,
         resume=None,
         on_chunk_results=kept,
     )
@@ -265,13 +266,15 @@ def first_cut(kind: Kind) -> tuple[int, int]:
 class Model:
     """A provider that is stood in for: it answers each call for items from a list, each count from another, and can hold an answer.
 
-    It verifies yield when it is given counts. The call for items it holds,
+    It verifies yield when it is given counts. A count is told from a call
+    for items by the schema it asks in, and answered as the one element a
+    count is asked for. The call for items it holds,
     where it holds one, is answered once the test lets it go: until then the
     call is awaited, as one a real model has not yet answered is.
     """
 
     def __init__(
-        self, limits: InferenceLimits, items: Sequence[Sequence[JsonValue]], counts: Sequence[str] | None, hold: int | None
+        self, limits: InferenceLimits, items: Sequence[Sequence[JsonValue]], counts: Sequence[int] | None, hold: int | None
     ) -> None:
         self.provider: Final = "ollama"
         self.model_id: Final = "stand-in"
@@ -294,13 +297,16 @@ class Model:
         return self._limits
 
     async def generate_text(self, prompt: str, max_tokens: int, temperature: float) -> InferenceResponse:
-        assert self._counts is not None, "a provider that does not verify yield is asked for no count"
-        self.counted.append(prompt)
-        return InferenceResponse(text=self._counts[min(len(self.counted), len(self._counts)) - 1], stop_reason="end_turn", usage=None)
+        raise AssertionError("a detection asks its model for no text")
 
     async def generate_structured(
         self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
     ) -> StructuredResponse:
+        if element_schema is COUNT_ELEMENT_SCHEMA:
+            assert self._counts is not None, "a provider that does not verify yield is asked for no count"
+            self.counted.append(prompt)
+            count = self._counts[min(len(self.counted), len(self._counts)) - 1]
+            return StructuredResponse(items=[{"count": count}], stop_reason="end_turn", usage=None)
         self.asked.append(prompt)
         nth = len(self.asked)
         if nth == self._hold:
@@ -783,7 +789,7 @@ def test_a_linking_job_cancelled_while_a_piece_s_extraction_is_with_the_model_co
     next_, size = first_cut(kind)
 
     async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
-        client = Model(limits_of(kind), [[{"exact": "marker 003", "entityType": "Person"}]], ["1"], 1)
+        client = Model(limits_of(kind), [[{"exact": "marker 003", "entityType": "Person"}]], [1], 1)
         handed = Handed(1)
         answered = await held_then_cancelled(
             client,
@@ -840,7 +846,7 @@ def test_a_linking_job_cancelled_on_the_last_piece_of_its_last_entity_type_is_ca
     limits = window(estimate_tokens(mention_prompt("", ["Person"], include_descriptive_references=False, source_language=None)) + 600)
 
     async def scenario() -> tuple[MarkJobDone | Cancelled, Model, Handed]:
-        client = Model(limits, [[{"exact": "alpha", "entityType": "Person"}]], ["1"], 1)
+        client = Model(limits, [[{"exact": "alpha", "entityType": "Person"}]], [1], 1)
         handed = Handed(1)
         answered = await held_then_cancelled(
             client,
@@ -871,7 +877,7 @@ def test_a_linking_job_cancelled_on_the_last_piece_of_its_last_entity_type_is_ca
 
 def test_a_linking_job_cancelled_as_a_type_s_last_batch_is_committed_stops_between_entity_types() -> None:
     limits = window(estimate_tokens(mention_prompt("", ["Person"], include_descriptive_references=False, source_language=None)) + 600)
-    client = Model(limits, [[{"exact": "alpha", "entityType": "Person"}]], ["1"], None)
+    client = Model(limits, [[{"exact": "alpha", "entityType": "Person"}]], [1], None)
     handed = Handed(1)
     cancelling_as_it_commits(handed)
 

@@ -126,7 +126,7 @@ func TestGatherKeepsTheStateUnitAxioms(t *testing.T) {
 		},
 		Invocations: func(unit *state.GatherStateUnit) []func() {
 			return []func(){
-				func() { unit.GatherAnnotation(annotation, 0) },
+				func() { unit.GatherAnnotation(annotation, api.GatherAnnotationOptions{}) },
 				func() { unit.GatherResource(resource, semiont.GatherResourceDefaults()) },
 			}
 		},

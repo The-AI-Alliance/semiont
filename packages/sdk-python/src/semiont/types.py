@@ -781,8 +781,14 @@ class BrowseResourcesRequest(WireModel, frozen=True):
 
     archived: bool | None = None
     entity_type: Annotated[str | None, Field(alias="entityType")] = None
-    offset: int | None = None
-    limit: int | None = None
+    offset: Annotated[
+        int | None,
+        Field(
+            description="How many of the resources the filters admit are passed over before the page begins.",
+            ge=0,
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="The most resources a page has.", ge=1)] = None
 
 
 class BrowseRouterPushEvent(WireModel, frozen=True):
@@ -1401,6 +1407,14 @@ class MarkJobDone(WireModel, frozen=True, extra="forbid"):
         Field(
             alias="underReportedPieces",
             description="Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.",
+        ),
+    ] = None
+    unchecked_pieces: Annotated[
+        int | None,
+        Field(
+            alias="uncheckedPieces",
+            description="Pieces whose yield was to be checked against a count and was not: the count failed, was cut off, or answered no count. What they found was kept unchecked. Absent means none: every piece that was to be checked was. A job whose provider checks no yield has none.",
+            ge=1,
         ),
     ] = None
 

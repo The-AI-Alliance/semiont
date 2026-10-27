@@ -6693,9 +6693,9 @@ func TestSecretStoreNeverFallsBackToTheFilesystem(t *testing.T) {
 	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
 		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if err := os.Remove(filepath.Join(s.shim, harness.Exe("op"))); err != nil {
-		t.Fatal(err)
-	}
+	// `op` leaves PATH by a fresh shim directory that never held it: Windows may
+	// still hold open the `op` that `settings` just ran, and refuse its removal.
+	s.shim = shimDir(t, "container")
 	_, stderr, code := s.run(t, "start")
 	if code == 0 {
 		t.Fatal("start succeeded with its configured store unreachable")

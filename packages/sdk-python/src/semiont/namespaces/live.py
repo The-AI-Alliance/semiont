@@ -88,9 +88,10 @@ class CachePersistence:
 
 
 class ResourceFilters(NamedTuple):
-    """Which resources a list, or a search, is of."""
+    """Which resources a list, or a search, is of, and which page of them."""
 
     limit: int
+    offset: int
     archived: bool | None
     entity_type: str | None
 
@@ -185,7 +186,9 @@ class Live:
         return (await self._links.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response.resource
 
     async def _list(self, filters: ResourceFilters) -> ListResourcesResponse:
-        request = BrowseResourcesRequest(limit=filters.limit, offset=0, archived=filters.archived, entity_type=filters.entity_type)
+        request = BrowseResourcesRequest(
+            limit=filters.limit, offset=filters.offset, archived=filters.archived, entity_type=filters.entity_type
+        )
         return (await self._links.request(BROWSE_RESOURCES_REQUESTED, request)).response
 
     async def _annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
@@ -230,7 +233,7 @@ class Live:
     async def _search(self, search: ResourceSearch) -> MatchResourcesResponse:
         filters = search.filters
         request = MatchResourcesRequest(
-            search=search.search, limit=filters.limit, offset=0, archived=filters.archived, entity_type=filters.entity_type
+            search=search.search, limit=filters.limit, offset=filters.offset, archived=filters.archived, entity_type=filters.entity_type
         )
         return (await self._links.request(MATCH_RESOURCES_REQUESTED, request)).response
 

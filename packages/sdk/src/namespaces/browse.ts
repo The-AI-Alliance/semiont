@@ -35,15 +35,10 @@ import type {
   BrowseNamespace as IBrowseNamespace,
   AnnotationHistoryResponse,
   ResourceList,
+  ResourceListFilters,
 } from './types';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
-
-type ResourceListFilters = {
-  limit?: number;
-  archived?: boolean;
-  entityType?: string;
-};
 
 /** Sentinel key for the singleton entity-types cache. */
 const ENTITY_TYPES_KEY = '_';
@@ -221,7 +216,7 @@ export class BrowseNamespace implements IBrowseNamespace {
           archived: filters.archived,
           entityType: filters.entityType,
           limit: filters.limit ?? 100,
-          offset: 0,
+          offset: filters.offset ?? 0,
         },
         this.busTimeoutMs,
       );

@@ -84,6 +84,11 @@ function count(value: Json | undefined, what: string): number {
   return value;
 }
 
+function flag(value: Json | undefined, what: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${what} is not a boolean: ${JSON.stringify(value)}`);
+  return value;
+}
+
 function strings(value: Json | undefined, what: string): string[] {
   if (!Array.isArray(value)) throw new Error(`${what} is not a list: ${JSON.stringify(value)}`);
   return value.map((item) => text(item, what));
@@ -191,10 +196,11 @@ const MAKERS: Record<string, Make> = {
       unit,
       methods: {
         gatherAnnotation: (args) =>
-          unit.gatherAnnotation(
-            annotationOf(args),
-            args['contextWindow'] === undefined ? undefined : { contextWindow: count(args['contextWindow'], 'contextWindow') },
-          ),
+          unit.gatherAnnotation(annotationOf(args), {
+            ...(args['contextWindow'] === undefined ? {} : { contextWindow: count(args['contextWindow'], 'contextWindow') }),
+            ...(args['includeSourceContext'] === undefined ? {} : { includeSourceContext: flag(args['includeSourceContext'], 'includeSourceContext') }),
+            ...(args['includeTargetContext'] === undefined ? {} : { includeTargetContext: flag(args['includeTargetContext'], 'includeTargetContext') }),
+          }),
         gatherResource: (args) => unit.gatherResource(resourceId(text(args['resourceId'], 'resourceId'))),
       } satisfies Methods<GatherStateUnit>,
       states: {

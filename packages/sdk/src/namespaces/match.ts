@@ -52,7 +52,7 @@ export class MatchNamespace implements IMatchNamespace {
           archived: asked.filters.archived,
           entityType: asked.filters.entityType,
           limit: asked.filters.limit ?? 100,
-          offset: 0,
+          offset: asked.filters.offset ?? 0,
         },
         options?.busTimeoutMs,
       );

@@ -95,7 +95,7 @@ def test_a_model_that_does_not_report_that_it_answers_in_a_schema_is_refused_bef
                 await client.generate_structured("p", 1000, 0.3, PERSON)
             assert "capabilities.structured_outputs" in str(refused.value)
             # It learned of the model, and asked it for nothing.
-            assert (len(played.retrievals), len(played.probed), played.generations) == (1, 1, [])
+            assert (len(played.retrievals), played.generations) == (1, [])
             # Plain text wants no schema, and is asked for all the same.
             assert (await client.generate_text("p", 300, 0.2)).text == "It was never built."
 
@@ -111,7 +111,6 @@ def test_the_schema_is_the_callers_under_an_array_root_with_no_tool_and_no_assis
                 {
                     "model": "claude-x",
                     "max_tokens": 1000,
-                    "temperature": 0.3,
                     "messages": [{"role": "user", "content": "p"}],
                     "output_config": {"format": {"type": "json_schema", "schema": {"type": "array", "items": PERSON}}},
                 }

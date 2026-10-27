@@ -2,9 +2,10 @@
 
 `Ollama` plays the two calls the Ollama driver makes (`POST /api/show`, `POST
 /api/generate`), as `tests/conformance/harness/ollama.ts` plays them for the
-Worker service's suite. `Anthropic` plays the three the Anthropic driver makes
-through Anthropic's library: the Models API, the one-token probe, and a
-generation answered whole or as a stream of events, whichever was asked for.
+Worker service's suite. `Anthropic` plays the two the Anthropic driver makes
+through Anthropic's library, as API version 2026-10-21 has them: the Models
+API, and a generation answered whole or as a stream of events, whichever was
+asked for.
 `OpenAI` plays the one call the OpenAI driver makes through OpenAI's library:
 a generation of the Responses API, answered whole.
 
@@ -263,11 +264,19 @@ class Ollama(Played):
 
 # ── Anthropic ───────────────────────────────────────────────────────────
 
-TEMPERATURE_REFUSED: Final = saying(
-    {"type": "error", "error": {"type": "invalid_request_error", "message": "`temperature` is deprecated for this model."}},
-    status=400,
-)
-"""What a model that takes no `temperature` says to a request carrying one."""
+_SAMPLING_PARAMETERS: Final = ("temperature", "top_p", "top_k")
+"""What API version 2026-10-21 refuses in a request of the Messages API, on every model and at any value."""
+
+
+def _sampling_refused(parameter: str) -> Answer:
+    """What API version 2026-10-21 says to a request of the Messages API that sends `parameter`."""
+    return saying(
+        {
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": f"`{parameter}` is not accepted in API version 2026-10-21"},
+        },
+        status=400,
+    )
 
 
 def refused(status: int, kind: str, message: str) -> Answer:
@@ -326,20 +335,17 @@ def _event(name: str, data: JsonObject) -> bytes:
 
 @final
 class Anthropic(Played):
-    """A stand-in for Anthropic's API.
+    """A stand-in for Anthropic's API, at API version 2026-10-21.
 
-    `model` is what the Models API answers. The probe (the one request that
-    asks for a single token) is answered by the model itself, unless `probes`
-    holds an answer for it. A model that `refuses_temperature` answers 400 to
-    any request that carries one. `script` queues the replies of the next
-    generations.
+    `model` is what the Models API answers. A generation that sends
+    `temperature`, `top_p` or `top_k` is refused with 400, on every model, as
+    that version refuses it, and takes none of what was scripted. `script`
+    queues the replies of the next generations.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.model: Answer = model_info()
-        self.refuses_temperature = False
-        self.probes: list[Answer] = []
         self._scripted: list[Reply | Answer] = []
 
     def script(self, *replies: Reply | Answer) -> None:
@@ -353,18 +359,13 @@ class Anthropic(Played):
 
     @property
     def messages(self) -> list[Asked]:
-        """Every `POST /v1/messages`, in order: the probes and the generations."""
+        """Every generation, `POST /v1/messages`, in order."""
         return self.of("POST", "/v1/messages")
-
-    @property
-    def probed(self) -> list[JsonObject]:
-        """The body of every probe, in order."""
-        return [body for body in (asked.json() for asked in self.messages) if body.get("max_tokens") == 1]
 
     @property
     def generations(self) -> list[JsonObject]:
         """The body of every generation, in order."""
-        return [body for body in (asked.json() for asked in self.messages) if body.get("max_tokens") != 1]
+        return [asked.json() for asked in self.messages]
 
     @override
     def _answer(self, asked: Asked) -> Answer:
@@ -375,14 +376,9 @@ class Anthropic(Played):
             return saying({"type": "error", "error": {"type": "not_found_error", "message": "not found"}}, status=404)
         body = asked.json()
         request_id = f"req_played_{len(self.messages)}"
-        if body.get("max_tokens") == 1:
-            if self.probes:
-                return self.probes.pop(0)
-            if self.refuses_temperature and "temperature" in body:
-                return TEMPERATURE_REFUSED
-            return self._whole(body, reply("ok", stop_reason="max_tokens", usage={"input_tokens": 8, "output_tokens": 1}), request_id)
-        if self.refuses_temperature and "temperature" in body:
-            return TEMPERATURE_REFUSED
+        for parameter in _SAMPLING_PARAMETERS:
+            if parameter in body:
+                return _sampling_refused(parameter)
         if not self._scripted:
             self.unscripted.append(f"generation {len(self.generations)}")
             return saying({"type": "error", "error": {"type": "api_error", "message": "the stand-in has no reply scripted"}}, status=500)

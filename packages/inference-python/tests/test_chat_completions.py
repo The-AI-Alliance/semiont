@@ -506,15 +506,15 @@ def test_a_model_list_the_server_refuses_is_a_status_error_that_says_what_was_as
             client = driver(server, played)
             with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A refused discovery is classed as a refused generation is, by its status.
-            assert (
-                str(refused.value)
-                == f"Failed to discover model limits for '{MODEL}' from the server's model list: refused with status {status}"
-            )
-            assert refused.value.status == status
+            # A refused discovery is classed as a refused generation is, by its status, and says what the server said.
             cause = refused.value.__cause__
             assert isinstance(cause, openai.APIStatusError)
             assert cause.status_code == status
+            assert str(refused.value) == (
+                f"Failed to discover model limits for '{MODEL}' from the server's model list: refused with status {status}: {cause.message}"
+            )
+            assert "what the server said" in str(refused.value)
+            assert refused.value.status == status
             # The library asks again for the statuses it asks again for, as it does for a generation.
             assert len(played.listings) == asked
 

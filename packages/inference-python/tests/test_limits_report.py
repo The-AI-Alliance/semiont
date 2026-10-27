@@ -93,7 +93,7 @@ def test_each_pair_is_reported_in_the_order_given_as_its_provider_states_it() ->
                 {
                     "provider": "anthropic",
                     "model": "claude-x",
-                    "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": True},
+                    "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": False},
                 },
                 {"provider": "ollama", "model": "llama3", "limits": shared(4096)},
                 MOCK_PAIR,
@@ -142,7 +142,7 @@ def test_a_pair_that_cannot_be_learned_is_left_out_and_asked_about_again_at_the_
     (left_out,) = [record for record in caplog.records if record.getMessage().startswith("Limits report")]
     assert (left_out.levelname, left_out.getMessage()) == ("DEBUG", "Limits report: consult failed — pair left out")
     assert vars(left_out)["pair"] == "ollama llama3"
-    assert "/api/show returned 500" in vars(left_out)["reason"]
+    assert "Ollama's /api/show: refused with status 500" in vars(left_out)["reason"]
 
 
 def test_a_provider_that_has_not_answered_in_a_second_and_a_half_is_left_out_and_its_answer_is_kept_when_it_comes(

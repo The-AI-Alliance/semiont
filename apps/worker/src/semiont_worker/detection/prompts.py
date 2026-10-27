@@ -408,11 +408,12 @@ def count_prompt(content: str, entity_types: Sequence[str]) -> str:
     """The prompt of a linking job's count, around `content`: how many mentions of `entity_types` the same piece holds.
 
     It asks of the same text, of the same types, in the same words, whatever
-    the extraction was asked.
+    the extraction was asked. The answer is asked for as structure
+    (`COUNT_ELEMENT_SCHEMA`), and the prompt says the shape it is held to.
     """
     return (
         f"Count every mention of: {asked_for(entity_types)} in the following text. "
-        "Repeated mentions of the same entity count separately. Respond with only the number.\n"
+        'Repeated mentions of the same entity count separately. Respond with a JSON array of one object: [{"count": <the number>}].\n'
         "\n"
         "Text:\n"
         '"""\n'

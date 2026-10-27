@@ -149,8 +149,11 @@ export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 
   resources: ResourceDescriptor[];
 };
 
-/** The filters a text search takes beside its text. */
-export type ResourceSearchFilters = { limit?: number; archived?: boolean; entityType?: string };
+/** The filters a list of resources takes: the list request, whole. */
+export type ResourceListFilters = components['schemas']['BrowseResourcesRequest'];
+
+/** The filters a text search takes beside its text: the search request, less its text. */
+export type ResourceSearchFilters = Omit<components['schemas']['MatchResourcesRequest'], 'search'>;
 
 /**
  * What `match.resources()` emits: the search-reply envelope, not just the
@@ -177,7 +180,7 @@ export interface BrowseNamespace {
   // Live queries (Observable — refreshed by bus events, cached in BehaviorSubject;
   // `annotations` reads over HTTP, the rest ask the bus)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
-  resources(filters?: { limit?: number; archived?: boolean; entityType?: string }): CacheObservable<ResourceList>;
+  resources(filters?: ResourceListFilters): CacheObservable<ResourceList>;
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
@@ -350,7 +353,7 @@ export interface GatherNamespace {
   annotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
-    options?: { contextWindow?: number },
+    options?: components['schemas']['GatherAnnotationOptions'],
   ): StreamObservable<GatherAnnotationComplete>;
 
   resource(

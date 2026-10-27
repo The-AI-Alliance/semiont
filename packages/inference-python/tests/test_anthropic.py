@@ -2,8 +2,9 @@
 
 The driver reaches the provider through Anthropic's own library, and the
 library is not replaced or patched: it sends real requests to the stand-in,
-which answers the Models API, the one-token probe, and each generation, whole
-or as a stream. What arrives is held exactly: in P5 the Worker service's
+which answers the Models API and each generation, whole or as a stream, and
+refuses a generation that sends a temperature as API version 2026-10-21
+refuses it. What arrives is held exactly: in P5 the Worker service's
 suite (`tests/conformance/worker-service/anthropic.test.ts`) holds the Python
 worker to the same requests.
 """
@@ -35,7 +36,6 @@ from semiont_inference.interface import (
 
 KEY = "sk-played-key"
 ELEMENT: JsonObject = {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": False}
-PROBE: JsonObject = {"model": "claude-x", "max_tokens": 1, "temperature": 0.7, "messages": [{"role": "user", "content": "ok"}]}
 COUNTED = TokenUsage(input_tokens=10, output_tokens=5)
 
 
@@ -43,7 +43,7 @@ def driver(played: Anthropic, model: str = "claude-x") -> AnthropicInferenceClie
     return AnthropicInferenceClient(api_key=KEY, model=model, base_url=played.origin)
 
 
-def said_to(model: str, prompt: str, **rest: int | float | bool) -> JsonObject:
+def said_to(model: str, prompt: str, **rest: int | bool) -> JsonObject:
     """A request for plain text, as it arrives: the model, what `rest` states, and the prompt as the one message."""
     return {"model": model, **rest, "messages": [{"role": "user", "content": prompt}]}
 
@@ -53,10 +53,8 @@ def array_of(element: JsonObject) -> JsonObject:
     return {"format": {"type": "json_schema", "schema": {"type": "array", "items": element}}}
 
 
-def limits(*, context: int = 200_000, output: int = 64_000, accepts_temperature: bool = True) -> InferenceLimits:
-    return InferenceLimits(
-        context_tokens=context, max_output_tokens=output, output_tokens_per_hour=128_000, accepts_temperature=accepts_temperature
-    )
+def limits(*, context: int = 200_000, output: int = 64_000) -> InferenceLimits:
+    return InferenceLimits(context_tokens=context, max_output_tokens=output, output_tokens_per_hour=128_000, accepts_temperature=False)
 
 
 def ours(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
@@ -72,13 +70,13 @@ def test_it_learns_the_models_ceilings_from_the_models_api_once_and_keeps_them()
             client = driver(played)
             assert await client.limits() == limits()
             assert await client.limits() == limits()
-            # Asked once: its ceilings, and then whether it takes a temperature.
-            assert [f"{asked.method} {asked.path}" for asked in played.asked] == ["GET /v1/models/claude-x", "POST /v1/messages"]
+            # Asked once, and of the Models API alone.
+            assert [f"{asked.method} {asked.path}" for asked in played.asked] == ["GET /v1/models/claude-x"]
             assert played.asked[0].body == b""
-            assert played.probed == [PROBE]
-            # Every request carries the key it was given, and the version of the API it speaks.
-            assert [asked.headers["x-api-key"] for asked in played.asked] == [KEY, KEY]
-            assert [asked.headers["anthropic-version"] for asked in played.asked] == ["2023-06-01", "2023-06-01"]
+            # Every request carries the key it was given, as a bearer token and in no other header, and the version of the API it speaks.
+            assert [asked.headers["authorization"] for asked in played.asked] == [f"Bearer {KEY}"]
+            assert [asked.headers.get("x-api-key") for asked in played.asked] == [None]
+            assert [asked.headers["anthropic-version"] for asked in played.asked] == ["2026-10-21"]
 
     run(scenario())
 
@@ -91,12 +89,13 @@ def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_what_
             with pytest.raises(ProviderStatusError) as unlearned:
                 await client.limits()
             # A refused discovery is classed as a refused generation is, by its status: the library's failure is its cause.
-            assert (
-                str(unlearned.value) == "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404"
-            )
-            assert unlearned.value.status == 404
             assert isinstance(unlearned.value.__cause__, anthropic.NotFoundError)
-            assert played.probed == []
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404: "
+                + refusal_said(unlearned.value)
+            )
+            assert "model: claude-unknown" in str(unlearned.value)
+            assert unlearned.value.status == 404
 
             # A later call asks again.
             played.model = model_info(max_input_tokens=1000, max_tokens=100)
@@ -114,7 +113,6 @@ def test_a_models_api_that_refuses_is_asked_three_times_in_all() -> None:
                 await driver(played).limits()
             assert unlearned.value.status == 500
             assert len(played.retrievals) == 3
-            assert played.probed == []
 
     run(scenario())
 
@@ -132,7 +130,6 @@ def test_limits_a_connection_that_ends_leaves_unlearned_are_a_plain_error_with_i
             assert not hasattr(unreached.value, "status")
             assert isinstance(unreached.value.__cause__, anthropic.APIConnectionError)
             assert len(played.retrievals) == 3
-            assert played.probed == []
 
     run(scenario())
 
@@ -143,7 +140,6 @@ def test_a_model_whose_ceilings_the_models_api_does_not_state_is_refused() -> No
             played.model = model_info(max_input_tokens=None, max_tokens=None)
             with pytest.raises(RuntimeError, match=re.escape("Models API reports no context/output ceilings for 'claude-x'")):
                 await driver(played).limits()
-            assert played.probed == []
 
     run(scenario())
 
@@ -151,105 +147,91 @@ def test_a_model_whose_ceilings_the_models_api_does_not_state_is_refused() -> No
 def test_callers_that_ask_at_once_share_one_discovery() -> None:
     async def scenario() -> None:
         async with Anthropic() as played:
-            played.script(reply("one"), reply("two"))
+            played.script(reply("[]"), reply("[]"))
             client = driver(played)
-            answers = await soon(asyncio.gather(client.generate_text("a", 100, 0), client.generate_text("b", 100, 0), client.limits()))
-            assert sorted(answer.text for answer in answers if isinstance(answer, InferenceResponse)) == ["one", "two"]
-            assert answers[2] == limits()
-            assert len(played.retrievals) == 1
-            assert played.probed == [PROBE]
+            first, second, learned = await soon(
+                asyncio.gather(
+                    client.generate_structured("a", 100, 0, ELEMENT), client.generate_structured("b", 100, 0, ELEMENT), client.limits()
+                )
+            )
+            assert (first.items, second.items, learned) == ([], [], limits())
+            assert played.retrievals == ["/v1/models/claude-x"]
 
     run(scenario())
 
 
-# ── whether the model takes a temperature ───────────────────────────────
-
-
-def test_a_model_that_refuses_a_temperature_is_sent_none_on_either_path() -> None:
-    # Such a model answers 400 to any request that carries one, and the Models API does not say which models they are.
+def test_a_text_generation_asks_nothing_of_the_models_api_and_a_structured_one_asks_once_for_every_later_call() -> None:
     async def scenario() -> None:
         async with Anthropic() as played:
-            played.refuses_temperature = True
-            played.script(reply("ok"), reply("[]"))
-            client = driver(played, "claude-sonnet-5")
-            assert (await client.generate_text("p", 100, 0.3)).text == "ok"
-            assert (await client.generate_structured("p", 100, 0, ELEMENT)).items == []
-            assert played.generations == [
-                said_to("claude-sonnet-5", "p", max_tokens=100),
-                {**said_to("claude-sonnet-5", "p", max_tokens=100), "output_config": array_of(ELEMENT)},
+            played.script(reply("ok"), reply("[]"), reply("[]"), reply("ok"))
+            client = driver(played)
+            await client.generate_text("p", 100, 0)
+            assert [f"{asked.method} {asked.path}" for asked in played.asked] == ["POST /v1/messages"]
+            await client.generate_structured("p", 100, 0, ELEMENT)
+            await client.generate_structured("p", 100, 0, ELEMENT)
+            await client.generate_text("p", 100, 0)
+            assert await client.limits() == limits()
+            assert [f"{asked.method} {asked.path}" for asked in played.asked] == [
+                "POST /v1/messages",
+                "GET /v1/models/claude-x",
+                "POST /v1/messages",
+                "POST /v1/messages",
+                "POST /v1/messages",
             ]
 
     run(scenario())
 
 
-def test_a_model_that_takes_a_temperature_is_sent_the_callers() -> None:
+def test_a_structured_generation_whose_model_the_models_api_refuses_to_state_fails_by_its_status_and_the_next_asks_again() -> None:
     async def scenario() -> None:
         async with Anthropic() as played:
-            played.script(reply("ok"))
-            await driver(played).generate_text("p", 100, 0.3)
-            assert played.generations == [said_to("claude-x", "p", max_tokens=100, temperature=0.3)]
-
-    run(scenario())
-
-
-def test_whether_the_model_takes_a_temperature_is_said_on_its_limits() -> None:
-    async def scenario() -> None:
-        async with Anthropic() as played:
-            played.refuses_temperature = True
-            assert await driver(played).limits() == limits(accepts_temperature=False)
-        async with Anthropic() as played:
-            assert await driver(played).limits() == limits(accepts_temperature=True)
-
-    run(scenario())
-
-
-def test_the_model_is_probed_once_and_the_omission_is_warned_of_once(caplog: pytest.LogCaptureFixture) -> None:
-    async def scenario() -> None:
-        async with Anthropic() as played:
-            played.refuses_temperature = True
-            played.script(reply("a"), reply("b"))
-            client = driver(played, "claude-sonnet-5")
-            await client.generate_text("a", 100, 0.3)
-            await client.generate_text("b", 100, 0.5)
-            # One probe, carrying a temperature, and two generations without.
-            assert played.probed == [{**PROBE, "model": "claude-sonnet-5"}]
-            assert len(played.messages) == 3
-
-    caplog.set_level(logging.DEBUG, logger="semiont_inference")
-    run(scenario())
-    warned = [record for record in ours(caplog) if record.levelno == logging.WARNING]
-    assert [record.getMessage() for record in warned] == [
-        "Model rejects `temperature`; caller-supplied values will be omitted from its requests"
-    ]
-    assert vars(warned[0])["model"] == "claude-sonnet-5"
-
-
-@pytest.mark.parametrize(
-    ("refusal", "asked"),
-    [
-        (refused(500, "api_error", "overloaded"), 3),
-        (refused(400, "invalid_request_error", "max_tokens: must be at least 2"), 1),
-    ],
-    ids=["a failure of the provider", "a 400 that is not about the temperature"],
-)
-def test_a_probe_refused_for_another_reason_fails_the_discovery_with_its_status_and_is_not_kept(refusal: Answer, asked: int) -> None:
-    async def scenario() -> None:
-        async with Anthropic() as played:
-            played.probes = [refusal] * asked
-            played.script(reply("ok"))
+            played.model = refused(404, "not_found_error", "model: claude-x")
+            played.script(reply("[]"))
             client = driver(played)
-            with pytest.raises(ProviderStatusError) as failed:
-                await client.generate_text("p", 100, 0)
-            assert str(failed.value) == f"Sampling-parameter probe failed for 'claude-x': refused with status {refusal.status}"
-            assert failed.value.status == refusal.status
-            assert isinstance(failed.value.__cause__, anthropic.APIStatusError)
-            assert len(played.probed) == asked
+            with pytest.raises(ProviderStatusError) as unlearned:
+                await client.generate_structured("p", 100, 0, ELEMENT)
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 404: "
+                + refusal_said(unlearned.value)
+            )
+            assert "model: claude-x" in str(unlearned.value)
+            assert unlearned.value.status == 404
             assert played.generations == []
 
-            # The next call learns of the model again, from the start.
-            assert (await client.generate_text("p", 100, 0)).text == "ok"
-            assert len(played.retrievals) == 2
-            assert len(played.probed) == asked + 1
+            played.model = model_info()
+            assert (await client.generate_structured("p", 100, 0, ELEMENT)).items == []
+            assert played.retrievals == ["/v1/models/claude-x", "/v1/models/claude-x"]
+
+    run(scenario())
+
+
+# ── the temperature ─────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("model", ["claude-x", "claude-sonnet-5"])
+def test_no_model_is_said_to_take_a_temperature_and_its_limits_are_one_request_of_the_models_api(model: str) -> None:
+    # Under API version 2026-10-21 the provider refuses a temperature on every model, so there is nothing to ask of one.
+    async def scenario() -> None:
+        async with Anthropic() as played:
+            assert (await driver(played, model).limits()).accepts_temperature is False
+            assert [f"{asked.method} {asked.path}" for asked in played.asked] == [f"GET /v1/models/{model}"]
+
+    run(scenario())
+
+
+@pytest.mark.parametrize("temperature", [0.7, 0])
+def test_the_temperature_a_caller_states_is_sent_on_neither_path(temperature: float) -> None:
+    # The stand-in refuses a generation that sends one, as the provider does: a driver that sent it would fail here.
+    async def scenario() -> None:
+        async with Anthropic() as played:
+            played.script(reply("ok"), reply("[]"))
+            client = driver(played)
+            assert (await client.generate_text("p", 100, temperature)).text == "ok"
+            assert (await client.generate_structured("p", 100, temperature, ELEMENT)).items == []
+            assert played.generations == [
+                said_to("claude-x", "p", max_tokens=100),
+                {**said_to("claude-x", "p", max_tokens=100), "output_config": array_of(ELEMENT)},
+            ]
 
     run(scenario())
 
@@ -270,9 +252,10 @@ def test_no_request_carries_the_trace_it_was_made_in() -> None:
 
     async def scenario() -> None:
         async with Anthropic() as played:
+            played.script(reply("[]"))
             with trace.use_span(within):
-                assert await driver(played).limits() == limits()
-            assert len(played.asked) == 2
+                assert (await driver(played).generate_structured("p", 100, 0, ELEMENT)).items == []
+            # The Models API's request and the generation's.
             assert [asked.headers.get("traceparent") for asked in played.asked] == [None, None]
 
     run(scenario())
@@ -284,9 +267,11 @@ def test_plain_text_is_one_request_of_exactly_these_members() -> None:
             played.script(reply("hello world"))
             answer = await driver(played).generate_text("p", 100, 0)
             assert answer == InferenceResponse(text="hello world", stop_reason="end_turn", usage=COUNTED)
-            # No tools, no schema, and no `stream`: the answer is asked for whole.
-            assert played.generations == [said_to("claude-x", "p", max_tokens=100, temperature=0)]
-            assert [asked.headers["x-api-key"] for asked in played.asked] == [KEY, KEY, KEY]
+            # No tools, no schema, no temperature, and no `stream`: the answer is asked for whole.
+            assert played.generations == [said_to("claude-x", "p", max_tokens=100)]
+            assert [asked.headers["authorization"] for asked in played.asked] == [f"Bearer {KEY}"]
+            assert [asked.headers.get("x-api-key") for asked in played.asked] == [None]
+            assert [asked.headers["anthropic-version"] for asked in played.asked] == ["2026-10-21"]
 
     run(scenario())
 
@@ -297,9 +282,7 @@ def test_a_structured_generation_asks_for_an_array_at_the_root_of_the_reply_and_
             played.script(reply('[{"exact":"Paris"}]'))
             answer = await driver(played).generate_structured("Extract locations", 1000, 0, ELEMENT)
             # The reply's text is the JSON: there is no tool to unwrap, and no assistant turn to begin it.
-            assert played.generations == [
-                {**said_to("claude-x", "Extract locations", max_tokens=1000, temperature=0), "output_config": array_of(ELEMENT)}
-            ]
+            assert played.generations == [{**said_to("claude-x", "Extract locations", max_tokens=1000), "output_config": array_of(ELEMENT)}]
             assert answer == StructuredResponse(items=[{"exact": "Paris"}], stop_reason="end_turn", usage=COUNTED)
 
     run(scenario())
@@ -327,8 +310,8 @@ def test_an_answer_of_more_than_21333_tokens_is_asked_for_as_a_stream_and_read_t
                         text=said, stop_reason="end_turn", usage=COUNTED
                     )
             assert played.generations == [
-                {**said_to("claude-x", "p", max_tokens=21_333, temperature=0), **extra},
-                {**said_to("claude-x", "p", max_tokens=21_334, temperature=0, stream=True), **extra},
+                {**said_to("claude-x", "p", max_tokens=21_333), **extra},
+                {**said_to("claude-x", "p", max_tokens=21_334, stream=True), **extra},
             ]
 
     run(scenario())
@@ -531,13 +514,13 @@ def test_a_call_logs_what_typescripts_does_at_the_same_levels(caplog: pytest.Log
         "model": "claude-x",
         "textLength": 5,
         "stopReason": "end_turn",
-        "requestId": "req_played_2",
+        "requestId": "req_played_1",
     }
     assert {key: vars(structured)[key] for key in ("model", "items", "stopReason", "requestId")} == {
         "model": "claude-x",
         "items": 1,
         "stopReason": "end_turn",
-        "requestId": "req_played_3",
+        "requestId": "req_played_2",
     }
     assert {key: vars(unread)[key] for key in ("model", "textLength", "stopReason")} == {
         "model": "claude-x",
@@ -554,7 +537,7 @@ def test_a_streamed_answer_is_logged_with_the_id_of_its_request(caplog: pytest.L
 
     caplog.set_level(logging.INFO, logger="semiont_inference")
     run(scenario())
-    assert [vars(record)["requestId"] for record in ours(caplog) if record.getMessage() == "Text generation completed"] == ["req_played_2"]
+    assert [vars(record)["requestId"] for record in ours(caplog) if record.getMessage() == "Text generation completed"] == ["req_played_1"]
 
 
 # ── failures ────────────────────────────────────────────────────────────
@@ -583,7 +566,7 @@ def test_a_refused_generation_is_a_provider_status_error_with_the_librarys_failu
             assert str(status) in str(failed.value)
             assert "what the provider said" in str(failed.value)
             # The retries are this driver's choice of two: a refusal the library retries is asked three times in all, and any other once.
-            assert played.generations == [said_to("claude-x", "p", max_tokens=100, temperature=0)] * asked
+            assert played.generations == [said_to("claude-x", "p", max_tokens=100)] * asked
 
     run(scenario())
 
@@ -610,10 +593,9 @@ def test_the_library_waits_as_long_as_the_provider_says_before_it_asks_again_and
             said = saying(slow_down, status=429, headers={"retry-after": "2"})
             played.script(unsaid(529), unsaid(500), reply("first"), said, reply("second"))
             client = driver(played)
-            await client.limits()
             assert (await hurried(client.generate_text("p", 100, 0))).text == "first"
             assert (await hurried(client.generate_text("p", 100, 0))).text == "second"
-            at = [asked.at for asked in played.messages if asked.json().get("max_tokens") != 1]
+            at = [asked.at for asked in played.messages]
             first, second, told = at[1] - at[0], at[2] - at[1], at[4] - at[3]
             # Each is held from below, which is what a worker is held to. The loop's clock is moved a quarter of a
             # second at a time here, however long a step really takes, so from above only a wait of the wrong size is refused.
@@ -644,9 +626,16 @@ def not_waited(header: str, stated: str) -> str:
     return f"; the provider said to wait ({header}: {stated}), which is longer than the 120 seconds this driver waits"
 
 
+def refusal_said(failure: ProviderStatusError) -> str:
+    """The library's words for the refusal `failure` was raised from: what a refused discovery's text carries after its status."""
+    cause = failure.__cause__
+    assert isinstance(cause, anthropic.APIStatusError)
+    return cause.message
+
+
 def generations_at(played: Anthropic) -> list[float]:
     """When each generation arrived, by the loop's clock."""
-    return [asked.at for asked in played.messages if asked.json().get("max_tokens") != 1]
+    return [asked.at for asked in played.messages]
 
 
 @pytest.mark.parametrize(("header", "stated"), [("retry-after", "120"), ("retry-after-ms", "120000")], ids=["seconds", "milliseconds"])
@@ -655,7 +644,6 @@ def test_a_wait_of_two_minutes_that_the_provider_states_is_waited_and_the_reques
         async with Anthropic() as played:
             played.script(told_to_wait(header, stated), reply("answered at the second asking"))
             client = driver(played)
-            await client.limits()
             assert (await hurried(client.generate_text("p", 100, 0))).text == "answered at the second asking"
             first, second = generations_at(played)
             # The loop's clock is moved a quarter of a second at a time, so the wait is held from below, and from above loosely.
@@ -676,7 +664,6 @@ def test_a_wait_of_over_two_minutes_is_not_waited_and_the_request_is_not_made_ag
         async with Anthropic() as played:
             played.script(told_to_wait(header, stated), reply("answered at a second asking, which is never made"))
             client = driver(played)
-            await client.limits()
             with pytest.raises(ProviderStatusError) as refused:
                 await hurried(client.generate_text("p", max_tokens, 0))
             # The refusal's own status, so it is classed as any refusal is: and what the provider said, with the wait it stated.
@@ -695,7 +682,6 @@ def test_a_date_the_provider_states_is_waited_for_when_it_is_within_two_minutes_
             later = seconds_from_now(300)
             played.script(told_to_wait("retry-after", seconds_from_now(60)), reply("first"), told_to_wait("retry-after", later))
             client = driver(played)
-            await client.limits()
             assert (await hurried(client.generate_text("p", 100, 0))).text == "first"
             first, second = generations_at(played)
             assert 58.0 <= second - first < 62.0, second - first
@@ -715,7 +701,6 @@ def test_a_refusal_the_provider_marks_to_be_asked_again_is_not_when_the_wait_it_
         async with Anthropic() as played:
             played.script(told_to_wait("retry-after", "121", beside={"x-should-retry": "true"}), reply("never asked for"))
             client = driver(played)
-            await client.limits()
             with pytest.raises(ProviderStatusError) as refused:
                 await hurried(client.generate_text("p", 100, 0))
             assert refused.value.status == 429
@@ -732,11 +717,12 @@ def test_a_models_api_that_says_to_wait_over_two_minutes_is_asked_once_and_the_f
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             assert str(unlearned.value) == (
-                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429" + not_waited(header, stated)
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+                + not_waited(header, stated)
             )
             assert unlearned.value.status == 429
             assert len(played.retrievals) == 1
-            assert played.probed == []
 
     run(scenario())
 
@@ -748,27 +734,13 @@ def test_a_models_api_that_says_to_wait_two_minutes_is_waited_for_and_asked_thre
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             # A wait that was waited is not spoken of: the failure is the refusal's alone.
-            assert str(unlearned.value) == "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429"
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+            )
             at = [asked.at for asked in played.asked]
             assert len(at) == 3
             assert all(120.0 <= later - earlier < 122.0 for earlier, later in itertools.pairwise(at)), at
-
-    run(scenario())
-
-
-def test_a_probe_that_says_to_wait_over_two_minutes_is_asked_once_and_the_failure_states_the_wait() -> None:
-    async def scenario() -> None:
-        async with Anthropic() as played:
-            played.probes = [told_to_wait("retry-after", "121")]
-            played.script(reply("answered once the model is learned of, which it is not"))
-            with pytest.raises(ProviderStatusError) as unlearned:
-                await hurried(driver(played).generate_text("p", 100, 0))
-            assert str(unlearned.value) == "Sampling-parameter probe failed for 'claude-x': refused with status 429" + not_waited(
-                "retry-after", "121"
-            )
-            assert unlearned.value.status == 429
-            assert len(played.probed) == 1
-            assert played.generations == []
 
     run(scenario())
 
@@ -778,7 +750,6 @@ def test_a_connection_that_ends_unanswered_is_asked_three_times_and_then_passed_
         async with Anthropic() as played:
             played.script(HANG_UP, HANG_UP, HANG_UP)
             client = driver(played)
-            await client.limits()
             with pytest.raises(anthropic.APIConnectionError) as ended:
                 await hurried(client.generate_text("p", 100, 0))
             # It carries no status: it is the library's failure, and none of those the interface declares.
@@ -817,7 +788,6 @@ def test_cancelling_a_generation_ends_its_task_cancelled_and_closes_the_connecti
         async with Anthropic() as played:
             played.script(HOLD)
             client = driver(played)
-            await client.limits()
 
             async def generation() -> object:
                 if structured:
@@ -825,7 +795,7 @@ def test_cancelling_a_generation_ends_its_task_cancelled_and_closes_the_connecti
                 return await client.generate_text("p", max_tokens, 0)
 
             call = asyncio.ensure_future(generation())
-            await soon(played.arrived("POST", "/v1/messages", 2))
+            await soon(played.arrived("POST", "/v1/messages"))
             await settle()
             assert not call.done()
             call.cancel()
@@ -844,21 +814,19 @@ def test_cancelling_a_generation_ends_its_task_cancelled_and_closes_the_connecti
 def test_a_caller_cancelled_while_the_model_is_being_learned_of_leaves_at_once_and_the_others_still_learn() -> None:
     async def scenario() -> None:
         async with Anthropic() as played:
-            played.probes = [HOLD]
+            played.model = HOLD
             client = driver(played)
-            leaving = asyncio.ensure_future(client.generate_text("p", 100, 0))
+            leaving = asyncio.ensure_future(client.generate_structured("p", 100, 0, ELEMENT))
             staying = asyncio.ensure_future(client.limits())
-            await soon(played.arrived("POST", "/v1/messages"))
+            await soon(played.arrived("GET", "/v1/models/claude-x"))
             leaving.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await leaving
             assert leaving.cancelled()
             await settle()
             assert not played.closed_by_client.is_set()
-            played.release(
-                saying({"type": "message", "role": "assistant", "content": [{"type": "text", "text": "ok"}], "stop_reason": "max_tokens"})
-            )
+            played.release(model_info())
             assert await soon(staying) == limits()
-            assert (len(played.retrievals), len(played.probed), played.generations) == (1, 1, [])
+            assert (played.retrievals, played.generations) == (["/v1/models/claude-x"], [])
 
     run(scenario())

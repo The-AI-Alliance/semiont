@@ -1,4 +1,4 @@
-import type { AnnotationId, CacheQuery, ResourceId, EventBus, GatheredContext } from '@semiont/core';
+import type { AnnotationId, CacheQuery, components, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { CacheObservable, StreamObservable } from '../awaitable';
 import { Bus } from '@semiont/core';
@@ -80,14 +80,14 @@ export class GatherNamespace implements IGatherNamespace {
   annotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
-    options?: { contextWindow?: number },
+    options?: components['schemas']['GatherAnnotationOptions'],
   ): StreamObservable<GatherAnnotationComplete> {
     return new StreamObservable<GatherAnnotationComplete>((subscriber) => {
       const abandoned = new AbortController();
       this.wire
         .request(
           'gather:requested',
-          { annotationId, resourceId, options: { contextWindow: options?.contextWindow ?? 2000 } },
+          { annotationId, resourceId, options: { ...options, contextWindow: options?.contextWindow ?? 2000 } },
           // The request's own deadline: the option above is the live query's.
           undefined,
           abandoned.signal,
