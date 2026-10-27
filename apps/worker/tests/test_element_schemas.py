@@ -74,7 +74,7 @@ def test_a_count_asks_for_the_element_the_suite_holds_it_to() -> None:
     stated = re.search(r"^export const COUNT_FORMAT = (\{.*\}) as const;$", SUITE.read_text(encoding="utf-8"), re.MULTILINE)
     assert stated is not None, "the suite no longer states a count's format as it did"
     # As written: the members of the schema, and of its properties, in the suite's order.
-    assert written(json.loads(stated.group(1))) == written({"type": "array", "items": COUNT_ELEMENT_SCHEMA})
+    assert written(json.loads(stated.group(1))) == written({"type": "array", "items": dict(COUNT_ELEMENT_SCHEMA)})
 
 
 def test_every_kind_of_detection_asks_for_the_element_the_suite_holds_it_to() -> None:
