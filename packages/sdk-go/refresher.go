@@ -16,6 +16,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
 )
 
 // window is one key's B19 window: what asks again for its key, and whether
@@ -176,7 +177,7 @@ func (r *refresher) dispose() { r.windows.dispose() }
 
 // recorded is the resource an event of the record states.
 func recorded(frame Frame) (cacheSubject, error) {
-	stored, ok := readAs[api.StoredEventResponse](frame.Payload)
+	stored, ok := required.ReadAs[api.StoredEventResponse](frame.Payload)
 	if !ok {
 		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
 	}
@@ -201,7 +202,7 @@ func annotationNamed(payload map[string]any) api.AnnotationId {
 func (r *refresher) reopened() cacheSubject { return cacheSubject{} }
 
 func (r *refresher) busResumeGap(frame Frame) (cacheSubject, error) {
-	gap, ok := readAs[api.BusResumeGap](frame.Payload)
+	gap, ok := required.ReadAs[api.BusResumeGap](frame.Payload)
 	if !ok {
 		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
 	}
@@ -211,7 +212,7 @@ func (r *refresher) busResumeGap(frame Frame) (cacheSubject, error) {
 func (r *refresher) markAdded(frame Frame) (cacheSubject, error) { return recorded(frame) }
 
 func (r *refresher) markRemoved(frame Frame) (cacheSubject, error) {
-	removed, ok := readAs[api.StoredEventResponse](frame.Payload)
+	removed, ok := required.ReadAs[api.StoredEventResponse](frame.Payload)
 	if !ok {
 		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
 	}
@@ -223,7 +224,7 @@ func (r *refresher) markRemoved(frame Frame) (cacheSubject, error) {
 }
 
 func (r *refresher) markDeleteOk(frame Frame) (cacheSubject, error) {
-	deleted, ok := readAs[api.MarkDeleteOk](frame.Payload)
+	deleted, ok := required.ReadAs[api.MarkDeleteOk](frame.Payload)
 	if !ok {
 		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
 	}
@@ -231,7 +232,7 @@ func (r *refresher) markDeleteOk(frame Frame) (cacheSubject, error) {
 }
 
 func (r *refresher) markBodyUpdated(frame Frame) (cacheSubject, error) {
-	updated, ok := readAs[api.EnrichedResourceEvent](frame.Payload)
+	updated, ok := required.ReadAs[api.EnrichedResourceEvent](frame.Payload)
 	if !ok {
 		return cacheSubject{}, fmt.Errorf("a payload on %s is not that channel's", frame.Channel)
 	}
