@@ -352,12 +352,7 @@ mod tests {
             .expect("cases")
             .iter()
             .map(|case| (stated(case, "encoding"), &case["labels"]));
-        let rest = table["legacyMultiByte"]
-            .as_object()
-            .expect("the legacy multi-byte encodings")
-            .iter()
-            .map(|(encoding, labels)| (encoding.as_str(), labels));
-        for (encoding, labels) in listed.chain(rest) {
+        for (encoding, labels) in listed {
             for label in labels.as_array().expect("labels") {
                 let label = label.as_str().expect("a label is text");
                 let answer = read(&format!("text/plain; charset={label}"), b"\xc3\xa9");

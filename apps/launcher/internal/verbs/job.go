@@ -31,26 +31,28 @@ import (
 var jobChannels = []bus.Channel{bus.JobReportProgress.Channel(), bus.JobComplete.Channel(), bus.JobFail.Channel()}
 
 // arrivals is the frames of channels, delivered from when it is called, on
-// one channel; stop lets them go. The frames that arrive while nobody reads
-// wait, in the order the stream delivered them, whatever their channel: a
-// job's progress is read before the completion that followed it.
-func arrivals(transport semiont.Transport, channels []bus.Channel) (frames <-chan semiont.Frame, stop func(), err error) {
-	listener, err := transport.Frames(channels...)
+// one channel, until ctx is done; stop lets them go. The frames that arrive
+// while nobody reads wait, in the order the stream delivered them, whatever
+// their channel: a job's progress is read before the completion that followed
+// it.
+func arrivals(ctx context.Context, transport semiont.Transport, channels []bus.Channel) (frames <-chan semiont.Frame, stop func(), err error) {
+	reading, stop := context.WithCancel(ctx)
+	listener, err := transport.Frames(reading, channels...)
 	if err != nil {
+		stop()
 		return nil, nil, err
 	}
 	out := make(chan semiont.Frame)
-	stopped := make(chan struct{})
 	go func() {
 		for frame := range listener {
 			select {
 			case out <- frame:
-			case <-stopped:
+			case <-reading.Done():
 				return
 			}
 		}
 	}()
-	return out, func() { close(stopped) }, nil
+	return out, stop, nil
 }
 
 // dropped is closed when the stream, once open, stops being open. What the

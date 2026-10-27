@@ -241,9 +241,9 @@ ENCODING_OF_LABEL: Final[Mapping[str, str]] = {
 }
 """The encoding each label of the standard names. A label is matched in lower case, with no white space around it.
 
-An encoding that is neither in `SINGLE_BYTE` nor in `REFUSED` is UTF-8,
-UTF-16BE, UTF-16LE, or one of the standard's legacy multi-byte encodings
-(big5, euc-jp, euc-kr, gb18030, gbk, iso-2022-jp, shift_jis), which no table here decodes.
+An encoding that is neither in `SINGLE_BYTE` nor in `REFUSED` is one no
+table here decodes: UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy
+multi-byte encodings.
 """
 
 SINGLE_BYTE: Final[Mapping[str, str]] = {

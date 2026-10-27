@@ -6,6 +6,7 @@ package semiont
 // every item, in order.
 
 import (
+	"context"
 	"encoding/json"
 	"iter"
 	"slices"
@@ -219,9 +220,9 @@ func NewFrameHub() *FrameHub {
 
 // Frames is the frames delivered on any of channels from now on, in the order
 // they were delivered: one listener, taken when Frames is called, and let go
-// when the loop over what it returns stops or the hub closes. Of a closed hub,
-// a sequence that has ended.
-func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
+// when the loop over what it returns stops, ctx is done or the hub closes. Of
+// a closed hub, a sequence that has ended.
+func (h *FrameHub) Frames(ctx context.Context, channels ...bus.Channel) iter.Seq[Frame] {
 	q := newQueue[Frame]()
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -239,7 +240,7 @@ func (h *FrameHub) Frames(channels ...bus.Channel) iter.Seq[Frame] {
 		b.join(q)
 		joined = append(joined, b)
 	}
-	return q.all(nil, func() {
+	return q.all(ctx.Done(), func() {
 		for _, b := range joined {
 			b.leave(q)
 		}

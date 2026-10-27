@@ -2057,7 +2057,9 @@ jobs:
       # input and the terminal's size), sigstore/sigstore-go (an image's build
       # provenance, checked before it runs, and what it pulls in: protobuf,
       # TUF, the Sigstore clients) and packages/sdk-go (whose client pulls
-      # oapi-codegen/runtime, and whose telemetry is the OpenTelemetry API),
+      # oapi-codegen/runtime, whose telemetry is the OpenTelemetry API, and
+      # whose reader of a resource's text decodes the legacy multi-byte
+      # charsets with golang.org/x/text),
       # plus the Go stdlib compiled into the shipped binary (distributed via
       # Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from

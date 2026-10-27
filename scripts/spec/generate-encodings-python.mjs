@@ -32,7 +32,6 @@ function refuse(message) {
 
 const table = JSON.parse(readFileSync(TABLE, 'utf8'));
 if (!Array.isArray(table.cases) || table.cases.length === 0) refuse('has no cases');
-if (table.legacyMultiByte === null || typeof table.legacyMultiByte !== 'object') refuse('does not list the legacy multi-byte encodings');
 
 /** A Python string literal of printable ASCII: every other character as an escape, which JSON's are. */
 const pyAscii = (value) => JSON.stringify(value).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
@@ -58,7 +57,6 @@ for (const stated of table.cases) {
     refuse(`${stated.encoding} is a case of no kind this generator knows`);
   }
 }
-for (const [encoding, labels] of Object.entries(table.legacyMultiByte)) named(encoding, labels);
 const labels = [...encodingOf.keys()].sort();
 const pySet = (names) => `frozenset({${names.map(pyAscii).join(', ')}})`;
 
@@ -76,9 +74,9 @@ ${labels.map((label) => `    ${pyAscii(label)}: ${pyAscii(encodingOf.get(label))
 }
 """The encoding each label of the standard names. A label is matched in lower case, with no white space around it.
 
-An encoding that is neither in \`SINGLE_BYTE\` nor in \`REFUSED\` is UTF-8,
-UTF-16BE, UTF-16LE, or one of the standard's legacy multi-byte encodings
-(${Object.keys(table.legacyMultiByte).sort().join(', ')}), which no table here decodes.
+An encoding that is neither in \`SINGLE_BYTE\` nor in \`REFUSED\` is one no
+table here decodes: UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy
+multi-byte encodings.
 """
 
 SINGLE_BYTE: Final[Mapping[str, str]] = {

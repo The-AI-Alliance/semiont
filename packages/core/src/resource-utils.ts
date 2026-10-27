@@ -22,19 +22,32 @@ export function getResourceId(resource: ResourceDescriptor | undefined): Resourc
   return resource['@id'] || undefined;
 }
 
-/**
- * Get the primary representation (first or only representation)
- */
-export function getPrimaryRepresentation(resource: ResourceDescriptor | undefined): Representation | undefined {
-  if (!resource?.representations) return undefined;
-  const reps = Array.isArray(resource.representations)
-    ? resource.representations
-    : [resource.representations];
-  return reps[0];
+/** Whether `value` is a representation as its schema has one: an object that states its media type as text. */
+function isRepresentation(value: unknown): value is Representation {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'mediaType' in value && typeof value.mediaType === 'string';
 }
 
 /**
- * Get the media type from the primary representation
+ * The primary representation: the only one, or the first of the list;
+ * undefined for an empty list, or for no resource. A resource that states no
+ * `representations`, or one that is neither one representation nor a list of
+ * them, is no ResourceDescriptor and is refused, as the Rust and Python SDKs
+ * refuse it when they decode it (specs/src/resources/reader-cases.json).
+ */
+export function getPrimaryRepresentation(resource: ResourceDescriptor | undefined): Representation | undefined {
+  if (resource === undefined) return undefined;
+  const stated: unknown = resource.representations;
+  if (isRepresentation(stated)) return stated;
+  if (Array.isArray(stated) && stated.every(isRepresentation)) return stated[0];
+  throw new SemiontError(
+    `The resource ${resource['@id']} is no ResourceDescriptor: its representations are ${stated === undefined ? 'not stated' : 'neither one representation nor a list of them'}`,
+    'error' satisfies TransportErrorCode,
+  );
+}
+
+/**
+ * Get the media type from the primary representation. A resource that is no
+ * ResourceDescriptor is refused, as getPrimaryRepresentation refuses it.
  */
 export function getPrimaryMediaType(resource: ResourceDescriptor | undefined): string | undefined {
   return getPrimaryRepresentation(resource)?.mediaType;

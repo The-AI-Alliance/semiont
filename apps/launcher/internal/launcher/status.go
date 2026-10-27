@@ -16,7 +16,6 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
@@ -825,20 +824,31 @@ func printSessions(u *UI, ss *StackSet) {
 		}
 		state := "unverified (stack not reachable)"
 		if base != "" {
-			if cli, err := api.NewClientWithResponses(base); err == nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				resp, err := cli.GetCurrentUserWithResponse(ctx, Bearer(e.Token))
-				cancel()
-				switch {
-				case err == nil && resp.JSON200 != nil:
-					state = "valid"
-				case err == nil && resp.JSON401 != nil:
-					state = "expired (auto-refreshes on next use, or semiont login)"
-				}
-			}
+			state = storedTokenState(base, e.Token)
 		}
 		fmt.Printf("  %-24s %s %s\n", k, e.Email, u.Dim("("+state+")"))
 	}
+}
+
+// storedTokenState is what the gateway at base says of a stored token: asked
+// once, by a transport that opens no stream and renews nothing.
+func storedTokenState(base, token string) string {
+	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
+		BaseURL: base, Token: semiont.NewVariable(token),
+		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
+	})
+	defer asker.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err := asker.GetCurrentUser(ctx)
+	var refused *semiont.TransportError
+	switch {
+	case err == nil:
+		return "valid"
+	case errors.As(err, &refused) && refused.Code == semiont.TransportErrorCodeUnauthorized:
+		return "expired (auto-refreshes on next use, or semiont login)"
+	}
+	return "unverified (stack not reachable)"
 }
 
 // printLauncherPaths reports the host-side paths the launcher keeps things

@@ -31,8 +31,8 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
 	}
 	fmt.Println(reply.Response.Resource.Name)
 
-	// A resource's channel is read for the resource: the read holds its scope, and lets go when the loop stops.
-	added, err := semiont.FramesOf(wire, bus.MarkAdded, resource)
+	// A resource's channel is read for the resource: the read holds its scope, and lets go when the loop stops or ctx is done.
+	added, err := semiont.FramesOf(ctx, wire, bus.MarkAdded, resource)
 	if err != nil {
 		return err
 	}

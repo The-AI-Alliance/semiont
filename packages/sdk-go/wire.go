@@ -33,9 +33,9 @@ func (w *Wire) EmitOn(ctx context.Context, channel bus.Channel, payload map[stri
 }
 
 // FramesOn is the frames delivered on any of channels from now on, in the
-// order they were delivered.
-func (w *Wire) FramesOn(channels ...bus.Channel) (iter.Seq[Frame], error) {
-	return w.transport.Frames(channels...)
+// order they were delivered, until the loop stops or ctx is done.
+func (w *Wire) FramesOn(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error) {
+	return w.transport.Frames(ctx, channels...)
 }
 
 // RequestOf sends payload as the request of the operation whose request
@@ -216,12 +216,12 @@ func Emit[P any](ctx context.Context, w *Wire, c bus.Emittable[P], payload P, en
 }
 
 // Frames is the frames delivered on c from now on, each with its payload
-// decoded. A channel the transport can never deliver is refused, as
-// unsubscribed. A channel a resource's scope carries is read for a resource
-// (FramesOf), and does not compile here, where nothing would be delivered to
-// it.
-func Frames[P any](w *Wire, c bus.Global[P]) (iter.Seq2[Delivered[P], error], error) {
-	frames, err := w.transport.Frames(c.Channel())
+// decoded, until the loop stops or ctx is done. A channel the transport can
+// never deliver is refused, as unsubscribed. A channel a resource's scope
+// carries is read for a resource (FramesOf), and does not compile here, where
+// nothing would be delivered to it.
+func Frames[P any](ctx context.Context, w *Wire, c bus.Global[P]) (iter.Seq2[Delivered[P], error], error) {
+	frames, err := w.transport.Frames(ctx, c.Channel())
 	if err != nil {
 		return nil, err
 	}
@@ -229,11 +229,11 @@ func Frames[P any](w *Wire, c bus.Global[P]) (iter.Seq2[Delivered[P], error], er
 }
 
 // FramesOf is the frames delivered on c for resource from now on, each with
-// its payload decoded. c reaches only a client that holds the resource's
-// scope, so the read holds it while it is read, and is given that resource's
-// frames and no other's.
-func FramesOf[P, E any](w *Wire, c bus.Scoped[P, E], resource api.ResourceId) (iter.Seq2[Delivered[P], error], error) {
-	frames, err := w.transport.Frames(c.Channel())
+// its payload decoded, until the loop stops or ctx is done. c reaches only a
+// client that holds the resource's scope, so the read holds it while it is
+// read, and is given that resource's frames and no other's.
+func FramesOf[P, E any](ctx context.Context, w *Wire, c bus.Scoped[P, E], resource api.ResourceId) (iter.Seq2[Delivered[P], error], error) {
+	frames, err := w.transport.Frames(ctx, c.Channel())
 	if err != nil {
 		return nil, err
 	}

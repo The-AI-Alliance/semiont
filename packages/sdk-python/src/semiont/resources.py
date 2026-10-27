@@ -12,7 +12,6 @@ Every SDK has these. The case tables hold each to one answer:
 the text. This package's tests run them.
 """
 
-import codecs
 import string
 from typing import Final
 
@@ -61,6 +60,22 @@ _MARKS: Final = ((b"\xef\xbb\xbf", "utf-8"), (b"\xfe\xff", "utf-16-be"), (b"\xff
 # The encodings Python's own decoders read as the standard's do, malformed
 # input included: specs/src/text/decode-cases.json holds them to it.
 _PYTHONS_OWN: Final = {"utf-8": "utf-8", "utf-16be": "utf-16-be", "utf-16le": "utf-16-le"}
+
+# The standard's legacy multi-byte encodings, each by Python's codec of the
+# decoder the standard names for it: GBK's is gb18030's, and each other is the
+# superset of what its name says that the standard reads (Big5-HKSCS,
+# windows-949, windows-31j). Every label of each is the encoding's, whatever
+# codec Python would look the label up as. specs/src/text/encoding-cases.json
+# holds every label of each.
+_LEGACY_MULTI_BYTE: Final = {
+    "big5": "big5hkscs",
+    "euc-jp": "euc_jp",
+    "euc-kr": "cp949",
+    "gb18030": "gb18030",
+    "gbk": "gb18030",
+    "iso-2022-jp": "iso2022_jp",
+    "shift_jis": "cp932",
+}
 
 
 def _is_http_token(text: str) -> bool:
@@ -140,12 +155,12 @@ def _charset(content_type: str) -> str | None:
     return None
 
 
-def _stated_encoding(content_type: str) -> tuple[str, str] | None:
-    """The encoding a content type states, and the label it states it by. None where it states none, or an empty one.
+def _stated_encoding(content_type: str) -> str | None:
+    """The encoding a content type states. None where it states none, or an empty one.
 
-    The label is the Encoding Standard's: in lower case, without the white
-    space around it. One the standard lacks is refused, and so is one of an
-    encoding it reads no text under.
+    It is stated by a label of the Encoding Standard, read in lower case and
+    without the white space around it. One the standard lacks is refused, and
+    so is one of an encoding it reads no text under.
     """
     stated = _charset(content_type)
     if stated is None or stated == "":
@@ -156,7 +171,7 @@ def _stated_encoding(content_type: str) -> tuple[str, str] | None:
         raise TransportError(
             "error", f"The resource's text is {stated}, which is no charset the Encoding Standard decodes: read its bytes instead"
         )
-    return encoding, label
+    return encoding
 
 
 def decode_representation(data: bytes, media_type: str) -> str:
@@ -189,7 +204,8 @@ def decode_representation(data: bytes, media_type: str) -> str:
 
     The labels and the single-byte encodings are the standard's, from the
     table generated of it (`semiont._encodings`), and not Python's own, which
-    differ from it.
+    differ from it. The legacy multi-byte encodings are read by Python's codec
+    of the decoder the standard names for each, whatever the label.
     """
     base = base_media_type(media_type)
     if derives_text_of(media_type):
@@ -198,24 +214,15 @@ def decode_representation(data: bytes, media_type: str) -> str:
         )
     if text_source_of(media_type) == "none":
         raise TransportError("error", f"The resource is {base}, which has no text: read its bytes instead")
-    stated = _stated_encoding(media_type)
+    encoding = _stated_encoding(media_type)
     for mark, decoder in _MARKS:
         if data.startswith(mark):
             return data[len(mark) :].decode(decoder, "replace")
-    if stated is None:
+    if encoding is None:
         return data.decode("utf-8", "replace")
-    encoding, label = stated
     if encoding in _PYTHONS_OWN:
         return data.decode(_PYTHONS_OWN[encoding], "replace")
     if encoding in SINGLE_BYTE:
         return data.decode("latin-1").translate(SINGLE_BYTE[encoding])
-    # What is left is the standard's legacy multi-byte encodings, which this
-    # reader has no table of: Python's own codec of the label, where it has
-    # one, reads them.
-    try:
-        legacy = codecs.lookup(label)
-    except LookupError:
-        raise TransportError(
-            "error", f"The resource's text is {label}, which this SDK has no decoder for: read its bytes instead"
-        ) from None
-    return legacy.decode(data, "replace")[0]
+    # What is left is the standard's legacy multi-byte encodings.
+    return data.decode(_LEGACY_MULTI_BYTE[encoding], "replace")

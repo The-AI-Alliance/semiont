@@ -57,6 +57,7 @@ import { storageKey, seedStoredSession, testSession, TestStorage, TEST_TOKEN_END
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
+import { mockResource } from '../../__tests__/fixtures/resource';
 import { BusRequestError } from '@semiont/core';
 import type { SemiontError } from '@semiont/core';
 
@@ -130,7 +131,7 @@ beforeEach(() => {
   // identity check the moment a test activates a different KB.
   mockKb = async () => { throw new BusRequestError('no answer in this test', 'bus.timeout'); };
   // Default: every tab validates, so tests that do not care are unaffected.
-  mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
+  mockResourceFresh.mockImplementation(async (id: string) => mockResource(id, { name: `name-${id}` }));
   whoIs.mockImplementation(async () => user('X', 'x@y.z'));
 });
 
@@ -460,7 +461,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     seedTabs('gone', 'kept');
     mockResourceFresh.mockImplementation(async (id: string) => {
       if (id === 'gone') throw notFound();
-      return { '@id': id, name: `name-${id}` };
+      return mockResource(id, { name: `name-${id}` });
     });
 
     const browser = await makeConnectedBrowser();
@@ -481,7 +482,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       if (id === 'peer') throw new BusRequestError('no subscriber', 'bus.peer-unavailable', {});
       if (id === 'boom') throw new Error('socket hang up');
       if (id === 'slow') throw new BusRequestError('timed out', 'bus.timeout', {});
-      return { '@id': id, name: `name-${id}` };
+      return mockResource(id, { name: `name-${id}` });
     });
 
     const browser = await makeConnectedBrowser();
@@ -551,7 +552,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     const gate = new Promise<void>((r) => { release = r; });
     mockResourceFresh.mockImplementation(async (id: string) => {
       if (id === 'gone') { await gate; throw notFound(); }
-      return { '@id': id, name: `name-${id}` };
+      return mockResource(id, { name: `name-${id}` });
     });
 
     const browser = await makeConnectedBrowser();

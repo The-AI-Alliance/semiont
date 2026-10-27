@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -45,8 +46,9 @@ type CachePersister[K comparable, V any] interface {
 	// Load is what was kept, asked once, when the cache is made; nil when
 	// nothing was.
 	Load() map[K]V
-	// Save keeps entries: the cache's values, after they changed.
-	Save(entries map[K]V)
+	// Save keeps entries: the cache's values, after they changed; the error
+	// when they could not be kept.
+	Save(entries map[K]V) error
 }
 
 // closedRead is what a read of a closed client fails as: what a request of
@@ -170,8 +172,16 @@ func (c *Cache[K, V]) oweASave() {
 		c.saving = nil
 		values := c.values()
 		c.mu.Unlock()
-		c.persister.Save(values)
+		if err := c.persister.Save(values); err != nil {
+			unsaved(err)
+		}
 	})
+}
+
+// unsaved says that the cache's values were not kept. Keeping them is a
+// convenience: the cache goes on as it was, and its next save tries again.
+func unsaved(err error) {
+	slog.Warn("semiont: the cache's values were not kept", "error", err)
 }
 
 // fetching starts a fetch for key, or joins the one in flight. Called with mu
@@ -448,6 +458,8 @@ func (c *Cache[K, V]) Close() {
 	clear(c.kept)
 	c.mu.Unlock()
 	if owed != nil {
-		c.persister.Save(owed)
+		if err := c.persister.Save(owed); err != nil {
+			unsaved(err)
+		}
 	}
 }

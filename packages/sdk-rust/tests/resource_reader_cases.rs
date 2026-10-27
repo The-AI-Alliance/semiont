@@ -10,12 +10,13 @@ use serde_json::Value;
 
 /// The members of a case this runner reads. A case with any other fails: a
 /// member nothing reads holds nothing.
-const MEMBERS: [&str; 5] = [
+const MEMBERS: [&str; 6] = [
     "why",
     "resource",
     "primaryRepresentation",
     "primaryMediaType",
     "entityTypes",
+    "refused",
 ];
 
 fn table() -> Value {
@@ -36,7 +37,7 @@ fn stated<T: DeserializeOwned>(case: &Value, member: &str) -> Option<T> {
 fn every_reader_gives_what_the_table_says_for_every_resource() {
     let table = table();
     let (mut one, mut listed, mut none) = (0, 0, 0);
-    let (mut typed, mut untyped) = (0, 0);
+    let (mut typed, mut untyped, mut refused) = (0, 0, 0);
     for case in table["cases"].as_array().expect("cases") {
         let why = case["why"].as_str().expect("why");
         for member in case.as_object().expect("a case is an object").keys() {
@@ -44,6 +45,16 @@ fn every_reader_gives_what_the_table_says_for_every_resource() {
                 MEMBERS.contains(&member.as_str()),
                 "{why}: this runner reads no {member} of a case"
             );
+        }
+        // A resource the schema does not allow is no ResourceDescriptor:
+        // decoding it refuses it, before any reader could read it.
+        if case.get("refused") == Some(&Value::Bool(true)) {
+            refused += 1;
+            assert!(
+                serde_json::from_value::<ResourceDescriptor>(case["resource"].clone()).is_err(),
+                "{why}: its resource decodes, and the table says it is refused"
+            );
+            continue;
         }
         let resource: ResourceDescriptor = serde_json::from_value(case["resource"].clone())
             .unwrap_or_else(|refused| panic!("{why}: its resource does not decode: {refused}"));
@@ -88,4 +99,5 @@ fn every_reader_gives_what_the_table_says_for_every_resource() {
         typed > 0 && untyped > 0,
         "the table lacks a case of a resource with entity types, or of one with none"
     );
+    assert!(refused > 0, "the table lacks a case of a refused resource");
 }

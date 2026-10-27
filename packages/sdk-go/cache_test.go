@@ -135,10 +135,11 @@ type keptBack struct {
 
 func (k *keptBack) Load() map[string]int { return k.kept }
 
-func (k *keptBack) Save(entries map[string]int) {
+func (k *keptBack) Save(entries map[string]int) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.saves = append(k.saves, entries)
+	return nil
 }
 
 func (k *keptBack) saved() []map[string]int {

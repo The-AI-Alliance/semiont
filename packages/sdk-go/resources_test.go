@@ -6,11 +6,14 @@ package semiont_test
 // type, of a media type whose text is not its bytes, of a label, of a
 // byte-order mark and of malformed UTF-8 and UTF-16),
 // specs/src/text/encoding-cases.json (generated: every label of the Encoding
-// Standard, and every byte of each of its single-byte encodings) and
-// specs/src/resources/reader-cases.json.
+// Standard, every byte of each of its single-byte encodings, and some bytes of
+// each other) and specs/src/resources/reader-cases.json. A text case is read
+// through a client, from bytes its content transport serves with the case's
+// content type, as the Python and Rust runners read it.
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -23,6 +26,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // strictly decodes data into into, refusing a member into does not read: a
@@ -68,6 +72,23 @@ func refusedNaming(t *testing.T, why string, err error, named string) {
 	}
 }
 
+// reading is what a client reads of some bytes served with a content type:
+// the resource's text as Browse.ResourceContent gives it, as the Python and
+// Rust runners read it, through the client's content transport.
+func reading(t *testing.T) func(data []byte, contentType string) (string, error) {
+	t.Helper()
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
+	t.Cleanup(func() {
+		made.Client.Close()
+		made.Transport.Close()
+	})
+	resource := resourceOf(t, "res-1")
+	return func(data []byte, contentType string) (string, error) {
+		made.Content.Seed(resource, semiont.Content{Bytes: data, ContentType: contentType})
+		return made.Client.Browse.ResourceContent(context.Background(), resource)
+	}
+}
+
 type decodeCase struct {
 	Why         string  `json:"why"`
 	ContentType string  `json:"contentType"`
@@ -85,12 +106,13 @@ func TestAResourcesBytesAreTheTextTheTableSays(t *testing.T) {
 	if len(table.Cases) < 90 {
 		t.Fatalf("the table has %d cases: it was not read", len(table.Cases))
 	}
+	readText := reading(t)
 	read, refusedOf := 0, map[mediatypes.TextSource]bool{}
 	for _, raw := range table.Cases {
 		var stated decodeCase
 		strictly(t, raw, &stated)
 		data := bytesOf(t, stated.Bytes)
-		text, err := semiont.DecodeRepresentation(data, stated.ContentType)
+		text, err := readText(data, stated.ContentType)
 		switch {
 		case stated.Text != nil && stated.Refused == nil:
 			read++
@@ -127,12 +149,11 @@ type encodingCase struct {
 }
 
 type encodingTable struct {
-	Comment         string              `json:"$comment"`
-	Cases           []json.RawMessage   `json:"cases"`
-	LegacyMultiByte map[string][]string `json:"legacyMultiByte"`
+	Comment string            `json:"$comment"`
+	Cases   []json.RawMessage `json:"cases"`
 }
 
-func readEncodings(t *testing.T) ([]encodingCase, map[string][]string) {
+func readEncodings(t *testing.T) []encodingCase {
 	t.Helper()
 	var table encodingTable
 	strictly(t, readSpec(t, "text", "encoding-cases.json"), &table)
@@ -142,11 +163,12 @@ func readEncodings(t *testing.T) ([]encodingCase, map[string][]string) {
 		strictly(t, raw, &stated)
 		cases = append(cases, stated)
 	}
-	return cases, table.LegacyMultiByte
+	return cases
 }
 
 func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *testing.T) {
-	cases, _ := readEncodings(t)
+	cases := readEncodings(t)
+	readText := reading(t)
 	everyByte := make([]byte, 256)
 	for i := range everyByte {
 		everyByte[i] = byte(i)
@@ -159,15 +181,15 @@ func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *te
 			why := stated.Encoding + ": " + label
 			switch {
 			case stated.EveryByte != nil:
-				if text, err := semiont.DecodeRepresentation(everyByte, contentType); err != nil || text != *stated.EveryByte {
+				if text, err := readText(everyByte, contentType); err != nil || text != *stated.EveryByte {
 					t.Errorf("%s: read %q (%v), and the table says %q", why, text, err, *stated.EveryByte)
 				}
 			case stated.Bytes != nil && stated.Text != nil:
-				if text, err := semiont.DecodeRepresentation(bytesOf(t, *stated.Bytes), contentType); err != nil || text != *stated.Text {
+				if text, err := readText(bytesOf(t, *stated.Bytes), contentType); err != nil || text != *stated.Text {
 					t.Errorf("%s: read %q (%v), and the table says %q", why, text, err, *stated.Text)
 				}
 			case stated.Refused != nil && *stated.Refused:
-				_, err := semiont.DecodeRepresentation(everyByte, contentType)
+				_, err := readText(everyByte, contentType)
 				refusedNaming(t, why, err, label)
 			default:
 				t.Fatalf("%s: a case of no kind this runner knows", why)
@@ -184,29 +206,6 @@ func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *te
 	}
 	if singleByte < 29 || probed == 0 || refused == 0 || labels < 180 {
 		t.Errorf("the table was not read: %d single-byte encodings, %d probed, %d refused, %d labels", singleByte, probed, refused, labels)
-	}
-}
-
-// The standard's seven legacy multi-byte encodings are labels, and no case
-// holds what a reader makes of their bytes. This reader has no decoder for
-// them (the Go SDK takes nothing but the standard library at run time, and
-// no table of them is generated), so it refuses each by its label as one it
-// cannot decode, never as a label the standard lacks, as the Rust SDK does
-// without its charsets feature. The Python SDK decodes them with Python's
-// own codecs.
-func TestALegacyMultiByteLabelIsRefusedAsOneThisReaderHasNoDecoderFor(t *testing.T) {
-	_, legacy := readEncodings(t)
-	if len(legacy) != 7 {
-		t.Fatalf("the table lists %d legacy multi-byte encodings, and the standard has seven", len(legacy))
-	}
-	for encoding, labels := range legacy {
-		for _, label := range labels {
-			_, err := semiont.DecodeRepresentation([]byte("hi"), "text/plain; charset="+label)
-			refusedNaming(t, encoding+": "+label, err, label)
-			if err != nil && !strings.Contains(err.Error(), "which this SDK has no decoder for") {
-				t.Errorf("%s: %s is refused as %q, and is a label of the standard this reader has no decoder for", encoding, label, err)
-			}
-		}
 	}
 }
 
@@ -227,13 +226,26 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 			EntityTypes           []string        `json:"entityTypes"`
 			PrimaryRepresentation json.RawMessage `json:"primaryRepresentation"`
 			PrimaryMediaType      *string         `json:"primaryMediaType"`
+			Refused               *bool           `json:"refused"`
 		}
 		strictly(t, raw, &stated)
 		var resource api.ResourceDescriptor
 		if err := json.Unmarshal(stated.Resource, &resource); err != nil {
-			t.Fatalf("%s: the resource is not a ResourceDescriptor: %v", stated.Why, err)
+			t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
 		}
-		representation, ok := semiont.PrimaryRepresentation(resource)
+		if stated.Refused != nil && *stated.Refused {
+			// Go's decoding takes what it is handed, so its readers refuse it.
+			shapes["refused"] = true
+			_, _, err := semiont.PrimaryRepresentation(resource)
+			refusedNaming(t, stated.Why+": PrimaryRepresentation", err, "representation")
+			_, _, err = semiont.PrimaryMediaType(resource)
+			refusedNaming(t, stated.Why+": PrimaryMediaType", err, "representation")
+			continue
+		}
+		representation, ok, err := semiont.PrimaryRepresentation(resource)
+		if err != nil {
+			t.Errorf("%s: refused as %v, and the table says the resource is one", stated.Why, err)
+		}
 		switch {
 		case stated.PrimaryRepresentation == nil && ok:
 			t.Errorf("%s: a primary representation, and the table says there is none", stated.Why)
@@ -248,8 +260,8 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 				t.Errorf("%s: the primary representation is %s, and the table says %s", stated.Why, written, stated.PrimaryRepresentation)
 			}
 		}
-		mediaType, ok := semiont.PrimaryMediaType(resource)
-		if (stated.PrimaryMediaType == nil) == ok || (ok && mediaType != *stated.PrimaryMediaType) {
+		mediaType, ok, err := semiont.PrimaryMediaType(resource)
+		if err != nil || (stated.PrimaryMediaType == nil) == ok || (ok && mediaType != *stated.PrimaryMediaType) {
 			t.Errorf("%s: the primary media type is (%q, %v), and the table says %v", stated.Why, mediaType, ok, stated.PrimaryMediaType)
 		}
 		if got := semiont.ResourceEntityTypes(resource); !reflect.DeepEqual(got, stated.EntityTypes) {
@@ -272,9 +284,9 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 		shapes["entity types"] = shapes["entity types"] || len(stated.EntityTypes) > 0
 		shapes["no entity types"] = shapes["no entity types"] || len(stated.EntityTypes) == 0
 	}
-	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types"} {
+	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused"} {
 		if !shapes[shape] {
-			t.Errorf("no case's resource has %s", shape)
+			t.Errorf("the table lacks a case of a resource: %s", shape)
 		}
 	}
 }

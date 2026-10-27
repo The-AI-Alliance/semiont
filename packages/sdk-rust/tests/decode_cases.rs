@@ -180,22 +180,5 @@ async fn every_label_of_the_standard_names_its_encoding_and_every_byte_is_its_ch
         single_byte > 0 && probed > 0 && refusals > 0,
         "the table lacks a kind of case"
     );
-
-    // The labels the table does not hold the reading of are labels all the
-    // same: this reader takes each, and of one byte of ASCII makes that
-    // character.
-    let rest = table["legacyMultiByte"]
-        .as_object()
-        .expect("the legacy multi-byte encodings");
-    assert!(!rest.is_empty(), "no legacy multi-byte encoding is listed");
-    for (encoding, labels) in rest {
-        for label in labels.as_array().expect("labels") {
-            let label = label.as_str().expect("a label is text");
-            let answer = read(&format!("text/plain; charset={label}"), vec![b'A']).await;
-            faults.extend(
-                is_text(answer, "A").map(|fault| format!("{encoding}, as {label}: {fault}")),
-            );
-        }
-    }
     none(&faults);
 }

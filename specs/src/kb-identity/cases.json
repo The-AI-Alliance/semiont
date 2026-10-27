@@ -82,6 +82,16 @@
       "resource": null
     },
     {
+      "why": "a domain with white space in it is refused: no DID holds it, and it would be stamped into every event the knowledge base records",
+      "dir": "spaced-domain-kb",
+      "config": "project:\n  name: Spaced\ngit:\n  sync: true\nsite:\n  domain: \"example.github.io:spaced kb\"\n  siteName: Spaced\n",
+      "refused": true,
+      "name": null,
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
       "why": "an empty name is refused",
       "dir": "empty-name-kb",
       "config": "project:\n  name: \"\"\ngit:\n  sync: true\nsite:\n  domain: example.github.io:empty-name-kb\n  siteName: Empty\n",

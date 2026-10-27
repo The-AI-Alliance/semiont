@@ -44,7 +44,8 @@
         "domain": {
           "type": "string",
           "minLength": 1,
-          "description": "The knowledge base's permanent identity, in did:web's colon-path form (`owner.github.io:repo`): stamped into every event it records, so never a machine's address and never changed."
+          "pattern": "^\\S+$",
+          "description": "The knowledge base's permanent identity, in did:web's colon-path form (`owner.github.io:repo`): stamped into every event it records, so never a machine's address and never changed. With no white space in it, which no DID holds (UserId.json)."
         },
         "siteName": {
           "type": "string",

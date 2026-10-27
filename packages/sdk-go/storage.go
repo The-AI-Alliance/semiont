@@ -18,8 +18,9 @@ import (
 type SessionStorage interface {
 	// Get is what is stored under key; false when nothing is.
 	Get(key string) (string, bool)
-	// Set stores value under key, in place of what was there.
-	Set(key, value string)
+	// Set stores value under key, in place of what was there; the error when
+	// it could not.
+	Set(key, value string) error
 	// Delete removes a key. One that is not there is left not there.
 	Delete(key string)
 }
@@ -46,10 +47,11 @@ func (m *MemoryStorage) Get(key string) (string, bool) {
 	return value, ok
 }
 
-func (m *MemoryStorage) Set(key, value string) {
+func (m *MemoryStorage) Set(key, value string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stored[key] = value
+	return nil
 }
 
 func (m *MemoryStorage) Delete(key string) {
@@ -140,7 +142,7 @@ func (p *storagePersister[K, V]) Load() map[K]V {
 	return kept
 }
 
-func (p *storagePersister[K, V]) Save(entries map[K]V) {
+func (p *storagePersister[K, V]) Save(entries map[K]V) error {
 	now := time.Now().UnixMilli()
 	type stored struct {
 		key, value string
@@ -186,7 +188,7 @@ func (p *storagePersister[K, V]) Save(entries map[K]V) {
 	for _, entry := range kept {
 		p.written[entry.key] = keptEntry{value: entry.value, at: entry.at}
 	}
-	p.storage.Set(p.key, text)
+	return p.storage.Set(p.key, text)
 }
 
 // compact is JSON text written without spaces, as Save writes it.

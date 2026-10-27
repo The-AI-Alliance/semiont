@@ -306,7 +306,7 @@ func (w *wire) listen(args protocol.Arguments) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	frames, err := c.transport.Frames(bus.Channel(channel))
+	frames, err := c.transport.Frames(context.Background(), bus.Channel(channel))
 	if err != nil {
 		return nil, err
 	}

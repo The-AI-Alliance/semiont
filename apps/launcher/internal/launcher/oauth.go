@@ -19,32 +19,26 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"golang.org/x/term"
 )
 
-// trustedIssuer: the issuer a KB's resource metadata names — the gateway's
-// word, read before anything dials the issuer itself.
-func trustedIssuer(ctx context.Context, cli *api.ClientWithResponses, base string) (string, error) {
-	meta, err := cli.GetProtectedResourceMetadataWithResponse(ctx)
-	if err != nil {
-		return "", fmt.Errorf("gateway unreachable at %s: %w", base, err)
-	}
-	if meta.JSON200 == nil || len(meta.JSON200.AuthorizationServers) == 0 {
-		return "", fmt.Errorf("gateway at %s published no authorization server (HTTP %d)", base, meta.HTTPResponse.StatusCode)
-	}
-	return meta.JSON200.AuthorizationServers[0], nil
-}
-
-// advertisedIssuer: trustedIssuer for a KB at base, on a fresh client.
+// advertisedIssuer is the issuer the knowledge base at base names in its
+// resource metadata: the gateway's word, read before anything dials the issuer
+// itself. Asked with no token, by a transport that opens no stream without one.
 func advertisedIssuer(base string) (string, error) {
-	cli, err := api.NewClientWithResponses(base)
+	asker := semiont.NewHTTPTransport(semiont.HTTPTransportConfig{
+		BaseURL: base, Token: semiont.NewVariable(""),
+		HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming(),
+	})
+	defer asker.Close()
+	metadata, err := asker.GetProtectedResourceMetadata(context.Background())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("the gateway at %s did not give its resource metadata: %w", base, err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	return trustedIssuer(ctx, cli, base)
+	if len(metadata.AuthorizationServers) == 0 {
+		return "", fmt.Errorf("the gateway at %s published no authorization server", base)
+	}
+	return metadata.AuthorizationServers[0], nil
 }
 
 // promptToOpen shows the one-time code and, on a terminal, offers to open the
