@@ -387,7 +387,7 @@ class AnthropicInferenceClient:
             try:
                 info = await library.models.retrieve(self.model_id)
             except APIStatusError as refused:
-                raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
+                raise _stating_the_wait(refused_discovery(learning, refused.status_code, refused.message), refused) from refused
             except Exception as unlearned:
                 raise RuntimeError(learning) from unlearned
             if info.max_input_tokens is None or info.max_tokens is None:
@@ -434,7 +434,7 @@ class AnthropicInferenceClient:
                 )
                 return False
             # Any other refusal is not an answer. It fails the discovery, which is not kept, so the next call asks again.
-            raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
+            raise _stating_the_wait(refused_discovery(learning, refused.status_code, refused.message), refused) from refused
         except Exception as failed:
             raise RuntimeError(learning) from failed
         return True

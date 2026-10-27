@@ -323,15 +323,15 @@ def test_a_model_list_the_provider_refuses_is_a_status_error_that_says_what_was_
             client = driver(played)
             with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A refused discovery is classed as a refused generation is, by its status.
-            assert (
-                str(refused.value)
-                == f"Failed to discover model limits for '{MODEL}' from Together's model list: refused with status {status}"
-            )
-            assert refused.value.status == status
+            # A refused discovery is classed as a refused generation is, by its status, and says what the provider said.
             cause = refused.value.__cause__
             assert isinstance(cause, together.APIStatusError)
             assert cause.status_code == status
+            assert str(refused.value) == (
+                f"Failed to discover model limits for '{MODEL}' from Together's model list: refused with status {status}: {cause.message}"
+            )
+            assert "what the provider said" in str(refused.value)
+            assert refused.value.status == status
             # The retries are this driver's choice of two: a refusal the library asks again for is asked three times in all.
             assert len(played.lists) == asked
 

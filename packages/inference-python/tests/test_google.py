@@ -264,12 +264,13 @@ def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_what_
             with pytest.raises(ProviderStatusError) as unlearned:
                 await client.limits()
             # A refused discovery is classed as a refused generation is, by its status: the library's failure is its cause.
-            assert (
-                str(unlearned.value)
-                == "Failed to discover model limits for 'gemini-unknown' from Google's models.get: refused with status 404"
+            cause = unlearned.value.__cause__
+            assert isinstance(cause, errors.ClientError)
+            assert str(unlearned.value) == (
+                f"Failed to discover model limits for 'gemini-unknown' from Google's models.get: refused with status 404: {cause}"
             )
+            assert "models/gemini-unknown is not found for API version v1beta" in str(unlearned.value)
             assert unlearned.value.status == 404
-            assert isinstance(unlearned.value.__cause__, errors.ClientError)
 
             # A later call asks again.
             played.model = gemini_model(input_token_limit=1000, output_token_limit=100)

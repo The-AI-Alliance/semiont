@@ -174,11 +174,12 @@ class ProviderStatusError(Exception):
     provider's library reported the refusal, or on whether there is a library
     at all.
 
-    A refused discovery says in its message what was being learned and the
-    status. A discovery that fails with no status (a connection that ended,
-    an answer that does not state what was asked, a model a list does not
-    have) is not one of these: it raises a plain error, with what failed as
-    its cause where something did.
+    A refused discovery says in its message what was being learned, the
+    status, and the provider's own words for the refusal. A discovery that
+    fails with no status (a connection that ended, an answer that does not
+    state what was asked, a model a list does not have) is not one of these:
+    it raises a plain error, with what failed as its cause where something
+    did.
     """
 
     def __init__(self, message: str, status: int) -> None:
