@@ -177,7 +177,7 @@ func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	if has && !isTokenExpired(kept.Access, time.Now()) && config.Token.Value() == "" {
+	if has && !IsTokenExpired(kept.Access, time.Now()) && config.Token.Value() == "" {
 		config.Token.Set(kept.Access)
 	}
 	alive, cancel := context.WithCancel(context.Background())
@@ -251,7 +251,7 @@ func (s *Session) ExpiresAt() (time.Time, bool) {
 	if token == "" {
 		return time.Time{}, false
 	}
-	return tokenExpiry(token)
+	return TokenExpiry(token)
 }
 
 // Close ends the session: it renews nothing more and asks nobody anything,
@@ -373,7 +373,7 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 	if !has {
 		return
 	}
-	justIssued := isTokenExpired(kept.Access, time.Now())
+	justIssued := IsTokenExpired(kept.Access, time.Now())
 	token := kept.Access
 	if justIssued {
 		renewed, _ := s.tryRefresh()
@@ -443,7 +443,7 @@ func renewWhenDue(alive context.Context, token *Variable[string], timing Timing,
 		var due <-chan time.Time
 		var timer *time.Timer
 		if current != "" {
-			if delay, ok := refreshDelay(current, time.Now(), timing); ok {
+			if delay, ok := RefreshDelay(current, time.Now(), timing); ok {
 				timer = time.NewTimer(delay)
 				due = timer.C
 			}

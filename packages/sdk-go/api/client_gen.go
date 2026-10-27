@@ -2369,16 +2369,16 @@ type AnchoredTextExtractedEntry struct {
 	// Lines Where each word of `text` is, line by line, in reading order.
 	Lines []struct {
 		// H The line's height in PDF points.
-		H float32 `json:"h"`
+		H float64 `json:"h"`
 
 		// P The page, counted from 1.
 		P int `json:"p"`
 
 		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`, which are whole numbers of Unicode code points from the start of `text`.
-		Words [][]float32 `json:"words"`
+		Words [][]float64 `json:"words"`
 
 		// Y The line's vertical position in PDF points, from the bottom of the page.
-		Y float32 `json:"y"`
+		Y float64 `json:"y"`
 	} `json:"lines"`
 
 	// Method How the text was extracted.
@@ -2390,7 +2390,7 @@ type AnchoredTextExtractedEntry struct {
 		LowConfidenceWords int `json:"lowConfidenceWords"`
 
 		// Mean Mean per-word confidence, 0-100.
-		Mean       float32 `json:"mean"`
+		Mean       float64 `json:"mean"`
 		TotalWords int     `json:"totalWords"`
 	} `json:"ocrConfidence,omitempty"`
 
@@ -2685,7 +2685,7 @@ type ArchivistStreamsResponse struct {
 // AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
 type AssessingJobParams struct {
 	// Density How many annotations to aim for per 2000 words of the resource.
-	Density *float32 `json:"density,omitempty"`
+	Density *float64 `json:"density,omitempty"`
 
 	// Instructions What to look for, in the caller's words. Added to the prompt.
 	Instructions *string `json:"instructions,omitempty"`
@@ -3245,7 +3245,7 @@ type CommandErrorCode string
 // CommentingJobParams What a commenting job takes: passages of the resource are marked, each with a comment the model writes.
 type CommentingJobParams struct {
 	// Density How many annotations to aim for per 2000 words of the resource.
-	Density *float32 `json:"density,omitempty"`
+	Density *float64 `json:"density,omitempty"`
 
 	// Instructions What to look for, in the caller's words. Added to the prompt.
 	Instructions *string `json:"instructions,omitempty"`
@@ -3533,7 +3533,7 @@ type ExtractedText struct {
 		LowConfidenceWords int `json:"lowConfidenceWords"`
 
 		// Mean Mean per-word confidence, 0-100.
-		Mean       float32 `json:"mean"`
+		Mean       float64 `json:"mean"`
 		TotalWords int     `json:"totalWords"`
 	} `json:"ocrConfidence,omitempty"`
 
@@ -3945,7 +3945,7 @@ type GenerationJobParams struct {
 	Language *string `json:"language,omitempty"`
 
 	// MaxTokens Output token budget forwarded to the model. Length never determines structure.
-	MaxTokens *float32 `json:"maxTokens,omitempty"`
+	MaxTokens *float64 `json:"maxTokens,omitempty"`
 
 	// OutputMediaType Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.
 	OutputMediaType *SupportedMediaType `json:"outputMediaType,omitempty"`
@@ -3966,7 +3966,7 @@ type GenerationJobParams struct {
 	Task *string `json:"task,omitempty"`
 
 	// Temperature Sampling temperature forwarded to the model.
-	Temperature *float32 `json:"temperature,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
 
 	// Title Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.
 	Title string `json:"title"`
@@ -3984,7 +3984,7 @@ type GenerationJobRequest struct {
 	Language *string `json:"language,omitempty"`
 
 	// MaxTokens Output token budget forwarded to the model. Length never determines structure.
-	MaxTokens *float32 `json:"maxTokens,omitempty"`
+	MaxTokens *float64 `json:"maxTokens,omitempty"`
 
 	// OutputMediaType Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.
 	OutputMediaType *SupportedMediaType `json:"outputMediaType,omitempty"`
@@ -4005,7 +4005,7 @@ type GenerationJobRequest struct {
 	Task *string `json:"task,omitempty"`
 
 	// Temperature Sampling temperature forwarded to the model.
-	Temperature *float32 `json:"temperature,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
 
 	// Title Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.
 	Title string `json:"title"`
@@ -4019,7 +4019,7 @@ type GetAnnotationHistoryResponse struct {
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
-	Total      float32    `json:"total"`
+	Total      float64    `json:"total"`
 }
 
 // GetAnnotationResponse defines model for GetAnnotationResponse.
@@ -4037,7 +4037,7 @@ type GetAnnotationsResponse struct {
 	Motivation *Motivation `json:"motivation,omitempty"`
 
 	// Total Total number of annotations
-	Total float32 `json:"total"`
+	Total float64 `json:"total"`
 }
 
 // GetEntityTypesResponse defines model for GetEntityTypesResponse.
@@ -4051,7 +4051,7 @@ type GetEventsResponse struct {
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
-	Total      float32    `json:"total"`
+	Total      float64    `json:"total"`
 }
 
 // GetReferencedByResponse defines model for GetReferencedByResponse.
@@ -4152,7 +4152,7 @@ type HealthResponse struct {
 // HighlightingJobParams What a highlighting job takes: passages of the resource worth a reader's attention are marked, with no text of the job's own.
 type HighlightingJobParams struct {
 	// Density How many annotations to aim for per 2000 words of the resource.
-	Density *float32 `json:"density,omitempty"`
+	Density *float64 `json:"density,omitempty"`
 
 	// Instructions What to look for, in the caller's words. Added to the prompt.
 	Instructions *string                         `json:"instructions,omitempty"`
@@ -4192,10 +4192,10 @@ type InferenceLimits struct {
 	AcceptsTemperature *bool `json:"acceptsTemperature,omitempty"`
 
 	// ContextTokens The context window in tokens. Anthropic: maximum input tokens (output has its own ceiling). Ollama: the shared input+output window.
-	ContextTokens float32 `json:"contextTokens"`
+	ContextTokens float64 `json:"contextTokens"`
 
 	// MaxOutputTokens Maximum output tokens per generation. Equal to contextTokens when the provider has a single shared window.
-	MaxOutputTokens float32 `json:"maxOutputTokens"`
+	MaxOutputTokens float64 `json:"maxOutputTokens"`
 }
 
 // InferenceLimitsRequest Request for the inference limits of the (provider, model) pairs one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own pairs, so no other service needs one.
@@ -4645,7 +4645,7 @@ type JobProgress struct {
 	Message *JobProgressMessage `json:"message,omitempty"`
 
 	// Percentage Completion percentage (0-100)
-	Percentage float32 `json:"percentage"`
+	Percentage float64 `json:"percentage"`
 
 	// Processed Items completed so far, zero-based — the item in `current` is the one after these. Paired with `total`.
 	Processed *int `json:"processed,omitempty"`
@@ -4802,7 +4802,7 @@ type JobReportProgressCommand struct {
 
 	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType    JobType `json:"jobType"`
-	Percentage float32 `json:"percentage"`
+	Percentage float64 `json:"percentage"`
 
 	// Progress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. Terminality is signalled on `job:complete` / `job:fail`, not here. A flow that iterates a user-chosen list (entity types for references, categories for tags) reports its position as one `current`/`processed`/`total` triple, the same shape for both, so a client never needs to know which flow it is drawing.
 	Progress *JobProgress `json:"progress,omitempty"`
@@ -5058,7 +5058,7 @@ type LibrarianConfig struct {
 	// Search The bound on a search by meaning.
 	Search struct {
 		// SemanticFloor The least similarity a hit by meaning must have.
-		SemanticFloor float32 `json:"semanticFloor"`
+		SemanticFloor float64 `json:"semanticFloor"`
 	} `json:"search"`
 
 	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
@@ -5114,10 +5114,10 @@ type LinkingJobParamsMotivation string
 
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
-	Limit     float32              `json:"limit"`
-	Offset    float32              `json:"offset"`
+	Limit     float64              `json:"limit"`
+	Offset    float64              `json:"offset"`
 	Resources []ResourceDescriptor `json:"resources"`
-	Total     float32              `json:"total"`
+	Total     float64              `json:"total"`
 }
 
 // LocalEndpoint A knowledge base the host process has loaded and reaches through a transport with no wire.
@@ -5572,16 +5572,16 @@ type OllamaEmbeddingConfigType string
 type PdfTextItem struct {
 	// End Offset into AnchoredText.text, in Unicode code points from its start, exclusive.
 	End    int     `json:"end"`
-	Height float32 `json:"height"`
+	Height float64 `json:"height"`
 
 	// Page 1-indexed page number.
-	Page float32 `json:"page"`
+	Page float64 `json:"page"`
 
 	// Start Offset into AnchoredText.text, in Unicode code points from its start, inclusive.
 	Start int     `json:"start"`
-	Width float32 `json:"width"`
-	X     float32 `json:"x"`
-	Y     float32 `json:"y"`
+	Width float64 `json:"width"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
 }
 
 // PeopleProjection What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
@@ -5670,7 +5670,7 @@ type Representation struct {
 	Created    *string                    `json:"created,omitempty"`
 
 	// Duration Seconds (audio/video).
-	Duration *float32 `json:"duration,omitempty"`
+	Duration *float64 `json:"duration,omitempty"`
 
 	// Encoding Compression/transfer encoding if applicable.
 	Encoding *string `json:"encoding,omitempty"`
@@ -6172,7 +6172,7 @@ type ScoredResource struct {
 	SameAs *[]string `json:"sameAs,omitempty"`
 
 	// Score Relevance score assigned by the matcher; higher is a better candidate.
-	Score *float32 `json:"score,omitempty"`
+	Score *float64 `json:"score,omitempty"`
 
 	// SourceAnnotationId Application-specific: ID of annotation that triggered generation
 	SourceAnnotationId *AnnotationId `json:"sourceAnnotationId,omitempty"`
@@ -6321,7 +6321,7 @@ type SemanticMatch struct {
 	ResourceName string `json:"resourceName"`
 
 	// Score Cosine similarity score (0-1)
-	Score float32 `json:"score"`
+	Score float64 `json:"score"`
 
 	// Text The chunk text that matched
 	Text string `json:"text"`

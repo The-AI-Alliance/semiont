@@ -395,7 +395,7 @@ func TestWhetherAJobMatchesAFilterIsTheTablesAnswer(t *testing.T) {
 		if err := json.Unmarshal(raw, &c); err != nil {
 			t.Fatal(err)
 		}
-		if got := jobMatchesFilter(c.Filter, c.Job); got != c.Matches {
+		if got := JobMatchesFilter(c.Filter, c.Job); got != c.Matches {
 			t.Errorf("%s: matched %v", c.Why, got)
 		}
 		asked[c.Matches] = true

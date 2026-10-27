@@ -56,7 +56,7 @@ SEARCHES = [thing(case["search"], "search") | {"why": case["why"]} for case in C
 PREVIEWS = [thing(case["preview"], "preview") | {"why": case["why"]} for case in CASES if "preview" in case]
 
 # Every member each thing the table states may have. A member that is none of these is one nothing here would read.
-TABLE_MEMBERS = ("$comment", "cases")
+TABLE_MEMBERS = ("$comment", "runBy", "cases")
 CASE_MEMBERS = ("why", "search", "preview")
 SEARCH_MEMBERS = ("why", "filters", "semanticFloor", "graph", "embedding", "index", "hydrated", "page", "fails")
 PREVIEW_MEMBERS = ("why", "resources", "served", "previews")

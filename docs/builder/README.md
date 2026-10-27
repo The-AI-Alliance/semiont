@@ -58,6 +58,7 @@ The SDK is a library, not a service. It runs no process of its own: you give a c
 - **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own.
 - **A command-line program.** The Go SDK in a single binary, as the [`semiont` launcher](../../apps/launcher/README.md) has it. It builds its session over the sign-in `semiont login` keeps, so a person who has signed in approves nothing more.
 - **An agent.** The same client a person's application uses. The [agent skills](./skills/README.md) are ready-made definitions for AI coding assistants, one per task.
+- **An AI application, with no code at all.** `semiont mcp`, the launcher's MCP server, gives Claude and any other MCP client the knowledge bases you have signed in to, as you: `claude mcp add semiont -- semiont mcp`. [Connecting an AI application](./AI-APPLICATIONS.md) has the rest.
 
 How a program signs in follows from which of these it is, and no password passes through your code in any of them. [Signing in](./SIGN-IN.md) has each way side by side, and each SDK's README shows the forms it has.
 
@@ -73,6 +74,7 @@ Read in this order. Most people need only the first three.
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
 | [Signing in](./SIGN-IN.md) | Each way a program signs in, by who is signing in, in TypeScript, Python, Rust and Go |
+| [Connecting an AI application](./AI-APPLICATIONS.md) | `semiont mcp`: the knowledge bases you have signed in to, as tools in Claude and any other MCP client |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
 | [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the nine shapes every SDK shares, in TypeScript, Rust, Python and Go |
 | [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript, Rust, Python and Go |
@@ -83,7 +85,7 @@ The guides' examples are TypeScript. The namespaces, methods and behaviour are t
 - **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
 - **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions and the state units, and no registry of several knowledge bases.
-- **[Go](../../packages/sdk-go/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/sdk-go`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units and a worker's claims, and the launcher is built on it. It has no registry of several knowledge bases, and none of the annotation readers and builders the other three have.
+- **[Go](../../packages/sdk-go/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/sdk-go`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims and the annotation readers and builders, and the launcher is built on it. It has no registry of several knowledge bases.
 
 ## Agent skills
 

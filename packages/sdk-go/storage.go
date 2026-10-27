@@ -81,13 +81,13 @@ type keptEntry struct {
 	at    int64
 }
 
-// storagePersister keeps one cache's values in storage, as one document under
+// StoragePersister keeps one cache's values in storage, as one document under
 // one key: {version, writtenAt, entries}, each entry a key, its value, and
 // when that value was last written. A document of another version, or one
 // that does not parse, reads as nothing kept. A document larger than maxBytes
 // loses the entries that have gone longest without a new value, until it
 // fits.
-type storagePersister[K comparable, V any] struct {
+type StoragePersister[K comparable, V any] struct {
 	storage  SessionStorage
 	key      string
 	maxBytes int
@@ -98,9 +98,15 @@ type storagePersister[K comparable, V any] struct {
 	written map[string]keptEntry
 }
 
-var _ CachePersister[string, string] = (*storagePersister[string, string])(nil)
+var _ CachePersister[string, string] = (*StoragePersister[string, string])(nil)
 
-func (p *storagePersister[K, V]) Load() map[K]V {
+// NewStoragePersister keeps a cache's values in storage under key, in a
+// document of at most maxBytes.
+func NewStoragePersister[K comparable, V any](storage SessionStorage, key string, maxBytes int) *StoragePersister[K, V] {
+	return &StoragePersister[K, V]{storage: storage, key: key, maxBytes: maxBytes}
+}
+
+func (p *StoragePersister[K, V]) Load() map[K]V {
 	raw, ok := p.storage.Get(p.key)
 	if !ok {
 		return nil
@@ -142,7 +148,7 @@ func (p *storagePersister[K, V]) Load() map[K]V {
 	return kept
 }
 
-func (p *storagePersister[K, V]) Save(entries map[K]V) error {
+func (p *StoragePersister[K, V]) Save(entries map[K]V) error {
 	now := time.Now().UnixMilli()
 	type stored struct {
 		key, value string

@@ -287,7 +287,9 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool, channels ...bus.Chann
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return nil, false
 		}
-		base = GatewayBase(local)
+		if base, ok = LocalBase(u, local, verb); !ok {
+			return nil, false
+		}
 		key = "local"
 	}
 	return LoadSession(u, verb, key, base, channels...)

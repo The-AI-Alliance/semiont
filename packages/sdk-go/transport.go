@@ -6,6 +6,7 @@ package semiont
 
 import (
 	"context"
+	"fmt"
 	"iter"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
@@ -53,4 +54,13 @@ type Transport interface {
 	// ends, and every request still pending fails as closed. Closing twice is
 	// closing once.
 	Close()
+}
+
+// Unsubscribed is the refusal a transport gives for a channel it can never
+// deliver.
+func Unsubscribed(channel bus.Channel) *BusRequestError {
+	return &BusRequestError{
+		Code:    BusRequestErrorCodeUnsubscribed,
+		Message: fmt.Sprintf("Transport is not subscribed to %s: a frame on it can never arrive on this connection. Add the channel to this client's channels.", channel),
+	}
 }

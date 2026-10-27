@@ -47,7 +47,7 @@ func TestUnreachableOllamaIsUnknownNotMissing(t *testing.T) {
 // same in the terminal and in the browser.
 func TestCeilingCell(t *testing.T) {
 	for _, c := range []struct {
-		ctx, out float32
+		ctx, out float64
 		want     string
 	}{
 		{200000, 64000, "200K in / 64K out"},

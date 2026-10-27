@@ -40,6 +40,8 @@ class RefusedChunking(BaseModel, frozen=True, extra="forbid", strict=True):
 
 class Table(BaseModel, frozen=True, extra="forbid", strict=True):
     comment: Annotated[str, Field(alias="$comment")]
+    run_by: Annotated[dict[str, list[str]], Field(alias="runBy")]
+    """Who runs the table, which lint:spec-case-tables holds it to."""
     # The chunking used when none is given. This worker is never given none: a piece's size is its
     # unit's budget's, and then the step's. The member is read, and nothing here has a value to hold to it.
     defaults: StatedChunking

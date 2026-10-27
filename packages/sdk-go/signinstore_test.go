@@ -207,7 +207,7 @@ func TestASignInIsKeptAsItsTokenNamesIt(t *testing.T) {
 	if signIn.Email != "a@example.com" || signIn.Issuer != "http://issuer.example/realms/semiont" || signIn.RevocationEndpoint != held.RevocationEndpoint {
 		t.Errorf("kept %+v", signIn)
 	}
-	expiry, _ := tokenExpiry(held.Access)
+	expiry, _ := TokenExpiry(held.Access)
 	if !signIn.ExpiresAt.Equal(expiry.UTC().Truncate(time.Second)) || signIn.ObtainedAt.IsZero() {
 		t.Errorf("kept as obtained at %s and expiring at %s, want its token's expiry %s", signIn.ObtainedAt, signIn.ExpiresAt, expiry)
 	}
@@ -435,7 +435,7 @@ func TestEveryRenewalIsTheTables(t *testing.T) {
 				}
 				// A minted token's name is its jti; "" is none.
 				named := func(minted string) string {
-					if name, ok := textClaim(minted, "jti"); ok {
+					if name, ok := TextClaim(minted, "jti"); ok {
 						return name
 					}
 					return minted
