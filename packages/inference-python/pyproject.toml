@@ -35,7 +35,7 @@ dependencies = [
 [project.optional-dependencies]
 # Anthropic's library, from the version the Anthropic driver was written
 # against: what the driver leans on in it is listed in anthropic.py.
-anthropic = ["anthropic>=1.13,<2"]
+anthropic = ["anthropic>=1.13,<3"]
 # OpenAI's library, from the version the OpenAI driver was written against:
 # what the driver leans on in it, and switches off in it, is listed in openai.py.
 openai = ["openai>=3.28,<4"]
