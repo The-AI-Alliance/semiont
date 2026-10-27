@@ -959,9 +959,6 @@
         "python",
         "go"
       ],
-      "notYetReached": {
-        "go": "the annotations module: its readers, its builders and reconcile"
-      },
       "members": [
         {
           "member": "bodySource",
@@ -1064,35 +1061,59 @@
         },
         {
           "member": "reconcile",
-          "kind": "function"
+          "kind": "function",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "annotationOfSpan",
-          "kind": "function"
+          "kind": "function",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "annotationOfResource",
-          "kind": "function"
+          "kind": "function",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "QuotedText",
-          "kind": "type"
+          "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "TextSpan",
-          "kind": "type"
+          "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "ReconciledSpan",
-          "kind": "type"
+          "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "AnchorMethod",
-          "kind": "type"
+          "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          }
         },
         {
           "member": "MatchQuality",
           "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          },
           "absent": {
             "typescript": "TypeScript states it inline, as ReconciledSpan's matchQuality, and names no type for it."
           }
@@ -1100,6 +1121,9 @@
         {
           "member": "SpanRefusedError",
           "kind": "type",
+          "notYetReached": {
+            "go": "the builders and reconcile"
+          },
           "absent": {
             "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
           }

@@ -4,9 +4,9 @@
     "typescript": ["packages/core/src/__tests__/annotation-id.test.ts", "packages/core/src/__tests__/id-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/annotations/id.rs"],
     "python": ["packages/sdk-python/tests/test_annotation_ids.py", "packages/sdk-python/tests/test_readme.py"],
-    "conformance": ["tests/conformance/worker-service/yield.test.ts"]
+    "conformance": ["tests/conformance/worker-service/yield.test.ts"],
+    "go": ["packages/sdk-go/annotations/id_test.go"]
   },
-  "notYetReached": { "go": "the id the annotation builders derive" },
   "cases": [
     {
       "why": "an annotation with no body, a highlight: three members go into its id",
