@@ -56,8 +56,9 @@ var mcpHandlers = map[string]mcpHandler{
 		Archived   *bool   `json:"archived"`
 		EntityType *string `json:"entityType"`
 		Limit      int     `json:"limit"`
+		Offset     int     `json:"offset"`
 	}) (mcpAnswer, error) {
-		found, err := call.client().Match.Resources(args.Search, semiont.ResourceFilters{Limit: args.Limit, Archived: args.Archived, EntityType: args.EntityType}).Fresh(ctx)
+		found, err := call.client().Match.Resources(args.Search, semiont.ResourceFilters{Limit: args.Limit, Offset: args.Offset, Archived: args.Archived, EntityType: args.EntityType}).Fresh(ctx)
 		return mcpAnswer{structured: found}, err
 	}),
 
@@ -65,8 +66,9 @@ var mcpHandlers = map[string]mcpHandler{
 		Archived   *bool   `json:"archived"`
 		EntityType *string `json:"entityType"`
 		Limit      int     `json:"limit"`
+		Offset     int     `json:"offset"`
 	}) (mcpAnswer, error) {
-		listed, err := call.client().Browse.Resources(semiont.ResourceFilters{Limit: args.Limit, Archived: args.Archived, EntityType: args.EntityType}).Fresh(ctx)
+		listed, err := call.client().Browse.Resources(semiont.ResourceFilters{Limit: args.Limit, Offset: args.Offset, Archived: args.Archived, EntityType: args.EntityType}).Fresh(ctx)
 		return mcpAnswer{structured: listed}, err
 	}),
 
@@ -98,11 +100,11 @@ var mcpHandlers = map[string]mcpHandler{
 	}),
 
 	"gather_annotation": handle(func(ctx context.Context, call mcpCall, args struct {
-		ResourceId    api.ResourceId   `json:"resourceId"`
-		AnnotationId  api.AnnotationId `json:"annotationId"`
-		ContextWindow int              `json:"contextWindow"`
+		ResourceId   api.ResourceId              `json:"resourceId"`
+		AnnotationId api.AnnotationId            `json:"annotationId"`
+		Options      api.GatherAnnotationOptions `json:"options"`
 	}) (mcpAnswer, error) {
-		gathered, err := call.client().Gather.Annotation(args.ResourceId, args.AnnotationId, windowed(args.ContextWindow)).Wait(ctx)
+		gathered, err := call.client().Gather.Annotation(args.ResourceId, args.AnnotationId, args.Options).Wait(ctx)
 		return mcpAnswer{structured: gathered}, err
 	}),
 
@@ -167,14 +169,14 @@ var mcpHandlers = map[string]mcpHandler{
 	}),
 
 	"match_link_targets": handle(func(ctx context.Context, call mcpCall, args struct {
-		ResourceId         api.ResourceId   `json:"resourceId"`
-		ReferenceId        api.AnnotationId `json:"referenceId"`
-		ContextWindow      int              `json:"contextWindow"`
-		Limit              int              `json:"limit"`
-		UseSemanticScoring *bool            `json:"useSemanticScoring"`
+		ResourceId         api.ResourceId              `json:"resourceId"`
+		ReferenceId        api.AnnotationId            `json:"referenceId"`
+		Gather             api.GatherAnnotationOptions `json:"gather"`
+		Limit              int                         `json:"limit"`
+		UseSemanticScoring *bool                       `json:"useSemanticScoring"`
 	}) (mcpAnswer, error) {
 		c := call.client()
-		gathered, err := c.Gather.Annotation(args.ResourceId, args.ReferenceId, windowed(args.ContextWindow)).Wait(ctx)
+		gathered, err := c.Gather.Annotation(args.ResourceId, args.ReferenceId, args.Gather).Wait(ctx)
 		if err != nil {
 			return mcpAnswer{}, err
 		}
@@ -206,13 +208,13 @@ var mcpHandlers = map[string]mcpHandler{
 	}),
 
 	"yield_generate": handle(func(ctx context.Context, call mcpCall, args struct {
-		ResourceId    api.ResourceId   `json:"resourceId"`
-		AnnotationId  api.AnnotationId `json:"annotationId"`
-		ContextWindow int              `json:"contextWindow"`
+		ResourceId   api.ResourceId              `json:"resourceId"`
+		AnnotationId api.AnnotationId            `json:"annotationId"`
+		Gather       api.GatherAnnotationOptions `json:"gather"`
 		api.GenerationJobRequest
 	}) (mcpAnswer, error) {
 		c := call.client()
-		gathered, err := c.Gather.Annotation(args.ResourceId, args.AnnotationId, windowed(args.ContextWindow)).Wait(ctx)
+		gathered, err := c.Gather.Annotation(args.ResourceId, args.AnnotationId, args.Gather).Wait(ctx)
 		if err != nil {
 			return mcpAnswer{}, err
 		}
