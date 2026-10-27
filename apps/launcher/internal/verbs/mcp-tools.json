@@ -34,27 +34,29 @@
     {
       "name": "match_resources",
       "title": "Search resources",
-      "description": "Resources whose text or meaning matches a search, best first.",
+      "description": "Resources whose text or meaning matches a search, best first, a page at a time: `limit` resources from `offset` on. The answer's `total` says how many match.",
       "calls": ["match.resources"],
       "readOnly": true,
       "arguments": [
         { "from": "MatchResourcesRequest", "member": "search" },
         { "from": "MatchResourcesRequest", "member": "archived" },
         { "from": "MatchResourcesRequest", "member": "entityType" },
-        { "from": "MatchResourcesRequest", "member": "limit" }
+        { "from": "MatchResourcesRequest", "member": "limit" },
+        { "from": "MatchResourcesRequest", "member": "offset" }
       ],
       "result": { "component": "MatchResourcesResponse" }
     },
     {
       "name": "browse_resources",
       "title": "List resources",
-      "description": "The knowledge base's resources, newest first.",
+      "description": "The knowledge base's resources, newest first, a page at a time: `limit` resources from `offset` on. The answer's `total` says how many there are.",
       "calls": ["browse.resources"],
       "readOnly": true,
       "arguments": [
         { "from": "BrowseResourcesRequest", "member": "archived" },
         { "from": "BrowseResourcesRequest", "member": "entityType" },
-        { "from": "BrowseResourcesRequest", "member": "limit" }
+        { "from": "BrowseResourcesRequest", "member": "limit" },
+        { "from": "BrowseResourcesRequest", "member": "offset" }
       ],
       "result": { "component": "ListResourcesResponse" }
     },
@@ -89,13 +91,13 @@
     {
       "name": "gather_annotation",
       "title": "Gather an annotation's context",
-      "description": "The context around one annotation: the passage it marks, what surrounds it, and what it refers to, as a model is given it.",
+      "description": "The context around one annotation: the passage it marks, what surrounds it, and what it refers to, as a model is given it. `options` says how much of the text around it, and whether the source's and the target's contexts are included; whatever it leaves out takes its default.",
       "calls": ["gather.annotation"],
       "readOnly": true,
       "arguments": [
         { "from": "GatherAnnotationRequest", "member": "resourceId" },
         { "from": "GatherAnnotationRequest", "member": "annotationId" },
-        { "from": "GatherAnnotationOptions", "member": "contextWindow" }
+        { "from": "GatherAnnotationRequest", "member": "options" }
       ],
       "result": { "component": "GatherAnnotationComplete" }
     },
@@ -172,13 +174,13 @@
     {
       "name": "match_link_targets",
       "title": "Find what a reference could link to",
-      "description": "The resources a reference annotation could link to, scored, grounded in the annotation's gathered context.",
+      "description": "The resources a reference annotation could link to, scored, grounded in the annotation's gathered context, which `gather` shapes as gather_annotation's `options` does.",
       "calls": ["gather.annotation", "match.search"],
       "readOnly": true,
       "arguments": [
         { "from": "MatchSearchRequest", "member": "resourceId" },
         { "from": "MatchSearchRequest", "member": "referenceId" },
-        { "from": "GatherAnnotationOptions", "member": "contextWindow" },
+        { "name": "gather", "schema": "GatherAnnotationOptions", "required": false },
         { "from": "MatchSearchRequest", "member": "limit" },
         { "from": "MatchSearchRequest", "member": "useSemanticScoring" }
       ],
@@ -212,12 +214,12 @@
     {
       "name": "yield_generate",
       "title": "Have the stack generate a resource",
-      "description": "Gather an annotation's context, then have the stack's worker generate a resource from it, as a job. The call waits for the job and answers its completion; cancelling the call cancels the job.",
+      "description": "Gather an annotation's context, shaped by `gather` as gather_annotation's `options` shapes it, then have the stack's worker generate a resource from it, as a job. The call waits for the job and answers its completion; cancelling the call cancels the job.",
       "calls": ["gather.annotation", "yield.delegate"],
       "arguments": [
         { "from": "GatherAnnotationRequest", "member": "resourceId" },
         { "from": "GatherAnnotationRequest", "member": "annotationId" },
-        { "from": "GatherAnnotationOptions", "member": "contextWindow" },
+        { "name": "gather", "schema": "GatherAnnotationOptions", "required": false },
         { "from": "GenerationJobRequest", "member": "title" },
         { "from": "GenerationJobRequest", "member": "storageUri" },
         { "from": "GenerationJobRequest", "member": "prompt" },
