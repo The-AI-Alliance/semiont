@@ -232,7 +232,9 @@ class Unlearned:
 
 
 def test_a_model_whose_limits_cannot_be_learned_is_not_asked_and_the_failure_is_the_provider_s_own() -> None:
-    failure = ProviderStatusError("the limits of 'unlearned-model': refused with status 401", 401)
+    failure = ProviderStatusError(
+        "Failed to discover model limits for 'unlearned-model' from the Models API: refused with status 401: invalid x-api-key", 401
+    )
     client = Unlearned(failure)
 
     with pytest.raises(ProviderStatusError) as raised:
