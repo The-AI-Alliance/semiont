@@ -88,7 +88,7 @@ func highlighting(t *testing.T, c *semiont.Client) *semiont.Delegation[api.MarkJ
 	return c.Mark.Delegate(resourceOf(t, "res-1"), params)
 }
 
-func generation(t *testing.T, c *semiont.Client, stall time.Duration, maxTokens *float32) *semiont.Delegation[api.YieldJobCompleteCommand] {
+func generation(t *testing.T, c *semiont.Client, stall time.Duration, maxTokens *float64) *semiont.Delegation[api.YieldJobCompleteCommand] {
 	t.Helper()
 	var params api.GenerationJobParams
 	if err := json.Unmarshal([]byte(`{"title":"A summary","storageUri":"file://a-summary.md","context":`+followContext+`}`), &params); err != nil {
@@ -694,7 +694,7 @@ func TestAnOptionOfAJobGivenAsNothingIsNotSent(t *testing.T) {
 	c, fake := jobWorld(t, true, semiont.DefaultTiming())
 	fake.QueueReply(jobCreate, json.RawMessage(`{"jobId":"job-2"}`))
 	var params api.MarkJobParams
-	density := float32(1.5)
+	density := 1.5
 	if err := params.FromCommentingJobParams(api.CommentingJobParams{Motivation: api.CommentingJobParamsMotivationCommenting, Density: &density}); err != nil {
 		t.Fatal(err)
 	}
@@ -887,7 +887,7 @@ func TestAGenerationWaitsAsLongAsItsLengthAllowsWhenNoDeadlineIsStated(t *testin
 	timing.GenerationStallFloor, timing.GenerationStallPerToken = 100*time.Millisecond, time.Millisecond
 	c, fake := jobWorld(t, true, timing)
 	fake.QueueReply(jobStatus, statuses(statusOf(t, "running", nil), 100)...)
-	tokens := float32(400)
+	tokens := 400.0
 	waited := waiting(generation(t, c, 0, &tokens))
 	created(t, fake, 1)
 	time.Sleep(200 * time.Millisecond)

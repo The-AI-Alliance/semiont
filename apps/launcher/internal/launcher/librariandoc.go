@@ -103,7 +103,7 @@ func librarianDocument(p placement) ([]byte, error) {
 	}
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Gather.SettleTimeoutMs = index.Librarian.Gather.SettleTimeoutMs
-	doc.Search.SemanticFloor = float32(index.Librarian.Search.SemanticFloor)
+	doc.Search.SemanticFloor = index.Librarian.Search.SemanticFloor
 	doc.Port = semiontDescriptor("librarian").ports[0].port
 	doc.LogLevel = index.LogLevel
 	doc.LogFormat = api.LogFormatJson

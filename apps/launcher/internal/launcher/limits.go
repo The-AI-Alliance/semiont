@@ -102,12 +102,12 @@ func ceilingCell(l api.InferenceLimits) string {
 // formatTokens reads a token count as a ceiling — "200K" carries the meaning
 // a bare 200000 makes the reader compute — without rounding one away: a
 // 128000 window must never display as 130K.
-func formatTokens(n float32) string {
+func formatTokens(n float64) string {
 	switch {
 	case n >= 1_000_000:
-		return trimUnit(float64(n)/1_000_000) + "M"
+		return trimUnit(n/1_000_000) + "M"
 	case n >= 1_000:
-		return trimUnit(float64(n)/1_000) + "K"
+		return trimUnit(n/1_000) + "K"
 	default:
 		return strconv.Itoa(int(n))
 	}
