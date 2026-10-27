@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import standaloneCode from 'ajv/dist/standalone/index.js';
+import { convertNullable } from './openapi-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -44,37 +45,6 @@ const BANNER = `// ⚠ GENERATED FILE — do not edit.
 // Source: specs/openapi.json → scripts/spec/generate-validators.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 `;
-
-/**
- * OpenAPI 3.0 `nullable` → JSON Schema draft-07, which Ajv speaks.
- *
- * Two idioms, and BOTH are load-bearing — a generator missing either fails on
- * valid schemas:
- *   - `nullable` beside a string `type` → `type: [original, 'null']`
- *   - `nullable` beside `allOf` → `anyOf: [{type:'null'}, <the rest>]`. This is
- *     3.0's only way to express a nullable `$ref` (a bare `$ref` takes no
- *     siblings), and five schemas use it.
- * Mutates in place; caller passes a deep clone.
- */
-function convertNullable(obj) {
-  if (obj === null || obj === undefined || typeof obj !== 'object') return;
-  if (obj.nullable === true) {
-    delete obj.nullable;
-    if (typeof obj.type === 'string') {
-      obj.type = [obj.type, 'null'];
-    } else {
-      const inner = {};
-      for (const key of Object.keys(obj)) {
-        inner[key] = obj[key];
-        delete obj[key];
-      }
-      obj.anyOf = [{ type: 'null' }, inner];
-    }
-  }
-  for (const value of Object.values(obj)) {
-    if (typeof value === 'object') convertNullable(value);
-  }
-}
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
 const schemas = spec.components?.schemas ?? {};
