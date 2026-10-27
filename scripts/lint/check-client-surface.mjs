@@ -1496,6 +1496,169 @@ else {
   }
 }
 
+// ── The modules ─────────────────────────────────────────────────────────
+
+/**
+ * What a client's SDK has beside its namespaces: the free functions, types
+ * and values of its modules. Each row of the table's `modules` section is a
+ * module, where each SDK keeps it (`where`: its files, or for Go a package's
+ * directory), and its members. A member is held by its name as its `kind`
+ * says each language spells it:
+ *
+ *   - `function`: TypeScript as the table spells it, Rust and Python in
+ *     snake_case, Go with its first letter a capital;
+ *   - `reader`: as a function, but TypeScript's is `get` and the name with
+ *     its first letter a capital;
+ *   - `type`: as the table spells it, in every SDK;
+ *   - `constant`: TypeScript, Rust and Python in capitals with underscores,
+ *     Go as a function.
+ *
+ * `named` gives an SDK's own name for a member, where the rule does not.
+ * `absent` says why an SDK has none, and is stale once it has one.
+ * `notYetReached`, on a member or on the whole module, names an SDK that is
+ * to have it and does not yet, and is stale once it has it. A module whose
+ * `whole` lists an SDK is that SDK's files and nothing else: every public
+ * member of them is listed.
+ */
+const MODULE_SDKS = ['typescript', 'rust', 'python', 'go'];
+const MODULE_KINDS = ['function', 'reader', 'type', 'constant'];
+const capitalized = (name) => name[0].toUpperCase() + name.slice(1);
+const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+
+/** A member's name as `sdk` spells a member of `kind`. */
+function spelledAs(sdk, kind, name) {
+  if (kind === 'type') return name;
+  if (kind === 'constant') return sdk === 'go' ? capitalized(name) : snakeCase(name).toUpperCase();
+  if (sdk === 'go') return capitalized(name);
+  if (sdk === 'rust' || sdk === 'python') return snakeCase(name);
+  return kind === 'reader' ? `get${capitalized(name)}` : name;
+}
+
+/** The public names of TypeScript files: what each exports by declaration. */
+function typescriptExports(files) {
+  return files.flatMap((file) =>
+    [...withoutComments(read(file), `'"\``).matchAll(/^export (?:declare )?(?:async )?(?:abstract )?(?:function\*?|const|let|class|interface|type|enum) (\w+)/gm)].map((m) => m[1]),
+  );
+}
+
+/** The public names of Rust files: each item declared `pub` at the top of a file. */
+function rustExports(files) {
+  return files.flatMap((file) =>
+    [...withoutComments(read(file), '"').matchAll(/^pub (?:async )?(?:fn|struct|enum|trait|const|type|static) (\w+)/gm)].map((m) => m[1]),
+  );
+}
+
+/** The public names of Python modules: each one's `__all__`. */
+function pythonExports(files) {
+  return files.flatMap((file) => {
+    const all = withoutPythonComments(read(file)).match(/^__all__\s*=\s*\[([^\]]*)\]/m);
+    if (!all) {
+      fail(`${file} states no __all__: its public names are not said`);
+      return [];
+    }
+    return [...all[1].matchAll(/["'](\w+)["']/g)].map((m) => m[1]);
+  });
+}
+
+/** The exported names of Go packages, each given by its directory: every name its files declare at their top level with a capital, but methods. */
+function goExports(directories) {
+  return directories.flatMap((directory) =>
+    filesIn(directory, '.go')
+      .filter((name) => !name.endsWith('_test.go'))
+      .flatMap((name) => {
+        const code = goCode(read(`${directory}/${name}`));
+        const single = [...code.matchAll(/^(?:func|type|var|const) (\p{Lu}\w*)/gmu)].map((m) => m[1]);
+        const grouped = [...code.matchAll(/^(?:var|const|type) \(\n([\s\S]*?)^\)/gm)].flatMap((block) =>
+          [...block[1].matchAll(/^\t(\p{Lu}\w*)/gmu)].map((m) => m[1]),
+        );
+        return [...single, ...grouped];
+      }),
+  );
+}
+
+const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports };
+
+/** module → row */
+const modules = new Map();
+const moduleRows = table.modules;
+if (!Array.isArray(moduleRows) || moduleRows.length === 0) fail(`${TABLE} states no \`modules\`: what a client's SDK has beside its namespaces`);
+for (const module of moduleRows ?? []) {
+  const row = `the \`${module.module}\` row of \`modules\` in ${TABLE}`;
+  if (modules.has(module.module)) fail(`${row} is listed twice`);
+  modules.set(module.module, module);
+  const strays = Object.keys(module).filter((key) => !['module', 'docs', 'where', 'whole', 'members', 'notYetReached'].includes(key));
+  if (strays.length > 0) fail(`${row} states ${strays.join(', ')}, which a module does not`);
+  if (typeof module.docs !== 'string' || module.docs === '') fail(`${row} does not say what the module is (\`docs\`)`);
+  for (const [said, entries] of [['where', module.where], ['notYetReached', module.notYetReached ?? {}]]) {
+    for (const sdk of Object.keys(entries ?? {})) {
+      if (!MODULE_SDKS.includes(sdk)) fail(`${row}: \`${said}\` names "${sdk}", which is no SDK whose modules this lint reads`);
+    }
+  }
+  for (const sdk of module.whole ?? []) {
+    if (!MODULE_SDKS.includes(sdk)) fail(`${row}: \`whole\` names "${sdk}", which is no SDK whose modules this lint reads`);
+  }
+  if (!Array.isArray(module.members) || module.members.length === 0) fail(`${row} lists no member`);
+  const members = new Map();
+  for (const member of module.members ?? []) {
+    const name = `${row}, member ${member.member}`;
+    if (members.has(member.member)) fail(`${name} is listed twice`);
+    members.set(member.member, member);
+    if (!MODULE_KINDS.includes(member.kind)) fail(`${name} has the kind "${member.kind}", which is none of ${MODULE_KINDS.join(', ')}`);
+    const others = Object.keys(member).filter((key) => !['member', 'kind', 'named', 'absent', 'notYetReached'].includes(key));
+    if (others.length > 0) fail(`${name} states ${others.join(', ')}, which a member does not`);
+    for (const [said, entries] of [['named', member.named ?? {}], ['absent', member.absent ?? {}], ['notYetReached', member.notYetReached ?? {}]]) {
+      for (const [sdk, value] of Object.entries(entries)) {
+        if (!MODULE_SDKS.includes(sdk)) fail(`${name}: \`${said}\` names "${sdk}", which is no SDK whose modules this lint reads`);
+        if (typeof value !== 'string' || value === '') fail(`${name}: \`${said}\` says nothing for ${sdk}`);
+      }
+    }
+    if (MODULE_SDKS.every((sdk) => member.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+  }
+
+  for (const sdk of MODULE_SDKS) {
+    const where = module.where?.[sdk];
+    const waiting = module.notYetReached?.[sdk];
+    if (!Array.isArray(where) || where.length === 0) {
+      fail(`${row} does not say where ${sdk} keeps the module (\`where\`)`);
+      continue;
+    }
+    const missing = where.filter((path) => (sdk === 'go' ? !REPOSITORY.some((file) => dirname(file) === path) : !REPOSITORY.includes(path)));
+    if (waiting !== undefined) {
+      if (missing.length === 0) {
+        const present = new Set(EXPORTS[sdk](where));
+        const reached = [...members.values()].filter((member) => present.has(member.named?.[sdk] ?? spelledAs(sdk, member.kind, member.member)));
+        if (reached.length > 0) fail(`${row} says ${sdk} has yet to reach the module (\`notYetReached\`), and ${where.join(', ')} has ${reached.map((member) => member.member).join(', ')}: say which members it still lacks on each member instead`);
+      }
+      continue;
+    }
+    if (missing.length > 0) {
+      fail(`${row} says ${sdk} keeps the module in ${missing.join(', ')}, which does not exist`);
+      continue;
+    }
+    const its = `${sdk}'s ${module.module} (${where.join(', ')})`;
+    const present = new Set(EXPORTS[sdk](where));
+    const expected = new Set();
+    for (const [member, stated] of members) {
+      const spelled = stated.named?.[sdk] ?? spelledAs(sdk, stated.kind, member);
+      if (stated.absent?.[sdk] !== undefined) {
+        if (present.has(spelled)) fail(`${its} has ${spelled}, and ${row} says ${sdk} has no ${member}: the member's \`absent\` is stale, so take ${sdk} out of it`);
+        continue;
+      }
+      if (stated.notYetReached?.[sdk] !== undefined) {
+        if (present.has(spelled)) fail(`${its} has ${spelled}, and ${row} says ${sdk} has yet to have ${member}: take ${sdk} out of the member's \`notYetReached\``);
+        continue;
+      }
+      expected.add(spelled);
+      if (!present.has(spelled)) fail(`${its} has no ${spelled}, which ${row} lists as ${member}: add it to the SDK, or say in the member's \`absent\` why ${sdk} has none`);
+    }
+    if ((module.whole ?? []).includes(sdk)) {
+      for (const name of present) {
+        if (!expected.has(name)) fail(`${its} has ${name}, which ${row} does not list: add a member for it there before any SDK has it, with an \`absent\` for each SDK that is not to`);
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`✗ lint:client-surface — ${failures.length} problem${failures.length === 1 ? '' : 's'}`);
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -1510,5 +1673,5 @@ const heldBy = (roster) => {
   return `held by ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`}`;
 };
 console.log(
-  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; and ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}`,
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; and ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}`,
 );
