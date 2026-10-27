@@ -19,6 +19,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/encoding/korean"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/traditionalchinese"
+
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
 )
@@ -132,11 +138,10 @@ var marks = []struct {
 // names the charset: nothing is read as something it is not, and the bytes
 // are there to read (Browse.ResourceRepresentation).
 //
-// This reader decodes UTF-8, UTF-16BE, UTF-16LE and every single-byte
-// encoding of the standard. Its seven legacy multi-byte encodings (Big5,
-// EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP, Shift_JIS) it refuses by name,
-// as the Rust SDK does without its charsets feature: the Go SDK takes nothing
-// but the standard library at run time.
+// This reader decodes every encoding of the standard: UTF-8, UTF-16BE and
+// UTF-16LE itself, each single-byte one by its table, and the seven legacy
+// multi-byte ones (Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP,
+// Shift_JIS) as golang.org/x/text does.
 //
 // Each refusal is a *TransportError whose code is TransportErrorCodeError.
 func DecodeRepresentation(data []byte, contentType string) (string, error) {
@@ -162,7 +167,7 @@ func DecodeRepresentation(data []byte, contentType string) (string, error) {
 	if text, ok := decodedBy(data, encoding); ok {
 		return text, nil
 	}
-	return "", transportErrorWithoutResponse(fmt.Sprintf("The resource's text is %s, which this SDK has no decoder for: read its bytes instead", label), TransportErrorCodeError)
+	panic(fmt.Sprintf("the label %s names %s, which no decoder here reads", label, encoding))
 }
 
 // decoded is data in one of the encodings a byte-order mark names.
@@ -171,10 +176,24 @@ func decoded(data []byte, encoding string) string {
 	return text
 }
 
+// legacyMultiByte is each of the standard's legacy multi-byte encodings, as
+// the decoder the standard names for it: GBK's is gb18030's, and each other is
+// the superset of what its name says that the standard reads (Big5-HKSCS,
+// windows-949, windows-31j). encoding-cases.json holds every label of each.
+var legacyMultiByte = map[string]encoding.Encoding{
+	"big5":        traditionalchinese.Big5,
+	"euc-jp":      japanese.EUCJP,
+	"euc-kr":      korean.EUCKR,
+	"gb18030":     simplifiedchinese.GB18030,
+	"gbk":         simplifiedchinese.GB18030,
+	"iso-2022-jp": japanese.ISO2022JP,
+	"shift_jis":   japanese.ShiftJIS,
+}
+
 // decodedBy is data in encoding; false for an encoding this reader has no
-// decoder for.
-func decodedBy(data []byte, encoding string) (string, bool) {
-	switch encoding {
+// decoder for. What an encoding does not have is U+FFFD.
+func decodedBy(data []byte, name string) (string, bool) {
+	switch name {
 	case encodingUTF8:
 		return decodeUTF8(data), true
 	case encodingUTF16BE:
@@ -182,7 +201,14 @@ func decodedBy(data []byte, encoding string) (string, bool) {
 	case encodingUTF16LE:
 		return decodeUTF16(data, true), true
 	}
-	characters, ok := singleByte[encoding]
+	if legacy, ok := legacyMultiByte[name]; ok {
+		text, err := legacy.NewDecoder().Bytes(data)
+		if err != nil {
+			panic(fmt.Sprintf("decoding %s failed, which its decoder does not do: %v", name, err))
+		}
+		return string(text), true
+	}
+	characters, ok := singleByte[name]
 	if !ok {
 		return "", false
 	}

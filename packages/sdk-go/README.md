@@ -41,7 +41,7 @@ It requires the Go toolchain its `go.mod` names. One module holds all of it:
 the client, the transport that carries it over HTTP to a knowledge base's
 gateway, signing in, the state units (package `state`) and the doubles a test
 is built on (package `semionttest`). Its dependencies are `oapi-codegen`'s
-runtime, `google/uuid` and OpenTelemetry's API.
+runtime, `google/uuid`, OpenTelemetry's API and `golang.org/x/text`.
 
 A client speaks to a running knowledge base. The [Quick Start][quick-start]
 sets one up on your own machine.

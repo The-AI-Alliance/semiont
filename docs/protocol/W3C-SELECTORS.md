@@ -181,15 +181,18 @@ hold it, which every reader runs.
   and in a Node built with full ICU, as Node's own distributions are.
   *Held by `packages/sdk-rust/src/resources.rs` for the Rust SDK's reader of UTF-8 alone.*
 - **T7. The bytes of the seven legacy multi-byte encodings are read by each
-  reader's own decoder, and those differ.** Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP and
+  reader's own decoder, and those differ at the edges.** Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP and
   Shift_JIS are encodings of the standard: their labels are labels (T2), and a
-  mark decides over them (T3). Their bytes are read by each reader's own
-  decoder: `encoding_rs` in Rust, which is the standard's; ICU in TypeScript
-  and Python's own codecs in Python, each of which differs from the
-  standard's, in the characters of some sequences and in what it makes of a
-  fault. The Python reader refuses the labels of these encodings that Python
-  has no codec under.
-  *Held by no case.*
+  mark decides over them (T3). Every label of each names its encoding, and its
+  bytes are read by the reader's own decoder of the one the standard names for
+  it: `encoding_rs` in Rust, which is the standard's; ICU in TypeScript;
+  `golang.org/x/text` in Go; and in Python its codec of that decoder (GBK's is
+  gb18030's, and Big5, EUC-KR and Shift_JIS are read as the supersets the
+  standard reads). Each but Rust's differs from the standard's in the
+  characters of some rarer sequences and in what it makes of a fault.
+  *Held, for some bytes of each that every reader reads alike and by every
+  label, by [`encoding-cases.json`](../../specs/src/text/encoding-cases.json);
+  where they differ, by no case.*
 - **T8. Only a media type whose bytes are its text is read.** The media type
   is the content type without its parameters, in lower case. The
   [media-type registry](../../specs/src/media-types/registry.json) says where

@@ -7,10 +7,10 @@
 //
 // Rust reads a resource's text with encoding_rs and TypeScript with the
 // platform's TextDecoder, each of which has the standard's labels and its
-// single-byte encodings in it. Go's standard library has neither, and the Go
-// SDK takes nothing else at run time. So its reader takes both from this
-// file, as the Python SDK's does from its own: the encoding each label names,
-// and the 256 characters of each single-byte encoding.
+// single-byte encodings in it. Go's standard library has neither. So the Go
+// SDK's reader takes both from this file, as the Python SDK's does from its
+// own: the encoding each label names, and the 256 characters of each
+// single-byte encoding.
 //
 // --check compares without writing (the CI drift gate).
 
@@ -32,7 +32,6 @@ function refuse(message) {
 
 const table = JSON.parse(readFileSync(TABLE, 'utf8'));
 if (!Array.isArray(table.cases) || table.cases.length === 0) refuse('has no cases');
-if (table.legacyMultiByte === null || typeof table.legacyMultiByte !== 'object') refuse('does not list the legacy multi-byte encodings');
 
 /** A Go string literal of printable ASCII: every other character as an escape, which JSON's are. */
 const goAscii = (value) => JSON.stringify(value).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
@@ -58,8 +57,6 @@ for (const stated of table.cases) {
     refuse(`${stated.encoding} is a case of no kind this generator knows`);
   }
 }
-const legacy = Object.keys(table.legacyMultiByte).sort();
-for (const encoding of legacy) named(encoding, table.legacyMultiByte[encoding]);
 const labels = [...encodingOf.keys()].sort();
 
 const text = `// Code generated from specs/src/text/encoding-cases.json — DO NOT EDIT.
@@ -68,7 +65,7 @@ const text = `// Code generated from specs/src/text/encoding-cases.json — DO N
 
 package semiont
 
-${goComment(`labelsOfEncodings is every label of the Encoding Standard, ${labels.length} of them, each with the encoding it names. A label is matched in lower case, with no white space around it. An encoding that is neither in singleByteEncodings nor in refusedEncodings is UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy multi-byte encodings (${legacy.join(', ')}), which no table here decodes.`)}
+${goComment(`labelsOfEncodings is every label of the Encoding Standard, ${labels.length} of them, each with the encoding it names. A label is matched in lower case, with no white space around it. An encoding that is neither in singleByteEncodings nor in refusedEncodings is one no table here decodes: UTF-8, UTF-16BE, UTF-16LE, or one of the standard's legacy multi-byte encodings.`)}
 var labelsOfEncodings = []struct{ label, encoding string }{
 ${labels.map((label) => `\t{${goAscii(label)}, ${goAscii(encodingOf.get(label))}},`).join('\n')}
 }

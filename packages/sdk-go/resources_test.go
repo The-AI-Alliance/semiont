@@ -127,12 +127,11 @@ type encodingCase struct {
 }
 
 type encodingTable struct {
-	Comment         string              `json:"$comment"`
-	Cases           []json.RawMessage   `json:"cases"`
-	LegacyMultiByte map[string][]string `json:"legacyMultiByte"`
+	Comment string            `json:"$comment"`
+	Cases   []json.RawMessage `json:"cases"`
 }
 
-func readEncodings(t *testing.T) ([]encodingCase, map[string][]string) {
+func readEncodings(t *testing.T) []encodingCase {
 	t.Helper()
 	var table encodingTable
 	strictly(t, readSpec(t, "text", "encoding-cases.json"), &table)
@@ -142,11 +141,11 @@ func readEncodings(t *testing.T) ([]encodingCase, map[string][]string) {
 		strictly(t, raw, &stated)
 		cases = append(cases, stated)
 	}
-	return cases, table.LegacyMultiByte
+	return cases
 }
 
 func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *testing.T) {
-	cases, _ := readEncodings(t)
+	cases := readEncodings(t)
 	everyByte := make([]byte, 256)
 	for i := range everyByte {
 		everyByte[i] = byte(i)
@@ -184,29 +183,6 @@ func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *te
 	}
 	if singleByte < 29 || probed == 0 || refused == 0 || labels < 180 {
 		t.Errorf("the table was not read: %d single-byte encodings, %d probed, %d refused, %d labels", singleByte, probed, refused, labels)
-	}
-}
-
-// The standard's seven legacy multi-byte encodings are labels, and no case
-// holds what a reader makes of their bytes. This reader has no decoder for
-// them (the Go SDK takes nothing but the standard library at run time, and
-// no table of them is generated), so it refuses each by its label as one it
-// cannot decode, never as a label the standard lacks, as the Rust SDK does
-// without its charsets feature. The Python SDK decodes them with Python's
-// own codecs.
-func TestALegacyMultiByteLabelIsRefusedAsOneThisReaderHasNoDecoderFor(t *testing.T) {
-	_, legacy := readEncodings(t)
-	if len(legacy) != 7 {
-		t.Fatalf("the table lists %d legacy multi-byte encodings, and the standard has seven", len(legacy))
-	}
-	for encoding, labels := range legacy {
-		for _, label := range labels {
-			_, err := semiont.DecodeRepresentation([]byte("hi"), "text/plain; charset="+label)
-			refusedNaming(t, encoding+": "+label, err, label)
-			if err != nil && !strings.Contains(err.Error(), "which this SDK has no decoder for") {
-				t.Errorf("%s: %s is refused as %q, and is a label of the standard this reader has no decoder for", encoding, label, err)
-			}
-		}
 	}
 }
 
