@@ -95,7 +95,7 @@ jobs:
       - name: Authenticate with crates.io
         if: ${{ !inputs.dry_run }}
         id: auth
-        uses: rust-lang/crates-io-auth-action@v1.0.5
+        uses: rust-lang/crates-io-auth-action@v1.0.6
 
       # A version already on crates.io is skipped and said so, so a run that
       # published some of the crates and then failed can be run again.
