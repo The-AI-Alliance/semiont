@@ -51,9 +51,9 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/context-async-hooks": "^2.12.0",
-    "@opentelemetry/core": "^2.12.0",
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/context-async-hooks": "^3.0.0",
+    "@opentelemetry/core": "^3.0.0",
     "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.0",
     "rollup": "^4.64.12",

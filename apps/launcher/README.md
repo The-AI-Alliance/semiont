@@ -753,6 +753,52 @@ resource's scope carries (its annotations, representations and jobs) in place
 of the KB's broadcasts. A stream that drops ends the command: what was
 broadcast while it was down is not sent again.
 
+### Serving AI applications over MCP
+
+`semiont mcp` is an MCP server over stdio: an AI application runs it and
+reaches every KB this machine has signed in to, as the person `semiont login`
+signed in, through the Go SDK. Setting it up is one line,
+
+```bash
+claude mcp add semiont -- semiont mcp
+```
+
+and [Connecting an AI application](../../docs/builder/AI-APPLICATIONS.md) has
+the other clients' form. What the server does that a verb does not:
+
+- **One session for each KB, held across calls.** The KBs are the recorded
+  stacks with a stored sign-in (`stack.json`, `tokens.json`); a tool's `kb`
+  argument names one by its key, `local` or `codespace:<owner>/<name>`, and
+  `kb` goes no further than choosing the client: no request to a gateway
+  carries it. A session the SDK reports over ends that call, and the next one
+  is refused at once, naming `semiont login`, without asking the issuer again.
+- **The tools are a curated set**, named by the verbs, in
+  `internal/verbs/mcp-tools.json`, which names the SDK methods each tool calls
+  and gives a reason for every method of the client surface no tool calls.
+  Each tool's input and output schema is the spec's, made self-contained by
+  `scripts/spec/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
+  fails when either drifts. `TestMCPToolsCensus` holds the table to
+  `specs/src/client/surface.json` both ways.
+- **A call is checked before anything is sent**, and a refusal names every
+  fault at once: the MCP library's typed tools stop at the first, so each tool
+  validates its own call with the JSON Schema library the launcher's documents
+  are read with. A refusal is the tool's error, which the model can act on, not
+  a protocol error.
+- **A delegated job** (`mark_delegate`, `yield_generate`) is followed on the
+  job channels the session's stream carries, its progress sent as
+  notifications when the client gave a progress token; a cancelled call
+  cancels the job. `job_status` answers a job as an MCP task would, and a job
+  that is another person's, or that the queue no longer keeps, is unknown.
+- **A codespace whose forward is down is said, and nothing is started**: the
+  tool answers with `semiont status --repo <owner/name>`, which re-establishes
+  a running codespace's forward. The test is the one `semiont status` lists
+  active stacks by: the forward's process is the launcher's, and its port
+  answers.
+- **stdout is the protocol's alone.** Whatever else the process prints goes
+  to stderr, where an MCP client keeps its logs. The server answers a
+  2026-07-28 client and an older one that initializes alike, on
+  `github.com/modelcontextprotocol/go-sdk`.
+
 ### Memory ceilings
 
 Every container the launcher runs carries an explicit `--memory` ceiling (no

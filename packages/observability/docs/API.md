@@ -114,6 +114,6 @@ recordBusSent('mark:create-request', resourceId);  // channel, and the scope it 
 
 ## Implementation notes
 
-This package wires `BasicTracerProvider` and `MeterProvider` (stable `@opentelemetry/sdk-trace-base` 2.x line) directly, plus `AsyncLocalStorageContextManager` for Node async-context propagation. It deliberately avoids `@opentelemetry/sdk-node` because that package's experimental 0.x versions cross-depend on older 2.0.x SDK lines, forcing npm to nest duplicate copies of the stable packages and bloating consumer bundles.
+This package wires `TracerProvider` (from `@opentelemetry/sdk-trace`) and `MeterProvider` (from `@opentelemetry/sdk-metrics`) directly, plus `AsyncLocalStorageContextManager` for Node async-context propagation. `sdk-trace` reads no environment variable, so `initObservabilityNode` reads `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG` itself, as the OpenTelemetry SDK configuration spec defines them. It does not use `@opentelemetry/sdk-node`, which would read every `OTEL_*` variable and brings the gRPC, protobuf, Zipkin and Prometheus exporters and the instrumentation framework, which this package does not use.
 
 `initObservabilityNode` is idempotent — calling twice is a no-op and returns `false` on the second call. Both providers shut down cleanly on `SIGTERM` / `SIGINT`.

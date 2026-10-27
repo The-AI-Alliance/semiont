@@ -111,8 +111,9 @@ func NewSessions(u *UI, channels ...bus.Channel) *Sessions {
 // Session is key's session: the one held since an earlier call, while it is
 // not over and its stack is reached where it was, or one resumed from the
 // sign-in store now. The error is an *UnknownKnowledgeBase, a
-// *CodespaceUnreachable, a *NoSignIn, the *SessionRejected of a session that
-// was over at its start, or why the session could not be resumed.
+// *CodespaceUnreachable, a *NoGatewayRecorded, a *NoSignIn, the
+// *SessionRejected of a session that was over at its start, or why the
+// session could not be resumed.
 func (h *Sessions) Session(key string) (*Session, error) {
 	base, err := h.base(key)
 	if err != nil {
@@ -152,6 +153,14 @@ func (h *Sessions) base(key string) (string, error) {
 	if ss.unreadable != nil {
 		return "", fmt.Errorf("the stack record cannot be read: %w", ss.unreadable)
 	}
+	return reachedAt(ss, key)
+}
+
+// reachedAt is the gateway the stack key names is reached at, as ss records
+// it: a codespace's forward when it is up (CodespaceBase), the local stack's
+// recorded gateway (GatewayBase). An *UnknownKnowledgeBase: ss records no
+// stack by that key.
+func reachedAt(ss *StackSet, key string) (string, error) {
 	for _, st := range ss.Stacks {
 		if stackKey(st) != key {
 			continue
@@ -159,7 +168,7 @@ func (h *Sessions) base(key string) (string, error) {
 		if st.Codespace != nil {
 			return CodespaceBase(st)
 		}
-		return GatewayBase(st), nil
+		return GatewayBase(st)
 	}
 	return "", &UnknownKnowledgeBase{Key: key}
 }

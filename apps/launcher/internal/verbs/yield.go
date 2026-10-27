@@ -209,7 +209,9 @@ options:
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = launcher.GatewayBase(local)
+		if base, ok = launcher.LocalBase(u, local, "yield"); !ok {
+			return 1
+		}
 		key = "local"
 		root = local.KBRoot
 		if root == "" {
