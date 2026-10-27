@@ -202,13 +202,15 @@ def _repeats_removed() -> Callable[[list[Annotation]], list[Annotation]]:
     return without_repeats
 
 
-def _detected(found: int, persisted: int, errors: int, by_category: dict[str, int] | None, under_reported_pieces: int) -> MarkJobDone:
+def _detected(
+    found: int, persisted: int, errors: int, by_category: dict[str, int] | None, under_reported_pieces: int, unchecked_pieces: int
+) -> MarkJobDone:
     """A `mark` job's counts.
 
     `found` is what the model proposed and `persisted` what was committed.
-    How many proposals made no annotation, and how many pieces were kept
-    though under-reported, are each stated only when there were any: absent
-    is the one way to say none.
+    How many proposals made no annotation, how many pieces were kept though
+    under-reported, and how many were kept with their check not run, are each
+    stated only when there were any: absent is the one way to say none.
     """
     return stated(
         MarkJobDone(
@@ -217,6 +219,7 @@ def _detected(found: int, persisted: int, errors: int, by_category: dict[str, in
             errors=errors if errors > 0 else None,
             by_category=by_category,
             under_reported_pieces=under_reported_pieces if under_reported_pieces > 0 else None,
+            unchecked_pieces=unchecked_pieces if unchecked_pieces > 0 else None,
         )
     )
 
@@ -324,7 +327,7 @@ async def _mark_passages[M: TextSpan](
         return Cancelled(completed_units=[unit] if counted.next >= len(text) else [])
 
     report(100, JobProgressCompleteCreated(code="complete-created", count=counted.emitted, motivation=unit))
-    return _detected(counted.found, counted.emitted, counted.errors, None, 0)
+    return _detected(counted.found, counted.emitted, counted.errors, None, 0, 0)
 
 
 async def process_highlight_job(
@@ -480,6 +483,8 @@ class _Linked:
     expected: int
     """What the counts of the pieces accepted so far come to. Nought until a piece is counted, and of this attempt alone."""
     under_reported_pieces: int
+    unchecked_pieces: int
+    """The pieces accepted with their check not run, their count having failed or answered no count. Of this attempt alone."""
     finished: int
     """How many entity types are finished: those of earlier attempts, and this one's."""
 
@@ -542,6 +547,7 @@ async def process_reference_job(
         errors=sum(cursor.errors for cursor in resume_cursors.values()),
         expected=0,
         under_reported_pieces=0,
+        unchecked_pieces=0,
         finished=len(finished_earlier),
     )
 
@@ -582,6 +588,9 @@ async def process_reference_job(
         def on_counted(mentions: int) -> None:
             job.expected += mentions
             report(entity_type)
+
+        def on_unchecked() -> None:
+            job.unchecked_pieces += 1
 
         async def on_chunk_results(mentions: list[Mention], cursor: ChunkCursor, dropped: int) -> None:
             built: list[Annotation] = []
@@ -624,6 +633,7 @@ async def process_reference_job(
             on_activity=lambda _consumed, _total: report(entity_type),
             on_under_report=kept_under_reported.append,
             on_counted=on_counted,
+            on_unchecked=on_unchecked,
             resume=prior,
             on_chunk_results=on_chunk_results,
         )
@@ -673,7 +683,7 @@ async def process_reference_job(
             )
         )
     )
-    return _detected(job.found, job.emitted, job.errors, None, job.under_reported_pieces)
+    return _detected(job.found, job.emitted, job.errors, None, job.under_reported_pieces, job.unchecked_pieces)
 
 
 # ── tagging ─────────────────────────────────────────────────────────────
@@ -799,7 +809,7 @@ async def process_tag_job(
         completed_items.append(JobProgressCompletedItemsItem(value=category, found_count=counted.found))
 
     report(100, JobProgressCompleteCreated(code="complete-created", count=created, motivation="tagging"))
-    return _detected(found, created, errors, by_category, 0)
+    return _detected(found, created, errors, by_category, 0, 0)
 
 
 # ── generation ──────────────────────────────────────────────────────────

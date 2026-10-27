@@ -18,6 +18,7 @@ import {
   annotationIdOf,
   ANTHROPIC_OUTPUT,
   ANTHROPIC_PIECE,
+  COUNT_FORMAT,
   cancelRequested,
   expectMessages,
   expectProgress,
@@ -249,10 +250,10 @@ eachWorkerService('a worker on Anthropic', (world) => {
       messages: [{ role: 'user', content: prompt('linking-person').replace('mentions of: Person.', `mentions of: ${type}.`) }],
     });
     const count = (type: string) => ({
-      ...message(agent.model, 'linking-person-count', { max_tokens: 16, temperature: 0 }),
+      ...message(agent.model, 'linking-person-count', { max_tokens: 32, temperature: 0 }, COUNT_FORMAT),
       messages: [{ role: 'user', content: prompt('linking-person-count').replace('mention of: Person in', `mention of: ${type} in`) }],
     });
-    expect([extraction('Place'), count('Place')]).toEqual([message(agent.model, 'linking-place', { max_tokens: ANTHROPIC_OUTPUT, temperature: 0 }, FORMATS.linking), message(agent.model, 'linking-place-count', { max_tokens: 16, temperature: 0 })]);
+    expect([extraction('Place'), count('Place')]).toEqual([message(agent.model, 'linking-place', { max_tokens: ANTHROPIC_OUTPUT, temperature: 0 }, FORMATS.linking), message(agent.model, 'linking-place-count', { max_tokens: 32, temperature: 0 }, COUNT_FORMAT)]);
     const said = (body: Record<string, unknown>) => JSON.stringify(body['messages']);
     const sorted = (bodies: Array<Record<string, unknown>>) => [...bodies].sort((a, b) => (said(a) < said(b) ? -1 : 1));
     const asked = () => w.anthropic.generations.map((g) => g.body);
@@ -265,7 +266,9 @@ eachWorkerService('a worker on Anthropic', (world) => {
       Number: [],
     };
     const typeOf = (body: Record<string, unknown>, request: (type: string) => Record<string, unknown>) => types.find((type) => said(body) === said(request(type)));
-    w.anthropic.choose = (body) => ('output_config' in body ? { hold: true } : answer(String(found[typeOf(body, count) ?? '']?.length)));
+    // Both ask for structure: a count is told by the schema it asks in.
+    const asksForACount = (body: Record<string, unknown>) => JSON.stringify(body['output_config']) === JSON.stringify({ format: { type: 'json_schema', schema: COUNT_FORMAT } });
+    w.anthropic.choose = (body) => (asksForACount(body) ? answer(JSON.stringify([{ count: found[typeOf(body, count) ?? '']?.length }])) : { hold: true });
     const extracted = (body: Record<string, unknown>) => answer(JSON.stringify(found[typeOf(body, extraction) ?? '']));
     const served = await started(w);
     await w.anthropic.asked(4);

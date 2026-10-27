@@ -5,7 +5,7 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { markJob, settled } from './support';
+import { counting, markJob, settled } from './support';
 
 const SCHEMA = {
   id: 'argument',
@@ -35,7 +35,7 @@ async function ran(w: WorkerServiceWorld, logFormat: 'json' | 'simple'): Promise
     { response: JSON.stringify([{ exact: 'London was wrong.', assessment: 'No source is given.' }, { exact: nowhere, assessment: 'Nowhere.' }]) },
     { response: JSON.stringify([{ exact: 'London was wrong.' }, { exact: nowhere }]) },
     { response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }, { exact: nowhere, entityType: 'Person' }]) },
-    { response: '2' },
+    counting(2),
   );
   const served = await w.start({ settings: { logLevel: 'debug', logFormat } });
   for (const job of jobs) await settled(served, job);

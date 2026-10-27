@@ -223,6 +223,7 @@ async def mentions(client: InferenceClient, cancelled: Watched[bool], on_activit
         on_activity=on_activity,
         on_under_report=untold,
         on_counted=untold,
+        on_unchecked=lambda: None,
         resume=None,
         on_chunk_results=kept,
     )
