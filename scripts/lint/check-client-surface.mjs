@@ -1560,20 +1560,39 @@ function pythonExports(files) {
   });
 }
 
-/** The exported names of Go packages, each given by its directory: every name its files declare at their top level with a capital, but methods. */
+/**
+ * The exported names of Go packages, each given by its directory: every name
+ * its files declare at their top level with a capital, but methods, and but a
+ * constant of a type the package exports. Such a constant is one of its type's
+ * values, as a variant of a Rust enum is, and is held with the type.
+ */
 function goExports(directories) {
-  return directories.flatMap((directory) =>
-    filesIn(directory, '.go')
+  return directories.flatMap((directory) => {
+    const codes = filesIn(directory, '.go')
       .filter((name) => !name.endsWith('_test.go'))
-      .flatMap((name) => {
-        const code = goCode(read(`${directory}/${name}`));
-        const single = [...code.matchAll(/^(?:func|type|var|const) (\p{Lu}\w*)/gmu)].map((m) => m[1]);
-        const grouped = [...code.matchAll(/^(?:var|const|type) \(\n([\s\S]*?)^\)/gm)].flatMap((block) =>
-          [...block[1].matchAll(/^\t(\p{Lu}\w*)/gmu)].map((m) => m[1]),
-        );
-        return [...single, ...grouped];
-      }),
-  );
+      .map((name) => goCode(read(`${directory}/${name}`)));
+    const blocks = (code, keyword) => [...code.matchAll(new RegExp(`^${keyword} \\(\\n([\\s\\S]*?)^\\)`, 'gm'))].map((block) => block[1]);
+    const types = new Set(
+      codes.flatMap((code) => [
+        ...[...code.matchAll(/^type (\p{Lu}\w*)/gmu)].map((m) => m[1]),
+        ...blocks(code, 'type').flatMap((block) => [...block.matchAll(/^\t(\p{Lu}\w*)/gmu)].map((m) => m[1])),
+      ]),
+    );
+    return codes.flatMap((code) => {
+      const declared = [...code.matchAll(/^(?:func|type|var) (\p{Lu}\w*)/gmu)].map((m) => m[1]);
+      const grouped = ['var', 'type'].flatMap((keyword) => blocks(code, keyword).flatMap((block) => [...block.matchAll(/^\t(\p{Lu}\w*)/gmu)].map((m) => m[1])));
+      const constants = [...code.matchAll(/^const (\p{Lu}\w*)(?:[ \t]+(\w+))?/gmu)].filter((m) => !types.has(m[2])).map((m) => m[1]);
+      // In a block of constants, one stated with no type and no value repeats the type of the one before it.
+      const groupedConstants = blocks(code, 'const').flatMap((block) => {
+        let type;
+        return [...block.matchAll(/^\t(\w+)(?:[ \t]+(\w+))?([ \t]*=)?/gm)].flatMap(([, name, stated, valued]) => {
+          if (stated !== undefined || valued !== undefined) type = stated;
+          return /^\p{Lu}/u.test(name) && !types.has(type) ? [name] : [];
+        });
+      });
+      return [...declared, ...grouped, ...constants, ...groupedConstants];
+    });
+  });
 }
 
 const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports };

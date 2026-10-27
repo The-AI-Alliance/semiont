@@ -4,9 +4,9 @@
     "typescript": ["packages/core/src/__tests__/reconcile-cases.test.ts", "packages/core/src/__tests__/reconcile.test.ts"],
     "rust": ["packages/sdk-rust/tests/reconcile_cases.rs"],
     "python": ["packages/sdk-python/tests/test_reconcile.py"],
+    "go": ["packages/sdk-go/annotations/reconcile_test.go"],
     "conformance": ["tests/conformance/worker-service/anchoring.test.ts"]
   },
-  "notYetReached": { "go": "reconcile" },
   "cases": [
     {
       "why": "words the text has once are the span, and the context is the text's: all of it on either side when there are fewer than 64 characters",

@@ -4,9 +4,9 @@
     "typescript": ["packages/core/src/__tests__/pdf-locate-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/annotations/locate.rs"],
     "python": ["packages/sdk-python/tests/test_pdf_locate.py"],
+    "go": ["packages/sdk-go/annotations/locate_test.go"],
     "worker": ["apps/worker/tests/test_claim_cases.py"]
   },
-  "notYetReached": { "go": "the locating of a span of a PDF" },
   "cases": [
     {
       "why": "a span that is exactly one item is that item's box; its neighbours, one ending before the span starts and one starting after it ends, are not overlapped",

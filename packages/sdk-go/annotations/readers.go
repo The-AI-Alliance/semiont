@@ -6,8 +6,16 @@
 // shapes by hand. A body item and a selector are told apart by their `type`,
 // which the protocol requires on each and gives one value.
 //
-// Every SDK has the readers. specs/src/annotations/reader-cases.json holds
-// each to one answer, and this package's tests run it.
+// The builders make the annotations a worker commits. Reconcile finds the
+// words a model quoted in a text, AnnotationOfSpan builds the annotation of
+// the span it found, and AnnotationOfResource builds one of a resource as a
+// whole. An annotation built here has the id every SDK gives it, so building
+// it again, in any language, writes nothing new.
+//
+// Every SDK has the readers and the builders. The case tables in
+// specs/src/annotations hold each to one answer (reader-cases.json,
+// reconcile-cases.json, builder-cases.json), and this package's tests run
+// them.
 package annotations
 
 import (

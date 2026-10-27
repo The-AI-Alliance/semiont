@@ -3,9 +3,9 @@
   "runBy": {
     "typescript": ["packages/core/src/__tests__/annotation-of-span.test.ts", "packages/core/src/__tests__/builder-cases.test.ts", "packages/sdk/src/__tests__/annotation-builders.test.ts", "packages/sdk/src/__tests__/worker-skill.test.ts"],
     "rust": ["packages/sdk-rust/tests/builder_cases.rs", "packages/sdk-rust/tests/readme.rs"],
-    "python": ["packages/sdk-python/tests/test_annotation_builders.py"]
+    "python": ["packages/sdk-python/tests/test_annotation_builders.py"],
+    "go": ["packages/sdk-go/annotations/builders_test.go"]
   },
-  "notYetReached": { "go": "the annotation builders" },
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]

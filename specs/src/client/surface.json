@@ -1061,59 +1061,35 @@
         },
         {
           "member": "reconcile",
-          "kind": "function",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "function"
         },
         {
           "member": "annotationOfSpan",
-          "kind": "function",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "function"
         },
         {
           "member": "annotationOfResource",
-          "kind": "function",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "function"
         },
         {
           "member": "QuotedText",
-          "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "type"
         },
         {
           "member": "TextSpan",
-          "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "type"
         },
         {
           "member": "ReconciledSpan",
-          "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "type"
         },
         {
           "member": "AnchorMethod",
-          "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          }
+          "kind": "type"
         },
         {
           "member": "MatchQuality",
           "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          },
           "absent": {
             "typescript": "TypeScript states it inline, as ReconciledSpan's matchQuality, and names no type for it."
           }
@@ -1121,9 +1097,6 @@
         {
           "member": "SpanRefusedError",
           "kind": "type",
-          "notYetReached": {
-            "go": "the builders and reconcile"
-          },
           "absent": {
             "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
           }
@@ -1144,6 +1117,24 @@
             "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
             "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
             "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text."
+          }
+        },
+        {
+          "member": "OfSpan",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+          }
+        },
+        {
+          "member": "OfResource",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
           }
         }
       ]

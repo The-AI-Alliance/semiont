@@ -14,10 +14,13 @@ package annotations
 // and is converted here. specs/src/text/offset-cases.json holds the count,
 // for this and for every other implementation.
 
+import "unicode/utf8"
+
 // offsets is a text's offsets and its string's indices, each given the
 // other: the conversions for one text, made once and asked as often as the
 // text has offsets.
 type offsets struct {
+	text string
 	// starts is the index each code point of the text starts at, in the
 	// text's order, and after them the text's length in bytes: the index of
 	// an offset.
@@ -29,7 +32,7 @@ func offsetsOf(text string) offsets {
 	for index := range text {
 		starts = append(starts, index)
 	}
-	return offsets{starts: append(starts, len(text))}
+	return offsets{text: text, starts: append(starts, len(text))}
 }
 
 // length is how many code points the text is. An offset may equal it and
@@ -60,4 +63,14 @@ func (o offsets) offset(index int) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// between is the text from offset start up to offset end, two offsets of the
+// text, the first no greater than the second.
+func (o offsets) between(start, end int) string { return o.text[o.starts[start]:o.starts[end]] }
+
+// at is the character at offset, an offset before the end of the text.
+func (o offsets) at(offset int) rune {
+	character, _ := utf8.DecodeRuneInString(o.text[o.starts[offset]:])
+	return character
 }
