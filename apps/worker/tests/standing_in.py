@@ -213,6 +213,7 @@ class AskedForMentions:
     on_activity: OnActivity
     on_under_report: Callable[[UnderReportedPiece], None]
     on_counted: Callable[[int], None]
+    on_unchecked: Callable[[], None]
     resume: UnitCursor | None
     hand_on: OnChunkResults[Mention]
 
@@ -384,12 +385,23 @@ def mentions_stood_in(monkeypatch: pytest.MonkeyPatch, script: Script[AskedForMe
         on_activity: OnActivity,
         on_under_report: Callable[[UnderReportedPiece], None],
         on_counted: Callable[[int], None],
+        on_unchecked: Callable[[], None],
         resume: UnitCursor | None,
         on_chunk_results: OnChunkResults[Mention],
     ) -> None:
         of_the_job = {"include_descriptive_references": include_descriptive_references, "source_language": source_language}
         call = AskedForMentions(
-            text, entity_types, client, of_the_job, cancelled, on_activity, on_under_report, on_counted, resume, on_chunk_results
+            text,
+            entity_types,
+            client,
+            of_the_job,
+            cancelled,
+            on_activity,
+            on_under_report,
+            on_counted,
+            on_unchecked,
+            resume,
+            on_chunk_results,
         )
         asked.append(call)
         await script(call)

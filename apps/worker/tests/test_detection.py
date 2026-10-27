@@ -39,7 +39,7 @@ from semiont_worker.chunking import Chunking, Cut, chunk_text, cut_chunk, estima
 from semiont_worker.detection.annotation_detection import detect_assessments, detect_comments, detect_highlights, detect_tags
 from semiont_worker.detection.chunk_plan import ChunkCursor, DetectionBudget, UnderReportedPiece, derive_detection_budget
 from semiont_worker.detection.chunk_size import CallOutcome, next_chunk_size, resumed_size
-from semiont_worker.detection.entity_extractor import ENTITY_ELEMENT_SCHEMA, Mention, extract_entities
+from semiont_worker.detection.entity_extractor import COUNT_ELEMENT_SCHEMA, ENTITY_ELEMENT_SCHEMA, Mention, extract_entities
 from semiont_worker.detection.parsers import (
     ASSESSMENT_ELEMENT_SCHEMA,
     COMMENT_ELEMENT_SCHEMA,
@@ -145,6 +145,7 @@ async def mentions(text: str, client: InferenceClient, on_activity: OnActivity, 
         on_activity=on_activity,
         on_under_report=untold,
         on_counted=untold,
+        on_unchecked=lambda: None,
         resume=resume,
         on_chunk_results=kept,
     )
@@ -611,9 +612,13 @@ def test_a_category_its_schema_does_not_have_is_refused_before_anything_is_asked
 
 @final
 class Counting:
-    """A provider that verifies yield: it answers each call for items from the mock it is given, and each count from a list of its own."""
+    """A provider that verifies yield: it answers each call for items from the mock it is given, and each count from a list of its own.
 
-    def __init__(self, items: MockInferenceClient, counts: Sequence[str | Exception]) -> None:
+    A count is told from a call for items by the schema it asks in. A count
+    given as a number is answered as the one element a count is asked for.
+    """
+
+    def __init__(self, items: MockInferenceClient, counts: Sequence[int | StructuredResponse | Exception]) -> None:
         self.provider: Final = items.provider
         self.model_id: Final = items.model_id
         self.max_concurrency: Final = items.max_concurrency
@@ -626,16 +631,20 @@ class Counting:
         return await self._items.limits()
 
     async def generate_text(self, prompt: str, max_tokens: int, temperature: float) -> InferenceResponse:
-        self.counts_asked.append((prompt, max_tokens, temperature))
-        answer = self._counts[min(len(self.counts_asked), len(self._counts)) - 1]
-        if isinstance(answer, Exception):
-            raise answer
-        return InferenceResponse(text=answer, stop_reason="end_turn", usage=None)
+        raise AssertionError("a linking job asks its model for no text")
 
     async def generate_structured(
         self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
     ) -> StructuredResponse:
-        return await self._items.generate_structured(prompt, max_tokens, temperature, element_schema)
+        if element_schema is not COUNT_ELEMENT_SCHEMA:
+            return await self._items.generate_structured(prompt, max_tokens, temperature, element_schema)
+        self.counts_asked.append((prompt, max_tokens, temperature))
+        answer = self._counts[min(len(self.counts_asked), len(self._counts)) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        if isinstance(answer, StructuredResponse):
+            return answer
+        return StructuredResponse(items=[{"count": answer}], stop_reason="end_turn", usage=None)
 
 
 async def extraction(
@@ -645,6 +654,7 @@ async def extraction(
     *,
     counted: list[int],
     under_reported: list[UnderReportedPiece],
+    unchecked: list[None],
     kept: OnChunkResults,
 ) -> None:
     await extract_entities(
@@ -657,6 +667,7 @@ async def extraction(
         on_activity=unheard,
         on_under_report=under_reported.append,
         on_counted=counted.append,
+        on_unchecked=lambda: unchecked.append(None),
         resume=None,
         on_chunk_results=kept,
     )
@@ -677,21 +688,22 @@ TIMES: Final = chr(0xD7)
 """The multiplication sign."""
 
 
-def test_each_piece_of_a_provider_that_verifies_yield_is_counted_after_it_is_read_in_sixteen_tokens_and_at_no_temperature() -> None:
+def test_each_piece_of_a_provider_that_verifies_yield_is_counted_after_it_is_read_in_thirty_two_tokens_and_at_no_temperature() -> None:
     scaffold = estimate_tokens(names_only("", ["Marker"]))
     limits = InferenceLimits(
         context_tokens=scaffold + 600, max_output_tokens=scaffold + 600, output_tokens_per_hour=None, accepts_temperature=None
     )
     budget = derive_detection_budget(limits, scaffold, 1)
     cuts = cuts_of(TEXT, budget, 0, budget.chunking.chunk_size)
-    client = Counting(answering([[{"exact": "marker 001", "entityType": "Marker"}]], limits), ["1"])
+    client = Counting(answering([[{"exact": "marker 001", "entityType": "Marker"}]], limits), [1])
     counted: list[int] = []
     under_reported: list[UnderReportedPiece] = []
+    unchecked: list[None] = []
 
-    run(extraction(TEXT, client, ["Marker"], counted=counted, under_reported=under_reported, kept=unkept))
+    run(extraction(TEXT, client, ["Marker"], counted=counted, under_reported=under_reported, unchecked=unchecked, kept=unkept))
 
-    assert client.counts_asked == [(count_prompt(cut.piece, ["Marker"]), 16, 0) for _, cut in cuts]
-    assert (counted, under_reported) == ([1] * len(cuts), [])
+    assert client.counts_asked == [(count_prompt(cut.piece, ["Marker"]), 32, 0) for _, cut in cuts]
+    assert (counted, under_reported, unchecked) == ([1] * len(cuts), [], [])
 
 
 def test_a_call_for_several_entity_types_asks_and_counts_them_together_in_pieces_sized_for_as_many() -> None:
@@ -710,10 +722,10 @@ def test_a_call_for_several_entity_types_asks_and_counts_them_together_in_pieces
         {"exact": "the survey", "entityType": "Survey"},
     ]
     items = answering([reply], limits)
-    client = Counting(items, ["3"])
+    client = Counting(items, [3])
     kept = Kept()
 
-    run(extraction(TEXT, client, types, counted=[], under_reported=[], kept=kept))
+    run(extraction(TEXT, client, types, counted=[], under_reported=[], unchecked=[], kept=kept))
 
     assert [call.prompt for call in items.calls] == [names_only(cut.piece, types) for _, cut in cuts]
     assert [prompt for prompt, _, _ in client.counts_asked] == [count_prompt(cut.piece, types) for _, cut in cuts]
@@ -729,45 +741,19 @@ def test_what_a_reply_found_is_every_element_it_has_whether_or_not_each_is_a_men
     piece = one_piece_of(text, limits)
     reply: list[JsonValue] = [{"exact": "marker 001", "entityType": "Marker"}, {"exact": 7}, {"exact": "marker 002", "entityType": "River"}]
 
-    def read(count: str) -> tuple[list[int], list[UnderReportedPiece], int]:
+    def read(count: int) -> tuple[list[int], list[UnderReportedPiece], int]:
         client = Counting(answering([reply], limits), [count])
         counted: list[int] = []
         under_reported: list[UnderReportedPiece] = []
         kept = Kept()
-        run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, kept=kept))
+        run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, unchecked=[], kept=kept))
         ((handed, _, dropped),) = kept.pieces
         assert handed == [Mention(quoted=QuotedText(exact="marker 001"), entity_type="Marker")]
         return counted, under_reported, dropped
 
     # Three elements: twice three is not less than six, and is less than seven.
-    assert read("6") == ([6], [], 1)
-    assert read("7") == ([7], [UnderReportedPiece(found=3, counted=7, piece_chars=len(piece))], 1)
-
-
-def test_a_count_ends_before_the_first_comma_group_that_is_not_of_three_digits_and_no_more() -> None:
-    # `specs/src/worker/parser-cases.json` holds `1,2345` as 1. It has no case of the last line here: groups before the one that ends it.
-    limits = limits_of(REFERENCE, 600)
-    found: list[JsonValue] = [{"exact": "marker 001", "entityType": "Marker"}]
-
-    def read(count: str) -> tuple[list[int], int]:
-        counted: list[int] = []
-        under_reported: list[UnderReportedPiece] = []
-        run(
-            extraction(
-                TEXT[:300],
-                Counting(answering([found], limits), [count]),
-                ["Marker"],
-                counted=counted,
-                under_reported=under_reported,
-                kept=unkept,
-            )
-        )
-        return counted, len(under_reported)
-
-    assert read("1,234") == ([1234], 1)
-    assert read("1,2345") == ([1], 0)
-    # The groups that are of three digits and no more are still the number's: it ends before the one that is not.
-    assert read("12,345,6789 or so") == ([12345], 1)
+    assert read(6) == ([6], [], 1)
+    assert read(7) == ([7], [UnderReportedPiece(found=3, counted=7, piece_chars=len(piece))], 1)
 
 
 def test_a_reply_that_found_under_half_the_count_of_a_piece_that_can_be_cut_smaller_is_asked_again_in_smaller_pieces() -> None:
@@ -785,12 +771,12 @@ def test_a_reply_that_found_under_half_the_count_of_a_piece_that_can_be_cut_smal
     assert len(halves) >= 2
     items = answering([[{"exact": "marker 001", "entityType": "Marker"}]], limits)
     # The whole piece is counted at ten, of which one was found. Each smaller piece is counted at one.
-    client = Counting(items, ["10", "1"])
+    client = Counting(items, [10, 1])
     counted: list[int] = []
     under_reported: list[UnderReportedPiece] = []
     kept = Kept()
 
-    run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, kept=kept))
+    run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, unchecked=[], kept=kept))
 
     assert [call.prompt for call in items.calls] == [names_only(asked, ["Marker"]) for asked in (text, *halves)]
     assert [prompt for prompt, _, _ in client.counts_asked] == [count_prompt(asked, ["Marker"]) for asked in (text, *halves)]
@@ -810,12 +796,12 @@ def test_a_collapse_kept_says_what_was_found_and_counted_over_how_long_a_piece_a
     text = chr(0x1F600) + " " + TEXT[:298]
     piece = one_piece_of(text, limits)
     assert len(piece.encode("utf-16-le")) // 2 == len(piece) + 1
-    client = Counting(answering([[{"exact": "marker 001", "entityType": "Marker"}]], limits), ["9"])
+    client = Counting(answering([[{"exact": "marker 001", "entityType": "Marker"}]], limits), [9])
     counted: list[int] = []
     under_reported: list[UnderReportedPiece] = []
     kept = Kept()
 
-    run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, kept=kept))
+    run(extraction(text, client, ["Marker"], counted=counted, under_reported=under_reported, unchecked=[], kept=kept))
 
     assert (counted, under_reported) == ([9], [UnderReportedPiece(found=1, counted=9, piece_chars=len(piece))])
     ((handed, _, dropped),) = kept.pieces
@@ -867,7 +853,7 @@ def test_an_element_that_is_no_mention_is_whispered_of_and_a_mention_of_another_
     limits = limits_of(REFERENCE, 600)
     reply: list[JsonValue] = [{"exact": "marker 001"}, {"exact": "the river", "entityType": "River"}]
 
-    run(extraction(TEXT[:300], answering([reply], limits), ["Marker"], counted=[], under_reported=[], kept=unkept))
+    run(extraction(TEXT[:300], answering([reply], limits), ["Marker"], counted=[], under_reported=[], unchecked=[], kept=unkept))
 
     (malformed,) = said(caplog, "Dropped malformed LLM entity")
     assert (malformed.levelno, vars(malformed)["entity"]) == (logging.DEBUG, {"exact": "marker 001"})
@@ -875,26 +861,41 @@ def test_an_element_that_is_no_mention_is_whispered_of_and_a_mention_of_another_
     assert (other.levelno, vars(other)["text"], vars(other)["entityType"]) == (logging.WARNING, "the river", "River")
 
 
-def test_a_count_that_fails_or_answers_no_number_is_warned_of_and_checks_nothing(caplog: pytest.LogCaptureFixture) -> None:
+def test_a_count_that_fails_or_answers_no_count_is_warned_of_checks_nothing_and_is_told_as_unchecked(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     caplog.set_level(logging.DEBUG, logger="semiont_worker")
     limits = limits_of(REFERENCE, 600)
     text = TEXT[:300]
     piece = one_piece_of(text, limits)
+    cut_off = StructuredResponse(items=[{"count": 3}], stop_reason="max_tokens", usage=None)
 
-    for count in (RuntimeError("the provider went away"), "I cannot count them."):
+    for count in (RuntimeError("the provider went away"), cut_off):
         counted: list[int] = []
         under_reported: list[UnderReportedPiece] = []
+        unchecked: list[None] = []
         run(
             extraction(
-                text, Counting(answering([[]], limits), [count]), ["Marker"], counted=counted, under_reported=under_reported, kept=unkept
+                text,
+                Counting(answering([[]], limits), [count]),
+                ["Marker"],
+                counted=counted,
+                under_reported=under_reported,
+                unchecked=unchecked,
+                kept=unkept,
             )
         )
-        assert (counted, under_reported) == ([], [])
+        assert (counted, under_reported, unchecked) == ([], [], [None])
 
     (failed,) = said(caplog, "Count-verifier call failed — yield check skipped for this chunk")
     assert (failed.levelno, vars(failed)["pieceChars"], vars(failed)["error"]) == (logging.WARNING, len(piece), "the provider went away")
-    (no_number,) = said(caplog, "Count-verifier answer carried no number — yield check skipped for this chunk")
-    assert (no_number.levelno, vars(no_number)["pieceChars"]) == (logging.WARNING, len(piece))
+    (no_count,) = said(caplog, "Count-verifier answer carried no count — yield check skipped for this chunk")
+    assert (no_count.levelno, vars(no_count)["pieceChars"], vars(no_count)["stopReason"], vars(no_count)["elements"]) == (
+        logging.WARNING,
+        len(piece),
+        "max_tokens",
+        1,
+    )
 
 
 def test_a_count_its_caller_cancels_is_no_count_that_failed_the_cancellation_passes() -> None:
@@ -915,23 +916,29 @@ def test_a_count_its_caller_cancels_is_no_count_that_failed_the_cancellation_pas
             return limits
 
         async def generate_text(self, prompt: str, max_tokens: int, temperature: float) -> InferenceResponse:
-            self.counting.set()
-            await asyncio.Event().wait()
-            raise AssertionError("a count that is never answered")
+            raise AssertionError("a linking job asks its model for no text")
 
         async def generate_structured(
             self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
         ) -> StructuredResponse:
-            return StructuredResponse(items=[], stop_reason="end_turn", usage=None)
+            if element_schema is not COUNT_ELEMENT_SCHEMA:
+                return StructuredResponse(items=[], stop_reason="end_turn", usage=None)
+            self.counting.set()
+            await asyncio.Event().wait()
+            raise AssertionError("a count that is never answered")
 
     async def scenario() -> None:
         client = Waiting()
         kept = Kept()
-        extracting = await under_way(extraction(TEXT[:300], client, ["Marker"], counted=[], under_reported=[], kept=kept))
+        unchecked: list[None] = []
+        extracting = await under_way(
+            extraction(TEXT[:300], client, ["Marker"], counted=[], under_reported=[], unchecked=unchecked, kept=kept)
+        )
         assert client.counting.is_set()
         extracting.cancel()
         with pytest.raises(asyncio.CancelledError):
             await extracting
-        assert kept.pieces == []
+        # A count that was cancelled did not fail: nothing is kept, and nothing is told as unchecked.
+        assert (kept.pieces, unchecked) == ([], [])
 
     run(scenario())

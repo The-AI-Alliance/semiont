@@ -1377,6 +1377,24 @@ def test_a_piece_kept_though_under_reported_is_said_with_its_type_and_counted_in
     assert as_completed(result) == {"found": 0, "persisted": 0, "underReportedPieces": 2}
 
 
+def test_pieces_kept_with_their_check_not_run_are_counted_in_the_result_and_said_in_no_report(monkeypatch: pytest.MonkeyPatch) -> None:
+    # K6.
+    text = "Paris and Berlin and Rome"
+
+    async def unchecked_twice(asked: AskedForMentions) -> None:
+        asked.on_unchecked()
+        asked.on_unchecked()
+        await one_piece([mention("Paris", "Location")])(asked)
+
+    mentions_stood_in(monkeypatch, unchecked_twice)
+    handed = Handed(1)
+    result = ran(link(text, handed, linking("Location"), NOT_RESUMED, NONE_FINISHED))
+    said = handed.told.said()[-1]
+    assert isinstance(said, dict)
+    assert said["completedItems"] == [{"value": "Location", "foundCount": 1, "persistedCount": 1}]
+    assert as_completed(result) == {"found": 1, "persisted": 1, "uncheckedPieces": 2}
+
+
 def test_a_type_none_of_whose_pieces_was_under_reported_says_nothing_of_it(monkeypatch: pytest.MonkeyPatch) -> None:
     mentions_stood_in(monkeypatch, one_piece([mention("Paris", "Location")]))
     handed = Handed(1)

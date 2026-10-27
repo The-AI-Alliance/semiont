@@ -1,4 +1,4 @@
-Count every mention of: Person in the following text. Repeated mentions of the same entity count separately. Respond with only the number.
+Count every mention of: Person in the following text. Repeated mentions of the same entity count separately. Respond with a JSON array of one object: [{"count": <the number>}].
 
 Text:
 """
