@@ -272,6 +272,17 @@
     },
     {
       "unit": "gather",
+      "case": "takes the contexts it is asked for, a context left out as well as one asked for",
+      "transport": { "answers": "never" },
+      "made": { "unit": { "resourceId": "res-1" } },
+      "steps": [
+        {"invoke": "gatherAnnotation", "of": "unit", "args": {"annotationId": "ann-1", "includeSourceContext": false, "includeTargetContext": true}},
+        "settle",
+        { "sent": "gather:requested", "payloads": [{ "$has": { "options": { "includeSourceContext": false, "includeTargetContext": true, "contextWindow": 2000 } } }] }
+      ]
+    },
+    {
+      "unit": "gather",
       "case": "holds the failure of a gather, and the next one clears it and the context the last one left",
       "transport": { "answers": "never" },
       "made": { "unit": { "resourceId": "res-1" } },

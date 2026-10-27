@@ -100,13 +100,29 @@ class GatherStateUnit(StateUnit):
     def resource_error(self) -> Watched[SemiontError | None]:
         return Reading(self._resource.error)
 
-    def gather_annotation(self, annotation_id: AnnotationId, *, context_window: int = 2000) -> None:
+    def gather_annotation(
+        self,
+        annotation_id: AnnotationId,
+        *,
+        context_window: int = 2000,
+        include_source_context: bool | None = None,
+        include_target_context: bool | None = None,
+    ) -> None:
         """Gather the context around an annotation of this unit's resource, with what `client.gather.annotation` takes."""
         if self._disposed:
             return
         self._annotation.begin()
         self._annotation_id.set(annotation_id)
-        self._tasks.run(self._annotation.land(lambda: self._gather_annotation(annotation_id, context_window)))
+        self._tasks.run(
+            self._annotation.land(
+                lambda: self._gather_annotation(
+                    annotation_id,
+                    context_window=context_window,
+                    include_source_context=include_source_context,
+                    include_target_context=include_target_context,
+                )
+            )
+        )
 
     def gather_resource(
         self,
@@ -135,8 +151,21 @@ class GatherStateUnit(StateUnit):
             )
         )
 
-    async def _gather_annotation(self, annotation_id: AnnotationId, context_window: int) -> GatheredContext:
-        complete = await self._client.gather.annotation(self._resource_id, annotation_id, context_window=context_window)
+    async def _gather_annotation(
+        self,
+        annotation_id: AnnotationId,
+        *,
+        context_window: int,
+        include_source_context: bool | None,
+        include_target_context: bool | None,
+    ) -> GatheredContext:
+        complete = await self._client.gather.annotation(
+            self._resource_id,
+            annotation_id,
+            context_window=context_window,
+            include_source_context=include_source_context,
+            include_target_context=include_target_context,
+        )
         return complete.response
 
     @override

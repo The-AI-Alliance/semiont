@@ -102,7 +102,7 @@ var mcpHandlers = map[string]mcpHandler{
 		AnnotationId  api.AnnotationId `json:"annotationId"`
 		ContextWindow int              `json:"contextWindow"`
 	}) (mcpAnswer, error) {
-		gathered, err := call.client().Gather.Annotation(args.ResourceId, args.AnnotationId, args.ContextWindow).Wait(ctx)
+		gathered, err := call.client().Gather.Annotation(args.ResourceId, args.AnnotationId, windowed(args.ContextWindow)).Wait(ctx)
 		return mcpAnswer{structured: gathered}, err
 	}),
 
@@ -174,7 +174,7 @@ var mcpHandlers = map[string]mcpHandler{
 		UseSemanticScoring *bool            `json:"useSemanticScoring"`
 	}) (mcpAnswer, error) {
 		c := call.client()
-		gathered, err := c.Gather.Annotation(args.ResourceId, args.ReferenceId, args.ContextWindow).Wait(ctx)
+		gathered, err := c.Gather.Annotation(args.ResourceId, args.ReferenceId, windowed(args.ContextWindow)).Wait(ctx)
 		if err != nil {
 			return mcpAnswer{}, err
 		}
@@ -212,7 +212,7 @@ var mcpHandlers = map[string]mcpHandler{
 		api.GenerationJobRequest
 	}) (mcpAnswer, error) {
 		c := call.client()
-		gathered, err := c.Gather.Annotation(args.ResourceId, args.AnnotationId, args.ContextWindow).Wait(ctx)
+		gathered, err := c.Gather.Annotation(args.ResourceId, args.AnnotationId, windowed(args.ContextWindow)).Wait(ctx)
 		if err != nil {
 			return mcpAnswer{}, err
 		}

@@ -454,18 +454,23 @@ var invokers = map[string]invoker{
 		unit.(*state.YieldStateUnit).DismissProgress()
 		return nil
 	}},
-	"gather.gatherAnnotation": {[]string{"annotationId", "contextWindow"}, func(unit semiont.StateUnit, args map[string]any) error {
+	"gather.gatherAnnotation": {[]string{"annotationId", "contextWindow", "includeSourceContext", "includeTargetContext"}, func(unit semiont.StateUnit, args map[string]any) error {
 		annotation, err := takes[api.AnnotationId](args, "annotationId")
 		if err != nil {
 			return err
 		}
-		var window int
-		if _, ok := args["contextWindow"]; ok {
-			if window, err = takes[int](args, "contextWindow"); err != nil {
-				return err
+		// What the call states beside the annotation is the gather's options, by their wire names.
+		stated := map[string]any{}
+		for name, value := range args {
+			if name != "annotationId" {
+				stated[name] = value
 			}
 		}
-		unit.(*state.GatherStateUnit).GatherAnnotation(annotation, window)
+		options, err := decoded[api.GatherAnnotationOptions](stated)
+		if err != nil {
+			return err
+		}
+		unit.(*state.GatherStateUnit).GatherAnnotation(annotation, options)
 		return nil
 	}},
 	"gather.gatherResource": {[]string{"resourceId"}, func(unit semiont.StateUnit, args map[string]any) error {

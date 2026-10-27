@@ -17,6 +17,7 @@ use semiont::testing::{
     create_test_client,
 };
 use semiont::transport::{Envelope, Frame, PutBinaryRequest};
+use semiont::types::GatherAnnotationOptions;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
@@ -145,7 +146,8 @@ impl Args {
         let mut filters = ResourceFilters::default();
         for (name, stated) in self.0.get("filters").map(object).unwrap_or_default() {
             match name.as_str() {
-                "limit" => filters.limit = stated.as_i64(),
+                "limit" => filters.limit = stated.as_u64(),
+                "offset" => filters.offset = stated.as_u64(),
                 "archived" => filters.archived = stated.as_bool(),
                 "entityType" => filters.entity_type = stated.as_str().map(str::to_owned),
                 other => panic!("the case filters by {other}, which ResourceFilters has not"),
@@ -390,17 +392,27 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("bind", "reportBodyError") => client.bind.report_body_error(args.typed("input")),
 
         ("gather", "annotation") => {
-            let window = args
-                .options()
-                .get("contextWindow")
-                .and_then(Value::as_u64)
-                .and_then(|window| u16::try_from(window).ok());
+            let mut options = GatherAnnotationOptions::default();
+            for (name, stated) in args.options() {
+                match name.as_str() {
+                    "contextWindow" => {
+                        options.context_window = stated
+                            .as_u64()
+                            .and_then(|window| u16::try_from(window).ok())
+                    }
+                    "includeSourceContext" => options.include_source_context = stated.as_bool(),
+                    "includeTargetContext" => options.include_target_context = stated.as_bool(),
+                    other => {
+                        panic!("the case states {other}, which gather.annotation does not take")
+                    }
+                }
+            }
             go!(client
                 .gather
                 .annotation(
                     &as_id(&args.text("resourceId")),
                     &as_id(&args.text("annotationId")),
-                    window
+                    options
                 )
                 .into_future())
         }

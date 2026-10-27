@@ -17,8 +17,8 @@ use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_a
 use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::HOVER_DELAY;
 use semiont::types::{
-    AnnotationSelector, GatherResourceRequestOptions, GenerationJobParams, MarkJobParams,
-    Motivation,
+    AnnotationSelector, GatherAnnotationOptions, GatherResourceRequestOptions, GenerationJobParams,
+    MarkJobParams, Motivation,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -183,7 +183,9 @@ impl AxiomSubject for Gatherings {
 
     fn invocations<'a>(&self, unit: &'a GatherStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
         vec![
-            Box::new(|| unit.gather_annotation(&as_id("ann-1"), None)),
+            Box::new(|| {
+                unit.gather_annotation(&as_id("ann-1"), GatherAnnotationOptions::default())
+            }),
             Box::new(|| {
                 unit.gather_resource(&as_id(RES), GatherResourceRequestOptions::default());
             }),

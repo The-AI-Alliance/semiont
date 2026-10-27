@@ -57,11 +57,21 @@ class MatchNamespace:
         self._links.signal(MATCH_SEARCH_REQUESTED.request, request, correlation_id=correlation_id)
 
     def resources(
-        self, search: str, *, limit: int = _LIST_LIMIT, archived: bool | None = None, entity_type: str | None = None
+        self,
+        search: str,
+        *,
+        limit: int = _LIST_LIMIT,
+        offset: int = 0,
+        archived: bool | None = None,
+        entity_type: str | None = None,
     ) -> Cached[MatchResourcesResponse]:
-        """A page of the resources a search for `search` finds, among those the filters admit: the first hundred when no limit is stated.
+        """A page of the resources a search for `search` finds, among those the filters admit: the first hundred when nothing is stated.
+
+        `offset` of them are passed over before the page begins.
 
         The text is matched lexically and, when nothing matches, by meaning:
         the answer's `match_kind` says which it is.
         """
-        return self._live.query(Keyed(self._live.searches, ResourceSearch(search, ResourceFilters(limit, archived, entity_type)), itself))
+        return self._live.query(
+            Keyed(self._live.searches, ResourceSearch(search, ResourceFilters(limit, offset, archived, entity_type)), itself)
+        )

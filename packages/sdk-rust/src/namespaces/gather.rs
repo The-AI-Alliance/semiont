@@ -41,6 +41,19 @@ impl Default for GatherResourceRequestOptions {
     }
 }
 
+/// What an annotation's context takes when its caller states nothing: the
+/// window `annotation` gives a context that states none, and neither the
+/// source's context nor the target's asked about.
+impl Default for GatherAnnotationOptions {
+    fn default() -> GatherAnnotationOptions {
+        GatherAnnotationOptions {
+            include_source_context: None,
+            include_target_context: None,
+            context_window: None,
+        }
+    }
+}
+
 pub struct GatherNamespace {
     links: Links,
     /// What refers to each resource asked about. Kept as long as the client
@@ -90,22 +103,23 @@ impl GatherNamespace {
         })
     }
 
-    /// The context around one annotation, taking `context_window` characters
-    /// of its source.
+    /// The context around one annotation, as `options` say: a window of two
+    /// thousand characters of its source when they state none, and the
+    /// source's context and the target's each included or left out as
+    /// stated, and as the gatherer decides when not.
     pub fn annotation(
         &self,
         resource_id: &ResourceId,
         annotation_id: &AnnotationId,
-        context_window: Option<u16>,
+        options: GatherAnnotationOptions,
     ) -> Running<GatherAnnotationComplete> {
         let links = self.links.clone();
         let request = GatherAnnotationRequest {
             annotation_id: annotation_id.clone(),
             resource_id: resource_id.clone(),
             options: Some(GatherAnnotationOptions {
-                include_source_context: None,
-                include_target_context: None,
-                context_window: Some(context_window.unwrap_or(CONTEXT_WINDOW)),
+                context_window: Some(options.context_window.unwrap_or(CONTEXT_WINDOW)),
+                ..options
             }),
         };
         Running::new(|_| async move { links.request::<GatherRequested>(&request).await })
