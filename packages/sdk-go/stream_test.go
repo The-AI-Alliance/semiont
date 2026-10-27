@@ -8,6 +8,7 @@ package semiont
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -252,4 +253,14 @@ func mustResource(t *testing.T, text string) api.ResourceId {
 		t.Fatal(err)
 	}
 	return id
+}
+
+func TestAChannelTheStreamCannotDeliverIsRefusedAsUnsubscribed(t *testing.T) {
+	transport, _ := newStubGateway(t).client()
+	defer transport.Close()
+	_, err := transport.Frames(context.Background(), bus.BeckonHover.Channel())
+	var refused *BusRequestError
+	if !errors.As(err, &refused) || refused.Code != BusRequestErrorCodeUnsubscribed {
+		t.Errorf("a channel the stream does not carry is refused with %v", err)
+	}
 }

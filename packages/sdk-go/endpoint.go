@@ -14,12 +14,12 @@ import (
 
 var hostLabel = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 
-// isHostName reports whether host is a host's name: labels of ASCII letters,
+// IsValidHostname reports whether host is a host's name: labels of ASCII letters,
 // digits and hyphens with a dot between each two, every label 1 to 63
 // characters long and none beginning or ending with a hyphen. localhost and a
 // dotted address are such names; a host with a slash, a colon or a query is
 // not.
-func isHostName(host string) bool {
+func IsValidHostname(host string) bool {
 	for _, label := range strings.Split(host, ".") {
 		if !hostLabel.MatchString(label) {
 			return false
@@ -33,7 +33,7 @@ func isHostName(host string) bool {
 // when it is the protocol's own. A host that is not a host's name is refused:
 // a name a person typed is never put into a URL unread.
 func GatewayURL(endpoint api.HttpEndpoint) (string, error) {
-	if !isHostName(endpoint.Host) {
+	if !IsValidHostname(endpoint.Host) {
 		return "", fmt.Errorf("invalid knowledge base host name: %q", endpoint.Host)
 	}
 	return fmt.Sprintf("%s://%s:%d", endpoint.Protocol, strings.ToLower(endpoint.Host), endpoint.Port), nil

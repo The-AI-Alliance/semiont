@@ -1163,10 +1163,7 @@
       "members": [
         {
           "member": "jobMatchesFilter",
-          "kind": "function",
-          "notYetReached": {
-            "go": "exported: Go's claims match unexported"
-          }
+          "kind": "function"
         }
       ]
     },
@@ -1190,10 +1187,7 @@
       "members": [
         {
           "member": "retryWithBackoff",
-          "kind": "function",
-          "notYetReached": {
-            "go": "exported: Go retries by it unexported"
-          }
+          "kind": "function"
         }
       ]
     },
@@ -1217,10 +1211,7 @@
       "members": [
         {
           "member": "isValidHostname",
-          "kind": "function",
-          "notYetReached": {
-            "go": "exported: Go checks a host unexported"
-          }
+          "kind": "function"
         }
       ]
     },
@@ -1248,9 +1239,6 @@
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
-          },
-          "notYetReached": {
-            "go": "exported: Go reads a token unexported"
           }
         },
         {
@@ -1258,9 +1246,6 @@
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
-          },
-          "notYetReached": {
-            "go": "exported: Go reads a token unexported"
           }
         },
         {
@@ -1268,9 +1253,6 @@
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
-          },
-          "notYetReached": {
-            "go": "exported: Go reads a token unexported"
           }
         },
         {
@@ -1278,9 +1260,6 @@
           "kind": "function",
           "absent": {
             "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
-          },
-          "notYetReached": {
-            "go": "exported: Go reads a token unexported"
           }
         },
         {
@@ -1288,9 +1267,6 @@
           "kind": "function",
           "named": {
             "typescript": "refreshDelayMs"
-          },
-          "notYetReached": {
-            "go": "exported: Go reads a token unexported"
           }
         }
       ]
@@ -1318,9 +1294,6 @@
           "kind": "type",
           "named": {
             "typescript": "sessionStoragePersister"
-          },
-          "notYetReached": {
-            "go": "exported: Go keeps a client's queries by it unexported"
           }
         }
       ]
@@ -1350,19 +1323,13 @@
       "members": [
         {
           "member": "replyChannelsFor",
-          "kind": "function",
-          "notYetReached": {
-            "go": "Go spells each operation's out where it needs them"
-          }
+          "kind": "function"
         },
         {
           "member": "unsubscribed",
           "kind": "function",
           "absent": {
             "typescript": "TypeScript makes the refusal where it refuses, and hands out no maker of it."
-          },
-          "notYetReached": {
-            "go": "Go makes the refusal where it refuses"
           }
         },
         {
@@ -1370,9 +1337,6 @@
           "kind": "constant",
           "absent": {
             "rust": "Rust tells the record's events by their channels' type, `Recorded`."
-          },
-          "notYetReached": {
-            "go": "Go tells the record's events by their channels' type, bus.Recorded and bus.Scoped"
           }
         }
       ]

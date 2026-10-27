@@ -62,7 +62,7 @@ func TestTheRenewalScheduleIsTheTables(t *testing.T) {
 		} else {
 			token = aToken(t, row.Claims)
 		}
-		delay, scheduled := refreshDelay(token, time.Unix(row.Now, 0), DefaultTiming())
+		delay, scheduled := RefreshDelay(token, time.Unix(row.Now, 0), DefaultTiming())
 		switch {
 		case row.Delay == nil && scheduled:
 			t.Errorf("%s: scheduled a renewal in %s, want none", row.Why, delay)
@@ -76,7 +76,7 @@ func TestTheRenewalScheduleIsTheTables(t *testing.T) {
 
 func TestATokensExpiryIsReadAsTheTableReadsIt(t *testing.T) {
 	for _, row := range readSessionTables(t).TokenExpiry {
-		expiry, ok := tokenExpiry(row.Token)
+		expiry, ok := TokenExpiry(row.Token)
 		switch {
 		case row.Exp == nil && ok:
 			t.Errorf("%s: read an expiry of %s, want none", row.Why, expiry)
@@ -90,13 +90,13 @@ func TestATokensExpiryIsReadAsTheTableReadsIt(t *testing.T) {
 
 func TestATextClaimIsReadAndANumberIsNotText(t *testing.T) {
 	token := aToken(t, map[string]any{"email": "zoë@example.org", "iat": 1800000000})
-	if email, ok := textClaim(token, "email"); !ok || email != "zoë@example.org" {
+	if email, ok := TextClaim(token, "email"); !ok || email != "zoë@example.org" {
 		t.Errorf("email read as %q (%v)", email, ok)
 	}
-	if iat, ok := textClaim(token, "iat"); ok {
+	if iat, ok := TextClaim(token, "iat"); ok {
 		t.Errorf("a number read as text: %q", iat)
 	}
-	if _, ok := textClaim("not-a-jwt", "email"); ok {
+	if _, ok := TextClaim("not-a-jwt", "email"); ok {
 		t.Error("a claim read from what is not a JWT")
 	}
 }
