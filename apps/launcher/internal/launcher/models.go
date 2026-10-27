@@ -287,6 +287,8 @@ type remoteModelMeta struct {
 	Available   bool   `json:"available"`          // listed for THIS key
 }
 
+const anthropicAPIVersion = "2026-10-21"
+
 // fetchAnthropicModels asks {base}/v1/models what this key can use. Returns
 // found=false when the endpoint could not be consulted — callers must then
 // show nothing rather than "unavailable": ignorance is not a finding, the
@@ -297,7 +299,7 @@ func fetchAnthropicModels(base, key string) (map[string]remoteModelMeta, bool) {
 		return nil, false
 	}
 	req.Header.Set("x-api-key", key)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", anthropicAPIVersion)
 	c := &http.Client{Transport: launcherTransport, Timeout: 3 * time.Second}
 	resp, err := c.Do(req)
 	if err != nil {

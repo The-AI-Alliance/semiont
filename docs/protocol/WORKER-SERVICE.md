@@ -166,18 +166,14 @@ each of its models can take.
 - **M4.** A provider that has not answered within 1.5 seconds is left out of
   that reply.
   *Held by no case.*
-- **M5.** An Anthropic model's limits are asked of its provider in two
-  requests. Each carries the agent's key ([B4](#configuration)) as
-  `x-api-key`, and `anthropic-version: 2023-06-01`, as every request of an
-  Anthropic agent does. The first is `GET <baseUrl>/v1/models/<model>`: its
-  `max_input_tokens` is stated as `contextTokens` and its `max_tokens` as
-  `maxOutputTokens`, each a ceiling of its own. The second is a probe, `POST
-  <baseUrl>/v1/messages` with `model`, a `max_tokens` of 1, a `temperature`
-  of 0.7 and one message, `{"role": "user", "content": "ok"}`:
-  `acceptsTemperature` is `true` when it is answered, and `false` when it is
-  refused with 400 in words that name `temperature`. The two are one asking
-  under [M3](#limits): neither is made again once both are had, and any other
-  refusal of either is an answer that could not be got.
+- **M5.** An Anthropic model's limits are asked of its provider in one
+  request, `GET <baseUrl>/v1/models/<model>`. It carries the agent's key
+  ([B4](#configuration)) as `Authorization: Bearer <key>`, and
+  `anthropic-version: 2026-10-21`, as every request of an Anthropic agent
+  does. Its `max_input_tokens` is stated as `contextTokens` and its
+  `max_tokens` as `maxOutputTokens`, each a ceiling of its own.
+  `acceptsTemperature` is `false`: under that version of its API, the
+  provider refuses a `temperature` on every model.
   *Held by `worker-service/limits`, `worker-service/anthropic`.*
 
 ## What a job reads
@@ -238,13 +234,13 @@ job is one unit for each of its `categories`.
   num_predict + ceil(P × 0.2) + 64`.
   *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`, `worker-service/failures`.*
 - **D20.** On an Anthropic agent a generation is `POST <baseUrl>/v1/messages`
-  with `model`, `max_tokens`, `temperature`, `messages` (one message, of
-  `role` `user`, whose `content` is the prompt), and, when the answer is to
-  be an array of objects, `output_config`: `{"format": {"type":
-  "json_schema", "schema": {"type": "array", "items": <schema>}}}`. Nothing
-  else is sent, but `stream` by a long generation
-  ([Y9](#generation)). A model that takes no temperature
-  ([M5](#limits)) is sent none. The answer is the text of the message, and
+  with `model`, `max_tokens`, `messages` (one message, of `role` `user`,
+  whose `content` is the prompt), and, when the answer is to be an array of
+  objects, `output_config`: `{"format": {"type": "json_schema", "schema":
+  {"type": "array", "items": <schema>}}}`. Nothing else is sent, but
+  `stream` by a long generation ([Y9](#generation)). No `temperature` is
+  sent, whatever [D2](#the-request) or the job says ([M5](#limits)). The
+  answer is the text of the message, and
   why the model stopped is its `stop_reason`. Before an agent's first
   generation it asks its model's limits ([M5](#limits)). A model that does
   not report `capabilities.structured_outputs.supported` as `true` is not
@@ -642,9 +638,9 @@ deterministic, so that no attempt is spent on them again.
   its provider refused with 408, 409, 429 or a status of 500 or more, and for
   one whose connection ended unanswered: the same request, twice more at
   most, three askings in all. This is so of every request it makes: a
-  generation, and each of the two that learn a model's limits
-  ([M5](#limits)). A request answered on a later asking is answered, and
-  nothing is said of the refusals before it. One refused or ended all three
+  generation, and the one that learns a model's limits ([M5](#limits)). A
+  request answered on a later asking is answered, and nothing is said of the
+  refusals before it. One refused or ended all three
   times fails as [F3](#failures) says of a generation, and as
   [F14](#failures) says of a request that learns a model's limits. A request
   refused with any other status is not made again, and neither is one whose

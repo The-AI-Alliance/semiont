@@ -47,7 +47,7 @@ def test_an_anthropic_client_is_made_for_the_model_at_the_address_with_the_key()
             assert (client.provider, client.model_id) == ("anthropic", "claude-haiku-4-5-20251001")
             await client.limits()
             assert played.retrievals == ["/v1/models/claude-haiku-4-5-20251001"]
-            assert {asked.headers["x-api-key"] for asked in played.asked} == {"test-key"}
+            assert {asked.headers["authorization"] for asked in played.asked} == {"Bearer test-key"}
 
     run(scenario())
 

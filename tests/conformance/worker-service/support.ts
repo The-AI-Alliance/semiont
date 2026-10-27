@@ -137,7 +137,7 @@ export function expectGenerations(asked: RecordedGeneration[], expected: Array<R
  * and nothing less. `schema` is what the answer is to be an array of, for a
  * generation that asks for one.
  */
-export function message(model: string, promptName: string, options: { max_tokens: number; temperature?: number; stream?: true }, schema?: unknown): Record<string, unknown> {
+export function message(model: string, promptName: string, options: { max_tokens: number; stream?: true }, schema?: unknown): Record<string, unknown> {
   return { model, ...options, messages: [{ role: 'user', content: prompt(promptName) }], ...(schema === undefined ? {} : { output_config: { format: { type: 'json_schema', schema } } }) };
 }
 

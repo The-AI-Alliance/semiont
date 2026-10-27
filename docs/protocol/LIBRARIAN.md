@@ -898,6 +898,9 @@ asked for text.
   | `annotation-summary` | the Gatherer's model, for an annotation's summary | 500 | 0.5 |
 
   *Held by `apps/librarian/tests/test_prompt_cases.py`.*
+- **A model whose `acceptsTemperature` is `false`, as every Anthropic
+  model's is, is sent no temperature.** *Held by the inference drivers' own
+  tests, in `packages/inference-python/tests/`.*
 - **What a prompt may be given is bounded:** the score prompt lists at most
   twenty candidates and names at most five connected resources; the
   relationship prompt names at most ten connected resources, five citing
