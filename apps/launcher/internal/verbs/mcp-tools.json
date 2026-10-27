@@ -267,7 +267,7 @@
       "name": "job_status",
       "title": "A job's status",
       "description": "Where a job stands, as an MCP task would say it: working (with its last progress), completed (with its result), or cancelled. A job that failed answers as an error with the worker's words. A job that is not the caller's, or that the queue no longer keeps, is unknown.",
-      "calls": ["job.status"],
+      "calls": ["job.status", "auth.me"],
       "readOnly": true,
       "arguments": [
         { "from": "JobStatusRequest", "member": "jobId" }
@@ -283,7 +283,7 @@
       "name": "job_cancel",
       "title": "Cancel a job",
       "description": "Ask the queue to cancel a job: a pending one at once, a running one when its worker stops. `cancelled` is whether the queue accepted the ask, not whether the work stopped.",
-      "calls": ["job.cancel"],
+      "calls": ["job.status", "auth.me", "job.cancel"],
       "arguments": [
         { "from": "JobCancelRequest", "member": "jobId" }
       ],
@@ -339,7 +339,6 @@
     "job.fail": "Events a follower reads: a delegating tool follows them itself.",
     "job.pollUntilComplete": "A delegating tool follows its job, and job_status reads one once.",
     "job.claim": "A worker's: a claim hands out a held job, whose lease assumes a process that keeps reporting in, not a conversation. A worker stays an SDK program.",
-    "auth.me": "Not yet asked for.",
     "auth.mediaToken": "Plumbing an agent has no task for.",
     "auth.protectedResourceMetadata": "Plumbing an agent has no task for.",
     "system.healthCheck": "Plumbing an agent has no task for.",

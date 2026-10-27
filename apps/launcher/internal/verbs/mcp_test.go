@@ -247,9 +247,9 @@ func TestMCPHandlersAreTheTools(t *testing.T) {
 	}
 }
 
-// tools/list gives every tool, in the document's order, each with its title,
-// its input schema an object that names no argument it does not take, and
-// its hints.
+// tools/list gives every tool (the MCP library lists them by name), each with
+// its title and description, its input schema an object that names no
+// argument it does not take, and its hints.
 func TestMCPToolsAreListed(t *testing.T) {
 	verbFixture(t)
 	cs := mcpClient(t)
@@ -264,10 +264,18 @@ func TestMCPToolsAreListed(t *testing.T) {
 	if len(listed.Tools) != len(document.Tools) {
 		t.Fatalf("listed %d tools, want %d", len(listed.Tools), len(document.Tools))
 	}
-	for i, tool := range listed.Tools {
-		want := document.Tools[i]
-		if tool.Name != want.Name || tool.Title == "" || tool.Description == "" {
-			t.Errorf("tool %d is %q titled %q, want %q with a title and a description", i, tool.Name, tool.Title, want.Name)
+	byName := map[string]mcpTool{}
+	for _, tool := range document.Tools {
+		byName[tool.Name] = tool
+	}
+	for _, tool := range listed.Tools {
+		want, known := byName[tool.Name]
+		if !known {
+			t.Errorf("tools/list gives %s, which is no tool of the document", tool.Name)
+			continue
+		}
+		if tool.Title != want.Title || tool.Description != want.Description {
+			t.Errorf("%s is listed titled %q, want %q, with its description", tool.Name, tool.Title, want.Title)
 		}
 		written, _ := json.Marshal(tool.InputSchema)
 		var input struct {

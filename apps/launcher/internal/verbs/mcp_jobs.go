@@ -103,8 +103,11 @@ func callersJob(ctx context.Context, call mcpCall, jobID api.JobId) (api.JobStat
 	if err != nil {
 		return status, err
 	}
-	signee := call.session.User()
-	if signee == nil || signee.Did != status.UserId {
+	signee, err := call.session.Signee(ctx)
+	if err != nil {
+		return status, err
+	}
+	if signee.Did != status.UserId {
 		return status, unknownJob(jobID)
 	}
 	return status, nil

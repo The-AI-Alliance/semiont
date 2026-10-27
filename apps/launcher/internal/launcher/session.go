@@ -173,9 +173,15 @@ func (s *Session) end(rejected *SessionRejected) {
 	s.token.Set("")
 }
 
-// User is whom the gateway said the session's token is: nil when it was not
-// asked, or did not answer.
-func (s *Session) User() *api.UserResponse { return s.sdk.User().Value() }
+// Signee is whom the session's token is: what the gateway said at the
+// session's start, or, when it was not asked then (the SDK asks only of a
+// sign-in it renews), what it says now.
+func (s *Session) Signee(ctx context.Context) (api.UserResponse, error) {
+	if user := s.sdk.User().Value(); user != nil {
+		return *user, nil
+	}
+	return s.client.Auth.Me(ctx)
+}
 
 // Close ends the SDK's session, so it renews nothing more, and then the
 // command's client.

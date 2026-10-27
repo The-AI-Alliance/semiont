@@ -21,16 +21,20 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 func TestMCPASessionIsResumedOnItsFirstCallAndHeldForTheNext(t *testing.T) {
 	cs, fake, gateway := mcpFixture(t)
+	// A sign-in the SDK renews: its session asks the gateway who the token is
+	// as it starts.
+	storeSession(t, newIssuerStub(t, http.StatusOK, renewed()), 300*time.Second)
 	callTool(t, cs, "browse_resources", map[string]any{})
 	callTool(t, cs, "browse_resources", map[string]any{})
 	if sent := requestsOf(fake, bus.BrowseResourcesRequested.Request().Channel()); len(sent) != 2 {
 		t.Fatalf("%d lists reached the bus, want two", len(sent))
 	}
-	if asked := gateway.times("/api/users/me", ""); asked != 1 {
+	if asked := gateway.times("/api/users/me", "token-1"); asked != 1 {
 		t.Errorf("the gateway was asked who the token is %d times, want once: the session is held, not resumed for each call", asked)
 	}
 }
@@ -60,11 +64,15 @@ func TestMCPASessionThatCannotBeRenewedIsRefusedAndTheNextCallAtOnce(t *testing.
 		t.Errorf("a refused session sent %d requests", len(sent))
 	}
 
-	// Signed in again, the knowledge base is resumed on its next call.
+	// Signed in again, the knowledge base is resumed on its next call. The
+	// session that ended closed its transport, as every session does, so the
+	// next is given one of its own.
+	fresh := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
+	t.Cleanup(launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fresh }))
 	renewing := newIssuerStub(t, http.StatusOK, renewed())
 	storeSession(t, renewing, 300*time.Second)
 	third := callTool(t, cs, "browse_resources", map[string]any{})
-	if sent := requestsOf(fake, bus.BrowseResourcesRequested.Request().Channel()); len(sent) != 1 {
+	if sent := requestsOf(fresh, bus.BrowseResourcesRequested.Request().Channel()); len(sent) != 1 {
 		t.Errorf("a knowledge base signed in again was not resumed:\n%s", said(third))
 	}
 }

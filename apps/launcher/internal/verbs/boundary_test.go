@@ -40,6 +40,12 @@ var allowedLauncherSurface = map[string]bool{
 	"CwdKBRoot": true, "GatewayBase": true, "ForwardedBase": true,
 	// The Browser a verb hands off to.
 	"BrowserProbe": true, "BrowserTarget": true,
+	// `semiont mcp`: the knowledge bases signed in to, one session for each held
+	// across calls, why one cannot be reached, and the version it names itself
+	// by to its client.
+	"SignedInKnowledgeBases": true, "Sessions": true, "NewSessions": true,
+	"NoSignIn": true, "UnknownKnowledgeBase": true, "CodespaceUnreachable": true,
+	"BuildVersion": true,
 	// The transport seam the tests drive.
 	"UseTransport": true,
 	// The wart: `browse --launch`. See the note above.
