@@ -1,6 +1,7 @@
 package semiont
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -17,7 +18,7 @@ func numbered(channel bus.Channel, n int) Frame {
 // them must read the progress first, as it was delivered.
 func TestOneListenerOfSeveralChannelsHearsThemInTheOrderDelivered(t *testing.T) {
 	hub := NewFrameHub()
-	frames := hub.Frames("job:report-progress", "job:complete")
+	frames := hub.Frames(context.Background(), "job:report-progress", "job:complete")
 	for n, channel := range []bus.Channel{"job:report-progress", "job:complete", "job:report-progress", "job:fail", "job:complete"} {
 		hub.Deliver(numbered(channel, n))
 	}
@@ -34,7 +35,7 @@ func TestOneListenerOfSeveralChannelsHearsThemInTheOrderDelivered(t *testing.T) 
 
 func TestALoopThatStopsLetsGoOfEveryChannelItListenedTo(t *testing.T) {
 	hub := NewFrameHub()
-	frames := hub.Frames("job:report-progress", "job:complete")
+	frames := hub.Frames(context.Background(), "job:report-progress", "job:complete")
 	hub.Deliver(numbered("job:complete", 0))
 	for range frames {
 		break

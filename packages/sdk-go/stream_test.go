@@ -6,6 +6,7 @@ package semiont
 // chosen moment.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,8 +71,8 @@ func TestTheBackoffWaitsBetweenHalfItsCapAndItsCap(t *testing.T) {
 
 func TestASlowListenerDelaysNoOther(t *testing.T) {
 	hub := NewFrameHub()
-	slow := hub.Frames("beckon:focus")
-	fast := hub.Frames("beckon:focus")
+	slow := hub.Frames(context.Background(), "beckon:focus")
+	fast := hub.Frames(context.Background(), "beckon:focus")
 	const count = 1000
 	for n := range count {
 		hub.Deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"n":%d}`, n))})
@@ -214,7 +215,7 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 	gateway := newStubGateway(t)
 	before := runtime.NumGoroutine()
 	transport, httpClient := gateway.client()
-	frames, err := transport.Frames(bus.BeckonFocus.Channel())
+	frames, err := transport.Frames(context.Background(), bus.BeckonFocus.Channel())
 	if err != nil {
 		t.Fatal(err)
 	}

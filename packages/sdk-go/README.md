@@ -752,8 +752,8 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
 	}
 	fmt.Println(reply.Response.Resource.Name)
 
-	// A resource's channel is read for the resource: the read holds its scope, and lets go when the loop stops.
-	added, err := semiont.FramesOf(wire, bus.MarkAdded, resource)
+	// A resource's channel is read for the resource: the read holds its scope, and lets go when the loop stops or ctx is done.
+	added, err := semiont.FramesOf(ctx, wire, bus.MarkAdded, resource)
 	if err != nil {
 		return err
 	}
@@ -776,12 +776,12 @@ func Read(ctx context.Context, origin, token string, resource api.ResourceId) er
 - **A request** waits for the stream to be open before it is sent, is
   answered once, and is abandoned by cancelling its context.
 - **Frames** are a sequence: each reader is given every one, in order, however
-  far behind it falls.
+  far behind it falls, until its loop stops or its context is done.
 - **A resource's channel is read for the resource.** `mark:added` and the
   other events of the record are delivered on their resource's scope, and
-  their channels are `bus.Scoped`. `semiont.FramesOf(wire, bus.MarkAdded, resource)`
-  holds that scope until the loop stops, and gives that resource's frames and
-  no other's. `semiont.Frames` takes only a channel delivered to everyone.
+  their channels are `bus.Scoped`. `semiont.FramesOf(ctx, wire, bus.MarkAdded, resource)`
+  holds that scope until the loop stops or `ctx` is done, and gives that
+  resource's frames and no other's. `semiont.Frames` takes only a channel delivered to everyone.
 - **The connection's state** (`transport.State()`) is a `Watched` value: what
   it is now, and each thing it becomes. A dropped stream is a state, never an
   error, and opens again by itself.

@@ -92,8 +92,8 @@ func (w *workerWire) Emit(_ context.Context, channel bus.Channel, payload map[st
 	return 0, false, nil
 }
 
-func (w *workerWire) Frames(channels ...bus.Channel) (iter.Seq[Frame], error) {
-	return w.hub.Frames(channels...), nil
+func (w *workerWire) Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error) {
+	return w.hub.Frames(ctx, channels...), nil
 }
 
 func (w *workerWire) IsSubscribed(channel bus.Channel) bool {

@@ -225,7 +225,7 @@ func TestAStreamBeginsEachScopeWhereItsBookmarksSayAndTellsThemEachRecordedEvent
 	transport := gateway.transport(kept)
 	defer transport.Close()
 
-	heard, err := transport.Frames(bus.MarkAdded.Channel())
+	heard, err := transport.Frames(context.Background(), bus.MarkAdded.Channel())
 	if err != nil {
 		t.Fatal(err)
 	}

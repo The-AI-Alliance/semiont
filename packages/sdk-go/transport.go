@@ -21,9 +21,10 @@ type Transport interface {
 	// of subscribers it reached, or with counted false when there is no count.
 	Emit(ctx context.Context, channel bus.Channel, payload map[string]any, envelope Envelope) (subscribers int, counted bool, err error)
 	// Frames is the frames delivered on any of channels from now on, in the
-	// order they were delivered. A channel the transport can never deliver is
-	// refused, as unsubscribed.
-	Frames(channels ...bus.Channel) (iter.Seq[Frame], error)
+	// order they were delivered, until the loop stops, ctx is done or the
+	// transport closes. A channel the transport can never deliver is refused,
+	// as unsubscribed.
+	Frames(ctx context.Context, channels ...bus.Channel) (iter.Seq[Frame], error)
 	// IsSubscribed reports whether the transport delivers channel globally:
 	// whether a reply published there can reach this client.
 	IsSubscribed(channel bus.Channel) bool

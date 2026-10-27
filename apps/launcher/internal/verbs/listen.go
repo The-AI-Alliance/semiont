@@ -150,7 +150,7 @@ func Listen(args []string) int {
 			heard = append(heard, ch)
 		}
 	}
-	frames, stopFrames, err := arrivals(c.Transport, heard)
+	frames, stopFrames, err := arrivals(c.Context(), c.Transport, heard)
 	if err != nil {
 		return busFail(u, "listen", err)
 	}
