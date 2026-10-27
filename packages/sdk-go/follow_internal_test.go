@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
 )
 
 func TestAFollowerThatEndsOnAnythingButACompletionIsNoCompletion(t *testing.T) {
@@ -132,13 +133,13 @@ func TestAResultIsReadAsExactlyOneOfItsVerbsMembers(t *testing.T) {
 // What a type requires is what the generator writes without omitempty: a
 // payload lacking one is not read as that type.
 func TestAPayloadIsReadAsATypeOnlyWhenItCarriesWhatTheTypeRequires(t *testing.T) {
-	if got := requiredOf(reflect.TypeFor[api.JobReportProgressCommand]()); !slices.Equal(slices.Sorted(slices.Values(got)), []string{"jobId", "jobType", "percentage", "resourceId"}) {
+	if got := required.Of(reflect.TypeFor[api.JobReportProgressCommand]()); !slices.Equal(slices.Sorted(slices.Values(got)), []string{"jobId", "jobType", "percentage", "resourceId"}) {
 		t.Fatalf("a progress report requires %v", got)
 	}
-	if _, ok := readAs[api.JobReportProgressCommand]([]byte(`{"jobId":"job-1","jobType":"mark","resourceId":"res-1","percentage":10}`)); !ok {
+	if _, ok := required.ReadAs[api.JobReportProgressCommand]([]byte(`{"jobId":"job-1","jobType":"mark","resourceId":"res-1","percentage":10}`)); !ok {
 		t.Fatal("a progress report with what it requires is not read")
 	}
-	if _, ok := readAs[api.JobReportProgressCommand]([]byte(`{"jobId":"job-1","jobType":"mark","percentage":10}`)); ok {
+	if _, ok := required.ReadAs[api.JobReportProgressCommand]([]byte(`{"jobId":"job-1","jobType":"mark","percentage":10}`)); ok {
 		t.Fatal("a progress report with no resource is read")
 	}
 }
