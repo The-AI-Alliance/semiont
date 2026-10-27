@@ -644,6 +644,33 @@ func Run(ctx context.Context, client *semiont.Client) error {
 What a worker promises the dispatcher is [the worker contract][worker-contract],
 and [its conformance suite][worker-conformance] holds this module to it.
 
+## Annotations
+
+Package `annotations` is what reads an annotation and what builds one, as
+every SDK reads and builds them, case for case
+([`specs/src/annotations`](../../specs/src/annotations)).
+
+- **The readers** take an `api.Annotation` apart: what kind it is
+  (`IsHighlight`, `IsComment`, `IsTag`, `IsReference`, `IsAssessment`), the
+  resource it is on (`TargetSource`) and where in it (`TargetSelector`,
+  `TextQuoteSelector`), the text it covers (`AnnotationExactText`), what a
+  reference points at and whether it is resolved yet (`BodySource`,
+  `IsStubReference`, `IsResolvedReference`), and what a comment, a tag or a
+  linking job said (`CommentText`, `TagCategory`, `TagSchemaId`,
+  `EntityTypes`).
+- **`Reconcile`** finds where a model's quoted words are in the text: exactly,
+  then with the text's white space and quotation marks made plain, then case
+  aside, then by the nearest stretch. It says how it found them
+  (`AnchorMethod`) and how closely they match (`MatchQuality`), and finds
+  nothing rather than a guess.
+- **`AnnotationOfSpan`** builds the annotation of a span of text, its
+  offsets counted in code points: a position selector and a quote selector,
+  and, for a span of a PDF, the fragment selectors of the pages and
+  rectangles it covers. A span that is not the text's is refused with
+  `SpanRefusedError`, whose code says why. **`AnnotationOfResource`** builds
+  one of a whole resource. Each makes the annotation's id from what it is, so
+  the same annotation built twice is one annotation.
+
 ## Several knowledge bases
 
 Package `registry` is what an application a person uses holds beside its
@@ -990,6 +1017,7 @@ log keeps) is written as `[withheld]`.
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
 | `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
+| `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile` | hand-written |
 | `registry` | Several knowledge bases: `SemiontBrowser`, its storage and its keys, `HttpSessionFactory`, and a person's sign-in landing on the knowledge base that answered | hand-written |
 | `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
