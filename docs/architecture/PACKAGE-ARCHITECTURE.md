@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and nine Python projects beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
+Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and nine Python projects and three Go modules beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
 For what each package is and where it is published, see **[../../packages/README.md](../../packages/README.md)**: one table per language.
 
@@ -125,6 +125,14 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 `apps/worker`, `apps/weaver`, `apps/smelter` and `apps/librarian` are `semiont-worker`, `semiont-weaver`, `semiont-smelter` and `semiont-librarian`: the Worker, the Weaver, the Smelter and the Librarian. Each depends on `semiont`, on `semiont-service` and on more of the packages above: the Worker on `semiont-inference`, the Weaver on `semiont-graph`, the Smelter on `semiont-vectors`, and the Librarian on all three. The Smelter also takes `pypdfium2`, whose wheel carries PDFium, which reads a PDF. Nothing depends on a service: it is a service's code, run from its image, and published to no index.
 
+## The Go modules
+
+`packages/sdk-go` is one module, `github.com/The-AI-Alliance/semiont/packages/sdk-go`, package `semiont`: the client, its transport over a gateway, sign-in, the state units (package `state`) and the doubles a test is built on (package `semionttest`). It depends on `oapi-codegen`'s runtime, `google/uuid`, the OpenTelemetry API and `golang.org/x/text`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates. It is published nowhere: a program in this repository requires it with a `replace` directive on its path.
+
+`packages/sdk-go/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
+
+`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/sdk-go`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
+
 ## What each service image runs
 
 | Image | Runs | From |
@@ -146,7 +154,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 3. **Layered dependencies.** A package depends only on packages in lower layers. No circular dependencies.
 
-4. **The spec is the boundary between languages.** No crate depends on an npm package or a Python project, and neither of those on a crate or on the other. What they agree on is in `specs/`, and each side generates its types from it.
+4. **The spec is the boundary between languages.** No package of one language depends on a package of another: not a crate, an npm package, a Python project or a Go module. What they agree on is in `specs/`, and each side generates its types from it.
 
 5. **Platform independence.** The npm packages work in both a browser and Node.js, but for `@semiont/mcp-server`, which is a Node program. Where one has a Node-only part it is a subpath of its own (`@semiont/observability/node`).
 

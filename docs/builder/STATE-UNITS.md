@@ -2,7 +2,7 @@
 
 A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Every SDK is built from them, holds its units to the same axioms, and runs one table of what each of the SDK's units does.
 
-The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python. This doc states the pattern first, then each language's form of it.
+The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go. This doc states the pattern first, then each language's form of it.
 
 ## What state units do
 
@@ -258,30 +258,36 @@ A unit is a class built over a client it never closes, inside a running event lo
 
 As in Rust, a unit is a class, not a closure. The Python README lists [the units and what each holds](../../packages/sdk-python/README.md#state-units), with a program that watches one.
 
+## In Go
+
+A unit is a struct built over a `*semiont.Client` it never closes, made by its constructor (`state.NewYieldStateUnit(client, locale)`), and it declares itself a `semiont.StateUnit` where it is declared (`var _ semiont.StateUnit = (*YieldStateUnit)(nil)`). Each thing it holds is a `semiont.Watched[T]`: `Value()` is the value now, and `Changes(ctx)` gives that value and then each change, until the unit ends or the context is done; a reader that falls behind is given the latest. What writes it is a `semiont.Variable` the unit keeps to itself, handing out only its `Reading()`. A unit hears the client's own bus from the moment it exists, and runs what it starts on goroutines of its own. `Close()` ends it: what it had running stops, and every `Changes` it handed out ends.
+
+As in Rust, a unit is a struct, not a closure. The Go README lists [the units and what each holds](../../packages/sdk-go/README.md#state-units), with a program that watches one.
+
 ## How these rules are enforced
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
-That is the TypeScript harness. Rust's (`semiont::testing::axioms`) and Python's (`semiont.testing.axioms`) hold their units under the same ids; the last column says which rules they hold too.
+That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`) and Go's (`semionttest.AssertStateUnitAxioms`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/sdk/src/__tests__/state-cases.test.ts`, `packages/sdk-rust/tests/state_cases.rs` and `packages/sdk-python/tests/test_state_cases.py`.
+What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/sdk/src/__tests__/state-cases.test.ts`, `packages/sdk-rust/tests/state_cases.rs`, `packages/sdk-python/tests/test_state_cases.py` and `packages/sdk-go/state/cases_test.go`.
 
 Five enforcement tiers:
 
-| Tier | Mechanism | Rules | Held in Rust and Python too |
+| Tier | Mechanism | Rules | Held in Rust, Python and Go too |
 |---|---|---|---|
-| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3: both |
+| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3: all three |
 | **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `Bus.request` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs | L1, L2, L3: Rust |
-| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned: both; X1: Python |
+| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned: all three; X1: Python and Go |
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | no `class` in a `*-state-unit.ts` file (TypeScript's convention: its units are made by factories) · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3: Rust, as a test that fails any `static` item; Python, as a test that fails module state not marked `Final` |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test and `packages/sdk-python/tests/test_census.py` a Python one.
+Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test, `packages/sdk-python/tests/test_census.py` a Python one, and `packages/sdk-go/units_axioms_test.go` a Go one.
 
 ### Rule reference
 
-- **No class in a state-unit file — TypeScript's convention, not an axiom.** TypeScript makes its units by factories returning plain objects, and a static check holds `*-state-unit.ts` files to it. The axioms say how a unit behaves, the same in every SDK; how a unit is represented is each language's (a Rust unit is a struct, a Python unit a class, and TypeScript's `SemiontSession` a class).
-- **X1 — no raw origin Subject on the public surface.** A field that is `instanceof Subject` with `.source === undefined` (a `new Subject`/`new BehaviorSubject` — the unit's own state) lets consumers `next()` past the unit's logic; expose `watched(...)`. Derived `AnonymousSubject`s from `shareReplay().pipe(...)` carry a `.source` and are inert sinks — excluded. *TypeScript and Python, whose harness fails a unit that hands out the `Variable` holding a state. Rust has it by construction: a unit's senders are private.*
+- **No class in a state-unit file — TypeScript's convention, not an axiom.** TypeScript makes its units by factories returning plain objects, and a static check holds `*-state-unit.ts` files to it. The axioms say how a unit behaves, the same in every SDK; how a unit is represented is each language's (a Rust unit is a struct, a Python unit a class, a Go unit a struct made by its constructor, and TypeScript's `SemiontSession` a class).
+- **X1 — no raw origin Subject on the public surface.** A field that is `instanceof Subject` with `.source === undefined` (a `new Subject`/`new BehaviorSubject` — the unit's own state) lets consumers `next()` past the unit's logic; expose `watched(...)`. Derived `AnonymousSubject`s from `shareReplay().pipe(...)` carry a `.source` and are inert sinks — excluded. *TypeScript, Python and Go, whose harness fails a unit that hands out the `Variable` holding a state. Rust has it by construction: a unit's senders are private.*
 - **X3 / X3-runtime — instance isolation.** Runtime: driving one instance never moves another's surfaces. Static: no module-scoped `let`/`var` or `const x = new Map/Subject/...`. The two are complementary — the static check catches shapes (e.g. a shared monotonic counter) whose leak doesn't change emission counts, which the runtime check can miss. *Every SDK.*
 - **A5 / A5b — dispose is idempotent and total; methods are inert afterward.** *Every SDK.*
 - **A6 — every owned Subject completes on dispose** (pre-dispose subscribers see `complete`; post-dispose subscriptions are inert). *Every SDK.*
@@ -305,3 +311,4 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
 - [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
 - [The Python SDK's README](../../packages/sdk-python/README.md#state-units) — the Python units, and a program that watches one.
+- [The Go SDK's README](../../packages/sdk-go/README.md#state-units) — the Go units, and a program that watches one.
