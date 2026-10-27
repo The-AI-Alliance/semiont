@@ -19,11 +19,13 @@ const (
 	listLimit       = 100
 )
 
-// ResourceFilters is what a list or a search of resources admits. Limit is
-// how many it gives, the first hundred when it is zero; a nil filter admits
-// every resource.
+// ResourceFilters is what a list or a search of resources admits, and which
+// page of it. Limit is how many it gives, a hundred when it is zero; Offset is
+// how many of those it admits are passed over before the page begins; a nil
+// filter admits every resource.
 type ResourceFilters struct {
 	Limit      int
+	Offset     int
 	Archived   *bool
 	EntityType *string
 }

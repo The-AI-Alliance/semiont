@@ -92,6 +92,11 @@
             {
               "args": { "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
               "sends": { "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+            },
+            {
+              "why": "a page further on: the resources before it are passed over",
+              "args": { "filters": { "limit": 50, "offset": 100 } },
+              "sends": { "limit": 50, "offset": 100 }
             }
           ]
         },
@@ -374,6 +379,15 @@
             {
               "args": { "resourceId": "res-1", "annotationId": "ann-1", "options": { "contextWindow": 500 } },
               "sends": { "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 500 } }
+            },
+            {
+              "why": "a context asked for or left out is sent as stated, false as well as true; the window not stated is two thousand",
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "options": { "includeSourceContext": false, "includeTargetContext": true } },
+              "sends": {
+                "annotationId": "ann-1",
+                "resourceId": "res-1",
+                "options": { "includeSourceContext": false, "includeTargetContext": true, "contextWindow": 2000 }
+              }
             }
           ]
         },
@@ -448,6 +462,11 @@
             {
               "args": { "search": "cat", "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
               "sends": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+            },
+            {
+              "why": "a page further on: the resources before it are passed over",
+              "args": { "search": "cat", "filters": { "limit": 50, "offset": 100 } },
+              "sends": { "search": "cat", "limit": 50, "offset": 100 }
             }
           ]
         }

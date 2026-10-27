@@ -32,13 +32,16 @@ type GatherNamespace struct {
 	live  *live
 }
 
-// Annotation is the context around one annotation, taking contextWindow
-// characters of its source; two thousand when contextWindow is zero.
-func (n *GatherNamespace) Annotation(resourceID api.ResourceId, annotationID api.AnnotationId, contextWindow int) *Running[api.GatherAnnotationComplete] {
-	if contextWindow == 0 {
-		contextWindow = gatherContextWindow
+// Annotation is the context around one annotation, as options say: a window
+// of two thousand characters of its source when ContextWindow is nil, and the
+// source's context and the target's each included or left out as stated, and
+// as the gatherer decides when nil.
+func (n *GatherNamespace) Annotation(resourceID api.ResourceId, annotationID api.AnnotationId, options api.GatherAnnotationOptions) *Running[api.GatherAnnotationComplete] {
+	if options.ContextWindow == nil {
+		window := gatherContextWindow
+		options.ContextWindow = &window
 	}
-	request := api.GatherAnnotationRequest{AnnotationId: annotationID, ResourceId: resourceID, Options: &api.GatherAnnotationOptions{ContextWindow: &contextWindow}}
+	request := api.GatherAnnotationRequest{AnnotationId: annotationID, ResourceId: resourceID, Options: &options}
 	return &Running[api.GatherAnnotationComplete]{links: n.links, work: func(ctx context.Context, _ func(api.GatherAnnotationComplete)) (api.GatherAnnotationComplete, error) {
 		return ask(ctx, n.links, bus.GatherRequested, request)
 	}}

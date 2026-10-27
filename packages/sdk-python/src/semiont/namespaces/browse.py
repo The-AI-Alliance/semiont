@@ -200,15 +200,17 @@ class BrowseNamespace:
         return self._of(resource_id, self._live.resource, resource_id, itself)
 
     def resources(
-        self, *, limit: int = _LIST_LIMIT, archived: bool | None = None, entity_type: str | None = None
+        self, *, limit: int = _LIST_LIMIT, offset: int = 0, archived: bool | None = None, entity_type: str | None = None
     ) -> Cached[ListResourcesResponse]:
-        """A page of the resources the filters admit: the first hundred when no limit is stated.
+        """A page of the resources the filters admit: the first hundred when nothing is stated.
+
+        `offset` of them are passed over before the page begins.
 
         It is kept true by what every client hears and by the events of the
         resources this client holds the scope of, and by nothing else.
         Finding resources by text is `match.resources`.
         """
-        return self._live.query(Keyed(self._live.lists, ResourceFilters(limit, archived, entity_type), itself))
+        return self._live.query(Keyed(self._live.lists, ResourceFilters(limit, offset, archived, entity_type), itself))
 
     def annotations(self, resource_id: ResourceId) -> Cached[list[Annotation]]:
         """A resource's annotations."""

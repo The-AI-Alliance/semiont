@@ -9,7 +9,7 @@ A live query is asked for once and then kept current: when something it shows ch
 | SDK method | Kind | On the wire | Gives |
 |---|---|---|---|
 | `browse.resource` | live query | `browse:resource-requested` | One resource's description |
-| `browse.resources` | live query | `browse:resources-requested` | A page of the resources, filtered by entity type or by whether they are archived, with the total |
+| `browse.resources` | live query | `browse:resources-requested` | A page of the resources, filtered by entity type or by whether they are archived, with the total. A page is `limit` resources (a hundred when none is stated) after the first `offset` (none when none is stated) |
 | `browse.annotations` | live query | `GET /resources/{id}/annotations`, over HTTP: the list grows with the document, and a bus message is bounded | Every annotation on a resource |
 | `browse.annotation` | live query | `browse:annotation-requested` | One annotation |
 | `browse.events` | live query | `browse:events-requested` | A resource's event history, each event with who did it |
