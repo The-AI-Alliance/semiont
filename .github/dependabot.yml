@@ -426,6 +426,12 @@ updates:
       - "/apps/weaver"
       - "/apps/smelter"
       - "/apps/librarian"
+    # uv makes each image's environment: let a release age before adopting it.
+    # The base-image entries above wait for nothing, so that an image's OS
+    # patches are not held back.
+    # NB: docker cooldown supports only default-days, not the semver tiers.
+    cooldown:
+      default-days: 5
     schedule:
       interval: "weekly"
       day: "monday"
