@@ -1,7 +1,7 @@
 /**
  * Tests for the universal `@semiont/observability` surface.
  *
- * Wires a `BasicTracerProvider` + `InMemorySpanExporter` and a
+ * Wires a `TracerProvider` + `InMemorySpanExporter` and a
  * `MeterProvider` + `InMemoryMetricExporter` for the duration of the
  * file so traces and metrics produced by `withSpan`, `recordBusSent`,
  * etc. are observable. Without an SDK installed the
@@ -26,11 +26,11 @@ import {
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import {
-  BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
+  TracerProvider,
   type ReadableSpan,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import {
   AggregationTemporality,
   InMemoryMetricExporter,
@@ -50,15 +50,15 @@ import {
 const spanExporter = new InMemorySpanExporter();
 const metricExporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
 let metricReader: PeriodicExportingMetricReader;
-let tracerProvider: BasicTracerProvider;
+let tracerProvider: TracerProvider;
 let meterProvider: MeterProvider;
 
 beforeAll(() => {
   context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
-  tracerProvider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+  tracerProvider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: spanExporter })],
   });
   trace.setGlobalTracerProvider(tracerProvider);
 

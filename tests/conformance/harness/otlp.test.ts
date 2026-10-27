@@ -8,7 +8,7 @@ import { SpanKind, context, trace } from '@opentelemetry/api';
 import { JsonMetricsSerializer, JsonTraceSerializer, ProtobufMetricsSerializer, ProtobufTraceSerializer } from '@opentelemetry/otlp-transformer';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { MeterProvider, MetricReader } from '@opentelemetry/sdk-metrics';
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace';
 import { expect, it } from 'vitest';
 import { startOtlp, type OtlpReceiver } from './otlp';
 
@@ -21,7 +21,7 @@ class Collector extends MetricReader {
 async function anExport() {
   const resource = resourceFromAttributes({ 'service.name': 'otlp-receiver' });
   const finished = new InMemorySpanExporter();
-  const tracer = new BasicTracerProvider({ resource, spanProcessors: [new SimpleSpanProcessor(finished)] }).getTracer('receiver');
+  const tracer = new TracerProvider({ resource, spanProcessors: [new SimpleSpanProcessor({ exporter: finished })] }).getTracer('receiver');
   const parent = tracer.startSpan('bus.dispatch:beckon:focus', { kind: SpanKind.SERVER, attributes: { 'bus.channel': 'beckon:focus', count: 7, ratio: 0.5, flag: true } });
   tracer.startSpan('archivist.content.get', { kind: SpanKind.CLIENT, attributes: { 'peer.service': 'archivist' } }, trace.setSpan(context.active(), parent)).end();
   parent.end();
