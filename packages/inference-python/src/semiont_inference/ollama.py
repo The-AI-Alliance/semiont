@@ -9,7 +9,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont_inference._estimate import estimate_that_fits
 from semiont_inference._log import LOG
-from semiont_inference._once import Once
+from semiont_inference._once import Once, refused_discovery
 from semiont_inference._structured import read_array
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import as_usage, count, read_counts
@@ -130,8 +130,8 @@ class OllamaInferenceClient:
         async with httpx.AsyncClient(timeout=_DISCOVERY_TIMEOUT, trust_env=False) as http:
             response = await http.post(f"{self._base_url}/api/show", json={"model": self.model_id})
         if not response.is_success:
-            raise ProviderStatusError(
-                f"Failed to discover model limits: /api/show returned {response.status_code} for '{self.model_id}'", response.status_code
+            raise refused_discovery(
+                f"Failed to discover model limits for '{self.model_id}' from Ollama's /api/show", response.status_code, response.text
             )
         context_tokens = _context_length(response.content)
         if context_tokens is None:

@@ -374,7 +374,7 @@ class AnthropicInferenceClient:
             try:
                 info = await library.models.retrieve(self.model_id)
             except APIStatusError as refused:
-                raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
+                raise _stating_the_wait(refused_discovery(learning, refused.status_code, refused.message), refused) from refused
             except Exception as unlearned:
                 raise RuntimeError(learning) from unlearned
             if info.max_input_tokens is None or info.max_tokens is None:

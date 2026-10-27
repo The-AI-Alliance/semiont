@@ -8,7 +8,7 @@
 import { expect, it } from 'vitest';
 import type { ScriptedGeneration } from '../harness/ollama';
 import { eachWorkerService, type FailureClass, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT } from './support';
+import { counting, expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT } from './support';
 
 const HIGHLIGHT_REQUEST = { num_predict: 5284, num_ctx: 5785, temperature: 0 };
 
@@ -199,7 +199,7 @@ eachWorkerService('a job that fails', (world) => {
   it('carries on its failure the units it had finished, each with the cursor it ended at', async () => {
     const w = world();
     const job = markJob(w, 'failed-unit', { motivation: 'linking', entityTypes: ['Person', 'Place'] });
-    w.ollama.script({ response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) }, { response: '1' }, { status: 500, body: '{"error":"overloaded"}' });
+    w.ollama.script({ response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) }, counting(1), { status: 500, body: '{"error":"overloaded"}' });
     const served = await w.start();
     const failure = await settled(served, job, 'job:fail');
 

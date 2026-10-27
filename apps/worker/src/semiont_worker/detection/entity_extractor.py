@@ -15,7 +15,6 @@ can mend. `specs/src/worker/parser-cases.json` holds the reading and the
 count.
 """
 
-import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Final, final
@@ -24,7 +23,7 @@ from pydantic import JsonValue
 from semiont.annotations import QuotedText
 from semiont.types import UnitCursor
 from semiont.watched import Watched
-from semiont_inference.interface import ElementSchema, InferenceClient
+from semiont_inference.interface import ElementSchema, InferenceClient, StructuredResponse
 
 from semiont_worker.chunking import estimate_tokens
 from semiont_worker.detection.annotation_detection import OnActivity, OnChunkResults
@@ -44,7 +43,7 @@ from semiont_worker.detection.chunk_plan import (
 from semiont_worker.detection.chunk_size import CallOutcome
 from semiont_worker.detection.parsers import quoted_of
 from semiont_worker.detection.prompts import asked_for, count_prompt, mention_prompt
-from semiont_worker.inference_call import bounded_generate_structured, bounded_generate_text
+from semiont_worker.inference_call import bounded_generate_structured
 from semiont_worker.log import LOG
 
 ENTITY_ELEMENT_SCHEMA: Final[ElementSchema] = {
@@ -78,30 +77,45 @@ class Mention:
     entity_type: str
 
 
-COUNT_MAX_TOKENS: Final = 16
-"""The most a count may answer. The answer is one number, and so few tokens can neither run on nor be cut off as an array can."""
+COUNT_ELEMENT_SCHEMA: Final[ElementSchema] = {
+    "type": "object",
+    "properties": {"count": {"type": "integer"}},
+    "required": ["count"],
+    "additionalProperties": False,
+}
+"""The one element of a count's reply: how many mentions the piece holds.
 
-_COUNT: Final = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+(?![0-9])|[0-9]+")
-"""A count as a model writes one: a run of the digits 0 to 9, read through its thousands separators.
-
-A run of one to three digits, followed by groups of a comma and exactly
-three digits, is one number. A digit is one of the ten, written out: a
-pattern's own class of digits takes every script's.
+Asked for as structure, as the extraction is, so that a model cannot answer
+it in words. Asked for in words, a model began about a quarter of its answers
+with a sentence, and ran out of its tokens before the number. It states no
+`minimum`: the drivers rewrite no such keyword, and refuse a schema that has
+one. A count below none is refused where the reply is read.
 """
 
+COUNT_MAX_TOKENS: Final = 32
+"""The most a count may answer: one element of one number, with the white space a model may lay it out in."""
 
-def _count_in(reply: str) -> int | None:
-    """The count a reply states: the first whole number in it, or nothing where it has no digit.
 
-    The model is asked for the number alone. One that words its answer
-    ("There are 50") has still given its count. Read as its first group,
-    `1,234` would be 1, and a count of 1 hides every collapse.
+def _count_of(response: StructuredResponse) -> int | None:
+    """The count a reply states: the `count` of its one element, a whole number of 0 or more. `None` for any other reply.
+
+    A reply cut off is no count, though it reads as a whole array: an array cut
+    off part-way is still an array. A reply of no element, or of more than one,
+    does not say which is the count. A schema that is only advice to its model
+    can be answered otherwise, and `true` is an `int` in Python and no number.
     """
-    found = _COUNT.search(reply)
-    return None if found is None else int(found.group().replace(",", ""))
+    if response.stop_reason == "max_tokens" or len(response.items) != 1:
+        return None
+    element = response.items[0]
+    count = element.get("count") if isinstance(element, dict) else None
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        return None
+    return count
 
 
-async def _counted(client: InferenceClient, piece: str, items: Sequence[JsonValue], entity_types: Sequence[str]) -> int | None:
+async def _counted(
+    client: InferenceClient, piece: str, items: Sequence[JsonValue], entity_types: Sequence[str], on_unchecked: Callable[[], None]
+) -> int | None:
     """Ask how many mentions `piece` holds, and hold what a reply found of it to that count.
 
     The count is asked of the same text and of the same types, so it needs
@@ -110,21 +124,29 @@ async def _counted(client: InferenceClient, piece: str, items: Sequence[JsonValu
     less: the reply is taken to have missed mentions, and what it did find
     rides on the failure.
 
-    A count that fails, or answers no number, checks nothing, and nothing is
-    answered: what was read stands. The count is a check on a reading, and
-    its own failure is not the reading's.
+    A count that fails, or answers no count, checks nothing, and nothing is
+    answered: what was read stands, and `on_unchecked` is told. The count is a
+    check on a reading, and its own failure is not the reading's, but a reading
+    left unchecked is said.
     """
     piece_chars = len(piece)
     try:
-        response = await bounded_generate_text(client, count_prompt(piece, entity_types), COUNT_MAX_TOKENS, DETECTION_TEMPERATURE, None)
+        response = await bounded_generate_structured(
+            client, count_prompt(piece, entity_types), COUNT_MAX_TOKENS, DETECTION_TEMPERATURE, COUNT_ELEMENT_SCHEMA, None
+        )
     except Exception as failure:
         LOG.warning(
             "Count-verifier call failed — yield check skipped for this chunk", extra={"pieceChars": piece_chars, "error": str(failure)}
         )
+        on_unchecked()
         return None
-    counted = _count_in(response.text)
+    counted = _count_of(response)
     if counted is None:
-        LOG.warning("Count-verifier answer carried no number — yield check skipped for this chunk", extra={"pieceChars": piece_chars})
+        LOG.warning(
+            "Count-verifier answer carried no count — yield check skipped for this chunk",
+            extra={"pieceChars": piece_chars, "stopReason": response.stop_reason, "elements": len(response.items)},
+        )
+        on_unchecked()
         return None
     if len(items) * YIELD_COLLAPSE_BAND < counted:
         raise YieldCollapseError(
@@ -148,6 +170,7 @@ async def extract_entities(
     on_activity: OnActivity,
     on_under_report: Callable[[UnderReportedPiece], None],
     on_counted: Callable[[int], None],
+    on_unchecked: Callable[[], None],
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[Mention],
 ) -> None:
@@ -164,6 +187,12 @@ async def extract_entities(
     once for each piece and awaited before the next is cut. `on_activity` is
     told where the extraction stands: at each boundary between pieces, and
     every fifteen seconds while a piece is with the model.
+
+    Where the provider checks yield, `on_counted` is told the count of each
+    piece that is accepted, `on_under_report` the verdict of each kept though
+    its count said more was there, and `on_unchecked` once for each accepted
+    without a check, its count having failed or answered no count. A count
+    that fails never precedes asking again, so such a piece is always accepted.
 
     `cancelled` is whether a cancellation has named the job. Once it has, no
     piece is asked about after the one in hand, which is handed on like any
@@ -220,7 +249,7 @@ async def extract_entities(
             # Before anything is made of it: a reply cut off mid-array still reads as an array.
             assert_not_truncated(response.stop_reason, "Entity extraction", chunk.at, chunk.total_chars, output_budget)
             # A reply that was read whole may still have missed mentions, and only the count can say so.
-            counted = await _counted(client, piece, response.items, entity_types) if verify_yield else None
+            counted = await _counted(client, piece, response.items, entity_types, on_unchecked) if verify_yield else None
             return ChunkCallResult(items=response.items, usage=response.usage, counted=counted)
 
         asked = await call_chunk_subdividing("reference", chunk.piece, budget.chunking.overlap, call, on_under_report, on_counted)

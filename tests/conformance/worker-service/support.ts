@@ -108,6 +108,16 @@ export const FORMATS = {
   linking: span({ entityType: { type: 'string' } }, ['exact', 'entityType']),
 } as const;
 
+/**
+ * What a linking job's count asks its answer to be: an array of one object,
+ * the count. Written as JSON, so that the worker's own tests read it whole
+ * (apps/worker/tests/test_element_schemas.py).
+ */
+export const COUNT_FORMAT = { "type": "array", "items": { "type": "object", "properties": { "count": { "type": "integer" } }, "required": ["count"], "additionalProperties": false } } as const;
+
+/** A stand-in Ollama's answer to a count: the one element a count is asked for. */
+export const counting = (count: number) => ({ response: JSON.stringify([{ count }]) });
+
 /** The request a worker makes of its Ollama for one generation: nothing more, and nothing less. */
 export function generation(model: string, promptName: string, options: { num_predict: number; num_ctx: number; temperature: number }, format?: unknown): Record<string, unknown> {
   return { model, prompt: prompt(promptName), stream: false, think: false, options, ...(format === undefined ? {} : { format }) };

@@ -89,11 +89,13 @@ def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_what_
             with pytest.raises(ProviderStatusError) as unlearned:
                 await client.limits()
             # A refused discovery is classed as a refused generation is, by its status: the library's failure is its cause.
-            assert (
-                str(unlearned.value) == "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404"
-            )
-            assert unlearned.value.status == 404
             assert isinstance(unlearned.value.__cause__, anthropic.NotFoundError)
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-unknown' from the Models API: refused with status 404: "
+                + refusal_said(unlearned.value)
+            )
+            assert "model: claude-unknown" in str(unlearned.value)
+            assert unlearned.value.status == 404
 
             # A later call asks again.
             played.model = model_info(max_input_tokens=1000, max_tokens=100)
@@ -188,7 +190,11 @@ def test_a_structured_generation_whose_model_the_models_api_refuses_to_state_fai
             client = driver(played)
             with pytest.raises(ProviderStatusError) as unlearned:
                 await client.generate_structured("p", 100, 0, ELEMENT)
-            assert str(unlearned.value) == "Failed to discover model limits for 'claude-x' from the Models API: refused with status 404"
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 404: "
+                + refusal_said(unlearned.value)
+            )
+            assert "model: claude-x" in str(unlearned.value)
             assert unlearned.value.status == 404
             assert played.generations == []
 
@@ -620,6 +626,13 @@ def not_waited(header: str, stated: str) -> str:
     return f"; the provider said to wait ({header}: {stated}), which is longer than the 120 seconds this driver waits"
 
 
+def refusal_said(failure: ProviderStatusError) -> str:
+    """The library's words for the refusal `failure` was raised from: what a refused discovery's text carries after its status."""
+    cause = failure.__cause__
+    assert isinstance(cause, anthropic.APIStatusError)
+    return cause.message
+
+
 def generations_at(played: Anthropic) -> list[float]:
     """When each generation arrived, by the loop's clock."""
     return [asked.at for asked in played.messages]
@@ -704,7 +717,9 @@ def test_a_models_api_that_says_to_wait_over_two_minutes_is_asked_once_and_the_f
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             assert str(unlearned.value) == (
-                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429" + not_waited(header, stated)
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+                + not_waited(header, stated)
             )
             assert unlearned.value.status == 429
             assert len(played.retrievals) == 1
@@ -719,7 +734,10 @@ def test_a_models_api_that_says_to_wait_two_minutes_is_waited_for_and_asked_thre
             with pytest.raises(ProviderStatusError) as unlearned:
                 await hurried(driver(played).limits())
             # A wait that was waited is not spoken of: the failure is the refusal's alone.
-            assert str(unlearned.value) == "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429"
+            assert str(unlearned.value) == (
+                "Failed to discover model limits for 'claude-x' from the Models API: refused with status 429: "
+                + refusal_said(unlearned.value)
+            )
             at = [asked.at for asked in played.asked]
             assert len(at) == 3
             assert all(120.0 <= later - earlier < 122.0 for earlier, later in itertools.pairwise(at)), at

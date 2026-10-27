@@ -428,7 +428,7 @@ class TogetherInferenceClient:
                 response = await library.models.with_raw_response.list(extra_headers=self._headers(library), timeout=_DISCOVERY_TIMEOUT)
                 listed = await response.parse(to=str)
             except APIStatusError as refused:
-                raise refused_discovery(learning, refused.status_code) from refused
+                raise refused_discovery(learning, refused.status_code, refused.message) from refused
             except Exception as unlearned:
                 raise RuntimeError(learning) from unlearned
         try:

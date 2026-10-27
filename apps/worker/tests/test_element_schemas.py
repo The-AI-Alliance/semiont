@@ -13,7 +13,7 @@ from pydantic import JsonValue
 from semiont_inference.interface import ElementSchema
 from spec import ROOT
 
-from semiont_worker.detection.entity_extractor import ENTITY_ELEMENT_SCHEMA
+from semiont_worker.detection.entity_extractor import COUNT_ELEMENT_SCHEMA, ENTITY_ELEMENT_SCHEMA
 from semiont_worker.detection.parsers import (
     ASSESSMENT_ELEMENT_SCHEMA,
     COMMENT_ELEMENT_SCHEMA,
@@ -68,6 +68,13 @@ def elements_of_the_suite() -> dict[str, dict[str, JsonValue]]:
         asked: list[JsonValue] = [*names]
         elements[kind] = {"type": "object", "properties": properties, "required": asked, "additionalProperties": False}
     return elements
+
+
+def test_a_count_asks_for_the_element_the_suite_holds_it_to() -> None:
+    stated = re.search(r"^export const COUNT_FORMAT = (\{.*\}) as const;$", SUITE.read_text(encoding="utf-8"), re.MULTILINE)
+    assert stated is not None, "the suite no longer states a count's format as it did"
+    # As written: the members of the schema, and of its properties, in the suite's order.
+    assert written(json.loads(stated.group(1))) == written({"type": "array", "items": dict(COUNT_ELEMENT_SCHEMA)})
 
 
 def test_every_kind_of_detection_asks_for_the_element_the_suite_holds_it_to() -> None:

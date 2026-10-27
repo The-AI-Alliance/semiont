@@ -6,7 +6,7 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService } from '../harness/worker-service-world';
-import { expectGenerations, FORMATS, generation, identity, markJob, settled } from './support';
+import { COUNT_FORMAT, counting, expectGenerations, FORMATS, generation, identity, markJob, settled } from './support';
 
 /** The schema a tagging job is handed with: the one `tagging.test.ts` uses. */
 const SCHEMA = {
@@ -47,14 +47,14 @@ eachWorkerService('what a mark job asks its model', (world) => {
     const w = world();
     const agent = w.agents[0]!;
     const job = markJob(w, 'linking-descriptive', { motivation: 'linking', entityTypes: ['Person'], includeDescriptiveReferences: true, sourceLanguage: 'en' });
-    w.ollama.script({ response: '[]' }, { response: '0' });
+    w.ollama.script({ response: '[]' }, counting(0));
     const served = await w.start();
     await settled(served, job);
 
     expectGenerations(w.ollama.generations, [
       generation(agent.model, 'linking-descriptive', { num_predict: 5179, num_ctx: 5869, temperature: 0 }, FORMATS.linking),
       // The count is asked of the same text, of the same types, in the same words whatever the extraction was asked.
-      generation(agent.model, 'linking-person-count', { num_predict: 16, num_ctx: 244, temperature: 0 }),
+      generation(agent.model, 'linking-person-count', { num_predict: 32, num_ctx: 272, temperature: 0 }, COUNT_FORMAT),
     ]);
   });
 });

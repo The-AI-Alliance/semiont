@@ -7,12 +7,15 @@ from typing import final
 from semiont_inference.interface import ProviderStatusError
 
 
-def refused_discovery(learning: str, status: int) -> ProviderStatusError:
+def refused_discovery(learning: str, status: int, said: str) -> ProviderStatusError:
     """The failure of a discovery the provider refused with `status`.
 
-    Its message is `learning`, which says what was being learned, and the status.
+    Its message is `learning`, which says what was being learned, the status,
+    and `said`, the provider's own words for the refusal. Those words are what
+    tell a spent usage limit from a retired model or a revoked key, and a
+    usage limit states there when access returns.
     """
-    return ProviderStatusError(f"{learning}: refused with status {status}", status)
+    return ProviderStatusError(f"{learning}: refused with status {status}: {said}", status)
 
 
 @final

@@ -481,9 +481,10 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   the extraction, an array of `exact`, `entityType`, `prefix` and `suffix`
   with the first two required, asking for names only unless the job has
   `includeDescriptiveReferences`; and a count of the mentions in the same
-  piece, a prompt with no `format`, a `num_predict` of 16, and an answer read
-  as the first whole number in it, through its thousands separators (`1,234`
-  is 1234). A mention whose `entityType` is not, character for character, the
+  piece, asked for as structure so that it cannot be answered in words: an
+  array of one object whose `count` is an integer, `count` required, with a
+  `num_predict` of 32. The count is the `count` of the answer's one element,
+  a whole number of 0 or more. A mention whose `entityType` is not, character for character, the
   type being asked for makes no annotation, and is counted in the job's
   `found` and `errors`. A reference's body is a list of one
   `TextualBody`: the entity type as `value`, `purpose` `tagging`, `format`
@@ -498,9 +499,12 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   *Held by `worker-service/linking`.*
 - **K6.** Over a piece that can be cut smaller, an extraction taken to have
   missed mentions is asked again in halves instead, as a piece whose answer
-  was cut off is ([F6](#failures)). A count that fails, or answers no number,
-  checks nothing.
-  *Held by no case.*
+  was cut off is ([F6](#failures)). A count that fails, or answers no count,
+  checks nothing: one cut off, one of no element or of more than one, and
+  one whose element has no whole number of 0 or more as its `count` answer
+  none. What its piece found is kept, and the job's result counts the piece
+  in `uncheckedPieces`. A job whose provider checks no yield has none.
+  *Held by `worker-service/linking`.*
 - **K7.** A **tagging** job takes its `categories` one at a time, in the
   job's order, each over the whole text. Its prompt states the schema the
   dispatcher handed over with the job (its `name`, `description` and
@@ -514,8 +518,8 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
 - **K8.** On an Anthropic agent a linking job has up to four of its entity
   types with the model at once: the job's first four, and each of the others
   when one before it is finished. Each type is done as
-  [K4](#the-five-kinds-of-mark-job) says, its count a generation with no
-  `output_config` and a `max_tokens` of 16. So what the job asks its model,
+  [K4](#the-five-kinds-of-mark-job) says, its count a generation with the
+  count's `output_config` and a `max_tokens` of 32. So what the job asks its model,
   commits and checkpoints comes in no fixed order across its types.
   *Held by `worker-service/anthropic`.*
 

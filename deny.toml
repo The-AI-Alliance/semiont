@@ -21,6 +21,7 @@ yanked = "deny"
 ignore = [
   { id = "RUSTSEC-2023-0071", reason = "rsa (the Marvin timing attack) leaks a private key through the time its private-key operations take. The gateway holds no RSA private key: it only verifies the issuer's RS256 signatures, with public keys, and signs its own tokens with HS256. No fixed rsa release exists; it arrives through jsonwebtoken's rust_crypto backend." },
   { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained. It is a procedural macro tikv-jemalloc-ctl uses while it compiles; nothing of it is in the binary." },
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 (operations meant to be constant-time that branch on secret values) leaks what it computes on secret integers. It arrives only through elliptic-curve, for the p256 and p384 that jsonwebtoken's rust_crypto backend links for ES256 and ES384. Nothing here uses either: the gateway signs and verifies its own tokens with HS256, and semiont-http-service verifies the issuer's with RS256, refusing every other algorithm before any key is used. No fixed 0.5 release exists, and jsonwebtoken 11.1.0, its newest, depends on p256 0.13." },
 ]
 
 [bans]
