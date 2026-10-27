@@ -13,7 +13,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"sync"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
@@ -41,11 +43,7 @@ func UseTransport(f func(config semiont.HTTPTransportConfig) semiont.Transport) 
 // would be counted among their audience, and `beckon` would report itself as
 // the one subscriber it reached.
 func replyChannels() []bus.Channel {
-	channels := make([]bus.Channel, 0, 2*len(bus.Operations))
-	for _, operation := range bus.Operations {
-		channels = append(channels, operation.Result, operation.Failure)
-	}
-	return channels
+	return bus.ReplyChannelsFor(slices.Collect(maps.Keys(bus.Operations))...)
 }
 
 // VerbClient is one command's client of its stack: the SDK's client over a
