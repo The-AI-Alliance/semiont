@@ -592,7 +592,8 @@ type ProjectConfigGit struct {
 type ProjectConfigSite struct {
 	// The knowledge base's permanent identity, in did:web's colon-path form
 	// (`owner.github.io:repo`): stamped into every event it records, so never a
-	// machine's address and never changed.
+	// machine's address and never changed. With no white space in it, which no
+	// DID holds (UserId.json).
 	Domain string `json:"domain"`
 
 	// The name people see for the knowledge base.
