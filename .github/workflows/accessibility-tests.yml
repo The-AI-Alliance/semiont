@@ -53,8 +53,9 @@ jobs:
         env:
           CI: true
 
+      # A run Dependabot started has a read-only token, which cannot comment.
       - name: Comment PR with results
-        if: github.event_name == 'pull_request' && failure()
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && failure()
         uses: actions/github-script@v9
         with:
           script: |
@@ -120,8 +121,9 @@ jobs:
           path: apps/browser/.lighthouseci
           retention-days: 30
 
+      # A run Dependabot started has a read-only token, which cannot comment.
       - name: Comment PR with Lighthouse results
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         uses: actions/github-script@v9
         env:
           ASSERT_OUTCOME: ${{ steps.assert.outcome }}
