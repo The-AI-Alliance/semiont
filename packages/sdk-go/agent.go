@@ -117,9 +117,9 @@ func (s *ServiceToken) Authorization(ctx context.Context) (string, error) {
 	}
 	// Used until it is due for renewal, and never past its expiry.
 	lifetime, hasLifetime := answered.seconds("expires_in")
-	renewIn, scheduled := refreshDelay(token, time.Now(), s.issuer.Timing)
+	renewIn, scheduled := RefreshDelay(token, time.Now(), s.issuer.Timing)
 	if !scheduled && hasLifetime {
-		renewIn, scheduled = renewalDelay(lifetime, lifetime, s.issuer.Timing), true
+		renewIn, scheduled = RenewalDelay(lifetime, lifetime, s.issuer.Timing), true
 	}
 	s.held, s.until = "", time.Time{}
 	if scheduled {
@@ -220,7 +220,7 @@ func (a *AgentToken) renew(ctx context.Context) (string, error) {
 // floor. A refused credential is not transient, whatever its status: the same
 // token gets the same answer.
 func (a *AgentToken) renewWithinBudget() {
-	_, _ = retryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.renew,
+	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.renew,
 		func(err error) bool {
 			var failed Error
 			if !errors.As(err, &failed) || failed.ErrorCode() == string(TransportErrorCodeUnauthorized) {

@@ -43,7 +43,7 @@ ANSWERED = [case for case in CASES if "results" in case]
 FAILED = [case for case in CASES if "results" not in case]
 
 # Every member each thing the table states may have. A member that is none of these is one nothing here would read.
-TABLE_MEMBERS = ("$comment", "cases")
+TABLE_MEMBERS = ("$comment", "runBy", "cases")
 CASE_MEMBERS = ("why", "now", "request", "resources", "graph", "views", "vectors", "model", "term", "results", "failed")
 GRAPH_MEMBERS = ("byName", "byEntityType", "byId")
 VECTORS_MEMBERS = ("hits", "fails")

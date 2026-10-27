@@ -253,11 +253,11 @@ func (i Issuer) RenewKept(ctx context.Context, kept SignInKept, holding string) 
 	if err != nil || !ok {
 		return "", err
 	}
-	if held.Access != holding && !isTokenExpired(held.Access, time.Now()) {
+	if held.Access != holding && !IsTokenExpired(held.Access, time.Now()) {
 		return held.Access, nil
 	}
 	attempts := 0
-	tokens, err := retryWithBackoff(ctx, i.Timing.RefreshRetry,
+	tokens, err := RetryWithBackoff(ctx, i.Timing.RefreshRetry,
 		func(ctx context.Context) (IssuedTokens, error) {
 			attempts++
 			return i.Refresh(ctx, held.TokenEndpoint, held.ClientID, held.Refresh)

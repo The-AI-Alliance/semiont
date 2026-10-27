@@ -33,10 +33,10 @@ func TestAFollowerThatEndsOnAnythingButACompletionIsNoCompletion(t *testing.T) {
 
 func TestHowLongAGenerationMayBeSilentGrowsWithWhatWasAskedOfIt(t *testing.T) {
 	timing := DefaultTiming()
-	tokens := func(n float32) *float32 { return &n }
+	tokens := func(n float64) *float64 { return &n }
 	for _, c := range []struct {
 		name      string
-		maxTokens *float32
+		maxTokens *float64
 		wantMs    int64
 	}{
 		{"nothing stated", nil, timing.GenerationStallFloor.Milliseconds()},

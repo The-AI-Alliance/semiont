@@ -122,13 +122,13 @@ func EqualJitter(cap time.Duration) time.Duration {
 	return half + time.Duration(rand.Int64N(int64(cap-half)+1))
 }
 
-// retryWithBackoff runs attempt until it succeeds, the policy's attempts are
+// RetryWithBackoff runs attempt until it succeeds, the policy's attempts are
 // spent, or it fails in a way retryable does not accept. The wait before each
 // further attempt is the policy's jittered backoff, and never less than the
 // wait the failure itself stated (a refusal's Retry-After). A context that is
 // done ends the wait in progress, and its error is returned; otherwise the
 // last failure is returned as it was.
-func retryWithBackoff[T any](
+func RetryWithBackoff[T any](
 	ctx context.Context,
 	policy RetryPolicy,
 	attempt func(context.Context) (T, error),

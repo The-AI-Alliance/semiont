@@ -238,6 +238,14 @@ func Bridged(c Channel) bool {
 var ResourceScopedChannels = []Channel{
 ${listed(reg.audience.scoped)}
 }
+
+// PersistedEventTypes: the channels of the events of the record, each named
+// for the event it carries: every event the event log holds. A follower of the
+// record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What
+// repairs a passing frame).
+var PersistedEventTypes = []Channel{
+${listed(reg.channels.filter((c) => c.event).map((c) => c.channel))}
+}
 `;
 
 mkdirSync(OUT_DIR, { recursive: true });

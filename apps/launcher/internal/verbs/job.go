@@ -218,8 +218,7 @@ func (flags jobFlags) take(u *launcher.UI, a string, val func() (string, bool), 
 		list, _ := given[flag.param].([]string)
 		given[flag.param] = append(list, v)
 	case flagPositive:
-		// 32 bits: the generated types hold a number as a float32.
-		n, err := strconv.ParseFloat(v, 32)
+		n, err := strconv.ParseFloat(v, 64)
 		if err != nil || n <= 0 || math.IsInf(n, 0) || math.IsNaN(n) {
 			u.Fail("%s wants a number above 0, got %q", a, v)
 			return true, false

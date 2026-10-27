@@ -186,9 +186,10 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
   here serves the launcher's verbs, and one it renewed serves this session.
   `MemorySignIn` keeps one for the life of the process instead, and `SignOut`
   revokes one at its issuer and forgets it.
-- **The SDK reads no environment variable.** Everything it needs, it is
-  given: an application reads its own environment (`HOME`, a secret, an
-  address) and says what it found.
+- **`SEMIONT_BUS_LOG` is the only environment variable the SDK reads**
+  ([Telemetry](#telemetry)). Everything else it needs, it is given: an
+  application reads its own environment (`HOME`, a secret, an address) and
+  says what it found.
 
 ## Eight verbs
 
@@ -912,6 +913,26 @@ is made in, and a frame continues the trace it was sent under (`Frame.Trace`).
 A job a worker holds states the trace it is run in (`job.Trace()`).
 `semiont.Continuing(ctx, trace)` is a context whose spans continue either.
 
+With `SEMIONT_BUS_LOG` set to any value that is not empty, a transport over
+HTTP also writes the [bus log][bus-log], as every Semiont SDK does: one line
+for each frame it sends and each it receives, and for each read and each
+upload of content. A line says the channel, the resource's scope, the first
+eight characters of the correlation id and of the trace's id, and the payload
+as JSON:
+
+```
+[bus EMIT] job:claim cid=a89a670a {"accepts":[{"jobType":"yield"}]}
+[bus RECV] job:claim-failed cid=a89a670a {"code":"none-pending","message":"No pending job matches"}
+```
+
+The lines go to standard error, as the Rust SDK's do: a program's standard
+output is its own, and a line there would be read as one of its answers. The
+variable is read once, when the first line would be written. No line holds a
+credential: the value of a payload's member whose name is one a credential
+goes by (`token`, which is what a payload names the token a resource is cloned
+by, `password`, `apiKey` and the rest of the [short list][bus-log] every bus
+log keeps) is written as `[withheld]`.
+
 ## What is in the module
 
 | Package | Holds | Generated from |
@@ -1009,6 +1030,7 @@ Apache-2.0. See [LICENSE](../../LICENSE).
 [resource-text]: ../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: ../../specs/src/sign-in-store/README.md
 [telemetry]: ../../specs/src/sdk-telemetry/telemetry.json
+[bus-log]: ../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: .
 [testing]: ../../docs/contributor/TESTING.md
 [state-units]: ../../docs/builder/STATE-UNITS.md
