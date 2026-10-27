@@ -64,7 +64,8 @@ updates:
           - "@tailwindcss/*"
           - "lightningcss"
           - "lightningcss-*"
-      # @opentelemetry packages share a version line and root package.json overrides
+      # The @opentelemetry SDK packages share a version line, and each line
+      # requires the API minor it was released with: they move together.
       opentelemetry:
         patterns:
           - "@opentelemetry/*"
