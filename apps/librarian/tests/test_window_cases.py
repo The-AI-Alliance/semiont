@@ -39,7 +39,7 @@ SOURCE = "res-1"
 QUICK = "The quick brown fox jumps"
 
 # Every member each thing the table states may have. A member that is none of these is one nothing here would read.
-TABLE_MEMBERS = ("$comment", "cases")
+TABLE_MEMBERS = ("$comment", "runBy", "cases")
 CASE_MEMBERS = ("why", "around", "gathered")
 PART_MEMBERS = ("why", "text", "selector", "window", "context", "refused")
 WINDOW_MEMBERS = ("before", "after")

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -933,5 +933,413 @@
         }
       }
     ]
-  }
+  },
+  "modules": [
+    {
+      "module": "annotations",
+      "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables.",
+      "where": {
+        "typescript": [
+          "packages/core/src/web-annotation-utils.ts",
+          "packages/core/src/annotation-builders.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/annotations.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/annotations.py"
+        ],
+        "go": [
+          "packages/sdk-go/annotations"
+        ]
+      },
+      "whole": [
+        "typescript",
+        "rust",
+        "python",
+        "go"
+      ],
+      "members": [
+        {
+          "member": "bodySource",
+          "kind": "reader"
+        },
+        {
+          "member": "targetSource",
+          "kind": "reader"
+        },
+        {
+          "member": "targetSelector",
+          "kind": "reader"
+        },
+        {
+          "member": "commentText",
+          "kind": "reader"
+        },
+        {
+          "member": "textQuoteSelector",
+          "kind": "reader"
+        },
+        {
+          "member": "exactText",
+          "kind": "reader"
+        },
+        {
+          "member": "annotationExactText",
+          "kind": "reader"
+        },
+        {
+          "member": "entityTypes",
+          "kind": "reader"
+        },
+        {
+          "member": "tagCategory",
+          "kind": "reader"
+        },
+        {
+          "member": "tagSchemaId",
+          "kind": "reader"
+        },
+        {
+          "member": "isBodyResolved",
+          "kind": "function"
+        },
+        {
+          "member": "isHighlight",
+          "kind": "function"
+        },
+        {
+          "member": "isReference",
+          "kind": "function"
+        },
+        {
+          "member": "isAssessment",
+          "kind": "function"
+        },
+        {
+          "member": "isComment",
+          "kind": "function"
+        },
+        {
+          "member": "isTag",
+          "kind": "function"
+        },
+        {
+          "member": "isStubReference",
+          "kind": "function"
+        },
+        {
+          "member": "isResolvedReference",
+          "kind": "function"
+        },
+        {
+          "member": "textPositionSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "svgSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "fragmentSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "reconcile",
+          "kind": "function"
+        },
+        {
+          "member": "annotationOfSpan",
+          "kind": "function"
+        },
+        {
+          "member": "annotationOfResource",
+          "kind": "function"
+        },
+        {
+          "member": "QuotedText",
+          "kind": "type"
+        },
+        {
+          "member": "TextSpan",
+          "kind": "type"
+        },
+        {
+          "member": "ReconciledSpan",
+          "kind": "type"
+        },
+        {
+          "member": "AnchorMethod",
+          "kind": "type"
+        },
+        {
+          "member": "MatchQuality",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript states it inline, as ReconciledSpan's matchQuality, and names no type for it."
+          }
+        },
+        {
+          "member": "SpanRefusedError",
+          "kind": "type",
+          "absent": {
+            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
+          }
+        },
+        {
+          "member": "SpanRefusal",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's is with @semiont/core's other error codes.",
+            "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
+            "go": "Go's is semiont.SpanRefusal, generated with the other error codes."
+          }
+        },
+        {
+          "member": "Spanned",
+          "kind": "type",
+          "absent": {
+            "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text."
+          }
+        },
+        {
+          "member": "OfSpan",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+          }
+        },
+        {
+          "member": "OfResource",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+          }
+        }
+      ]
+    },
+    {
+      "module": "jobFilter",
+      "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
+      "where": {
+        "typescript": [
+          "packages/core/src/job-filter.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/job_filter.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/job_filter.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "whole": [
+        "rust",
+        "python"
+      ],
+      "members": [
+        {
+          "member": "jobMatchesFilter",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "retry",
+      "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
+      "where": {
+        "typescript": [
+          "packages/core/src/retry.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/retry.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/retry.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "members": [
+        {
+          "member": "retryWithBackoff",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "hostName",
+      "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/session/knowledge_base.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/http/endpoint.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "members": [
+        {
+          "member": "isValidHostname",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "tokens",
+      "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/session/mod.rs",
+          "packages/sdk-rust/src/session/stored.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/session.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "members": [
+        {
+          "member": "textClaim",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "tokenExpiry",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "isTokenExpired",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "renewalDelay",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "refreshDelay",
+          "kind": "function",
+          "named": {
+            "typescript": "refreshDelayMs"
+          }
+        }
+      ]
+    },
+    {
+      "module": "storagePersister",
+      "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/cache-persister.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/cache.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/storage.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "members": [
+        {
+          "member": "StoragePersister",
+          "kind": "type",
+          "named": {
+            "typescript": "sessionStoragePersister"
+          }
+        }
+      ]
+    },
+    {
+      "module": "bus",
+      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
+      "where": {
+        "typescript": [
+          "packages/core/src/bus-request.ts",
+          "packages/core/src/persisted-events.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/bus.rs",
+          "packages/sdk-rust/src/transport.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/bus.py",
+          "packages/sdk-python/src/semiont/transport.py",
+          "packages/sdk-python/src/semiont/channels.py"
+        ],
+        "go": [
+          "packages/sdk-go",
+          "packages/sdk-go/bus"
+        ]
+      },
+      "members": [
+        {
+          "member": "replyChannelsFor",
+          "kind": "function"
+        },
+        {
+          "member": "unsubscribed",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript makes the refusal where it refuses, and hands out no maker of it."
+          }
+        },
+        {
+          "member": "persistedEventTypes",
+          "kind": "constant",
+          "absent": {
+            "rust": "Rust tells the record's events by their channels' type, `Recorded`."
+          }
+        }
+      ]
+    }
+  ]
 }

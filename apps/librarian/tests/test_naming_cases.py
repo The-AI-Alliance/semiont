@@ -29,7 +29,7 @@ from semiont_librarian.reads import PeopleUnread
 TABLE = read(ROOT / "specs/src/librarian/naming-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 
-TABLE_MEMBERS = ("$comment", "cases")
+TABLE_MEMBERS = ("$comment", "runBy", "cases")
 CASE_MEMBERS = ("why", "reply", "people", "named")
 
 

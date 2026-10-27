@@ -22,7 +22,12 @@ output-options:
   # SDK: a time.Time writes it back in its own form (2026-01-01T00:00:00Z for
   # 2026-01-01T00:00:00.000Z), so a value read and passed on would not be the
   # value the gateway sent.
+  # A number is the double JSON reads it as, as it is in every other SDK:
+  # oapi-codegen's default, a float32, would read 50.3 as 50.29999923706055.
   type-mapping:
+    number:
+      default:
+        type: float64
     string:
       formats:
         date-time:

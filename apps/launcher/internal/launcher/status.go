@@ -814,16 +814,8 @@ func printSessions(u *UI, ss *StackSet) {
 	sort.Strings(keys)
 	for _, k := range keys {
 		e := toks[k]
-		base := ""
-		if k == "local" {
-			if st := ss.Stacks["local"]; st != nil {
-				base = GatewayBase(st)
-			}
-		} else if st := ss.Stacks[k]; st != nil && st.Codespace != nil && st.Codespace.ForwardPort != 0 {
-			base = fmt.Sprintf("http://localhost:%d", st.Codespace.ForwardPort)
-		}
 		state := "unverified (stack not reachable)"
-		if base != "" {
+		if base, err := reachedAt(ss, k); err == nil {
 			state = storedTokenState(base, e.Token)
 		}
 		fmt.Printf("  %-24s %s %s\n", k, e.Email, u.Dim("("+state+")"))

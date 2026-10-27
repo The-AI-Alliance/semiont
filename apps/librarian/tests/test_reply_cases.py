@@ -47,7 +47,7 @@ SUGGESTIONS: Final = of_reader("suggestions")
 
 
 def test_the_runner_found_the_table_s_cases_and_every_one_is_of_a_reader_it_runs() -> None:
-    assert set(TABLE) == {"$comment", "cases"}
+    assert set(TABLE) == {"$comment", "runBy", "cases"}
     assert len(SCORES) >= 15
     assert len(SUGGESTIONS) >= 10
     assert len(SCORES) + len(SUGGESTIONS) == len(CASES)

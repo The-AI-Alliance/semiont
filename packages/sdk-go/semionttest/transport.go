@@ -423,10 +423,7 @@ func (f *FaultyTransport) Frames(ctx context.Context, channels ...bus.Channel) (
 	}
 	for _, channel := range channels {
 		if !f.IsSubscribed(channel) && !slices.Contains(bus.ResourceScopedChannels, channel) {
-			return nil, &semiont.BusRequestError{
-				Code:    semiont.BusRequestErrorCodeUnsubscribed,
-				Message: fmt.Sprintf("this transport's stream does not carry %s: nothing on it can be delivered", channel),
-			}
+			return nil, semiont.Unsubscribed(channel)
 		}
 	}
 	return f.hub.Frames(ctx, channels...), nil

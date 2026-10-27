@@ -58,6 +58,8 @@ class Case(Stated, frozen=True):
 
 class Table(Stated, frozen=True):
     comment: Annotated[str, Field(alias="$comment")]
+    run_by: Annotated[dict[str, list[str]], Field(alias="runBy")]
+    """Who runs the table, which lint:spec-case-tables holds it to."""
     cases: list[Case]
 
 

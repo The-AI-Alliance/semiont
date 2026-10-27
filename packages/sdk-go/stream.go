@@ -430,6 +430,11 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 		}
 		frame.Scope = scope
 	}
+	busLog(context.Background(), busRecv, string(frame.Channel), payload, frame.Envelope)
+	if _, retired := s.superseded[conn]; retired {
+		// What closing a retired connection at once would have lost.
+		busNote(busLinger, string(frame.Channel), "delivered on superseded connection")
+	}
 	frame.Trace = received(frame.Channel, frame.Scope, sentUnder)
 	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
