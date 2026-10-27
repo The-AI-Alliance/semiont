@@ -1,6 +1,10 @@
 package semiont
 
 // Where a client keeps what must outlive it: text under a key.
+//
+// More than one context can write a store: two windows, two processes. What
+// is written from what was read goes through Update, which a store makes one
+// step, so one writer's change is never lost under another's.
 
 import (
 	"bytes"
@@ -11,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
 )
 
 // SessionStorage is a store of text by key: the seam an application fills in
@@ -23,6 +29,17 @@ type SessionStorage interface {
 	Set(key, value string) error
 	// Delete removes a key. One that is not there is left not there.
 	Delete(key string)
+	// Update changes key's value as one step: change is given what is
+	// stored, false when nothing is, and says what is stored next, false for
+	// nothing. No other writer's change falls between the read and the
+	// write. The error when what change says could not be stored.
+	Update(key string, change func(stored string, has bool) (next string, keep bool)) error
+	// Subscribe hears what another context writes: another process, another
+	// window. onChange is given the key, and the value written, or false when
+	// the key was removed; stop ends the subscription. False where the
+	// environment has no other context: a client then works correctly within
+	// its own.
+	Subscribe(onChange func(key, value string, has bool)) (stop func(), ok bool)
 }
 
 // MemoryStorage is a SessionStorage kept for as long as the process lives: a
@@ -58,6 +75,23 @@ func (m *MemoryStorage) Delete(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.stored, key)
+}
+
+func (m *MemoryStorage) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stored, has := m.stored[key]
+	if next, keep := change(stored, has); keep {
+		m.stored[key] = next
+	} else {
+		delete(m.stored, key)
+	}
+	return nil
+}
+
+// Subscribe hears nothing: no other context writes a MemoryStorage.
+func (m *MemoryStorage) Subscribe(func(key, value string, has bool)) (func(), bool) {
+	return nil, false
 }
 
 // CachePersistence is where a client keeps what its queries hold, so the next
@@ -136,7 +170,7 @@ func (p *StoragePersister[K, V]) Load() map[K]V {
 		if json.Unmarshal(parts[0], &key) != nil || json.Unmarshal(parts[1], &value) != nil {
 			continue
 		}
-		if shape := reflect.TypeFor[V](); shape.Kind() == reflect.Struct && !carries(parts[1], shape) {
+		if shape := reflect.TypeFor[V](); shape.Kind() == reflect.Struct && !required.Carries(parts[1], shape) {
 			continue
 		}
 		kept[key] = value

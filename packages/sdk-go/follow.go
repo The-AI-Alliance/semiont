@@ -34,11 +34,11 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
 )
 
 // JobEvent is what a followed job reports, and how it ends: a JobCreated
@@ -164,12 +164,12 @@ func hear(frame Frame) (heard, bool) {
 	var ok bool
 	switch frame.Channel {
 	case bus.JobReportProgress.Channel():
-		if said.progress, ok = readAs[api.JobReportProgressCommand](frame.Payload); !ok {
+		if said.progress, ok = required.ReadAs[api.JobReportProgressCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.progress.JobId, said.progress.JobType
 	case bus.JobFail.Channel():
-		if said.fail, ok = readAs[api.JobFailCommand](frame.Payload); !ok {
+		if said.fail, ok = required.ReadAs[api.JobFailCommand](frame.Payload); !ok {
 			return heard{}, false
 		}
 		said.jobID, said.jobType = said.fail.JobId, said.fail.JobType
@@ -184,9 +184,9 @@ func hear(frame Frame) (heard, bool) {
 		}
 		switch named.JobType {
 		case api.JobTypeMark:
-			_, ok = readAs[api.MarkJobCompleteCommand](frame.Payload)
+			_, ok = required.ReadAs[api.MarkJobCompleteCommand](frame.Payload)
 		case api.JobTypeYield:
-			_, ok = readAs[api.YieldJobCompleteCommand](frame.Payload)
+			_, ok = required.ReadAs[api.YieldJobCompleteCommand](frame.Payload)
 		}
 		if !ok || (named.Result != nil && string(named.Result) != "null" && !isVerbsResult(named.JobType, named.Result)) {
 			return heard{}, false
@@ -196,48 +196,6 @@ func hear(frame Frame) (heard, bool) {
 		return heard{}, false
 	}
 	return said, true
-}
-
-// requiredOf is the members a generated type requires: those its JSON tag
-// writes without omitempty, as the generator writes every member a schema
-// leaves optional with omitempty, and no other.
-func requiredOf(generated reflect.Type) []string {
-	var required []string
-	for i := range generated.NumField() {
-		tag := generated.Field(i).Tag.Get("json")
-		name, options, _ := strings.Cut(tag, ",")
-		if name == "" || name == "-" || strings.Contains(options, "omitempty") {
-			continue
-		}
-		required = append(required, name)
-	}
-	return required
-}
-
-// carries is whether payload is an object carrying every member generated
-// requires.
-func carries(payload []byte, generated reflect.Type) bool {
-	var members map[string]json.RawMessage
-	if json.Unmarshal(payload, &members) != nil || members == nil {
-		return false
-	}
-	for _, name := range requiredOf(generated) {
-		if _, has := members[name]; !has {
-			return false
-		}
-	}
-	return true
-}
-
-// readAs is payload read as T, and whether it is one: an object carrying
-// every member T requires. Go's decoding refuses no member that is missing,
-// so what a schema requires is held here.
-func readAs[T any](payload []byte) (T, bool) {
-	var value T
-	if !carries(payload, reflect.TypeFor[T]()) || json.Unmarshal(payload, &value) != nil {
-		return value, false
-	}
-	return value, true
 }
 
 // resultMembers is each verb's result union: the spec's MarkJobResult and
@@ -254,7 +212,7 @@ var resultMembers = map[api.JobType][]reflect.Type{
 func isVerbsResult(verb api.JobType, result []byte) bool {
 	matched := 0
 	for _, member := range resultMembers[verb] {
-		if carries(result, member) {
+		if required.Carries(result, member) {
 			matched++
 		}
 	}

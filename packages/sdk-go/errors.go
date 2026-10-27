@@ -123,6 +123,23 @@ func signInUnanswered(code SignInErrorCode, message string) *SignInError {
 	return &SignInError{Code: code, Message: message}
 }
 
+// IdentityUnverifiableError is a knowledge base whose identity a sign-in
+// could not learn: it was not reached, or it answered that it cannot say what
+// it is. Either way nothing is registered, and the sign-in stops there.
+type IdentityUnverifiableError struct {
+	Reason IdentityUnverifiableReason
+	Detail string
+}
+
+var _ Error = (*IdentityUnverifiableError)(nil)
+
+func (e *IdentityUnverifiableError) Error() string     { return e.Detail }
+func (e *IdentityUnverifiableError) ErrorCode() string { return string(e.Reason) }
+
+// Status is never stated: whether a knowledge base said who it is is not an
+// HTTP status.
+func (e *IdentityUnverifiableError) Status() (int, bool) { return 0, false }
+
 // JobError is a job its follower saw end without completing: it failed for
 // good, was cancelled, or said nothing for too long.
 type JobError struct {

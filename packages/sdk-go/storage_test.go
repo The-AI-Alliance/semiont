@@ -107,6 +107,40 @@ func TestStorageInMemoryHoldsTextByKey(t *testing.T) {
 	}
 }
 
+// An update is given what is stored, and stores what it says, or nothing.
+func TestAnUpdateIsGivenWhatIsStoredAndStoresWhatItSays(t *testing.T) {
+	storage := NewMemoryStorage()
+	var given []string
+	change := func(next string, keep bool) func(string, bool) (string, bool) {
+		return func(stored string, has bool) (string, bool) {
+			given = append(given, strconv.FormatBool(has)+":"+stored)
+			return next, keep
+		}
+	}
+	if err := storage.Update("a", change("one", true)); err != nil {
+		t.Fatal(err)
+	}
+	if err := storage.Update("a", change("two", true)); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := storage.Get("a"); a != "two" {
+		t.Fatalf("a is %q, want two", a)
+	}
+	if err := storage.Update("a", change("", false)); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := storage.Get("a"); ok {
+		t.Fatal("an update that stores nothing left a")
+	}
+	if !slices.Equal(given, []string{"false:", "true:one", "true:two"}) {
+		t.Fatalf("the updates were given %q", given)
+	}
+	// No other context writes a storage in memory: there is nothing to hear.
+	if stop, ok := storage.Subscribe(func(string, string, bool) {}); ok || stop != nil {
+		t.Fatal("a storage in memory says another context writes it")
+	}
+}
+
 func TestACachesValuesAreKeptAsOneDocumentAsTheWireHadThemAndComeBackAsTheyWere(t *testing.T) {
 	storage := NewMemoryStorage()
 	most := DefaultTiming().MaxStoredBytesCount
