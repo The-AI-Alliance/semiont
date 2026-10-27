@@ -38,6 +38,14 @@ on:
       - scripts/release/smoke-stack.sh
       - scripts/ci/local-build.sh
       - .dockerignore
+  # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
+  # the morning Eastern under daylight time, 3:17 under standard; off the hour,
+  # when GitHub delays scheduled runs least). It is also what keeps main's cache
+  # of the Rust images' layers: only a run on main writes it, every pull
+  # request's self-test can read it, and GitHub evicts an entry a week unread.
+  # A scheduled run that fails mails whoever last changed this line.
+  schedule:
+    - cron: '17 8 * * *'
 
 # One run per pull request: a push cancels the run of the push before it, which
 # nobody is waiting for. A push to main is never cancelled: it is the run that
