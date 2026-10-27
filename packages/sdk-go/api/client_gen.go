@@ -3075,8 +3075,12 @@ type BrowseResourceViewedEvent struct {
 type BrowseResourcesRequest struct {
 	Archived   *bool   `json:"archived,omitempty"`
 	EntityType *string `json:"entityType,omitempty"`
-	Limit      *int    `json:"limit,omitempty"`
-	Offset     *int    `json:"offset,omitempty"`
+
+	// Limit The most resources a page has.
+	Limit *int `json:"limit,omitempty"`
+
+	// Offset How many of the resources the filters admit are passed over before the page begins.
+	Offset *int `json:"offset,omitempty"`
 }
 
 // BrowseResourcesResult Result of browsing resources

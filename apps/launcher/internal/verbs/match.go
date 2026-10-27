@@ -194,7 +194,7 @@ options:
 
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)
-	gathered, err := c.Gather.Annotation(rid, aid, 0).Wait(c.Context())
+	gathered, err := c.Gather.Annotation(rid, aid, api.GatherAnnotationOptions{}).Wait(c.Context())
 	if err != nil {
 		return busFail(u, "match (gather step)", c.Refusal(err))
 	}

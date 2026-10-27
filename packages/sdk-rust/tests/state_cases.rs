@@ -27,7 +27,9 @@ use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
 };
 use semiont::transport::{Envelope, Frame, Lagged};
-use semiont::types::{GatherResourceRequestOptions, GenerationJobParams, MarkJobParams};
+use semiont::types::{
+    GatherAnnotationOptions, GatherResourceRequestOptions, GenerationJobParams, MarkJobParams,
+};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::any::Any;
@@ -511,7 +513,12 @@ fn adapters() -> Vec<Adapter> {
         Adapter {
             unit: "gather",
             method: "gatherAnnotation",
-            parameters: &["annotationId", "contextWindow"],
+            parameters: &[
+                "annotationId",
+                "contextWindow",
+                "includeSourceContext",
+                "includeTargetContext",
+            ],
             call: |unit, args| {
                 let context_window = args
                     .get("contextWindow")
@@ -522,8 +529,22 @@ fn adapters() -> Vec<Adapter> {
                             .ok_or_else(|| format!("contextWindow is not a window: {window}"))
                     })
                     .transpose()?;
+                let flag = |name: &str| {
+                    args.get(name)
+                        .map(|stated| {
+                            stated
+                                .as_bool()
+                                .ok_or_else(|| format!("{name} is not a boolean: {stated}"))
+                        })
+                        .transpose()
+                };
+                let options = GatherAnnotationOptions {
+                    context_window,
+                    include_source_context: flag("includeSourceContext")?,
+                    include_target_context: flag("includeTargetContext")?,
+                };
                 unit.as_gather()?
-                    .gather_annotation(&id(args, "annotationId")?, context_window);
+                    .gather_annotation(&id(args, "annotationId")?, options);
                 Ok(())
             },
         },

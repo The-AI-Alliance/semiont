@@ -804,6 +804,7 @@ async fn a_search_asks_for_its_text_among_the_resources_its_filters_admit() {
             "cat",
             ResourceFilters {
                 limit: Some(5),
+                offset: None,
                 archived: Some(false),
                 entity_type: Some("Person".to_owned()),
             },

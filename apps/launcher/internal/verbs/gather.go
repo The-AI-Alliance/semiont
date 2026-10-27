@@ -175,7 +175,7 @@ options:
 	// traverses a graph, the annotation variant windows text around a mark.
 	var gathered api.GatheredContext
 	if annotationID != "" {
-		complete, err := c.Gather.Annotation(rid, aid, contextWindow).Wait(c.Context())
+		complete, err := c.Gather.Annotation(rid, aid, windowed(contextWindow)).Wait(c.Context())
 		if err != nil {
 			return busFail(u, "gather", c.Refusal(err))
 		}
@@ -221,4 +221,14 @@ options:
 	}
 	fmt.Printf("  %s\n", u.Dim("full context: add --json"))
 	return 0
+}
+
+// windowed is what a gather of an annotation's context is given that takes
+// contextWindow characters on each side of it: the SDK's own window when
+// contextWindow is zero, which no gather can be given.
+func windowed(contextWindow int) api.GatherAnnotationOptions {
+	if contextWindow == 0 {
+		return api.GatherAnnotationOptions{}
+	}
+	return api.GatherAnnotationOptions{ContextWindow: &contextWindow}
 }

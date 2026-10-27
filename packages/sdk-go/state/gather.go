@@ -106,7 +106,7 @@ func (u *GatherStateUnit) ResourceError() semiont.Watched[error] { return u.reso
 
 // GatherAnnotation gathers the context around an annotation of this unit's
 // resource, taking what Gather.Annotation takes.
-func (u *GatherStateUnit) GatherAnnotation(annotationID api.AnnotationId, contextWindow int) {
+func (u *GatherStateUnit) GatherAnnotation(annotationID api.AnnotationId, options api.GatherAnnotationOptions) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.closed {
@@ -115,7 +115,7 @@ func (u *GatherStateUnit) GatherAnnotation(annotationID api.AnnotationId, contex
 	u.annotation.begin()
 	u.annotationID.Set(annotationID)
 	go u.land(u.annotation, func(ctx context.Context) (api.GatheredContext, error) {
-		complete, err := u.client.Gather.Annotation(u.resourceID, annotationID, contextWindow).Wait(ctx)
+		complete, err := u.client.Gather.Annotation(u.resourceID, annotationID, options).Wait(ctx)
 		return complete.Response, err
 	})
 }

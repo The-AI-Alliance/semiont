@@ -781,8 +781,14 @@ class BrowseResourcesRequest(WireModel, frozen=True):
 
     archived: bool | None = None
     entity_type: Annotated[str | None, Field(alias="entityType")] = None
-    offset: int | None = None
-    limit: int | None = None
+    offset: Annotated[
+        int | None,
+        Field(
+            description="How many of the resources the filters admit are passed over before the page begins.",
+            ge=0,
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="The most resources a page has.", ge=1)] = None
 
 
 class BrowseRouterPushEvent(WireModel, frozen=True):

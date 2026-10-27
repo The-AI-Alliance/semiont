@@ -371,7 +371,7 @@ func runYieldDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.Res
 	// its focus names the resource or annotation the generation is about.
 	var gathered api.GatheredContext
 	if !annotationID.IsZero() {
-		complete, err := c.Gather.Annotation(resourceID, annotationID, 0).Wait(c.Context())
+		complete, err := c.Gather.Annotation(resourceID, annotationID, api.GatherAnnotationOptions{}).Wait(c.Context())
 		if err != nil {
 			return busFail(u, "yield --delegate (gather)", c.Refusal(err))
 		}

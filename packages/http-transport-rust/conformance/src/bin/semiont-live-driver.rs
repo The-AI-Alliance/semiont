@@ -62,7 +62,7 @@ fn filters(query: &Arguments) -> Result<ResourceFilters, Ended> {
     if query.get("filters").is_some() {
         for (name, stated) in object(query, "filters")? {
             match name.as_str() {
-                "limit" => filters.limit = stated.as_i64(),
+                "limit" => filters.limit = stated.as_u64(),
                 "archived" => filters.archived = stated.as_bool(),
                 "entityType" => filters.entity_type = stated.as_str().map(str::to_owned),
                 other => {
