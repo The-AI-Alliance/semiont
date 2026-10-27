@@ -81,7 +81,9 @@ func Login(args []string) int {
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = GatewayBase(local)
+		if base, ok = LocalBase(u, local, "login"); !ok {
+			return 1
+		}
 		key = "local"
 	}
 
@@ -137,16 +139,35 @@ func Login(args []string) int {
 	return 0
 }
 
-// GatewayBase derives the API base URL from the local stack's recorded
-// gateway health endpoint — the record knows the real port even when the
-// config moved it.
-func GatewayBase(st *StackState) string {
+// NoGatewayRecorded: a local stack's record names no gateway endpoint, so
+// there is no address to reach its KB at. None is made up: a start records
+// the endpoint, on whatever port the config gave it.
+type NoGatewayRecorded struct{}
+
+func (*NoGatewayRecorded) Error() string { return "the local stack's record names no gateway" }
+
+// GatewayBase is the API base URL of the local stack's gateway, from its
+// recorded health endpoint — the record knows the real port even when the
+// config moved it. A record that names none is a *NoGatewayRecorded.
+func GatewayBase(st *StackState) (string, error) {
 	if e, ok := st.Services["gateway"]; ok {
 		if b, found := strings.CutSuffix(e.Endpoint, "/api/health"); found && b != "" {
-			return b
+			return b, nil
 		}
 	}
-	return "http://localhost:4000"
+	return "", &NoGatewayRecorded{}
+}
+
+// LocalBase is GatewayBase for verb. ok=false: the record names no gateway,
+// which was said with the command that records one.
+func LocalBase(u *UI, st *StackState, verb string) (string, bool) {
+	base, err := GatewayBase(st)
+	if err != nil {
+		u.Fail("%v, so %s cannot reach its KB.", err, verb)
+		fmt.Fprintln(os.Stderr, "  Start it:  semiont start")
+		return "", false
+	}
+	return base, true
 }
 
 // readPassword reads one line from stdin. On a terminal the prompt goes to
