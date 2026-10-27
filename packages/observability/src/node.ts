@@ -17,16 +17,17 @@
  * flooding production logs when an operator deploys
  * without configuring an exporter.
  *
- * Implementation note: this module wires `BasicTracerProvider` and
- * `MeterProvider` (both from the stable `@opentelemetry/sdk-trace-base`
- * 2.x line) directly, plus `AsyncLocalStorageContextManager` for Node
- * async-context propagation. We deliberately avoid `@opentelemetry/sdk-node`
- * because its `0.x` experimental versions cross-depend on older 2.0.x
- * SDKs, forcing npm to nest duplicate copies of the stable packages and
- * blowing up bundles for every consumer.
+ * Implementation note: this module wires `TracerProvider` (from
+ * `@opentelemetry/sdk-trace`) and `MeterProvider` (from
+ * `@opentelemetry/sdk-metrics`) directly, plus
+ * `AsyncLocalStorageContextManager` for Node async-context propagation.
+ * `sdk-trace` reads no environment variable, so the sampler is read here.
+ * `@opentelemetry/sdk-node` would read them all, and brings with it the
+ * gRPC, protobuf, Zipkin and Prometheus exporters and the instrumentation
+ * framework, which this package does not use.
  */
 
-import { context, metrics, propagation, trace } from '@opentelemetry/api';
+import { context, diag, metrics, propagation, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
@@ -38,10 +39,15 @@ import {
   PeriodicExportingMetricReader,
 } from '@opentelemetry/sdk-metrics';
 import {
-  BasicTracerProvider,
+  AlwaysOffSampler,
+  AlwaysOnSampler,
   BatchSpanProcessor,
   ConsoleSpanExporter,
-} from '@opentelemetry/sdk-trace-base';
+  ParentBasedSampler,
+  TraceIdRatioBasedSampler,
+  TracerProvider,
+  type Sampler,
+} from '@opentelemetry/sdk-trace';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -54,7 +60,7 @@ export interface NodeObservabilityConfig {
   serviceVersion?: string;
 }
 
-let tracerProviderInstance: BasicTracerProvider | undefined;
+let tracerProviderInstance: TracerProvider | undefined;
 let meterProviderInstance: MeterProvider | undefined;
 
 /**
@@ -76,6 +82,40 @@ export function metricsExporterKind(
 ): 'otlp' | 'console' {
   if (requested === 'console') return 'console';
   return endpoint ? 'otlp' : 'console';
+}
+
+/**
+ * The sampler `OTEL_TRACES_SAMPLER` names, and the ratio
+ * `OTEL_TRACES_SAMPLER_ARG` gives the two that take one, as the
+ * OpenTelemetry SDK configuration spec defines them. A value unset, unknown
+ * or out of range is logged and treated as unset, as the spec requires:
+ * `parentbased_always_on`, and a ratio of 1.
+ */
+function samplerFromEnvironment(name: string | undefined, arg: string | undefined): Sampler {
+  const ratio = (): number => {
+    const value = arg === undefined || arg.trim() === '' ? Number.NaN : Number(arg.trim());
+    if (value >= 0 && value <= 1) return value;
+    diag.error(`OTEL_TRACES_SAMPLER_ARG=${JSON.stringify(arg)} is no ratio from 0 to 1; using 1`);
+    return 1;
+  };
+  const named = name === undefined || name.trim() === '' ? 'parentbased_always_on' : name.trim();
+  switch (named) {
+    case 'always_on':
+      return new AlwaysOnSampler();
+    case 'always_off':
+      return new AlwaysOffSampler();
+    case 'traceidratio':
+      return new TraceIdRatioBasedSampler(ratio());
+    case 'parentbased_always_on':
+      return new ParentBasedSampler({ root: new AlwaysOnSampler() });
+    case 'parentbased_always_off':
+      return new ParentBasedSampler({ root: new AlwaysOffSampler() });
+    case 'parentbased_traceidratio':
+      return new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(ratio()) });
+    default:
+      diag.error(`OTEL_TRACES_SAMPLER=${JSON.stringify(named)} is no sampler this package makes; using parentbased_always_on`);
+      return new ParentBasedSampler({ root: new AlwaysOnSampler() });
+  }
 }
 
 /**
@@ -107,14 +147,14 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 
   // Trace SDK
   const traceExporter = endpoint ? new OTLPTraceExporter() : new ConsoleSpanExporter();
-  tracerProviderInstance = new BasicTracerProvider({
+  tracerProviderInstance = new TracerProvider({
     resource,
-    spanProcessors: [new BatchSpanProcessor(traceExporter)],
+    sampler: samplerFromEnvironment(process.env['OTEL_TRACES_SAMPLER'], process.env['OTEL_TRACES_SAMPLER_ARG']),
+    spanProcessors: [new BatchSpanProcessor({ exporter: traceExporter })],
   });
 
-  // Async-context propagation across `await` boundaries — equivalent
-  // to what NodeSDK installs internally, but pinned to the stable 2.x
-  // cohort.
+  // Async-context propagation across `await` boundaries — what NodeSDK
+  // installs internally.
   context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   trace.setGlobalTracerProvider(tracerProviderInstance);
 
@@ -122,8 +162,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // and `propagation.extract` walk an empty propagator chain and
   // silently do nothing — which means traceparent never makes it onto
   // outgoing HTTP headers or the trace field of SSE payloads, and cross-service
-  // traces stay disconnected. NodeSDK registers this for you; bare
-  // BasicTracerProvider does not.
+  // traces stay disconnected. NodeSDK registers this for you; a bare
+  // TracerProvider does not.
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
   // Traces follow the endpoint; metrics additionally honour OTEL_METRICS_EXPORTER.

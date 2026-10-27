@@ -16,13 +16,20 @@
  * in DevTools).
  */
 
+import { context, propagation, trace } from '@opentelemetry/api';
+import {
+  CompositePropagator,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   BatchSpanProcessor,
   ConsoleSpanExporter,
-  WebTracerProvider,
-} from '@opentelemetry/sdk-trace-web';
+  StackContextManager,
+  TracerProvider,
+} from '@opentelemetry/sdk-trace';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -47,7 +54,7 @@ export interface WebObservabilityConfig {
   enabled?: boolean;
 }
 
-let providerInstance: WebTracerProvider | undefined;
+let providerInstance: TracerProvider | undefined;
 
 /**
  * Initialize OTel for the SPA. Idempotent. Returns `true` if the SDK
@@ -70,11 +77,20 @@ export function initObservabilityWeb(config: WebObservabilityConfig): boolean {
     [ATTR_SERVICE_VERSION]: config.serviceVersion ?? '0.0.0',
   });
 
-  providerInstance = new WebTracerProvider({
+  providerInstance = new TracerProvider({
     resource,
-    spanProcessors: [new BatchSpanProcessor(exporter)],
+    spanProcessors: [new BatchSpanProcessor({ exporter })],
   });
 
-  providerInstance.register();
+  // The provider, the context manager a browser has, and the W3C
+  // trace-context and baggage propagators: what the web SDK's
+  // `register()` installed before it was folded into `sdk-trace`.
+  trace.setGlobalTracerProvider(providerInstance);
+  context.setGlobalContextManager(new StackContextManager().enable());
+  propagation.setGlobalPropagator(
+    new CompositePropagator({
+      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+    }),
+  );
   return true;
 }
