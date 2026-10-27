@@ -350,6 +350,7 @@ func mcpSession(sessions *launcher.Sessions, key string) (*launcher.Session, err
 	}
 	var unknown *launcher.UnknownKnowledgeBase
 	var unreachable *launcher.CodespaceUnreachable
+	var noGateway *launcher.NoGatewayRecorded
 	var noSignIn *launcher.NoSignIn
 	var rejected *launcher.SessionRejected
 	switch {
@@ -358,6 +359,8 @@ func mcpSession(sessions *launcher.Sessions, key string) (*launcher.Session, err
 	case errors.As(err, &unreachable):
 		_, command := unreachable.Remedy()
 		return nil, &mcpRefusal{fmt.Sprintf("%v, so %s cannot be reached. %s", unreachable, key, command)}
+	case errors.As(err, &noGateway):
+		return nil, &mcpRefusal{fmt.Sprintf("%v, so %s cannot be reached. Start it: semiont start", noGateway, key)}
 	case errors.As(err, &noSignIn):
 		return nil, &mcpRefusal{fmt.Sprintf("No one is signed in to %s. Sign in: %s", key, signInCommand(key))}
 	case errors.As(err, &rejected):
