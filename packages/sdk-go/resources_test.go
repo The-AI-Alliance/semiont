@@ -6,11 +6,14 @@ package semiont_test
 // type, of a media type whose text is not its bytes, of a label, of a
 // byte-order mark and of malformed UTF-8 and UTF-16),
 // specs/src/text/encoding-cases.json (generated: every label of the Encoding
-// Standard, and every byte of each of its single-byte encodings) and
-// specs/src/resources/reader-cases.json.
+// Standard, every byte of each of its single-byte encodings, and some bytes of
+// each other) and specs/src/resources/reader-cases.json. A text case is read
+// through a client, from bytes its content transport serves with the case's
+// content type, as the Python and Rust runners read it.
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -23,6 +26,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // strictly decodes data into into, refusing a member into does not read: a
@@ -68,6 +72,23 @@ func refusedNaming(t *testing.T, why string, err error, named string) {
 	}
 }
 
+// reading is what a client reads of some bytes served with a content type:
+// the resource's text as Browse.ResourceContent gives it, as the Python and
+// Rust runners read it, through the client's content transport.
+func reading(t *testing.T) func(data []byte, contentType string) (string, error) {
+	t.Helper()
+	made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
+	t.Cleanup(func() {
+		made.Client.Close()
+		made.Transport.Close()
+	})
+	resource := resourceOf(t, "res-1")
+	return func(data []byte, contentType string) (string, error) {
+		made.Content.Seed(resource, semiont.Content{Bytes: data, ContentType: contentType})
+		return made.Client.Browse.ResourceContent(context.Background(), resource)
+	}
+}
+
 type decodeCase struct {
 	Why         string  `json:"why"`
 	ContentType string  `json:"contentType"`
@@ -85,12 +106,13 @@ func TestAResourcesBytesAreTheTextTheTableSays(t *testing.T) {
 	if len(table.Cases) < 90 {
 		t.Fatalf("the table has %d cases: it was not read", len(table.Cases))
 	}
+	readText := reading(t)
 	read, refusedOf := 0, map[mediatypes.TextSource]bool{}
 	for _, raw := range table.Cases {
 		var stated decodeCase
 		strictly(t, raw, &stated)
 		data := bytesOf(t, stated.Bytes)
-		text, err := semiont.DecodeRepresentation(data, stated.ContentType)
+		text, err := readText(data, stated.ContentType)
 		switch {
 		case stated.Text != nil && stated.Refused == nil:
 			read++
@@ -146,6 +168,7 @@ func readEncodings(t *testing.T) []encodingCase {
 
 func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *testing.T) {
 	cases := readEncodings(t)
+	readText := reading(t)
 	everyByte := make([]byte, 256)
 	for i := range everyByte {
 		everyByte[i] = byte(i)
@@ -158,15 +181,15 @@ func TestEveryLabelOfTheStandardNamesItsEncodingAndEveryByteIsItsCharacter(t *te
 			why := stated.Encoding + ": " + label
 			switch {
 			case stated.EveryByte != nil:
-				if text, err := semiont.DecodeRepresentation(everyByte, contentType); err != nil || text != *stated.EveryByte {
+				if text, err := readText(everyByte, contentType); err != nil || text != *stated.EveryByte {
 					t.Errorf("%s: read %q (%v), and the table says %q", why, text, err, *stated.EveryByte)
 				}
 			case stated.Bytes != nil && stated.Text != nil:
-				if text, err := semiont.DecodeRepresentation(bytesOf(t, *stated.Bytes), contentType); err != nil || text != *stated.Text {
+				if text, err := readText(bytesOf(t, *stated.Bytes), contentType); err != nil || text != *stated.Text {
 					t.Errorf("%s: read %q (%v), and the table says %q", why, text, err, *stated.Text)
 				}
 			case stated.Refused != nil && *stated.Refused:
-				_, err := semiont.DecodeRepresentation(everyByte, contentType)
+				_, err := readText(everyByte, contentType)
 				refusedNaming(t, why, err, label)
 			default:
 				t.Fatalf("%s: a case of no kind this runner knows", why)
