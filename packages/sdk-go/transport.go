@@ -34,11 +34,10 @@ type Transport interface {
 	// TrackReply awaits the reply to correlationID on one of channels. A
 	// request calls it before it emits, so its reply cannot arrive unawaited.
 	TrackReply(correlationID string, channels ...bus.Channel) *PendingReply
-	// State is the connection's state now.
-	State() ConnectionState
-	// StateChanges is the connection's state now and each state it moves to,
-	// until ctx is done or the loop over it stops.
-	StateChanges(ctx context.Context) iter.Seq[ConnectionState]
+	// State is the connection's state: what it is now, and each state it
+	// moves to. A slow reader may see the latest state in place of the ones
+	// it missed.
+	State() Watched[ConnectionState]
 	// BridgeInto delivers into sink, the client's own bus, every frame the
 	// transport delivers from now on, each published to everyone there
 	// whichever scope it came on. The bus is the client's: a transport never

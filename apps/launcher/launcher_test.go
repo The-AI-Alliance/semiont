@@ -219,8 +219,7 @@ func (s *scenario) stageRe() *regexp.Regexp {
 }
 
 // kbFixtureResource: the resource identifier the KB fixture's committed
-// site.domain yields — the same derivation kbResource performs, which lives in
-// an internal package this binary-level test cannot import.
+// site.domain yields (semiont.KbResource).
 func kbFixtureResource(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
@@ -238,7 +237,7 @@ func kbFixtureResource(t *testing.T) string {
 	if project.Site.Domain == "" {
 		t.Fatalf("no site.domain in the KB fixture — the preflight's audience cannot be derived")
 	}
-	return "https://" + strings.ReplaceAll(project.Site.Domain, ":", "/")
+	return semiont.KbResource(project.Site.Domain)
 }
 
 // remoteProjectFile: a codespace's .semiont/config.yaml declaring domain, as

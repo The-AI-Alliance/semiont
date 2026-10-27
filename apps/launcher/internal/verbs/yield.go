@@ -163,7 +163,7 @@ options:
 				return 1
 			}
 		}
-		sess, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
+		sess, ok := launcher.VerbSession(u, "yield", repo, wantLocal, jobChannels...)
 		if !ok {
 			return 1
 		}
@@ -234,7 +234,6 @@ options:
 	}
 	defer sess.Close()
 	c := sess.Client()
-	defer c.Close()
 	for _, up := range uploads {
 		if code := yieldOne(u, c, root, up, name); code != 0 {
 			return code
@@ -361,8 +360,7 @@ var yieldJobResults = resultMembers[api.YieldJobResult]{
 }
 
 func runYieldDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
-	c := sess.Client(jobChannels...)
-	defer c.Close()
+	c := sess.Client()
 	if err := c.Reached(); err != nil {
 		return busFail(u, "yield --delegate", err)
 	}

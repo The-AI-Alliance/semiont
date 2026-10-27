@@ -284,7 +284,7 @@ options:
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
+		sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal, jobChannels...)
 		if !ok {
 			return 1
 		}
@@ -338,7 +338,6 @@ options:
 	}
 	defer sess.Close()
 	c := sess.Client()
-	defer c.Close()
 	if err := c.Reached(); err != nil {
 		return busFail(u, "mark", err)
 	}
@@ -494,8 +493,7 @@ func runMarkDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.Reso
 		verb: "mark --delegate", doing: "Annotating " + resourceID.String(), note: string(motivation), failed: "Annotation",
 		check: "semiont browse " + resourceID.String() + " --annotations",
 	}
-	c := sess.Client(jobChannels...)
-	defer c.Close()
+	c := sess.Client()
 	if err := c.Reached(); err != nil {
 		return busFail(u, d.verb, err)
 	}

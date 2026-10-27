@@ -12,12 +12,14 @@ package launcher
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 )
 
 // projectFileYAML: the project file's name, below .semiont.
@@ -27,6 +29,8 @@ type kbIdentity struct {
 	Name     string // project.name
 	SiteName string // site.siteName
 	Domain   string // site.domain — did:web colon-path form
+	// did is the DID Domain names (semiont.KbDid), read with it.
+	did api.UserId
 }
 
 // kbRoot: a knowledge base's root as a command resolved it — its directory,
@@ -48,12 +52,13 @@ func (r kbRoot) key() string {
 // A nil *kbIdentity is a knowledge base that commits no project file: it has
 // no identity, and its name is its directory's.
 
-// didWeb renders the full did:web identifier, "" when no domain is declared.
+// didWeb renders the full did:web identifier, "" when there is no project
+// file.
 func (k *kbIdentity) didWeb() string {
-	if k == nil || k.Domain == "" {
+	if k == nil {
 		return ""
 	}
-	return "did:web:" + k.Domain
+	return k.did.String()
 }
 
 // domain is the KB's permanent did:web identity as its project file declares
@@ -68,10 +73,16 @@ func (k *kbIdentity) domain() string {
 	return k.Domain
 }
 
-// resource is the KB's resource identifier, "" when it declares no domain —
-// the audience half of domain.
+// resource is the KB's resource identifier (semiont.KbResource), "" when
+// there is no project file — the audience half of domain. It is the single value a
+// token's `aud` must carry, derived from the KB's committed domain and never
+// configured: it goes into the realm's audience mapper, and the gateway checks
+// tokens against its own copy of the same rule.
 func (k *kbIdentity) resource() string {
-	return kbResource(k.domain())
+	if k == nil {
+		return ""
+	}
+	return semiont.KbResource(k.Domain)
 }
 
 // name is the name the Archivist computes for the knowledge base at root: the
@@ -83,26 +94,6 @@ func (k *kbIdentity) name(root string) string {
 		return filepath.Base(root)
 	}
 	return k.Name
-}
-
-// kbResource renders the KB's RESOURCE identifier: the did:web resolved to
-// the https URL it names, which is the single value a token's `aud` must
-// carry — an audience derived from the KB's committed domain, never
-// configured. did:web turns the colon path into a slash path, so
-// `did:web:example.github.io:my-kb` identifies
-// `https://example.github.io/my-kb`.
-//
-// An identifier, not an address — nothing dereferences it, and a KB reached
-// over http in local development still names itself by the https form. The
-// TypeScript twin is `kbResource` in packages/core/src/did-utils.ts and the
-// two MUST agree byte-for-byte: this value goes into the realm's audience
-// mapper and the gateway checks tokens against its own copy, so a divergence
-// refuses every token with nothing to point at.
-func kbResource(domain string) string {
-	if domain == "" {
-		return ""
-	}
-	return "https://" + strings.ReplaceAll(domain, ":", "/")
 }
 
 // readKBIdentity reads <root>'s project file: nil when there is none. One
@@ -154,5 +145,9 @@ func yamlKBIdentity(where string, text []byte) (*kbIdentity, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain}, nil
+	did, err := semiont.KbDid(project.Site.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("%s: site.domain %q names no DID: %w", where, project.Site.Domain, err)
+	}
+	return &kbIdentity{Name: project.Project.Name, SiteName: project.Site.SiteName, Domain: project.Site.Domain, did: did}, nil
 }

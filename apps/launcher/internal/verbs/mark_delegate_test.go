@@ -182,15 +182,12 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 		// The fake answers no job:create it was not told to: what was sent is what is held.
 		harness.CaptureStdout(t, func() { Mark(argv) })
 		restore()
-		_, requests := fake.Sent()
+		requests := fake.RequestLog()
 		if len(requests) == 0 || requests[0].Channel != bus.JobCreate.Request().Channel() {
-			t.Errorf("%s: sent no job:create (%v)", c.Args, fake.Ops())
+			t.Errorf("%s: sent no job:create (%v)", c.Args, ops(fake))
 			continue
 		}
-		sent, err := json.Marshal(requests[0].Payload)
-		if err != nil {
-			t.Fatal(err)
-		}
+		sent := requests[0].Payload
 		var got, want any
 		if json.Unmarshal(sent, &got) != nil || json.Unmarshal(c.Sends, &want) != nil {
 			t.Fatalf("not JSON: %s or %s", sent, c.Sends)
@@ -307,8 +304,8 @@ func TestMarkDelegateRefusalsInProcess(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want)
-			if len(fake.Requests) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+			if len(fake.RequestLog()) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v", ops(fake))
 			}
 		})
 	}
@@ -352,9 +349,9 @@ func TestMarkDelegateHelpNamesTheSpecsVocabulary(t *testing.T) {
 func TestBrowseTagSchemasListsEachSchemaAndItsCategories(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["browse:tag-schemas-requested"] = reply(`{"tagSchemas":[` +
-		`{"id":"legal-irac","name":"IRAC","description":"Legal analysis","domain":"legal","tags":[` +
-		`{"name":"issue","description":"The question","examples":[]},{"name":"rule","description":"The law","examples":[]}]}]}`)
+	fake.QueueReply("browse:tag-schemas-requested", json.RawMessage(`{"tagSchemas":[`+
+		`{"id":"legal-irac","name":"IRAC","description":"Legal analysis","domain":"legal","tags":[`+
+		`{"name":"issue","description":"The question","examples":[]},{"name":"rule","description":"The law","examples":[]}]}]}`))
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"--tag-schemas"}); code != 0 {
@@ -362,7 +359,7 @@ func TestBrowseTagSchemasListsEachSchemaAndItsCategories(t *testing.T) {
 		}
 	})
 	harness.MustContainAll(t, "listing", out, "legal-irac", "IRAC", "issue", "rule")
-	if ops := fake.Ops(); len(ops) != 1 || ops[0] != "browse:tag-schemas-requested" {
+	if ops := ops(fake); len(ops) != 1 || ops[0] != "browse:tag-schemas-requested" {
 		t.Errorf("want one browse:tag-schemas-requested, got %v", ops)
 	}
 }

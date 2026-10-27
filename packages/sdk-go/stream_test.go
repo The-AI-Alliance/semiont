@@ -187,7 +187,7 @@ func TestAListenerTakenAfterTheFirstConnectWasRefusedStillHearsTheRefusal(t *tes
 	defer transport.Close()
 	// The first connect is refused and the next opens, all before anything
 	// listens to the failures: the refusal is reported while no one listens.
-	until(t, "the stream to open", func() bool { return transport.State() == ConnectionStateOpen })
+	until(t, "the stream to open", func() bool { return transport.State().Value() == ConnectionStateOpen })
 	if gateway.subscribes() != 2 {
 		t.Fatalf("%d subscribes arrived, want 2", gateway.subscribes())
 	}
@@ -224,7 +224,7 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 		for range frames {
 		}
 	}()
-	until(t, "the stream to open", func() bool { return transport.State() == ConnectionStateOpen })
+	until(t, "the stream to open", func() bool { return transport.State().Value() == ConnectionStateOpen })
 	// A handoff: a second connection opens beside the first, which lingers.
 	release := transport.SubscribeToResource(mustResource(t, "res-1"))
 	until(t, "the handoff's connect", func() bool { return gateway.subscribes() == 2 })
@@ -236,8 +236,8 @@ func TestNothingTheTransportStartedOutlivesClose(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a listener's sequence did not end when the transport closed")
 	}
-	if transport.State() != ConnectionStateClosed {
-		t.Errorf("the state is %s after Close", transport.State())
+	if transport.State().Value() != ConnectionStateClosed {
+		t.Errorf("the state is %s after Close", transport.State().Value())
 	}
 	httpClient.CloseIdleConnections()
 	until(t, "every goroutine the transport started to end", func() bool { return runtime.NumGoroutine() <= before })

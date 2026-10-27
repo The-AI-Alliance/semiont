@@ -6,7 +6,8 @@
 //   packages/sdk-go/bus/channels_gen.go   every channel, typed by its payload, and the field a
 //                                         relayed frame's trace rides in
 //   packages/sdk-go/bus/operations_gen.go every request, typed, with its two replies; and the
-//                                         replies of each by name
+//                                         replies of each by name, with what each result
+//                                         states beside its response
 //   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client, and those a
 //                                         resource's scope carries
 //
@@ -20,6 +21,7 @@
 
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { goComment } from '../spec/go-source.mjs';
+import { replyNames } from './reply-names.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const OUT_DIR = resolve(ROOT, 'packages/sdk-go/bus');
+const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
 const CHECK = process.argv.includes('--check');
 
 const registryText = readFileSync(REGISTRY, 'utf8');
@@ -141,8 +144,16 @@ if (new Set(limitsOperations.map(shapeOf)).size !== 1) {
   throw new Error(`registry: the limits operations do not all ask and answer the same: ${limitsOperations.map((o) => `${o.request} (${shapeOf(o)})`).join('; ')}`);
 }
 
+// What a result states beside its response is READ from the component schema
+// the registry says it carries (reply-names.mjs, the derivation every
+// generator shares), never listed.
+const namedBy = replyNames(reg, (name) => JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8')));
+const restated = (o) => {
+  const named = namedBy.get(o.request);
+  return named.length === 0 ? '' : `, ReplyNames: []string{${named.map((name) => JSON.stringify(name)).join(', ')}}`;
+};
 const repliesRows = alignRows(
-  reg.operations.map((o) => [`${JSON.stringify(o.request)}:`, `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}},`]),
+  reg.operations.map((o) => [`${JSON.stringify(o.request)}:`, `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}${restated(o)}},`]),
 );
 
 const operationsGo = `${BANNER}
@@ -163,10 +174,15 @@ var LimitsOperations = []Operation[${shapeOf(limitsOperations[0])}]{
 ${limitsOperations.map((o) => `\t${goName(o.request)},`).join('\n')}
 }
 
-// Replies is the two channels a request is answered on.
+// Replies is the two channels a request is answered on, and what its result
+// states beside its response.
 type Replies struct {
 \tResult  Channel
 \tFailure Channel
+\t// ReplyNames is what the result states beside its response: properties of
+\t// the request, which whoever answers states again (the resource a context
+\t// was gathered for, the reference a search was for). None, for most.
+\tReplyNames []string
 }
 
 // Operations is each operation's replies, by the name of its request

@@ -106,11 +106,7 @@ func (w *workerWire) TrackReply(correlationID string, channels ...bus.Channel) *
 	return w.router.Track(correlationID, channels)
 }
 
-func (w *workerWire) State() ConnectionState { return w.state.Value() }
-
-func (w *workerWire) StateChanges(ctx context.Context) iter.Seq[ConnectionState] {
-	return w.state.Changes(ctx)
-}
+func (w *workerWire) State() Watched[ConnectionState] { return w.state }
 
 func (w *workerWire) BridgeInto(sink FrameSink) { w.hub.Bridge(sink) }
 
@@ -307,14 +303,26 @@ type pulled struct {
 	ok  bool
 }
 
+// asking pulls the next of the claims, and came is what they hand out. The
+// first pull begins claiming.
+func (h *handed) asking() (came <-chan pulled) {
+	pulling := make(chan pulled, 1)
+	go func() {
+		job, err, ok := h.next()
+		pulling <- pulled{job, err, ok}
+	}()
+	return pulling
+}
+
 // take is what the claims hand out next, within two seconds.
 func (h *handed) take(t *testing.T) pulled {
 	t.Helper()
-	came := make(chan pulled, 1)
-	go func() {
-		job, err, ok := h.next()
-		came <- pulled{job, err, ok}
-	}()
+	return cameWithin(t, h.asking())
+}
+
+// cameWithin is what came, within two seconds.
+func cameWithin(t *testing.T, came <-chan pulled) pulled {
+	t.Helper()
 	select {
 	case one := <-came:
 		return one
@@ -762,6 +770,17 @@ func TestAWorkerThatClosesFailsTheJobItHoldsAndClaimsNothingMore(t *testing.T) {
 		t.Fatalf("%d claims", len(sent))
 	}
 	claims.Close()
+}
+
+func TestClosingTheClientEndsTheClaimsForWhoeverRangesOverThem(t *testing.T) {
+	w := newClaimWorld(t, DefaultTiming())
+	claims := w.client.Job.Claim(filters(t, everything))
+	came := pulling(t, claims).asking()
+	eventually(t, "a claim", func() bool { return len(w.wire.sent(bus.JobClaim.Request().Channel())) == 1 })
+	w.client.Close()
+	if one := cameWithin(t, came); one.ok {
+		t.Fatalf("the claims of a closed client handed out %+v", one)
+	}
 }
 
 func TestACommitIsEstablishedWhenTheRecordAcknowledgesItOrSaysItsLastAnnotationIsThere(t *testing.T) {

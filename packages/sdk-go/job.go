@@ -20,26 +20,28 @@ type JobNamespace struct {
 	links *links
 }
 
-// Queued is every job:queued from now on: each a mark job's announcement or
+// Queued is every job:queued from now on, until ctx is done: each a mark job's announcement or
 // a yield job's, as its jobType says.
-func (n *JobNamespace) Queued() iter.Seq2[Delivered[api.JobQueuedEvent], error] {
-	return Published(n.links.own, bus.JobQueued)
+func (n *JobNamespace) Queued(ctx context.Context) iter.Seq2[Delivered[api.JobQueuedEvent], error] {
+	return Published(ctx, n.links.own, bus.JobQueued)
 }
 
-// Progress is every job:report-progress from now on, of every job.
-func (n *JobNamespace) Progress() iter.Seq2[Delivered[api.JobReportProgressCommand], error] {
-	return Published(n.links.own, bus.JobReportProgress)
+// Progress is every job:report-progress from now on, of every job, until
+// ctx is done.
+func (n *JobNamespace) Progress(ctx context.Context) iter.Seq2[Delivered[api.JobReportProgressCommand], error] {
+	return Published(ctx, n.links.own, bus.JobReportProgress)
 }
 
-// Complete is every job:complete from now on, of every job: each a mark
+// Complete is every job:complete from now on, of every job, until ctx is
+// done: each a mark
 // job's completion or a yield job's, as its jobType says.
-func (n *JobNamespace) Complete() iter.Seq2[Delivered[api.JobCompleteCommand], error] {
-	return Published(n.links.own, bus.JobComplete)
+func (n *JobNamespace) Complete(ctx context.Context) iter.Seq2[Delivered[api.JobCompleteCommand], error] {
+	return Published(ctx, n.links.own, bus.JobComplete)
 }
 
-// Fail is every job:fail from now on, of every job.
-func (n *JobNamespace) Fail() iter.Seq2[Delivered[api.JobFailCommand], error] {
-	return Published(n.links.own, bus.JobFail)
+// Fail is every job:fail from now on, of every job, until ctx is done.
+func (n *JobNamespace) Fail(ctx context.Context) iter.Seq2[Delivered[api.JobFailCommand], error] {
+	return Published(ctx, n.links.own, bus.JobFail)
 }
 
 // Status is a job's status, as the queue holds it.

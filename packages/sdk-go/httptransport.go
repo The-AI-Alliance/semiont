@@ -44,6 +44,10 @@ type HTTPTransportConfig struct {
 	Refresher TokenRefresher
 	// Channels is the global channels the stream names.
 	Channels []bus.Channel
+	// Bookmarks is where the stream's place in each scope is kept: with
+	// them, each scope's stream begins where they say the client's last life
+	// left it; nil, at the present.
+	Bookmarks Bookmarks
 	// HTTP is what the requests are made with.
 	HTTP *http.Client
 	// Timing is the timing the transport keeps.
@@ -56,6 +60,7 @@ type transportShared struct {
 	http      *http.Client
 	token     *Variable[string]
 	refresher TokenRefresher
+	bookmarks Bookmarks
 	// clientID is this client's address for correlated replies: one per
 	// transport, not per connection, so both streams of a handoff present the
 	// same one.
@@ -90,6 +95,7 @@ func NewHTTPTransport(config HTTPTransportConfig) *HTTPTransport {
 		http:      config.HTTP,
 		token:     config.Token,
 		refresher: config.Refresher,
+		bookmarks: config.Bookmarks,
 		clientID:  uuid.NewString(),
 		global:    slices.Clone(config.Channels),
 		timing:    config.Timing,
@@ -206,15 +212,7 @@ func (t *HTTPTransport) TrackReply(correlationID string, channels ...bus.Channel
 	return t.shared.router.Track(correlationID, channels)
 }
 
-// State is the connection's state now.
-func (t *HTTPTransport) State() ConnectionState { return t.state.Value() }
-
-// StateChanges is the connection's state now and each state it moves to,
-// until ctx is done or the loop over it stops. A slow reader may see the
-// latest state in place of the ones it missed.
-func (t *HTTPTransport) StateChanges(ctx context.Context) iter.Seq[ConnectionState] {
-	return t.state.Changes(ctx)
-}
+func (t *HTTPTransport) State() Watched[ConnectionState] { return t.state.Reading() }
 
 // Failures is the failures the transport meets from now on: what a server
 // refused, and what the gateway never answered, each as it is returned to

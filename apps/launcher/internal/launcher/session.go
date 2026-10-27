@@ -15,22 +15,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"sync"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 // Session is one command's session with a stack: the SDK's session over the
-// stack's stored sign-in, the token a verb's transport carries, and the end
-// of the command when the session is over.
+// stack's stored sign-in, the command's client, whose transport carries the
+// session's token, and the end of the command when the session is over.
 type Session struct {
 	u      *UI
 	key    string // token/stack key: "local" or "codespace:<repo>"
 	base   string // the stack's gateway base URL, which the tokens are for
 	signIn semiont.SignIn
 	token  *semiont.Variable[string]
+	client *VerbClient
 	sdk    *semiont.Session
 
 	// ended is done once the session is over for this command, with a
@@ -52,11 +56,12 @@ var errExpired = errors.New("its access token had expired")
 var errNoSession = errors.New("no session is stored")
 
 // LoadSession is the stored session for a stack key, its tokens for the
-// gateway at base, ready: asked about, and renewed if it needed to be. ok is
-// false when there is none, or it is over, which is said for verb with its
-// fix.
-func LoadSession(u *UI, verb, key, base string) (*Session, bool) {
-	s, err := resume(u, key, base)
+// gateway at base, ready: asked about, and renewed if it needed to be, with
+// the command's client, whose stream carries channels besides every
+// operation's replies. ok is false when there is none, or it is over, which
+// is said for verb with its fix.
+func LoadSession(u *UI, verb, key, base string, channels ...bus.Channel) (*Session, bool) {
+	s, err := resume(u, key, base, channels)
 	var rejected *SessionRejected
 	switch {
 	case err == nil:
@@ -72,10 +77,10 @@ func LoadSession(u *UI, verb, key, base string) (*Session, bool) {
 	return nil, false
 }
 
-// resume resumes the stored session for key at base, saying nothing of why it
-// cannot: errNoSession when none is stored, its *SessionRejected when it was
-// over at its start.
-func resume(u *UI, key, base string) (*Session, error) {
+// resume resumes the stored session for key at base, over a client whose
+// stream carries channels, saying nothing of why it cannot: errNoSession when
+// none is stored, its *SessionRejected when it was over at its start.
+func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 	store, ok := signInStore()
 	if !ok {
 		return nil, errNoSession
@@ -87,6 +92,10 @@ func resume(u *UI, key, base string) (*Session, error) {
 	if !has || signIn.Token == "" {
 		return nil, errNoSession
 	}
+	target, err := kbTarget(key, base)
+	if err != nil {
+		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
+	}
 	ended, stop := context.WithCancelCause(context.Background())
 	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewVariable(""), ended: ended, stop: stop}
 	// A sign-in that cannot be renewed is no session the SDK holds: its token
@@ -94,9 +103,13 @@ func resume(u *UI, key, base string) (*Session, error) {
 	if signIn.RefreshToken == "" {
 		s.token.Set(signIn.Token)
 	}
+	// The client is made first, as the SDK's session is over it: its
+	// transport asks this session for a renewed token, and this session asks
+	// the SDK's.
+	s.client = s.openClient(channels)
 	s.sdk, err = semiont.ResumeSession(context.Background(), semiont.ResumeConfig{
-		KbID:          key,
-		BaseURL:       base,
+		Kb:            target,
+		Client:        s.client.Client,
 		Kept:          store.Entry(key),
 		Token:         s.token,
 		HTTP:          &http.Client{Transport: launcherTransport},
@@ -105,6 +118,7 @@ func resume(u *UI, key, base string) (*Session, error) {
 		OnError:       s.failed,
 	})
 	if err != nil {
+		s.client.close()
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
 	if err := s.sdk.Ready(context.Background()); err != nil {
@@ -159,8 +173,28 @@ func (s *Session) end(rejected *SessionRejected) {
 	s.token.Set("")
 }
 
-// Close ends the SDK's session: it renews nothing more.
-func (s *Session) Close() { s.sdk.Close() }
+// Close ends the SDK's session, so it renews nothing more, and then the
+// command's client.
+func (s *Session) Close() {
+	s.sdk.Close()
+	s.client.close()
+}
+
+// kbTarget is the knowledge base key names, at the gateway whose origin is
+// base.
+func kbTarget(key, base string) (api.KbTarget, error) {
+	at, err := url.Parse(base)
+	if err != nil {
+		return api.KbTarget{}, err
+	}
+	number, err := strconv.Atoi(at.Port())
+	if err != nil {
+		return api.KbTarget{}, fmt.Errorf("%s names no port: %w", base, err)
+	}
+	var endpoint api.KbEndpoint
+	err = endpoint.FromHttpEndpoint(api.HttpEndpoint{Kind: api.HttpEndpointKindHttp, Protocol: api.HttpEndpointProtocol(at.Scheme), Host: at.Hostname(), Port: number})
+	return api.KbTarget{Id: key, Label: key, Endpoint: endpoint}, err
+}
 
 // Refresh is a renewed token for a transport the gateway refused the
 // session's token to (semiont.TokenRefresher): the SDK's session renews it and
@@ -224,7 +258,7 @@ func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 // VerbSession resolves a verb's stack and its session in one place, because
 // nine verbs asking the same questions nine different ways is how they drift.
 // Refusals are printed here with their fix-it lines; ok=false means stop.
-func VerbSession(u *UI, verb, repo string, wantLocal bool) (*Session, bool) {
+func VerbSession(u *UI, verb, repo string, wantLocal bool, channels ...bus.Channel) (*Session, bool) {
 	ss := LoadStackSet()
 	target, ok := SelectVerbStack(u, verb, ss, repo, wantLocal)
 	if !ok {
@@ -246,7 +280,7 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (*Session, bool) {
 		base = GatewayBase(local)
 		key = "local"
 	}
-	return LoadSession(u, verb, key, base)
+	return LoadSession(u, verb, key, base, channels...)
 }
 
 const logoutUsage = `Usage: semiont logout [--repo <owner/name> | --runtime <rt>]

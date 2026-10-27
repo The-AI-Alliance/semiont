@@ -216,8 +216,8 @@ func TestYieldDelegateRefusesAMissingParameterBeforeGathering(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, "--delegate needs "+yieldJobFlags.flagOf(missing))
-			if len(fake.Requests) != 0 {
-				t.Errorf("%v: refused, and still asked for %v", args, fake.Ops())
+			if len(fake.RequestLog()) != 0 {
+				t.Errorf("%v: refused, and still asked for %v", args, ops(fake))
 			}
 			restore()
 		}

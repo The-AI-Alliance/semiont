@@ -267,8 +267,8 @@ func TestB20AnEventAsksAgainOnlyForWhatTheCacheHolds(t *testing.T) {
 	}
 	w.reopen()
 	w.asksCome(t, askedMark{}, map[string]int{})
-	if emits, _ := w.transport.Sent(); len(emits) != 0 {
-		t.Fatalf("sent %v", emits)
+	if sent := w.transport.Emitted(); len(sent) != 0 {
+		t.Fatalf("sent %v", sent)
 	}
 
 	untilReady(t, watch(t, w.client.Browse.Events(resourceOf(t, "res-1"))))
@@ -286,7 +286,7 @@ func TestB20AnEventAsksAgainOnlyForWhatTheCacheHolds(t *testing.T) {
 func TestB20AKeyThatIsFailedOrBeingFetchedIsHeld(t *testing.T) {
 	w := newLiveWorld(t, liveSetup{})
 	events := bus.BrowseEventsRequested.Request().Channel()
-	w.transport.Rejections[events] = refusal(events)
+	w.refuse(events)
 	res1 := resourceOf(t, "res-1")
 	failing := watch(t, w.client.Browse.Events(res1))
 	untilFailed(t, failing)
@@ -461,7 +461,13 @@ func TestAnEventThatNamesAnAnnotationAsksForThatOneAndOneThatNamesNoneForEachHel
 	askedFor := func(since int) []string {
 		var named []string
 		for _, request := range requestsOn(w.transport, annotation)[since:] {
-			named = append(named, request.Payload["annotationId"].(string))
+			var asked struct {
+				AnnotationId string `json:"annotationId"`
+			}
+			if err := json.Unmarshal(request.Payload, &asked); err != nil {
+				t.Fatal(err)
+			}
+			named = append(named, asked.AnnotationId)
 		}
 		slices.Sort(named)
 		return named

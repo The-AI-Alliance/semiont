@@ -22,7 +22,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // settling is long enough for what a test waits not to happen.
@@ -77,13 +77,12 @@ func annotationIdOf(t *testing.T, text string) api.AnnotationId {
 }
 
 func resourceAnswer(name string) json.RawMessage {
-	return json.RawMessage(`{"response":{"resource":` + describing("res-1", name) + `,"lastSequence":1}}`)
+	return json.RawMessage(`{"resource":` + describing("res-1", name) + `,"lastSequence":1}`)
 }
 
-// knowingReplies is what a small knowledge base answers each request a live
-// query makes, as often as it is asked: a resource or an annotation is
-// res-1's.
-func knowingReplies() map[bus.Channel]json.RawMessage {
+// knowing is how a small knowledge base answers each request a live query
+// makes, as often as it is asked: a resource or an annotation is res-1's.
+func knowing() semionttest.MakeResponse {
 	page := `"resources":[],"total":0,"offset":0,"limit":100`
 	answers := map[bus.Channel]string{
 		bus.BrowseResourceRequested.Request().Channel():     `{"resource":` + describing("res-1", "A resource") + `,"lastSequence":1}`,
@@ -99,11 +98,13 @@ func knowingReplies() map[bus.Channel]json.RawMessage {
 	for _, holder := range bus.LimitsOperations {
 		answers[holder.Request().Channel()] = `{"limits":[]}`
 	}
-	replies := map[bus.Channel]json.RawMessage{}
-	for channel, answer := range answers {
-		replies[channel] = json.RawMessage(`{"response":` + answer + `}`)
+	return func(operation bus.Channel, payload json.RawMessage) (json.RawMessage, error) {
+		answer, known := answers[operation]
+		if !known {
+			return semionttest.RefuseUnscriptedOperation(operation, payload)
+		}
+		return json.RawMessage(answer), nil
 	}
-	return replies
 }
 
 // refusal is the failure a gateway answers a request of channel with.
@@ -116,7 +117,7 @@ func refusal(channel bus.Channel) json.RawMessage {
 // silent, answers none, the read waiting until it is let go. A live query
 // makes no other call of it.
 type annotatedContent struct {
-	bustest.RecordingContent
+	*semionttest.InMemoryContent
 	silent bool
 
 	mu    sync.Mutex
@@ -157,38 +158,55 @@ type liveSetup struct {
 
 // liveWorld is a client over a scripted knowledge base.
 type liveWorld struct {
-	transport *bustest.Fake
+	transport *semionttest.FaultyTransport
 	content   *annotatedContent
 	client    *semiont.Client
+
+	mu sync.Mutex
+	// refused is the requests the knowledge base refuses, by channel.
+	refused map[bus.Channel]bool
 }
 
 func newLiveWorld(t *testing.T, setup liveSetup) *liveWorld {
 	t.Helper()
-	transport := bustest.NewFake()
+	config := semionttest.FaultyConfig{MakeResponse: knowing()}
 	if setup.silent {
-		for _, asked := range asks {
-			for _, channel := range asked {
-				if channel != annotationsRead {
-					transport.Unanswered[bus.Channel(channel)] = true
-				}
-			}
+		// Every reply is lost on its way: the test answers each request itself.
+		config = semionttest.FaultyConfig{
+			Schedule:     []semionttest.FaultAction{semionttest.DropReply{}},
+			MakeResponse: func(bus.Channel, json.RawMessage) (json.RawMessage, error) { return nil, nil },
 		}
-	} else {
-		transport.Replies = knowingReplies()
 	}
+	transport := semionttest.NewFaultyTransport(config)
 	if setup.opening {
 		transport.SetState(semiont.ConnectionStateInitial)
 	}
-	content := &annotatedContent{silent: setup.silent}
+	content := &annotatedContent{InMemoryContent: semionttest.NewInMemoryContent(), silent: setup.silent}
 	timing := semiont.DefaultTiming()
 	timing.InvalidationWindow = setup.window
 	timing.SaveDebounce = setup.saveWait
-	client := semiont.NewClient(semiont.ClientConfig{Transport: transport, Content: content, Gateway: &bustest.RecordingGateway{}, Timing: timing, Persistence: setup.persistence})
+	client := semiont.NewClient(semiont.ClientConfig{Transport: transport, Content: content, Gateway: &semionttest.StubGateway{}, Timing: timing, Persistence: setup.persistence})
+	w := &liveWorld{transport: transport, content: content, client: client, refused: map[bus.Channel]bool{}}
+	transport.RefuseWhen(func(operation bus.Channel, _ json.RawMessage) json.RawMessage {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if w.refused[operation] {
+			return refusal(operation)
+		}
+		return nil
+	})
 	t.Cleanup(func() {
 		client.Close()
 		transport.Close()
 	})
-	return &liveWorld{transport: transport, content: content, client: client}
+	return w
+}
+
+// refuse has the knowledge base refuse every request on channel from now on.
+func (w *liveWorld) refuse(channel bus.Channel) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.refused[channel] = true
 }
 
 // askedMark is how much had been asked at a moment: the requests made, and
@@ -196,7 +214,7 @@ func newLiveWorld(t *testing.T, setup liveSetup) *liveWorld {
 type askedMark struct{ requests, reads int }
 
 func (w *liveWorld) mark() askedMark {
-	_, requests := w.transport.Sent()
+	requests := w.transport.RequestLog()
 	w.content.mu.Lock()
 	defer w.content.mu.Unlock()
 	return askedMark{requests: len(requests), reads: w.content.reads}
@@ -205,7 +223,7 @@ func (w *liveWorld) mark() askedMark {
 // askedSince is how often each request has been made since m, by channel, and
 // the content transport read, as annotationsRead.
 func (w *liveWorld) askedSince(m askedMark) map[string]int {
-	_, requests := w.transport.Sent()
+	requests := w.transport.RequestLog()
 	asked := map[string]int{}
 	for _, request := range requests[m.requests:] {
 		asked[string(request.Channel)]++
@@ -261,13 +279,13 @@ func (w *liveWorld) reopen() {
 
 // answerRequest answers request as the service that answers its operation
 // would.
-func answerRequest(fake *bustest.Fake, request bustest.Requested, response string) {
+func answerRequest(fake *semionttest.FaultyTransport, request semionttest.RequestLogEntry, response string) {
 	replies := bus.Operations[request.Channel]
 	fake.Deliver(semiont.Frame{Channel: replies.Result, Envelope: semiont.Envelope{CorrelationID: request.CorrelationID}, Payload: json.RawMessage(`{"response":` + response + `}`)})
 }
 
 // refuseRequest answers request with a failure.
-func refuseRequest(fake *bustest.Fake, request bustest.Requested) {
+func refuseRequest(fake *semionttest.FaultyTransport, request semionttest.RequestLogEntry) {
 	replies := bus.Operations[request.Channel]
 	fake.Deliver(semiont.Frame{Channel: replies.Failure, Envelope: semiont.Envelope{CorrelationID: request.CorrelationID}, Payload: refusal(request.Channel)})
 }
@@ -480,10 +498,10 @@ func modifiedOf(annotation api.Annotation) string {
 }
 
 // payloadsOn is the payload of each request of channel, as JSON, in order.
-func payloadsOn(fake *bustest.Fake, channel bus.Channel) []string {
+func payloadsOn(fake *semionttest.FaultyTransport, channel bus.Channel) []string {
 	var payloads []string
 	for _, request := range requestsOn(fake, channel) {
-		payloads = append(payloads, bustest.JSON(request.Payload))
+		payloads = append(payloads, string(request.Payload))
 	}
 	return payloads
 }
@@ -592,7 +610,7 @@ func TestAWatcherThatLeavesEarlyIsNotLeftHoldingAnything(t *testing.T) {
 func TestAReadGivesWhatTheServiceAnswersNowAndEveryWatcherIsGivenItToo(t *testing.T) {
 	w := newLiveWorld(t, liveSetup{})
 	channel := bus.BrowseResourceRequested.Request().Channel()
-	w.transport.Queued[channel] = []json.RawMessage{resourceAnswer("first"), resourceAnswer("second")}
+	w.transport.QueueReply(channel, resourceAnswer("first"), resourceAnswer("second"))
 	res1 := resourceOf(t, "res-1")
 	live := watch(t, w.client.Browse.Resource(res1))
 	if first := valueIn[api.ResourceDescriptor](t, untilReady(t, live)); first.Name != "first" {
@@ -607,7 +625,7 @@ func TestAReadGivesWhatTheServiceAnswersNowAndEveryWatcherIsGivenItToo(t *testin
 		t.Fatalf("the watcher was shown %q, want second", second.Name)
 	}
 	// And fails with the failure it meets, which no watcher is shown: the value stays.
-	w.transport.Rejections[channel] = refusal(channel)
+	w.refuse(channel)
 	var refused *semiont.BusRequestError
 	if _, err := w.client.Browse.Resource(res1).Fresh(context.Background()); !errors.As(err, &refused) {
 		t.Fatalf("the read failed with %v, want the service's refusal", err)
@@ -625,7 +643,7 @@ func TestInvalidatingAQueryAsksAgainAndShowsItsValueMeanwhile(t *testing.T) {
 		t.Fatalf("the watcher was shown %v", types)
 	}
 	channel := bus.BrowseEntityTypesRequested.Request().Channel()
-	w.transport.Queued[channel] = []json.RawMessage{json.RawMessage(`{"response":{"entityTypes":["Person","Place"]}}`)}
+	w.transport.QueueReply(channel, json.RawMessage(`{"entityTypes":["Person","Place"]}`))
 	w.client.Browse.EntityTypes().Invalidate()
 	if types := valueIn[[]string](t, live.now(t)); !slices.Equal(types, []string{"Person", "Place"}) {
 		t.Fatalf("the watcher was shown %v", types)
@@ -712,8 +730,8 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 		once[channel] = 1
 	}
 	w.asksCome(t, askedMark{}, once)
-	_, requests := w.transport.Sent()
-	byChannel := map[bus.Channel]bustest.Requested{}
+	requests := w.transport.RequestLog()
+	byChannel := map[bus.Channel]semionttest.RequestLogEntry{}
 	for _, request := range requests {
 		byChannel[request.Channel] = request
 	}
@@ -749,8 +767,8 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 	w.client.Browse.Agents().Invalidate()
 	w.asksCome(t, again, once)
 	live.nothingMore(t)
-	var redirectory bustest.Requested
-	_, requests = w.transport.Sent()
+	var redirectory semionttest.RequestLogEntry
+	requests = w.transport.RequestLog()
 	for _, request := range requests[again.requests:] {
 		if request.Channel == directory.Channel {
 			redirectory = request
@@ -766,7 +784,7 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 func TestADirectoryThatFailsIsAFailedStateWhateverItsHoldersReportAndAReadOfItFails(t *testing.T) {
 	w := newLiveWorld(t, liveSetup{})
 	directory := bus.BrowseAgentsRequested.Request().Channel()
-	w.transport.Rejections[directory] = refusal(directory)
+	w.refuse(directory)
 	if _, err := w.client.Browse.Agents().Fresh(context.Background()); err == nil || codeOf(err) != string(semiont.BusRequestErrorCodeRejected) {
 		t.Fatalf("the read failed with %v, want the directory's refusal", err)
 	}

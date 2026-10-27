@@ -1,6 +1,7 @@
 package verbs
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
 )
 
 // `semiont frame`, in process against the fake transport. These were
@@ -22,20 +23,50 @@ import (
 // binary speaks HTTP the gateway understands. One wire test per verb family
 // keeps that honest — see TestFrameOverTheWire.
 
-// withFake wires a fake transport plus the on-disk session state a verb needs,
-// and returns the fake and a restore func.
-func withFake(t *testing.T) (*bustest.Fake, func()) {
+// withFake wires a faulty transport plus the on-disk session state a verb
+// needs, and returns the transport and a restore func.
+func withFake(t *testing.T) (*semionttest.FaultyTransport, func()) {
 	t.Helper()
 	verbFixture(t)
-	fake := bustest.NewFake()
+	fake := semionttest.NewFaultyTransport(semionttest.FaultyConfig{})
 	restore := launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport { return fake })
 	return fake, restore
+}
+
+// signals is every frame a verb emitted that is no request, in order.
+func signals(fake *semionttest.FaultyTransport) []semiont.Frame {
+	var sent []semiont.Frame
+	for _, frame := range fake.Emitted() {
+		if _, request := bus.Operations[frame.Channel]; !request {
+			sent = append(sent, frame)
+		}
+	}
+	return sent
+}
+
+// ops is the channel of every request a verb sent, in order.
+func ops(fake *semionttest.FaultyTransport) []bus.Channel {
+	var channels []bus.Channel
+	for _, request := range fake.RequestLog() {
+		channels = append(channels, request.Channel)
+	}
+	return channels
+}
+
+// refusing has the gateway refuse every request on channel with failure.
+func refusing(channel bus.Channel, failure string) semionttest.Refuse {
+	return func(operation bus.Channel, _ json.RawMessage) json.RawMessage {
+		if operation != channel {
+			return nil
+		}
+		return json.RawMessage(failure)
+	}
 }
 
 func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["frame:add-entity-type"] = []byte(`{"response":{}}`)
+	fake.QueueReply("frame:add-entity-type", json.RawMessage(`{}`), json.RawMessage(`{}`))
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code != 0 {
@@ -47,17 +78,17 @@ func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 	// TWO commands, in order — one per entity type. A verb that batched them
 	// into a single request, or dropped the second, passes any assertion that
 	// only looks at the last call.
-	if len(fake.Requests) != 2 {
-		t.Fatalf("want 2 requests, got %d: %v", len(fake.Requests), fake.Requests)
+	if len(fake.RequestLog()) != 2 {
+		t.Fatalf("want 2 requests, got %d: %v", len(fake.RequestLog()), fake.RequestLog())
 	}
 	for i, want := range []bus.Channel{"frame:add-entity-type", "frame:add-entity-type"} {
-		if fake.Requests[i].Channel != want {
-			t.Errorf("request %d = %q, want %q", i, fake.Requests[i].Channel, want)
+		if fake.RequestLog()[i].Channel != want {
+			t.Errorf("request %d = %q, want %q", i, fake.RequestLog()[i].Channel, want)
 		}
 	}
 	// One tag per command, in the order given.
 	for i, tag := range []string{"Person", "Organization"} {
-		if got := bustest.JSON(fake.Requests[i].Payload); !strings.Contains(got, tag) {
+		if got := string(fake.RequestLog()[i].Payload); !strings.Contains(got, tag) {
 			t.Errorf("request %d payload %s missing %q", i, got, tag)
 		}
 	}
@@ -70,7 +101,7 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	// surfaces as a *semiont.BusRequestError carrying it — what busFail reads
 	// to print the gateway's own words. A plain error would take a different
 	// branch.
-	fake.Rejections["frame:add-entity-type"] = []byte(`{"message":"vocabulary is frozen"}`)
+	fake.RefuseWhen(refusing("frame:add-entity-type", `{"message":"vocabulary is frozen"}`))
 
 	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code == 0 {
@@ -79,8 +110,8 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	})
 	harness.MustContainAll(t, "rejection", out+errOut, "vocabulary is frozen")
 
-	if len(fake.Requests) != 1 {
-		t.Errorf("frame kept going after a rejection: %d requests: %v", len(fake.Requests), fake.Requests)
+	if len(fake.RequestLog()) != 1 {
+		t.Errorf("frame kept going after a rejection: %d requests: %v", len(fake.RequestLog()), fake.RequestLog())
 	}
 }
 
@@ -104,8 +135,8 @@ func TestFrameArgumentRefusals(t *testing.T) {
 				}
 			})
 			harness.MustContainAll(t, "refusal", out+errOut, c.want)
-			if len(fake.Requests) != 0 || len(fake.Emits) != 0 {
-				t.Errorf("a refused argument still reached the wire: %v %v", fake.Requests, fake.Emits)
+			if len(fake.RequestLog()) != 0 || len(signals(fake)) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", fake.RequestLog(), signals(fake))
 			}
 		})
 	}

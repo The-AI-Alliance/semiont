@@ -120,7 +120,6 @@ options:
 	}
 	defer sess.Close()
 	c := sess.Client()
-	defer c.Close()
 	if err := c.Reached(); err != nil {
 		return busFail(u, "bind", err)
 	}

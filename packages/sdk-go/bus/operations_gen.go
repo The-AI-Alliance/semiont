@@ -61,10 +61,15 @@ var LimitsOperations = []Operation[api.InferenceLimitsRequest, api.InferenceLimi
 	MatchLimitsRequested,
 }
 
-// Replies is the two channels a request is answered on.
+// Replies is the two channels a request is answered on, and what its result
+// states beside its response.
 type Replies struct {
 	Result  Channel
 	Failure Channel
+	// ReplyNames is what the result states beside its response: properties of
+	// the request, which whoever answers states again (the resource a context
+	// was gathered for, the reference a search was for). None, for most.
+	ReplyNames []string
 }
 
 // Operations is each operation's replies, by the name of its request
@@ -84,8 +89,8 @@ var Operations = map[Channel]Replies{
 	"browse:directory-requested":          {Result: "browse:directory-result", Failure: "browse:directory-failed"},
 	"frame:add-entity-type":               {Result: "frame:entity-type-add-ok", Failure: "frame:entity-type-add-failed"},
 	"frame:add-tag-schema":                {Result: "frame:tag-schema-add-ok", Failure: "frame:tag-schema-add-failed"},
-	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed"},
-	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed"},
+	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed", ReplyNames: []string{"annotationId"}},
+	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed", ReplyNames: []string{"resourceId"}},
 	"gather:summary-requested":            {Result: "gather:summary-result", Failure: "gather:summary-failed"},
 	"gather:referenced-by-requested":      {Result: "gather:referenced-by-result", Failure: "gather:referenced-by-failed"},
 	"gather:limits-requested":             {Result: "gather:limits-result", Failure: "gather:limits-failed"},
@@ -100,7 +105,7 @@ var Operations = map[Channel]Replies{
 	"mark:archive":                        {Result: "mark:archive-ok", Failure: "mark:archive-failed"},
 	"mark:unarchive":                      {Result: "mark:unarchive-ok", Failure: "mark:unarchive-failed"},
 	"mark:update-entity-types":            {Result: "mark:update-entity-types-ok", Failure: "mark:update-entity-types-failed"},
-	"match:search-requested":              {Result: "match:search-results", Failure: "match:search-failed"},
+	"match:search-requested":              {Result: "match:search-results", Failure: "match:search-failed", ReplyNames: []string{"referenceId"}},
 	"match:resources-requested":           {Result: "match:resources-result", Failure: "match:resources-failed"},
 	"match:limits-requested":              {Result: "match:limits-result", Failure: "match:limits-failed"},
 	"weave:rebuild":                       {Result: "weave:rebuild-ok", Failure: "weave:rebuild-failed"},

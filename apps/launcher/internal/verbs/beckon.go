@@ -152,7 +152,6 @@ options:
 	}
 	defer sess.Close()
 	c := sess.Client()
-	defer c.Close()
 
 	// Two signals, one act. Focus SCROLLS, so beckoning three references in a
 	// row scroll-fights and only the last survives; sparkle is inert-but-visible,

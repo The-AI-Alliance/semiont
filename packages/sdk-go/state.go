@@ -120,10 +120,14 @@ func (v *Variable[T]) End() {
 	close(v.changed)
 }
 
-// watch is the value now, and a channel closed when it next changes.
+// watch is the value now, and a channel closed when it next changes: nil
+// once it has ended, since it will not change again.
 func (v *Variable[T]) watch() (T, <-chan struct{}) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.ended {
+		return v.value, nil
+	}
 	return v.value, v.changed
 }
 
@@ -157,3 +161,16 @@ func (v *Variable[T]) Changes(ctx context.Context) iter.Seq[T] {
 		}
 	}
 }
+
+// Reading is the variable as its readers hold it: its value and its changes,
+// with no way to set it. What a unit hands out of what it holds.
+func (v *Variable[T]) Reading() Watched[T] { return readOnly[T]{v} }
+
+// readOnly is a Variable read and never written.
+type readOnly[T comparable] struct {
+	variable *Variable[T]
+}
+
+func (r readOnly[T]) Value() T { return r.variable.Value() }
+
+func (r readOnly[T]) Changes(ctx context.Context) iter.Seq[T] { return r.variable.Changes(ctx) }

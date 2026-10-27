@@ -102,7 +102,14 @@
  * `impl StateUnit for` it. Python's is a class of
  * packages/sdk-python/src/semiont, its members its public methods,
  * properties and attributes, a unit being one that names `StateUnit` as a
- * base. A `StateUnit` that no row makes is looked for in the same places.
+ * base. Go's is a `type <name> struct` of packages/sdk-go and the packages
+ * below it, its test double (a package whose name ends in `test`, as Go's own
+ * `httptest` does) and its conformance drivers left out; its members are its
+ * exported fields and methods, with those of each struct it embeds, each as
+ * the table spells it (its first letter small), and a unit is one declared
+ * as one (`_ StateUnit = (*<name>)(nil)`). Go spells `dispose` `Close`, and
+ * it is no member either. A `StateUnit` that no row makes is looked for in
+ * the same places.
  *
  * THE BUS OVER THE WIRE. The table's `wire` entry is the typed bus over a
  * client's transport, which every client hands out as `wire`: what each SDK
@@ -1118,6 +1125,7 @@ const UNITS = {
   typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits },
   rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits },
   python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits },
+  go: { read: goUnit, sources: GO_SDK, declared: goUnits },
 };
 const UNIT_SDKS = Object.keys(UNITS);
 
@@ -1266,6 +1274,76 @@ function pythonUnit(made, directory) {
   }
   const bases = splitOutside(header[1] ?? '', ',').map(squeezed);
   return { where: `class ${made} in ${file}`, isUnit: bases.includes('StateUnit'), members };
+}
+
+/**
+ * The Go SDK's files a unit can be declared in, each with its code: every
+ * `.go` file under packages/sdk-go, its tests (`_test.go`), its test double (a
+ * package whose name ends in `test`) and its conformance drivers left out.
+ */
+function goSources() {
+  return REPOSITORY.filter((path) => {
+    if (!path.startsWith(`${GO_SDK}/`) || !path.endsWith('.go') || path.endsWith('_test.go')) return false;
+    const folders = path.slice(GO_SDK.length + 1).split('/').slice(0, -1);
+    return !folders.some((folder) => folder === 'conformance' || folder.endsWith('test'));
+  }).map((file) => ({ file, code: goCode(read(file)) }));
+}
+
+/** A Go unit's declaration that it is one, standing alone or in a `var` block, its type captured. */
+const goUnitAssertion = /^\s*(?:var\s+)?_\s+(?:semiont\.)?StateUnit\s*=\s*\(\*(\w+)(?:\[[^\]\n]*\])?\)\(nil\)/gm;
+
+/** A Go struct's header, with its type parameters if it has any. */
+const goStructHeader = (name) => new RegExp(`^type ${name}(?:\\[[^\\]\\n]*\\])?\\s+struct\\s*\\{`, 'gm');
+
+/**
+ * The members of `type <name> struct`, declared once among files: its
+ * exported fields and methods, and those of each struct it embeds, each as
+ * the table spells it. `Close`, a Go unit's dispose, is none.
+ */
+function goStructMembers(name, files) {
+  const members = new Set();
+  const found = files.flatMap(({ file, code }) => [...code.matchAll(goStructHeader(name))].map((header) => ({ file, code, header })));
+  if (found.length !== 1) {
+    fail(`${GO_SDK}: \`type ${name} struct\` is declared ${found.length} times, and this reads the one`);
+    return members;
+  }
+  const [{ file, code, header }] = found;
+  const open = header.index + header[0].length - 1;
+  for (const line of code.slice(open + 1, goClosing(code, open) - 1).split('\n').map(squeezed).filter((text) => text !== '')) {
+    const embedded = /^\*?([A-Za-z_]\w*)(?:\[[^\]]*\])?$/.exec(line);
+    if (embedded) {
+      for (const member of goStructMembers(embedded[1], files)) members.add(member);
+      continue;
+    }
+    const field = /^([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s+\S/.exec(line);
+    if (!field) {
+      fail(`${file}: \`type ${name} struct\` has a line that is neither a field nor a struct it embeds: ${line}`);
+      continue;
+    }
+    for (const named of field[1].split(',').map((text) => text.trim())) {
+      if (/^[A-Z]/.test(named)) members.add(tableName(named));
+    }
+  }
+  const method = new RegExp(`^func \\(\\s*(?:\\w+\\s+)?\\*?${name}(?:\\[[^\\]\\n]*\\])?\\s*\\)\\s*([A-Z]\\w*)\\s*[[(]`, 'gm');
+  for (const { code: other } of files) {
+    for (const declared of other.matchAll(method)) {
+      if (declared[1] !== 'Close') members.add(tableName(declared[1]));
+    }
+  }
+  return members;
+}
+
+function goUnit(made) {
+  const files = goSources();
+  const found = files.filter(({ code }) => goStructHeader(made).test(code));
+  if (found.length === 0) return undefined;
+  const isUnit = files.some(({ code }) => [...code.matchAll(goUnitAssertion)].some((said) => said[1] === made));
+  return { where: `type ${made} in ${found.map(({ file }) => file).join(', ')}`, isUnit, members: goStructMembers(made, files) };
+}
+
+/** Every unit Go declares, by name, each with the file it is declared in. */
+function goUnits() {
+  return goSources().flatMap(({ file, code }) => [...code.matchAll(goUnitAssertion)].map((said) => ({ name: said[1], file })));
 }
 
 /** Whether a list of bases or interfaces names `StateUnit`. */

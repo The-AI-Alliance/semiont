@@ -83,8 +83,8 @@ func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 			}
 			// The signal still went out. Publishing to an empty room is not an
 			// error, and suppressing the emit would make the count unknowable.
-			if len(fake.Emits) != 1 {
-				t.Errorf("want the emit to have happened anyway, got %v", fake.Emits)
+			if len(signals(fake)) != 1 {
+				t.Errorf("want the emit to have happened anyway, got %v", signals(fake))
 			}
 		})
 	}
@@ -140,8 +140,8 @@ func TestBrowseLaunchAndBrowserURLRequireBrowser(t *testing.T) {
 			}
 		})
 		harness.MustContainAll(t, "refusal", out+errOut, "only applies with --browser")
-		if len(fake.Emits) != 0 || len(fake.Requests) != 0 {
-			t.Errorf("%v still reached the wire: %v %v", args, fake.Emits, fake.Ops())
+		if len(signals(fake)) != 0 || len(fake.RequestLog()) != 0 {
+			t.Errorf("%v still reached the wire: %v %v", args, signals(fake), ops(fake))
 		}
 		restore()
 	}

@@ -188,16 +188,20 @@ the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
 [packages/sdk/conformance/worker-driver.ts](../../../packages/sdk/conformance/worker-driver.ts),
 Rust's is
 [semiont-worker-driver.rs](../../../packages/http-transport-rust/conformance/src/bin/semiont-worker-driver.rs),
-and Python's is
-[conformance/worker.py](../../../packages/sdk-python/conformance/worker.py).
+Python's is
+[conformance/worker.py](../../../packages/sdk-python/conformance/worker.py),
+and Go's is
+[semiont-go-worker-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-worker-driver/main.go).
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later),
-`uv` and Python 3.12 or later on `PATH`, and the packages built:
+It needs a built gateway and the Rust drivers, the Go drivers,
+`nats-server` (2.10 or later), `uv` and Python 3.12 or later on `PATH`, and
+the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
+(cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 npm run build:packages
 cd tests/conformance
 npm ci

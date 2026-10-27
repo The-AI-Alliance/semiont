@@ -145,9 +145,9 @@ type stream struct {
 	// scoped is the subscription's scoped half: each scope held, and its
 	// channels.
 	scoped map[api.ResourceId][]string
-	// watermarks is the last recorded event delivered on each scope. A scope
-	// keeps its position after it is let go: taken again, it resumes from
-	// there.
+	// watermarks is the last recorded event delivered on each scope, begun
+	// from the bookmarks' places. A scope keeps its position after it is let
+	// go: taken again, it resumes from there.
 	watermarks map[api.ResourceId]string
 	seen       seenIDs
 
@@ -185,6 +185,10 @@ type stream struct {
 
 func newStream(shared *transportShared, state *Variable[ConnectionState]) *stream {
 	ctx, cancel := context.WithCancel(context.Background())
+	watermarks := map[api.ResourceId]string{}
+	if shared.bookmarks != nil {
+		maps.Copy(watermarks, shared.bookmarks.Load())
+	}
 	return &stream{
 		shared:      shared,
 		state:       state,
@@ -193,7 +197,7 @@ func newStream(shared *transportShared, state *Variable[ConnectionState]) *strea
 		ctx:         ctx,
 		cancel:      cancel,
 		scoped:      map[api.ResourceId][]string{},
-		watermarks:  map[api.ResourceId]string{},
+		watermarks:  watermarks,
 		seen:        seenIDs{ids: map[string]struct{}{}, capacity: shared.timing.SeenEventIdsCount},
 		connections: map[uint64]*connection{},
 		superseded:  map[uint64]struct{}{},
@@ -430,10 +434,15 @@ func (s *stream) frame(conn uint64, id string, hasID bool, data string) {
 	s.shared.router.Route(frame)
 	// A scope's position is the last recorded event delivered on it: only a
 	// recorded event's id (p-…) is one, and it always comes on its scope.
-	if hasID && !frame.Scope.IsZero() && strings.HasPrefix(id, "p-") {
+	recorded := hasID && !frame.Scope.IsZero() && strings.HasPrefix(id, "p-")
+	if recorded {
 		s.watermarks[frame.Scope] = id
 	}
 	s.shared.hub.Deliver(frame)
+	// Kept only once the event has been given to those it changes: a place is never ahead of what was taken in.
+	if recorded && s.shared.bookmarks != nil {
+		s.shared.bookmarks.Save(frame.Scope, id)
+	}
 }
 
 func (s *stream) refused(conn uint64, err *TransportError) {

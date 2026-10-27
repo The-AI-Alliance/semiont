@@ -17,7 +17,8 @@ import (
 //     and ends. A failure is given where the final value would have been.
 //
 // Nothing is sent until it is first waited for or ranged over. Its caller
-// abandons it by cancelling Wait's context or by stopping the loop: what was
+// abandons it by cancelling the context it gave Wait or Events, or by
+// stopping the loop: what was
 // sent stays sent, and nothing more is. Work the client's closing ends, while
 // its caller still waits, fails as closed.
 type Running[T any] struct {
@@ -43,17 +44,16 @@ func (r *Running[T]) Wait(ctx context.Context) (T, error) {
 	return value, r.links.closedUnder(ctx, err)
 }
 
-// Events does the operation as it is ranged over: every report, then the
-// final value, or the failure where it would have been.
-func (r *Running[T]) Events() iter.Seq2[T, error] {
+// Events does the operation as it is ranged over, until ctx is done: every
+// report, then the final value, or the failure where it would have been.
+func (r *Running[T]) Events(ctx context.Context) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		if !r.taken.CompareAndSwap(false, true) {
 			var none T
 			yield(none, errTakenTwice)
 			return
 		}
-		caller := context.Background()
-		inner, stop := r.links.within(caller)
+		inner, stop := r.links.within(ctx)
 		defer stop()
 		reading := true
 		value, err := r.work(inner, func(report T) {
@@ -65,7 +65,7 @@ func (r *Running[T]) Events() iter.Seq2[T, error] {
 			}
 		})
 		if reading {
-			yield(value, r.links.closedUnder(caller, err))
+			yield(value, r.links.closedUnder(ctx, err))
 		}
 	}
 }

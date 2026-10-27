@@ -53,8 +53,8 @@ func replyChannels() []bus.Channel {
 // by the session when the gateway refuses it. Its content and the gateway's
 // own operations go over a second transport with the same token, which
 // carries no channel and so opens no stream. A session that ends closes the
-// client, so whatever the command waits on ends with it. Close it when the
-// command is done.
+// client, so whatever the command waits on ends with it; the session's Close
+// closes it.
 type VerbClient struct {
 	*semiont.Client
 	sess   *Session
@@ -77,10 +77,13 @@ func (g *GatewayUnreached) Error() string {
 	return fmt.Sprintf("the gateway at %s did not open the event stream", g.Base)
 }
 
-// Client opens the stack's client for one command. Its stream carries every
-// operation's reply channels, and channels besides: the broadcasts a verb
-// follows.
-func (s *Session) Client(channels ...bus.Channel) *VerbClient {
+// Client is the command's client of its stack.
+func (s *Session) Client() *VerbClient { return s.client }
+
+// openClient opens the stack's client for one command. Its stream carries
+// every operation's reply channels, and channels besides: the broadcasts a
+// verb follows.
+func (s *Session) openClient(channels []bus.Channel) *VerbClient {
 	config := semiont.HTTPTransportConfig{
 		BaseURL:   s.base,
 		Token:     s.token,
@@ -112,7 +115,7 @@ func (c *VerbClient) Context() context.Context { return c.sess.ended }
 // request.
 func (c *VerbClient) Reached() error {
 	c.reach.Do(func() {
-		for state := range c.bus.StateChanges(c.sess.ended) {
+		for state := range c.bus.State().Changes(c.sess.ended) {
 			switch state {
 			case semiont.ConnectionStateOpen, semiont.ConnectionStateUnauthenticated, semiont.ConnectionStateClosed:
 				return
@@ -130,8 +133,8 @@ func (c *VerbClient) Reached() error {
 // otherwise.
 func (c *VerbClient) Refusal(err error) error { return c.sess.refusal(err) }
 
-// Close ends the client, and then both its transports.
-func (c *VerbClient) Close() {
+// close ends the client, and then both its transports.
+func (c *VerbClient) close() {
 	c.unhook()
 	c.Client.Close()
 	c.bus.Close()

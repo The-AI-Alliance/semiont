@@ -236,7 +236,6 @@ options:
 	}
 	defer sess.Close()
 	c := sess.Client()
-	defer c.Close()
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered

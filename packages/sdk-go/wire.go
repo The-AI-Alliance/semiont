@@ -91,7 +91,7 @@ func (w *Wire) result(ctx context.Context, request bus.Channel, payload map[stri
 	// deadline, for the stream to be open. Only open delivers; a closed bus
 	// fails at once rather than burning the deadline.
 	open := false
-	for state := range w.transport.StateChanges(waiting) {
+	for state := range w.transport.State().Changes(waiting) {
 		if state == ConnectionStateOpen {
 			open = true
 			break
