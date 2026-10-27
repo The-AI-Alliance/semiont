@@ -226,13 +226,26 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 			EntityTypes           []string        `json:"entityTypes"`
 			PrimaryRepresentation json.RawMessage `json:"primaryRepresentation"`
 			PrimaryMediaType      *string         `json:"primaryMediaType"`
+			Refused               *bool           `json:"refused"`
 		}
 		strictly(t, raw, &stated)
 		var resource api.ResourceDescriptor
 		if err := json.Unmarshal(stated.Resource, &resource); err != nil {
-			t.Fatalf("%s: the resource is not a ResourceDescriptor: %v", stated.Why, err)
+			t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
 		}
-		representation, ok := semiont.PrimaryRepresentation(resource)
+		if stated.Refused != nil && *stated.Refused {
+			// Go's decoding takes what it is handed, so its readers refuse it.
+			shapes["refused"] = true
+			_, _, err := semiont.PrimaryRepresentation(resource)
+			refusedNaming(t, stated.Why+": PrimaryRepresentation", err, "representation")
+			_, _, err = semiont.PrimaryMediaType(resource)
+			refusedNaming(t, stated.Why+": PrimaryMediaType", err, "representation")
+			continue
+		}
+		representation, ok, err := semiont.PrimaryRepresentation(resource)
+		if err != nil {
+			t.Errorf("%s: refused as %v, and the table says the resource is one", stated.Why, err)
+		}
 		switch {
 		case stated.PrimaryRepresentation == nil && ok:
 			t.Errorf("%s: a primary representation, and the table says there is none", stated.Why)
@@ -247,8 +260,8 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 				t.Errorf("%s: the primary representation is %s, and the table says %s", stated.Why, written, stated.PrimaryRepresentation)
 			}
 		}
-		mediaType, ok := semiont.PrimaryMediaType(resource)
-		if (stated.PrimaryMediaType == nil) == ok || (ok && mediaType != *stated.PrimaryMediaType) {
+		mediaType, ok, err := semiont.PrimaryMediaType(resource)
+		if err != nil || (stated.PrimaryMediaType == nil) == ok || (ok && mediaType != *stated.PrimaryMediaType) {
 			t.Errorf("%s: the primary media type is (%q, %v), and the table says %v", stated.Why, mediaType, ok, stated.PrimaryMediaType)
 		}
 		if got := semiont.ResourceEntityTypes(resource); !reflect.DeepEqual(got, stated.EntityTypes) {
@@ -271,9 +284,9 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 		shapes["entity types"] = shapes["entity types"] || len(stated.EntityTypes) > 0
 		shapes["no entity types"] = shapes["no entity types"] || len(stated.EntityTypes) == 0
 	}
-	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types"} {
+	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused"} {
 		if !shapes[shape] {
-			t.Errorf("no case's resource has %s", shape)
+			t.Errorf("the table lacks a case of a resource: %s", shape)
 		}
 	}
 }

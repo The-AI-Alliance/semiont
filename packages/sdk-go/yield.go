@@ -118,8 +118,12 @@ func (n *YieldNamespace) CreateFromToken(ctx context.Context, options CreateFrom
 	if err != nil {
 		return api.CreateResourceResponse{}, err
 	}
+	primary, ok, err := PrimaryMediaType(source)
+	if err != nil {
+		return api.CreateResourceResponse{}, err
+	}
 	format := mediatypes.CloneFormat("")
-	if primary, ok := PrimaryMediaType(source); ok {
+	if ok {
 		format = mediatypes.CloneFormat(primary)
 	}
 	return n.content.PutBinary(ctx, PutBinaryRequest{

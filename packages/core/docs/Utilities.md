@@ -332,7 +332,10 @@ const resource: ResourceDescriptor = /* ... */;
 const id = getResourceId(resource);
 // "5bcd259ab1464cf68a556bbad21f513f" — the bare id, never a URI
 
-// Get primary representation
+// Get primary representation: the only one, or the first of the list;
+// undefined for an empty list. A resource whose `representations` is neither
+// one representation nor a list of them is no ResourceDescriptor, and is
+// refused with a SemiontError whose code is 'error'.
 const rep = getPrimaryRepresentation(resource);
 console.log(rep?.mediaType); // "text/plain"
 console.log(rep?.checksum); // "sha256:..."
