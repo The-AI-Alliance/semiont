@@ -587,8 +587,8 @@ exit non-zero, and `--json` prints the job's completion as the stack sent it.
 A completion is read as its verb's: one that names the
 other verb, or reports what the other verb's job reports, is said and exits
 non-zero. What `mark --delegate` sends for each motivation is the
-`mark.delegate` row of `specs/src/client/surface.json`, which the TypeScript,
-Rust and Python SDKs run too.
+`mark.delegate` row of `specs/src/client/surface.json`, which every SDK
+runs.
 
 ### Searching a KB
 

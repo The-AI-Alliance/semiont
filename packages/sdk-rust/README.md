@@ -16,8 +16,8 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods and behaviour as the
-[TypeScript SDK](../sdk/README.md) and the
-[Python SDK](../sdk-python/README.md), and the three are held to the same
+[TypeScript SDK](../sdk/README.md), the [Python SDK](../sdk-python/README.md)
+and the [Go SDK](../sdk-go/README.md), and the four are held to the same
 [conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas

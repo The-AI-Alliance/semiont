@@ -87,13 +87,15 @@ believe them at first:
    this book to its Rust form. The Python SDK
    ([`semiont`](../../packages/sdk-python/README.md)) has the same client,
    cache, state units and sessions on asyncio, typed for `mypy` and `pyright`,
-   and is held to the same tables and the same suite. So does the Go SDK
+   and is held to the same tables and the same suite. The Go SDK
    ([`sdk-go`](../../packages/sdk-go/README.md)), the module the `semiont`
-   launcher is built on, with a context on every call that waits and an
-   iterator for every sequence. The concepts in these docs transfer
-   across SDKs; the syntax doesn't. If you're reading this from another
-   language, treat the TypeScript as pseudocode with a working
-   implementation.
+   launcher is built on, has the same client, cache, state units and
+   sessions, with a context on every call that waits and an iterator for
+   every sequence, and is held to the same suite. It has none of the
+   annotation readers and builders, or the tables that hold them. The
+   concepts in these docs transfer across SDKs; the syntax doesn't. If
+   you're reading this from another language, treat the TypeScript as
+   pseudocode with a working implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
    [`@semiont/react-ui`](../../packages/react-ui/) is the one binding.

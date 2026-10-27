@@ -6,15 +6,15 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 ## Which way
 
-| Who is signing in | The way | TypeScript | Python | Rust |
-|---|---|---|---|---|
-| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` |
-| A service or a worker | [A service account](#a-service-or-a-worker), exchanged for the token of the agent its work runs as | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` |
-| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | none | `begin_sign_in`, `complete_sign_in` |
-| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README |
+| Who is signing in | The way | TypeScript | Python | Rust | Go |
+|---|---|---|---|---|---|
+| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` |
+| A service or a worker | [A service account](#a-service-or-a-worker), exchanged for the token of the agent its work runs as | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` |
+| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | none | `begin_sign_in`, `complete_sign_in` | none |
+| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README |
 
-Each SDK's README has its own forms in full: [TypeScript](../../packages/sdk/README.md#connect), [Python](../../packages/sdk-python/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/http-transport-rust/README.md).
+Each SDK's README has its own forms in full: [TypeScript](../../packages/sdk/README.md#connect), [Python](../../packages/sdk-python/README.md#signing-in), [Go](../../packages/sdk-go/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/http-transport-rust/README.md).
 
 ## What every way has in common
 
