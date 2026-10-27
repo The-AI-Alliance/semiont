@@ -9,7 +9,7 @@ once: the client as it is made (`open_library`), and the headers of a request
 module's own.
 
 **What the library does on its own, and what is done about each** (`openai`,
-read at 3.35.1, so that a new release of it is read for the same):
+read at 3.36.1, so that a new release of it is read for the same):
 
 - Its HTTP client takes a proxy and its trusted certificates from the
   environment (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`,
@@ -37,8 +37,10 @@ read at 3.35.1, so that a new release of it is read for the same):
 - It asks again, `max_retries` times, for a request the provider refused with
   408, 409, 429 or 500 and above, and for one whose connection failed. It
   waits as long as a `retry-after` header says, up to two minutes, and does
-  not ask again at all where the header says longer. `_MAX_RETRIES` states
-  how many times.
+  not ask again at all where the header says longer. Short of such a wait,
+  an `x-should-retry` header on the refusal decides before its status does:
+  `true` asks again whatever the status, and `false` not at all.
+  `_MAX_RETRIES` states how many times.
 - It builds a reply into typed models without checking it. Each module reads
   a reply as the JSON the provider wrote, and says how.
 
