@@ -49,11 +49,11 @@ type Issuer struct {
 // IssuerEndpoints is an issuer, and the endpoints of it a client uses. Device
 // and Revocation are "" when the issuer offers none.
 type IssuerEndpoints struct {
-	Issuer        string
-	Authorization string
-	Token         string
-	Device        string
-	Revocation    string
+	Issuer        string `json:"issuer"`
+	Authorization string `json:"authorization"`
+	Token         string `json:"token"`
+	Device        string `json:"device,omitempty"`
+	Revocation    string `json:"revocation,omitempty"`
 }
 
 // IssuedTokens is what a grant issued.

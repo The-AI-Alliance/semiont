@@ -1359,6 +1359,669 @@
           }
         }
       ]
+    },
+    {
+      "module": "registry",
+      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/session/semiont-browser.ts",
+          "packages/sdk/src/session/session-factory.ts",
+          "packages/sdk/src/session/http-session-factory.ts",
+          "packages/sdk/src/session/knowledge-base.ts",
+          "packages/sdk/src/session/open-resource.ts",
+          "packages/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/session/browser.rs",
+          "packages/sdk-rust/src/session/factory.rs",
+          "packages/sdk-rust/src/session/knowledge_base.rs",
+          "packages/sdk-rust/src/session/open_resource.rs",
+          "packages/sdk-rust/src/session/stored.rs",
+          "packages/http-transport-rust/src/session.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/session.py"
+        ],
+        "go": [
+          "packages/sdk-go/registry"
+        ]
+      },
+      "whole": [
+        "go"
+      ],
+      "members": [
+        {
+          "member": "SemiontBrowser",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "newSemiontBrowser",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
+            "rust": "Rust makes one with `SemiontBrowser::new(config)`."
+          }
+        },
+        {
+          "member": "SemiontBrowserConfig",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "SignedIn",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's `completeSignIn` lands a sign-in itself, and names no type for what the registry is handed."
+          }
+        },
+        {
+          "member": "Expected",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript states what a person believed inside `SignInOutcome`, and names no type for it."
+          }
+        },
+        {
+          "member": "SignInOutcome",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "KbReadVerdict",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "KbReadKind",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
+            "rust": "Rust's verdict is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "SessionFactory",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "SessionFactoryOptions",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "HttpSessionFactory",
+          "kind": "type",
+          "named": {
+            "typescript": "createHttpSessionFactory"
+          },
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "KbSessionStatus",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "OpenResource",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "TabCheck",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "TabVerdict",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's check is a union told apart by its `kind`.",
+            "rust": "Rust's check is an enum, whose variants are its verdicts."
+          }
+        },
+        {
+          "member": "applyTabChecks",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "sortOpenResources",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "StoredSession",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "knowledgeBasesKey",
+          "kind": "constant",
+          "named": {
+            "typescript": "STORAGE_KEY"
+          },
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "activeKey",
+          "kind": "constant",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "openResourcesByKbKey",
+          "kind": "constant",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "lastViewedResourceByKbKey",
+          "kind": "constant",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "sessionKey",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "kbOfSessionKey",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's registry hears another context's writes by key without reading a session's key back."
+          }
+        },
+        {
+          "member": "storedSession",
+          "kind": "function",
+          "named": {
+            "typescript": "getStoredSession",
+            "go": "StoredSessionOf"
+          },
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "storeSession",
+          "kind": "function",
+          "named": {
+            "typescript": "setStoredSession"
+          },
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "clearStoredSession",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "loadKnowledgeBases",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "saveKnowledgeBases",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
+          }
+        },
+        {
+          "member": "keptIn",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
+            "rust": "Rust's session reads and writes its tokens in the registry's storage itself."
+          }
+        },
+        {
+          "member": "beginSignIn",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's is a method of `SemiontBrowser`."
+          }
+        },
+        {
+          "member": "completeSignIn",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's is a method of `SemiontBrowser`."
+          }
+        },
+        {
+          "member": "CompleteSignInError",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "typescript": "TypeScript's `completeSignIn` rejects with the `SignInError` or the `IdentityUnverifiableError` itself.",
+            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`."
+          }
+        }
+      ]
+    },
+    {
+      "module": "redirectSignIn",
+      "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/session/oauth.ts",
+          "packages/sdk/src/session/connect.ts"
+        ],
+        "rust": [
+          "packages/http-transport-rust/src/oauth.rs",
+          "packages/http-transport-rust/src/session.rs",
+          "packages/sdk-rust/src/errors.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/session.py"
+        ],
+        "go": [
+          "packages/sdk-go"
+        ]
+      },
+      "members": [
+        {
+          "member": "codeChallenge",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "PendingAuthorization",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "pendingAuthorizationKey",
+          "kind": "constant",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "BeginAuthorizationOptions",
+          "kind": "type",
+          "named": {
+            "rust": "BeginAuthorization"
+          },
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "beginAuthorization",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "completeAuthorization",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "describeConnection",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "ConnectionIdentity",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        },
+        {
+          "member": "IdentityUnverifiableError",
+          "kind": "type",
+          "named": {
+            "rust": "IdentityUnverifiable"
+          },
+          "absent": {
+            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
+          }
+        }
+      ]
+    },
+    {
+      "module": "discovery",
+      "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
+      "where": {
+        "typescript": [
+          "packages/sdk/src/discovery.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/discovery.rs",
+          "packages/http-transport-rust/src/discovery.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/session.py"
+        ],
+        "go": [
+          "packages/sdk-go/discovery"
+        ]
+      },
+      "whole": [
+        "go"
+      ],
+      "members": [
+        {
+          "member": "discoveryInterval",
+          "kind": "constant",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
+            "typescript": "TypeScript's subscription is given its interval by its caller."
+          }
+        },
+        {
+          "member": "DiscoveryAbsentReason",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "DiscoveryRead",
+          "kind": "type",
+          "named": {
+            "typescript": "DiscoveryReadResult"
+          },
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "DiscoveryState",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "Absent",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
+            "typescript": "TypeScript's state is a union told apart by its `kind`.",
+            "rust": "Rust's state is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "Managed",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
+            "typescript": "TypeScript's state is a union told apart by its `kind`.",
+            "rust": "Rust's state is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "Unchanged",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
+            "typescript": "TypeScript's read is a union told apart by its `kind`.",
+            "rust": "Rust's read is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "DiscoveryTransport",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "parseDiscoveryDocument",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "textDiscovery",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "httpDiscovery",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "DiscoveryDiff",
+          "kind": "type",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        },
+        {
+          "member": "subscribeDiscovery",
+          "kind": "function",
+          "absent": {
+            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
+          }
+        }
+      ]
+    },
+    {
+      "module": "testing",
+      "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
+      "where": {
+        "typescript": [
+          "packages/core/src/liveness-axioms.ts",
+          "packages/sdk/src/testing.ts"
+        ],
+        "rust": [
+          "packages/sdk-rust/src/testing/liveness.rs",
+          "packages/sdk-rust/src/testing/client.rs",
+          "packages/sdk-rust/src/testing/sessions.rs",
+          "packages/sdk-rust/src/testing/storage.rs"
+        ],
+        "python": [
+          "packages/sdk-python/src/semiont/testing/__init__.py"
+        ],
+        "go": [
+          "packages/sdk-go/semionttest"
+        ]
+      },
+      "members": [
+        {
+          "member": "LivenessScenario",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "LivenessSpec",
+          "kind": "type",
+          "named": {
+            "typescript": "LivenessAxiomSpec"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "Respond",
+          "kind": "type",
+          "named": {
+            "go": "MakeResponse"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session.",
+            "typescript": "TypeScript's spec states how the gateway answers as a function it names no type for."
+          }
+        },
+        {
+          "member": "faultActions",
+          "kind": "function",
+          "named": {
+            "typescript": "arbFaultAction"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "faultSchedules",
+          "kind": "function",
+          "named": {
+            "typescript": "arbFaultSchedule"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "assertLivenessAxioms",
+          "kind": "function",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "DeliverySubject",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "DeliveryOp",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "deliveryOps",
+          "kind": "function",
+          "named": {
+            "typescript": "arbDeliveryOps"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "assertExactlyOnceDelivery",
+          "kind": "function",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "createTestSession",
+          "kind": "function",
+          "named": {
+            "go": "NewTestSession"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "TestSession",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session.",
+            "typescript": "TypeScript gives the session, and what it was built over, as an object it names no type for."
+          }
+        },
+        {
+          "member": "TestSessionOptions",
+          "kind": "type",
+          "named": {
+            "go": "TestSessionConfig"
+          },
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session."
+          }
+        },
+        {
+          "member": "ScriptedSessions",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session.",
+            "typescript": "TypeScript's testing module has no factory of scripted sessions."
+          }
+        },
+        {
+          "member": "SharedStorage",
+          "kind": "type",
+          "absent": {
+            "python": "Python's testing module has no liveness harness and no test session.",
+            "typescript": "TypeScript's testing module has no storage several contexts share."
+          }
+        }
+      ]
     }
   ]
 }
