@@ -100,7 +100,7 @@ func keptBy[K comparable, V any](persistence *CachePersistence, name string, max
 	if persistence == nil {
 		return nil
 	}
-	return &storagePersister[K, V]{storage: persistence.Storage, key: "semiont.cache." + persistence.KeyPrefix + "." + name, maxBytes: maxBytes}
+	return NewStoragePersister[K, V](persistence.Storage, "semiont.cache."+persistence.KeyPrefix+"."+name, maxBytes)
 }
 
 func newLive(l *links, content ContentTransport, persistence *CachePersistence) *live {

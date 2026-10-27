@@ -128,8 +128,9 @@ func readCases(t *testing.T) mediaTypeCases {
 	if err := json.Unmarshal(b, &sections); err != nil {
 		t.Fatal(err)
 	}
+	// What a table says of who runs it is held by lint:spec-case-tables, and is no section.
 	for section := range sections {
-		if !slices.Contains([]string{"$comment", "cloneFormat", "storageFileName", "textSource"}, section) {
+		if !slices.Contains([]string{"$comment", "runBy", "absent", "notYetReached", "cloneFormat", "storageFileName", "textSource"}, section) {
 			t.Errorf("the table has a section %q, which this runner does not run", section)
 		}
 	}

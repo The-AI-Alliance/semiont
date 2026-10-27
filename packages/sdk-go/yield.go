@@ -18,10 +18,10 @@ import (
 // before its follower gives up on it: a floor, and a wait that grows with
 // the length asked for. A generation says nothing while its model writes, so
 // the silence it is allowed depends on how much it was asked to write.
-func generationStallDeadline(timing Timing, maxTokens *float32) time.Duration {
+func generationStallDeadline(timing Timing, maxTokens *float64) time.Duration {
 	tokens := float64(timing.GenerationStallAssumedTokensCount)
 	if maxTokens != nil {
-		tokens = math.Max(float64(*maxTokens), 0)
+		tokens = math.Max(*maxTokens, 0)
 	}
 	// Rounded to the millisecond, as every SDK states the wait.
 	grown := time.Duration(math.Round(float64(timing.GenerationStallPerToken.Milliseconds())*tokens)) * time.Millisecond

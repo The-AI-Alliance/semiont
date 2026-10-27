@@ -22,7 +22,7 @@ package semiont
 // one more claim, so a wake-up cannot be lost in that window; while a job is
 // held it is ignored, because the settle claims. The check of a wake-up is a
 // PRE-FILTER: an announcement carries the job description less its input, so
-// the worker asks its own claim's question of it (jobMatchesFilter), the
+// the worker asks its own claim's question of it (JobMatchesFilter), the
 // comparison the dispatcher makes, and does not spend a round trip to be
 // declined.
 //
@@ -85,12 +85,10 @@ import (
 // job:cancel-requested reach only a stream that names them, so a transport
 // made for a worker is given these beside the reply channels of whatever else
 // the worker awaits.
-var JobClaimChannels = []bus.Channel{
-	bus.JobClaim.Result().Channel(),
-	bus.JobClaim.Failure().Channel(),
+var JobClaimChannels = append(bus.ReplyChannelsFor(bus.JobClaim.Request().Channel()),
 	bus.JobQueued.Channel(),
 	bus.JobCancelRequested.Request().Channel(),
-}
+)
 
 // JobCommitChannels is what a worker's stream names for its commits: the
 // replies of mark:commit, and of the question it asks when one goes
@@ -98,12 +96,7 @@ var JobClaimChannels = []bus.Channel{
 // resource's list of them: reply channels reach every stream that names them,
 // and the list's replies are the frames of many megabytes a worker's stream
 // exists to keep out; one annotation's frame is small.
-var JobCommitChannels = []bus.Channel{
-	bus.MarkCommit.Result().Channel(),
-	bus.MarkCommit.Failure().Channel(),
-	bus.BrowseAnnotationRequested.Result().Channel(),
-	bus.BrowseAnnotationRequested.Failure().Channel(),
-}
+var JobCommitChannels = bus.ReplyChannelsFor(bus.MarkCommit.Request().Channel(), bus.BrowseAnnotationRequested.Request().Channel())
 
 // stoppedWhileHeld is the error of a job failed because its worker stopped,
 // and not because the work failed.
@@ -147,14 +140,14 @@ var weakness = map[api.DurabilityEvidence]int{
 	api.DurabilityEvidenceProbeUnreachable: 2,
 }
 
-// jobMatchesFilter is whether job matches filter, both as the wire carries
+// JobMatchesFilter is whether job matches filter, both as the wire carries
 // them (decoded JSON): a filter as a claim states it, and a job description
 // as it is announced or held, with its jobType and its params. A filter is a
 // partial job description: a job matches when every field the filter states
 // equals the job's at the same path, and what the filter leaves out is not
 // compared. specs/src/jobs/filter-cases.json holds every implementation to
 // one answer.
-func jobMatchesFilter(filter, job any) bool {
+func JobMatchesFilter(filter, job any) bool {
 	stated, ok := filter.(map[string]any)
 	if !ok {
 		return false
@@ -1028,7 +1021,7 @@ func (c *Claims) announced(frame Frame) {
 		return
 	}
 	for _, filter := range c.filters {
-		if jobMatchesFilter(filter, job) {
+		if JobMatchesFilter(filter, job) {
 			c.mu.Lock()
 			c.pull()
 			c.mu.Unlock()

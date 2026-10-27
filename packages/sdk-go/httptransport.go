@@ -134,6 +134,7 @@ func (t *HTTPTransport) send(c command) {
 // the number of subscribers the frame reached; counted is false when the
 // gateway gave no count.
 func (t *HTTPTransport) Emit(ctx context.Context, channel bus.Channel, payload map[string]any, envelope Envelope) (int, bool, error) {
+	busLog(ctx, busEmit, string(channel), payload, envelope)
 	clientID := t.shared.clientID
 	body := api.BusEmitRequest{Channel: string(channel), Payload: payload, ClientId: &clientID}
 	if envelope.CorrelationID != "" {
@@ -160,10 +161,7 @@ func (t *HTTPTransport) Frames(ctx context.Context, channels ...bus.Channel) (it
 	}
 	for _, channel := range channels {
 		if !t.IsSubscribed(channel) && !slices.Contains(bus.ResourceScopedChannels, channel) {
-			return nil, &BusRequestError{
-				Code:    BusRequestErrorCodeUnsubscribed,
-				Message: fmt.Sprintf("this transport's stream does not carry %s: nothing on it can be delivered", channel),
-			}
+			return nil, Unsubscribed(channel)
 		}
 	}
 	return t.shared.hub.Frames(ctx, channels...), nil
@@ -268,7 +266,7 @@ func (s *transportShared) emit(ctx context.Context, body api.BusEmitRequest) (in
 	renewed := false
 	for {
 		sent := token
-		answer, err := retryWithBackoff(ctx, s.timing.EmitRetry,
+		answer, err := RetryWithBackoff(ctx, s.timing.EmitRetry,
 			func(ctx context.Context) (emitted, error) { return s.emitOnce(ctx, sent, encoded) },
 			func(err error) bool {
 				var refused *TransportError

@@ -202,7 +202,7 @@ func written(learned SignIn, access, refresh string) SignIn {
 	entry.Token, entry.RefreshToken = access, refresh
 	entry.ObtainedAt = nowToTheSecond()
 	entry.ExpiresAt = time.Time{}
-	if expiry, ok := tokenExpiry(access); ok {
+	if expiry, ok := TokenExpiry(access); ok {
 		entry.ExpiresAt = expiry.UTC().Truncate(time.Second)
 	}
 	return entry
@@ -231,8 +231,8 @@ func (e *signInEntry) Keep(_ context.Context, signIn HeldSignIn) error {
 	if signIn.ClientID != ScriptClientID {
 		return fmt.Errorf("the sign-in store keeps what the client %s was issued, and this was issued to %s", ScriptClientID, signIn.ClientID)
 	}
-	email, hasEmail := textClaim(signIn.Access, "email")
-	issuer, hasIssuer := textClaim(signIn.Access, "iss")
+	email, hasEmail := TextClaim(signIn.Access, "email")
+	issuer, hasIssuer := TextClaim(signIn.Access, "iss")
 	if !hasEmail || !hasIssuer {
 		lacking := "email"
 		if hasEmail {

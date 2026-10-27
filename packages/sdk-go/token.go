@@ -40,8 +40,8 @@ func secondsClaim(claims map[string]json.RawMessage, name string) (float64, bool
 	return seconds, true
 }
 
-// textClaim is a claim of token that is text, when it carries one.
-func textClaim(token, name string) (string, bool) {
+// TextClaim is a claim of token that is text, when it carries one.
+func TextClaim(token, name string) (string, bool) {
 	claims, ok := tokenClaims(token)
 	if !ok {
 		return "", false
@@ -57,9 +57,9 @@ func atSeconds(seconds float64) time.Time {
 	return time.Unix(0, int64(seconds*float64(time.Second)))
 }
 
-// tokenExpiry is when token expires, by its exp claim; false when it names no
+// TokenExpiry is when token expires, by its exp claim; false when it names no
 // time.
-func tokenExpiry(token string) (time.Time, bool) {
+func TokenExpiry(token string) (time.Time, bool) {
 	claims, ok := tokenClaims(token)
 	if !ok {
 		return time.Time{}, false
@@ -71,26 +71,26 @@ func tokenExpiry(token string) (time.Time, bool) {
 	return atSeconds(expiry), true
 }
 
-// isTokenExpired reports whether token is past its expiry at now. One that
+// IsTokenExpired reports whether token is past its expiry at now. One that
 // names no expiry is read as expired: nothing says it is still good.
-func isTokenExpired(token string, now time.Time) bool {
-	expiry, ok := tokenExpiry(token)
+func IsTokenExpired(token string, now time.Time) bool {
+	expiry, ok := TokenExpiry(token)
 	return !ok || expiry.Before(now)
 }
 
-// renewalDelay is how long to wait before renewing a token that lives
+// RenewalDelay is how long to wait before renewing a token that lives
 // lifetime in all and has remaining of it left: the margin before expiry is
 // half its lifetime, at most timing.RefreshBeforeExp, and the wait is never
 // under timing.MinRefreshDelay.
-func renewalDelay(lifetime, remaining time.Duration, timing Timing) time.Duration {
+func RenewalDelay(lifetime, remaining time.Duration, timing Timing) time.Duration {
 	margin := min(timing.RefreshBeforeExp, lifetime/2)
 	return max(remaining-margin, timing.MinRefreshDelay)
 }
 
-// refreshDelay is how long to wait, from now, before renewing token; false
+// RefreshDelay is how long to wait, from now, before renewing token; false
 // when it has no readable exp, and nothing is scheduled. The lifetime is the
 // one the issuer chose (exp - iat), or with no iat, what remains of it.
-func refreshDelay(token string, now time.Time, timing Timing) (time.Duration, bool) {
+func RefreshDelay(token string, now time.Time, timing Timing) (time.Duration, bool) {
 	claims, ok := tokenClaims(token)
 	if !ok {
 		return 0, false
@@ -104,5 +104,5 @@ func refreshDelay(token string, now time.Time, timing Timing) (time.Duration, bo
 	if issued, ok := secondsClaim(claims, "iat"); ok {
 		lifetime = max(atSeconds(expiry).Sub(atSeconds(issued)), 0)
 	}
-	return renewalDelay(lifetime, remaining, timing), true
+	return RenewalDelay(lifetime, remaining, timing), true
 }

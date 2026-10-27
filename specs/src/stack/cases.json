@@ -1,5 +1,8 @@
 {
   "$comment": "What a knowledge base's documents are held to: the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity). Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. Run by scripts/spec/check-stack.mjs (lint:spec-stack, Ajv) and by the launcher (apps/launcher/internal/launcher/stack_test.go, which also names the line). A schema with no refused case is held to nothing.",
+  "runBy": {
+    "launcher": ["apps/launcher/internal/stack/read_test.go"]
+  },
   "cases": [
     {
       "why": "the fixture's KnowledgeBase, as it is",

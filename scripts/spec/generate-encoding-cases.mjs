@@ -162,6 +162,12 @@ const table = {
     '(resources_test.go), each for every label of every case. The Rust SDK\'s reader is encoding_rs, which is the standard as ' +
     'Firefox has it, so its run is the check of this table against a second implementation, label by label and byte ' +
     'by byte. A reader in another language runs it too.',
+  runBy: {
+    typescript: ['packages/core/src/__tests__/decode-cases.test.ts'],
+    rust: ['packages/sdk-rust/src/resources.rs', 'packages/sdk-rust/tests/decode_cases.rs'],
+    python: ['packages/sdk-python/tests/test_decode_cases.py'],
+    go: ['packages/sdk-go/resources_test.go'],
+  },
   cases,
 };
 
