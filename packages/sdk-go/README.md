@@ -644,6 +644,70 @@ func Run(ctx context.Context, client *semiont.Client) error {
 What a worker promises the dispatcher is [the worker contract][worker-contract],
 and [its conformance suite][worker-conformance] holds this module to it.
 
+## Annotations
+
+Package `annotations` is what reads an annotation and what builds one, as
+every SDK reads and builds them, case for case
+([`specs/src/annotations`](../../specs/src/annotations)).
+
+- **The readers** take an `api.Annotation` apart: what kind it is
+  (`IsHighlight`, `IsComment`, `IsTag`, `IsReference`, `IsAssessment`), the
+  resource it is on (`TargetSource`) and where in it (`TargetSelector`,
+  `TextQuoteSelector`), the text it covers (`AnnotationExactText`), what a
+  reference points at and whether it is resolved yet (`BodySource`,
+  `IsStubReference`, `IsResolvedReference`), and what a comment, a tag or a
+  linking job said (`CommentText`, `TagCategory`, `TagSchemaId`,
+  `EntityTypes`).
+- **`Reconcile`** finds where a model's quoted words are in the text: exactly,
+  then with the text's white space and quotation marks made plain, then case
+  aside, then by the nearest stretch. It says how it found them
+  (`AnchorMethod`) and how closely they match (`MatchQuality`), and finds
+  nothing rather than a guess.
+- **`AnnotationOfSpan`** builds the annotation of a span of text, its
+  offsets counted in code points: a position selector and a quote selector,
+  and, for a span of a PDF, the fragment selectors of the pages and
+  rectangles it covers. A span that is not the text's is refused with
+  `SpanRefusedError`, whose code says why. **`AnnotationOfResource`** builds
+  one of a whole resource. Each makes the annotation's id from what it is, so
+  the same annotation built twice is one annotation.
+
+## Several knowledge bases
+
+Package `registry` is what an application a person uses holds beside its
+knowledge bases: the list it has registered, which one is active and that
+one's session, and what the person has open in each. It keeps all of it in a
+`SessionStorage`, under the keys every SDK's registry uses, so a registry
+made again over the same storage picks up where the last one was.
+
+- **One session is live at a time.** `SetActiveKb` closes the active one's
+  session and brings up the next: its readers see no session, then the new
+  one. `SessionActivating` says a session is on its way. A session is built by
+  the `SessionFactory` the registry is given; `HttpSessionFactory` builds one
+  over a knowledge base's gateway, renewing its token at the issuer its stored
+  sign-in names, and keeping its caches in the registry's storage.
+- **A sign-in lands on the knowledge base that answered.** `BeginSignIn`
+  remembers a pending sign-in and gives the address to send the person to;
+  `CompleteSignIn`, given the address the issuer sent them back to, exchanges
+  the code, asks the knowledge base who it is, and registers it under what it
+  says. Its did is what an entry is matched by, never the address a person
+  typed or the row they clicked; what they believed is said back
+  (`SignInOutcome.Expected`) for the application to set against it. The grant
+  itself is the root package's: `BeginAuthorization` and
+  `CompleteAuthorization`, the authorization-code grant with PKCE, and
+  `DescribeConnection`, the question a completed sign-in asks.
+- **What a session's arrival checks.** When a session comes up, the
+  knowledge base is asked who it is, and each open resource is checked
+  against it. A different knowledge base answering voids what was open and
+  raises `KbIdentityConflict` on the session's signals; a resource the
+  knowledge base says is gone is closed; no answer changes nothing. A request
+  the gateway refuses for want of a valid token renews the session, and one
+  refused for lack of permission raises `PermissionDenied`.
+
+Package `discovery` reads the document a launcher publishes of the knowledge
+bases it manages: whole or not at all, a launcher that is not there told from
+one that manages nothing, and what changed since it was last read
+(`SubscribeDiscovery`). It is a registry's list of what can be signed in to.
+
 ## Testing what is built on it
 
 Package `semionttest` gives a real client over doubles. Its namespaces, its
@@ -716,6 +780,18 @@ func ATitleIsItsResourcesNameInCapitals(t *testing.T) {
 - **Every double works inside a `testing/synctest` bubble**: a test can let
   what is ready run (`synctest.Wait`) and move the clock (`time.Sleep`).
 - **`AssertStateUnitAxioms`** holds a state unit to what every unit promises.
+- **`NewTestSession`** is a real `semiont.Session` over a test client, ready
+  at once, holding a token only if its sign-in held one.
+- **`ScriptedSessions`** is a `registry.SessionFactory` of real sessions over
+  scripted transports, one a knowledge base, for a test of a registry: a test
+  says what each knowledge base answers, who a token is and what a renewal
+  gives. **`SharedStorage`** is a storage several contexts share, each hearing
+  what the others write, as two windows do.
+- **`AssertLivenessAxioms`** holds a composition to the liveness axioms over
+  fault schedules (`FaultSchedules`): every output says something, and every
+  awaited path settles, within a bound. **`AssertExactlyOnceDelivery`** holds
+  anything shaped like a connection to delivering each event exactly once,
+  wherever a transition lands among the writes.
 
 ## The bus
 
@@ -937,11 +1013,14 @@ log keeps) is written as `[withheld]`.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`) and `Session`; the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../specs/src/session/oauth.json) |
+| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../specs/src/session/oauth.json) |
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
 | `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
-| `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; and `AssertStateUnitAxioms` | hand-written |
+| `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile` | hand-written |
+| `registry` | Several knowledge bases: `SemiontBrowser`, its storage and its keys, `HttpSessionFactory`, and a person's sign-in landing on the knowledge base that answered | hand-written |
+| `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../specs/src/discovery/DiscoveryDocument.json), through `api` |
+| `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
 | `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
 | `readme` | The programs this page shows, each run by its tests | hand-written |
 

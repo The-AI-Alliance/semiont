@@ -125,3 +125,14 @@ func (c carrying) Set(key, value string) error {
 }
 
 func (c carrying) Delete(key string) { c.places.storage.Delete(key) }
+
+func (c carrying) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	if err := c.places.storage.Update(key, change); err != nil {
+		return err
+	}
+	return c.places.flush()
+}
+
+func (c carrying) Subscribe(onChange func(key, value string, has bool)) (func(), bool) {
+	return c.places.storage.Subscribe(onChange)
+}
