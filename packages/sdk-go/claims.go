@@ -987,42 +987,34 @@ func (c *Claims) begin() error {
 	if c.stopped {
 		return nil
 	}
-	// Both broadcasts are read as they come, and not as this SDK types them:
-	// the comparison of an announcement with a filter knows no field by name,
-	// so a job this SDK cannot type still wakes a worker whose claim it
-	// matches.
-	frames, leave := c.links.own.listenAmong(bus.JobQueued.Channel(), bus.JobCancelRequested.Request().Channel())
-	c.spawn(func() {
-		defer leave()
-		c.hear(frames)
-	})
+	// Both broadcasts are read from the transport, as the stream delivers
+	// them, and not as this SDK types them: the comparison of an announcement
+	// with a filter knows no field by name, so a job this SDK cannot type
+	// still wakes a worker whose claim it matches. What the client's own
+	// parts say to each other wakes no worker.
+	frames, err := c.links.transport.Frames(c.life, bus.JobQueued.Channel(), bus.JobCancelRequested.Request().Channel())
+	if err != nil {
+		c.beginErr = err
+		return c.beginErr
+	}
+	c.spawn(func() { c.hear(frames) })
 	c.spawn(c.watchTheStream)
 	c.spawn(c.lookForStalls)
 	return nil
 }
 
-// hear reads the announcements and the cancellations as they come. The
-// client's own bus ending ends the claims: nothing more can be claimed.
-func (c *Claims) hear(frames *queue[Frame]) {
-	for {
-		select {
-		case <-c.life.Done():
-			return
-		case <-frames.ready:
-		}
-		items, closed := frames.drain()
-		for _, frame := range items {
-			if frame.Channel == bus.JobQueued.Channel() {
-				c.announced(frame)
-			} else {
-				c.cancellation(frame)
-			}
-		}
-		if closed {
-			c.stop()
-			return
+// hear reads the announcements and the cancellations as the transport
+// delivers them. The transport's closing ends the claims: nothing more can be
+// claimed.
+func (c *Claims) hear(frames iter.Seq[Frame]) {
+	for frame := range frames {
+		if frame.Channel == bus.JobQueued.Channel() {
+			c.announced(frame)
+		} else {
+			c.cancellation(frame)
 		}
 	}
+	c.stop()
 }
 
 // announced is a job:queued. Every announcement received is stamped, before
