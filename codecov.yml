@@ -55,10 +55,6 @@ component_management:
       name: "@semiont/react-ui"
       paths:
         - packages/react-ui/**
-    - component_id: mcp-server
-      name: "@semiont/mcp-server"
-      paths:
-        - packages/mcp-server/**
     - component_id: sdk
       name: "@semiont/sdk"
       paths:
@@ -118,11 +114,6 @@ flags:
   core:
     paths:
       - packages/core/**
-    carryforward: true
-
-  mcp-server:
-    paths:
-      - packages/mcp-server/**
     carryforward: true
 
   observability:

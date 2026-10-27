@@ -25,7 +25,6 @@ jobs:
         package:
           - http-transport
           - core
-          - mcp-server
           - observability
           - react-ui
           - sdk
@@ -71,12 +70,6 @@ jobs:
               npm run build --workspace=@semiont/core
               ;;
             react-ui)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/http-transport
-              npm run build --workspace=@semiont/sdk
-              ;;
-            mcp-server)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/http-transport

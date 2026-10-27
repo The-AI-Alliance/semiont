@@ -38,7 +38,6 @@ The client side: the SDK and what it stands on. The Browser ([apps/browser](../a
 | [@semiont/http-transport](./http-transport/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/http-transport)](https://www.npmjs.com/package/@semiont/http-transport) | How the SDK reaches a knowledge base over HTTP: `HttpTransport` and `HttpContentTransport`. The SDK depends on it |
 | [@semiont/core](./core/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core) | What every TypeScript package stands on: the protocol's types, generated from the spec, the ids, the event bus, and the contracts a transport implements |
 | [@semiont/observability](./observability/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | Tracing and metrics for the TypeScript transport, on OpenTelemetry. It does nothing until a process is given somewhere to export to |
-| [@semiont/mcp-server](./mcp-server/README.md) | Not published | A Model Context Protocol server: tools over a knowledge base, for Claude Desktop and other MCP clients. A tool in its own right, built from a checkout |
 
 ## Rust
 

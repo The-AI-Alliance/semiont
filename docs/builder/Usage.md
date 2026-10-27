@@ -671,7 +671,7 @@ A line shows the payload, and never a credential in it: the value of a member wh
 Toggle:
 
 ```bash
-SEMIONT_BUS_LOG=1 <command>          # A process (the services, a worker, the CLI, MCP, scripts)
+SEMIONT_BUS_LOG=1 <command>          # A process (the services, a worker, the CLI, scripts)
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 

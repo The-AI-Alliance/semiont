@@ -26,11 +26,6 @@
       "version": "0.7.1",
       "publish": true
     },
-    "@semiont/mcp-server": {
-      "dir": "packages/mcp-server",
-      "version": "0.7.1",
-      "publish": false
-    },
     "semiont-browser": {
       "dir": "apps/browser",
       "stage": ".npm-stage/browser",
