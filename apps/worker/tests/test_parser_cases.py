@@ -23,7 +23,7 @@ from spec import SPEC
 
 from semiont_worker.detection.annotation_detection import detect_assessments, detect_comments, detect_highlights, detect_tags
 from semiont_worker.detection.chunk_plan import UnderReportedPiece
-from semiont_worker.detection.entity_extractor import Mention, extract_entities
+from semiont_worker.detection.entity_extractor import COUNT_ELEMENT_SCHEMA, Mention, extract_entities
 from semiont_worker.detection.parsers import AssessmentMatch, CommentMatch, TagMatch
 from semiont_worker.failure_class import DeterministicJobError
 
@@ -38,9 +38,8 @@ class Reply(Stated, frozen=True):
     stop_reason: Annotated[str, Field(alias="stopReason")]
 
 
-class Count(Stated, frozen=True):
-    text: str | None = None
-    fails: Literal[True] | None = None
+class CountFails(Stated, frozen=True):
+    fails: Literal[True]
 
 
 class StatedSpan(Stated, frozen=True):
@@ -101,6 +100,7 @@ class Mentions(Stated, frozen=True):
     dropped: int
     counted: list[int]
     under_reported: Annotated[list[StatedVerdict], Field(alias="underReported")]
+    unchecked: int
 
 
 class Refusal(Stated, frozen=True):
@@ -144,7 +144,7 @@ class TaggingCase(Asked, frozen=True):
 class LinkingCase(Asked, frozen=True):
     motivation: Literal["linking"]
     entity_type: Annotated[str, Field(alias="entityType")]
-    count: Count | None = None
+    count: Reply | CountFails | None = None
     count_calls: Annotated[int, Field(alias="countCalls")]
     read: Mentions | None = None
 
@@ -181,16 +181,17 @@ def reply_text(reply: Reply) -> str:
 class StandIn:
     """The table's stand-in provider.
 
-    Calls for items go to the inference package's own mock, which reads a
-    reply's text as every provider does. A count call is answered here, and
-    the provider verifies yield exactly when the case scripts a count.
+    Calls for items and count calls each go to a mock of the inference
+    package's own, which reads a reply's text as every provider does. A count
+    call is told from a call for items by the schema it asks in, and the
+    provider verifies yield exactly when the case scripts a count.
     """
 
-    def __init__(self, reply: Reply, count: Count | None) -> None:
-        if count is not None:
-            assert (count.text is None) != (count.fails is None), "the table scripts a count's text or its failure, and not both"
+    def __init__(self, reply: Reply, count: Reply | CountFails | None) -> None:
         self._items: Final = MockInferenceClient([reply_text(reply)], stop_reasons=[reply.stop_reason], limits=LIMITS)
-        self._count: Final = count
+        self._counts: Final = (
+            MockInferenceClient([reply_text(count)], stop_reasons=[count.stop_reason], limits=LIMITS) if isinstance(count, Reply) else None
+        )
         self.provider: Final = self._items.provider
         self.model_id: Final = self._items.model_id
         self.max_concurrency: Final = self._items.max_concurrency
@@ -206,15 +207,17 @@ class StandIn:
         return await self._items.limits()
 
     async def generate_text(self, prompt: str, max_tokens: int, temperature: float) -> InferenceResponse:
-        self.count_calls += 1
-        if self._count is None or self._count.text is None:
-            raise Exception("the scripted count call fails")
-        return InferenceResponse(text=self._count.text, stop_reason="end_turn", usage=None)
+        raise AssertionError("a reading asks its model for no text")
 
     async def generate_structured(
         self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
     ) -> StructuredResponse:
-        return await self._items.generate_structured(prompt, max_tokens, temperature, element_schema)
+        if element_schema is not COUNT_ELEMENT_SCHEMA:
+            return await self._items.generate_structured(prompt, max_tokens, temperature, element_schema)
+        self.count_calls += 1
+        if self._counts is None:
+            raise Exception("the scripted count call fails")
+        return await self._counts.generate_structured(prompt, max_tokens, temperature, element_schema)
 
 
 def unheard(_consumed: int, _total: int) -> None:
@@ -236,6 +239,8 @@ class HandedOn:
     """The count of each piece whose items were accepted: of a linking call, and of no other."""
     under_reported: Sequence[UnderReportedPiece] | None
     """The verdict of each piece kept though a count said more was there: of a linking call, and of no other."""
+    unchecked: int | None
+    """How many pieces were kept with their check not run: of a linking call, and of no other."""
 
 
 def one_piece[P](pieces: list[P]) -> P:
@@ -289,7 +294,7 @@ async def highlights_read(case: HighlightingCase, client: StandIn) -> HandedOn:
     pieces: list[HandedOn] = []
 
     async def on_chunk_results(matches: list[TextSpan], _cursor: object, dropped: int) -> None:
-        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None))
+        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None, unchecked=None))
 
     await detect_highlights(
         case.text,
@@ -309,7 +314,7 @@ async def comments_read(case: CommentingCase, client: StandIn) -> HandedOn:
     pieces: list[HandedOn] = []
 
     async def on_chunk_results(matches: list[CommentMatch], _cursor: object, dropped: int) -> None:
-        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None))
+        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None, unchecked=None))
 
     await detect_comments(
         case.text,
@@ -331,7 +336,7 @@ async def assessments_read(case: AssessingCase, client: StandIn) -> HandedOn:
     pieces: list[HandedOn] = []
 
     async def on_chunk_results(matches: list[AssessmentMatch], _cursor: object, dropped: int) -> None:
-        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None))
+        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None, unchecked=None))
 
     await detect_assessments(
         case.text,
@@ -353,7 +358,7 @@ async def tags_read(case: TaggingCase, client: StandIn) -> HandedOn:
     pieces: list[HandedOn] = []
 
     async def on_chunk_results(matches: list[TagMatch], _cursor: object, dropped: int) -> None:
-        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None))
+        pieces.append(HandedOn(items=matches, dropped=dropped, counted=None, under_reported=None, unchecked=None))
 
     await detect_tags(
         case.text,
@@ -373,6 +378,7 @@ async def mentions_read(case: LinkingCase, client: StandIn) -> HandedOn:
     pieces: list[tuple[list[Mention], int]] = []
     counted: list[int] = []
     under_reported: list[UnderReportedPiece] = []
+    unchecked: list[None] = []
 
     async def on_chunk_results(mentions: list[Mention], _cursor: object, dropped: int) -> None:
         pieces.append((mentions, dropped))
@@ -387,11 +393,12 @@ async def mentions_read(case: LinkingCase, client: StandIn) -> HandedOn:
         on_activity=unheard,
         on_under_report=under_reported.append,
         on_counted=counted.append,
+        on_unchecked=lambda: unchecked.append(None),
         resume=None,
         on_chunk_results=on_chunk_results,
     )
     mentions, dropped = one_piece(pieces)
-    return HandedOn(items=mentions, dropped=dropped, counted=counted, under_reported=under_reported)
+    return HandedOn(items=mentions, dropped=dropped, counted=counted, under_reported=under_reported, unchecked=len(unchecked))
 
 
 def described(failure: Exception) -> Refusal:
@@ -417,8 +424,8 @@ def test_the_runner_found_cases_of_every_motivation() -> None:
     assert sum(isinstance(case, CommentingCase) for case in cases) >= 4
     assert sum(isinstance(case, AssessingCase) for case in cases) >= 4
     assert sum(isinstance(case, TaggingCase) for case in cases) >= 3
-    assert sum(isinstance(case, LinkingCase) for case in cases) >= 18
-    assert len(cases) >= 37
+    assert sum(isinstance(case, LinkingCase) for case in cases) >= 22
+    assert len(cases) >= 41
 
 
 @pytest.mark.parametrize("case", TABLE.cases, ids=lambda case: f"{case.motivation}: {case.why}")
@@ -431,16 +438,22 @@ def test_a_reply_is_read_or_refused_as_the_table_says(case: Case) -> None:
     read: HandedOn | None
     match case:
         case HighlightingCase():
-            read = None if case.read is None else HandedOn([span_of(item) for item in case.read.items], case.read.dropped, None, None)
+            read = None if case.read is None else HandedOn([span_of(item) for item in case.read.items], case.read.dropped, None, None, None)
             outcome = outcome_of(highlights_read(case, client))
         case CommentingCase():
-            read = None if case.read is None else HandedOn([comment_of(item) for item in case.read.items], case.read.dropped, None, None)
+            read = (
+                None if case.read is None else HandedOn([comment_of(item) for item in case.read.items], case.read.dropped, None, None, None)
+            )
             outcome = outcome_of(comments_read(case, client))
         case AssessingCase():
-            read = None if case.read is None else HandedOn([assessment_of(item) for item in case.read.items], case.read.dropped, None, None)
+            read = (
+                None
+                if case.read is None
+                else HandedOn([assessment_of(item) for item in case.read.items], case.read.dropped, None, None, None)
+            )
             outcome = outcome_of(assessments_read(case, client))
         case TaggingCase():
-            read = None if case.read is None else HandedOn([tag_of(item) for item in case.read.items], case.read.dropped, None, None)
+            read = None if case.read is None else HandedOn([tag_of(item) for item in case.read.items], case.read.dropped, None, None, None)
             outcome = outcome_of(tags_read(case, client))
         case LinkingCase():
             read = (
@@ -451,6 +464,7 @@ def test_a_reply_is_read_or_refused_as_the_table_says(case: Case) -> None:
                     case.read.dropped,
                     case.read.counted,
                     [verdict_of(verdict) for verdict in case.read.under_reported],
+                    case.read.unchecked,
                 )
             )
             outcome = outcome_of(mentions_read(case, client))

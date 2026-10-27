@@ -12,7 +12,7 @@
 import { expect, it } from 'vitest';
 import { errorsOf, spec } from '../harness/spec';
 import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { cancelRequested, expectProgress, identity, LONG_TEXT, markerHighlight, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT, textAnnotation, withoutCreated } from './support';
+import { cancelRequested, counting, expectProgress, identity, LONG_TEXT, markerHighlight, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT, textAnnotation, withoutCreated } from './support';
 
 /** A schema of two categories, as the dispatcher adds it to a tagging job. */
 const SCHEMA = {
@@ -185,7 +185,7 @@ eachWorkerService('a job that is cancelled', (world) => {
     const job = markJob(w, 'cancel-linking-partway', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, {}, LONG_TEXT);
     const resourceId = String(job.params.resourceId);
     // The text is four pieces for each type. The first piece's extraction is held with the model; its count is answered when asked.
-    w.ollama.script({ hold: true }, { response: '1' });
+    w.ollama.script({ hold: true }, counting(1));
     const served = await w.start();
     await w.ollama.asked(1);
     await cancelRequested(w, job);
@@ -238,7 +238,7 @@ eachWorkerService('a job that is cancelled', (world) => {
     const w = world();
     const job = markJob(w, 'cancel-linking-last', { motivation: 'linking', entityTypes: ['Person'] });
     const resourceId = String(job.params.resourceId);
-    w.ollama.script({ hold: true }, { response: '1' });
+    w.ollama.script({ hold: true }, counting(1));
     const served = await w.start();
     await w.ollama.asked(1);
     await cancelRequested(w, job);
@@ -274,7 +274,7 @@ eachWorkerService('a job that is cancelled', (world) => {
     const w = world();
     const job = markJob(w, 'cancel', { motivation: 'linking', entityTypes: ['Person', 'Place'] });
     const resourceId = String(job.params.resourceId);
-    w.ollama.script({ response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) }, { response: '1' });
+    w.ollama.script({ response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) }, counting(1));
     // The cancellation is asked for while the first type's batch is being committed, before the record acknowledges it.
     let asked = false;
     w.hooks.commit = async () => {
@@ -309,7 +309,7 @@ eachWorkerService('a job that is cancelled', (world) => {
     const person = { next: TEXT.length, size: 2658, found: 2, emitted: 2, errors: 0 };
     const job = markJob(w, 'cancel-resumed', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 1, completedUnits: ['Person'], unitCursors: { Person: person } });
     const resourceId = String(job.params.resourceId);
-    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, { response: '1' });
+    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, counting(1));
     let asked = false;
     w.hooks.commit = async () => {
       if (!asked) {

@@ -6,10 +6,10 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, MIDDLING_CONTEXT_LENGTH, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
+import { COUNT_FORMAT, counting, expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, MIDDLING_CONTEXT_LENGTH, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
 const EXTRACTION = { num_predict: 5318, num_ctx: 5758, temperature: 0 };
-const COUNT = { num_predict: 16, num_ctx: 244, temperature: 0 };
+const COUNT = { num_predict: 32, num_ctx: 272, temperature: 0 };
 const CHUNK_SIZE = 2658;
 
 /** An unresolved reference's body: the entity type, as a tag. */
@@ -23,7 +23,7 @@ eachWorkerService('a linking job', (world) => {
     const resourceId = String(job.params.resourceId);
     w.ollama.script(
       { response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person', prefix: '', suffix: ' published' }, { exact: 'Charles Babbage', entityType: 'Person' }]) },
-      { response: '2' },
+      counting(2),
       {
         response: JSON.stringify([
           { exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' },
@@ -31,7 +31,7 @@ eachWorkerService('a linking job', (world) => {
           { exact: 'London', entityType: 'Place', prefix: 'ignored it. ', suffix: ' was wrong' },
         ]),
       },
-      { response: '3' },
+      counting(3),
     );
     const served = await w.start();
     const completion = await settled(served, job);
@@ -39,9 +39,9 @@ eachWorkerService('a linking job', (world) => {
     // An Ollama model is asked one thing at a time: the types run in the order the job names them.
     expectGenerations(w.ollama.generations, [
       generation(agent.model, 'linking-person', EXTRACTION, FORMATS.linking),
-      generation(agent.model, 'linking-person-count', COUNT),
+      generation(agent.model, 'linking-person-count', COUNT, COUNT_FORMAT),
       generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking),
-      generation(agent.model, 'linking-place-count', COUNT),
+      generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT),
     ]);
 
     expect(served.sequence()).toEqual([
@@ -188,7 +188,7 @@ eachWorkerService('a linking job', (world) => {
           { exact: 'Charles Babbage', entityType: 'person' },
         ]),
       },
-      { response: '2' },
+      counting(2),
     );
     const served = await w.start();
     const completion = await settled(served, job);
@@ -214,19 +214,27 @@ eachWorkerService('a linking job', (world) => {
     expect(completion).toEqual({ ...identity(job), result: { found: 3, persisted: 1, errors: 2 }, durability: 'acknowledged' });
   });
 
-  it('reads a count through its thousands separator', async () => {
+  it('keeps what a piece found when its count answers no count, and counts the piece in its result as unchecked', async () => {
     const w = world();
-    const job = markJob(w, 'linking-count-separator', { motivation: 'linking', entityTypes: ['Place'] });
-    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, { response: 'About 1,009.' });
+    const agent = w.agents[0]!;
+    const job = markJob(w, 'linking-unchecked', { motivation: 'linking', entityTypes: ['Place'] });
+    w.ollama.script(
+      { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) },
+      // Words, cut off at the count's limit before any number: no count.
+      { response: 'There are several mentions of places in', doneReason: 'length' },
+    );
     const served = await w.start();
     const completion = await settled(served, job);
 
-    // 1,009 and not 1: one found is under half of it, and the piece is kept as under-reported.
+    // A count that answers no count is not asked again, and what the extraction found is committed.
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
+    // Nothing was counted: the reports state no expectation, and the type no under-report.
     const finished = served.progress(job.metadata.id).filter((p) => p['percentage'] === 100);
     expect(finished).toHaveLength(1);
-    expect((finished[0]!['progress'] as Record<string, unknown>)['entitiesExpected']).toBe(1009);
-    expect((finished[0]!['progress'] as Record<string, unknown>)['completedItems']).toEqual([{ value: 'Place', foundCount: 1, persistedCount: 1, underReported: { pieces: 1, found: 1, counted: 1009 } }]);
-    expect(completion).toEqual({ ...identity(job), result: { found: 1, persisted: 1, underReportedPieces: 1 }, durability: 'acknowledged' });
+    expect((finished[0]!['progress'] as Record<string, unknown>)['entitiesExpected']).toBeUndefined();
+    expect((finished[0]!['progress'] as Record<string, unknown>)['completedItems']).toEqual([{ value: 'Place', foundCount: 1, persistedCount: 1 }]);
+    expect(completion).toEqual({ ...identity(job), result: { found: 1, persisted: 1, uncheckedPieces: 1 }, durability: 'acknowledged' });
   });
 
   it('keeps what a piece too small to halve found, when the count says mentions were missed, and says so in its result and its reports', async () => {
@@ -235,14 +243,14 @@ eachWorkerService('a linking job', (world) => {
     const job = markJob(w, 'linking-under-reported', { motivation: 'linking', entityTypes: ['Place'] });
     w.ollama.script(
       { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) },
-      // More than twice what the extraction found. The count is the first whole number in the answer.
-      { response: 'There are 9 mentions, or 10.' },
+      // More than twice what the extraction found.
+      counting(9),
     );
     const served = await w.start();
     const completion = await settled(served, job);
 
     // The text is one piece, so there is no half to ask for instead: asked once, and counted once.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT)]);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
 
     const requestParams = [{ label: 'entity-types', value: 'Place' }];
@@ -277,9 +285,9 @@ eachWorkerService('a linking job', (world) => {
     // The text is two pieces, each an extraction and a count. Neither answer names a marker of the overlap.
     w.ollama.script(
       { response: JSON.stringify([{ exact: 'marker 103', entityType: 'Person' }, { exact: 'marker 601', entityType: 'Person' }]) },
-      { response: '2' },
+      counting(2),
       { response: JSON.stringify([{ exact: 'marker 702', entityType: 'Person' }]) },
-      { response: '1' },
+      counting(1),
     );
     const served = await w.start();
     const completion = await settled(served, job);

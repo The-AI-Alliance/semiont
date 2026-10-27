@@ -12,7 +12,7 @@ import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { metricName, spanName, spec, telemetry, type TelemetryRow } from '../harness/spec';
 import { outsideTheTable, SPAN_KIND } from '../harness/telemetry';
 import { eachWorkerService, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { markJob, settled, TEXT } from './support';
+import { counting, markJob, settled, TEXT } from './support';
 
 let receiver: OtlpReceiver | undefined;
 beforeAll(async () => {
@@ -97,7 +97,7 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     { response: JSON.stringify([{ exact: 'Ada Lovelace', comment: 'She wrote the notes.' }]) },
     { response: JSON.stringify([{ exact: 'nobody tested that claim for a century', assessment: 'No source is given.' }]) },
     { response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) },
-    { response: '1' },
+    counting(1),
     { response: JSON.stringify([{ exact: 'London was wrong.' }]) },
     { response: 'The engine was designed in London and never built.' },
     { status: 500, body: '{"error":"overloaded"}' },
@@ -105,10 +105,10 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     cutOff,
     // One place found where the count says nine: the piece cannot be cut smaller, so what was found is kept.
     { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ' }]) },
-    { response: '9' },
+    counting(9),
     // The cancelled job's first entity type: its second is never asked for.
     { response: JSON.stringify([{ exact: 'Charles Babbage', entityType: 'Person' }]) },
-    { response: '1' },
+    counting(1),
   );
   const served = await w.start({ env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
   for (const name of ['highlighting', 'commenting', 'assessing', 'linking', 'tagging', 'yield', 'pdf']) await settled(served, jobs[name]!);
