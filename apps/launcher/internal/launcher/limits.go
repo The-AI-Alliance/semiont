@@ -50,8 +50,8 @@ func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 	if st == nil {
 		return nil
 	}
-	base := GatewayBase(st)
-	if base == "" {
+	base, err := GatewayBase(st)
+	if err != nil {
 		return nil
 	}
 	// The same session every verb holds, renewed as theirs is. No session
