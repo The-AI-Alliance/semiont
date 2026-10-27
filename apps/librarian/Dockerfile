@@ -15,7 +15,7 @@
 ARG PYTHON_FLOOR
 
 # uv makes the environment, in the builder stage alone.
-FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
 FROM python:${PYTHON_FLOOR}-alpine AS builder
 COPY --from=uv /uv /usr/local/bin/uv
