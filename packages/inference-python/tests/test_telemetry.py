@@ -217,7 +217,7 @@ def test_a_generation_is_counted_once_by_how_it_ended_and_its_tokens_are_the_pro
         timed[attributes["inference.provider"], attributes["inference.outcome"]] = point.count
 
     assert calls == {("ollama", "success"): 2, ("ollama", "error"): 3, ("anthropic", "success"): 1, ("anthropic", "error"): 3}
-    # What the provider counted, and nothing else: not the probe's tokens, and nothing for a call whose provider reported none.
+    # What the provider counted, and nothing else: nothing for a call whose provider reported none.
     assert tokens == {
         ("ollama", "input"): 412 + 3,
         ("ollama", "output"): 57 + 9,

@@ -84,16 +84,16 @@ eachWorkerService('the limits a worker answers', (world) => {
     expect(w.ollama.shows.length).toBe(asked);
   });
 
-  it('answers, of an Anthropic model, what its provider says it reads and writes and whether it took the temperature it was probed with, having asked of each model once', async () => {
+  it('answers, of an Anthropic model, what its provider says it reads and writes, and that it takes no temperature, having asked of each model once and in one request', async () => {
     const w = world();
     const [first, second] = w.anthropicAgents;
-    // The second reads and writes less, and refuses a temperature.
-    w.anthropic.models.set(second!.model, { maxInputTokens: 180_000, maxOutputTokens: 8192, structuredOutputs: true, acceptsTemperature: false });
+    // The second reads and writes less.
+    w.anthropic.models.set(second!.model, { maxInputTokens: 180_000, maxOutputTokens: 8192, structuredOutputs: true });
     await started(w, w.anthropicAgents);
     const stated = {
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: true } },
+          { provider: first!.provider, model: first!.model, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: false } },
           { provider: second!.provider, model: second!.model, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
         ],
       },
@@ -102,15 +102,11 @@ eachWorkerService('the limits a worker answers', (world) => {
     expect(answer.payload).toEqual(stated);
     expect(answer.by).toBe(first!.did);
 
-    // Of each model: its ceilings, and one probe. The two agents ask at once, so the four requests come in no fixed order.
-    expect(w.anthropic.described.map((r) => `${r.method} ${r.path}`).sort()).toEqual([`GET /v1/models/${first!.model}`, `GET /v1/models/${second!.model}`].sort());
-    const probe = (model: string) => ({ model, max_tokens: 1, temperature: 0.7, messages: [{ role: 'user', content: 'ok' }] });
-    const byModel = (a: Record<string, unknown>, b: Record<string, unknown>) => (String(a['model']) < String(b['model']) ? -1 : 1);
-    expect(w.anthropic.probes.map((p) => p.body).sort(byModel)).toEqual([probe(first!.model), probe(second!.model)].sort(byModel));
-    expect(w.anthropic.requests).toHaveLength(4);
+    // Of each model, its ceilings, and nothing else. The two agents ask at once, so the two requests come in no fixed order.
+    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`).sort()).toEqual([`GET /v1/models/${first!.model}`, `GET /v1/models/${second!.model}`].sort());
 
     // What it learned it keeps: the provider is asked nothing more.
     expect((await limits(w)).payload).toEqual(stated);
-    expect(w.anthropic.requests).toHaveLength(4);
+    expect(w.anthropic.requests).toHaveLength(2);
   });
 });

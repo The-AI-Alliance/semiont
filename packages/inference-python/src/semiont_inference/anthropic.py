@@ -4,15 +4,19 @@ The library is not a dependency of this package. It comes with the extra
 `semiont-inference[anthropic]`, and this module is the one place it is
 imported: whoever does not ask for this driver does not need it.
 
-What this driver leans on in the library (`anthropic`, read at 1.17.0), so
+What this driver leans on in the library (`anthropic`, read at 2.1.0), so
 that a new release of it is read for the same:
 
+- It speaks API version 2026-10-21, in an `anthropic-version` header on
+  every request. Under that version the provider refuses, with 400, a
+  request that sends `temperature`, `top_p` or `top_k`, on every model and
+  at any value, and the library has no parameter for any of them. So no
+  request here sends one, and `limits().accepts_temperature` is false.
+- It sends its key as `Authorization: Bearer`.
 - It refuses to wait for a whole answer it reckons could take over ten
   minutes, at 128,000 tokens an hour (`_calculate_nonstreaming_timeout`).
   `_OUTPUT_TOKENS_PER_HOUR` below is that rate, and `tests/test_anthropic.py`
   asks the library where its refusal begins.
-- It has no `temperature` parameter. A request's temperature goes in
-  `extra_body`, which the library merges into the body it sends.
 - It tries a request again, `max_retries` times, when the connection fails
   or the provider answers 408, 409, 429 or 500 and above. It waits as long
   as the refusal says, by `retry-after-ms`, or by `retry-after` in seconds
@@ -42,7 +46,6 @@ that a new release of it is read for the same:
 """
 
 import email.utils
-import re
 import time
 from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
@@ -95,10 +98,6 @@ _OUTPUT_TOKENS_PER_HOUR: Final = 128_000
 # stream and put together here: the same request, the same reading of the reply.
 _NONSTREAMING_MAX_OUTPUT_TOKENS: Final = _OUTPUT_TOKENS_PER_HOUR // 6
 
-# What the probe asks for. It is also how a probe is told from a generation, in a
-# test and in a log: nothing else asks for a single token.
-_TEMPERATURE_PROBE_MAX_TOKENS: Final = 1
-
 # How many times the library asks again for a request that failed. Chosen, and
 # not left to the library: two is its default today, and written here a release
 # of the library cannot change it unnoticed.
@@ -137,16 +136,10 @@ _LONGEST_STATED_WAIT: Final = 120
 @final
 @dataclass(frozen=True, slots=True)
 class _Discovery:
-    """What is learned of the model, once.
-
-    Its ceilings and whether it answers in a schema come from one request of
-    the Models API. Whether it takes a temperature comes from one request
-    that sends it one.
-    """
+    """What is learned of the model, once: its ceilings and whether it answers in a schema, from one request of the Models API."""
 
     limits: InferenceLimits
     structured_outputs_supported: bool
-    temperature_accepted: bool
 
 
 class _Answered(Protocol):
@@ -260,13 +253,9 @@ class AnthropicInferenceClient:
             "Generating text with inference client",
             extra={"model": self.model_id, "promptLength": len(prompt), "maxTokens": max_tokens, "temperature": temperature},
         )
-        # A model that refuses a temperature answers 400 to any, and its callers go on stating
-        # one. So it is left out here, once, and `limits().accepts_temperature` says that it is.
-        discovery = await self._discovery.get()
+        # The temperature a caller states is not sent: the provider refuses one on every model.
         started = time.perf_counter()
-        message, request_id = await self._recorded(
-            started, prompt, max_tokens, temperature if discovery.temperature_accepted else None, omit
-        )
+        message, request_id = await self._recorded(started, prompt, max_tokens, omit)
 
         counts = _counts(message)
         text = self._answer(started, message, counts)
@@ -302,9 +291,7 @@ class AnthropicInferenceClient:
         # and no assistant turn to begin the answer.
         output_config: OutputConfigParam = {"format": {"type": "json_schema", "schema": {"type": "array", "items": dict(element_schema)}}}
         started = time.perf_counter()
-        message, request_id = await self._recorded(
-            started, prompt, max_tokens, temperature if discovery.temperature_accepted else None, output_config
-        )
+        message, request_id = await self._recorded(started, prompt, max_tokens, output_config)
 
         counts = _counts(message)
         text = self._answer(started, message, counts)
@@ -397,54 +384,22 @@ class AnthropicInferenceClient:
             capabilities = _said(info).get("capabilities")
             structured_outputs = capabilities.get("structured_outputs") if isinstance(capabilities, dict) else None
             structured_outputs_supported = isinstance(structured_outputs, dict) and structured_outputs.get("supported") is True
-            temperature_accepted = await self._probe_temperature(library)
         return _Discovery(
             limits=InferenceLimits(
                 context_tokens=info.max_input_tokens,
                 max_output_tokens=info.max_tokens,
                 output_tokens_per_hour=_OUTPUT_TOKENS_PER_HOUR,
-                accepts_temperature=temperature_accepted,
+                accepts_temperature=False,
             ),
             structured_outputs_supported=structured_outputs_supported,
-            temperature_accepted=temperature_accepted,
         )
 
-    async def _probe_temperature(self, library: AsyncAnthropic) -> bool:
-        """Whether the model takes a temperature at all, learned by sending it one.
-
-        Some models refuse every temperature, on both kinds of request, and
-        the Models API does not say which. One request for one token answers
-        it, once for the model. The refusal is matched by its words here,
-        where it happens once, so that no generation's failure is read that
-        way.
-        """
-        learning = f"Sampling-parameter probe failed for '{self.model_id}'"
-        try:
-            await library.messages.create(
-                model=self.model_id,
-                max_tokens=_TEMPERATURE_PROBE_MAX_TOKENS,
-                messages=[{"role": "user", "content": "ok"}],
-                extra_body={"temperature": 0.7},
-            )
-        except APIStatusError as refused:
-            if refused.status_code == 400 and re.search("temperature", refused.message, re.IGNORECASE):
-                LOG.warning(
-                    "Model rejects `temperature`; caller-supplied values will be omitted from its requests",
-                    extra={"model": self.model_id},
-                )
-                return False
-            # Any other refusal is not an answer. It fails the discovery, which is not kept, so the next call asks again.
-            raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
-        except Exception as failed:
-            raise RuntimeError(learning) from failed
-        return True
-
     async def _recorded(
-        self, started: float, prompt: str, max_tokens: int, temperature: float | None, output_config: OutputConfigParam | Omit
+        self, started: float, prompt: str, max_tokens: int, output_config: OutputConfigParam | Omit
     ) -> tuple[Message, str | None]:
         """Ask for one generation. A request that fails is counted, and is raised as the interface states a generation's failures."""
         try:
-            return await self._request(prompt, max_tokens, temperature, output_config)
+            return await self._request(prompt, max_tokens, output_config)
         except APIStatusError as refused:
             self._record(started, "error", (None, None))
             if refused.status_code < 400:
@@ -460,16 +415,13 @@ class AnthropicInferenceClient:
             self._record(started, "error", (None, None))
             raise
 
-    async def _request(
-        self, prompt: str, max_tokens: int, temperature: float | None, output_config: OutputConfigParam | Omit
-    ) -> tuple[Message, str | None]:
+    async def _request(self, prompt: str, max_tokens: int, output_config: OutputConfigParam | Omit) -> tuple[Message, str | None]:
         """The provider's reply to one generation, and the id the provider gave the request.
 
         The request is made in the caller's own task: cancelling the caller
         ends the attempt under way, and with it the library's waiting to try
         again.
         """
-        extra_body = None if temperature is None else {"temperature": temperature}
         async with self._library() as library:
             if max_tokens > _NONSTREAMING_MAX_OUTPUT_TOKENS:
                 async with library.messages.stream(
@@ -477,7 +429,6 @@ class AnthropicInferenceClient:
                     max_tokens=max_tokens,
                     messages=[{"role": "user", "content": prompt}],
                     output_config=output_config,
-                    extra_body=extra_body,
                 ) as stream:
                     return await stream.get_final_message(), stream.request_id
             # Asked for with its headers, which is where the provider states the request's id.
@@ -486,7 +437,6 @@ class AnthropicInferenceClient:
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
                 output_config=output_config,
-                extra_body=extra_body,
             )
             return await response.parse(to=Message), response.request_id
 

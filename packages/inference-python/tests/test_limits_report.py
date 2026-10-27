@@ -93,7 +93,7 @@ def test_each_pair_is_reported_in_the_order_given_as_its_provider_states_it() ->
                 {
                     "provider": "anthropic",
                     "model": "claude-x",
-                    "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": True},
+                    "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": False},
                 },
                 {"provider": "ollama", "model": "llama3", "limits": shared(4096)},
                 MOCK_PAIR,

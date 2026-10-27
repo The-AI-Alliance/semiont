@@ -1,19 +1,21 @@
 /**
- * A stand-in Anthropic: the three calls a worker's Anthropic agent makes,
+ * A stand-in Anthropic: the two calls a worker's Anthropic agent makes,
  * answered from what a case scripted. `GET /v1/models/{model}` answers what
- * the case said of the model. `POST /v1/messages` asking for one token is the
- * probe of whether the model takes a `temperature`, and is answered from the
- * same. Any other `POST /v1/messages` is a generation, and takes the next
- * scripted reply: as one JSON message, or as a stream of events when the
- * request asks for one (`stream: true`). Every request is recorded as it was
- * sent, with its headers, so a case can hold a worker to the exact request it
- * made and to how many times it made it.
+ * the case said of the model. `POST /v1/messages` is a generation, and takes
+ * the next scripted reply: as one JSON message, or as a stream of events when
+ * the request asks for one (`stream: true`). Every request is recorded as it
+ * was sent, with its headers, so a case can hold a worker to the exact request
+ * it made and to how many times it made it.
  *
- * A model that does not take a `temperature` refuses every request that
- * carries one, as the provider does: with 400, saying so.
+ * It plays the provider under version 2026-10-21 of its API. A request is
+ * taken only with the key as `Authorization: Bearer <key>`, and is otherwise
+ * answered 401. A generation that carries `temperature`, `top_p` or `top_k`
+ * is refused on every model, as the provider refuses one: with 400, saying
+ * so.
  *
  * A request no case scripted, a request of any other path, a request about a
- * model the case has not described, and a request without the key lands in
+ * model the case has not described, a request without the key, and a
+ * generation that carries `temperature`, `top_p` or `top_k` lands in
  * `violations`, which fail the case whatever it was about.
  */
 import { createServer, type IncomingHttpHeaders, type Server, type ServerResponse } from 'node:http';
@@ -28,8 +30,6 @@ export interface ModelFacts {
   maxOutputTokens: number;
   /** What it reports as `capabilities.structured_outputs.supported`. */
   structuredOutputs: boolean;
-  /** Whether it takes a `temperature`. */
-  acceptsTemperature: boolean;
 }
 
 /** What the stand-in does with one generation. */
@@ -74,20 +74,16 @@ export interface RecordedMessage extends RecordedRequest {
 export interface StandInAnthropic {
   /** What a worker's `baseUrl` names. */
   readonly origin: string;
-  /** The key a request must carry as `x-api-key`. */
+  /** The key a request must carry, as `Authorization: Bearer <key>`. */
   readonly apiKey: string;
   /** What the provider says of each model it has, by the model's name. A model it lacks is answered 404. */
   readonly models: Map<string, ModelFacts>;
   /** What the Models API refuses every request with, when a case says it does. */
   modelsRefusal: Refusal | undefined;
-  /** What the probe is refused with, whatever the model takes, when a case says it is. */
-  probeRefusal: Refusal | undefined;
   /** Every request, in order. */
   readonly requests: RecordedRequest[];
   /** Every `GET /v1/models/{model}`, in order. */
   readonly described: RecordedRequest[];
-  /** Every probe, in order. */
-  readonly probes: RecordedMessage[];
   /** Every generation, in order. */
   readonly generations: RecordedMessage[];
   /** Everything the worker asked that no case scripted. */
@@ -112,6 +108,9 @@ export interface StandInAnthropic {
 /** How many code points of an answer one event of a stream carries. */
 const STREAMED_PIECE = 24;
 
+/** What the provider refuses in a generation under version 2026-10-21 of its API, on every model and at any value. */
+const SAMPLING = ['temperature', 'top_p', 'top_k'] as const;
+
 const refusal = (type: string, message: string): string => JSON.stringify({ type: 'error', error: { type, message } });
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -121,7 +120,6 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
   const known = new Map<string, ModelFacts>();
   const requests: RecordedRequest[] = [];
   const described: RecordedRequest[] = [];
-  const probes: RecordedMessage[] = [];
   const generations: RecordedMessage[] = [];
   const violations: string[] = [];
   const scripted: ScriptedMessage[] = [];
@@ -143,7 +141,6 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
   describe();
 
   let modelsRefusal: Refusal | undefined;
-  let probeRefusal: Refusal | undefined;
   let choose: StandInAnthropic['choose'];
 
   /** Send `reply` as the answer to a generation that asked with `body`. */
@@ -211,9 +208,9 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
       };
       const what = `${recorded.method} ${recorded.path}`;
 
-      if (req.headers['x-api-key'] !== apiKey) {
-        violations.push(`${what} without the key its agent's apiKeyEnv names`);
-        return json(401, refusal('authentication_error', 'invalid x-api-key'));
+      if (req.headers['authorization'] !== `Bearer ${apiKey}`) {
+        violations.push(`${what} without the key its agent's apiKeyEnv names, as \`Authorization: Bearer\``);
+        return json(401, refusal('authentication_error', 'invalid bearer token'));
       }
 
       const model = /^\/v1\/models\/([^/?]+)$/.exec(recorded.path)?.[1];
@@ -246,17 +243,17 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
           return json(400, refusal('invalid_request_error', 'not a JSON object'));
         }
         const asked: RecordedMessage = Object.assign(recorded, { body });
-        const probe = asked.body['max_tokens'] === 1;
-        (probe ? probes : generations).push(asked);
-        if (!probe) wake();
-        const said = known.get(String(asked.body['model']));
-        if (said === undefined) {
+        generations.push(asked);
+        wake();
+        if (!known.has(String(asked.body['model']))) {
           violations.push(`${what} of ${String(asked.body['model'])}, a model the case has not described`);
           return json(404, refusal('not_found_error', `model: ${String(asked.body['model'])}`));
         }
-        if (probe && probeRefusal !== undefined) return refuse(probeRefusal, 'the stand-in refuses the probe');
-        if (!said.acceptsTemperature && 'temperature' in asked.body) return json(400, refusal('invalid_request_error', '`temperature` is deprecated for this model.'));
-        if (probe) return answer(res, asked.body, { text: 'ok', usage: { input: 8, output: 1 }, stopReason: 'max_tokens' });
+        const sampled = SAMPLING.filter((name) => name in asked.body).map((name) => `\`${name}\``);
+        if (sampled.length > 0) {
+          violations.push(`generation ${generations.length}, which carries ${sampled.join(', ')}`);
+          return json(400, refusal('invalid_request_error', `${sampled.join(', ')}: this version of the API takes no sampling parameter, on any model`));
+        }
         const reply = choose?.(asked.body) ?? scripted.shift();
         if (reply === undefined) {
           violations.push(`generation ${generations.length}, which no case scripted: ${JSON.stringify(asked.body['messages']).slice(0, 160)}`);
@@ -287,12 +284,6 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
     set modelsRefusal(next) {
       modelsRefusal = next;
     },
-    get probeRefusal() {
-      return probeRefusal;
-    },
-    set probeRefusal(next) {
-      probeRefusal = next;
-    },
     get choose() {
       return choose;
     },
@@ -301,7 +292,6 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
     },
     requests,
     described,
-    probes,
     generations,
     violations,
     script: (...replies) => void scripted.push(...replies),
@@ -330,11 +320,9 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
       scripted.length = 0;
       requests.length = 0;
       described.length = 0;
-      probes.length = 0;
       generations.length = 0;
       violations.length = 0;
       modelsRefusal = undefined;
-      probeRefusal = undefined;
       choose = undefined;
       describe();
     },

@@ -91,7 +91,7 @@ func anthropicModelList(base, key string) ([]anthropicModel, bool) {
 		return nil, false
 	}
 	req.Header.Set("x-api-key", key)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", anthropicAPIVersion)
 	resp, err := (&http.Client{Transport: launcherTransport, Timeout: 3 * time.Second}).Do(req)
 	if err != nil {
 		return nil, false

@@ -40,14 +40,15 @@ Each file runs its cases in a world of its own
   unanswered, and `POST /api/generate` with what the case scripted, and
   records every request as it was sent;
 - a stand-in Anthropic ([harness/anthropic.ts](../harness/anthropic.ts)),
-  which the `baseUrl` of an Anthropic agent names. It answers `GET
-  /v1/models/{model}` with what a case said of the model, the probe of
-  whether the model takes a `temperature` from the same, and any other `POST
+  which the `baseUrl` of an Anthropic agent names. It plays the provider
+  under version 2026-10-21 of its API: it takes a request only with the key
+  as `Authorization: Bearer <key>`, and refuses with 400, on every model, a
+  generation that carries `temperature`, `top_p` or `top_k`. It answers `GET
+  /v1/models/{model}` with what a case said of the model, and `POST
   /v1/messages` with what the case scripted: an answer, as one message or as
   the stream of events the request asked for, a refusal, a held answer, or a
   connection ended unanswered. A refusal may carry headers, and so may one
-  of the Models API or of the probe. It records every request with its
-  headers.
+  of the Models API. It records every request with its headers.
   Its key reaches the service in the variable the agent's `apiKeyEnv` names,
   which is none the provider's own library reads;
 - the suite itself on the bus, as the two parties a worker asks things of
@@ -71,7 +72,8 @@ Whatever a case is about, it also fails a service that:
 - asks a provider for a generation the case did not script, or for any path
   but the two of Ollama's and the two of Anthropic's above;
 - asks the stand-in Anthropic for anything without the key, or about a model
-  the case has not described;
+  the case has not described, or for a generation that carries
+  `temperature`, `top_p` or `top_k`;
 - puts on the bus, or has the gateway ask the Archivist for, what the spec
   does not allow.
 
@@ -86,8 +88,9 @@ the Archivist's spec.
   prompt, less its one final line end. A case holds the whole body of each
   request to the provider and the order the requests arrive in: of Ollama,
   the model, the prompt, `stream`, `think`, the three `options` and the
-  `format`; of Anthropic, the model, `max_tokens`, the `temperature`, the one
-  message, the `output_config` and, of a long generation, `stream`.
+  `format`; of Anthropic, the model, `max_tokens`, the one message, the
+  `output_config` and, of a long generation, `stream`, and no
+  `temperature`.
 - **Annotations** are compared whole: `id`, selectors, body and `generator`,
   in the batches they were committed in. `created` must be an instant and is
   otherwise the service's own. The annotations a `yield` job commits are on,
