@@ -48,6 +48,10 @@ class Landing(BaseModel, frozen=True, extra="forbid", strict=True):
 
 class Table(BaseModel, frozen=True, extra="forbid", strict=True):
     comment: Annotated[str, Field(alias="$comment")]
+    run_by: Annotated[dict[str, list[str]], Field(alias="runBy")]
+    """Who runs the table, which lint:spec-case-tables holds it to."""
+    absent: dict[str, str] | None = None
+    not_yet_reached: Annotated[dict[str, str] | None, Field(alias="notYetReached")] = None
     # The locating of a span, which the SDK's builder does and the SDK's own tests run.
     cases: list[JsonValue]
     claims: list[Claim]
