@@ -58,7 +58,6 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 | `apps/browser` | `jsdom`; [`vitest.setup.ts`](../../apps/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
 | `packages/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
 | `packages/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
-| `packages/mcp-server` | test files limited to `src/**/*.test.ts`; a coverage `include` of `src/**/*.ts`, less `src/index.ts`, which boots a stdio server on import and is tested as a process |
 | `packages/` `http-transport`, `observability`, `sdk` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
