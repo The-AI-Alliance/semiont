@@ -137,7 +137,7 @@ def test_a_prompt_is_the_text_the_table_gives_with_its_token_limit_and_its_tempe
 
 
 def test_the_two_prompts_asked_for_elements_are_sent_with_the_schemas_the_table_states() -> None:
-    assert set(TABLE) == {"$comment", "elements", "cases"}
+    assert set(TABLE) == {"$comment", "runBy", "elements", "cases"}
     assert thing(TABLE["elements"], "elements") == {"score": SCORE_ELEMENT, "reference-suggestions": SUGGESTION_ELEMENT}
 
 
