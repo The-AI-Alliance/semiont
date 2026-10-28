@@ -37,9 +37,11 @@ replace github.com/The-AI-Alliance/semiont/packages/sdk-go => ../../packages/sdk
 
 The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
 
+**What every SDK speaks is [the protocol](../protocol/README.md):** the eight verbs, the event bus they travel over, and the contract each SDK is held to, stated independently of any language.
+
 ## What you are building on
 
-- **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK. [The protocol](../protocol/README.md) specifies them independently of any language.
+- **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK.
 - **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
 - **Four SDKs, one contract.** TypeScript, Rust, Python and Go have the same namespaces and methods, and are held to one [conformance suite](../../tests/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
 - **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
