@@ -12,15 +12,7 @@
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Then follow the **[Quick Start](docs/builder/QUICK-START.md)**: create a knowledge base, start it, sign in, and annotate your first document.
-
-To work in it from Claude or any other MCP client, once you have signed in:
-
-```bash
-claude mcp add semiont -- semiont mcp
-```
-
-**[Connecting an AI application](docs/builder/AI-APPLICATIONS.md)** has the rest.
+Then follow the **[Quick Start](docs/builder/QUICK-START.md)**: create a knowledge base, start it, sign in, annotate your first document, and work in it from an AI application.
 
 ## Documentation
 
