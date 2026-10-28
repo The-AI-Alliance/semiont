@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 
-**Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
+**Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.** Agents propose what a passage mentions, what it links to and what to make of it; people accept, correct or reject each proposal. Applications and agents built on the result can cite their sources, so their answers can be checked. It is open source, and can run entirely on your own machines.
 
 ![The Semiont browser: a document with its references highlighted, and a panel of assessments beside it](website/assets/images/semiont-2026-03-10.png)
 
