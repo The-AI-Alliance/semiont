@@ -49,11 +49,8 @@ which is in beta and keeps every interaction unless told not to.
 - `store` is false, always: nothing of the request is to be kept. Left
   unsaid, `generateContent` keeps nothing either, unless the key's project
   had logging turned on in AI Studio, and `store` is what overrides that.
-  It is a member of the request body in Google's reference, at the top, and
-  the library has no field for it: it refuses the name in a request's
-  config. So it goes through the library's `extra_body`, which is put into
-  the body as it is written and is not checked. A release of the library
-  that gains the field is where to move it.
+  It is a member of the request body in Google's reference, at the top,
+  which is where the library puts its config's field of that name.
 - Nothing else. No safety setting: the adjustable filters are off unless a
   request turns them on. No tool, no cached content, no label, no stop
   sequence, so a model that stops with `STOP` has finished.
@@ -65,7 +62,7 @@ read by people. On the paid tier it is not, and it is kept fifty-five days
 to detect abuse, which nothing of this API turns off.
 
 **What the library does on its own, and what is done about each**
-(`google-genai`, read at 2.32.0, so that a new release of it is read for the
+(`google-genai`, read at 2.33.0, so that a new release of it is read for the
 same):
 
 - It turns to Vertex AI where `GOOGLE_GENAI_USE_VERTEXAI` or
@@ -80,9 +77,10 @@ same):
   config. It is given one that names none.
 - With `aiohttp` importable it makes its requests through that and not
   through HTTPX: a session that trusts the environment's proxy and reads
-  credentials from a `.netrc`, and that sends a request whose connection
-  failed a second time, on its own, after up to ten seconds. It keeps to
-  HTTPX where it is handed an HTTPX client, and it is handed one.
+  credentials from a `.netrc`, and that, given no retry options, sends a
+  request whose connection failed a second time, on its own, after up to
+  ten seconds. It keeps to HTTPX where it is handed an HTTPX client, and it
+  is handed one.
 - Its HTTP clients take a proxy from the environment (`HTTP_PROXY`,
   `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`), follow redirects, and trust the
   certificates `SSL_CERT_FILE` and `SSL_CERT_DIR` name, which the library
@@ -127,6 +125,13 @@ it:
 - Every client makes a second HTTP client, for calls that block, which this
   driver never makes. It is told to trust nothing of the environment, and is
   closed with the call.
+- `GOOGLE_GENAI_HTTP_CLIENT` is read by every client, and names the HTTP
+  library its own clients are made of. Set to `httpx2`, the second HTTP
+  client is `httpx2`'s, told to trust nothing of the environment all the
+  same, and where `httpx2` is not installed every client is refused, and
+  with it every call here. A value it does not know it logs as a warning,
+  at every call. The client it is handed is the one asked through, whatever
+  the variable says.
 - It logs at INFO each time it waits to ask again, with what the provider
   said in refusing, and HTTPX logs each request's address, which names the
   model. Neither holds the key or a prompt.
@@ -661,8 +666,8 @@ class GoogleInferenceClient:
             automatic_continuation=False,
             # The reply as the HTTP response it was, and not as the library's models of it.
             should_return_http_response=True,
-            # Nothing is to be kept. The library has no field for `store`: this is put into the request's body as it is written.
-            http_options=types.HttpOptions(extra_body={"store": False}),
+            # Nothing is to be kept.
+            store=False,
         )
         async with self._library(_GENERATION_TIMEOUT) as library:
             response = await _generated(library.aio.models, self.model_id, prompt, config)

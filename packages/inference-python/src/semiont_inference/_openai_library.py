@@ -9,7 +9,7 @@ once: the client as it is made (`open_library`), and the headers of a request
 module's own.
 
 **What the library does on its own, and what is done about each** (`openai`,
-read at 3.36.1, so that a new release of it is read for the same):
+read at 3.37.0, so that a new release of it is read for the same):
 
 - Its HTTP client takes a proxy and its trusted certificates from the
   environment (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`,
@@ -49,7 +49,8 @@ it:
 
 - `OPENAI_LOG`, read when the library is imported: it sets the level of the
   library's logger and configures the root logger. What the library logs is a
-  request's method, status, retry count and id, and no address, header or
+  request's method, status, retry count and id, and the seconds of a
+  `Retry-After` longer than it waits; no address, no other header and no
   body.
 - `OPENAI_ADMIN_KEY` and `OPENAI_WEBHOOK_SECRET` are read and kept by every
   client. Neither is sent: a request's `Authorization` is the one stated

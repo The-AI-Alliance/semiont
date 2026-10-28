@@ -1,7 +1,7 @@
 {
   "package": "@opencode-ai/models",
-  "version": "0.0.114",
-  "generatedAt": "2026-10-24T05:30:50.058Z",
+  "version": "0.0.115",
+  "generatedAt": "2026-10-25T05:30:44.317Z",
   "license": "MIT",
   "providers": {
     "google": {
