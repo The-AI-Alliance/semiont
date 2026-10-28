@@ -25,7 +25,7 @@ import { readFileSync } from 'fs';
 import { basename } from 'path';
 import { workspaceDirectories } from './workspaces.mjs';
 
-const CODECOV = 'codecov.yml';
+const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
 
 /**

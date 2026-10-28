@@ -285,7 +285,7 @@ Everything else is in the suite's own docs:
 
 ## Coverage
 
-Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../../codecov.yml) sets the gates:
+Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../../.github/codecov.yml) sets the gates:
 
 - **Project:** target 70%, allowed to drop by 1%.
 - **Patch:** new code targets 80%, with a 5% threshold.

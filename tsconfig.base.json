@@ -56,7 +56,6 @@
     "node_modules",
     "**/node_modules",
     "**/dist",
-    "**/examples",
-    "images/browser"
+    "**/examples"
   ]
 }
