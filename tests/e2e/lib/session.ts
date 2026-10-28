@@ -68,10 +68,16 @@ export async function sessionFor(opts: {
     // profile requires one, so Keycloak asks for it before it redirects.
     // `semiont useradd` sets none: against a fresh realm the seed's sign-in,
     // the run's first, meets this form, and every later sign-in goes straight
-    // back. Its fields are named by the profile's attributes.
+    // back. Its fields are named by the profile's attributes. The redirect is
+    // raced against the form, so the wait is the redirect's own: a form wait
+    // of its own, ten seconds by the config's actionTimeout, failed sign-ins on
+    // a runner busy with inference that the redirect would have outlasted.
     const firstName = page.locator('#firstName');
-    await firstName.or(page.getByText('signed in', { exact: true })).waitFor();
-    if (await firstName.isVisible()) {
+    const profileAsked = firstName.waitFor({ timeout: 0 }).then(
+      () => true,
+      () => false,
+    );
+    if (await Promise.race([returned.then(() => false), profileAsked])) {
       await firstName.fill('Playwright');
       await page.fill('#lastName', 'Suite');
       await page.press('#lastName', 'Enter');
