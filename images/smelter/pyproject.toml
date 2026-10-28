@@ -41,13 +41,13 @@ dependencies = [
 # types the tree's spec generates. Each is named, because a source another
 # package states for the SDK is read only where that package is the project.
 [tool.uv.sources]
-semiont = { path = "../../packages/sdk-python", editable = true }
-semiont-service = { path = "../../packages/service-python", editable = true }
-semiont-vectors = { path = "../../packages/vectors-python", editable = true }
+semiont = { path = "../../packages/python/sdk", editable = true }
+semiont-service = { path = "../../packages/python/service", editable = true }
+semiont-vectors = { path = "../../packages/python/vectors", editable = true }
 
 # The checkers and the formatter are the SDK's, at the SDK's versions:
 # tests/test_census.py holds these pins, and the strictness below, to
-# packages/sdk-python/pyproject.toml.
+# packages/python/sdk/pyproject.toml.
 [dependency-groups]
 dev = [
     # What makes the histories of tests/test_properties.py.

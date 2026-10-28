@@ -19,10 +19,10 @@ Worker service to each rule. This page is the image, and how it is run.
 ## What the image carries
 
 The service, and the three Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the
-inference drivers ([`packages/inference-python`](../../packages/inference-python/)), which
+([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway; the
+inference drivers ([`packages/python/inference`](../../packages/python/inference/)), which
 ask a model provider; and what every Python service is built on
-([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+([`packages/python/service`](../../packages/python/service/)), which reads its configuration,
 answers for its health, writes its log and exports its telemetry. All four are built into
 the image from the commit it is published from, and carry
 [`version.json`](../../version.json)'s version. Everything else in its
@@ -31,7 +31,7 @@ the container starts.
 
 **Every provider's library is in it.** The drivers ask each provider through that provider's
 own library, which their package brings as an extra named for the provider
-([what an install has](../../packages/inference-python/README.md#what-an-install-has)). The
+([what an install has](../../packages/python/inference/README.md#what-an-install-has)). The
 image is built with every extra, so it is not rebuilt to be pointed at another provider.
 
 **The service can be configured for any of the seven providers the protocol names:**

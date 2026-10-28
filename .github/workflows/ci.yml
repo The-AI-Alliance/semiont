@@ -202,15 +202,15 @@ jobs:
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
-              - 'packages/sdk-python/**'
+              - 'packages/python/sdk/**'
             python-inference:
-              - 'packages/inference-python/**'
+              - 'packages/python/inference/**'
             python-graph:
-              - 'packages/graph-python/**'
+              - 'packages/python/graph/**'
             python-vectors:
-              - 'packages/vectors-python/**'
+              - 'packages/python/vectors/**'
             python-service:
-              - 'packages/service-python/**'
+              - 'packages/python/service/**'
             worker:
               - 'images/worker/**'
             weaver:
@@ -1781,7 +1781,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/sdk-python
+        working-directory: packages/python/sdk
 
     steps:
       - name: Checkout code
@@ -1828,7 +1828,7 @@ jobs:
       # a release is not the first place a packaging break is seen.
       - name: Build the distributions and check them
         if: matrix.python-version == '3.12'
-        run: ../../scripts/ci/build-python-sdk.sh
+        run: ../../../scripts/ci/build-python-sdk.sh
 
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
   # in another directory and under another lock (specs/src/sign-in-store).
@@ -1841,7 +1841,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/sdk-python
+        working-directory: packages/python/sdk
 
     steps:
       - name: Checkout code
@@ -1878,7 +1878,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/inference-python
+        working-directory: packages/python/inference
 
     steps:
       - name: Checkout code
@@ -1913,7 +1913,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # What every Python service is built on (packages/service-python), as the
+  # What every Python service is built on (packages/python/service), as the
   # Python SDK is checked: both type checkers, strict, on the oldest Python
   # supported, and the tests on every one. The locked environment takes the
   # SDK from this checkout. The tests read a configuration document, ask a
@@ -1931,7 +1931,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/service-python
+        working-directory: packages/python/service
 
     steps:
       - name: Checkout code
@@ -2033,7 +2033,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # The Python graph stores (packages/graph-python), as the Python SDK is
+  # The Python graph stores (packages/python/graph), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK from this
   # checkout. These tests need no database: they run the codecs' case table of
@@ -2051,7 +2051,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/graph-python
+        working-directory: packages/python/graph
 
     steps:
       - name: Checkout code
@@ -2114,7 +2114,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
-        working-directory: packages/graph-python
+        working-directory: packages/python/graph
         run: uv sync --locked
 
       - name: Start neo4j
@@ -2132,10 +2132,10 @@ jobs:
           exit 1
 
       - name: Run the store contract against it
-        working-directory: packages/graph-python
+        working-directory: packages/python/graph
         run: uv run pytest tests/neo4j_live.py
 
-  # The Python vector stores and embedding providers (packages/vectors-python),
+  # The Python vector stores and embedding providers (packages/python/vectors),
   # as the Python SDK is checked: both type checkers, strict, on the oldest
   # Python supported, and the tests on every one. The locked environment takes
   # the SDK from this checkout. These tests need no server: they run the two
@@ -2153,7 +2153,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/vectors-python
+        working-directory: packages/python/vectors
 
     steps:
       - name: Checkout code
@@ -2215,7 +2215,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
-        working-directory: packages/vectors-python
+        working-directory: packages/python/vectors
         run: uv sync --locked
 
       - name: Start Qdrant
@@ -2233,7 +2233,7 @@ jobs:
           exit 1
 
       - name: Run the store contract against it
-        working-directory: packages/vectors-python
+        working-directory: packages/python/vectors
         run: uv run pytest tests/qdrant_live.py
 
   # The Weaver's Python code (images/weaver), as the Python SDK is checked: both
@@ -2495,7 +2495,7 @@ jobs:
           node scripts/bus/generate-go.mjs --check
 
       # Authority: specs/src → the Python SDK's committed modules
-      # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
+      # (packages/python/sdk/src/semiont): the bus vocabulary, the kinds of id,
       # the error codes, the client's timing, its refresh table, the telemetry
       # it exports, the clients it signs in as, the entry of the sign-in store,
       # the media types, and the Encoding Standard's labels and single-byte
@@ -2579,7 +2579,7 @@ jobs:
       - name: Generated Go client covers every schema
         run: node scripts/ci/check-go-schema-coverage.mjs
 
-      # Authority: specs/openapi.json → packages/sdk-python/src/semiont/types.py.
+      # Authority: specs/openapi.json → packages/python/sdk/src/semiont/types.py.
       # Deterministic because the generator and the formatter are pinned in the
       # package's lockfile, and run on the Python the package's floor names.
       # Its independent oracle is the package's own suite, which holds the
@@ -2593,12 +2593,12 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: OpenAPI spec vs the Python SDK's generated models
-        run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check
+        run: uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py --check
 
       # Authority: the npm package @opencode-ai/models (the models.dev
       # catalogue), at the one version the root package.json pins → the model
       # catalogue file the Python inference package's tests read, and its
-      # notice (packages/inference-python/tests/catalogue). The package carries
+      # notice (packages/python/inference/tests/catalogue). The package carries
       # no copy: an image's build makes the file with the same script. This
       # one is the tests' fixture, real data at the pin, so the script, the
       # package's reader and the pin are held to each other. A bump of the pin

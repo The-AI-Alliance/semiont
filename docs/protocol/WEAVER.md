@@ -156,20 +156,20 @@ which are required, and what is refused.
   selector as given, its creator, when it was made and last changed, and the
   software that made it; its link to another resource; and its entity tags.
   A body item that is neither a link nor a tag is not held.
-  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/python/graph/tests/test_codec_cases.py`.*
 - **A person is held as who they are, without a name.** A person's name is the
   directory's: the Archivist joins it onto every read, and a person can change
-  it. *Held by `packages/graph-python/tests/test_codec_cases.py` and `weaver/record`.*
+  it. *Held by `packages/python/graph/tests/test_codec_cases.py` and `weaver/record`.*
 - **An update leaves the annotation the current one becomes with the changed
   fields replaced, and a store writes that whole:** a link or a tag the update
   took away goes with it. An annotation is never moved to another resource.
-  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/python/graph/tests/test_codec_cases.py`.*
 - **Of a resource:** its id, name, entity types, format, checksum, storage
   URI, whether it is archived, when the record says it was created, and who
   the record says it is by.
-  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/python/graph/tests/test_codec_cases.py`.*
 - **No store reads a clock.** Every date in the graph is one an event carried.
-  *Held by `packages/graph-python/tests/test_census.py`.*
+  *Held by `packages/python/graph/tests/test_census.py`.*
 
 ### Order
 
@@ -222,7 +222,7 @@ sweep is done.
   bounded number of times, then exits with a status other than 0, having said
   which address did not answer. *Held by `weaver/boot`.*
 - **It gives up when the graph database does not answer** within its connect
-  deadline. *Held by `packages/service-python/tests/test_connect.py`.*
+  deadline. *Held by `packages/python/service/tests/test_connect.py`.*
 - **Its health answers before its first sweep is done,** and events recorded
   from then on are taken as they arrive, while the sweep and reconcile run.
   *Held by no case.*
@@ -314,7 +314,7 @@ holds what the Weaver once applied to it.
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
-  *Held by `packages/service-python/tests/test_log.py`.*
+  *Held by `packages/python/service/tests/test_log.py`.*
 
 ## Environment
 

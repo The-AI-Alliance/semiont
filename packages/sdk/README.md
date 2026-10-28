@@ -18,7 +18,7 @@ tell them apart.
 
 It has the same namespaces, methods and behaviour as the
 [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) ([`semiont`](https://crates.io/crates/semiont) on crates.io)
-the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python) ([`semiont`](https://pypi.org/project/semiont/) on PyPI)
+the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk) ([`semiont`](https://pypi.org/project/semiont/) on PyPI)
 and the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk),
 and the four are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
 New to Semiont? The [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
@@ -306,7 +306,7 @@ who the SDK is for, where it goes, and the docs in reading order.
 ## Related packages
 
 - [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) — the Rust SDK, a full peer of this one, on [crates.io](https://crates.io/crates/semiont)
-- [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python) — the Python SDK, on [PyPI](https://pypi.org/project/semiont/)
+- [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk) — the Python SDK, on [PyPI](https://pypi.org/project/semiont/)
 - [`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) — the Go SDK, which the `semiont` launcher is built on
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `Bus`, OpenAPI-derived schemas
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)

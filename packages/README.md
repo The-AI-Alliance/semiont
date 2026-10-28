@@ -21,7 +21,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 |---|---|---|
 | TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [sdk-rust](./sdk-rust/README.md), [http-transport-rust](./http-transport-rust/README.md) |
-| Python | `pip install semiont` | [sdk-python](./sdk-python/README.md) |
+| Python | `pip install semiont` | [python/sdk](./python/sdk/README.md) |
 | Go | The module `github.com/The-AI-Alliance/semiont/packages/go/sdk`, by a `replace` on its path: it is published nowhere | [go/sdk](./go/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
 
@@ -59,11 +59,11 @@ The first is how a Python program uses Semiont. The other four are what the Pyth
 
 | Distribution | Published | What it is |
 |---|---|---|
-| [semiont](./sdk-python/README.md) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
-| [semiont-service](./service-python/README.md) | Not published | What every Python service does to be one: read its configuration document, answer for its health, write its log and export its telemetry |
-| [semiont-inference](./inference-python/README.md) | Not published | The model providers a Python service calls, behind one interface: text and structured generation, and discovered limits. A provider's own library is an extra |
-| [semiont-graph](./graph-python/README.md) | Not published | The graph databases a Python service writes and reads, behind one interface. A database's own client is an extra |
-| [semiont-vectors](./vectors-python/README.md) | Not published | The vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface |
+| [semiont](./python/sdk/README.md) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
+| [semiont-service](./python/service/README.md) | Not published | What every Python service does to be one: read its configuration document, answer for its health, write its log and export its telemetry |
+| [semiont-inference](./python/inference/README.md) | Not published | The model providers a Python service calls, behind one interface: text and structured generation, and discovered limits. A provider's own library is an extra |
+| [semiont-graph](./python/graph/README.md) | Not published | The graph databases a Python service writes and reads, behind one interface. A database's own client is an extra |
+| [semiont-vectors](./python/vectors/README.md) | Not published | The vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface |
 
 ## Go
 

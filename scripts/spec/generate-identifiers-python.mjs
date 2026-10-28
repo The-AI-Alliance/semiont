@@ -3,7 +3,7 @@
 // and each kind's schema: a type of its own for each, made only through the
 // kind's rule.
 //
-//   packages/sdk-python/src/semiont/identifiers.py
+//   packages/python/sdk/src/semiont/identifiers.py
 //
 // The reading of the table is identifier-kinds.mjs's, shared with the
 // TypeScript generator. The output is committed; `--check` compares without
@@ -27,7 +27,7 @@ function option(name) {
 
 const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'specs/src/identifiers/kinds.json'));
 const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'specs/src/components/schemas'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/sdk-python/src/semiont/identifiers.py'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/identifiers.py'));
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

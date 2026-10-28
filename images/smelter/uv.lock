@@ -947,7 +947,7 @@ wheels = [
 
 [[package]]
 name = "semiont"
-source = { editable = "../../packages/sdk-python" }
+source = { editable = "../../packages/python/sdk" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -979,7 +979,7 @@ dev = [
 
 [[package]]
 name = "semiont-service"
-source = { editable = "../../packages/service-python" }
+source = { editable = "../../packages/python/service" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -996,7 +996,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pydantic" },
-    { name = "semiont", editable = "../../packages/sdk-python" },
+    { name = "semiont", editable = "../../packages/python/sdk" },
 ]
 
 [package.metadata.requires-dev]
@@ -1033,9 +1033,9 @@ requires-dist = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pypdfium2", specifier = ">=5.14,<6" },
-    { name = "semiont", editable = "../../packages/sdk-python" },
-    { name = "semiont-service", editable = "../../packages/service-python" },
-    { name = "semiont-vectors", editable = "../../packages/vectors-python" },
+    { name = "semiont", editable = "../../packages/python/sdk" },
+    { name = "semiont-service", editable = "../../packages/python/service" },
+    { name = "semiont-vectors", editable = "../../packages/python/vectors" },
 ]
 
 [package.metadata.requires-dev]
@@ -1049,7 +1049,7 @@ dev = [
 
 [[package]]
 name = "semiont-vectors"
-source = { editable = "../../packages/vectors-python" }
+source = { editable = "../../packages/python/vectors" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
@@ -1060,7 +1060,7 @@ dependencies = [
 requires-dist = [
     { name = "httpx" },
     { name = "pydantic" },
-    { name = "semiont", editable = "../../packages/sdk-python" },
+    { name = "semiont", editable = "../../packages/python/sdk" },
 ]
 
 [package.metadata.requires-dev]

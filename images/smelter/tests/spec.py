@@ -7,7 +7,7 @@ from pydantic import JsonValue, TypeAdapter
 PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[1]
 SPEC = ROOT / "specs/src"
-SDK = ROOT / "packages/sdk-python"
+SDK = ROOT / "packages/python/sdk"
 
 type JsonObject = dict[str, JsonValue]
 
