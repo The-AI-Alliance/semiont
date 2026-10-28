@@ -310,6 +310,8 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 
 `npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, its group led by the workflow's file name, that no job of them checks out, installs or builds and then checks nothing, that every other workflow running on pull requests names the paths it checks, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines or the tier alone, and that `cargo build` runs in `build-rust` alone.
 
+`npm run lint:path-globs` holds every glob over `apps/`, `images/` or `packages/` that a workflow, a script or a test writes to the tree: each matches a file the repository holds, or names what a build makes beneath directories it does match, which git ignores. A glob that matches nothing selects nothing without saying so; a directory that moves, or a naming convention that changes, leaves such globs behind. It cannot see a glob that still matches part of what it should after the rest has moved, nor one assembled from parts.
+
 | Job | What it covers |
 |---|---|
 | `census` | The `lint:*` gates, over the tree and no build: the stylesheets, the translations, the docs' names, the spec's own consistency, the toolchain versions, the Dependabot entries, the workflows, and more |
