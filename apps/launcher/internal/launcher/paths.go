@@ -100,16 +100,6 @@ func userHome() string {
 	return home
 }
 
-// stagingParent: where a start stages the configs it mounts into containers.
-// /tmp on macOS and Linux, never $TMPDIR: Apple `container` cannot mount from
-// /var/folders. The system's temporary directory on Windows.
-func stagingParent() string {
-	if runtime.GOOS == "windows" {
-		return os.TempDir()
-	}
-	return "/tmp"
-}
-
 // stagingPattern: every staging dir a start made, for the sweep and for what
 // status and a dry run print.
 func stagingPattern() string {
