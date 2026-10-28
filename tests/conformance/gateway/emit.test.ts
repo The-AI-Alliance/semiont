@@ -14,7 +14,7 @@ import { eachPlane } from '../harness/world';
 
 /** A request channel whose request payload validates with `resourceId` alone. */
 const REQUEST = 'browse:resource-requested';
-/** A broadcast every participant may emit, with no required field. */
+/** A broadcast every participant may emit, whose one required field is `resourceId`. */
 const BROADCAST = 'beckon:focus';
 /** A channel the registry says writes. */
 const WRITE = 'frame:add-entity-type';
@@ -27,7 +27,7 @@ const pendingMax = () =>
 eachPlane('emitting', (world, plane) => {
   it('an emit is accepted with 202; the count of subscribers is present only when the plane can count them', async () => {
     const token = await world().person('emitter');
-    const reply = await world().emit(token, { channel: BROADCAST, payload: {} });
+    const reply = await world().emit(token, { channel: BROADCAST, payload: { resourceId: 'res-1' } });
     expect(reply.status, reply.text).toBe(202);
     expect(nonConformance('post', '/bus/emit', reply)).toEqual([]);
     const body = reply.json as { subscribers?: number };
@@ -59,13 +59,13 @@ eachPlane('emitting', (world, plane) => {
     const forged = { _userId: 'did:web:forged.example:users:mallory', _roles: ['semiont-admin'] };
 
     const marker1 = randomUUID();
-    await world().emit(person, { channel: BROADCAST, payload: { annotationId: marker1, ...forged } });
+    await world().emit(person, { channel: BROADCAST, payload: { annotationId: marker1, resourceId: 'res-1', ...forged } });
     const fromPerson = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker1);
     expect(fromPerson.payload['_userId']).toBe(world().personDid('stamped'));
     expect(fromPerson.payload['_roles']).toBeUndefined();
 
     const marker2 = randomUUID();
-    await world().emit(worker.token, { channel: BROADCAST, payload: { annotationId: marker2, ...forged } });
+    await world().emit(worker.token, { channel: BROADCAST, payload: { annotationId: marker2, resourceId: 'res-1', ...forged } });
     const fromWorker = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker2);
     expect(fromWorker.payload['_userId']).toBe(worker.did);
     expect(fromWorker.payload['_roles']).toEqual([WORKER_ROLE]);
@@ -73,7 +73,7 @@ eachPlane('emitting', (world, plane) => {
     // A person may hold a role as an agent may; the issuer's token carries it.
     const roled = await world().person('stamped-roled', { roles: [WORKER_ROLE] });
     const marker3 = randomUUID();
-    await world().emit(roled, { channel: BROADCAST, payload: { annotationId: marker3, ...forged } });
+    await world().emit(roled, { channel: BROADCAST, payload: { annotationId: marker3, resourceId: 'res-1', ...forged } });
     const fromRoled = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker3);
     expect(fromRoled.payload['_userId']).toBe(world().personDid('stamped-roled'));
     expect(fromRoled.payload['_roles']).toEqual([WORKER_ROLE]);
@@ -84,7 +84,7 @@ eachPlane('emitting', (world, plane) => {
     const people = Array.from({ length: 8 }, (_, i) => `concurrent-${i}`);
     const tokens = await Promise.all(people.map((p) => world().person(p)));
     const marks = people.map(() => randomUUID());
-    const replies = await Promise.all(tokens.map((token, i) => world().emit(token, { channel: BROADCAST, payload: { annotationId: marks[i] } })));
+    const replies = await Promise.all(tokens.map((token, i) => world().emit(token, { channel: BROADCAST, payload: { annotationId: marks[i], resourceId: 'res-1' } })));
     expect(replies.map((r) => r.status)).toEqual(people.map(() => 202));
     for (const [i, person] of people.entries()) {
       const frame = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marks[i]);
@@ -101,7 +101,7 @@ eachPlane('emitting', (world, plane) => {
       ['a payload that is not an object', { channel: BROADCAST, payload: 'text' }],
       ['a payload that does not match', { channel: REQUEST, payload: { resourceId: 7 } }],
       ['a string where the schema says integer — never converted', { channel: 'tabs:reorder', payload: { oldIndex: '1', newIndex: '2' } }],
-      ['an empty scope', { channel: BROADCAST, payload: {}, scope: '' }],
+      ['an empty scope', { channel: BROADCAST, payload: { resourceId: 'res-1' }, scope: '' }],
     ];
     for (const [why, body] of cases) {
       const reply = await world().emit(token, body);
@@ -135,7 +135,7 @@ eachPlane('emitting', (world, plane) => {
   // Each kind of id, on a channel whose payload carries one and needs nothing else.
   const carriers = [
     { kind: 'ResourceId', channel: BROADCAST, property: 'resourceId' },
-    { kind: 'AnnotationId', channel: BROADCAST, property: 'annotationId' },
+    { kind: 'AnnotationId', channel: 'beckon:sparkle', property: 'annotationId' },
     { kind: 'JobId', channel: 'job:status-requested', property: 'jobId' },
   ];
   it.each(carriers)('a payload carrying a $kind is taken when the kind accepts it and refused with 400 when it does not (identifiers/kinds.json)', async ({ kind, channel, property }) => {
@@ -156,12 +156,12 @@ eachPlane('emitting', (world, plane) => {
     const token = await world().person('emitter');
     const { accepts, refuses } = identifiers('ResourceId');
     for (const { id, why } of refuses) {
-      const reply = await world().emit(token, { channel: BROADCAST, payload: {}, scope: id });
+      const reply = await world().emit(token, { channel: BROADCAST, payload: { resourceId: 'res-1' }, scope: id });
       expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(400);
       expect(nonConformance('post', '/bus/emit', reply), why).toEqual([]);
     }
     for (const { id, why } of accepts) {
-      const reply = await world().emit(token, { channel: BROADCAST, payload: {}, scope: id });
+      const reply = await world().emit(token, { channel: BROADCAST, payload: { resourceId: 'res-1' }, scope: id });
       expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(202);
     }
   });
@@ -340,7 +340,7 @@ eachPlane('emitting', (world, plane) => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });
     const token = await world().person('emitter');
     const marker = randomUUID();
-    await world().emit(token, { channel: BROADCAST, payload: { annotationId: marker, correlationId: 'inside-the-payload' } });
+    await world().emit(token, { channel: BROADCAST, payload: { annotationId: marker, resourceId: 'res-1', correlationId: 'inside-the-payload' } });
     const frame = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker);
     expect(frame.payload['correlationId']).toBe('inside-the-payload');
     expect(frame.correlationId).toBeUndefined();
@@ -353,8 +353,8 @@ eachPlane('counting subscribers', (world) => {
     const token = await world().person('counter');
     const count = async (body: Record<string, unknown>) => ((await world().emit(token, body)).json as { subscribers: number }).subscribers;
     const scope = `res-${randomUUID()}`;
-    const scoped = { channel: BROADCAST, payload: {}, scope };
-    const global = { channel: BROADCAST, payload: {} };
+    const scoped = { channel: BROADCAST, payload: { resourceId: scope }, scope };
+    const global = { channel: BROADCAST, payload: { resourceId: 'res-1' } };
 
     expect(await count(global)).toBe(0);
     expect(await count(scoped)).toBe(0);

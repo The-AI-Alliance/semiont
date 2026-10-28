@@ -76,7 +76,7 @@ func TestASlowListenerDelaysNoOther(t *testing.T) {
 	fast := hub.Frames(context.Background(), "beckon:focus")
 	const count = 1000
 	for n := range count {
-		hub.Deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"n":%d}`, n))})
+		hub.Deliver(Frame{Channel: "beckon:focus", Payload: json.RawMessage(fmt.Sprintf(`{"resourceId":"res-1","n":%d}`, n))})
 	}
 	hub.Close()
 	read := func(frames func(func(Frame) bool)) []string {
@@ -94,7 +94,7 @@ func TestASlowListenerDelaysNoOther(t *testing.T) {
 		t.Fatalf("the listeners took %d and %d frames of %d", len(fastGot), len(slowGot), count)
 	}
 	for n := range count {
-		want := fmt.Sprintf(`{"n":%d}`, n)
+		want := fmt.Sprintf(`{"resourceId":"res-1","n":%d}`, n)
 		if fastGot[n] != want || slowGot[n] != want {
 			t.Fatalf("frame %d is %s and %s", n, fastGot[n], slowGot[n])
 		}

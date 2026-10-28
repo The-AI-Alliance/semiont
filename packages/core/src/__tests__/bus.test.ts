@@ -68,7 +68,7 @@ describe('Bus.frames: a channel of no scope', () => {
     const transport = new Traced();
     const { seen } = collect(new Bus(transport).frames('beckon:focus'));
 
-    void transport.emit('beckon:focus', { annotationId: annotationId('ann-1') });
+    void transport.emit('beckon:focus', { resourceId: RID, annotationId: annotationId('ann-1') });
 
     expect(seen.map((frame) => frame.trace)).toEqual([trace]);
   });

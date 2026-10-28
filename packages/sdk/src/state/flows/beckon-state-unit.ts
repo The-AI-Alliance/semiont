@@ -1,13 +1,13 @@
 import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import { watched, type AnnotationId, type StateUnit, type Watched } from '@semiont/core';
+import { watched, type AnnotationId, type ResourceId, type StateUnit, type Watched } from '@semiont/core';
 
 export interface BeckonStateUnit extends StateUnit {
   hoveredAnnotationId$: Watched<AnnotationId | null>;
   focus(annotationId: AnnotationId): void;
 }
 
-export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
+export function createBeckonStateUnit(client: SemiontClient, resourceId: ResourceId): BeckonStateUnit {
   const subs: Subscription[] = [];
   const hovered$ = new BehaviorSubject<AnnotationId | null>(null);
   let disposed = false;
@@ -20,13 +20,13 @@ export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
   }));
 
   subs.push(client.bus.on('browse:click').subscribe(({ annotationId }) => {
-    client.bus.emit('beckon:focus', { annotationId });
+    client.bus.emit('beckon:focus', { resourceId, annotationId });
   }));
 
   return {
     hoveredAnnotationId$: watched(hovered$),
     focus: (annotationId) => {
-      if (!disposed) client.bus.emit('beckon:focus', { annotationId });
+      if (!disposed) client.bus.emit('beckon:focus', { resourceId, annotationId });
     },
     dispose() {
       disposed = true;

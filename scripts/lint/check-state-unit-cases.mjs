@@ -51,7 +51,7 @@ const operations = new Map(registry.operations.map((operation) => [operation.req
 /** What each unit is made from: every argument it takes, and whether each must be given. */
 const MADE = {
   match: {},
-  beckon: {},
+  beckon: { resourceId: 'string' },
   hoverDwell: { delayMs: 'duration' },
   gather: { resourceId: 'string' },
   mark: { resourceId: 'string' },

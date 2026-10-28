@@ -316,7 +316,7 @@ func TestAnEventThatCannotBeReadAsksAgainForEverythingHeld(t *testing.T) {
 	w.asksCome(t, m, expectedAsks(semiont.CacheQueries, semiont.CacheRefreshReachHeld))
 	// And a frame on a channel that is no trigger asks for nothing.
 	m = w.mark()
-	w.transport.Deliver(frameOf(t, bus.BeckonFocus.Channel(), map[string]any{"annotationId": "ann-1"}, semiont.Envelope{}))
+	w.transport.Deliver(frameOf(t, bus.BeckonFocus.Channel(), map[string]any{"resourceId": "res-1", "annotationId": "ann-1"}, semiont.Envelope{}))
 	w.asksCome(t, m, map[string]int{})
 }
 

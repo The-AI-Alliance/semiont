@@ -36,7 +36,7 @@ eachPlane('a broker outage', (world) => {
 
     await world().broker!.down();
     const refused = await eventually('an emit to be refused while the broker is down', 10_000, async () => {
-      const reply = await world().emit(emitter, { channel: BROADCAST, payload: {} });
+      const reply = await world().emit(emitter, { channel: BROADCAST, payload: { resourceId: 'res-1' } });
       return reply.status === 503 ? reply : undefined;
     });
     expect(nonConformance('post', '/bus/emit', refused)).toEqual([]);
@@ -44,7 +44,7 @@ eachPlane('a broker outage', (world) => {
 
     const after = randomUUID();
     await eventually('an emit after the broker is back to reach the stream', 20_000, async () => {
-      if ((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: after } })).status !== 202) return undefined;
+      if ((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId: after, resourceId: 'res-1' } })).status !== 202) return undefined;
       await new Promise((r) => setTimeout(r, 250));
       return watcher.frames(BROADCAST).some((f) => f.payload['annotationId'] === after) ? true : undefined;
     });
@@ -55,16 +55,16 @@ eachPlane('a broker outage', (world) => {
 eachPlane('a broker that comes back with other credentials', (world) => {
   it('is not recovered from: every emit after it is refused with 503, and stays refused', async () => {
     const emitter = await world().person('emitter');
-    expect((await world().emit(emitter, { channel: BROADCAST, payload: {} })).status).toBe(202);
+    expect((await world().emit(emitter, { channel: BROADCAST, payload: { resourceId: 'res-1' } })).status).toBe(202);
     await world().broker!.restart({ user: 'gateway', password: 'another-password' });
 
     const refused = await eventually('an emit to be refused', 30_000, async () => {
-      const reply = await world().emit(emitter, { channel: BROADCAST, payload: {} });
+      const reply = await world().emit(emitter, { channel: BROADCAST, payload: { resourceId: 'res-1' } });
       return reply.status === 503 ? reply : undefined;
     });
     expect(nonConformance('post', '/bus/emit', refused)).toEqual([]);
     await new Promise((r) => setTimeout(r, 3_000));
-    const still = await world().emit(emitter, { channel: BROADCAST, payload: {} });
+    const still = await world().emit(emitter, { channel: BROADCAST, payload: { resourceId: 'res-1' } });
     expect(still.status).toBe(503);
     expect(nonConformance('post', '/bus/emit', still)).toEqual([]);
   }, 60_000);

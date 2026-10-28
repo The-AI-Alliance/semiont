@@ -64,7 +64,7 @@ export function AnnotateView(props: Props & TranslationSource) {
  *
  * @emits mark:requested - User requested to create annotation. Payload: { source: ResourceId, selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
- * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { annotationId: string, resourceId?: string }
+ * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { resourceId: string, annotationId?: string }
  */
 function AnnotateViewBody({
   content,
@@ -129,14 +129,11 @@ function AnnotateViewBody({
   // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
   // host-facing capability it is; this is the in-app producer's route.
   // `resourceId` is a GUARD, not navigation: it names the resource this focus
-  // applies to, and a viewer showing a different one ignores it. Absent means
-  // unscoped — the in-app emitters (history panel, annotation list) omit it
-  // because they are already scoped to the open resource, so treating absence
-  // as "not mine" would silence all of them. Focus never navigates; driving
-  // the Browser to a resource is `browse:resource-open`'s job.
+  // applies to, and a viewer showing a different one ignores it. Focus never
+  // navigates; driving the Browser to a resource is `browse:resource-open`'s job.
   const handleAnnotationFocus = useCallback(
-    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId?: string }) => {
-      if (resourceId && resourceId !== resourceUri) return;
+    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId: string }) => {
+      if (resourceId !== resourceUri) return;
       if (!containerRef.current) return;
       scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
     },

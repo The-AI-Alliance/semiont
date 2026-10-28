@@ -123,7 +123,11 @@ impl Gateway {
         let mut frames = transport.frames(HEARD).expect("frames");
         let frame = json!({
             "channel": HEARD,
-            "payload": { "annotationId": "a-1", "_trace": { "traceparent": traceparent } },
+            "payload": {
+                "resourceId": "res-1",
+                "annotationId": "a-1",
+                "_trace": { "traceparent": traceparent }
+            },
         });
         let event = Bytes::from(format!("event: bus-event\nid: e-1\ndata: {frame}\n\n"));
         for stream in self.staged.streams.lock().unwrap().iter() {

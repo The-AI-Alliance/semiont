@@ -205,7 +205,7 @@ impl Gateway {
     /// Write an event to every stream a client still holds.
     fn write(&self, id: &str) {
         for stream in self.opened().iter().filter(|stream| stream.open()) {
-            stream.write(id, json!({ "annotationId": id }));
+            stream.write(id, json!({ "resourceId": "res-1", "annotationId": id }));
         }
     }
 
@@ -377,7 +377,10 @@ async fn a_frame_from_a_superseded_connection_leaves_a_breadcrumb() {
     until("the handoff's stream", || gateway.opened().len() == 2).await;
     // Give the client the time to take the new stream up; the old one lingers.
     tokio::time::sleep(Duration::from_millis(100)).await;
-    gateway.opened()[0].write("only-the-old", json!({ "annotationId": "only-the-old" }));
+    gateway.opened()[0].write(
+        "only-the-old",
+        json!({ "resourceId": "res-1", "annotationId": "only-the-old" }),
+    );
     until("the frame", || delivered.lock().unwrap().len() == 1).await;
 
     let lines = semiont::bus_log::captured();
@@ -397,8 +400,15 @@ async fn a_frame_under_a_scope_that_is_no_resource_id_is_not_delivered_and_the_s
     let delivered = deliveries(&transport);
     reaches(&transport, ConnectionState::Open).await;
 
-    gateway.opened()[0].write_under("e-1", "not an id", json!({ "annotationId": "refused" }));
-    gateway.opened()[0].write("e-2", json!({ "annotationId": "after" }));
+    gateway.opened()[0].write_under(
+        "e-1",
+        "not an id",
+        json!({ "resourceId": "res-1", "annotationId": "refused" }),
+    );
+    gateway.opened()[0].write(
+        "e-2",
+        json!({ "resourceId": "res-1", "annotationId": "after" }),
+    );
     until("the frame after", || !delivered.lock().unwrap().is_empty()).await;
 
     assert_eq!(*delivered.lock().unwrap(), ["after"]);

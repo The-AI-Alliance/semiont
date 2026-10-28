@@ -8,11 +8,11 @@
     {"state": "open"},
     {"backend": "refuse", "with": {"wire": "POST /bus/emit", "status": 429, "retryAfter": 1, "body": {"error": "The principal's emits have used its bucket", "code": "emit-rate"}, "times": 4}},
 
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "as": "emitted"},
-    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "as": "first"},
-    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "waited": "first", "as": "second"},
-    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "waited": "second", "as": "third"},
-    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "waited": "third"},
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}}, "as": "emitted"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "as": "first"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "waited": "first", "as": "second"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "waited": "second", "as": "third"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}, "clientId": {"$var": "clientId"}}, "waited": "third"},
     {"settles": "emitted", "fails": {"code": "rate-limited", "status": 429}},
     {"error": {"code": "rate-limited", "status": 429}}
   ]

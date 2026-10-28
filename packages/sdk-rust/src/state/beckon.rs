@@ -1,9 +1,10 @@
-//! Attention, as this viewer's state: which annotation is hovered.
+//! Attention, as the state of a viewer of one resource: which annotation is
+//! hovered.
 //!
 //! It hears the viewer's hover (`client.beckon.hover`) and holds it, and
 //! sparkles an annotation the moment it is hovered. It hears an annotation
 //! opened, by this viewer or by another participant driving it, and turns
-//! the viewer's focus to it.
+//! the viewer's focus to it. Every focus it says names its resource.
 
 use super::{Held, Tasks, said, signal};
 use crate::channels::{BeckonFocus, BeckonHover, BrowseClick, Channel};
@@ -11,13 +12,14 @@ use crate::client::SemiontClient;
 use crate::event_bus::BusFrames;
 use crate::state_unit::StateUnit;
 use crate::transport::Envelope;
-use crate::types::AnnotationId;
 use crate::types::BeckonFocusEvent;
+use crate::types::{AnnotationId, ResourceId};
 use std::sync::Arc;
 use tokio::sync::watch;
 
 struct Shared {
     client: Arc<SemiontClient>,
+    resource_id: ResourceId,
     hovered: Held<Option<AnnotationId>>,
     tasks: Tasks,
 }
@@ -28,7 +30,7 @@ impl Shared {
             &self.client,
             &BeckonFocusEvent {
                 annotation_id: Some(annotation_id),
-                resource_id: None,
+                resource_id: self.resource_id.clone(),
             },
             Envelope::default(),
         );
@@ -41,12 +43,14 @@ pub struct BeckonStateUnit {
 }
 
 impl BeckonStateUnit {
-    pub fn new(client: Arc<SemiontClient>) -> BeckonStateUnit {
+    /// The attention of a viewer of `resource_id`.
+    pub fn new(client: Arc<SemiontClient>, resource_id: &ResourceId) -> BeckonStateUnit {
         let heard = client
             .bus()
             .frames_among(&[BeckonHover::NAME, BrowseClick::NAME]);
         let shared = Arc::new(Shared {
             client,
+            resource_id: resource_id.clone(),
             hovered: Held::new(None),
             tasks: Tasks::new(),
         });
@@ -59,7 +63,7 @@ impl BeckonStateUnit {
         self.shared.hovered.read()
     }
 
-    /// Signal: turn this viewer's focus to an annotation.
+    /// Signal: turn this viewer's focus to an annotation of its resource.
     pub fn focus(&self, annotation_id: &AnnotationId) {
         if !self.shared.tasks.stopped() {
             self.shared.focus(annotation_id.clone());

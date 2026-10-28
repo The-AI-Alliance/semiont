@@ -23,7 +23,7 @@ Each is a frame sent with no reply awaited. The gateway relays it to every conne
 
 **Focus points; a click opens.** `beckon:focus` scrolls a viewer to an annotation and stops. `browse:click` opens it. A guide chooses between "notice this" and "read this".
 
-**`beckon:focus` may name a resource as a guard.** A viewer showing a different resource ignores it. It never moves a viewer to another resource: that is `browse:resource-open`. With no resource named, the viewer scrolls.
+**`beckon:focus` always names a resource, as a guard.** A viewer showing a different resource ignores it. It never moves a viewer to another resource: that is `browse:resource-open`. A focus that names no annotation attends to the resource as a whole.
 
 **Presence is the consumer's to build.** Beckon delivers signals. It keeps no record of who is looking at what, and aggregates nothing. An application that wants "three people are here" builds it from these signals and its own state.
 
@@ -37,7 +37,7 @@ await semiont.beckon.openResource(resourceId);
 await semiont.beckon.sparkleAll(annotationId);
 ```
 
-From the launcher: `semiont beckon <resourceId> --annotation <annotationId>`.
+From the launcher: `semiont beckon <resourceId> --annotation <annotationId>`, or `semiont beckon <resourceId>` for a focus on the resource alone.
 
 ## Local signals
 

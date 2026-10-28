@@ -9,7 +9,7 @@
  * ```ts
  * // bus-only state unit
  * const { bus, client } = makeTestClient();
- * const stateUnit = createBeckonStateUnit(client);
+ * const stateUnit = createBeckonStateUnit(client, resourceId);
  * client.bus.emit('beckon:hover', { annotationId: 'ann-1' });
  * bus.destroy(); // in afterEach
  *

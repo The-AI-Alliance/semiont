@@ -66,7 +66,7 @@ fn context() -> Value {
 #[tokio::test(start_paused = true)]
 async fn a_state_set_to_what_it_already_is_wakes_nobody() {
     let (client, _transport) = world();
-    let unit = BeckonStateUnit::new(client.clone());
+    let unit = BeckonStateUnit::new(client.clone(), &as_id(RES));
     let mut hovered = unit.hovered_annotation_id();
 
     client.beckon.hover(Some(&as_id("ann-1")));
@@ -85,7 +85,7 @@ impl AxiomSubject for Beckons {
 
     fn setup(&self) -> Fresh<BeckonStateUnit> {
         let (client, _transport) = world();
-        Fresh::of(BeckonStateUnit::new(client.clone())).given(client)
+        Fresh::of(BeckonStateUnit::new(client.clone(), &as_id(RES))).given(client)
     }
 
     fn surfaces(&self, unit: &BeckonStateUnit) -> Vec<Box<dyn Surface>> {

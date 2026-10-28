@@ -179,8 +179,8 @@ State these to the user rather than letting them discover them mid-demo:
   you are driving your own session.
 - **No delivery or attention confirmation.** You learn that something was sent and how many
   connections existed. Never that a human looked.
-- **No forced navigation to a resource the viewer cannot see.** `beckon:focus` carries a
-  `resourceId` as a *guard*: a viewer on a different resource ignores it. Moving someone is
+- **No forced navigation to a resource the viewer cannot see.** `beckon:focus` always carries
+  a `resourceId` as a *guard*: a viewer on a different resource ignores it. Moving someone is
   `browse --browser`'s job, and it is a separate, deliberate act.
 - **Opening an annotation the viewer has not loaded does nothing.** It is a silent no-op, not
   an error — the viewer resolves the annotation by id and finds nothing. So open a resource

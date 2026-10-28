@@ -1,8 +1,9 @@
-"""Attention, as this viewer's state: which annotation is hovered.
+"""Attention, as the state of a viewer of one resource: which annotation is hovered.
 
 It hears the viewer's hover (`client.beckon.hover`) and holds it, and sparkles
 an annotation the moment it is hovered. It hears an annotation opened, by this
 viewer or by another participant driving it, and turns the viewer's focus to it.
+Every focus it says names its resource.
 """
 
 from types import TracebackType
@@ -15,7 +16,7 @@ from semiont.bus import decoded
 from semiont.channels import BECKON_FOCUS, BECKON_HOVER, BECKON_SPARKLE, BROWSE_CLICK
 from semiont.client import SemiontClient
 from semiont.events import Events
-from semiont.identifiers import AnnotationId
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.state._tasks import Tasks
 from semiont.state_unit import StateUnit
 from semiont.transport import Frame, Transport
@@ -27,10 +28,11 @@ __all__ = ["BeckonStateUnit"]
 
 @final
 class BeckonStateUnit(StateUnit):
-    """See the module's documentation."""
+    """See the module's documentation. It attends to `resource_id`."""
 
-    def __init__(self, client: SemiontClient[Transport]) -> None:
+    def __init__(self, client: SemiontClient[Transport], resource_id: ResourceId) -> None:
         self._client: Final = client
+        self._resource_id: Final = resource_id
         self._hovered: Final = Variable[AnnotationId | None](None)
         self._tasks: Final = Tasks()
         self._disposed = False
@@ -43,9 +45,9 @@ class BeckonStateUnit(StateUnit):
         return Reading(self._hovered)
 
     def focus(self, annotation_id: AnnotationId) -> None:
-        """Signal: turn this viewer's focus to an annotation."""
+        """Signal: turn this viewer's focus to an annotation of its resource."""
         if not self._disposed:
-            self._client.bus.publish(BECKON_FOCUS, BeckonFocusEvent(annotation_id=annotation_id))
+            self._client.bus.publish(BECKON_FOCUS, BeckonFocusEvent(resource_id=self._resource_id, annotation_id=annotation_id))
 
     async def _listen(self, heard: Events[Frame]) -> None:
         async with heard:

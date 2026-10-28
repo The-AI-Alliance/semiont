@@ -3,7 +3,8 @@
 from semiont.http.sse import SseEvent, SseParser
 
 STREAM = (
-    'event: bus-event\nid: e-beckon:focus:1\ndata: {"channel":"beckon:focus","payload":{"annotationId":"naïve — 日本語 😀"}}\n\n'
+    "event: bus-event\nid: e-beckon:focus:1\n"
+    'data: {"channel":"beckon:focus","payload":{"resourceId":"res-1","annotationId":"naïve — 日本語 😀"}}\n\n'
     "event: ping\ndata:\n\n"
     'event: bus-event\nid: p-res-1-2\ndata: {"channel":"mark:added","payload":{},"scope":"res-1"}\n\n'
 ).encode()

@@ -87,9 +87,11 @@ def test_an_emit_by_type_sends_its_channels_name_and_its_payload_as_the_wire_car
     async def scenario() -> None:
         transport = FaultyTransport(channels=())
         bus = Bus(transport)
-        await bus.emit(BECKON_FOCUS, BeckonFocusEvent(annotation_id=ANNOTATION), scope=RESOURCE, correlation_id="cid-1")
+        await bus.emit(
+            BECKON_FOCUS, BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION), scope=RESOURCE, correlation_id="cid-1"
+        )
         assert transport.emitted == [
-            Frame(channel="beckon:focus", payload={"annotationId": "ann-1"}, correlation_id="cid-1", scope=RESOURCE)
+            Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "ann-1"}, correlation_id="cid-1", scope=RESOURCE)
         ]
 
     run(scenario())
@@ -98,13 +100,14 @@ def test_an_emit_by_type_sends_its_channels_name_and_its_payload_as_the_wire_car
 def test_a_payload_is_read_without_the_stamps_its_channel_does_not_declare() -> None:
     # `_userId` is declared by a command's type, and is the bus's on an event's.
     stamped: dict[str, JsonValue] = {
+        "resourceId": "res-1",
         "annotationId": "ann-1",
         "_userId": "did:web:example.org:users:alice",
         "_trace": {"traceparent": "00-…"},
     }
     command = decoded(MARK_DELETE, stamped)
     assert (command.annotation_id, command.user_id) == ("ann-1", "did:web:example.org:users:alice")
-    assert decoded(BECKON_FOCUS, stamped) == BeckonFocusEvent(annotation_id=ANNOTATION)
+    assert decoded(BECKON_FOCUS, stamped) == BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION)
     # A payload that admits nothing it does not declare is still read, once the bus's stamps are off it.
     assert decoded(PANEL_CLOSE, {"_userId": "did:web:example.org:users:alice"}) == Empty()
     with pytest.raises(ValidationError):
@@ -150,17 +153,17 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
         transport.deliver(
             Frame(
                 channel="beckon:focus",
-                payload={"annotationId": "ann-1", "_userId": "did:web:example.org:users:alice"},
+                payload={"resourceId": "res-1", "annotationId": "ann-1", "_userId": "did:web:example.org:users:alice"},
                 correlation_id="cid-1",
                 scope=RESOURCE,
             )
         )
-        transport.deliver(Frame(channel="beckon:focus", payload={"annotationId": {"not": "an id"}}))
+        transport.deliver(Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": {"not": "an id"}}))
         transport.deliver(Frame(channel="beckon:focus", payload={"resourceId": "res-1", "_userId": "not a DID"}))
 
         async with frames:
             first = await soon(anext(frames))
-            assert first.payload == BeckonFocusEvent(annotation_id=ANNOTATION)
+            assert first.payload == BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION)
             assert (first.correlation_id, first.scope, first.user_id) == ("cid-1", RESOURCE, "did:web:example.org:users:alice")
             # What is not the channel's is not given, and the one after it is.
             second = await soon(anext(frames))

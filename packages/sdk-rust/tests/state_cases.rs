@@ -415,7 +415,12 @@ fn makers() -> Vec<Maker> {
         },
         Maker {
             unit: "beckon",
-            make: |client, _, _| Ok(Unit::Beckon(BeckonStateUnit::new(client.clone()))),
+            make: |client, _, made| {
+                Ok(Unit::Beckon(BeckonStateUnit::new(
+                    client.clone(),
+                    &id(made, "resourceId")?,
+                )))
+            },
         },
         Maker {
             unit: "hoverDwell",

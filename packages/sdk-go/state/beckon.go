@@ -1,11 +1,12 @@
 package state
 
-// Attention, as this viewer's state: which annotation is hovered.
+// Attention, as the state of a viewer of one resource: which annotation is
+// hovered.
 //
 // It hears the viewer's hover (Beckon.Hover) and holds it, and sparkles an
 // annotation the moment it is hovered. It hears an annotation opened, by this
 // viewer or by another participant driving it, and turns the viewer's focus
-// to it.
+// to it. Every focus it says names its resource.
 
 import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go"
@@ -16,7 +17,8 @@ import (
 // BeckonStateUnit is attention, as this viewer's state: see the file's
 // documentation.
 type BeckonStateUnit struct {
-	client *semiont.Client
+	client     *semiont.Client
+	resourceID api.ResourceId
 	life
 
 	hovered *semiont.Variable[api.AnnotationId]
@@ -24,10 +26,10 @@ type BeckonStateUnit struct {
 
 var _ semiont.StateUnit = (*BeckonStateUnit)(nil)
 
-// NewBeckonStateUnit is a unit of attention over client. It hears the
-// client's own bus from now on.
-func NewBeckonStateUnit(client *semiont.Client) *BeckonStateUnit {
-	u := &BeckonStateUnit{client: client, life: newLife(), hovered: semiont.NewVariable(api.AnnotationId{})}
+// NewBeckonStateUnit is a unit of attention on resourceID over client. It
+// hears the client's own bus from now on.
+func NewBeckonStateUnit(client *semiont.Client, resourceID api.ResourceId) *BeckonStateUnit {
+	u := &BeckonStateUnit{client: client, resourceID: resourceID, life: newLife(), hovered: semiont.NewVariable(api.AnnotationId{})}
 	// One reader of both, taken now, so what is said from here on is heard in the order it was said.
 	u.listen(client.Bus.FramesAmong(u.alive, bus.BeckonHover.Channel(), bus.BrowseClick.Channel()), u.heard)
 	return u
@@ -39,7 +41,7 @@ func (u *BeckonStateUnit) HoveredAnnotationId() semiont.Watched[api.AnnotationId
 	return u.hovered.Reading()
 }
 
-// Focus signals: turn this viewer's focus to an annotation.
+// Focus signals: turn this viewer's focus to an annotation of its resource.
 func (u *BeckonStateUnit) Focus(annotationID api.AnnotationId) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -51,7 +53,7 @@ func (u *BeckonStateUnit) Focus(annotationID api.AnnotationId) {
 
 // focus says the focus. Called with mu held.
 func (u *BeckonStateUnit) focus(annotationID api.AnnotationId) {
-	_ = semiont.Publish(u.client.Bus, bus.BeckonFocus, api.BeckonFocusEvent{AnnotationId: &annotationID}, semiont.Envelope{})
+	_ = semiont.Publish(u.client.Bus, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: u.resourceID, AnnotationId: &annotationID}, semiont.Envelope{})
 }
 
 // heard acts on a hover or a click. A frame that is not its channel's is

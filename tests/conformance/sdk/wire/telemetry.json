@@ -14,7 +14,7 @@
     {"state": "open"},
     {"driver": "listen", "with": {"channel": "beckon:focus"}},
 
-    {"backend": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}},
+    {"backend": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}}},
     {"frame": "beckon:focus", "is": {"payload": {"$var": "_"}}},
     {"driver": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": "a-2"}}},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:sparkle", "payload": {"annotationId": "a-2"}, "clientId": {"$var": "clientId"}}},

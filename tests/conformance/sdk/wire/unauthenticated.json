@@ -11,7 +11,7 @@
     {"driver": "set-token", "with": {"token": {"$var": "token"}}},
     {"wire": "POST /bus/subscribe", "status": 200, "token": {"$var": "token"}, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
     {"state": "open"},
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {}}},
-    {"wire": "POST /bus/emit", "status": 202, "token": {"$var": "token"}, "body": {"channel": "beckon:focus", "payload": {}, "clientId": {"$var": "clientId"}}}
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}}},
+    {"wire": "POST /bus/emit", "status": 202, "token": {"$var": "token"}, "body": {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "clientId": {"$var": "clientId"}}}
   ]
 }

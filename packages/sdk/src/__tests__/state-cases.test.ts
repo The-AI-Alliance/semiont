@@ -174,8 +174,8 @@ const MAKERS: Record<string, Make> = {
     const unit: MatchStateUnit = createMatchStateUnit(client);
     return { unit, methods: {} satisfies Methods<MatchStateUnit>, states: {} satisfies States<MatchStateUnit> };
   },
-  beckon: (client) => {
-    const unit: BeckonStateUnit = createBeckonStateUnit(client);
+  beckon: (client, _searches, made) => {
+    const unit: BeckonStateUnit = createBeckonStateUnit(client, resourceId(text(made['resourceId'], 'a resource')));
     return {
       unit,
       methods: { focus: (args) => unit.focus(annotationOf(args)) } satisfies Methods<BeckonStateUnit>,

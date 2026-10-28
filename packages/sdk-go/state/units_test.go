@@ -146,10 +146,11 @@ func TestMatchKeepsTheStateUnitAxioms(t *testing.T) {
 
 func TestBeckonKeepsTheStateUnitAxioms(t *testing.T) {
 	annotation := idOf[api.AnnotationId](t, "ann-1")
+	resource := idOf[api.ResourceId](t, "res-1")
 	semionttest.AssertStateUnitAxioms(t, semionttest.AxiomSubject[*state.BeckonStateUnit]{
 		Setup: func(t *testing.T) semionttest.Fresh[*state.BeckonStateUnit] {
 			client := clientOf(t, semionttest.FaultyConfig{})
-			unit := state.NewBeckonStateUnit(client)
+			unit := state.NewBeckonStateUnit(client, resource)
 			return semionttest.Fresh[*state.BeckonStateUnit]{Unit: unit}.With(semionttest.TheClient(client))
 		},
 		Surfaces: func(unit *state.BeckonStateUnit) []semionttest.Surface {
@@ -198,7 +199,7 @@ func TestTheSearchPipelineKeepsTheStateUnitAxioms(t *testing.T) {
 func TestAStateSetToWhatItAlreadyHoldsWakesNobody(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		client := clientOf(t, semionttest.FaultyConfig{})
-		unit := state.NewBeckonStateUnit(client)
+		unit := state.NewBeckonStateUnit(client, idOf[api.ResourceId](t, "res-1"))
 		defer unit.Close()
 		annotation := idOf[api.AnnotationId](t, "ann-1")
 		ctx, cancel := context.WithCancel(context.Background())

@@ -8,10 +8,10 @@
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
     {"state": "open"},
 
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "scope": {"$var": "r1"}}, "returns": {"subscribers": 1}},
-    {"wire": "POST /bus/emit", "status": 202, "token": {"$var": "token"}, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "scope": {"$var": "r1"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 1}},
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": {"$var": "r1"}}, "scope": {"$var": "r1"}}, "returns": {"subscribers": 1}},
+    {"wire": "POST /bus/emit", "status": 202, "token": {"$var": "token"}, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": {"$var": "r1"}}, "scope": {"$var": "r1"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 1}},
 
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-2"}, "scope": {"$var": "r2"}}, "returns": {"subscribers": 0}},
-    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-2"}, "scope": {"$var": "r2"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 0}}
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-2", "resourceId": {"$var": "r2"}}, "scope": {"$var": "r2"}}, "returns": {"subscribers": 0}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-2", "resourceId": {"$var": "r2"}}, "scope": {"$var": "r2"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 0}}
   ]
 }
