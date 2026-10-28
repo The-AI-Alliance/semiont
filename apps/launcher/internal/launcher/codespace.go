@@ -1305,7 +1305,9 @@ func statusCodespace(u *UI, st *StackState, refresh bool) int {
 	}
 	if n := st.Codespace.KeycloakPort; n != 0 && !forwardAlive(st.Codespace.KeycloakForwardPID, n) {
 		u.Log("Recorded issuer forward is not running — re-establishing")
-		if pid, _, code := spawnForward(u, st.Codespace.Name, n, n); code == 0 {
+		// As a start opens it: recorded only once it answers. Nothing else in
+		// this report would notice an issuer forward that never came up.
+		if pid, _, code := establishForward(u, st.Codespace.Name, n, n, true); code == 0 {
 			st.Codespace.KeycloakForwardPID = pid
 			saveStack(st)
 		}
