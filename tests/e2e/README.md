@@ -64,9 +64,10 @@ Dependabot bumps `package.json` and `package-lock.json` together, but
 nothing installs them here, so the declared and installed versions diverge
 silently until someone runs `npm ci`; a hard-coded tag would make a third.
 
-**Nothing else catches this.** `tests/e2e` is not a root workspace and no CI
-workflow runs it, so the suite's dependencies are only ever installed by a
-person deciding to. After a Dependabot bump, sync before running:
+**Nothing else catches this on a laptop.** `tests/e2e` is not a root
+workspace, so its dependencies are installed only by a person deciding to, or
+by [Stack Smoke](#how-ci-runs-the-suite), which runs `npm ci` before every
+run. After a Dependabot bump, sync before running:
 
 ```sh
 npm ci        # installs the lockfile EXACTLY; never rewrites it
@@ -148,8 +149,9 @@ guards; a regression in that path fails that spec. Specs tagged
 
 ## Scope
 
-- **Not in CI.** No workflow runs it; run it locally against a stack you
-  brought up.
+- **Not a gate on pull requests.** Stack Smoke runs the default tier nightly
+  (see [How CI runs the suite](#how-ci-runs-the-suite)); otherwise run it
+  against a stack you brought up.
 - **Seeded.** Playwright's global setup ([`scripts/seed.ts`](scripts/seed.ts))
   authenticates through `@semiont/sdk` and uploads the fixtures the specs
   assume: text resources for the annotation specs, PDFs for the PDF specs.
@@ -157,10 +159,36 @@ guards; a regression in that path fails that spec. Specs tagged
   storage URI, so a re-run against a seeded knowledge base skips it.
 - **Real sign-in.** Connect leaves the Browser for the launcher-run
   Keycloak, and the `signIn` fixture types the credentials into its login
-  page.
+  page. An account's first sign-in asks for a name, which `semiont useradd`
+  does not set; the seed's sign-in, always the run's first, gives one.
 - **One worker, no retries.** Specs share the knowledge base; a flake is
   diagnosed, not retried away.
 - **Chromium only.**
+
+## How CI runs the suite
+
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) runs
+[`scripts/release/smoke-stack.sh <images> --e2e`](../../scripts/release/smoke-stack.sh),
+nightly on `main`, on dispatch, and on a pull request that changes the
+workflow or its script. The script boots a new knowledge base's stack on
+docker, with the inference and embedding models `semiont init` names, and,
+after its own checks and before it stops the stack:
+
+- makes the suite's user with `semiont useradd`, a password generated for the
+  run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
+- runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
+  `<version>` read from `package.json`, with `--network host`, so the
+  `localhost` defaults reach the stack;
+- adds a JSON report to the list and HTML ones, at
+  `test-results/report.json`.
+
+A failing suite fails the job, prints the stack's container logs, and still
+stops the stack. Whatever the result, `playwright-report/` and
+`test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
+table of the specs with the tier's wall time is written to the run's summary.
+On a laptop with docker, `scripts/release/smoke-stack.sh local --e2e` does the
+same; Apple's `container` has no `--network host`, so there it refuses, and
+the [Quick start](#quick-start) is the way.
 
 ## Running against a freshly-built stack
 

@@ -64,6 +64,18 @@ export async function sessionFor(opts: {
     await page.fill('#username', opts.email);
     await page.fill('#password', opts.password);
     await page.click('#kc-login');
+    // An account nobody has signed in as yet has no name, and the realm's user
+    // profile requires one, so Keycloak asks for it before it redirects.
+    // `semiont useradd` sets none: against a fresh realm the seed's sign-in,
+    // the run's first, meets this form, and every later sign-in goes straight
+    // back. Its fields are named by the profile's attributes.
+    const firstName = page.locator('#firstName');
+    await firstName.or(page.getByText('signed in', { exact: true })).waitFor();
+    if (await firstName.isVisible()) {
+      await firstName.fill('Playwright');
+      await page.fill('#lastName', 'Suite');
+      await page.press('#lastName', 'Enter');
+    }
     callbackUrl = (await returned).url();
   } finally {
     await browser.close();
