@@ -1,0 +1,766 @@
+package launcher
+
+// plan.go — derivePlan: the pure function from a knowledge base's documents
+// (package stack, each already held to its schema) to the launcher's work.
+// Per dependency role the documents decide the OBLIGATION: a daemon that
+// states `external` is somebody else's, at the address it states, and one
+// that does not is the launcher's, run from the image and with the memory it
+// states, at the address the launcher places it. The driver catalog owns what
+// no document states: the ports of the daemons the launcher runs, and their
+// aux ports. What the schemas cannot state, a rule that spans fields or
+// documents, is refused here, naming the document and the field.
+
+import (
+	"fmt"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
+)
+
+// presence: whether a role is part of this stack, and WHO runs it. What the
+// launcher may change inside a service is a separate question — `authority`,
+// declared on the descriptor — and the memory preflight reads presence
+// because "do we run it" is genuinely its question.
+//
+// `absent` is not a way to run. It is a presence — the role is not here —
+// and naming it so is what stops it being treated as a fourth mechanism.
+//
+// Distinct from ServiceState.Provided, which shares this vocabulary and is
+// NOT a restatement of it: presence is plan-time INTENT (host preferred, a
+// container if there is none), Provided is the OUTCOME a start recorded.
+type presence int
+
+const (
+	presenceAbsent        presence = iota // no section / not referenced: not needed
+	presenceLauncher                      // the launcher runs it here (driver by type)
+	presenceExternal                      // somebody else runs it: verify, never launch
+	presenceHostPreferred                 // a host process is preferred; a container is the fallback
+)
+
+func (p presence) String() string {
+	return [...]string{"absent", "provided", "external", "host-process"}[p]
+}
+
+type rolePlan struct {
+	Role             string
+	Presence         presence
+	Driver           string        // the document's `type` (catalog key)
+	Image            string        // the document's, for provided/host-fallback launches
+	Address          string        // external host, for reachability probes
+	Port             int           // primary port (an external daemon's, else the driver's); zero for a launcher-fiat port, the descriptor's
+	SharesOllamaWith string        // role under which the launcher runs the Ollama this one uses
+	Models           []servedModel // models this role uses, each with the provider that serves it
+	Env              []string      // container env derived from the documents (no credential: those are added at launch)
+	// Memory: the --memory ceiling of a daemon the launcher runs, as its
+	// document states it.
+	Memory string
+	// User: the login a launcher-kept password belongs to (graph: NEO4J_AUTH's
+	// user half).
+	User string
+	// ExternalDBPassword: identity on an EXTERNAL PostgreSQL — the variable its
+	// password is read from (the Issuer document's database.external.password).
+	ExternalDBPassword string
+	// APIKey: inference on a remote provider — the variable its key is read
+	// from (the Inference document's providers.<provider>.apiKey), for the
+	// remote-model check.
+	APIKey string
+	// CmdExtra: arguments appended AFTER the driver's own command. The
+	// messaging role uses it for `-c` when the broker is authenticated; the
+	// path is fixed, so the derivation can state it and the flow only has to
+	// mount the file there.
+	CmdExtra []string
+	// Issuer: identity's issuer URL as this host reaches it — an external
+	// one as its document states it, the launcher's Keycloak at localhost on
+	// its port (issuerURL gives a container's view).
+	Issuer string
+	// AccessTokenLifespan: seconds, for the realm the launcher imports.
+	// Zero means the built-in default; only a launcher-run Keycloak has one.
+	AccessTokenLifespan int
+}
+
+type launchPlan struct {
+	// Roles: the roles whose presence the documents decide — every
+	// dependency role, and the worker. Semiont's other services are in every
+	// stack and have no row (runs).
+	Roles       map[string]rolePlan
+	GatewayPort int
+	// Inference: the file of the Inference document this start chose, for the
+	// messages that name it.
+	Inference string
+	// OllamaModels: every model the documents ask the MACHINE'S Ollama to
+	// serve — the ollama bindings when the Inference document states no
+	// providers.ollama.baseURL, plus an ollama embedding with no endpoint.
+	// Distinct from the per-role Models (which list what a role uses whoever
+	// serves it): only these are pulled, into the machine's Ollama; an Ollama
+	// somebody else runs is theirs to provision.
+	//
+	// Each carries the ROLES that asked for it. One Ollama can serve both
+	// inference and embedding, so this set crosses role boundaries: it is
+	// provisioned under the inference banner but a failure here may be an
+	// EMBEDDING failure. Output must name the role, not the section it
+	// happened to be printed under.
+	OllamaModels []modelNeed
+	// ServiceVars: the user variables each stack service is handed — only
+	// those its configuration document names.
+	ServiceVars map[string][]string
+	// Images and Memory: each of Semiont's services this stack runs, with the
+	// image its document names and the ceiling it states.
+	Images map[string]string
+	Memory map[string]string
+}
+
+// The two roles a model can be asked to serve. Providers vary (ollama,
+// anthropic, voyage); these do not.
+const (
+	roleInference = "inference"
+	roleEmbedding = "embedding"
+)
+
+// modelNeed: a model that must be present, and the roles that asked for it —
+// the sibling of portNeed. (Not ollamaModel, which is Ollama's /api/tags
+// response shape: what it HAS, not what the config wants.)
+type modelNeed struct {
+	Name  string
+	Roles []string // roleInference and/or roleEmbedding
+}
+
+// servedModel: one model a role uses and the provider that serves it — the
+// config `type` of the binding or section that names it. A role's driver does
+// not say this: a config can point workers at Anthropic and one job type at
+// Ollama, and the inference row then lists Claude under a driver of "ollama".
+// The pair is also how key holders report limits.
+type servedModel struct {
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
+}
+
+// servedBy: the names of the models one provider serves.
+func servedBy(models []servedModel, provider string) []string {
+	var out []string
+	for _, m := range models {
+		if m.Provider == provider {
+			out = append(out, m.Model)
+		}
+	}
+	return out
+}
+
+// boundRole: a role a roster binds, at its place in the roster ("actors.gatherer",
+// "workers.mark.tagging").
+type boundRole struct {
+	at   string
+	role api.ArchivistRosterRole
+}
+
+// rosterRoles: every role a roster binds — each actor's, then each job's, in
+// the roster's own order.
+func rosterRoles(roster api.ArchivistRoster) []boundRole {
+	var bound []boundRole
+	for _, actor := range []struct {
+		name string
+		role *api.ArchivistRosterRole
+	}{{"gatherer", roster.Actors.Gatherer}, {"matcher", roster.Actors.Matcher}} {
+		if actor.role != nil {
+			bound = append(bound, boundRole{at: "actors." + actor.name, role: *actor.role})
+		}
+	}
+	for _, s := range servedJobs(roster) {
+		bound = append(bound, boundRole{at: "workers." + s.job.name, role: *s.role})
+	}
+	return bound
+}
+
+// servedJobs: each job the roster binds a worker role to, in workerJobs'
+// order.
+func servedJobs(roster api.ArchivistRoster) []servedJob {
+	var served []servedJob
+	workers := reflect.ValueOf(roster.Workers)
+	for _, job := range workerJobs() {
+		if role := job.bound(workers); role != nil {
+			served = append(served, servedJob{job: job, role: role})
+		}
+	}
+	return served
+}
+
+// ollamaModels: the models this stack asks the machine's Ollama to serve —
+// bindings whose provider is ollama, when the Inference document places that
+// Ollama nowhere else, plus an ollama-typed embedding with no endpoint. These
+// are exactly the models a "pull" is defined for.
+func ollamaModels(st *stack.Stack) []modelNeed {
+	idx := map[string]*modelNeed{}
+	var names []string
+	add := func(name, role string) {
+		if name == "" {
+			return
+		}
+		m, ok := idx[name]
+		if !ok {
+			m = &modelNeed{Name: name}
+			idx[name] = m
+			names = append(names, name)
+		}
+		for _, r := range m.Roles {
+			if r == role {
+				return
+			}
+		}
+		m.Roles = append(m.Roles, role)
+	}
+	// Every actor/worker binding is the INFERENCE role however many bindings
+	// name the same model; the embedding role is added last, so Roles ends up
+	// in one order.
+	if st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama].BaseURL == nil {
+		for _, b := range rosterRoles(st.Inference.Spec.Roster) {
+			if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
+				add(b.role.Model, roleInference)
+			}
+		}
+	}
+	if e := st.KnowledgeIndex.Spec.Embedding; e.Type == "ollama" && e.Endpoint == nil {
+		add(e.Model, roleEmbedding)
+	}
+	sort.Strings(names)
+	out := make([]modelNeed, 0, len(names))
+	for _, n := range names {
+		out = append(out, *idx[n])
+	}
+	return out
+}
+
+// modelNames: just the names, for the places that only need the list.
+func modelNames(models []modelNeed) []string {
+	out := make([]string, 0, len(models))
+	for _, m := range models {
+		out = append(out, m.Name)
+	}
+	return out
+}
+
+// modelRoles: the union of roles across a model set, in a stable order — what
+// a provisioning step is FOR, said in role terms rather than provider terms.
+func modelRoles(models []modelNeed) []string {
+	var out []string
+	for _, want := range []string{roleInference, roleEmbedding} {
+		for _, m := range models {
+			for _, r := range m.Roles {
+				if r == want {
+					out = append(out, want)
+					goto next
+				}
+			}
+		}
+	next:
+	}
+	return out
+}
+
+// remoteInferenceDriver: the (sorted-first) non-ollama provider the bindings
+// name. With one remote provider — the real case — this is it; a mixed-remote
+// roster gets the alphabetically first, and its models still all list
+// (bindingModels is unfiltered).
+func remoteInferenceDriver(st *stack.Stack) string {
+	set := map[string]bool{}
+	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
+		if p := string(b.role.Provider); p != "ollama" {
+			set[p] = true
+		}
+	}
+	types := make([]string, 0, len(set))
+	for t := range set {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	if len(types) == 0 {
+		return ""
+	}
+	return types[0]
+}
+
+// remoteProviderAddress: where a remote inference provider's API is — the
+// baseURL its entry states, else the provider's own. ONE decider: the
+// inference role the remote-model check dials (saasBase), and the address a
+// worker's document gives an agent whose provider states none (workerdoc.go).
+func remoteProviderAddress(st *stack.Stack, driver string) (host string, port int) {
+	if p, ok := st.Inference.Spec.Providers[api.ArchivistRosterRoleProvider(driver)]; ok && p.BaseURL != nil {
+		host, port = parseHostPort(*p.BaseURL)
+		if port == 0 && strings.HasPrefix(*p.BaseURL, "https://") {
+			port = 443
+		}
+	}
+	if host == "" && driver == "anthropic" {
+		host = "api.anthropic.com"
+	}
+	if port == 0 {
+		port = descriptorFor("inference", driver).defaultPort
+	}
+	if port == 0 {
+		port = 443 // an unknown remote provider is still TLS SaaS
+	}
+	return host, port
+}
+
+// bindingModels: every model the roster's actors and workers bind for
+// inference, with its provider, sorted and deduped. Deliberately NOT filtered
+// by provider: these are the models this stack performs inference with,
+// whoever serves them — a mixed roster lists all of them.
+func bindingModels(st *stack.Stack) []servedModel {
+	seen := map[servedModel]bool{}
+	var out []servedModel
+	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
+		m := servedModel{Model: b.role.Model, Provider: string(b.role.Provider)}
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Model != out[j].Model {
+			return out[i].Model < out[j].Model
+		}
+		return out[i].Provider < out[j].Provider
+	})
+	return out
+}
+
+// driverDisplay: the product name behind a role's selected driver.
+func driverDisplay(role, driver string) string {
+	if s, ok := lookupDescriptor(role, driver); ok {
+		return s.display
+	}
+	return driver
+}
+
+// providedRunArgs builds the `run -d` argv for a launcher-provided role from
+// its plan: aux ports first, then the primary publish (host side the plan's,
+// container side the driver default), driver extras, the env the documents
+// derive, image — with the memory its document states.
+func providedRunArgs(e exposure, role string, rp rolePlan, extra ...string) []string {
+	spec := descriptorFor(role, rp.Driver)
+	// NO --rm: a crashed container must remain inspectable — its logs are
+	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
+	// "No such container"). Cleanup is already explicit at both ends:
+	// start's preflight and stop both stop+rm by name.
+	a := []string{"run", "-d", "--name", spec.container, "--memory", rp.Memory}
+	for _, ap := range spec.auxPorts {
+		a = append(a, e.publish("-p", role, ap.port, ap.port)...)
+	}
+	a = append(a, e.publish("-p", role, rp.Port, spec.defaultPort)...)
+	a = append(a, extra...)
+	for _, e := range rp.Env {
+		a = append(a, "-e", e)
+	}
+	a = append(a, rp.Image)
+	a = append(a, spec.cmd...)
+	return append(a, rp.CmdExtra...)
+}
+
+// ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
+// providedRunArgs because the OWNING role varies (inference, or embedding
+// when the bindings are all-remote) while the container, image and port
+// shape do not — the OWNER's descriptor would be wrong for embedding, whose
+// row carries no container precisely because it never runs one.
+func ollamaRunArgs(e exposure, rp rolePlan, extra ...string) []string {
+	spec := descriptorFor("inference", "ollama")
+	// The ceiling is the INFERENCE row's whichever role owns the container
+	// (an all-remote embedding config still runs one Ollama), and it comes
+	// from the descriptor ALONE — a second -m from a caller wins by flag
+	// order and desyncs the memory preflight.
+	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem} // no --rm: see providedRunArgs
+	a = append(a, e.publish("-p", "inference", rp.Port, spec.defaultPort)...)
+	a = append(a, extra...)
+	return append(a, rp.Image)
+}
+
+// runs: whether this start runs role's container, asked of the roles the
+// launcher places by fiat — Semiont's own services and the observability tier
+// — and never of a dependency role, whose presence has more answers than two
+// (flowDepRole). The plan carries the one fiat role a config decides, the
+// worker; a role it does not carry runs whenever the walk reaches it.
+func (p *launchPlan) runs(role string) bool {
+	rp, planned := p.Roles[role]
+	return !planned || rp.Presence == presenceLauncher
+}
+
+// planPortChecks: the must-be-free ports, derived from the plan — only roles
+// the launcher actually provides claim ports, and a port a person and the
+// containers both dial claims its containers' side too (e). The order is the
+// order the checks run in, and the start goldens pin it.
+func planPortChecks(plan *launchPlan, observe bool, e exposure) []portNeed {
+	var checks []portNeed
+	addRole := func(role string) {
+		rp := plan.Roles[role]
+		if rp.Presence != presenceLauncher {
+			return
+		}
+		spec := descriptorFor(role, rp.Driver)
+		checks = append(checks, spec.auxPorts...)
+		need := portNeed{rp.Port, spec.portLabel}
+		checks = append(append(checks, need), e.containersSideNeed(role, need)...)
+	}
+	addRole("graph")
+	addRole("vectors")
+	addRole("database")
+	addRole("messaging")
+	addRole("identity")
+	// The gateway's port is config-owned; every other Semiont port is
+	// launcher fiat and comes from the descriptor set. No browser here: the
+	// Browser is not a stack member — its port is checked inside flowBrowser,
+	// and only when (re)starting.
+	gateway := portNeed{plan.GatewayPort, "Gateway"}
+	checks = append(append(checks, gateway), e.containersSideNeed("gateway", gateway)...)
+	for _, role := range fiatRoles(observe) {
+		if plan.runs(role) {
+			checks = append(checks, stackPortNeeds(role)...)
+		}
+	}
+	return checks
+}
+
+// fiatRoles: the roles whose ports are the launcher's fiat, whatever a config
+// says — the Semiont services behind the gateway, then observability. ONE
+// list for the two sites that decide it: a full start requires the ports of
+// the ones it runs free, and a stop holding no record of the stack's claims
+// verifies every one's released.
+func fiatRoles(observe bool) []string {
+	roles := []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
+	// The collector runs on every start, observed or not.
+	roles = append(roles, "collector")
+	if observe {
+		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
+		roles = append(roles, "traces", "metrics")
+	}
+	return roles
+}
+
+func knownDrivers(role string) string {
+	return strings.Join(driversFor(role), ", ")
+}
+
+// AuxPorts: catalog-owned secondary ports for a role's selected driver
+// (Neo4j's 7474 browser — the config only declares bolt).
+func (p *launchPlan) AuxPorts(role string) []portNeed {
+	return descriptorFor(role, p.Roles[role].Driver).auxPorts
+}
+
+// parseHostPort splits "scheme://host:port", "host:port", or bare "host".
+func parseHostPort(s string) (host string, port int) {
+	if _, rest, ok := strings.Cut(s, "://"); ok {
+		s = rest
+	}
+	if i := strings.LastIndex(s, ":"); i >= 0 {
+		if p, err := strconv.Atoi(s[i+1:]); err == nil {
+			return s[:i], p
+		}
+	}
+	return s, 0
+}
+
+// workerPlan: the worker's row of the plan. The launcher runs a worker when
+// the roster binds a job to one, and the stack has none when it binds none.
+// ONE decision, read from the roster the worker's document and the
+// Archivist's are written from (servedJobs); everything that enumerates the
+// stack follows it (launchPlan.runs).
+func workerPlan(st *stack.Stack) rolePlan {
+	worker := rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
+	if len(servedJobs(st.Inference.Spec.Roster)) == 0 {
+		worker.Presence = presenceAbsent
+	}
+	return worker
+}
+
+// planErr: a refusal of what a document says, naming the document and the
+// field.
+func planErr(file, field, format string, a ...any) error {
+	return fmt.Errorf("%s: %s %s", file, field, fmt.Sprintf(format, a...))
+}
+
+// derivePlan maps a knowledge base's documents to each role's presence.
+// keycloakPort is the port this launch gives the Keycloak it runs
+// (keycloakPort in root.go).
+func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
+	kb, index, files := st.KnowledgeBase.Spec, st.KnowledgeIndex.Spec, st.Files
+	plan := &launchPlan{
+		Roles:        map[string]rolePlan{},
+		GatewayPort:  kb.Gateway.Port,
+		Inference:    files.Inference,
+		OllamaModels: ollamaModels(st),
+		Images: map[string]string{
+			"gateway": kb.Gateway.Image, "dispatcher": kb.Dispatcher.Image, "archivist": kb.Archivist.Image,
+			"librarian": index.Librarian.Image, "smelter": index.Smelter.Image, "weaver": index.Weaver.Image,
+		},
+		Memory: map[string]string{
+			"gateway": kb.Gateway.Resources.Limits.Memory, "dispatcher": kb.Dispatcher.Resources.Limits.Memory,
+			"archivist": kb.Archivist.Resources.Limits.Memory, "librarian": index.Librarian.Resources.Limits.Memory,
+			"smelter": index.Smelter.Resources.Limits.Memory, "weaver": index.Weaver.Resources.Limits.Memory,
+		},
+	}
+
+	// Every provider a role names is one the Inference document says how to
+	// reach.
+	providers := st.Inference.Spec.Providers
+	bindingsUseOllama := false
+	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
+		if _, stated := providers[b.role.Provider]; !stated {
+			return nil, planErr(files.Inference, "spec.roster."+b.at+".provider", "is %q, and spec.providers says nothing of it — add spec.providers.%s", b.role.Provider, b.role.Provider)
+		}
+		if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
+			bindingsUseOllama = true
+		}
+	}
+	// inferenceOllama: where the Ollama that performs inference is — the
+	// Inference document's to say, and nil for the machine's.
+	inferenceOllama := providers[api.ArchivistRosterRoleProviderOllama].BaseURL
+
+	// graph
+	{
+		g := index.Graph
+		spec, ok := lookupDescriptor("graph", g.Type)
+		if !ok {
+			return nil, planErr(files.KnowledgeIndex, "spec.graph.type", "is %q, which no driver runs (known drivers: %s)", g.Type, knownDrivers("graph"))
+		}
+		rp := rolePlan{Role: "graph", Driver: g.Type, Port: spec.defaultPort}
+		if g.External != nil {
+			host, port := parseHostPort(g.External.Uri)
+			if port != 0 {
+				rp.Port = port
+			}
+			rp.Presence, rp.Address = presenceExternal, host
+		} else {
+			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *g.Image, g.Resources.Limits.Memory
+			rp.User = g.Username
+			rp.Env = []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
+		}
+		plan.Roles["graph"] = rp
+	}
+
+	// vectors. `memory` is unusable here: a launcher-managed stack runs the
+	// Smelter, which writes the index, and the Librarian, which reads it, as
+	// separate containers, and an in-process index cannot be shared across
+	// processes. Named explicitly so an operator is told WHY, rather than that
+	// the value is unknown.
+	{
+		v := index.Vectors
+		if v.Type == "memory" {
+			return nil, planErr(files.KnowledgeIndex, "spec.vectors.type", `is "memory", which keeps the index inside one process, and a launcher-managed stack runs the Smelter and the Librarian as separate containers — they cannot share it. Use "qdrant".`)
+		}
+		spec, ok := lookupDescriptor("vectors", v.Type)
+		if !ok {
+			return nil, planErr(files.KnowledgeIndex, "spec.vectors.type", "is %q, which no driver runs (known drivers: %s)", v.Type, knownDrivers("vectors"))
+		}
+		rp := rolePlan{Role: "vectors", Driver: v.Type, Port: spec.defaultPort}
+		if v.External != nil {
+			rp.Presence, rp.Address, rp.Port = presenceExternal, v.External.Host, v.External.Port
+		} else {
+			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *v.Image, v.Resources.Limits.Memory
+		}
+		plan.Roles["vectors"] = rp
+	}
+
+	// database — the Issuer's, so present only with the Keycloak the launcher
+	// runs.
+	if st.Issuer == nil {
+		plan.Roles["database"] = rolePlan{Role: "database", Presence: presenceAbsent}
+	} else {
+		d := st.Issuer.Spec.Database
+		spec, ok := lookupDescriptor("database", d.Type)
+		if !ok {
+			return nil, planErr(files.Issuer, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("database"))
+		}
+		rp := rolePlan{Role: "database", Driver: d.Type, Port: spec.defaultPort}
+		if d.External != nil {
+			rp.Presence, rp.Address, rp.Port = presenceExternal, d.External.Host, d.External.Port
+		} else {
+			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *d.Image, d.Resources.Limits.Memory
+			rp.Env = []string{"POSTGRES_DB=" + d.Name}
+			// POSTGRES_USER only when it departs from the image's own.
+			if d.User != "postgres" {
+				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
+			}
+		}
+		plan.Roles["database"] = rp
+	}
+
+	// messaging — the one broker: the dispatcher's queue is JetStream, and a
+	// `nats` signal plane rides the same daemon. Its one shape, -js with the
+	// stamped store, serves both: the job queue's stream, and the signal
+	// driver's KV tables, where the gateway's ledger keeps its claims.
+	{
+		m := kb.Messaging
+		if m.Jobs.Type != "jetstream" {
+			return nil, planErr(files.KnowledgeBase, "spec.messaging.jobs.type", `is %q: the dispatcher's queue is JetStream — write "jetstream"`, m.Jobs.Type)
+		}
+		switch m.Signal.Type {
+		case "in-process", "nats":
+		default:
+			return nil, planErr(files.KnowledgeBase, "spec.messaging.signal.type", `is %q (use "in-process", or "nats")`, m.Signal.Type)
+		}
+		spec := descriptorFor("messaging", "jetstream")
+		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: spec.defaultPort}
+		if m.External != nil {
+			host, port := parseHostPort(m.External.Servers)
+			if port != 0 {
+				rp.Port = port
+			}
+			rp.Presence, rp.Address = presenceExternal, host
+		} else {
+			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *m.Image, m.Resources.Limits.Memory
+			// The pair arrives as the daemon's own environment at launch.
+			// nats-server reads no credential from the environment by itself,
+			// so the staged config interpolates the two names.
+			rp.CmdExtra = []string{"-c", natsConfPath}
+		}
+		plan.Roles["messaging"] = rp
+	}
+
+	// identity — the issuer the gateway trusts. The AUDIENCE is not stated
+	// anywhere: it is the KB's own resource identifier, derived from the
+	// committed did:web domain, so it cannot disagree with the identity the
+	// KB already publishes. An Issuer document is a Keycloak the launcher
+	// runs, with the staged realm and its database on the PostgreSQL that
+	// document names; spec.issuer.external is an issuer somebody else runs,
+	// verified, never launched.
+	if ref := kb.Issuer.Ref; ref != nil {
+		is := st.Issuer.Spec
+		if is.Type != "keycloak" {
+			return nil, planErr(files.Issuer, "spec.type", `is %q: the issuer the launcher runs is "keycloak"`, is.Type)
+		}
+		rp := rolePlan{
+			Role: "identity", Driver: "keycloak", Port: keycloakPort, Presence: presenceLauncher,
+			Issuer:              fmt.Sprintf("http://localhost:%d/realms/%s", keycloakPort, keycloakRealmName),
+			AccessTokenLifespan: is.AccessTokenLifespan,
+			Image:               is.Image, Memory: is.Resources.Limits.Memory,
+			Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + is.Database.User,
+				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser},
+		}
+		// A launcher-run PostgreSQL's password is kept by the launcher and
+		// handed to Keycloak at launch; an external one's is read from the
+		// variable its document names.
+		if external := is.Database.External; external != nil {
+			rp.ExternalDBPassword = external.Password.FromEnv
+		}
+		plan.Roles["identity"] = rp
+	} else {
+		external := kb.Issuer.External
+		switch external.Type {
+		case "keycloak", "oidc":
+		default:
+			return nil, planErr(files.KnowledgeBase, "spec.issuer.external.type", `is %q (use "keycloak", or "oidc")`, external.Type)
+		}
+		host, port, _, err := splitIssuer(external.Url)
+		if err != nil {
+			return nil, planErr(files.KnowledgeBase, "spec.issuer.external.url", "%q %v", external.Url, err)
+		}
+		if port == 0 {
+			port = descriptorFor("identity", external.Type).defaultPort
+		}
+		plan.Roles["identity"] = rolePlan{
+			Role: "identity", Driver: external.Type, Port: port, Presence: presenceExternal,
+			Address: host, Issuer: external.Url, AccessTokenLifespan: keycloakAccessTokenLifespan,
+		}
+	}
+
+	// embedding — a role the launcher never launches. An ollama embedding
+	// with no endpoint is served by the machine's Ollama (same process, same
+	// port — which is why embedding has no container of its own and never
+	// contends for a port); one with an endpoint is somebody else's Ollama;
+	// voyage is remote SaaS.
+	{
+		e := index.Embedding
+		spec, ok := lookupDescriptor("embedding", e.Type)
+		if !ok {
+			return nil, planErr(files.KnowledgeIndex, "spec.embedding.type", "is %q, which no driver serves (known drivers: %s)", e.Type, knownDrivers("embedding"))
+		}
+		ownOllama := e.Type == "ollama" && e.Endpoint == nil
+		host, port := "", spec.defaultPort
+		switch {
+		case ownOllama:
+			// The machine's Ollama: the probe runs ON this machine.
+			host = "localhost"
+		case e.Type == "ollama":
+			h, p := parseHostPort(*e.Endpoint)
+			host = h
+			if p != 0 {
+				port = p
+			}
+		default:
+			host = voyageHost
+		}
+		rp := rolePlan{
+			Role: "embedding", Presence: presenceExternal,
+			Driver: e.Type, Address: host, Port: port,
+			Models: []servedModel{{Model: e.Model, Provider: e.Type}},
+		}
+		// WHO runs the machine's Ollama an ollama embedding needs? If inference
+		// runs on the machine's Ollama too, the inference role runs it and the
+		// embedding rides along (SharesOllamaWith names that, so both rows
+		// report the one process the same way). If not — the bindings are
+		// remote, or name somebody else's Ollama — EMBEDDING owns the
+		// host-process dance itself.
+		if ownOllama {
+			if bindingsUseOllama && inferenceOllama == nil {
+				rp.SharesOllamaWith = "inference"
+			} else {
+				rp.Presence = presenceHostPreferred
+				rp.Address = ""
+				rp.Image = descriptorFor("inference", "ollama").image
+			}
+		}
+		plan.Roles["embedding"] = rp
+	}
+
+	// inference — the driver is WHO PERFORMS INFERENCE per the roster, not
+	// which process the launcher happens to run. Any ollama binding → the
+	// local-Ollama shape (host-process dance, or external at its address).
+	// All-remote bindings → an external SaaS role: participates in status,
+	// launches nothing — even when an Ollama runs locally for the embedding,
+	// because that Ollama is the embedding's. No bindings → not configured.
+	switch {
+	case !bindingsUseOllama && len(bindingModels(st)) > 0:
+		driver := remoteInferenceDriver(st)
+		host, port := remoteProviderAddress(st, driver)
+		rp := rolePlan{
+			Role: "inference", Presence: presenceExternal,
+			Driver: driver, Address: host, Port: port,
+			Models: bindingModels(st),
+		}
+		if key := providers[api.ArchivistRosterRoleProvider(driver)].ApiKey; key != nil {
+			rp.APIKey = key.FromEnv
+		}
+		plan.Roles["inference"] = rp
+	case !bindingsUseOllama:
+		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
+	default:
+		spec := descriptorFor("inference", "ollama")
+		rp := rolePlan{Role: "inference", Driver: "ollama", Port: spec.defaultPort, Image: spec.image, Models: bindingModels(st)}
+		if inferenceOllama == nil {
+			rp.Presence = presenceHostPreferred
+		} else {
+			host, port := parseHostPort(*inferenceOllama)
+			if port != 0 {
+				rp.Port = port
+			}
+			rp.Presence, rp.Address, rp.Image = presenceExternal, host, ""
+		}
+		plan.Roles["inference"] = rp
+	}
+
+	// worker — the one of Semiont's own services the documents decide: run
+	// when the roster binds a job to it, from the WorkerPool document.
+	worker := workerPlan(st)
+	if worker.Presence == presenceLauncher {
+		if st.Workers == nil {
+			return nil, planErr(files.Inference, "spec.roster.workers", "binds jobs to a worker, and the knowledge base has no %s to say how one runs", files.Workers)
+		}
+		plan.Images["worker"] = st.Workers.Spec.Worker.Image
+		plan.Memory["worker"] = st.Workers.Spec.Worker.Resources.Limits.Memory
+	}
+	plan.Roles["worker"] = worker
+
+	return plan, nil
+}

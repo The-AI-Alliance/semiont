@@ -48,7 +48,7 @@ const IMPLEMENTATIONS = {
   rust: ['packages/sdk-rust', 'packages/http-transport-rust'],
   python: ['packages/sdk-python'],
   go: ['packages/go/sdk'],
-  launcher: ['apps/launcher'],
+  launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
   smelter: ['images/smelter'],

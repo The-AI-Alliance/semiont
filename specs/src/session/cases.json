@@ -5,7 +5,7 @@
     "rust": ["packages/sdk-rust/tests/session.rs", "packages/sdk-rust/tests/session_cases.rs"],
     "python": ["packages/sdk-python/tests/test_session.py", "packages/sdk-python/tests/test_session_tables.py"],
     "go": ["packages/go/sdk/session_test.go", "packages/go/sdk/token_test.go"],
-    "launcher": ["apps/launcher/internal/verbs/session_test.go"]
+    "launcher": ["packages/go/launcher/verbs/session_test.go"]
   },
   "refreshSchedule": [
     {

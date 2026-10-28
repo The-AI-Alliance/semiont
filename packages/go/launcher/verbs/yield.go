@@ -1,0 +1,444 @@
+package verbs
+
+// yield.go — `semiont yield --upload`: register local files as KB resources
+// through the SDK's yield namespace, and `--delegate`: generation from
+// gathered context, which rides the JOB lifecycle rather than a single
+// request/reply (see runYieldDelegate below).
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/mediatypes"
+)
+
+const yieldUsage = `Usage: semiont yield --upload <file> [--upload <file>...] [options]
+
+Register local files as resources in a running stack's KB. Files must live
+under the KB root: the storage URI is repo-relative, and the content
+belongs in the repo (commit it — and the .semiont/events it creates).
+
+Options:
+  --upload <file>      File to upload (repeatable)
+  --name <title>       Resource name (single --upload only; default: filename stem)
+  --repo <owner/name>  Target a codespace stack (default: the local stack)
+  --runtime <rt>       Target the local stack explicitly
+  --help               Show this help
+
+Requires a session:  semiont login
+Generation from context: semiont yield --delegate --help
+`
+
+func Yield(args []string) int {
+	u := launcher.NewUI(false)
+	var uploads, positional []string
+	var resourceID, annotationID string
+	name, repo, wantLocal := "", "", false
+	delegate, asJSON := false, false
+	// given: what the job flags gave, by the name of the parameter each gives.
+	given := map[string]any{}
+options:
+	for i := 0; i < len(args); i++ {
+		// --delegate takes its own option set; everything below stays the
+		// upload path's.
+		if delegate {
+			a := args[i]
+			val := func() (string, bool) {
+				if i+1 >= len(args) {
+					u.Fail("Missing value for %s", a)
+					return "", false
+				}
+				i++
+				return args[i], true
+			}
+			if taken, ok := yieldJobFlags.take(u, a, val, given); taken {
+				if !ok {
+					return 1
+				}
+				continue
+			}
+			var ok bool
+			switch a {
+			case "--resource":
+				ok = idValue(u, "resource", val, &resourceID)
+			case "--annotation":
+				ok = idValue(u, "annotation", val, &annotationID)
+			case "--repo":
+				repo, ok = val()
+			case "--runtime":
+				_, ok = val()
+				wantLocal = true
+			case "--json":
+				asJSON, ok = true, true
+			case "--":
+				// Every word after it is an id, whatever it begins with.
+				positional = append(positional, args[i+1:]...)
+				break options
+			case "--help", "-h":
+				fmt.Print(delegateUsage)
+				return 0
+			default:
+				if strings.HasPrefix(a, "-") {
+					return unknownArgument(u, a, yieldIDs)
+				}
+				positional = append(positional, a)
+				ok = true
+			}
+			if !ok {
+				return 1
+			}
+			continue
+		}
+		switch args[i] {
+		case "--delegate":
+			delegate = true
+		case "--upload":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --upload")
+				return 1
+			}
+			uploads = append(uploads, args[i+1])
+			i++
+		case "--name":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --name")
+				return 1
+			}
+			name = args[i+1]
+			i++
+		case "--repo":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --repo")
+				return 1
+			}
+			repo = args[i+1]
+			i++
+		case "--runtime":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --runtime")
+				return 1
+			}
+			wantLocal = true
+			i++
+		case "--help", "-h":
+			fmt.Print(yieldUsage)
+			return 0
+		default:
+			u.Fail("Unknown argument: %s", args[i])
+			return 1
+		}
+	}
+	if delegate {
+		if !fillIDs(u, yieldIDs, positional, &resourceID, &annotationID) {
+			return 1
+		}
+		if resourceID == "" {
+			fmt.Print(delegateUsage)
+			return 1
+		}
+		// What the job is asked to make is read before anything is gathered:
+		// a job the gateway would refuse is refused here, before the caller
+		// has paid for a gather.
+		var request api.GenerationJobRequest
+		if err := jobParams(given, yieldJobFlags, &request, "--delegate"); err != nil {
+			u.Fail("%v", err)
+			fmt.Fprintln(os.Stderr, "  semiont yield --delegate --help")
+			return 1
+		}
+		rid, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+		if !ok {
+			return 1
+		}
+		var aid api.AnnotationId
+		if annotationID != "" {
+			if aid, ok = parsed(u, "annotation", annotationID, api.ParseAnnotationId); !ok {
+				return 1
+			}
+		}
+		sess, ok := launcher.VerbSession(u, "yield", repo, wantLocal, jobChannels...)
+		if !ok {
+			return 1
+		}
+		defer sess.Close()
+		return runYieldDelegate(u, sess, rid, aid, request, asJSON)
+	}
+	if len(uploads) == 0 {
+		fmt.Print(yieldUsage)
+		return 1
+	}
+	if name != "" && len(uploads) > 1 {
+		u.Fail("--name applies to a single --upload only.")
+		return 1
+	}
+
+	ss := launcher.LoadStackSet()
+	target, ok := launcher.SelectVerbStack(u, "yield", ss, repo, wantLocal)
+	if !ok {
+		return 1
+	}
+	base, key, root := "", "", ""
+	if target != nil {
+		if base, ok = launcher.ForwardedBase(u, target, "yield"); !ok {
+			return 1
+		}
+		key = "codespace:" + target.Codespace.Repo
+		// Storage URIs are repo-relative; for a codespace target the cwd's
+		// clone is the only tree that can anchor them.
+		var err error
+		if root, err = launcher.CwdKBRoot(); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		if root == "" {
+			u.Fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Codespace.Repo)
+			fmt.Fprintln(os.Stderr, "  Run it from inside the clone.")
+			return 1
+		}
+	} else {
+		local := ss.Stacks["local"]
+		if local == nil {
+			u.Fail("yield needs a running stack, and none is recorded.")
+			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
+			return 1
+		}
+		if base, ok = launcher.LocalBase(u, local, "yield"); !ok {
+			return 1
+		}
+		key = "local"
+		root = local.KBRoot
+		if root == "" {
+			var err error
+			if root, err = launcher.CwdKBRoot(); err != nil {
+				u.Fail("%v", err)
+				return 1
+			}
+		}
+		if root == "" {
+			// A record can lack KBRoot; refuse plainly rather than let the
+			// path check babble about a KB root named "".
+			u.Fail("Cannot determine the KB root (the stack record predates root tracking, and the current directory is not inside a KB clone).")
+			fmt.Fprintln(os.Stderr, "  Run yield from inside the KB clone, or set SEMIONT_ROOT.")
+			return 1
+		}
+	}
+
+	sess, ok := launcher.LoadSession(u, "yield", key, base)
+	if !ok {
+		return 1
+	}
+	defer sess.Close()
+	c := sess.Client()
+	for _, up := range uploads {
+		if code := yieldOne(u, c, root, up, name); code != 0 {
+			return code
+		}
+	}
+	return 0
+}
+
+// yieldOne validates a file and uploads it as a resource (name, bytes,
+// format, storageUri). Fail-fast: the first refusal or error stops the batch
+// — partial silent success is how uploads get lost. An expired access token
+// is renewed on the way, as for every call the session's client makes:
+// plumbing, not the user's problem.
+func yieldOne(u *launcher.UI, c *launcher.VerbClient, root, up, name string) int {
+	abs := up
+	if !filepath.IsAbs(abs) {
+		if a, err := filepath.Abs(abs); err == nil {
+			abs = a
+		}
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		u.Fail("%s is outside the KB root (%s) — storage URIs are repo-relative, and the content belongs in the repo.", up, root)
+		fmt.Fprintf(os.Stderr, "  Copy it into the KB first:  cp %s %s/\n", up, root)
+		return 1
+	}
+	content, err := os.ReadFile(abs)
+	if err != nil {
+		u.Fail("cannot read %s: %v", up, err)
+		return 1
+	}
+	rel = filepath.ToSlash(rel)
+	if name == "" {
+		b := filepath.Base(rel)
+		name = strings.TrimSuffix(b, filepath.Ext(b))
+	}
+	// The format the extension names in the media-type registry. An
+	// extension no row states uploads as octet-stream: the gateway's create
+	// route stays the validator of record.
+	format, ok := mediatypes.ForExtension(filepath.Ext(rel))
+	if !ok {
+		format = "application/octet-stream"
+	}
+
+	created, err := c.Yield.Resource(c.Context(), semiont.PutBinaryRequest{
+		Name: name, Bytes: content, Format: format, StorageURI: "file://" + rel,
+	}).Wait(c.Context())
+	if err == nil {
+		u.Ok("Yielded: %s → %s", up, created.ResourceId)
+		return 0
+	}
+	var rej *launcher.SessionRejected
+	var refused *semiont.TransportError
+	refusal := c.Refusal(err)
+	switch {
+	case errors.As(refusal, &rej):
+		return launcher.RejectedFail(u, "yield", rej)
+	case errors.As(refusal, &refused) && refused.Code == semiont.TransportErrorCodeBadRequest:
+		u.Fail("Gateway rejected %s: %s", up, refused.Message)
+	case errors.As(refusal, &refused):
+		if status, answered := refused.Status(); answered {
+			u.Fail("Upload of %s failed: HTTP %d.", up, status)
+			break
+		}
+		u.Fail("Gateway unreachable: %v", refusal)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+	default:
+		u.Fail("Gateway unreachable: %v", refusal)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+	}
+	return 1
+}
+
+// --- delegate mode: generation via the job lifecycle -------------------
+//
+// Unlike the upload above, delegate is not one request and its reply: it
+// gathers context, creates a generation job, and follows it (job.go).
+
+const yieldIDs = "semiont yield --delegate [options] -- <resourceId> [<annotationId>]"
+
+const delegateUsage = `Usage: semiont yield --delegate <resourceId> [<annotationId>] --storage-uri <file://…> [options]
+
+Generate a new resource from gathered context: derived from a whole resource,
+or anchored to one annotation.
+
+Options:
+  --resource <id>      The resource to generate from (bare: first)
+  --annotation <id>    One annotation in it to anchor the result to (bare: second)
+  --storage-uri <uri>  Where the generated resource is written (required)
+  --title <text>       Title for the generated resource (required)
+  --prompt <text>      Instruction guiding the generation
+  --language <tag>     BCP-47 language for the generated content
+  --task <t>           Framing: resource | answer | summary (or free text)
+  --structure <s>      Shape: prose | sections | chat (or free text)
+  --json               Raw JSON completion event
+  --repo <owner/name>  Target a codespace stack (default: the local stack)
+  --runtime <rt>       Target the local stack explicitly
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + yieldIDs + `
+
+Requires a session:  semiont login
+`
+
+// yieldJobFlags: the flag that gives each parameter of a delegated yield's
+// job that a caller gives. Its context is gathered. Which of them the job
+// requires is the generated GenerationJobRequest's to say (jobParams), and
+// TestEveryYieldJobFlagGivesAParameter holds this table to it.
+var yieldJobFlags = jobFlags{
+	"--storage-uri": {"storageUri", flagText},
+	"--title":       {"title", flagText},
+	"--prompt":      {"prompt", flagText},
+	"--language":    {"language", flagText},
+	"--task":        {"task", flagText},
+	"--structure":   {"structure", flagText},
+}
+
+// yieldJobResults: what a `yield` job reports.
+var yieldJobResults = resultMembers[api.YieldJobResult]{
+	{api.YieldJobDone{}, "the resource a yield job made"},
+	declinedResult,
+}
+
+func runYieldDelegate(u *launcher.UI, sess *launcher.Session, resourceID api.ResourceId, annotationID api.AnnotationId, request api.GenerationJobRequest, asJSON bool) int {
+	c := sess.Client()
+	if err := c.Reached(); err != nil {
+		return busFail(u, "yield --delegate", err)
+	}
+
+	// Gather the grounding context first: a generation job requires it, and
+	// its focus names the resource or annotation the generation is about.
+	var gathered api.GatheredContext
+	if !annotationID.IsZero() {
+		complete, err := c.Gather.Annotation(resourceID, annotationID, api.GatherAnnotationOptions{}).Wait(c.Context())
+		if err != nil {
+			return busFail(u, "yield --delegate (gather)", c.Refusal(err))
+		}
+		gathered = complete.Response
+	} else {
+		var err error
+		gathered, err = c.Gather.Resource(c.Context(), resourceID, api.GatherResourceRequestOptions{
+			Depth: gatherDefaultDepth, MaxResources: gatherDefaultMaxResources, IncludeContent: true, IncludeSummary: true,
+		})
+		if err != nil {
+			return busFail(u, "yield --delegate (gather)", c.Refusal(err))
+		}
+	}
+
+	// A yield job's parameters are what it is asked to make and the context it
+	// is made from. The context carries the ids: the dispatcher derives the
+	// job's resource from its focus, so the command names none. The gather
+	// above is what puts the right focus there: an annotation's with two
+	// positionals, a resource's with one.
+	var params api.GenerationJobParams
+	asked, err := json.Marshal(request)
+	if err == nil {
+		err = json.Unmarshal(asked, &params)
+	}
+	if err != nil {
+		u.Fail("yield --delegate: the job could not be described: %v", err)
+		return 1
+	}
+	params.Context = gathered
+	d := delegation{
+		verb: "yield --delegate", doing: "Generating", failed: "Generation",
+		check: "semiont browse " + resourceID.String(),
+	}
+	done, ok := follow(u, c, d, c.Yield.Delegate(params, 0))
+	if !ok {
+		return 1
+	}
+	// A decline is read first: the job ran and produced nothing, so there is
+	// no resource to name.
+	result, err := jobResult(done.Result, yieldJobResults)
+	if err != nil {
+		return d.resultFail(u, done.JobId, err)
+	}
+	declined, isDecline := result.(api.JobDeclined)
+	if asJSON {
+		printJSON(u, done)
+		// The exit code is a property of the outcome, not of the output
+		// format.
+		if isDecline {
+			return 1
+		}
+		return 0
+	}
+	if isDecline {
+		// Not a failure — the job ran correctly and found nothing to work
+		// with, so this is deliberately not the job:fail wording. Non-zero
+		// all the same: the caller asked for a resource and has none, and
+		// nothing downstream of a `yield --delegate && ...` should run.
+		u.Fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
+		fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", request.StorageUri)
+		return 1
+	}
+	// A generation names the resource it produced.
+	if generated, ok := result.(api.YieldJobDone); ok {
+		u.Ok("Yielded %s → %s %s", request.StorageUri, generated.ResourceId, u.Dim(generated.ResourceName))
+		return 0
+	}
+	u.Ok("Yielded %s", request.StorageUri)
+	return 0
+}

@@ -279,7 +279,7 @@ entity types from its description as the Archivist answers it then.
   its description, and its bytes are read when the turn comes. Bytes that
   turn out to be a PDF's where the description said otherwise are let go of,
   and read again in a turn. Every other resource is indexed beside them.
-  *Held by `images/smelter/tests/test_smelter.py`, and by `apps/launcher/internal/launcher/smelterdoc_test.go` for what the launcher writes.*
+  *Held by `images/smelter/tests/test_smelter.py`, and by `packages/go/launcher/smelterdoc_test.go` for what the launcher writes.*
 
 ## What it decides
 

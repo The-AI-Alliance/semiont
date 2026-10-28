@@ -20,7 +20,7 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 | 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Bind it to a worker](#8-bind-it-to-a-worker) | a knowledge base's Inference document; nothing in the launcher | `TestEveryRosterJobHasAFilter`, in `apps/launcher` |
-| 9 | [Word it in each client](#9-word-it-in-each-client) | `apps/launcher/internal/verbs/mark.go`, `packages/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
+| 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
 
 The numbers are the order the change reaches each part, and not the order to write it in. The repository works test first: step 5's cases and step 6's case are written before step 4's code, and each is seen to fail for the missing job.
 
@@ -139,7 +139,7 @@ A knowledge base's Inference document says which provider and model serve a job,
 
 A Worker service reads no document of a knowledge base. The launcher writes the roster, as the Inference document states it, into two documents: the Archivist's, whose roster answers who serves each job, and the worker's ([`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json)), in which each agent's `accepts` are the filters of the jobs it serves. The worker claims with those filters and no other.
 
-Nothing in the launcher is written for a new motivation. The filters it writes are derived from the generated roster ([`archivistdoc.go`](../../apps/launcher/internal/launcher/archivistdoc.go), [`workerdoc.go`](../../apps/launcher/internal/launcher/workerdoc.go)), so they follow step 1's roster and step 2's `client_gen.go`. `TestEveryRosterJobHasAFilter` holds that every job the roster has is given a filter that names it.
+Nothing in the launcher is written for a new motivation. The filters it writes are derived from the generated roster ([`archivistdoc.go`](../../packages/go/launcher/archivistdoc.go), [`workerdoc.go`](../../packages/go/launcher/workerdoc.go)), so they follow step 1's roster and step 2's `client_gen.go`. `TestEveryRosterJobHasAFilter` holds that every job the roster has is given a filter that names it.
 
 A knowledge base serves the new job once its Inference document's roster binds it.
 
@@ -147,10 +147,10 @@ A knowledge base serves the new job once its Inference document's roster binds i
 
 The wire carries no sentence, so each client has its own words for a job:
 
-- **The launcher** calls an annotation of each motivation by a noun, in `markNouns` ([`mark.go`](../../apps/launcher/internal/verbs/mark.go)), and `TestEveryMotivationHasItsNoun` holds that table to `Motivation.json`. `semiont mark --delegate` takes the job's params as flags, and a param no flag gives is a flag added in the same file.
+- **The launcher** calls an annotation of each motivation by a noun, in `markNouns` ([`mark.go`](../../packages/go/launcher/verbs/mark.go)), and `TestEveryMotivationHasItsNoun` holds that table to `Motivation.json`. `semiont mark --delegate` takes the job's params as flags, and a param no flag gives is a flag added in the same file.
 - **The Browser** words a progress report from [`packages/react-ui/translations`](../../packages/react-ui/translations). `delegate-progress-copy.test.ts` holds that there is one noun for every motivation the spec has, and `npm run lint:translations` that every locale has every key.
 
-A new progress code is words in both: the launcher's `progressText` ([`job.go`](../../apps/launcher/internal/verbs/job.go)), and a key in every locale. What a client shows a person to ask for the job with is that client's own.
+A new progress code is words in both: the launcher's `progressText` ([`job.go`](../../packages/go/launcher/verbs/job.go)), and a key in every locale. What a client shows a person to ask for the job with is that client's own.
 
 ## A job of another verb
 
