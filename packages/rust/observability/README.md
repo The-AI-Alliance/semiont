@@ -1,5 +1,7 @@
 # semiont-observability
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-observability)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-observability)
+
 What a Semiont service writes about itself, and what exports it.
 
 **Not published.** It is a crate of this workspace, built into the

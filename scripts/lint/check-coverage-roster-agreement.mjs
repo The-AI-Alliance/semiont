@@ -1,214 +1,203 @@
 #!/usr/bin/env node
 /**
- * The set of packages whose coverage CI measures is written out by hand in four
- * places, and nothing makes them agree.
+ * Every package's coverage is measured, and every place that names it agrees.
  *
- * A package declares `test:coverage`; ci.yml's `test-package` job names it in its
- * matrix; `codecov.yml` declares a flag for it (which is what gives it `paths`
- * scoping and `carryforward`); and `codecov.yml` declares a component for it
- * (which is what puts it in the component breakdown). Add a package and three
- * of those four do not notice. Nothing fails — the matrix uploads under a flag
- * Codecov was never told about, the upload is accepted, and the package is
- * simply absent from the view everyone reads.
+ * The packages are the directories packages/<language>/<name> that hold a
+ * manifest, and the Browser is images/browser. A package's flag is
+ * `<language>-<name>`; the Browser's is `browser`. Each one's coverage is
+ * named in five places by hand:
  *
- * Every step in the chain is green when the file it wants does not exist, so
- * a package stays invisible for as long as nobody notices.
+ *   - an upload in ci.yml whose `flags:` give its flag;
+ *   - a flag of that name in codecov.yml, scoped to its directory and carried
+ *     forward, so it does not read as no data whenever its job does not run;
+ *   - a component of that name in codecov.yml, scoped to its directory, which
+ *     puts it in the component breakdown;
+ *   - for a package, a Codecov badge for that flag in its README;
+ *   - for a package, its row in its language's README,
+ *     packages/<language>/README.md, with the same badge.
  *
- * A block that cannot be read is a FAILURE, not a pass: a census that silently
- * checks three of four things is not a census.
+ * And the npm workspaces' coverage is what their `test:coverage` scripts
+ * write: each npm package declares one, the test-package matrix of ci.yml
+ * names it, and a workspace that declares one is measured.
  *
- * Deliberately NOT parsed with a YAML library. `js-yaml` is only a transitive
- * dependency here, and a gate that breaks when something else bumps its deps
- * fails for a reason that has nothing to do with what it checks.
+ * Add a package and none of these notice. The upload is accepted under a flag
+ * Codecov was never told about, a badge reads "unknown", and the package is
+ * absent from the coverage everyone reads, while every check stays green. So
+ * each is held both ways: a declaration that outlives its package fails too.
+ *
+ * A file that cannot be read is a FAILURE, not a pass.
  */
-import { readFileSync } from 'fs';
-import { basename } from 'path';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, join } from 'node:path';
+import { repositoryFiles } from './repository-files.mjs';
 import { workspaceDirectories } from './workspaces.mjs';
 
+const ROOT = process.cwd();
 const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
-
-/**
- * Workspaces measured somewhere other than the package matrix. Each carries the
- * file that measures it, and that claim is VERIFIED below — an exemption list
- * nobody checks is one more ungated mirror, which is the defect this gate is
- * about.
- */
-const EXEMPT_FROM_MATRIX = [
-  { name: 'browser', dir: 'images/browser', uploadedBy: '.github/workflows/ci.yml' },
-];
+const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
+const BROWSER = { dir: 'images/browser', flag: 'browser' };
+const yaml = createRequire(join(ROOT, 'package.json'))('js-yaml');
 
 const read = (file) => {
   try {
-    // Normalise the trailing newline. Every block parser below anchors on
-    // line ends, and codecov.yml ships without a final one — which silently
-    // truncates the last flag's body and reports as missing a `carryforward`
-    // that is plainly there. A gate that cries wolf gets switched off.
-    const content = readFileSync(file, 'utf8');
-    return content.endsWith('\n') ? content : `${content}\n`;
+    return readFileSync(join(ROOT, file), 'utf8');
   } catch {
     console.error(`\n✖ cannot read ${file} — this gate cannot answer its question without it.\n`);
     process.exit(1);
   }
 };
+const badge = (flag) =>
+  `[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=${flag})](https://codecov.io/gh/The-AI-Alliance/semiont?flag=${flag})`;
 
-// ---------- what declares coverage ----------
+// ---------- the packages ----------
 
-/** A workspace's manifest. One that cannot be read or parsed fails the gate, as any block it reads does. */
-const manifestOf = (dir) => {
-  const file = `${dir}/package.json`;
-  const content = read(file);
-  try {
-    return JSON.parse(content);
-  } catch (error) {
-    console.error(`\n✖ cannot parse ${file} (${error.message}) — this gate cannot answer its question without it.\n`);
-    process.exit(1);
-  }
-};
-
-const workspaces = workspaceDirectories(process.cwd())
-  // Keyed by DIRECTORY basename, not npm name: every list this gate compares is
-  // written that way — the matrix interpolates `packages/typescript/${matrix.package}`, and
-  // the flags scope `images/browser/**`. `images/browser` is the npm package
-  // `semiont-browser`, so keying by npm name silently matches nothing.
-  .map((dir) => ({ name: basename(dir), dir }))
-  .filter((w) => Boolean(manifestOf(w.dir).scripts?.['test:coverage']));
-
-// ---------- what the matrix runs ----------
-
-const workflow = read(WORKFLOW);
-const matrixBlock = /package:\s*\n((?:\s*-\s*\S+\s*\n)+)/.exec(workflow);
-if (matrixBlock === null) {
-  console.error(`\n✖ could not find the package matrix in ${WORKFLOW}. If it moved, move this gate with it.\n`);
+const files = repositoryFiles(ROOT);
+const packages = [
+  ...new Map(
+    files
+      .map((file) => /^packages\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(file))
+      .filter((m) => m !== null && MANIFESTS.includes(m[3]))
+      .map(([, language, name]) => [`${language}/${name}`, { language, name, dir: `packages/${language}/${name}`, flag: `${language}-${name}` }]),
+  ).values(),
+];
+if (packages.length === 0) {
+  console.error('\n✖ found no package under packages/<language>/<name>: the gate has lost what it reads.\n');
   process.exit(1);
 }
-const matrix = [...matrixBlock[1].matchAll(/-\s*(\S+)/g)].map((m) => m[1]);
+const measured = [...packages, BROWSER];
+const flagsMeasured = new Set(measured.map((m) => m.flag));
+const languages = [...new Set(packages.map((p) => p.language))];
+
+// ---------- what ci.yml uploads ----------
+
+const workflow = yaml.load(read(WORKFLOW));
+const uploaded = new Map(); // flag -> the jobs that upload it
+for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+  for (const step of job.steps ?? []) {
+    if (typeof step.uses !== 'string' || !step.uses.startsWith('codecov/codecov-action@')) continue;
+    const written = String(step.with?.flags ?? '');
+    const variable = /\$\{\{\s*matrix\.([a-z-]+)\s*\}\}/.exec(written);
+    const values = variable === null ? [written] : (job.strategy?.matrix?.[variable[1]] ?? []).map((value) => written.replace(variable[0], value));
+    for (const flag of values.flatMap((value) => value.split(',')).map((flag) => flag.trim()).filter(Boolean)) {
+      uploaded.set(flag, [...(uploaded.get(flag) ?? []), id]);
+    }
+  }
+}
+if (uploaded.size === 0) {
+  console.error(`\n✖ found no codecov upload in ${WORKFLOW}: the gate has lost what it reads.\n`);
+  process.exit(1);
+}
 
 // ---------- what codecov.yml declares ----------
 
-const codecov = read(CODECOV);
-
-/** `flags:` → the mapping's own keys, with the paths each scopes itself to. */
-function readFlags(source) {
-  const start = /^flags:\s*$/m.exec(source);
-  if (start === null) return null;
-  const rest = source.slice(start.index + start[0].length);
-  const end = /^\S/m.exec(rest);
-  const block = end ? rest.slice(0, end.index) : rest;
-  const flags = new Map();
-  for (const m of block.matchAll(/^ {2}([a-z0-9-]+):\s*\n((?:^ {4}.*\n|^\s*\n)*)/gm)) {
-    const paths = [...m[2].matchAll(/^ {6}-\s*(\S+)\s*$/gm)].map((p) => p[1]);
-    flags.set(m[1], { paths, carryforward: /carryforward:\s*true/.test(m[2]) });
-  }
-  return flags;
-}
-
-/** `component_management.individual_components` → each id with its paths. */
-function readComponents(source) {
-  const start = /^component_management:\s*$/m.exec(source);
-  if (start === null) return null;
-  const rest = source.slice(start.index + start[0].length);
-  const end = /^\S/m.exec(rest);
-  const block = end ? rest.slice(0, end.index) : rest;
-  const components = new Map();
-  for (const m of block.matchAll(/-\s*component_id:\s*(\S+)\s*\n((?:\s{6}.*\n)*)/g)) {
-    const paths = [...m[2].matchAll(/-\s*(\S+)\s*$/gm)].map((p) => p[1]);
-    components.set(m[1], { paths });
-  }
-  return components;
-}
-
-const flags = readFlags(codecov);
-const components = readComponents(codecov);
-for (const [what, value] of [['flags:', flags], ['component_management:', components]]) {
-  if (value === null || value.size === 0) {
-    console.error(`\n✖ could not read ${what} out of ${CODECOV}. A census that cannot see one of its\n  four lists is not a census — fix this gate rather than deleting the question.\n`);
+const codecov = yaml.load(read(CODECOV));
+const flags = new Map(Object.entries(codecov.flags ?? {}));
+const components = new Map((codecov.component_management?.individual_components ?? []).map((c) => [c.component_id, c]));
+for (const [what, value] of [['flags', flags], ['component_management.individual_components', components]]) {
+  if (value.size === 0) {
+    console.error(`\n✖ could not read ${what} out of ${CODECOV}. A census that cannot see one of its lists is not a census.\n`);
     process.exit(1);
   }
 }
+const covers = (paths, dir) => (paths ?? []).some((path) => path === `${dir}/**`);
 
 // ---------- the census ----------
 
 const problems = [];
-const exemptNames = new Set(EXEMPT_FROM_MATRIX.map((e) => e.name));
-const measured = [...workspaces];
 
-// The exemption must be true, not merely asserted.
-for (const e of EXEMPT_FROM_MATRIX) {
-  const uploader = read(e.uploadedBy);
-  if (!uploader.includes(`${e.dir}/coverage`)) {
-    problems.push(
-      `${e.name} is exempt from the matrix on the grounds that ${e.uploadedBy} uploads it,\n` +
-        `    and that file no longer mentions ${e.dir}/coverage. Either the upload moved (fix the\n` +
-        `    exemption) or it is gone (remove the exemption and put ${e.name} in the matrix).`,
-    );
-  }
-}
-
-for (const w of workspaces) {
-  if (!matrix.includes(w.name) && !exemptNames.has(w.name)) {
-    problems.push(
-      `${w.name} declares "test:coverage" but is not in the ${WORKFLOW} matrix, so its coverage\n` +
-        `    is never produced. Add it to the matrix, or exempt it here with the file that measures it.`,
-    );
-  }
-}
-
-for (const name of matrix) {
-  if (!workspaces.some((w) => w.name === name)) {
-    problems.push(
-      `the matrix runs "${name}", which is not a workspace declaring "test:coverage". The job falls\n` +
-        `    back to "npm test -- --coverage" and produces no lcov. Give it the script or drop it.`,
-    );
-  }
-}
-
-for (const w of measured) {
-  const flag = flags.get(w.name);
+for (const m of measured) {
+  if (!uploaded.has(m.flag)) problems.push(`${m.dir} is uploaded under no flag "${m.flag}": no job of ${WORKFLOW} names it in a codecov upload's flags.`);
+  const flag = flags.get(m.flag);
   if (flag === undefined) {
-    problems.push(
-      `${w.name} is measured but has no flag in ${CODECOV}. Its upload lands unscoped, with no\n` +
-        `    carryforward — declare it beside the others.`,
-    );
+    problems.push(`${m.dir} has no flag "${m.flag}" in ${CODECOV}: its upload lands unscoped, with no carryforward.`);
   } else {
-    if (!flag.paths.some((p) => p.startsWith(`${w.dir}/`))) {
-      problems.push(`the "${w.name}" flag scopes paths ${JSON.stringify(flag.paths)}, which does not cover ${w.dir}/.`);
-    }
-    if (!flag.carryforward) {
-      problems.push(`the "${w.name}" flag has no "carryforward: true", so it reads as no-data whenever its job does not run.`);
-    }
+    if (!covers(flag.paths, m.dir)) problems.push(`the flag "${m.flag}" is scoped to ${JSON.stringify(flag.paths)}, not ${m.dir}/**.`);
+    if (flag.carryforward !== true) problems.push(`the flag "${m.flag}" has no "carryforward: true", so it reads as no data whenever its job does not run.`);
   }
-
-  const component = components.get(w.name);
-  if (component === undefined) {
-    problems.push(`${w.name} is measured but appears in no component, so it is absent from the component breakdown.`);
-  } else if (!component.paths.some((p) => p.startsWith(`${w.dir}/`))) {
-    problems.push(`the "${w.name}" component scopes paths ${JSON.stringify(component.paths)}, which does not cover ${w.dir}/.`);
-  }
+  const component = components.get(m.flag);
+  if (component === undefined) problems.push(`${m.dir} has no component "${m.flag}" in ${CODECOV}, so it is absent from the component breakdown.`);
+  else if (!covers(component.paths, m.dir)) problems.push(`the component "${m.flag}" is scoped to ${JSON.stringify(component.paths)}, not ${m.dir}/**.`);
 }
 
-// Rot in the other direction: a declaration outliving the package.
-const measuredNames = new Set(measured.map((w) => w.name));
-for (const [name] of flags) {
-  if (!measuredNames.has(name)) problems.push(`${CODECOV} declares the flag "${name}", which is no package this repo measures.`);
+for (const [flag, jobs] of uploaded) {
+  if (!flagsMeasured.has(flag)) problems.push(`${WORKFLOW} (${[...new Set(jobs)].join(', ')}) uploads the flag "${flag}", which is no package's.`);
 }
-for (const [name] of components) {
-  if (!measuredNames.has(name)) problems.push(`${CODECOV} declares the component "${name}", which is no package this repo measures.`);
+for (const [flag] of flags) if (!flagsMeasured.has(flag)) problems.push(`${CODECOV} declares the flag "${flag}", which is no package's.`);
+for (const [id] of components) if (!flagsMeasured.has(id)) problems.push(`${CODECOV} declares the component "${id}", which is no package's.`);
+
+// Each package's README carries its badge, and its language's README its row.
+const readmes = new Set(files.filter((file) => /^packages\/.*README\.md$/.test(file)));
+for (const p of packages) {
+  const own = `${p.dir}/README.md`;
+  if (!readmes.has(own)) problems.push(`${p.dir} has no README.md to carry its coverage badge.`);
+  else if (!read(own).includes(badge(p.flag))) problems.push(`${own} carries no Codecov badge for its flag:\n      ${badge(p.flag)}`);
 }
+for (const language of languages) {
+  const index = `packages/${language}/README.md`;
+  if (!readmes.has(index)) {
+    problems.push(`packages/${language}/ has no README.md listing its packages.`);
+    continue;
+  }
+  const text = read(index);
+  const own = packages.filter((p) => p.language === language);
+  for (const p of own) {
+    if (!text.includes(`](./${p.name}/README.md)`)) problems.push(`${index} does not link ${p.name} (](./${p.name}/README.md)).`);
+    if (!text.includes(badge(p.flag))) problems.push(`${index} does not carry ${p.name}'s Codecov badge.`);
+  }
+  for (const [, linked] of text.matchAll(/\]\(\.\/([^/)]+)\/README\.md\)/g)) {
+    if (!own.some((p) => p.name === linked)) problems.push(`${index} links ${linked}, which is no package of packages/${language}/.`);
+  }
+}
+for (const readme of readmes) {
+  for (const [, flag] of read(readme).matchAll(/codecov\.io\/gh\/The-AI-Alliance\/semiont[^)\s]*[?&]flag=([a-z0-9-]+)/g)) {
+    if (!flagsMeasured.has(flag)) problems.push(`${readme} shows a Codecov badge for the flag "${flag}", which is no package's.`);
+  }
+}
+
+// The npm workspaces: what declares test:coverage is measured, and the matrix runs the npm packages.
+const manifest = (dir) => {
+  try {
+    return JSON.parse(read(`${dir}/package.json`));
+  } catch (error) {
+    console.error(`\n✖ cannot parse ${dir}/package.json (${error.message}).\n`);
+    process.exit(1);
+  }
+};
+const measuredDirs = new Set(measured.map((m) => m.dir));
+for (const dir of workspaceDirectories(ROOT)) {
+  if (manifest(dir).scripts?.['test:coverage'] && !measuredDirs.has(dir)) {
+    problems.push(`${dir} declares "test:coverage", and is no package this gate measures: its coverage is written and uploaded nowhere.`);
+  }
+}
+const npmPackages = packages.filter((p) => p.language === 'typescript');
+for (const p of npmPackages) {
+  if (!manifest(p.dir).scripts?.['test:coverage']) problems.push(`${p.dir} declares no "test:coverage": the matrix runs it, and its run writes no lcov.info.`);
+}
+const matrix = workflow.jobs?.['test-package']?.strategy?.matrix?.package;
+if (!Array.isArray(matrix)) {
+  problems.push(`${WORKFLOW} has no test-package job with a package matrix: the npm packages' coverage is measured nowhere.`);
+} else {
+  const named = new Set(npmPackages.map((p) => p.name));
+  for (const name of named) if (!matrix.includes(name)) problems.push(`the test-package matrix of ${WORKFLOW} does not run packages/typescript/${name}.`);
+  for (const name of matrix) if (!named.has(name)) problems.push(`the test-package matrix of ${WORKFLOW} runs "${name}", which is no package of packages/typescript/.`);
+}
+if (!manifest(BROWSER.dir).scripts?.['test:coverage']) problems.push(`${BROWSER.dir} declares no "test:coverage", and test-browser uploads what it writes.`);
 
 if (problems.length > 0) {
   console.error('\n✖ the coverage roster disagrees with itself:\n');
   for (const p of problems) console.error(`  - ${p}`);
   console.error(
-    '\n  Four lists decide which packages CI measures: the workspaces declaring\n' +
-      '  "test:coverage", the test-package matrix of ci.yml, codecov.yml flags, and\n' +
-      '  codecov.yml components. When they disagree the pipeline stays green and the\n' +
-      '  package simply vanishes from the coverage everyone reads.\n',
+    '\n  Each package\'s coverage is named in five places: an upload in ci.yml, a flag and a\n' +
+      '  component in codecov.yml, its README\'s badge, and its row in its language\'s README.\n' +
+      '  When they disagree the pipeline stays green and the package vanishes from the coverage\n' +
+      '  everyone reads.\n',
   );
   process.exit(1);
 }
 
 console.log(
-  `✅ coverage roster: ${measured.length} measured packages agree across the matrix, flags and components ` +
-    `(${EXEMPT_FROM_MATRIX.map((e) => e.name).join(', ')} measured by ci.yml's Browser Tests)`,
+  `✅ coverage roster: ${packages.length} packages in ${languages.length} languages and the Browser, each uploaded under its flag, ` +
+    `with its flag and component in ${basename(CODECOV)}, its badge in its README and its row in its language's`,
 );

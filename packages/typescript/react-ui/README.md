@@ -1,7 +1,7 @@
 # @semiont/react-ui
 
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+react-ui%22)
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=react-ui)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=react-ui)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=typescript-react-ui)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=typescript-react-ui)
 [![npm version](https://img.shields.io/npm/v/@semiont/react-ui.svg)](https://www.npmjs.com/package/@semiont/react-ui)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/react-ui.svg)](https://www.npmjs.com/package/@semiont/react-ui)
 [![License](https://img.shields.io/npm/l/@semiont/react-ui.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)

@@ -4,6 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/semiont)](https://docs.rs/semiont)
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-sdk)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-sdk)
 
 The Rust SDK for [Semiont](../../../README.md), an open platform for building
 trusted AI knowledge bases: a shared workspace where humans and AI agents

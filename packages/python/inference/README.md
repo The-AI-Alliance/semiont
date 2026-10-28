@@ -1,5 +1,7 @@
 # semiont-inference
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=python-inference)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=python-inference)
+
 The model providers [Semiont][semiont]'s Python services call, behind one
 interface: ask a model for text, ask it for a JSON array of a stated shape,
 and learn what the model can take.

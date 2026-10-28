@@ -4,6 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/semiont-telemetry)](https://docs.rs/semiont-telemetry)
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-telemetry.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-telemetry)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-telemetry)
 
 The traces and counts of the [Semiont Rust SDK](../sdk/README.md), as
 [OpenTelemetry](https://opentelemetry.io). When a Semiont client sends to a
