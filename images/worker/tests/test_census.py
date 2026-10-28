@@ -117,7 +117,7 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     # This project's manifest states them a second time. A pin or a setting moved in one and not the other fails here.
     ours, theirs = toml(PROJECT / "pyproject.toml"), toml(SDK / "pyproject.toml")
 
-    checkers = ("mypy", "pyright", "pytest", "ruff")
+    checkers = ("mypy", "pyright", "pytest", "pytest-cov", "ruff")
     assert set(tools(ours, "dev")) == {*checkers, "semiont-worker"}
     assert {name: tools(ours, "dev")[name] for name in checkers} == {name: tools(theirs, "dev")[name] for name in checkers}
 
@@ -126,6 +126,10 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert settings(ours, "pyright", but=("include",)) == settings(theirs, "pyright", but=("include",))
     assert settings(ours, "pydantic-mypy", but=()) == settings(theirs, "pydantic-mypy", but=())
     assert settings(ours, "pytest", but=()) == settings(theirs, "pytest", but=())
+    # A coverage run measures its own project's source, and reports as the SDK's does.
+    our_run = table(settings(ours, "coverage", but=())["run"], "coverage's run")
+    their_run = table(settings(theirs, "coverage", but=())["run"], "coverage's run")
+    assert {key: our_run[key] for key in our_run if key != "source"} == {key: their_run[key] for key in their_run if key != "source"}
     # The SDK's formatter is told which of its modules are generated, and its linter which of its tests are
     # programs that must not type-check. This project has neither.
     assert settings(ours, "ruff", but=("lint",)) == settings(theirs, "ruff", but=("lint", "extend-exclude"))

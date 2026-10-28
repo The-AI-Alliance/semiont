@@ -38,10 +38,10 @@ Each language measures it as its CI job does, in the package's directory:
 # TypeScript: packages/typescript/<name>, and images/browser
 npm run test:coverage && open coverage/index.html
 
-# Python: packages/python/<name>
+# Python: packages/python/<name>, and the Python images, images/<name>
 uv run pytest --cov --cov-report=html && open htmlcov/index.html
 
-# Rust: packages/rust, the whole workspace
+# Rust: packages/rust, the whole workspace, the Rust images' crates among it
 cargo llvm-cov --workspace --open
 
 # Go: packages/go/<name>

@@ -35,8 +35,8 @@ coverage:
   range: "50...90"
 
 # One component and one flag for each package, packages/<language>/<name>, named
-# <language>-<name>, and the Browser's, and a component for each language, its
-# packages together. A component is scoped by its paths in every report, so the
+# <language>-<name>, and for each image, images/<name>, named image-<name>; and a
+# component for each language, its packages together. A component is scoped by its paths in every report, so the
 # badges read components: a flag is scoped by the uploads that carry it, and the
 # Rust workspace's one upload carries every crate's. lint:coverage-roster holds the
 # lists, ci.yml's uploads and the READMEs' badges to the packages there are.
@@ -139,10 +139,38 @@ component_management:
       name: "packages/go"
       paths:
         - packages/go/**
-    - component_id: browser
+    - component_id: image-archivist
+      name: "images/archivist"
+      paths:
+        - images/archivist/**
+    - component_id: image-browser
       name: "images/browser"
       paths:
         - images/browser/**
+    - component_id: image-dispatcher
+      name: "images/dispatcher"
+      paths:
+        - images/dispatcher/**
+    - component_id: image-gateway
+      name: "images/gateway"
+      paths:
+        - images/gateway/**
+    - component_id: image-librarian
+      name: "images/librarian"
+      paths:
+        - images/librarian/**
+    - component_id: image-smelter
+      name: "images/smelter"
+      paths:
+        - images/smelter/**
+    - component_id: image-weaver
+      name: "images/weaver"
+      paths:
+        - images/weaver/**
+    - component_id: image-worker
+      name: "images/worker"
+      paths:
+        - images/worker/**
 
 # A Go profile names each file by its import path, which is the repository's
 # own path below this prefix.
@@ -282,7 +310,42 @@ flags:
       - packages/go/launcher/**
     carryforward: true
 
-  browser:
+  image-archivist:
+    paths:
+      - images/archivist/**
+    carryforward: true
+
+  image-browser:
     paths:
       - images/browser/**
+    carryforward: true
+
+  image-dispatcher:
+    paths:
+      - images/dispatcher/**
+    carryforward: true
+
+  image-gateway:
+    paths:
+      - images/gateway/**
+    carryforward: true
+
+  image-librarian:
+    paths:
+      - images/librarian/**
+    carryforward: true
+
+  image-smelter:
+    paths:
+      - images/smelter/**
+    carryforward: true
+
+  image-weaver:
+    paths:
+      - images/weaver/**
+    carryforward: true
+
+  image-worker:
+    paths:
+      - images/worker/**
     carryforward: true

@@ -1,36 +1,41 @@
 #!/usr/bin/env node
 /**
- * Every package's coverage is measured, and every place that names it agrees.
+ * Every package's and every image's coverage is measured, and every place that
+ * names it agrees.
  *
  * The packages are the directories packages/<language>/<name> that hold a
- * manifest, and the Browser is images/browser. A package's flag is
- * `<language>-<name>`; the Browser's is `browser`. Each one's coverage is
- * named in five places by hand:
+ * manifest, and a package's flag is `<language>-<name>`. The images are the
+ * directories images/<name> that hold a Dockerfile, and an image's flag is
+ * `image-<name>`: what is measured of it is its own code, never the packages
+ * it is built on. Each one's coverage is named in five places by hand:
  *
  *   - an upload in ci.yml whose `flags:` give its flag;
  *   - a flag of that name in codecov.yml, scoped to its directory and carried
  *     forward, so it does not read as no data whenever its job does not run;
  *   - a component of that name in codecov.yml, scoped to its directory, which
  *     puts it in the component breakdown;
- *   - for a package, a Codecov badge for that component in its README;
- *   - for a package, its row in its language's README,
- *     packages/<language>/README.md, with the same badge.
+ *   - a Codecov badge for that component in its README;
+ *   - its row in its index's README, with the same badge: its language's,
+ *     packages/<language>/README.md, for a package, and images/README.md for an
+ *     image.
  *
  * Each language has a component too, `<language>`, scoped to
  * packages/<language>/, and its README carries that component's badge: the
  * language's packages together. A badge reads a component, never a flag. A
  * component is scoped by its paths in every report, and a flag by the uploads
  * that carry it, so a flag's badge for a crate of the Rust workspace, whose one
- * upload carries every crate's flag, reads the whole workspace.
+ * upload carries every crate's flag and every Rust image's, reads the whole
+ * workspace.
  *
  * And the npm workspaces' coverage is what their `test:coverage` scripts
- * write: each npm package declares one, the test-package matrix of ci.yml
- * names it, and a workspace that declares one is measured.
+ * write: each npm package and npm image declares one, the test-package matrix
+ * of ci.yml names each npm package, and a workspace that declares one is
+ * measured.
  *
- * Add a package and none of these notice. The upload is accepted under a flag
- * Codecov was never told about, a badge reads "unknown", and the package is
+ * Add a package or an image and none of these notice. The upload is accepted
+ * under a flag Codecov was never told about, a badge reads "unknown", and it is
  * absent from the coverage everyone reads, while every check stays green. So
- * each is held both ways: a declaration that outlives its package fails too.
+ * each is held both ways: a declaration that outlives what it names fails too.
  *
  * A file that cannot be read is a FAILURE, not a pass.
  */
@@ -44,7 +49,6 @@ const ROOT = process.cwd();
 const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
 const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
-const BROWSER = { dir: 'images/browser', flag: 'browser' };
 const yaml = createRequire(join(ROOT, 'package.json'))('js-yaml');
 
 const read = (file) => {
@@ -73,7 +77,15 @@ if (packages.length === 0) {
   console.error('\n✖ found no package under packages/<language>/<name>: the gate has lost what it reads.\n');
   process.exit(1);
 }
-const measured = [...packages, BROWSER];
+const images = files
+  .map((file) => /^images\/([^/]+)\/Dockerfile$/.exec(file))
+  .filter((m) => m !== null)
+  .map(([, name]) => ({ name, dir: `images/${name}`, flag: `image-${name}` }));
+if (images.length === 0) {
+  console.error('\n✖ found no image under images/<name>: the gate has lost what it reads.\n');
+  process.exit(1);
+}
+const measured = [...packages, ...images];
 const flagsMeasured = new Set(measured.map((m) => m.flag));
 const languages = [...new Set(packages.map((p) => p.language))];
 
@@ -142,8 +154,8 @@ for (const [id] of components) {
 }
 
 // Each package's README carries its badge, and its language's README its row.
-const readmes = new Set(files.filter((file) => /^packages\/.*README\.md$/.test(file)));
-for (const p of packages) {
+const readmes = new Set(files.filter((file) => /^(packages|images)\/.*README\.md$/.test(file)));
+for (const p of measured) {
   const own = `${p.dir}/README.md`;
   if (!readmes.has(own)) problems.push(`${p.dir} has no README.md to carry its coverage badge.`);
   else if (!read(own).includes(badge(p.flag))) problems.push(`${own} carries no Codecov badge for its flag:\n      ${badge(p.flag)}`);
@@ -163,6 +175,19 @@ for (const language of languages) {
   }
   for (const [, linked] of text.matchAll(/\]\(\.\/([^/)]+)\/README\.md\)/g)) {
     if (!own.some((p) => p.name === linked)) problems.push(`${index} links ${linked}, which is no package of packages/${language}/.`);
+  }
+}
+const imagesIndex = 'images/README.md';
+if (!readmes.has(imagesIndex)) {
+  problems.push(`images/ has no README.md listing its images.`);
+} else {
+  const text = read(imagesIndex);
+  for (const image of images) {
+    if (!text.includes(`](./${image.name}/README.md)`)) problems.push(`${imagesIndex} does not link ${image.name} (](./${image.name}/README.md)).`);
+    if (!text.includes(badge(image.flag))) problems.push(`${imagesIndex} does not carry ${image.name}'s Codecov badge.`);
+  }
+  for (const [, linked] of text.matchAll(/\]\(\.\/([^/)]+)\/README\.md\)/g)) {
+    if (!images.some((image) => image.name === linked)) problems.push(`${imagesIndex} links ${linked}, which is no image.`);
   }
 }
 for (const readme of readmes) {
@@ -199,7 +224,12 @@ if (!Array.isArray(matrix)) {
   for (const name of named) if (!matrix.includes(name)) problems.push(`the test-package matrix of ${WORKFLOW} does not run packages/typescript/${name}.`);
   for (const name of matrix) if (!named.has(name)) problems.push(`the test-package matrix of ${WORKFLOW} runs "${name}", which is no package of packages/typescript/.`);
 }
-if (!manifest(BROWSER.dir).scripts?.['test:coverage']) problems.push(`${BROWSER.dir} declares no "test:coverage", and test-browser uploads what it writes.`);
+const workspaces = new Set(workspaceDirectories(ROOT));
+for (const image of images) {
+  if (workspaces.has(image.dir) && !manifest(image.dir).scripts?.['test:coverage']) {
+    problems.push(`${image.dir} is an npm workspace and declares no "test:coverage": its suite writes no lcov.info to upload.`);
+  }
+}
 
 if (problems.length > 0) {
   console.error('\n✖ the coverage roster disagrees with itself:\n');
@@ -214,7 +244,7 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `✅ coverage roster: ${packages.length} packages in ${languages.length} languages and the Browser, each uploaded under its flag, ` +
-    `with its flag and component in ${basename(CODECOV)}, its component's badge in its README and its row in its language's, ` +
+  `✅ coverage roster: ${packages.length} packages in ${languages.length} languages and ${images.length} images, each uploaded under its flag, ` +
+    `with its flag and component in ${basename(CODECOV)}, its component's badge in its README and its row in its index's, ` +
     `and each language's component's badge in its README`,
 );
