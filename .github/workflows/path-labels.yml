@@ -15,7 +15,7 @@ on:
 
 # One run per pull request: a push cancels the run of the push before it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: path-labels-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:

@@ -4,24 +4,28 @@
  * the push before it, and every job of it checks something.
  *
  * 1. Every workflow that triggers on `pull_request` declares, at the top
- *    level, the one `concurrency` the repository uses:
+ *    level, the one `concurrency` the repository uses, its group led by the
+ *    workflow's file name:
  *
  *        concurrency:
- *          group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+ *          group: <file name, less .yml>-${{ github.event.pull_request.number || github.sha }}
  *          cancel-in-progress: ${{ github.event_name == 'pull_request' }}
  *
  *    The group is the pull request, so a push to it cancels the run of the
  *    push before it, which nobody is waiting for: the Smelter port pushed
  *    23 times with the previous run still going each time, on a pool of 20
  *    jobs shared by the whole organisation. A push to main gets its own group
- *    and is never cancelled: it is the run that sees the merged tree.
+ *    and is never cancelled: it is the run that sees the merged tree. The
+ *    file name, not `github.workflow`: in a workflow another one calls,
+ *    `github.workflow` is the caller's name, so the workflows a release calls
+ *    would share one group and wait on each other.
  *
  *    A workflow that triggers on `pull_request_target` and not `pull_request`
  *    runs for a pull request each time, so its group is the pull request and
  *    it always cancels:
  *
  *        concurrency:
- *          group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+ *          group: <file name, less .yml>-${{ github.event.pull_request.number }}
  *          cancel-in-progress: true
  *
  * 2. Every job of such a workflow has a step that is not preparation. A step
@@ -47,7 +51,10 @@
  *    `outputs` carry, and it needs `changes`. A job that is in no area would
  *    run on every push, which is the cost the map exists to end; an area the
  *    filter does not define would read as false and skip the job forever,
- *    and the gate would pass it.
+ *    and the gate would pass it. One more term is allowed, and only alone:
+ *    `needs.changes.outputs.tier == 'full'`, for a job that runs at night and
+ *    for a release and never on a pull request. `changes` outputs `tier`,
+ *    which no filter defines.
  *
  * 5. Every directory under apps/ or packages/ that holds a manifest
  *    (package.json, Cargo.toml, pyproject.toml, go.mod) is a pattern
@@ -72,6 +79,12 @@
  *    a stage built from its old contents, and the image would be stale and
  *    green.
  *
+ * 9. One workflow runs on every pull request: ci.yml. Any other workflow that
+ *    triggers on `pull_request` names the `paths` it checks. Six workflows
+ *    once ran whole on every push, each with its own summary for the ruleset
+ *    to require, and only ci.yml's jobs could read the map of changed areas:
+ *    a pull request that touched one Go file ran every npm package's suite.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
@@ -89,11 +102,14 @@ const SMOKE = '.github/workflows/stack-smoke.yml';
 /** The Dockerfiles whose builder stage those layers are; their COPY lines are read. */
 const RUST_IMAGES = ['apps/gateway/Dockerfile', 'apps/dispatcher/Dockerfile', 'apps/archivist/Dockerfile'];
 
-const GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}';
+/** A workflow's concurrency group, led by its file name. */
+const groupOf = (file) => `${basename(file).replace(/\.ya?ml$/, '')}-\${{ github.event.pull_request.number || github.sha }}`;
 const CANCEL = "${{ github.event_name == 'pull_request' }}";
 /** The concurrency of a workflow that runs on `pull_request_target` and not `pull_request`. */
-const TARGET_GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number }}';
+const targetGroupOf = (file) => `${basename(file).replace(/\.ya?ml$/, '')}-\${{ github.event.pull_request.number }}`;
 const TARGET_CANCEL = 'true';
+/** The one term of a job's `if` that is no area: the tier the run is in. */
+const FULL_TIER = "needs.changes.outputs.tier == 'full'";
 
 /** Actions that make a runner ready and check nothing. */
 const SETUP_ACTIONS = ['actions/checkout', 'actions/setup-node', 'actions/setup-python', 'actions/setup-go', 'actions/cache', 'astral-sh/setup-uv'];
@@ -129,8 +145,16 @@ for (const file of workflows) {
   held += 1;
 
   const [group, cancel, why] = onPullRequest
-    ? [GROUP, CANCEL, "a pull request's superseded run is cancelled, a push to main never is"]
-    : [TARGET_GROUP, TARGET_CANCEL, "every run is a pull request's, so a superseded one is cancelled"];
+    ? [groupOf(file), CANCEL, "a pull request's superseded run is cancelled, a push to main never is"]
+    : [targetGroupOf(file), TARGET_CANCEL, "every run is a pull request's, so a superseded one is cancelled"];
+
+  // Rule 9: ci.yml alone runs whole on every pull request.
+  if (onPullRequest && file !== CI) {
+    const pullRequest = Array.isArray(triggers) ? null : triggers.pull_request;
+    if (pullRequest == null || !Array.isArray(pullRequest.paths) || pullRequest.paths.length === 0) {
+      failures.push(`${file} runs on every pull request: make its jobs jobs of ${CI}, behind the map of changed areas, or name the paths it checks`);
+    }
+  }
   const concurrency = workflow.concurrency;
   if (concurrency == null || typeof concurrency !== 'object') {
     failures.push(`${file} runs on pull requests and declares no concurrency: a push to the pull request leaves the run before it going`);
@@ -247,7 +271,8 @@ function changedAreas(jobs) {
   const areas = Object.keys(filters).filter((name) => name !== 'all');
   const outputs = Object.keys(changes.outputs ?? {});
   for (const area of areas) if (!outputs.includes(area)) failures.push(`${CI}: job changes defines the area ${area} and does not output it`);
-  for (const output of outputs) if (!areas.includes(output)) failures.push(`${CI}: job changes outputs ${output}, which no filter defines`);
+  for (const output of outputs) if (output !== 'tier' && !areas.includes(output)) failures.push(`${CI}: job changes outputs ${output}, which no filter defines`);
+  if (!outputs.includes('tier')) failures.push(`${CI}: job changes does not output tier, which a job that runs at night alone reads`);
 
   const term = /^needs\.changes\.outputs\.([a-z][a-z0-9-]*) == 'true'$/;
   /** The areas a job's `if` reads, by job id; a job with no area condition is absent. */
@@ -261,9 +286,13 @@ function changedAreas(jobs) {
       continue;
     }
     const read = new Set();
+    if (condition === FULL_TIER) {
+      areasOf.set(id, read);
+      continue;
+    }
     for (const part of condition.split(' || ')) {
       const area = term.exec(part.trim())?.[1];
-      if (area == null) failures.push(`${CI}: job ${id}: the condition ${JSON.stringify(part.trim())} is not needs.changes.outputs.<area> == 'true'`);
+      if (area == null) failures.push(`${CI}: job ${id}: the condition ${JSON.stringify(part.trim())} is not needs.changes.outputs.<area> == 'true' (the tier is read alone: ${FULL_TIER})`);
       else if (!areas.includes(area)) failures.push(`${CI}: job ${id} reads the area ${area}, which the changes job does not define: it would never run`);
       else read.add(area);
     }
@@ -312,4 +341,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something, and only ci.yml whole; ci.yml runs in stages, maps each push to its areas and tier, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy`);

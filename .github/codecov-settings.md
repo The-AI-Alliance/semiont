@@ -14,7 +14,7 @@ To enforce coverage requirements, configure the following in GitHub:
 4. Add these status checks:
    - `codecov/project` - Overall project coverage
    - `codecov/patch` - Coverage for changed code
-   - `Package Tests / Test <package_name>` - Individual package tests
+   - `Continuous Integration / Test <package_name>` - Individual package tests
 
 ### Coverage Requirements
 

@@ -1,26 +1,17 @@
 name: "CodeQL Security Analysis"
 
+# Nightly on main and for a release, not on every push: eleven runner-minutes a
+# push bought findings a night later would equally have caught, and a release
+# cannot ship past one. GitHub's default-setup Code Quality analysis still runs
+# on pull requests; it is no file here.
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.txt'
-      - '.gitignore'
-      - 'LICENSE'
+  # 08:17 UTC, with ci.yml's and Stack Smoke's nightlies. A scheduled run that
+  # fails mails whoever last changed this line.
   schedule:
-    # Run CodeQL analysis every Monday at 6 AM UTC
-    - cron: '0 6 * * 1'
+    - cron: '17 8 * * *'
   workflow_dispatch:
-
-# One run per pull request: a push cancels the run of the push before it, which
-# nobody is waiting for. A push to main is never cancelled: it is the run that
-# sees the merged tree. lint:workflows holds every pull-request workflow to this.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # release.yml calls it on the commit it is about to tag.
+  workflow_call:
 
 jobs:
   analyze:

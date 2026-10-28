@@ -32,7 +32,7 @@ on:
 # nobody is waiting for. A push to main is never cancelled: it is the run that
 # sees the merged tree. lint:workflows holds every pull-request workflow to this.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: npm-advisories-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

@@ -3,7 +3,7 @@
  * The set of packages whose coverage CI measures is written out by hand in four
  * places, and nothing makes them agree.
  *
- * A package declares `test:coverage`; `package-tests.yml` names it in the job
+ * A package declares `test:coverage`; ci.yml's `test-package` job names it in its
  * matrix; `codecov.yml` declares a flag for it (which is what gives it `paths`
  * scoping and `carryforward`); and `codecov.yml` declares a component for it
  * (which is what puts it in the component breakdown). Add a package and three
@@ -26,7 +26,7 @@ import { basename } from 'path';
 import { workspaceDirectories } from './workspaces.mjs';
 
 const CODECOV = 'codecov.yml';
-const WORKFLOW = '.github/workflows/package-tests.yml';
+const WORKFLOW = '.github/workflows/ci.yml';
 
 /**
  * Workspaces measured somewhere other than the package matrix. Each carries the
@@ -35,7 +35,7 @@ const WORKFLOW = '.github/workflows/package-tests.yml';
  * about.
  */
 const EXEMPT_FROM_MATRIX = [
-  { name: 'browser', dir: 'apps/browser', uploadedBy: '.github/workflows/security-tests.yml' },
+  { name: 'browser', dir: 'apps/browser', uploadedBy: '.github/workflows/ci.yml' },
 ];
 
 const read = (file) => {
@@ -201,7 +201,7 @@ if (problems.length > 0) {
   for (const p of problems) console.error(`  - ${p}`);
   console.error(
     '\n  Four lists decide which packages CI measures: the workspaces declaring\n' +
-      '  "test:coverage", the package-tests.yml matrix, codecov.yml flags, and\n' +
+      '  "test:coverage", the test-package matrix of ci.yml, codecov.yml flags, and\n' +
       '  codecov.yml components. When they disagree the pipeline stays green and the\n' +
       '  package simply vanishes from the coverage everyone reads.\n',
   );
@@ -210,5 +210,5 @@ if (problems.length > 0) {
 
 console.log(
   `✅ coverage roster: ${measured.length} measured packages agree across the matrix, flags and components ` +
-    `(${EXEMPT_FROM_MATRIX.map((e) => e.name).join(', ')} measured by security-tests.yml)`,
+    `(${EXEMPT_FROM_MATRIX.map((e) => e.name).join(', ')} measured by ci.yml's Browser Tests)`,
 );
