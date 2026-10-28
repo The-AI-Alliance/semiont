@@ -225,7 +225,9 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 // built before: the session is made once the client over the transport is.
 type refreshedBy func() *Session
 
-func (r refreshedBy) Refresh(ctx context.Context) (string, bool) { return r().Refresh(ctx) }
+func (r refreshedBy) Refresh(ctx context.Context, refused string) (string, bool) {
+	return r().Refresh(ctx, refused)
+}
 
 // SignInWithDevice signs a person in from a process with no browser, and keeps
 // the sign-in in kept. The issuer the knowledge base at baseURL trusts mints a

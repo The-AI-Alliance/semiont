@@ -303,9 +303,10 @@ func TestRenewalsAskedForTogetherAreOneRequestOfTheIssuer(t *testing.T) {
 	s.grant(renewed, "r2")
 
 	var refreshed sync.WaitGroup
+	refused := session.Token().Value()
 	tokens := make([]string, 3)
 	for i := range tokens {
-		refreshed.Go(func() { tokens[i], _ = session.Refresh(context.Background()) })
+		refreshed.Go(func() { tokens[i], _ = session.Refresh(context.Background(), refused) })
 	}
 	refreshed.Wait()
 

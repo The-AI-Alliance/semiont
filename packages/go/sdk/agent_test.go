@@ -107,7 +107,7 @@ func TestARefusedAgentTokenIsExchangedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer agent.Close()
-	token, ok := agent.Refresh(context.Background())
+	token, ok := agent.Refresh(context.Background(), signedToken(201))
 	if !ok || token != signedToken(202) || agent.Token().Value() != token {
 		t.Errorf("refreshed to the gateway's second token: %v, %v", token == signedToken(202), ok)
 	}
@@ -118,11 +118,34 @@ func TestARefusedAgentTokenIsExchangedAgain(t *testing.T) {
 	if grants != 1 {
 		t.Errorf("%d grants for two exchanges: the service token was not kept", grants)
 	}
-	if _, ok := agent.Refresh(context.Background()); ok {
+	if _, ok := agent.Refresh(context.Background(), signedToken(202)); ok {
 		t.Error("a refused exchange gave a token")
 	}
 	if agent.Token().Value() != signedToken(202) {
 		t.Error("a refused exchange took away the token the agent had")
+	}
+}
+
+// A refusal of a token the agent has exchanged since is answered by the token
+// it holds: nothing is exchanged again.
+func TestARefusalOfATokenExchangedSinceIsAnsweredByTheNewOne(t *testing.T) {
+	w := newAgentWorld(t)
+	agent, err := w.signIn(t, "s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer agent.Close()
+	if _, ok := agent.Refresh(context.Background(), signedToken(201)); !ok {
+		t.Fatal("the first refusal was not answered")
+	}
+	token, ok := agent.Refresh(context.Background(), signedToken(201))
+	if !ok || token != signedToken(202) {
+		t.Errorf("a refusal of the token exchanged since was not answered with the token held (given one: %v)", ok)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.exchanges) != 2 {
+		t.Errorf("a sign-in and two refusals of one token made %d exchanges, want 2", len(w.exchanges))
 	}
 }
 

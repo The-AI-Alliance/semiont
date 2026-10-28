@@ -260,7 +260,7 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		session := built(t, sessions, a.of("kb-a"))
 		sessions.QueueRenewals(semionttest.Renewal{Token: "renewed"})
 
-		if token, ok := session.Refresh(context.Background()); !ok || token != "renewed" {
+		if token, ok := session.Refresh(context.Background(), session.Token().Value()); !ok || token != "renewed" {
 			t.Errorf("a renewal gives %q, %v", token, ok)
 		}
 		if sessions.Renewed() != 1 || a.signals.SessionEnded().Value() != nil {
@@ -269,7 +269,7 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 
 		// A renewal nobody scripted is a renewal that failed, and says so: the
 		// session ends as it does when its issuer cannot be reached.
-		if token, ok := session.Refresh(context.Background()); ok || token != "" {
+		if token, ok := session.Refresh(context.Background(), session.Token().Value()); ok || token != "" {
 			t.Errorf("an unscripted renewal gives %q, %v", token, ok)
 		}
 		if sessions.Renewed() != 2 {

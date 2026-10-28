@@ -192,9 +192,13 @@ func (a *AgentToken) DID() api.UserId { return a.did }
 // Gateway is the gateway the agent is signed in at.
 func (a *AgentToken) Gateway() string { return a.config.Gateway }
 
-// Refresh answers the gateway's refusal of the token: it exchanges again. The
-// new token; false when the exchange failed.
-func (a *AgentToken) Refresh(ctx context.Context) (string, bool) {
+// Refresh answers the gateway's refusal of refused, the agent's token: it
+// exchanges again. The new token; false when the exchange failed. A token
+// exchanged since is the answer, and nothing is exchanged.
+func (a *AgentToken) Refresh(ctx context.Context, refused string) (string, bool) {
+	if current := a.token.Value(); current != refused {
+		return current, true
+	}
 	token, err := a.renew(ctx)
 	return token, err == nil
 }

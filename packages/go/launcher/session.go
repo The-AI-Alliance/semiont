@@ -211,11 +211,11 @@ func kbTarget(key, base string) (api.KbTarget, error) {
 	return api.KbTarget{Id: key, Label: key, Endpoint: endpoint}, err
 }
 
-// Refresh is a renewed token for a transport the gateway refused the
-// session's token to (semiont.TokenRefresher): the SDK's session renews it and
-// asks the gateway who the new one is. ok=false: the session is over, and its
-// end's cause says why.
-func (s *Session) Refresh(ctx context.Context) (token string, ok bool) {
+// Refresh is a token in place of refused, the session's token the gateway
+// refused a transport (semiont.TokenRefresher): the SDK's session renews it and
+// asks the gateway who the new one is, or gives the token it was renewed to
+// already. ok=false: the session is over, and its end's cause says why.
+func (s *Session) Refresh(ctx context.Context, refused string) (token string, ok bool) {
 	// A refusal that comes before the SDK's session exists is answered by it
 	// once it does. ctx is the stream's, done when the client closes, as it
 	// does when that session cannot be resumed.
@@ -230,7 +230,7 @@ func (s *Session) Refresh(ctx context.Context) (token string, ok bool) {
 		return "", false
 	}
 	before := s.token.Value()
-	renewed, ok := s.sdk.Refresh(ctx)
+	renewed, ok := s.sdk.Refresh(ctx, refused)
 	if !ok {
 		why := errNoRefreshToken
 		if s.signIn.RefreshToken != "" {

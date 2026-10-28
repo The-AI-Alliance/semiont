@@ -809,8 +809,10 @@ func route(alive context.Context, session *semiont.Session, signals *semiont.Ses
 		switch failure.Code {
 		case semiont.TransportErrorCodeUnauthorized:
 			// Refusals that arrive together are answered by one renewal: the
-			// session holds them while it renews.
-			go session.Refresh(alive)
+			// session holds them while it renews. A failure does not say which
+			// token was refused: the one the session holds as it is read is.
+			refused := session.Token().Value()
+			go session.Refresh(alive, refused)
 		case semiont.TransportErrorCodeForbidden:
 			detail := failure.Message
 			signals.NotifyPermissionDenied(&detail)
