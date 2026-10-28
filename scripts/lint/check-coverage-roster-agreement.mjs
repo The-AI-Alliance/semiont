@@ -12,9 +12,16 @@
  *     forward, so it does not read as no data whenever its job does not run;
  *   - a component of that name in codecov.yml, scoped to its directory, which
  *     puts it in the component breakdown;
- *   - for a package, a Codecov badge for that flag in its README;
+ *   - for a package, a Codecov badge for that component in its README;
  *   - for a package, its row in its language's README,
  *     packages/<language>/README.md, with the same badge.
+ *
+ * Each language has a component too, `<language>`, scoped to
+ * packages/<language>/, and its README carries that component's badge: the
+ * language's packages together. A badge reads a component, never a flag. A
+ * component is scoped by its paths in every report, and a flag by the uploads
+ * that carry it, so a flag's badge for a crate of the Rust workspace, whose one
+ * upload carries every crate's flag, reads the whole workspace.
  *
  * And the npm workspaces' coverage is what their `test:coverage` scripts
  * write: each npm package declares one, the test-package matrix of ci.yml
@@ -48,8 +55,8 @@ const read = (file) => {
     process.exit(1);
   }
 };
-const badge = (flag) =>
-  `[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=${flag})](https://codecov.io/gh/The-AI-Alliance/semiont?flag=${flag})`;
+const badge = (component) =>
+  `[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=${component})](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)`;
 
 // ---------- the packages ----------
 
@@ -125,7 +132,14 @@ for (const [flag, jobs] of uploaded) {
   if (!flagsMeasured.has(flag)) problems.push(`${WORKFLOW} (${[...new Set(jobs)].join(', ')}) uploads the flag "${flag}", which is no package's.`);
 }
 for (const [flag] of flags) if (!flagsMeasured.has(flag)) problems.push(`${CODECOV} declares the flag "${flag}", which is no package's.`);
-for (const [id] of components) if (!flagsMeasured.has(id)) problems.push(`${CODECOV} declares the component "${id}", which is no package's.`);
+for (const language of languages) {
+  const component = components.get(language);
+  if (component === undefined) problems.push(`${CODECOV} has no component "${language}", the packages of packages/${language}/ together.`);
+  else if (!covers(component.paths, `packages/${language}`)) problems.push(`the component "${language}" is scoped to ${JSON.stringify(component.paths)}, not packages/${language}/**.`);
+}
+for (const [id] of components) {
+  if (!flagsMeasured.has(id) && !languages.includes(id)) problems.push(`${CODECOV} declares the component "${id}", which is no package's or language's.`);
+}
 
 // Each package's README carries its badge, and its language's README its row.
 const readmes = new Set(files.filter((file) => /^packages\/.*README\.md$/.test(file)));
@@ -141,6 +155,7 @@ for (const language of languages) {
     continue;
   }
   const text = read(index);
+  if (!text.includes(badge(language))) problems.push(`${index} does not carry the badge of its language's component:\n      ${badge(language)}`);
   const own = packages.filter((p) => p.language === language);
   for (const p of own) {
     if (!text.includes(`](./${p.name}/README.md)`)) problems.push(`${index} does not link ${p.name} (](./${p.name}/README.md)).`);
@@ -151,8 +166,9 @@ for (const language of languages) {
   }
 }
 for (const readme of readmes) {
-  for (const [, flag] of read(readme).matchAll(/codecov\.io\/gh\/The-AI-Alliance\/semiont[^)\s]*[?&]flag=([a-z0-9-]+)/g)) {
-    if (!flagsMeasured.has(flag)) problems.push(`${readme} shows a Codecov badge for the flag "${flag}", which is no package's.`);
+  for (const [, kind, id] of read(readme).matchAll(/codecov\.io\/gh\/The-AI-Alliance\/semiont[^)\s]*[?&](flag|component)=([a-z0-9-]+)/g)) {
+    if (kind === 'flag') problems.push(`${readme} shows a Codecov badge for the flag "${id}": a badge reads a component, which its paths scope.`);
+    else if (!components.has(id)) problems.push(`${readme} shows a Codecov badge for the component "${id}", which ${CODECOV} does not declare.`);
   }
 }
 
@@ -199,5 +215,6 @@ if (problems.length > 0) {
 
 console.log(
   `✅ coverage roster: ${packages.length} packages in ${languages.length} languages and the Browser, each uploaded under its flag, ` +
-    `with its flag and component in ${basename(CODECOV)}, its badge in its README and its row in its language's`,
+    `with its flag and component in ${basename(CODECOV)}, its component's badge in its README and its row in its language's, ` +
+    `and each language's component's badge in its README`,
 );

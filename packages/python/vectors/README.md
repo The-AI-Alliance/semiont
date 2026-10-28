@@ -1,6 +1,6 @@
 # semiont-vectors
 
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=python-vectors)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=python-vectors)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=python-vectors)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The vector index [Semiont][semiont]'s Python services write and search, and
 the embedding providers that make its vectors, each behind one interface.

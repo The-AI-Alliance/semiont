@@ -1,11 +1,13 @@
 # Go
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 The Go SDK, and the libraries the `semiont` launcher ([apps/launcher](../../apps/launcher/README.md)) is built from.
 
 | Module | Published | Coverage | What it is |
 |---|---|---|---|
-| [go/sdk](./sdk/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=go-sdk)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=go-sdk) | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../../apps/launcher/README.md)) is built on it |
-| [go/launcher](./launcher/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=go-launcher)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=go-launcher) | The launcher's libraries: its engine, the reader of a knowledge base's documents (`stack`), what an image declares (`images`) and whether a release built it (`provenance`), the verbs on the command line and over MCP (`verbs`), and the fake runtime its tests drive (`fakert`). The program, [apps/launcher](../../apps/launcher/README.md), is built on them |
+| [go/sdk](./sdk/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../../apps/launcher/README.md)) is built on it |
+| [go/launcher](./launcher/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-launcher)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | The launcher's libraries: its engine, the reader of a knowledge base's documents (`stack`), what an image declares (`images`) and whether a release built it (`provenance`), the verbs on the command line and over MCP (`verbs`), and the fake runtime its tests drive (`fakert`). The program, [apps/launcher](../../apps/launcher/README.md), is built on them |
 
 ## Where things are
 

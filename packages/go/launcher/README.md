@@ -1,6 +1,6 @@
 # The launcher's libraries
 
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=go-launcher)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=go-launcher)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-launcher)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The Go module `github.com/The-AI-Alliance/semiont/packages/go/launcher`: what
 the `semiont` launcher is built from. The program itself, its `main` and the

@@ -1,7 +1,7 @@
 # @semiont/http-transport
 
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+http-transport%22)
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=typescript-http-transport)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=typescript-http-transport)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=typescript-http-transport)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 [![npm version](https://img.shields.io/npm/v/@semiont/http-transport.svg)](https://www.npmjs.com/package/@semiont/http-transport)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/http-transport.svg)](https://www.npmjs.com/package/@semiont/http-transport)
 [![License](https://img.shields.io/npm/l/@semiont/http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)

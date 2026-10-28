@@ -35,8 +35,11 @@ coverage:
   range: "50...90"
 
 # One component and one flag for each package, packages/<language>/<name>, named
-# <language>-<name>, and the Browser's. lint:coverage-roster holds the two lists,
-# ci.yml's uploads and each package's README badge to the packages there are.
+# <language>-<name>, and the Browser's, and a component for each language, its
+# packages together. A component is scoped by its paths in every report, so the
+# badges read components: a flag is scoped by the uploads that carry it, and the
+# Rust workspace's one upload carries every crate's. lint:coverage-roster holds the
+# lists, ci.yml's uploads and the READMEs' badges to the packages there are.
 component_management:
   default_rules:
     statuses:
@@ -120,6 +123,22 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: typescript
+      name: "packages/typescript"
+      paths:
+        - packages/typescript/**
+    - component_id: rust
+      name: "packages/rust"
+      paths:
+        - packages/rust/**
+    - component_id: python
+      name: "packages/python"
+      paths:
+        - packages/python/**
+    - component_id: go
+      name: "packages/go"
+      paths:
+        - packages/go/**
     - component_id: browser
       name: "images/browser"
       paths:
