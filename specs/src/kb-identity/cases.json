@@ -1,11 +1,11 @@
 {
-  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config.yaml, the project file ProjectConfig.json holds. Go (apps/launcher/internal/launcher: readKBIdentity, and the name, domain, DID and resource it reads) and Rust (apps/archivist/record: kb::committed) run every case and fail on any difference; TypeScript (packages/core: kbDid and kbResource), Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry), Python (packages/sdk-python: kb_did and kb_resource) and Go (packages/sdk-go: KbDid and KbResource) each run every case with a domain. `config` null means the file is absent; `refused` true means the file does not hold to ProjectConfig.json, and every reader of it refuses it; `name` null means a refused file names nothing; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing any reader.",
+  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config.yaml, the project file ProjectConfig.json holds. Go (apps/launcher/internal/launcher: readKBIdentity, and the name, domain, DID and resource it reads) and Rust (images/archivist/record: kb::committed) run every case and fail on any difference; TypeScript (packages/core: kbDid and kbResource), Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry), Python (packages/sdk-python: kb_did and kb_resource) and Go (packages/sdk-go: KbDid and KbResource) each run every case with a domain. `config` null means the file is absent; `refused` true means the file does not hold to ProjectConfig.json, and every reader of it refuses it; `name` null means a refused file names nothing; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing any reader.",
   "runBy": {
     "typescript": ["packages/core/src/__tests__/kb-identity-agreement.test.ts"],
     "rust": ["packages/sdk-rust/tests/tables.rs"],
     "python": ["packages/sdk-python/tests/test_identity.py"],
     "go": ["packages/sdk-go/identity_test.go"],
-    "archivist": ["apps/archivist/record/src/kb.rs"],
+    "archivist": ["images/archivist/record/src/kb.rs"],
     "launcher": ["apps/launcher/internal/launcher/kbidentity_agreement_test.go", "apps/launcher/internal/launcher/staging_test.go"]
   },
   "cases": [

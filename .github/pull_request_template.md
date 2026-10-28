@@ -16,14 +16,14 @@
 ## Areas Changed
 
 - [ ] The spec (`specs/`)
-- [ ] Gateway (`apps/gateway`)
-- [ ] Dispatcher (`apps/dispatcher`)
-- [ ] Archivist (`apps/archivist`)
-- [ ] Worker (`apps/worker`)
-- [ ] Weaver (`apps/weaver`)
-- [ ] Smelter (`apps/smelter`)
-- [ ] Librarian (`apps/librarian`: its image, and its Python code)
-- [ ] Browser (`apps/browser`, `apps/desktop`)
+- [ ] Gateway (`images/gateway`)
+- [ ] Dispatcher (`images/dispatcher`)
+- [ ] Archivist (`images/archivist`)
+- [ ] Worker (`images/worker`)
+- [ ] Weaver (`images/weaver`)
+- [ ] Smelter (`images/smelter`)
+- [ ] Librarian (`images/librarian`: its image, and its Python code)
+- [ ] Browser (`images/browser`, `apps/desktop`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] TypeScript packages (`packages/sdk` and the other npm workspaces under `packages/`)
 - [ ] Rust crates (`packages/*-rust`)
@@ -42,7 +42,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Tests are added or updated for the behavior this changes
 - [ ] npm workspaces: `npm run typecheck`, and `npm test --workspace=<name>` for each one changed
 - [ ] Rust: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
-- [ ] Python: from each project changed (`packages/sdk-python`, `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver`, `apps/smelter`, `apps/librarian`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
+- [ ] Python: from each project changed (`packages/sdk-python`, `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `images/worker`, `images/weaver`, `images/smelter`, `images/librarian`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...`
 - [ ] Go SDK: `cd packages/sdk-go && go test -timeout 5m ./...`
 - [ ] Gateway conformance: `cd tests/conformance && npm run test:gateway`
@@ -62,12 +62,12 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 Complete this section if the change touches the gateway's routes, how any part mints, verifies, stores or sends a token, or the Browser's session code. Otherwise delete it. The model is in `docs/operator/administration/SECURITY.md` and `docs/operator/administration/AUTHENTICATION.md`.
 
 - [ ] A new or changed operation is declared in `specs/src/paths/` and says whether it is public (`"security": []`); `npm run lint:spec-protocol` passes
-- [ ] A new protected route's handler takes a credential (`Authenticated` or `MediaOrBearer` in `apps/gateway/src/http.rs`); nothing protects a route by default
+- [ ] A new protected route's handler takes a credential (`Authenticated` or `MediaOrBearer` in `images/gateway/src/http.rs`); nothing protects a route by default
 - [ ] The gateway's one authorization decision stands: authenticated, or 401. No route returns 403 or reads a human role
 - [ ] The cases no schema can state are added under `tests/conformance/gateway/`, each citing the text it checks, and `cd tests/conformance && npm run test:gateway` passes
 - [ ] A credential travels only as `Authorization: Bearer`, or as `?token=` on `GET /api/resources/{id}`: no cookie, and CORS carries no credentials
 - [ ] No token, key or secret reaches a log line, an error body or a committed file
-- [ ] Session code (`packages/sdk/src/session/`, `apps/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd apps/browser && npm run test:security` pass
+- [ ] Session code (`packages/sdk/src/session/`, `images/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd images/browser && npm run test:security` pass
 - [ ] `SECURITY.md` and `AUTHENTICATION.md` describe the result
 
 ## Breaking Changes

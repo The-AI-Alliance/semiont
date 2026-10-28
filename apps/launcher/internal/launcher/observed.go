@@ -149,7 +149,7 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 // live in the broker's KV table, bounded by its TTL, not in the gateway.
 //
 // The ceiling is READ, not restated. It belongs to the gateway
-// (apps/gateway/src/ledger.rs) and rides the same gauge as an extra series
+// (images/gateway/src/ledger.rs) and rides the same gauge as an extra series
 // precisely so this file does not carry a second copy of a number that can
 // change without it. A count with no ceiling cannot answer the question worth
 // asking, which is whether the ledger is idle or one request from refusing.

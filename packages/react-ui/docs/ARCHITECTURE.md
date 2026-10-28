@@ -228,7 +228,7 @@ function BackHome({ Link }: { Link: React.ComponentType<LinkComponentProps> }) {
 ```
 
 The app passes its router's `Link` — the Browser's adapts React Router's, in
-`apps/browser/src/lib/routing.tsx`:
+`images/browser/src/lib/routing.tsx`:
 
 ```tsx
 function SignInError({ translations }: Pick<AuthErrorDisplayProps, 'translations'>) {
@@ -724,7 +724,7 @@ Not breaking:
 ### CSS Build System
 
 - **react-ui:** tsup builds TypeScript only (no CSS bundling)
-- **Browser:** Vite processes the CSS (PostCSS plugins in `apps/browser/postcss.config.js`)
+- **Browser:** Vite processes the CSS (PostCSS plugins in `images/browser/postcss.config.js`)
 - **Key insight:** `import './Component.css'` in TypeScript is a type hint - doesn't bundle anything
 
 ### CSS Quality Standards

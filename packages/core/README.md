@@ -61,7 +61,7 @@ const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no n
 - **It depends on no other Semiont package.** Everything else depends on it.
 - **An id is made only by its constructor or its guard.** One kind is never assignable to another.
 - **Who did something is worked out in one place.** `attribution()` builds a record's `creator`, `generator` and `wasAttributedTo` from identities the gateway verified. `npm run lint:attribution` fails a second place that builds them.
-- **Its tests read every package.** Three census tests here walk the source of all of `packages/` and `apps/`, tests included, so a change somewhere else can fail this package's suite.
+- **Its tests read every package.** Three census tests here walk the source of all of `packages/`, `apps/` and `images/`, tests included, so a change somewhere else can fail this package's suite.
 
 ## Documentation
 

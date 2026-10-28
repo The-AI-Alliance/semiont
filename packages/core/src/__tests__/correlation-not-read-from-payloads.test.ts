@@ -48,7 +48,7 @@ const PAYLOAD_READS: ReadonlyArray<readonly [string, RegExp]> = [
 describe('nothing reads correlationId out of a payload', () => {
   test('neither by navigation nor through a cast', () => {
     const offenders: string[] = [];
-    for (const file of typeScriptFiles('packages', 'apps')) {
+    for (const file of typeScriptFiles('packages', 'apps', 'images')) {
       const source = stripComments(readFileSync(join(REPO, file), 'utf-8'));
       for (const [why, pattern] of PAYLOAD_READS) {
         for (const m of source.matchAll(pattern)) {

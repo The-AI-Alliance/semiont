@@ -66,7 +66,7 @@ component_management:
     - component_id: browser
       name: "Browser (app)"
       paths:
-        - apps/browser/**
+        - images/browser/**
 
 # Ignore certain files from coverage
 ignore:
@@ -135,5 +135,5 @@ flags:
 
   browser:
     paths:
-      - apps/browser/**
+      - images/browser/**
     carryforward: true

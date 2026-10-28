@@ -3,8 +3,8 @@
 What Semiont's Rust services share and no client needs.
 
 **Not published.** It is a crate of this workspace, built into the
-[gateway](../../apps/gateway/README.md) and the
-[dispatcher](../../apps/dispatcher/README.md). To use Semiont from Rust, the
+[gateway](../../images/gateway/README.md) and the
+[dispatcher](../../images/dispatcher/README.md). To use Semiont from Rust, the
 crate you want is [`semiont`](../sdk-rust/README.md).
 
 | Module | What it holds |

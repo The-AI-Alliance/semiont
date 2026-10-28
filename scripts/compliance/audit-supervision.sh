@@ -28,7 +28,7 @@ BOOT="scripts/container/boot.sh"
 # No exemption list, deliberately, and none for the browser: that a static
 # server has nothing in flight to lose is an argument about the death record,
 # not one against the restart. Every service in
-# apps/ is supervised; an exemption list is where the next one would hide.
+# images/ is supervised; an exemption list is where the next one would hide.
 
 FAIL=0
 [ -f "$SHARED" ] || { echo "❌ supervision: $SHARED is missing"; FAIL=1; }
@@ -44,8 +44,7 @@ for stem in supervise boot; do
 done
 
 checked=0
-for df in apps/*/Dockerfile; do
-  case "$df" in *builder*) continue ;; esac
+for df in images/*/Dockerfile; do
   checked=$((checked + 1))
 
   grep -q "$SHARED" "$df" || { echo "❌ supervision: $df does not COPY $SHARED"; FAIL=1; }

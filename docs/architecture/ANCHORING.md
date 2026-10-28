@@ -190,17 +190,17 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 | Concern | Location |
 |---|---|
 | `AnchoredText`, `locate`, `textUnder`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
-| Producing a map (text layer, OCR, tables, forms) | `apps/smelter` — `extraction.py`, over `pdfium.py` and `tesseract.py` |
-| Storing one | `apps/smelter` — `anchored_text_store.py`, over the Archivist's `PUT /resources/{id}/anchored-text`; `apps/archivist` — `record/src/anchored_text.rs` |
-| Publishing at ingest | `apps/smelter` — `smelter.py` |
-| Serving one, with the barrier | `apps/archivist` — `src/anchored.rs` |
+| Producing a map (text layer, OCR, tables, forms) | `images/smelter` — `extraction.py`, over `pdfium.py` and `tesseract.py` |
+| Storing one | `images/smelter` — `anchored_text_store.py`, over the Archivist's `PUT /resources/{id}/anchored-text`; `images/archivist` — `record/src/anchored_text.rs` |
+| Publishing at ingest | `images/smelter` — `smelter.py` |
+| Serving one, with the barrier | `images/archivist` — `src/anchored.rs` |
 | Detection's geometry tail | `@semiont/core` — `annotationOfSpan`, in `annotation-builders.ts` |
 | Holding the text for a viewer, and asking again | `@semiont/react-ui` — `hooks/useAnchoredText.ts` |
 | The PDF canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
 | The image canvas | `@semiont/react-ui` — `SvgDrawingCanvas.tsx` |
 
 `@semiont/core` holds what *reasons over* a map; the Smelter, a Python service
-([apps/smelter](../../apps/smelter/)), holds what *produces* one. The split is
+([images/smelter](../../images/smelter/)), holds what *produces* one. The split is
 not cosmetic: the browser needs `textUnder` at drag time, and producing a map
 takes PDFium, the `tesseract` program and a directory to write.
 

@@ -50,7 +50,7 @@ function callbackBody(source: string, openParen: number): string {
 describe('a bus-to-bus relay forwards frames', () => {
   test('every relay goes through relayFrames', () => {
     const offenders: string[] = [];
-    for (const path of typeScriptFiles('packages', 'apps')) {
+    for (const path of typeScriptFiles('packages', 'apps', 'images')) {
       if (path === RELAY_HOME) continue;
       const source = stripComments(readFileSync(join(REPO, path), 'utf-8'));
       for (const m of source.matchAll(CHANNEL_SUBSCRIBE)) {

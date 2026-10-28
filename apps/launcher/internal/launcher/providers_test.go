@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -107,7 +106,7 @@ func TestAProviderWithNoAddressIsRefused(t *testing.T) {
 // The path a document names is where each image has the file.
 func TestModelCatalogueIsWhereTheImagesCarryIt(t *testing.T) {
 	for _, service := range []string{"worker", "librarian"} {
-		df, err := os.ReadFile(filepath.Join("..", "..", "..", service, "Dockerfile"))
+		df, err := os.ReadFile(serviceDockerfile(service))
 		if err != nil {
 			t.Fatal(err)
 		}

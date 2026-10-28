@@ -46,6 +46,6 @@ A write from a worker that cites no job, or a job it does not hold, is refused.
 ## Where it is implemented
 
 - The role names and how a claim is read: the Rust SDK's [roles.rs](../../packages/sdk-rust/src/roles.rs), held to the literal the launcher writes into the realm by `npm run lint:service-role`
-- The gateway's principal: [apps/gateway/src/principal.rs](../../apps/gateway/src/principal.rs)
-- The Archivist's HTTP surface: [apps/archivist/src/surface.rs](../../apps/archivist/src/surface.rs)
-- The dispatcher's claim check: [apps/dispatcher/handlers/src/handlers.rs](../../apps/dispatcher/handlers/src/handlers.rs)
+- The gateway's principal: [images/gateway/src/principal.rs](../../images/gateway/src/principal.rs)
+- The Archivist's HTTP surface: [images/archivist/src/surface.rs](../../images/archivist/src/surface.rs)
+- The dispatcher's claim check: [images/dispatcher/handlers/src/handlers.rs](../../images/dispatcher/handlers/src/handlers.rs)

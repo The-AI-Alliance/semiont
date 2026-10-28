@@ -35,7 +35,7 @@ const WORKFLOW = '.github/workflows/ci.yml';
  * about.
  */
 const EXEMPT_FROM_MATRIX = [
-  { name: 'browser', dir: 'apps/browser', uploadedBy: '.github/workflows/ci.yml' },
+  { name: 'browser', dir: 'images/browser', uploadedBy: '.github/workflows/ci.yml' },
 ];
 
 const read = (file) => {
@@ -69,7 +69,7 @@ const manifestOf = (dir) => {
 const workspaces = workspaceDirectories(process.cwd())
   // Keyed by DIRECTORY basename, not npm name: every list this gate compares is
   // written that way — the matrix interpolates `packages/${matrix.package}`, and
-  // the flags scope `apps/browser/**`. `apps/browser` is the npm package
+  // the flags scope `images/browser/**`. `images/browser` is the npm package
   // `semiont-browser`, so keying by npm name silently matches nothing.
   .map((dir) => ({ name: basename(dir), dir }))
   .filter((w) => Boolean(manifestOf(w.dir).scripts?.['test:coverage']));

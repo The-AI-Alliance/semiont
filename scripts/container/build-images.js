@@ -120,7 +120,7 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
 /** A Rust service compiles with the toolchain rust-toolchain.toml pins. */
 async function buildRust(service, runtime) {
   const toolchain = execFileSync('scripts/ci/rust-toolchain.sh', [], { encoding: 'utf-8' }).trim();
-  await buildImage(service, `apps/${service}/Dockerfile`, '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
+  await buildImage(service, `images/${service}/Dockerfile`, '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
 }
 
 async function buildBrowser(runtime) {
@@ -136,7 +136,7 @@ async function buildBrowser(runtime) {
     '--build-arg', `NEXT_PUBLIC_APP_VERSION=${appVersion}`
   ];
 
-  await buildImage('browser', 'apps/browser/Dockerfile', '.', buildArgs, runtime);
+  await buildImage('browser', 'images/browser/Dockerfile', '.', buildArgs, runtime);
 }
 
 async function showImages(runtime) {

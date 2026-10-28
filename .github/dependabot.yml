@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # All npm dependencies — root + every workspace (apps/*, packages/*) in one pass.
+  # All npm dependencies — root + every workspace (apps/*, images/*, packages/*) in one pass.
   # A single "/" entry traverses all npm workspaces, so per-workspace entries are
   # redundant. Groups below match by package name across every workspace.
   #
@@ -220,9 +220,9 @@ updates:
 
   # The Python projects: the SDK, the inference drivers, the graph stores, the
   # vector stores and the service package Semiont's Python services are built
-  # from, and the four services themselves, the Worker (apps/worker), the
-  # Weaver (apps/weaver), the Smelter (apps/smelter) and the Librarian
-  # (apps/librarian). Their
+  # from, and the four services themselves, the Worker (images/worker), the
+  # Weaver (images/weaver), the Smelter (images/smelter) and the Librarian
+  # (images/librarian). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
@@ -242,10 +242,10 @@ updates:
       - "/packages/graph-python"
       - "/packages/vectors-python"
       - "/packages/service-python"
-      - "/apps/worker"
-      - "/apps/weaver"
-      - "/apps/smelter"
-      - "/apps/librarian"
+      - "/images/worker"
+      - "/images/weaver"
+      - "/images/smelter"
+      - "/images/librarian"
     cooldown:
       default-days: 5
     schedule:
@@ -362,10 +362,10 @@ updates:
       prefix: "actions"
       include: "scope"
 
-  # Browser Docker base image (apps/browser/Dockerfile) — docker is not
+  # Browser Docker base image (images/browser/Dockerfile) — docker is not
   # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
-    directory: "/apps/browser"
+    directory: "/images/browser"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -385,18 +385,18 @@ updates:
   # The desktop builder (apps/desktop/Dockerfile.builder) has no entry: its one
   # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
-  # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
+  # Service image base images (images/<svc>/Dockerfile). Grouped into one PR:
   # the gateway's, the dispatcher's and the archivist's runtime base is one
   # alpine, so an ungrouped bump opens several PRs for one upgrade. Their
   # builder's Rust tag comes from rust-toolchain.toml, which the rust-toolchain
-  # entry updates. apps/browser is Node, and has its own entry. apps/worker,
-  # apps/smelter, apps/weaver and apps/librarian are Python, and have their
+  # entry updates. images/browser is Node, and has its own entry. images/worker,
+  # images/smelter, images/weaver and images/librarian are Python, and have their
   # own too.
   - package-ecosystem: "docker"
     directories:
-      - "/apps/gateway"
-      - "/apps/archivist"
-      - "/apps/dispatcher"
+      - "/images/gateway"
+      - "/images/archivist"
+      - "/images/dispatcher"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -412,9 +412,9 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
-  # The images of the Python services (apps/worker/Dockerfile,
-  # apps/weaver/Dockerfile, apps/smelter/Dockerfile,
-  # apps/librarian/Dockerfile). Their Python base is no
+  # The images of the Python services (images/worker/Dockerfile,
+  # images/weaver/Dockerfile, images/smelter/Dockerfile,
+  # images/librarian/Dockerfile). Their Python base is no
   # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
   # packages/sdk-python/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
@@ -422,10 +422,10 @@ updates:
   # whose base is Alpine.
   - package-ecosystem: "docker"
     directories:
-      - "/apps/worker"
-      - "/apps/weaver"
-      - "/apps/smelter"
-      - "/apps/librarian"
+      - "/images/worker"
+      - "/images/weaver"
+      - "/images/smelter"
+      - "/images/librarian"
     # uv makes each image's environment: let a release age before adopting it.
     # The base-image entries above wait for nothing, so that an image's OS
     # patches are not held back.

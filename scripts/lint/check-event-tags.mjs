@@ -45,7 +45,7 @@
  * component's, is not read; nor is one a client method makes outside its own
  * body. And nothing holds a subscription to a `@subscribes` tag.
  *
- * Scanned: the TypeScript of packages/react-ui and apps/browser, comments
+ * Scanned: the TypeScript of packages/react-ui and images/browser, comments
  * included, since a tag is one. Not scanned: tests.
  */
 import { readFileSync } from 'node:fs';
@@ -59,7 +59,7 @@ const REGISTRY = 'specs/src/bus/registry.json';
 const SCHEMAS = 'specs/src/components/schemas';
 const CLIENT = 'packages/sdk/src/client.ts';
 const NAMESPACES = 'packages/sdk/src/namespaces';
-const SCANNED = ['packages/react-ui/src/', 'apps/browser/src/'];
+const SCANNED = ['packages/react-ui/src/', 'images/browser/src/'];
 const SOURCE = /\.(ts|tsx|mts|cts)$/;
 const TEST = /(^|\/)__tests__\/|\.(test|spec)\.[cm]?tsx?$/;
 

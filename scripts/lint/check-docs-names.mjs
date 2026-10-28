@@ -9,8 +9,8 @@
  * nothing says the document is wrong.
  *
  * Checked in `docs/builder` (the guides, the skills and `react-ui`), the root `README.md`,
- * `packages/README.md`, every npm package's `README.md` and `docs`, `apps/README.md`, every
- * app's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
+ * `packages/README.md`, every npm package's `README.md` and `docs`, `apps/README.md`, `images/README.md`,
+ * every app's and image's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -209,9 +209,9 @@ const importable = (spec) => {
 
 const ANYWHERE = new Set();
 for (const pkg of Object.keys(PACKAGE_SRC)) for (const n of packageNames(pkg)) ANYWHERE.add(n);
-for (const f of walk(join(ROOT, 'apps/browser/src'), ['.ts', '.tsx'])) namesIn(read(f), ANYWHERE, []);
+for (const f of walk(join(ROOT, 'images/browser/src'), ['.ts', '.tsx'])) namesIn(read(f), ANYWHERE, []);
 // A document explaining the code names its internal functions too, not only its exports.
-for (const dir of ['apps/browser/src', 'packages/react-ui/src']) {
+for (const dir of ['images/browser/src', 'packages/react-ui/src']) {
   for (const f of walk(join(ROOT, dir), ['.tsx', '.ts'])) {
     for (const m of read(f).matchAll(/^(?:export\s+)?(?:default\s+)?function\s+([A-Z][\w]*)|^const\s+([A-Z][\w]*)\s*=/gm)) ANYWHERE.add(m[1] ?? m[2]);
   }
@@ -242,7 +242,7 @@ const BROWSER_METHODS = members('packages/sdk/src/session/semiont-browser.ts');
 
 const SCRIPTS = new Set();
 for (const pj of [join(ROOT, 'package.json'),
-  ...['packages', 'apps', 'tests'].flatMap((d) => readdirSync(join(ROOT, d)).map((n) => join(ROOT, d, n, 'package.json')))]) {
+  ...['packages', 'apps', 'images', 'tests'].flatMap((d) => readdirSync(join(ROOT, d)).map((n) => join(ROOT, d, n, 'package.json')))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 
@@ -260,7 +260,8 @@ const DOCS = [
   'packages/README.md',
   ...NPM_PACKAGES.flatMap((dir) => ownDocs(`packages/${dir}`)),
   'apps/README.md',
-  ...[...TREE].filter((f) => /^apps\/[^/]+\/README\.md$/.test(f)).flatMap((f) => ownDocs(dirname(f))),
+  'images/README.md',
+  ...[...TREE].filter((f) => /^(?:apps|images)\/[^/]+\/README\.md$/.test(f)).flatMap((f) => ownDocs(dirname(f))),
   ...markdownIn('docs/protocol'),
   ...markdownIn('docs/protocol/flows'),
 ];
@@ -353,17 +354,17 @@ for (const doc of DOCS) {
       if (BUS_NAMESPACES.has(m[1].split(':')[0]) && !CHANNELS.has(m[1])) report(doc, line, 'channel', m[1]);
     }
     for (const m of t.matchAll(/npm run ([\w:.-]+)/g)) if (!SCRIPTS.has(m[1])) report(doc, line, 'script', m[1]);
-    for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|scripts|specs|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
+    for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|images|scripts|specs|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
       // A path is the repository's, or its document's own package's: a
       // README's `docs/TESTING.md` is the one beside it. The react-ui builder
       // docs live under docs/builder and still name react-ui's files.
-      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/react-ui' : doc.match(/^(?:apps|packages)\/[^/]+/)?.[0];
+      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/react-ui' : doc.match(/^(?:apps|images|packages)\/[^/]+/)?.[0];
       const standings = [m[1], ...(pkgRoot ? [join(pkgRoot, m[1])] : [])].map(standing);
       if (!standings.some((is) => is === 'held' || is === 'built')) report(doc, line, 'path', `${m[1]} — ${why(standings)}`);
     }
-    if (doc.startsWith('apps/browser')) {
+    if (doc.startsWith('images/browser')) {
       for (const m of t.matchAll(/(?:^|[\s`(['"])(src\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
-        const is = standing(join('apps/browser', m[1]));
+        const is = standing(join('images/browser', m[1]));
         if (is !== 'held') report(doc, line, 'path', `${m[1]} — ${why([is])}`);
       }
     }

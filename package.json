@@ -5,6 +5,7 @@
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
     "apps/*",
+    "images/*",
     "packages/*",
     "tests/doc-snippets"
   ],
@@ -68,7 +69,7 @@
     "version:set": "node scripts/release/version.mjs set",
     "publish:stage-apps": "node scripts/ci/publish-npm-apps.mjs",
     "install:deps": "npm install",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "clean": "rm -rf node_modules apps/*/node_modules images/*/node_modules packages/*/node_modules",
     "container:build": "node scripts/container/build-images.js",
     "container:build:gateway": "node scripts/container/build-images.js gateway",
     "container:build:dispatcher": "node scripts/container/build-images.js dispatcher",

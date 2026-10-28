@@ -4,7 +4,7 @@
   "version": "../../../version.json",
   "identifier": "org.theaialliance.semiont",
   "build": {
-    "frontendDist": "../../browser/dist",
+    "frontendDist": "../../../images/browser/dist",
     "devUrl": "http://localhost:3000"
   },
   "app": {

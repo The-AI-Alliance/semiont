@@ -9,15 +9,15 @@ queries:
     uses: security-and-quality
 
 paths:
-  - apps/browser/src
+  - images/browser/src
   # The Rust workspace: its services and the crates they share
-  - apps/gateway/src
-  - apps/dispatcher/src
-  - apps/dispatcher/handlers
-  - apps/dispatcher/jetstream
-  - apps/archivist/src
-  - apps/archivist/record
-  - apps/archivist/staging
+  - images/gateway/src
+  - images/dispatcher/src
+  - images/dispatcher/handlers
+  - images/dispatcher/jetstream
+  - images/archivist/src
+  - images/archivist/record
+  - images/archivist/staging
   - packages/codegen-rust
   - packages/core-rust
   - packages/http-service-rust
@@ -43,14 +43,14 @@ paths:
   - packages/vectors-python/src
   - packages/service-python/src
   # The Worker service's, the Weaver's, the Smelter's and the Librarian's Python code
-  - apps/worker/src
-  - apps/weaver/src
-  - apps/smelter/src
-  - apps/librarian/src
+  - images/worker/src
+  - images/weaver/src
+  - images/smelter/src
+  - images/librarian/src
 
 paths-ignore:
   - apps/launcher/testdata
-  - apps/browser/node_modules
+  - images/browser/node_modules
   - "**/node_modules"
   - "**/*.test.ts"
   - "**/*.test.tsx"

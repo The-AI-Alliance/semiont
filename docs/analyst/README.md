@@ -39,4 +39,4 @@ The panel shows each knowledge base's status: **Connected**, **Session expired**
 - **You want to verify the image before running it.** See [Supply-chain verification](../operator/administration/IMAGES.md#supply-chain-verification).
 - **You need the Browser's logs.** `semiont logs --service browser` from the knowledge base's directory, or your container engine's `logs` command for a Browser you started yourself.
 
-How the Browser is built is in [apps/browser/docs](../../apps/browser/docs/).
+How the Browser is built is in [images/browser/docs](../../images/browser/docs/).

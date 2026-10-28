@@ -27,11 +27,11 @@ docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 no knowledge-base configuration and mounts none: the app connects to knowledge
 bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
 
-**Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
+**Documentation:** [images/browser/README.md](../../../images/browser/README.md)
 
-**Source:** [apps/browser/](../../../apps/browser/)
+**Source:** [images/browser/](../../../images/browser/)
 
-**Dockerfile:** [apps/browser/Dockerfile](../../../apps/browser/Dockerfile)
+**Dockerfile:** [images/browser/Dockerfile](../../../images/browser/Dockerfile)
 
 **Workflow:** [.github/workflows/publish-browser.yml](../../../.github/workflows/publish-browser.yml)
 
@@ -45,17 +45,17 @@ One is Node: the Browser. It installs the published `@semiont/browser` npm packa
 
 Three are Rust: the gateway, the dispatcher and the Archivist. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts. The Archivist's also carries `git`, which it stages a knowledge base's changes with.
 
-Four are Python: the worker, the weaver, the smelter and the librarian. Each image is built from the commit it is published from too: the service in `apps/worker`, `apps/weaver`, `apps/smelter` or `apps/librarian` and the Python packages of the repository it runs on, in an environment of exactly what its `uv.lock` pins, on the oldest Python those packages support. It carries no installer and no Node, and installs or fetches nothing when it starts. The weaver's carries every graph database's client. The librarian's carries every graph database's client and every model provider's library. The smelter's carries the `tesseract` program with its English data, which reads a scanned page, and PDFium, which reads a PDF. **The worker's carries every model provider's library**, so one image serves whichever provider a knowledge base names, of the seven the protocol lists. Building an image with one provider's library alone is one changed line: see [the worker's README](../../../apps/worker/README.md#a-slimmer-image).
+Four are Python: the worker, the weaver, the smelter and the librarian. Each image is built from the commit it is published from too: the service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages of the repository it runs on, in an environment of exactly what its `uv.lock` pins, on the oldest Python those packages support. It carries no installer and no Node, and installs or fetches nothing when it starts. The weaver's carries every graph database's client. The librarian's carries every graph database's client and every model provider's library. The smelter's carries the `tesseract` program with its English data, which reads a scanned page, and PDFium, which reads a PDF. **The worker's carries every model provider's library**, so one image serves whichever provider a knowledge base names, of the seven the protocol lists. Building an image with one provider's library alone is one changed line: see [the worker's README](../../../images/worker/README.md#a-slimmer-image).
 
 | Image | Built from | Dockerfile |
 |---|---|---|
-| `semiont-gateway` | Rust, `apps/gateway` | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
-| `semiont-dispatcher` | Rust, `apps/dispatcher` | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
-| `semiont-archivist` | Rust, `apps/archivist` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
-| `semiont-librarian` | Python, `apps/librarian` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
-| `semiont-smelter` | Python, `apps/smelter` | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
-| `semiont-weaver` | Python, `apps/weaver` | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
-| `semiont-worker` | Python, `apps/worker` | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
+| `semiont-gateway` | Rust, `images/gateway` | [images/gateway/Dockerfile](../../../images/gateway/Dockerfile) |
+| `semiont-dispatcher` | Rust, `images/dispatcher` | [images/dispatcher/Dockerfile](../../../images/dispatcher/Dockerfile) |
+| `semiont-archivist` | Rust, `images/archivist` | [images/archivist/Dockerfile](../../../images/archivist/Dockerfile) |
+| `semiont-librarian` | Python, `images/librarian` | [images/librarian/Dockerfile](../../../images/librarian/Dockerfile) |
+| `semiont-smelter` | Python, `images/smelter` | [images/smelter/Dockerfile](../../../images/smelter/Dockerfile) |
+| `semiont-weaver` | Python, `images/weaver` | [images/weaver/Dockerfile](../../../images/weaver/Dockerfile) |
+| `semiont-worker` | Python, `images/worker` | [images/worker/Dockerfile](../../../images/worker/Dockerfile) |
 
 Each one's port, configuration and dependencies are in [the service catalog](../services/OVERVIEW.md).
 

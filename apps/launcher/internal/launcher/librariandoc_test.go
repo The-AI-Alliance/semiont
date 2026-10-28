@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -252,7 +251,7 @@ func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 // the descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "librarian", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("librarian"))
 	if err != nil {
 		t.Fatal(err)
 	}

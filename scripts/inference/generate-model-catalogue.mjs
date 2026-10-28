@@ -21,8 +21,8 @@
 // them from a catalogue file, which `semiont_inference.catalogue` reads at
 // the path it is pointed to. The Python package carries no copy of the
 // catalogue and downloads nothing: an image that runs such a driver carries
-// the repository's generated copy (apps/worker/Dockerfile,
-// apps/librarian/Dockerfile).
+// the repository's generated copy (images/worker/Dockerfile,
+// images/librarian/Dockerfile).
 //
 // The repository keeps one generated copy: packages/inference-python/tests/catalogue.
 // It is the fixture of the Python package's tests and the file the images

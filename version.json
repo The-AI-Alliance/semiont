@@ -27,7 +27,7 @@
       "publish": true
     },
     "semiont-browser": {
-      "dir": "apps/browser",
+      "dir": "images/browser",
       "stage": ".npm-stage/browser",
       "version": "0.7.1",
       "publish": true

@@ -16,7 +16,7 @@ import (
 )
 
 // connectionAllowance: the memory a gateway's capacity sets aside for each open
-// connection — about twice what an idle stream measured (apps/gateway/bench).
+// connection — about twice what an idle stream measured (images/gateway/bench).
 const connectionAllowance = 20 << 10
 
 // gatewaySecrets: the variables the gateway's document names, and so the ones

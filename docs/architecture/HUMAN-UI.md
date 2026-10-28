@@ -37,7 +37,7 @@ graph TB
     class BUS1,BUS2,BUSN bus
 ```
 
-Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
+Human actors interact through the **Semiont Browser** — the `images/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
 
 For working in the Browser (getting it, signing in, annotating, shortcuts, accessibility), see **[../analyst/](../analyst/)**.
 
@@ -47,7 +47,7 @@ The SPA is internally a literal Model–View–StateUnit split:
 
 - **Model** — `@semiont/sdk` namespaces (yield, mark, bind and frame, which write; browse, match and gather, which read; beckon, which directs attention), typed RxJS Observables, per-key caches, and bus-driven invalidation.
 - **StateUnit** — one factory per flow that holds state (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
-- **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to three adapters (`useSessionStateUnit`, `useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
+- **View** — React components in `@semiont/react-ui` and `images/browser`, reduced to three adapters (`useSessionStateUnit`, `useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
 The state unit layer is what lets the same SDK that drives the browser also drive a program with no renderer, such as a knowledge base's scripts, which consumes the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
 

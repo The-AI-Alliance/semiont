@@ -3,7 +3,7 @@
 What Semiont's Rust services that serve HTTP share.
 
 **Not published.** It is a crate of this workspace, built into the
-[gateway](../../apps/gateway/README.md). To use Semiont from Rust, the crate
+[gateway](../../images/gateway/README.md). To use Semiont from Rust, the crate
 you want is [`semiont`](../sdk-rust/README.md).
 
 | Item | What it is |
@@ -14,4 +14,4 @@ you want is [`semiont`](../sdk-rust/README.md).
 
 What a response carries, how an error reads and who a token names are each
 service's own: the gateway's are in
-[its `http.rs`](../../apps/gateway/src/http.rs).
+[its `http.rs`](../../images/gateway/src/http.rs).

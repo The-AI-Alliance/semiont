@@ -136,7 +136,7 @@ function syncVersions() {
       writeJSON(pkgPath, pkgJson);
     }
 
-    // An app with a staging companion (apps/browser/package.publish.json)
+    // An app with a staging companion (images/browser/package.publish.json)
     // are templates for the staged tarball — sync them the same way.
     const publishPath = publishJsonPath(entry);
     if (publishPath) {

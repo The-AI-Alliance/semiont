@@ -34,7 +34,7 @@ const REPOSITORY = repositoryFiles(ROOT);
 
 const ROOTS = process.argv.slice(2).length
   ? process.argv.slice(2).map((root) => root.replace(/\/+$/, ''))
-  : ['packages/react-ui/src', 'apps/browser/src'];
+  : ['packages/react-ui/src', 'images/browser/src'];
 
 /** Every .css under a root. */
 const cssFiles = (root) => REPOSITORY.filter((file) => file.startsWith(`${root}/`) && file.endsWith('.css'));

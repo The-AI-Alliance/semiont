@@ -20,7 +20,7 @@ set -eu
 SERVICE="${1:?usage: check-document-image.sh <service> <image> [runtime]}"
 IMAGE="${2:?usage: check-document-image.sh <service> <image> [runtime]}"
 RT="${3:-docker}"
-DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/$SERVICE/Dockerfile"
+DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/images/$SERVICE/Dockerfile"
 COMMAND=$(sed -n 's/^CMD \[\(.*\)\]$/\1/p' "$DOCKERFILE" | sed 's/", "/ /g; s/"//g')
 if [ -z "$COMMAND" ]; then
   echo "✗ $DOCKERFILE declares no exec-form CMD"

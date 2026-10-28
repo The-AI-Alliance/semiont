@@ -152,6 +152,7 @@ STAMPED_PATHS=(
   version.json
   ':(glob)packages/*/package.json'
   ':(glob)apps/*/package.json'
+  ':(glob)images/*/package.json'
   package-lock.json
 )
 
@@ -246,8 +247,8 @@ while [[ $# -gt 0 ]]; do
       echo "  image alone. The seven service images are each built from the working"
       echo "  tree every time: the gateway, dispatcher and archivist compile the Rust"
       echo "  workspace, and the worker, the smelter, the weaver and the librarian"
-      echo "  install their Python services from apps/worker, apps/smelter,"
-      echo "  apps/weaver and apps/librarian."
+      echo "  install their Python services from images/worker, images/smelter,"
+      echo "  images/weaver and images/librarian."
       echo ""
       echo "Packages build in the order version.json lists them; an unknown"
       echo "--package name is refused with the list."
@@ -262,14 +263,14 @@ done
 # a local image is the registry the packages are installed from).
 image_dockerfile() {
   case "$1" in
-    gateway)  echo "apps/gateway/Dockerfile" ;;
-    worker)   echo "apps/worker/Dockerfile" ;;
-    smelter)  echo "apps/smelter/Dockerfile" ;;
-    weaver)   echo "apps/weaver/Dockerfile" ;;
-    archivist) echo "apps/archivist/Dockerfile" ;;
-    librarian) echo "apps/librarian/Dockerfile" ;;
-    dispatcher) echo "apps/dispatcher/Dockerfile" ;;
-    browser) echo "apps/browser/Dockerfile" ;;
+    gateway)  echo "images/gateway/Dockerfile" ;;
+    worker)   echo "images/worker/Dockerfile" ;;
+    smelter)  echo "images/smelter/Dockerfile" ;;
+    weaver)   echo "images/weaver/Dockerfile" ;;
+    archivist) echo "images/archivist/Dockerfile" ;;
+    librarian) echo "images/librarian/Dockerfile" ;;
+    dispatcher) echo "images/dispatcher/Dockerfile" ;;
+    browser) echo "images/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
 }
@@ -416,9 +417,9 @@ fi
 #
 # The inference drivers (packages/inference-python), the graph stores
 # (packages/graph-python), the vector stores (packages/vectors-python), the
-# service package (packages/service-python), the Worker (apps/worker), the
-# Weaver (apps/weaver), the Smelter (apps/smelter) and the Librarian
-# (apps/librarian) are Python projects with a
+# service package (packages/service-python), the Worker (images/worker), the
+# Weaver (images/weaver), the Smelter (images/smelter) and the Librarian
+# (images/librarian) are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
@@ -429,7 +430,7 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver apps/smelter apps/librarian; do
+for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python images/worker images/weaver images/smelter images/librarian; do
   step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.
@@ -1248,7 +1249,7 @@ if [[ -n "$LAYER_CACHE" ]]; then
   LOG=$(mktemp "$TMP_DIR/semiont-layer-cache.XXXXXX")
   if ! docker buildx build --builder semiont-layer-cache "${EXPORT_FLAGS[@]}" \
       --cache-to "type=local,dest=$LAYER_CACHE.next,mode=max" --output type=cacheonly \
-      --file "$REPO_ROOT/apps/gateway/Dockerfile" "$REPO_ROOT" > "$LOG" 2>&1; then
+      --file "$REPO_ROOT/images/gateway/Dockerfile" "$REPO_ROOT" > "$LOG" 2>&1; then
     fail "writing the layer cache failed — last 40 lines of $LOG:"
     tail -40 "$LOG"
     exit 1

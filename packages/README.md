@@ -2,7 +2,7 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/branch/main/graph/badge.svg)](https://codecov.io/gh/The-AI-Alliance/semiont)
 
-The libraries Semiont is built from, in four languages. The services and tools that run are in [apps/](../apps/README.md). What they share, and what a program outside this repository installs, is here.
+The libraries Semiont is built from, in four languages. The services are in [images/](../images/README.md), and the tools that run on a host in [apps/](../apps/README.md). What they share, and what a program outside this repository installs, is here.
 
 | Language | What is here | Published to |
 |---|---|---|
@@ -29,7 +29,7 @@ The rest is what those are built on, and what Semiont's own services are built o
 
 ## TypeScript
 
-The client side: the SDK and what it stands on. The Browser ([apps/browser](../apps/browser/README.md)) is built on these.
+The client side: the SDK and what it stands on. The Browser ([images/browser](../images/browser/README.md)) is built on these.
 
 | Package | Published | What it is |
 |---|---|---|
@@ -41,7 +41,7 @@ The client side: the SDK and what it stands on. The Browser ([apps/browser](../a
 
 ## Rust
 
-The first four are how a Rust program uses Semiont. The last three are what the Rust services share, and are built into their binaries. A service's own crates are beside its binary in [apps/](../apps/README.md).
+The first four are how a Rust program uses Semiont. The last three are what the Rust services share, and are built into their binaries. A service's own crates are beside its binary in [images/](../images/README.md).
 
 | Crate | Published | What it is |
 |---|---|---|

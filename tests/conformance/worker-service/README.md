@@ -14,8 +14,8 @@ a model, what it commits, how it ends a job, how it stops.
 
 The suite imports nothing from a Worker service. The lines that name one are
 `WORKER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
-own, the Python service of `apps/worker`, `python -P -m semiont_worker` by the
-interpreter of its project's environment (`apps/worker/.venv`). Every case
+own, the Python service of `images/worker`, `python -P -m semiont_worker` by the
+interpreter of its project's environment (`images/worker/.venv`). Every case
 runs against every entry.
 
 ## The world around a Worker service
@@ -183,7 +183,7 @@ or later on `PATH`:
 ```bash
 cargo build --release -p semiont-gateway
 npm run build --workspace=@semiont/core
-uv sync --locked --no-dev --all-extras --project apps/worker
+uv sync --locked --no-dev --all-extras --project images/worker
 cd tests/conformance
 npm ci
 npm run test:worker-service

@@ -4,13 +4,13 @@
 [workspace]
 resolver = "3"
 members = [
-    "apps/archivist",
-    "apps/archivist/record",
-    "apps/archivist/staging",
-    "apps/dispatcher",
-    "apps/dispatcher/handlers",
-    "apps/dispatcher/jetstream",
-    "apps/gateway",
+    "images/archivist",
+    "images/archivist/record",
+    "images/archivist/staging",
+    "images/dispatcher",
+    "images/dispatcher/handlers",
+    "images/dispatcher/jetstream",
+    "images/gateway",
     "packages/codegen-rust",
     "packages/core-rust",
     "packages/http-service-rust",
@@ -35,10 +35,10 @@ repository = "https://github.com/The-AI-Alliance/semiont"
 [workspace.dependencies]
 semiont = { path = "packages/sdk-rust", version = "0.7.1" }
 semiont-codegen = { path = "packages/codegen-rust", version = "0.7.1" }
-semiont-archivist-record = { path = "apps/archivist/record" }
-semiont-archivist-staging = { path = "apps/archivist/staging" }
-semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
-semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
+semiont-archivist-record = { path = "images/archivist/record" }
+semiont-archivist-staging = { path = "images/archivist/staging" }
+semiont-dispatcher-handlers = { path = "images/dispatcher/handlers" }
+semiont-dispatcher-jetstream = { path = "images/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
 semiont-http-service = { path = "packages/http-service-rust" }
 semiont-http-transport = { path = "packages/http-transport-rust" }

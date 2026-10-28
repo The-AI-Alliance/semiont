@@ -58,7 +58,7 @@ Run the browser dev server, then open the desktop shell against it:
 
 ```bash
 # Terminal 1: browser UI
-cd apps/browser && npm run dev
+cd images/browser && npm run dev
 
 # Terminal 2: desktop shell
 cd apps/desktop && npm run dev
@@ -86,7 +86,7 @@ Official multi-platform builds — both Mac architectures and Linux — come fro
 
 ## Architecture
 
-A thin native shell around `apps/browser/dist/`. No UI code lives here — only the Tauri configuration, the Rust entry point, and the build scripts.
+A thin native shell around `images/browser/dist/`. No UI code lives here — only the Tauri configuration, the Rust entry point, and the build scripts.
 
 ```
 apps/desktop/

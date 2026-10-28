@@ -96,7 +96,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ${{ runner.temp }}/rust-image-layers
-          key: ${{ runner.os }}-rust-image-layers-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-image-layers-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
           restore-keys: |
             ${{ runner.os }}-rust-image-layers-
 

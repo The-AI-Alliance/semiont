@@ -1774,7 +1774,7 @@ func fakeCreated(description map[string]any) (message api.JobProgressMessage, ok
 
 // busPublish fans one frame out to every subscriber listening on its channel.
 // corrID rides the ENVELOPE beside the channel, which is where the real
-// gateway puts it (apps/gateway/src/routes/stream.rs writes
+// gateway puts it (images/gateway/src/routes/stream.rs writes
 // `{channel, correlationId, payload}`) and where the Go client reads it. A
 // frame carrying one is a reply: it reaches only clientID's subscriptions,
 // under the id `e-<channel>:<correlationId>`, and is retained for a stream

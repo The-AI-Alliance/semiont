@@ -43,7 +43,7 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 		if _, ok := lookupDescriptor(spec.owner, driverSemiont); !ok {
 			continue // a third-party image; its entrypoint starts as root
 		}
-		user := declaredUser(t, "..", "..", "..", spec.owner, "Dockerfile")
+		user := declaredUser(t, serviceDockerfile(spec.owner))
 		if user == "" || user == "root" || user == "0" {
 			continue
 		}

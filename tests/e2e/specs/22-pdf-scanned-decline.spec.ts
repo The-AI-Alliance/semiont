@@ -34,7 +34,7 @@ import { openResourceByName } from '../fixtures/discover';
  * cannot decode a JPEG-coded image, say — leaves this spec passing.
  *
  * "The engine actually ran" is pinned where it is observable, in the
- * Smelter's own tests (`apps/smelter/tests/test_extraction.py`): one asserts
+ * Smelter's own tests (`images/smelter/tests/test_extraction.py`): one asserts
  * the engine was handed a scan's image, alongside the ones asserting it is
  * not asked for a document that has none. Change either and this spec still
  * passes.
@@ -44,7 +44,7 @@ import { openResourceByName } from '../fixtures/discover';
  * "SCHMNE" at confidence 0), so asserting recognized text against a seed
  * constant would pin engine noise rather than behavior. The Smelter's tests
  * read a legible scan with the real engine
- * (`apps/smelter/tests/test_extraction_cases.py`), and cover the merge
+ * (`images/smelter/tests/test_extraction_cases.py`), and cover the merge
  * deterministically with the engine played (`test_extraction.py`).
  */
 

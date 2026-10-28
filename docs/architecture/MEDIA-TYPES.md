@@ -132,7 +132,7 @@ work:
 
 So they are separate surfaces, and a call site cannot mistake one for the other:
 decoding is every SDK's (`decodeRepresentation` in `@semiont/core`); deriving is
-the Smelter's alone ([apps/smelter](../../apps/smelter/), `extraction.py`), and
+the Smelter's alone ([images/smelter](../../images/smelter/), `extraction.py`), and
 it stores what it derives.
 
 **Whether a type's text comes with places on a page is derived from this field**,
@@ -308,7 +308,7 @@ is held and has nothing under the shape.
     `TextQuoteSelector` when `textUnder` found anything. The archivist appends
     **`mark:added`** and replies `mark:create-ok`.
 12. **Or AI detection.** `job:create` → the Worker runs `prepare_detection`
-    (`apps/worker`), which reads the stored artifact through
+    (`images/worker`), which reads the stored artifact through
     `browse.resource_anchored_text`, behind the same settle barrier the canvas
     waits on. A worker never extracts. The model returns a verbatim quote; the
     SDK's `reconcile` finds it in the text, and `annotation_of_span` builds the

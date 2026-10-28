@@ -16,8 +16,8 @@
  * Scope is BOTH translation sets, because the repo has two with different
  * owners and it is easy to update one and forget the other:
  *   • packages/react-ui/translations   — react-ui component copy
- *   • apps/browser/messages-source    — host-specific copy
- * (`apps/browser/messages/` is generated from these and gitignored; it is
+ *   • images/browser/messages-source    — host-specific copy
+ * (`images/browser/messages/` is generated from these and gitignored; it is
  * deliberately NOT checked — checking build output would just restate this.)
  *
  * WHICH LOCALES. specs/src/locales/registry.json names the languages Semiont
@@ -40,7 +40,7 @@ const REGISTRY = 'specs/src/locales/registry.json';
 const supported = JSON.parse(fs.readFileSync(path.join(ROOT, REGISTRY), 'utf8')).locales.map((locale) => locale.code);
 const SETS = [
   { label: 'packages/react-ui/translations', dir: path.join(ROOT, 'packages/react-ui/translations') },
-  { label: 'apps/browser/messages-source', dir: path.join(ROOT, 'apps/browser/messages-source') },
+  { label: 'images/browser/messages-source', dir: path.join(ROOT, 'images/browser/messages-source') },
 ];
 
 /** Flattened dotted key paths, so a nested namespace is compared structurally. */

@@ -279,11 +279,11 @@ head_ "Container images"
 # matrix row per architecture, so it appears twice.
 # The question here is which services get images, not how many legs build them.
 matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/publish-service-images.yml" | awk '{print $3}' | sort -u)
-dockerfile_apps=$(ls -d "$ROOT"/apps/*/Dockerfile 2>/dev/null | awk -F/ '{print $(NF-1)}' | grep -v '^browser$' | sort)
+dockerfile_apps=$(ls -d "$ROOT"/images/*/Dockerfile 2>/dev/null | awk -F/ '{print $(NF-1)}' | grep -v '^browser$' | sort)
 if [ "$matrix_services" = "$dockerfile_apps" ]; then
-  ok "service matrix matches apps/*/Dockerfile ($(echo "$matrix_services" | tr '\n' ' '))"
+  ok "service matrix matches images/*/Dockerfile ($(echo "$matrix_services" | tr '\n' ' '))"
 else
-  bad "service matrix and apps/*/Dockerfile disagree — matrix:[$(echo "$matrix_services" | tr '\n' ' ')] dockerfiles:[$(echo "$dockerfile_apps" | tr '\n' ' ')]"
+  bad "service matrix and images/*/Dockerfile disagree — matrix:[$(echo "$matrix_services" | tr '\n' ' ')] dockerfiles:[$(echo "$dockerfile_apps" | tr '\n' ' ')]"
 fi
 
 PREV=$(git -C "$ROOT" tag -l 'v*' --sort=-v:refname 2>/dev/null | grep -v "^v$VERSION$" | head -1 | sed 's/^v//')

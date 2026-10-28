@@ -174,7 +174,7 @@ async function recordHighlights(
 
 The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
-Semiont's own worker is the [Worker service](../../../../apps/worker/README.md), in Python. It is a service's code and exports nothing to build on. What it does with a text and with a model's reply is written rule by rule in [WORKER-SERVICE.md](../../../protocol/WORKER-SERVICE.md), and the parts a table can state exactly are case tables in [`specs/src/worker`](../../../../specs/src/worker/), which a worker in any language can run against its own code.
+Semiont's own worker is the [Worker service](../../../../images/worker/README.md), in Python. It is a service's code and exports nothing to build on. What it does with a text and with a model's reply is written rule by rule in [WORKER-SERVICE.md](../../../protocol/WORKER-SERVICE.md), and the parts a table can state exactly are case tables in [`specs/src/worker`](../../../../specs/src/worker/), which a worker in any language can run against its own code.
 
 ## Complete worker
 
@@ -543,5 +543,5 @@ semiont.state$.subscribe((state) => console.log(`connection: ${state}`));
 - **Give the transport its channels.** `JOB_CLAIM_CHANNELS`, `JOB_COMMIT_CHANNELS` when it commits annotations, and the reply channels of whatever else the worker awaits.
 - **Exit on `bus.unauthorized`.** A credential that cannot claim will never be able to. A crash the operator can see is better than a worker that idles forever.
 - **Never state who a job is for.** Not in a lifecycle event and not in what the worker writes. The knowledge base derives it from the job.
-- **The reference implementation** is Semiont's own Worker service, written on the Python SDK: [`service.py`](../../../../apps/worker/src/semiont_worker/service.py) for the process, [`agent.py`](../../../../apps/worker/src/semiont_worker/agent.py) for an agent's sign-in, its stream and its claiming, and [`held_job.py`](../../../../apps/worker/src/semiont_worker/held_job.py) for a held job's work, its checkpoints and reports, and how it ends.
+- **The reference implementation** is Semiont's own Worker service, written on the Python SDK: [`service.py`](../../../../images/worker/src/semiont_worker/service.py) for the process, [`agent.py`](../../../../images/worker/src/semiont_worker/agent.py) for an agent's sign-in, its stream and its claiming, and [`held_job.py`](../../../../images/worker/src/semiont_worker/held_job.py) for a held job's work, its checkpoints and reports, and how it ends.
 - **Errors.** A call rejects with a `SemiontError`: catch it and route on its `code`. See [Error Handling](../../Usage.md#error-handling).

@@ -52,7 +52,7 @@ Two things make the stack use your build:
 
 - The Browser's image, the one Node image, installs its package from the local registry, so a change to package source reaches it only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
 - The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
-- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `apps/worker`, `apps/weaver`, `apps/smelter` or `apps/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
+- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
 - `--package` takes a package's directory name (`core`, `react-ui`), as `version.json` lists them. An unknown name is refused with the list.
 
 The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.

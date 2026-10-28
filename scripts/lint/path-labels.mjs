@@ -21,7 +21,7 @@ const sdkLanguage = (directory) => (directory === TYPESCRIPT_SDK ? 'typescript' 
 
 /**
  * The label of what `path` is in, or null for a path in none. A path is in an
- * app, a test suite or an SDK when it is below its directory (apps/<x>/,
+ * app, a test suite or an SDK when it is below its directory (apps/<x>/ or images/<x>/,
  * tests/<x>/, packages/sdk/ or packages/sdk-<language>/), and in a part of
  * the spec when it is an entry of specs/src or below one. A directory is
  * written with its trailing slash: it is in what everything below it is in.
@@ -33,7 +33,7 @@ export function pathLabel(path) {
     return part === undefined ? null : `spec:${part}`;
   }
   if (owner === undefined || owner === '' || below.length === 0) return null;
-  if (top === 'apps') return `app:${owner}`;
+  if (top === 'apps' || top === 'images') return `app:${owner}`;
   if (top === 'tests') return `tests:${owner}`;
   if (top === 'packages' && isSdk(owner)) return `sdk:${sdkLanguage(owner)}`;
   return null;

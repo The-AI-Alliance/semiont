@@ -10,12 +10,18 @@ import (
 	"testing"
 )
 
+// serviceDockerfile: the image recipe of a service that ships as an image,
+// from this package's directory.
+func serviceDockerfile(service string) string {
+	return filepath.Join("..", "..", "..", "..", "images", service, "Dockerfile")
+}
+
 // The Archivist's image names the KB mount twice — as git's one trusted
 // directory, and as the directory the process starts in — and the launcher
 // names it in the mount and in the document's `root`. git refuses a tree it
 // was not told to trust, so a mismatch is an Archivist that cannot stage.
 func TestTheArchivistImageTrustsTheKBMount(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("archivist"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +78,7 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 		{"weaver", weaverDocumentTarget},
 		{"librarian", librarianDocumentTarget},
 	} {
-		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
+		if named := commandConfigPath(t, serviceDockerfile(c.service)); named != c.mounts {
 			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
 		}
 	}
@@ -125,7 +131,7 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 // archivist — against the files, never by running anything. The launcher
 // half is TestStartOptsEveryServiceIntoSupervision.
 func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("archivist"))
 	if err != nil {
 		t.Fatalf("reading the archivist Dockerfile: %v", err)
 	}
@@ -171,7 +177,7 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	const svc = "archivist"
 	want := fmt.Sprint(semiontDescriptor(svc).ports[0].port)
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", svc, "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile(svc))
 	if err != nil {
 		t.Fatalf("%s: reading Dockerfile: %v", svc, err)
 	}

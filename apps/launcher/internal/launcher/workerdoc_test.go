@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -402,7 +401,7 @@ func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
 // descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "worker", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("worker"))
 	if err != nil {
 		t.Fatal(err)
 	}
