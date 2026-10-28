@@ -287,12 +287,12 @@ Everything else is in the suite's own docs:
 
 ## Coverage
 
-Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../../.github/codecov.yml) sets the gates:
+Coverage is measured for every package, in each of the four languages, and for the Browser, and reported to Codecov. [`codecov.yml`](../../.github/codecov.yml) sets the gates:
 
 - **Project:** target 70%, allowed to drop by 1%.
 - **Patch:** new code targets 80%, with a 5% threshold.
 
-Each package and the Browser has a flag (with carryforward) and a component. In `ci.yml`, `test-package` uploads each package's `lcov.info` under its flag and `test-browser` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run fails exactly when the suite does, and CI runs each suite once, with coverage.
+Each package, `packages/<language>/<name>`, has a flag and a component named `<language>-<name>`, and the Browser has `browser`; each flag carries forward. In `ci.yml`, `test-package` uploads each npm package's `lcov.info` and `test-browser` the Browser's; `test-gateway` measures the Rust workspace with `cargo llvm-cov` and uploads one report under every crate's flag, which Codecov scopes to the crate's directory; each Python package's job runs `pytest --cov` and uploads its 3.12 leg's `coverage.xml`, and the live Neo4j and Qdrant jobs upload theirs under the same flags; `check-launcher` uploads the Go SDK's profile and the first leg of `test-launcher` the launcher libraries'. Each package's README carries its badge, and its language's README its row. `npm run lint:coverage-roster` fails when any of those is missing for a package, or names one there is not, and when the npm workspaces declaring `test:coverage` and the package matrix disagree. No vitest config sets a threshold, so a coverage run fails exactly when the suite does, and CI runs each suite once, with coverage.
 
 Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, and `scripts/`.
 
@@ -324,7 +324,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `lighthouse-accessibility` | Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`images/browser/lighthouserc.json` names the pages and the score) |
 | `compliance-check` | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports |
 | `build-rust` | `cargo build --release` of the gateway, the dispatcher, the Archivist and the Rust SDK's three conformance drivers, once, published as an artifact the conformance jobs fetch into `target/release`. The six binaries are cached under a key that hashes what the build reads, the same list Stack Smoke's layer cache hashes, so a run whose Rust sources were built before compiles nothing |
-| `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
+| `test-gateway` | `cargo fmt --check`, `clippy -D warnings`, the tests under `cargo llvm-cov` and the doc tests for the Rust workspace, its coverage uploaded once under every crate's flag; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-security` | The gateway, on the binaries `build-rust` built, probed for 401s on protected routes, the error shape, and leaked secrets |
 | `gateway-conformance` | Runs the conformance suite's `gateway` project against the binaries `build-rust` built |
 | `dispatcher-conformance` | Runs the `dispatcher` project |
@@ -335,23 +335,23 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `weaver-conformance` | Builds `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `smelter-conformance` | Builds `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
 | `librarian-conformance` | Builds `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
-| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/python/sdk`; the distributions a release uploads are built and checked, on 3.12 |
+| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/python/sdk`, with its coverage measured and the 3.12 leg's uploaded under `python-sdk`; the distributions a release uploads are built and checked, on 3.12 |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
-| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/inference` |
-| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/service` |
+| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/inference`, with its coverage measured and the 3.12 leg's uploaded under `python-inference` |
+| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/service`, with its coverage measured and the 3.12 leg's uploaded under `python-service` |
 | `test-worker-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/worker` |
-| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/graph` |
-| `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |
-| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/vectors` |
-| `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
+| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/graph`, with its coverage measured and the 3.12 leg's uploaded under `python-graph` |
+| `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it, its coverage uploaded under `python-graph` |
+| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/vectors`, with its coverage measured and the 3.12 leg's uploaded under `python-vectors` |
+| `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it, its coverage uploaded under `python-vectors` |
 | `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/weaver` |
 | `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/smelter` |
 | `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build` over every npm workspace |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/go/sdk/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
-| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/go/sdk`; `govulncheck` for the launcher |
-| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the module's other packages. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
+| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/go/sdk`, its coverage uploaded under `go-sdk`; `govulncheck` for the launcher |
+| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the launcher's libraries (`packages/go/launcher`), their coverage uploaded under `go-launcher`. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
 

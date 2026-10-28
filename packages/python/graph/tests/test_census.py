@@ -303,7 +303,7 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
         dev = listed(table(of["dependency-groups"], "dependency-groups")["dev"], "dev")
         return {name_of(requirement): requirement for requirement in dev}
 
-    checkers = ("mypy", "pyright", "pytest", "ruff")
+    checkers = ("mypy", "pyright", "pytest", "pytest-cov", "ruff")
     assert set(tools(MANIFEST)) == {*checkers, "semiont-graph"}
     assert {name: tools(MANIFEST)[name] for name in checkers} == {name: tools(theirs)[name] for name in checkers}
 
@@ -314,6 +314,10 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert settings(MANIFEST, "mypy", but=("files",)) == settings(theirs, "mypy", but=("files",))
     assert settings(MANIFEST, "pydantic-mypy", but=()) == settings(theirs, "pydantic-mypy", but=())
     assert settings(MANIFEST, "pytest", but=()) == settings(theirs, "pytest", but=())
+    # A coverage run measures its own package's source, and reports as the SDK's does.
+    our_run = table(settings(MANIFEST, "coverage", but=())["run"], "coverage's run")
+    their_run = table(settings(theirs, "coverage", but=())["run"], "coverage's run")
+    assert {key: our_run[key] for key in our_run if key != "source"} == {key: their_run[key] for key in their_run if key != "source"}
     # One setting of pyright's is this package's alone, and is no loosening: Neo4j's client states the signatures
     # a checker is to read under a name for `TYPE_CHECKING` that pyright does not know, and this says what it is.
     assert settings(MANIFEST, "pyright", but=("include", "defineConstant")) == settings(theirs, "pyright", but=("include",))

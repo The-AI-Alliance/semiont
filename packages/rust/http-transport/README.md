@@ -4,6 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/semiont-http-transport)](https://docs.rs/semiont-http-transport)
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-http-transport)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-http-transport)
 
 The HTTP transport of the [Semiont Rust SDK](../sdk/README.md). It
 connects a [`semiont`](https://crates.io/crates/semiont) client to a

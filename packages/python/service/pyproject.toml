@@ -47,6 +47,7 @@ dev = [
     "mypy==2.4.0",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
+    "pytest-cov==7.1.0",
     "ruff==0.17.2",
 ]
 
@@ -62,6 +63,12 @@ packages = ["src/semiont_service"]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
 xfail_strict = true
+
+# What `pytest --cov` measures: this package's own source, its paths relative to
+# this directory, so Codecov can place them in the tree.
+[tool.coverage.run]
+source = ["semiont_service"]
+relative_files = true
 
 # No target-version: ruff takes it from requires-python.
 [tool.ruff]

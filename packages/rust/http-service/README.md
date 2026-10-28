@@ -1,5 +1,7 @@
 # semiont-http-service
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-http-service)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-http-service)
+
 What Semiont's Rust services that serve HTTP share.
 
 **Not published.** It is a crate of this workspace, built into the

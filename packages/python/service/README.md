@@ -1,5 +1,7 @@
 # semiont-service
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=python-service)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=python-service)
+
 What every Python service of [Semiont][semiont] does to be one: read its
 configuration document, answer for its health, write its log, and export its
 telemetry. A service that follows the record also takes from it how it

@@ -1,5 +1,7 @@
 # semiont
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=python-sdk)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=python-sdk)
+
 The Python SDK for [Semiont][semiont], an open platform for building trusted
 AI knowledge bases: a shared workspace where humans and AI agents annotate,
 connect and govern a corpus of documents.
