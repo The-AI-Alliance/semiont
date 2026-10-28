@@ -3,7 +3,7 @@
 // specs/src/sdk-telemetry/telemetry.json: every span and metric its transports
 // export, by name, kind and the attributes each carries.
 //
-//   packages/sdk-python/src/semiont/telemetry_table.py
+//   packages/python/sdk/src/semiont/telemetry_table.py
 //
 // The output is committed; `--check` compares without writing (the CI drift
 // gate).
@@ -16,7 +16,7 @@ import { CHANNEL, readSdkTelemetry } from './sdk-telemetry-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/sdk-telemetry/telemetry.json');
-const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/telemetry_table.py');
+const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/telemetry_table.py');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

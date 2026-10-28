@@ -3,7 +3,7 @@
   "runBy": {
     "typescript": ["packages/core/src/__tests__/annotation-id.test.ts", "packages/core/src/__tests__/id-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/annotations/id.rs"],
-    "python": ["packages/sdk-python/tests/test_annotation_ids.py", "packages/sdk-python/tests/test_readme.py"],
+    "python": ["packages/python/sdk/tests/test_annotation_ids.py", "packages/python/sdk/tests/test_readme.py"],
     "conformance": ["tests/conformance/worker-service/yield.test.ts"],
     "go": ["packages/go/sdk/annotations/id_test.go"]
   },

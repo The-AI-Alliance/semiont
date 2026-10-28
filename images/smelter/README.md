@@ -126,10 +126,10 @@ kind `memory` is refused too: nothing else could search an index in the Smelter'
 ## What the image carries
 
 The service, and the three Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the vector
-stores and embedding providers ([`packages/vectors-python`](../../packages/vectors-python/)),
+([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway; the vector
+stores and embedding providers ([`packages/python/vectors`](../../packages/python/vectors/)),
 which ask a Qdrant and a provider over HTTP; and what every Python service is built on
-([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+([`packages/python/service`](../../packages/python/service/)), which reads its configuration,
 answers for its health, writes its log and exports its telemetry. All four are built into
 the image from the commit it is published from, and carry
 [`version.json`](../../version.json)'s version. Everything else in its environment is what
@@ -167,7 +167,7 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 
 How it follows the record, what reads a resource's bytes and its annotations, the reader that
 asks the Archivist for them and for the record by position, and what white space is are every
-Python service's, in [`semiont-service`](../../packages/service-python/README.md) (`follower`,
+Python service's, in [`semiont-service`](../../packages/python/service/README.md) (`follower`,
 `content`, `archivist`, `white_space`).
 
 ```sh
@@ -195,7 +195,7 @@ checks what a built one promises.
 ## Related
 
 - [SMELTER.md](../../docs/protocol/SMELTER.md) — what a Smelter does, rule by rule
-- [`semiont-vectors`](../../packages/vectors-python/) — the vector stores and the embedding
+- [`semiont-vectors`](../../packages/python/vectors/) — the vector stores and the embedding
   providers, and what the index holds
 - [Gateway](../gateway/) — the bus it rides
 - [Archivist](../archivist/) — serves the bytes, keeps the anchored-text store the Smelter

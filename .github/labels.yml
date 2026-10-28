@@ -108,7 +108,7 @@
   description: "The TypeScript SDK (packages/sdk)"
 - name: "sdk:python"
   color: "bfd4f2"
-  description: "The Python SDK (packages/sdk-python)"
+  description: "The Python SDK (packages/python/sdk)"
 - name: "sdk:rust"
   color: "bfd4f2"
   description: "The Rust SDK (packages/sdk-rust)"

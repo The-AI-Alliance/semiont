@@ -13,7 +13,7 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 | | Step | Where | What fails when it is left out |
 |---|---|---|---|
 | 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `tests/conformance/worker-service/telemetry.test.ts` |
-| 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/core`, `packages/go/sdk`, `packages/sdk-python` | CI's `generated-artifacts` job |
+| 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
 | 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `tests/conformance/dispatcher/create.test.ts` |
 | 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
 | 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
@@ -53,7 +53,7 @@ No language's types of the protocol are written by hand. The spec is bundled fir
 |---|---|---|
 | TypeScript | `npm run generate:openapi --workspace=@semiont/core`, then `npm run build --workspace=@semiont/core` | `@semiont/core`'s types, and with the build `MARK_MOTIVATIONS`, the list a client words its copy by |
 | Go | `go generate ./...` in `packages/go/sdk` | [`api/client_gen.go`](../../packages/go/sdk/api/client_gen.go), which is committed |
-| Python | `uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py` | [`types.py`](../../packages/sdk-python/src/semiont/types.py), which is committed |
+| Python | `uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py` | [`types.py`](../../packages/python/sdk/src/semiont/types.py), which is committed |
 | Rust | nothing to run | `semiont::types`, made from `specs/src` by the SDK's build script when the crate is built |
 
 CI's `generated-artifacts` job fails on a committed file that is not what the spec generates ([Testing](TESTING.md#continuous-integration)).

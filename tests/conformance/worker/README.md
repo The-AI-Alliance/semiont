@@ -189,7 +189,7 @@ the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
 Rust's is
 [semiont-worker-driver.rs](../../../packages/http-transport-rust/conformance/src/bin/semiont-worker-driver.rs),
 Python's is
-[conformance/worker.py](../../../packages/sdk-python/conformance/worker.py),
+[conformance/worker.py](../../../packages/python/sdk/conformance/worker.py),
 and Go's is
 [semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go).
 

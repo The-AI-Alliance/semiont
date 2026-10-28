@@ -15,7 +15,7 @@ To run tools directly on your machine instead, the versions are:
 | Toolchain | Version | Stated in |
 |---|---|---|
 | Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
-| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/sdk-python/pyproject.toml) of the Python SDK |
+| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/python/sdk/pyproject.toml) of the Python SDK |
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 
@@ -26,7 +26,7 @@ The repository holds code in four languages, and none of them depends on another
 - **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
-- **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
+- **Nine Python projects**: the Python SDK (`packages/python/sdk`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -60,11 +60,11 @@ semiont/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
 │   ├── go/sdk/             # The Go SDK
 │   ├── go/launcher/        # The launcher's libraries: its engine, the verbs, the fake runtime its tests drive
-│   ├── sdk-python/         # The Python SDK (package `semiont`)
-│   ├── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
-│   ├── graph-python/       # The graph databases a Python service writes and reads (package `semiont_graph`)
-│   ├── vectors-python/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
-│   └── service-python/     # What every Python service does to be one (package `semiont_service`)
+│   ├── python/sdk/         # The Python SDK (package `semiont`)
+│   ├── python/inference/   # The model providers a Python service asks (package `semiont_inference`)
+│   ├── python/graph/       # The graph databases a Python service writes and reads (package `semiont_graph`)
+│   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
+│   └── python/service/     # What every Python service does to be one (package `semiont_service`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack

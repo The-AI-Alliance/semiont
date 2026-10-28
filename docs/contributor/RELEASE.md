@@ -160,7 +160,7 @@ The SDK's build script reads the spec through `packages/sdk-rust/specs`, a link 
 
 ### The Python package
 
-The Python SDK (`packages/sdk-python`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
+The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
 
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 

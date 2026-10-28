@@ -27,7 +27,7 @@ on:
       - 'images/*/uv.lock'
       - 'images/*/pyproject.toml'
       - 'images/*/Dockerfile'
-      - 'packages/*-python/pyproject.toml'
+      - 'packages/python/*/pyproject.toml'
       - scripts/ci/python-floor.sh
       - '.github/licenses/**'
       - .github/scripts/check-licenses.mjs

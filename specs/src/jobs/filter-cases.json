@@ -3,7 +3,7 @@
   "runBy": {
     "typescript": ["packages/core/src/__tests__/job-filter.test.ts"],
     "rust": ["packages/sdk-rust/tests/job_filter.rs"],
-    "python": ["packages/sdk-python/tests/test_claims.py"],
+    "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"]
   },
   "cases": [

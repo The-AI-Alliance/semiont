@@ -59,15 +59,15 @@ vllm = ["semiont-inference[vllm]"]
 # Each is named, because a source another package states for the SDK is read
 # only where that package is the project.
 [tool.uv.sources]
-semiont = { path = "../../packages/sdk-python", editable = true }
-semiont-graph = { path = "../../packages/graph-python", editable = true }
-semiont-inference = { path = "../../packages/inference-python", editable = true }
-semiont-service = { path = "../../packages/service-python", editable = true }
-semiont-vectors = { path = "../../packages/vectors-python", editable = true }
+semiont = { path = "../../packages/python/sdk", editable = true }
+semiont-graph = { path = "../../packages/python/graph", editable = true }
+semiont-inference = { path = "../../packages/python/inference", editable = true }
+semiont-service = { path = "../../packages/python/service", editable = true }
+semiont-vectors = { path = "../../packages/python/vectors", editable = true }
 
 # The checkers and the formatter are the SDK's, at the SDK's versions:
 # tests/test_census.py holds these pins, and the strictness below, to
-# packages/sdk-python/pyproject.toml.
+# packages/python/sdk/pyproject.toml.
 [dependency-groups]
 dev = [
     # Every extra: the service is checked with every database's client and every provider's library, as its image has them.

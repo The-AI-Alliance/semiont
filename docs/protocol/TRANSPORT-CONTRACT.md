@@ -207,7 +207,7 @@ repairs a drop by asking:
     the log's last event as it was before. A log first met after the start
     is a new one, and is taken from its first event.
 
-  *Held by `specs/src/follower/follow-cases.json`, run by `packages/service-python/tests/test_follow_cases.py`.*
+  *Held by `specs/src/follower/follow-cases.json`, run by `packages/python/service/tests/test_follow_cases.py`.*
 
 A row of the refresh table whose trigger is a passing channel may only
 refetch, and `reopened` refetches whatever it does: the table's generator

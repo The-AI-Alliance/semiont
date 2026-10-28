@@ -165,7 +165,7 @@ const table = {
   runBy: {
     typescript: ['packages/core/src/__tests__/decode-cases.test.ts'],
     rust: ['packages/sdk-rust/src/resources.rs', 'packages/sdk-rust/tests/decode_cases.rs'],
-    python: ['packages/sdk-python/tests/test_decode_cases.py'],
+    python: ['packages/python/sdk/tests/test_decode_cases.py'],
     go: ['packages/go/sdk/resources_test.go'],
   },
   cases,

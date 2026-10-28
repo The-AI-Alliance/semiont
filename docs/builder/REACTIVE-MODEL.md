@@ -379,7 +379,7 @@ The Python client has the same nine shapes, on asyncio, with no reactive library
 - **Events** are an async iterator with a queue per reader, so a reader that falls behind loses nothing.
 - **Composition** is the language's own: `async for`, `asyncio.TaskGroup`, `asyncio.timeout`. The package brings no operator library.
 
-The Python README shows [each shape at the call site](../../packages/sdk-python/README.md#the-client), and [a watched query](../../packages/sdk-python/README.md#live-queries).
+The Python README shows [each shape at the call site](../../packages/python/sdk/README.md#the-client), and [a watched query](../../packages/python/sdk/README.md#live-queries).
 
 ## In Go
 
@@ -405,5 +405,5 @@ The Go README shows [each shape at the call site](../../packages/go/sdk/README.m
 - [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
 - [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
 - [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust form of each shape
-- [The Python SDK's README](../../packages/sdk-python/README.md) — the Python form of each shape
+- [The Python SDK's README](../../packages/python/sdk/README.md) — the Python form of each shape
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape

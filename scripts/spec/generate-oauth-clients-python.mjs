@@ -3,7 +3,7 @@
 // ids and the scope a sign-in asks for from specs/src/session/oauth.json, the
 // file the TypeScript and Rust SDKs and the launcher generate theirs from.
 //
-//   packages/sdk-python/src/semiont/oauth_clients.py
+//   packages/python/sdk/src/semiont/oauth_clients.py
 //
 // A knowledge base's realm registers these clients, and every SDK signs in as
 // one of them, so an id restated by hand is a sign-in that fails the day the
@@ -19,7 +19,7 @@ import { pyBanner, pyComment, pyString } from './python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
-const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/oauth_clients.py');
+const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/oauth_clients.py');
 const CHECK = process.argv.includes('--check');
 
 const { clients, scope } = readOAuthClients(TABLE);

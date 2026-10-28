@@ -1,7 +1,7 @@
 //! Runs every case of specs/src/archivist/shard-cases.json through this
 //! crate's reading of where a key is filed. Python, which the Librarian
 //! and the Smelter read and write the same files with, runs the same table
-//! (packages/service-python/tests/test_shard_cases.py).
+//! (packages/python/service/tests/test_shard_cases.py).
 
 use semiont_archivist_record::shard::shard_path;
 use serde::Deserialize;
