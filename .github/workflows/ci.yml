@@ -499,8 +499,10 @@ jobs:
           ls .lighthouseci/lhr-*.json > /dev/null
           lhci assert
 
+      # This step and the next run when a step before them failed, and skip a
+      # cancelled run: a newer push superseded it, and the newer run reports.
       - name: Upload Lighthouse results
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
@@ -509,7 +511,7 @@ jobs:
 
       # A run Dependabot started has a read-only token, which cannot comment.
       - name: Comment PR with Lighthouse results
-        if: always() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
         uses: actions/github-script@v9
         env:
           ASSERT_OUTCOME: ${{ steps.assert.outcome }}
