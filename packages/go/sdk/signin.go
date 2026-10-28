@@ -105,9 +105,9 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 		Client: config.Client,
 		Token:  config.Token,
 		Kept:   config.Kept,
-		Refresh: func(ctx context.Context) (string, error) {
+		Refresh: func(ctx context.Context, renewing string) (string, error) {
 			return renewals.renew(ctx, func(ctx context.Context) (string, error) {
-				return issuer.RenewKept(ctx, config.Kept, config.Token.Value())
+				return issuer.RenewKept(ctx, config.Kept, renewing)
 			})
 		},
 		OnAuthFailed: config.OnAuthFailed,
