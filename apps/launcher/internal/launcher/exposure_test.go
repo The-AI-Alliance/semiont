@@ -1,9 +1,12 @@
 package launcher
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -90,7 +93,7 @@ func TestAppleContainerPublishesEachPortWhereItsDialersAre(t *testing.T) {
 		hostPort, cport int
 		want            []string
 	}{
-		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000"}},
+		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000", bridge + ":13000:3000"}},
 		{"gateway", 4000, 4000, []string{"127.0.0.1:4000:4000", bridge + ":14000:4000"}},
 		{"identity", 8080, 8080, []string{bridge + ":8080:8080"}},
 		{"identity", 8081, 8080, []string{bridge + ":8081:8080"}},
@@ -133,7 +136,7 @@ func TestNetworkLANPublishesTheGatewayAndTheIssuerAlone(t *testing.T) {
 		{"gateway", 4000, 4000, []string{"4000:4000", bridge + ":14000:4000"}},
 		{"identity", 8080, 8080, []string{bridge + ":18080:8080"}},
 		{"identity", 8081, 8080, []string{bridge + ":18081:8080"}},
-		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000"}},
+		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000", bridge + ":13000:3000"}},
 		{"database", 5432, 5432, []string{bridge + ":5432:5432"}},
 		{"graph", 7474, 7474, []string{"127.0.0.1:7474:7474"}},
 		{"graph", 7687, 7687, []string{"127.0.0.1:7687:7687", bridge + ":17687:7687"}},
@@ -238,5 +241,49 @@ func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {
 	}
 	if claimed := portNumbers(planPortChecks(plan, false, exposure{rt: "docker"})); slices.Contains(claimed, 14000) || slices.Contains(claimed, 17687) {
 		t.Errorf("a start under Docker claims a containers' side: %v", claimed)
+	}
+}
+
+// The end-to-end suite runs in a container, and under Apple container its
+// bridge (tests/e2e/e2e-localhost-bridge.mjs) forwards the suite's localhost
+// ports to the bridge address. Each must go where a container dials it: the
+// containers' side of a port a person dials too, on a role a container can
+// reach at all.
+func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "tests", "e2e", "e2e-localhost-bridge.mjs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stated := regexp.MustCompile(`const PORTS = \{([^}]*)\};`).FindSubmatch(src)
+	if stated == nil {
+		t.Fatal("tests/e2e/e2e-localhost-bridge.mjs states no `const PORTS = { … };`")
+	}
+	got := map[int]int{}
+	for _, pair := range regexp.MustCompile(`(\d+)\s*:\s*(\d+)`).FindAllSubmatch(stated[1], -1) {
+		from, err := strconv.Atoi(string(pair[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		to, err := strconv.Atoi(string(pair[2]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[from] = to
+	}
+	plan := mustPlan(t, fixtureStack(t, "ollama-gemma"))
+	want := map[int]int{}
+	for role, port := range map[string]int{
+		"browser":  defaultBrowserPort,
+		"gateway":  plan.GatewayPort,
+		"identity": plan.Roles["identity"].Port,
+		"worker":   semiontDescriptor("worker").ports[0].port,
+	} {
+		if reachOf(role, port)&reachContainers == 0 {
+			t.Errorf("the suite reaches %s at %d, which no container can dial under Apple container", role, port)
+		}
+		want[port] = appleContainer.containersPort(role, port)
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("the e2e bridge forwards %v, want %v: each port to where a container dials it", got, want)
 	}
 }

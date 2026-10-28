@@ -130,5 +130,6 @@ container run -d --name semiont-weaver --memory 2G --publish <host-addr>:24102:2
 container stop semiont-browser
 container rm semiont-browser
 # require free port: 3000
-container run -d --name semiont-browser --memory 1G --publish 127.0.0.1:3000:3000 -v <state-home>/discovery:/discovery:ro --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-browser:local
+# require free port: 13000
+container run -d --name semiont-browser --memory 1G --publish 127.0.0.1:3000:3000 --publish <host-addr>:13000:3000 -v <state-home>/discovery:/discovery:ro --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-browser:local
 # wait: http://localhost:3000 (30s)

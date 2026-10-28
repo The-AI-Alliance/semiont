@@ -323,7 +323,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	// The Browser rides every start but belongs to no stack.
-	return flowBrowser(x, 3000, false)
+	return flowBrowser(x, addr, 3000, false)
 }
 
 // flowBrowser: the Browser is a MACHINE-LEVEL viewer, not a stack member.
@@ -332,7 +332,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 // stale (image identity, not tag order — tags like :latest and :local are
 // mutable) or when the restart is explicit (--service browser, the port
 // mover).
-func flowBrowser(x executor, port int, forceRestart bool) int {
+func flowBrowser(x executor, addr string, port int, forceRestart bool) int {
 	// forceRestart IS the single-service case (`--service browser`, the port
 	// mover), so it is also what the heading should say.
 	if forceRestart {
@@ -379,14 +379,19 @@ func flowBrowser(x executor, port int, forceRestart bool) int {
 			// with "already exists" on every runtime (the same reason
 			// stop.go always rm's).
 			x.stopRm("semiont-browser")
-			x.settle(port)
-			if !x.portCheck(portNeed{port, "Browser"}) {
-				return 1
+			e := x.exposure(addr)
+			browser := portNeed{port, "Browser"}
+			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser)...)
+			x.settle(portNumbers(needs)...)
+			for _, need := range needs {
+				if !x.portCheck(need) {
+					return 1
+				}
 			}
 			if !locallyBuilt(desired) && !x.pull(desired) {
 				return 1
 			}
-			args := browserArgs(x.exposure(""), desired, port)
+			args := browserArgs(e, desired, port)
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Browser failed to start.")
@@ -1143,7 +1148,7 @@ func flowOneService(x executor, fc flowCtx) int {
 				}
 			}
 		}
-		if code := flowBrowser(x, bp, true); code != 0 {
+		if code := flowBrowser(x, addr, bp, true); code != 0 {
 			return code
 		}
 	}

@@ -18,15 +18,16 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
+  -e E2E_BROWSER_URL=http://localhost:3000 \
+  -e E2E_GATEWAY_URL=http://localhost:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
-  npm test
+  sh -c 'node e2e-localhost-bridge.mjs & sleep 1; npm test'
 ```
 
-> **Use `192.168.64.1` — the host bridge gateway — not a container's own IP.**
-> It is stable across restarts and routes to every published port. See
+> **`localhost`, through the bridge.** `e2e-localhost-bridge.mjs` forwards the
+> container's `localhost` ports to the host bridge address, `192.168.64.1`,
+> where a container reaches the stack. See
 > [Container networking](#container-networking-reaching-the-host) for why.
 >
 > A container's own IP (from `container ls`) fails twice over:
@@ -79,24 +80,33 @@ dependencies for everyone else. The lockfile is tracked and is the authority.
 
 ## Container networking: reaching the host
 
-The suite runs in a Playwright **container**, but the Browser and gateway
-are published on the **host**. A containerized browser **can't use
-`localhost`** — inside the container that resolves to the container itself,
-not the host. And pinning a container's bridge IP is fragile: container IPs
-change on every restart.
+The suite runs in a Playwright **container**, but the stack is published on
+the **host**. Inside the container `localhost` is the container itself, and a
+container's own IP changes on every restart.
 
-The robust target is the **host bridge gateway**, `192.168.64.1`: it's
-reachable from inside containers, routes to the host's *published* ports
-(`:3000`→browser, `:4000`→gateway), and its address is **stable across
-restarts**.
+Under Apple `container` the stack publishes what a person opens on the Mac's
+loopback, which no container reaches, and what the containers dial on the
+**host bridge address**, `192.168.64.1`, which every container reaches and
+which is stable across restarts. The Browser and the gateway, which a person
+and a container both open, take a second port there, 10000 above their own:
+`:13000` and `:14000`.
+
+`e2e-localhost-bridge.mjs` joins the two. Run inside the container, it listens
+on the container's `localhost` and forwards each port to where a container
+reaches it: `:3000`→`:13000`, `:4000`→`:14000`, and `:8080` (Keycloak) and
+`:24100` (the worker's health) as they are. The suite then uses
+`http://localhost:*` throughout, which gives Chromium the secure context PKCE
+needs, and the knowledge base it registers is the origin the launcher
+advertises. The launcher's tests hold the bridge's ports to the launcher's own.
+
+Under Docker, `scripts/release/smoke-stack.sh --e2e` runs the suite with
+`--network host`, where `localhost` is the host, and starts no bridge.
 
 > **No CORS origin to configure.** The gateway serves open CORS
 > (`Access-Control-Allow-Origin: *`, bearer-only — no credentials), so the
 > browser signs in from *any* origin.
 
-Run the suite against the gateway for **both** URLs, with the Browser
-published on host port 3000 (`-p 3000:3000`; the gateway already publishes
-`4000`). No IP-grabbing needed — the gateway doesn't change between runs:
+Run the suite with the bridge in front of it:
 
 ```sh
 container run --rm \
@@ -104,11 +114,11 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
+  -e E2E_BROWSER_URL=http://localhost:3000 \
+  -e E2E_GATEWAY_URL=http://localhost:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
-  npm test
+  sh -c 'node e2e-localhost-bridge.mjs & sleep 1; npm test'
 ```
 
 ## Docs
