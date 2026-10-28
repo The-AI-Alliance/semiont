@@ -127,7 +127,9 @@ def test_what_is_exported_is_what_the_table_lists(exported: tuple[InMemorySpanEx
     assert arrival.parent is not None
     assert f"{arrival.context.trace_id:032x}" == SENT_UNDER.split("-")[1]
     assert f"{arrival.parent.span_id:016x}" == SENT_UNDER.split("-")[2]
-    assert frame.payload == {"annotationId": "a-1"}, "the trace a frame was sent under is beside its payload, never inside it"
+    assert frame.payload == {"resourceId": "res-1", "annotationId": "a-1"}, (
+        "the trace a frame was sent under is beside its payload, never inside it"
+    )
     assert frame.trace is not None
     assert frame.trace.traceparent.split("-")[1:3] == [SENT_UNDER.split("-")[1], f"{arrival.context.span_id:016x}"]
 
