@@ -347,7 +347,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `build-all` | `npm run build` over every npm workspace |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
-| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs every third, and the first also runs the module's other packages. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
+| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the module's other packages. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
 

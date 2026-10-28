@@ -2719,9 +2719,12 @@ jobs:
   # a fake runtime whose stand-ins bind the stack's real host ports, so they
   # cannot run side by side in one process; on runners of their own, each with
   # its own loopback, they can. Each leg lists the root package's tests in
-  # source order (`go test -list`), takes every third from its index, and runs
-  # those; the first leg also runs the module's other packages. A new test lands
-  # in a leg with nothing to update, and a leg left with no test fails.
+  # source order (`go test -list`) and runs its third of them, a block in that
+  # order, so each test follows the test it follows in a serial run: some
+  # tests leave a stand-in listening that the next test sees, and taking every
+  # third test instead failed a golden that a serial run passes. The first leg
+  # also runs the module's other packages. A new test lands in a leg with
+  # nothing to update, and a leg left with no test fails.
   #
   # An EXPLICIT budget. These tests drive a fake runtime through real
   # start/stop lifecycles, so each leg is minutes long and serial; the whole
@@ -2754,7 +2757,7 @@ jobs:
       - name: Choose this leg's tests
         id: tests
         run: |
-          names=$(go test -list '.*' . | grep '^Test' | awk -v k=${{ strategy.job-index }} -v n=${{ strategy.job-total }} '(NR - 1) % n == k' | paste -sd '|' -)
+          names=$(go test -list '.*' . | grep '^Test' | awk -v k=${{ strategy.job-index }} -v n=${{ strategy.job-total }} '{ t[NR] = $0 } END { for (i = int(k * NR / n) + 1; i <= int((k + 1) * NR / n); i++) print t[i] }' | paste -sd '|' -)
           if [ -z "$names" ]; then
             echo "::error::leg ${{ matrix.leg }} has no test: go test -list found fewer tests than there are legs"
             exit 1
