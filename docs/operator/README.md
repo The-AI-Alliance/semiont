@@ -2,7 +2,9 @@
 
 An operator runs a Semiont stack: brings it up, configures it, keeps it secure, watches it, and fixes it when something is wrong. The stack may be on your own laptop, for your own work, or on infrastructure a whole team depends on.
 
-For working in a knowledge base, see **[../analyst/](../analyst/)**. For building on the SDK, **[../builder/](../builder/)**. For how Semiont works inside, **[../architecture/](../architecture/)**. For changing Semiont itself, **[../contributor/](../contributor/)**.
+**How a stack works inside is [Architecture](../architecture/README.md):** its actors, the event bus between them, and the stores they keep.
+
+For working in a knowledge base, see **[../analyst/](../analyst/)**. For building on the SDK, **[../builder/](../builder/)**. For changing Semiont itself, **[../contributor/](../contributor/)**.
 
 ## What a stack is
 

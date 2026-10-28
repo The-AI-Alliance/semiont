@@ -318,7 +318,13 @@ func startCodespace(u *UI, opts startOptions) int {
 		bx := &liveExec{u: u, rt: rts[0]}
 		// Non-fatal: the KB is up either way; a browser failure already
 		// warned above the summary.
-		_ = flowBrowser(bx, 3000, false)
+		addr, ok := "", true
+		if serviceNeedsAddr("browser", bx.exposure("")) {
+			addr, ok = bx.resolveAddr()
+		}
+		if ok {
+			_ = flowBrowser(bx, addr, 3000, false)
+		}
 	}
 	if httpOK("http://localhost:3000") {
 		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("http://localhost:3000"), u.Dim("(discovery-synced — this KB appears in its panel)"))
