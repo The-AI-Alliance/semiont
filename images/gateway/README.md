@@ -1,5 +1,7 @@
 # Semiont Gateway
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-gateway)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 The HTTP entry point to a Semiont knowledge base. It is the one address clients
 and sidecar services dial, and in almost every deployment it runs as the
 `semiont-gateway` container on port 4000. It is a Rust binary built against

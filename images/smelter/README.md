@@ -1,5 +1,7 @@
 # semiont-smelter
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-smelter)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **Turns content into retrievable material.** It follows the record, and for the events that
 change what the vector index holds it gets the text of what changed, cuts it, has it embedded,
 and keeps the index in step with the record. It also derives the text of a PDF, with where each word is on

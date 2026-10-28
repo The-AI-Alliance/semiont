@@ -1,5 +1,7 @@
 # semiont-worker
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-worker)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **Claims queued jobs and runs them against a model.** Detection passes, generation, and the
 other long-running work that a request cannot wait on.
 

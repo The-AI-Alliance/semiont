@@ -1,5 +1,7 @@
 # semiont-dispatcher
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-dispatcher)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **Where a worker asks what to do and reports back.** It owns the job queue and answers the
 `job:*` lifecycle commands — create, claim, progress, checkpoint, complete, fail, cancel,
 status. It dispatches and records; it does not perform (that is the [worker](../worker/)).

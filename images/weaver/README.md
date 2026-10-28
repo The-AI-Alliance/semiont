@@ -1,5 +1,7 @@
 # semiont-weaver
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-weaver)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **Keeps the graph in step with the record.** It follows the recorded events that change what
 the graph holds, applies each to a graph database, and says how far it has got.
 

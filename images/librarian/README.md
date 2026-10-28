@@ -1,5 +1,7 @@
 # semiont-librarian
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-librarian)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **The reference desk.** It answers the questions that need the graph, the vector index or a
 model: what a reference could refer to, which resources a text finds, what surrounds an
 annotation or a resource, and what refers to a resource. It records nothing.

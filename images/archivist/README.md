@@ -1,5 +1,7 @@
 # semiont-archivist
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-archivist)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 **The service that keeps the system of record.**
 
 The event log is Semiont's system of record; everything else — views, graph, vectors — is a

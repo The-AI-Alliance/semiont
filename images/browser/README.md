@@ -1,5 +1,7 @@
 # Semiont Browser
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-browser)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 [![npm version](https://img.shields.io/npm/v/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
 [![ghcr](https://img.shields.io/badge/ghcr-semiont--browser-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 
