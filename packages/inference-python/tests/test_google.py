@@ -631,6 +631,7 @@ UNASKED = {
     "GOOGLE_GENAI_CLIENT_MODE": "replay",
     "GOOGLE_GENAI_REPLAYS_DIRECTORY": "/nowhere",
     "GOOGLE_GENAI_REPLAY_ID": "from/the/environment",
+    "GOOGLE_GENAI_HTTP_CLIENT": "httpx2",
     "SSL_CERT_FILE": "/nowhere/certificates.pem",
     "SSL_CERT_DIR": "/nowhere/certificates",
 }
