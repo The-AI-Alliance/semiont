@@ -283,8 +283,8 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./images/browser/coverage/lcov.info
-          flags: browser
-          name: browser
+          flags: image-browser
+          name: image-browser
           verbose: true
         continue-on-error: true
 
@@ -811,14 +811,15 @@ jobs:
           cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
           cargo test --workspace --locked --doc
 
-      # One report for the workspace; each crate's flag is scoped to its
-      # directory by codecov.yml.
+      # One report for the workspace, the Rust images' crates among it, under
+      # every crate's flag and every Rust image's; codecov.yml's components
+      # scope each to its directory.
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/rust/lcov.info
-          flags: rust-codegen,rust-core,rust-http-service,rust-http-transport,rust-observability,rust-sdk,rust-telemetry
+          flags: rust-codegen,rust-core,rust-http-service,rust-http-transport,rust-observability,rust-sdk,rust-telemetry,image-archivist,image-dispatcher,image-gateway
           name: rust
           verbose: true
         continue-on-error: true
@@ -2099,7 +2100,18 @@ jobs:
           echo "$RUNNER_TEMP/typst" >> "$GITHUB_PATH"
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/worker/coverage.xml
+          flags: image-worker
+          name: image-worker
+          verbose: true
+        continue-on-error: true
 
   # The Python graph stores (packages/python/graph), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
@@ -2397,7 +2409,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/weaver/coverage.xml
+          flags: image-weaver
+          name: image-weaver
+          verbose: true
+        continue-on-error: true
 
   # The Smelter's code (images/smelter), as the Python SDK is checked:
   # both type checkers, strict, on the oldest Python supported, and the tests
@@ -2458,7 +2481,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/smelter/coverage.xml
+          flags: image-smelter
+          name: image-smelter
+          verbose: true
+        continue-on-error: true
 
   # The Librarian's Python code (images/librarian), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
@@ -2512,7 +2546,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/librarian/coverage.xml
+          flags: image-librarian
+          name: image-librarian
+          verbose: true
+        continue-on-error: true
 
   check-phantom-deps:
     name: Phantom Dependency Check

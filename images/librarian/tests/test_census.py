@@ -185,7 +185,7 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
         dev = listed(table(of["dependency-groups"], "dependency-groups")["dev"], "dev")
         return {name_of(requirement): requirement for requirement in dev}
 
-    checkers = ("mypy", "pyright", "pytest", "ruff")
+    checkers = ("mypy", "pyright", "pytest", "pytest-cov", "ruff")
     # Beside them, the service itself with every extra, and what makes the histories of a property test, which the
     # SDK has no use for.
     assert set(tools(MANIFEST)) == {*checkers, "hypothesis", "semiont-librarian"}
@@ -199,6 +199,10 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert settings(MANIFEST, "pyright", but=("include",)) == settings(theirs, "pyright", but=("include",))
     assert settings(MANIFEST, "pydantic-mypy", but=()) == settings(theirs, "pydantic-mypy", but=())
     assert settings(MANIFEST, "pytest", but=()) == settings(theirs, "pytest", but=())
+    # A coverage run measures its own project's source, and reports as the SDK's does.
+    our_run = table(settings(MANIFEST, "coverage", but=())["run"], "coverage's run")
+    their_run = table(settings(theirs, "coverage", but=())["run"], "coverage's run")
+    assert {key: our_run[key] for key in our_run if key != "source"} == {key: their_run[key] for key in their_run if key != "source"}
     # The SDK's formatter is told which of its modules are generated, and its linter which of its tests are
     # programs that must not type-check. This project has neither.
     assert settings(MANIFEST, "ruff", but=("lint",)) == settings(theirs, "ruff", but=("lint", "extend-exclude"))
