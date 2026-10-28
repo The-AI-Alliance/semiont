@@ -1,47 +1,43 @@
-# Dependencies
+# What any project, tool or editor leaves anywhere in the tree. What one
+# project's build makes is in that project's own .gitignore.
+
+# npm installs: the workspace root's, and each npm project's under tests/
 node_modules
-.npm-stage
 
-# Local Verdaccio registry (build_and_install_locally.sh)
-.verdaccio/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Build output and coverage, as every language here writes them
+dist/
+build/
+coverage/
+*.lcov
+*.tsbuildinfo
 
-# Environment files
+# Python: an environment, and what the interpreter and its tools cache, in
+# each of the projects under packages/python/ and images/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+
+# Environment files, and the backups tooling writes beside them
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env*.backup*
 
-# Build outputs
-dist/
-# transient tsc output: packages/typescript/core's build emits it, then rm -rf's it at the end
-dist-types/
-build/
-images/browser/public
-
-# Testing
-coverage/
-*.lcov
-.nyc_output
-test-results.json
-playwright-report/
-test-results/
-
-# Logs
+# Logs, temporary files and caches
 logs
 *.log
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# OS generated files
+# Operating systems
 .DS_Store
 .DS_Store?
 ._*
@@ -50,7 +46,7 @@ pids
 ehthumbs.db
 Thumbs.db
 
-# IDE and editor files
+# Editors
 .vscode/
 .idea/
 *.swp
@@ -61,63 +57,15 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-
-# Cache directories
-.cache/
-.parcel-cache/
-.eslintcache
-
-# TypeScript
-*.tsbuildinfo
-
-# Generated types and copied specs (NOT the source OpenAPI spec!)
-packages/typescript/core/openapi.json
-packages/typescript/core/src/types.ts
-packages/typescript/core/src/generated/
-
-# Python: an environment, and what the interpreter and its tools cache
-.venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-.hypothesis/
-.ruff_cache/
-
-# Generated OpenAPI bundle (source is specs/src/)
-specs/openapi.json
-specs/archivist.openapi.json
-
-# Compiled scripts (should use tsx, not tsc)
-packages/typescript/*/scripts/*.js
-packages/typescript/*/scripts/*.js.map
-packages/typescript/*/scripts/*.d.ts
-packages/typescript/*/scripts/*.d.ts.map
-# Note: images/*/scripts/*.js removed - these are actual source JS files, not compiled output
-images/*/scripts/*.js.map
-images/*/scripts/*.d.ts
-images/*/scripts/*.d.ts.map
-
-# Ephemeral Planning Documents
-.plans
-
-# Assembled by scripts/release/notes-context.sh; quotes .plans content verbatim
-.release-notes-context.md
-
-# Compliance audit generated files
+# The symbols a compliance report discovers, beside the script of each
+# project that runs one (scripts/compliance/README.md)
 **/scripts/symbols.json
-# Generated compliance reports (all of them — never enumerate outputs by hand)
-.compliance/
 
-# Backups written beside .env.local by tooling
-.env*.backup*
-
-# Cargo's build output, for the whole Rust workspace (packages/rust/Cargo.toml).
-/packages/rust/target
-
-# The Go SDK's conformance drivers, built by CI and by hand (packages/go/sdk/conformance).
-/packages/go/sdk/conformance/bin/
+# What the repository's own tooling writes at its root: the packages staged
+# for a registry (scripts/ci/build.sh, publish.sh), the compliance reports,
+# the release notes' context (scripts/release/notes-context.sh, which quotes
+# .plans verbatim), and the ephemeral planning documents
+/.npm-stage/
+/.compliance/
+/.release-notes-context.md
+/.plans
