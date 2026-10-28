@@ -36,7 +36,7 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
  */
 
 test.describe('generate output format', () => {
-  test('a mismatched extension is refused, and text/plain yields a text/plain resource at the typed path', async ({ signedInPage: page, bus }) => {
+  test('a mismatched extension is refused, and text/plain yields a text/plain resource at the typed path', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(180_000);
 
     const modal = await openConfigureStep(page, bus);
@@ -81,7 +81,7 @@ test.describe('generate output format', () => {
     await expectGeneratedAt(title, storagePath, 'text/plain');
   });
 
-  test('application/pdf yields a PDF resource at the typed path', async ({ signedInPage: page, bus }) => {
+  test('application/pdf yields a PDF resource at the typed path', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(240_000);
 
     const modal = await openConfigureStep(page, bus);

@@ -71,7 +71,7 @@ async function selectSubTab(page: Page, emoji: string) {
 }
 
 test.describe('delegated detection on an unreadable scanned PDF', () => {
-  test('completes with a decline notice and creates no annotations', async ({ signedInPage: page, bus }) => {
+  test('completes with a decline notice and creates no annotations', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
     await openScannedPdfInAnnotateMode(page);

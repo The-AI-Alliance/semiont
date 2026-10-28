@@ -35,9 +35,10 @@
 # scripts/ci/local-build.sh builds them, as `npm run build:packages` does.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
-# did:web domain, then `start` with no --config, so the documents init writes
-# and the Inference document it records are what boot. A new KB that could not
-# start is the defect this check found on its first run.
+# did:web domain (and, with --e2e, a larger model: see E2E_MODEL), then
+# `start` with no --config, so the documents init writes and the Inference
+# document it records are what boot. A new KB that could not start is the
+# defect this check found on its first run.
 #
 # THE RUN LEAVES NOTHING BEHIND. The launcher keeps a KB's daemon state and
 # secrets under a key derived from its domain, and the domain here is the same
@@ -72,6 +73,11 @@ case "${2:-}" in
 esac
 RUNTIME="${SMOKE_RUNTIME:-docker}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The model a run with --e2e binds in place of init's default. Against
+# gemma3:270m, on a four-core runner with no GPU, every test the suite tags
+# @model failed: a structured reply cut off at its token limit, delegated
+# detection that found nothing, generations that never finished.
+E2E_MODEL=gemma3:1b
 if [ "$E2E" = true ]; then
   if [ "$RUNTIME" = container ]; then
     echo "--e2e runs the suite with --network host, which Apple's container has not; run it as tests/e2e/README.md says." >&2
@@ -120,7 +126,10 @@ echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
 mkdir -p "$KB" && cd "$KB" || exit 1
 git init -q && git config user.email smoke@example.com && git config user.name smoke
 # The domain is the one setting with no safe default, so it is the one flag.
-if "$SEMIONT" init --yes --domain example.github.io:stack-smoke >/dev/null; then
+INIT_MODEL=()
+[ "$E2E" = true ] && INIT_MODEL=(--model "$E2E_MODEL")
+# An empty array under `set -u` is an unbound variable to macOS's bash 3.2.
+if "$SEMIONT" init --yes --domain example.github.io:stack-smoke ${INIT_MODEL[@]+"${INIT_MODEL[@]}"} >/dev/null; then
   ok "init wrote a config the plan deriver accepts"
 else
   bad "init refused"; exit 1

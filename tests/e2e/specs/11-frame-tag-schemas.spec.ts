@@ -98,7 +98,7 @@ const E2E_TAG_SCHEMA: TagSchema = {
 };
 
 test.describe('frame tag-schema registry + tagging round-trip', () => {
-  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.delegate, verify annotation body shape', async ({
+  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.delegate, verify annotation body shape', { tag: ['@model'] }, async ({
     signedInPage: page,
     bus,
   }) => {

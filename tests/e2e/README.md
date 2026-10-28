@@ -147,6 +147,12 @@ container run --rm \
 guards; a regression in that path fails that spec. Specs tagged
 `@slow` run only under `npm run test:slow`.
 
+Tests tagged `@model` pass or fail on what the inference model returns: a
+delegated job's annotations, a generation, a structured reply. A model too small
+to answer in valid JSON, or too slow on the machine, fails them while every
+other test passes. They are in the default tier; `npm run test:model` runs them
+alone.
+
 ## Scope
 
 - **Not a gate on pull requests.** Stack Smoke runs the default tier nightly

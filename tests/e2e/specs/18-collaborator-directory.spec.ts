@@ -59,7 +59,7 @@ const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yi
 const DID_RE = /^did:web:(.+):agents:([^:]+):([^:]+)$/;
 
 test.describe('collaborator directory (browse.agents)', () => {
-  test('directory lists the TOML software roster and attribution DIDs are members', async () => {
+  test('directory lists the TOML software roster and attribution DIDs are members', { tag: ['@model'] }, async () => {
     test.setTimeout(120_000);
 
     const opened = await signInSession();
