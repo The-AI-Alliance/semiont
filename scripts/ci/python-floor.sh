@@ -6,7 +6,7 @@
 # here, so the line is read in one place and one way: scripts/ci/local-build.sh
 # (its Python image is python:<floor>-alpine), the SDK's model generator (the
 # Python its classes are written for), whatever builds the worker image (the
-# Python it runs on, which apps/worker/Dockerfile takes as PYTHON_FLOOR:
+# Python it runs on, which images/worker/Dockerfile takes as PYTHON_FLOOR:
 # local-build.sh and publish-service-images.yml), and lint:python-version,
 # which holds every restatement of the floor to it.
 #

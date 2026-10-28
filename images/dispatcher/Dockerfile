@@ -24,20 +24,20 @@ COPY specs/src specs/src
 # The workspace (Cargo.toml at the repository root): cargo loads every member
 # to build any one of them, so each member's crate is copied.
 COPY Cargo.toml Cargo.lock ./
-COPY apps/archivist/Cargo.toml apps/archivist/
-COPY apps/archivist/src apps/archivist/src
-COPY apps/archivist/record/Cargo.toml apps/archivist/record/
-COPY apps/archivist/record/src apps/archivist/record/src
-COPY apps/archivist/staging/Cargo.toml apps/archivist/staging/
-COPY apps/archivist/staging/src apps/archivist/staging/src
-COPY apps/gateway/Cargo.toml apps/gateway/
-COPY apps/gateway/src apps/gateway/src
-COPY apps/dispatcher/Cargo.toml apps/dispatcher/
-COPY apps/dispatcher/src apps/dispatcher/src
-COPY apps/dispatcher/handlers/Cargo.toml apps/dispatcher/handlers/
-COPY apps/dispatcher/handlers/src apps/dispatcher/handlers/src
-COPY apps/dispatcher/jetstream/Cargo.toml apps/dispatcher/jetstream/build.rs apps/dispatcher/jetstream/
-COPY apps/dispatcher/jetstream/src apps/dispatcher/jetstream/src
+COPY images/archivist/Cargo.toml images/archivist/
+COPY images/archivist/src images/archivist/src
+COPY images/archivist/record/Cargo.toml images/archivist/record/
+COPY images/archivist/record/src images/archivist/record/src
+COPY images/archivist/staging/Cargo.toml images/archivist/staging/
+COPY images/archivist/staging/src images/archivist/staging/src
+COPY images/gateway/Cargo.toml images/gateway/
+COPY images/gateway/src images/gateway/src
+COPY images/dispatcher/Cargo.toml images/dispatcher/
+COPY images/dispatcher/src images/dispatcher/src
+COPY images/dispatcher/handlers/Cargo.toml images/dispatcher/handlers/
+COPY images/dispatcher/handlers/src images/dispatcher/handlers/src
+COPY images/dispatcher/jetstream/Cargo.toml images/dispatcher/jetstream/build.rs images/dispatcher/jetstream/
+COPY images/dispatcher/jetstream/src images/dispatcher/jetstream/src
 COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
 COPY packages/codegen-rust/src packages/codegen-rust/src
 COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
@@ -75,7 +75,7 @@ RUN addgroup --system --gid 1001 semiont && \
     adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 
 COPY --from=builder /semiont-dispatcher /usr/local/bin/semiont-dispatcher
-COPY LICENSE apps/dispatcher/NOTICE /home/semiont/
+COPY LICENSE images/dispatcher/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 

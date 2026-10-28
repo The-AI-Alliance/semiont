@@ -105,8 +105,8 @@
     },
     {
       "files": [
-        "**/apps/**/*.css",
-        "**/apps/**/*.scss"
+        "**/images/**/*.css",
+        "**/images/**/*.scss"
       ],
       "rules": {
         "semiont/invariants": null,

@@ -20,7 +20,7 @@ There is no per-platform plug-in to write. See [Deployment Targets](#-deployment
 
 **Alternative Browser implementations:**
 
-We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](apps/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
+We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](images/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
 
 - **Mobile apps** (iOS, Android, React Native)
 - **Browser extensions** (Chrome, Firefox, Safari)
@@ -292,7 +292,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 ### Testing Documentation
 
 - **[System Testing Guide](docs/contributor/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
-- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
+- **[Gateway Testing Guide](images/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
 
 ### Quick Start
 
@@ -303,7 +303,7 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd apps/browser && npm test                 # Browser suite
+cd images/browser && npm test                 # Browser suite
 cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` at the repository root, and nats-server)
 cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
 cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
@@ -341,7 +341,7 @@ Update docs when you:
 - **`docs/contributor/`**: changing Semiont itself
 - **`docs/architecture/`** and **`docs/protocol/`**: how Semiont works, and what its parts agree on
 
-How one app or package is built inside stays with it: `apps/<app>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
+How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
 
 Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
 

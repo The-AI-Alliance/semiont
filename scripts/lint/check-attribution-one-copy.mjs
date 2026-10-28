@@ -50,7 +50,7 @@ import { repositoryFiles } from './repository-files.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const ALLOWED = 'packages/core/src/did-utils.ts';
 /** Where a Person Agent acquires a name — the read-side resolver, and only it. */
-const NAMES_A_PERSON = 'apps/librarian/src/semiont_librarian/naming.py';
+const NAMES_A_PERSON = 'images/librarian/src/semiont_librarian/naming.py';
 /**
  * Assigning `name` onto something already known to be a Person. Matches the
  * resolver's own shape and a hand-rolled equivalent; reading a name, and
@@ -63,8 +63,8 @@ const CONSTRUCTION = new RegExp([
   String.raw`\bwasAttributedTo\s*[:=]\s*(?:\[|creator\b)`, // a key or assignment from a literal / from creator
 ].join('|'));
 
-/** A package's or an app's source directory, `packages/<name>/src` or `apps/<name>/src`, at the head of a path. */
-const SOURCE_ROOT = /^(?:packages|apps)\/[^/]+\/src(?=\/)/;
+/** A package's or an app's source directory, `packages/<name>/src`, `apps/<name>/src` or `images/<name>/src`, at the head of a path. */
+const SOURCE_ROOT = /^(?:packages|apps|images)\/[^/]+\/src(?=\/)/;
 const TEST = /(^|\/)__tests__\/|\.test\.ts$/;
 
 const sources = repositoryFiles(ROOT).filter((file) => SOURCE_ROOT.test(file));

@@ -430,7 +430,7 @@ const SCANNED_PDF_FIXTURE_BASE64 =
 // image-only raster with no text operators. The extractor reads page 1 through
 // the text layer and routes page 2 to OCR, so one document exercises both
 // halves of hybrid routing end to end. The Smelter's tests pin the assembly
-// against a played recognizer (`apps/smelter/tests/test_extraction.py`); this
+// against a played recognizer (`images/smelter/tests/test_extraction.py`); this
 // fixture is what carries class C through the live stack instead.
 //
 // The raster is dark bars, NOT rendered glyphs, on purpose: a synthetic bitmap

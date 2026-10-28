@@ -155,13 +155,13 @@ jobs:
             # The Rust workspace: the three services, the crates they share,
             # the lockfile, the toolchain, cargo-deny's policy, and the two
             # scripts the Gateway Tests job runs over the crates. lint:workflows
-            # holds every directory under apps/ and packages/ that has a
+            # holds every directory under apps/, images/ and packages/ that has a
             # manifest to a pattern of some filter, so a new package is mapped
             # or the lint says so.
             rust:
-              - 'apps/gateway/**'
-              - 'apps/dispatcher/**'
-              - 'apps/archivist/**'
+              - 'images/gateway/**'
+              - 'images/dispatcher/**'
+              - 'images/archivist/**'
               - 'packages/codegen-rust/**'
               - 'packages/core-rust/**'
               - 'packages/http-service-rust/**'
@@ -180,7 +180,7 @@ jobs:
             # builds them. The conformance suites build @semiont/core or the
             # packages from the root, so a change here runs them too.
             ts:
-              - 'apps/browser/**'
+              - 'images/browser/**'
               - 'apps/desktop/**'
               - 'packages/core/**'
               - 'packages/http-transport/**'
@@ -210,13 +210,13 @@ jobs:
             python-service:
               - 'packages/service-python/**'
             worker:
-              - 'apps/worker/**'
+              - 'images/worker/**'
             weaver:
-              - 'apps/weaver/**'
+              - 'images/weaver/**'
             smelter:
-              - 'apps/smelter/**'
+              - 'images/smelter/**'
             librarian:
-              - 'apps/librarian/**'
+              - 'images/librarian/**'
             # What the compliance audits read beside the code areas: their own
             # scripts, the docs whose snippets they compile and the fixture
             # they compile them in, and the Dockerfiles they hold to
@@ -225,7 +225,7 @@ jobs:
               - 'scripts/compliance/**'
               - 'docs/**'
               - 'tests/doc-snippets/**'
-              - 'apps/*/Dockerfile'
+              - 'images/*/Dockerfile'
 
       - name: Which areas run
         id: areas
@@ -259,7 +259,7 @@ jobs:
       - name: Run browser type check
         run: |
           echo "Running browser TypeScript type check..."
-          cd apps/browser
+          cd images/browser
           npm run typecheck
         env:
           CI: true
@@ -270,7 +270,7 @@ jobs:
       # Tests once ran again (`test:security`) are files of this suite.
       - name: Run browser tests
         run: |
-          cd apps/browser
+          cd images/browser
           npm run test:coverage
         env:
           CI: true
@@ -280,7 +280,7 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./apps/browser/coverage/lcov.info
+          files: ./images/browser/coverage/lcov.info
           flags: browser
           name: browser
           verbose: true
@@ -381,7 +381,7 @@ jobs:
     if: needs.changes.outputs.ts == 'true'
     defaults:
       run:
-        working-directory: ./apps/browser
+        working-directory: ./images/browser
 
     steps:
       - name: Checkout code
@@ -451,7 +451,7 @@ jobs:
           pkill -f "vite preview" || true
 
   # Lighthouse's accessibility audit of the built Browser's signed-out pages.
-  # apps/browser/lighthouserc.json names the pages and the score they must reach.
+  # images/browser/lighthouserc.json names the pages and the score they must reach.
   lighthouse-accessibility:
     name: Lighthouse - Signed-out Pages
     runs-on: ubuntu-latest
@@ -480,7 +480,7 @@ jobs:
 
       - name: Build browser
         run: |
-          cd apps/browser
+          cd images/browser
           npm run build
 
       - name: Install Lighthouse CI
@@ -488,13 +488,13 @@ jobs:
 
       - name: Audit the signed-out pages
         run: |
-          cd apps/browser
+          cd images/browser
           lhci collect
 
       - name: Assert the audit's scores
         id: assert
         run: |
-          cd apps/browser
+          cd images/browser
           # lhci assert passes when it finds no reports at all
           ls .lighthouseci/lhr-*.json > /dev/null
           lhci assert
@@ -504,7 +504,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
-          path: apps/browser/.lighthouseci
+          path: images/browser/.lighthouseci
           retention-days: 30
 
       # A run Dependabot started has a read-only token, which cannot comment.
@@ -518,7 +518,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            const lighthouseDir = 'apps/browser/.lighthouseci';
+            const lighthouseDir = 'images/browser/.lighthouseci';
             const reports = fs.existsSync(lighthouseDir)
               ? fs.readdirSync(lighthouseDir)
                   .filter((f) => f.startsWith('lhr-') && f.endsWith('.json'))
@@ -537,8 +537,8 @@ jobs:
               }
               const rows = [...scores].map(([page, runs]) => `| \`${page}\` | ${runs.join(', ')} |`);
               const verdict = {
-                success: '✅ The scores meet `apps/browser/lighthouserc.json`.',
-                failure: '❌ The scores fall short of `apps/browser/lighthouserc.json`.',
+                success: '✅ The scores meet `images/browser/lighthouserc.json`.',
+                failure: '❌ The scores fall short of `images/browser/lighthouserc.json`.',
               }[process.env.ASSERT_OUTCOME] ?? `The assertion step did not finish (${process.env.ASSERT_OUTCOME}).`;
               body = [
                 '**Lighthouse accessibility, signed-out pages**',
@@ -685,7 +685,7 @@ jobs:
         id: browser-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          cd apps/browser
+          cd images/browser
           ./scripts/generate-compliance-report.sh
 
       - name: Display Full React-UI Report
@@ -939,7 +939,7 @@ jobs:
             target/release/semiont-wire-driver
             target/release/semiont-live-driver
             target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -1465,7 +1465,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Weaver's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+        run: uv sync --locked --no-dev --all-extras --project images/weaver
 
       # Black-box: it starts Weaver processes behind a gateway and an
       # Archivist, records through the Archivist, and reads the graph.
@@ -1559,7 +1559,7 @@ jobs:
           tesseract --version
 
       - name: Make the Smelter's environment
-        run: uv sync --locked --no-dev --project apps/smelter
+        run: uv sync --locked --no-dev --project images/smelter
 
       # Black-box: it starts Smelter processes behind a gateway and an
       # Archivist, records through the Archivist, and reads the index.
@@ -1676,13 +1676,13 @@ jobs:
           tesseract --version
 
       - name: Make the Python Weaver's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+        run: uv sync --locked --no-dev --all-extras --project images/weaver
 
       - name: Make the Smelter's environment
-        run: uv sync --locked --no-dev --project apps/smelter
+        run: uv sync --locked --no-dev --project images/smelter
 
       - name: Make the Librarian's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/librarian
+        run: uv sync --locked --no-dev --all-extras --project images/librarian
 
       # Black-box: it starts Librarian processes behind a gateway, beside an
       # Archivist, a Weaver and a Smelter, records through the Archivist, asks
@@ -1747,7 +1747,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Worker service's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/worker
+        run: uv sync --locked --no-dev --all-extras --project images/worker
 
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server
@@ -1962,7 +1962,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # The Worker service's Python code (apps/worker), as the Python SDK is
+  # The Worker service's Python code (images/worker), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK and the
   # inference drivers from this checkout. The tests run the case tables of
@@ -1980,7 +1980,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/worker
+        working-directory: images/worker
 
     steps:
       - name: Checkout code
@@ -2232,7 +2232,7 @@ jobs:
         working-directory: packages/vectors-python
         run: uv run pytest tests/qdrant_live.py
 
-  # The Weaver's Python code (apps/weaver), as the Python SDK is checked: both
+  # The Weaver's Python code (images/weaver), as the Python SDK is checked: both
   # type checkers, strict, on the oldest Python supported, and the tests on
   # every one. The locked environment takes the SDK and the graph stores from
   # this checkout. The tests run the fold's case table of specs/ and the
@@ -2250,7 +2250,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/weaver
+        working-directory: images/weaver
 
     steps:
       - name: Checkout code
@@ -2285,7 +2285,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # The Smelter's code (apps/smelter), as the Python SDK is checked:
+  # The Smelter's code (images/smelter), as the Python SDK is checked:
   # both type checkers, strict, on the oldest Python supported, and the tests
   # on every one. The locked environment takes the SDK from this checkout, and
   # PDFium from its binding's wheel. The tests read PDFs with the real PDFium
@@ -2305,7 +2305,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/smelter
+        working-directory: images/smelter
 
     steps:
       - name: Checkout code
@@ -2346,7 +2346,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # The Librarian's Python code (apps/librarian), as the Python SDK is
+  # The Librarian's Python code (images/librarian), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK, the graph
   # stores, the vector stores and the inference drivers from this checkout.
@@ -2365,7 +2365,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/librarian
+        working-directory: images/librarian
 
     steps:
       - name: Checkout code
@@ -2482,7 +2482,7 @@ jobs:
           go-version-file: apps/launcher/go.mod
 
       # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
-      # the gateway's channel classification (apps/gateway/src), and Go
+      # the gateway's channel classification (images/gateway/src), and Go
       # (packages/sdk-go/bus). Any of them drifting means two sides can disagree
       # about channels at runtime.
       - name: Bus registry vs generated code

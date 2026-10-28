@@ -113,7 +113,7 @@ publish_pkg() {
 
 # Iterate every publishable package in version.json. Output is two
 # tab-separated columns: dir-to-publish-from, label. Apps with a
-# `stage` field publish from .npm-stage/<x> rather than apps/<x>.
+# `stage` field publish from .npm-stage/<x> rather than from their own directory.
 PUBLISH_LIST=$(node -e "
   const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));
   for (const pkg of Object.values(v.packages)) {

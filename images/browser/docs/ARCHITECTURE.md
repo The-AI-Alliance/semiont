@@ -89,7 +89,7 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
 function AppTree() {
   const translationManager = useMergedTranslationManager(); // i18next-backed
 
-  // Global layer — auth-independent (apps/browser/src/app/providers.tsx)
+  // Global layer — auth-independent (images/browser/src/app/providers.tsx)
   return (
     <TranslationProvider translationManager={translationManager}>
       <SemiontProvider>            {/* the SemiontBrowser singleton: sessions, KBs, the client */}
@@ -376,7 +376,7 @@ The provider tree has two distinct layers:
 ### Root layer (always present)
 
 ```tsx
-// apps/browser/src/app/providers.tsx
+// images/browser/src/app/providers.tsx
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
@@ -408,7 +408,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 ### Auth shell (mounted around protected routes only)
 
 ```tsx
-// apps/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
+// images/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
 // singleton (mounted at the app root) already holds all session state.
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -424,7 +424,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
 ### Where the auth shell mounts
 
-`AuthShell` mounts once, in `ProtectedLayout` in `apps/browser/src/App.tsx`: a pathless route
+`AuthShell` mounts once, in `ProtectedLayout` in `images/browser/src/App.tsx`: a pathless route
 that wraps both protected sections, `/know/*` and `/moderate/*`. Navigating between the sections
 keeps the shell mounted rather than tearing it down and rebuilding it.
 
@@ -439,7 +439,7 @@ See [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.
 ## Directory Structure
 
 ```text
-apps/browser/src/
+images/browser/src/
 ├── App.tsx                # React Router route tree
 ├── main.tsx               # Entry point
 ├── app/[locale]/          # Locale-prefixed page components
@@ -502,7 +502,7 @@ packages/react-ui/src/      # Reusable React components library
 ```
 
 **Key Separation:**
-- `apps/browser/src` - Vite SPA pages and app-specific implementations
+- `images/browser/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
 **Note**: `AuthErrorDisplay` is framework-agnostic and lives in `packages/react-ui/src/features/auth/`. Signing in is not a component: the Browser sends the user to the knowledge base's issuer and completes the exchange on its callback route. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
@@ -623,7 +623,7 @@ await semiont.mark.annotation({
 
 ### Document Page Layout
 
-The resource page (`apps/browser/src/app/[locale]/know/resource/[id]/page.tsx`, which renders `ResourceViewerPage`) consists of:
+The resource page (`images/browser/src/app/[locale]/know/resource/[id]/page.tsx`, which renders `ResourceViewerPage`) consists of:
 
 **Main Content Area**:
 - **AnnotateView**: Curation mode with text selection and annotation creation

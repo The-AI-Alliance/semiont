@@ -494,7 +494,7 @@ deleted at the first sweep.
 ## Checkpoints
 
 A checkpoint is how much of a job is already done, recorded on the job so a later attempt skips it.
-It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/handlers/src/checkpoint.rs)):
+It has two parts, merged differently ([`checkpoint.rs`](../../images/dispatcher/handlers/src/checkpoint.rs)):
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for a linking job, a
   category for a tagging job, and the job's own motivation for every other `mark` job. A unit

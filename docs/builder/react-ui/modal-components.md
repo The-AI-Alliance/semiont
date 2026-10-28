@@ -123,7 +123,7 @@ import { SearchModal, useSemiont } from '@semiont/react-ui';
 ### Vite with React Router
 
 The Semiont Browser's own wrapper is `GlobalSearchModal`
-(`apps/browser/src/components/modals/GlobalSearchModal.tsx`).
+(`images/browser/src/components/modals/GlobalSearchModal.tsx`).
 
 ```tsx
 import { SearchModal } from '@semiont/react-ui';

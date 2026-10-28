@@ -10,7 +10,7 @@
 #      Its document is mounted where the image says the gateway reads it (the
 #      path its CMD passes to --config), as the launcher mounts it.
 #   3. Its HEALTHCHECK passes against the serving gateway: the command
-#      apps/gateway/Dockerfile declares, read from there rather than restated,
+#      images/gateway/Dockerfile declares, read from there rather than restated,
 #      so this check cannot probe an address the healthcheck does not.
 #
 # Run by local-build.sh once every image is built, so nothing else builds
@@ -20,7 +20,7 @@ set -eu
 
 IMAGE="${1:?usage: check-gateway-image.sh <image> [runtime]}"
 RT="${2:-docker}"
-DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/gateway/Dockerfile"
+DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/images/gateway/Dockerfile"
 HEALTHCHECK=$(sed -n '/^HEALTHCHECK/,/CMD /s/^.*CMD //p' "$DOCKERFILE")
 if [ -z "$HEALTHCHECK" ]; then
   echo "✗ $DOCKERFILE declares no HEALTHCHECK CMD"

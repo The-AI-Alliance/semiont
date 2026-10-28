@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -200,7 +199,7 @@ func TestSmelterDocumentRefusesVoyageWithNoKey(t *testing.T) {
 // descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "smelter", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("smelter"))
 	if err != nil {
 		t.Fatal(err)
 	}

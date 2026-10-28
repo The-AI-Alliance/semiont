@@ -125,7 +125,7 @@ verb's own result or a decline, and the decline is the one with `declined`.
 Commands that mutate state need to know who is making them. The convention: clients **never** set `_userId` or `_roles` themselves. The `/bus/emit` gateway verifies the bearer token, builds the principal from its claims, and stamps both onto the payload before forwarding it onto the bus — clearing whatever a caller wrote there first:
 
 ```rust
-// apps/gateway/src/routes/bus.rs
+// images/gateway/src/routes/bus.rs
 payload.remove("_roles");
 payload.insert("_userId".to_owned(), json!(principal.did));
 if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
@@ -280,7 +280,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 |---|---|
 | `EMIT` | `HttpTransport.emit()`, gateway `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in |
-| `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` |
+| `SSE` | Gateway `Connection::deliver` in `images/gateway/src/routes/stream.rs` |
 | `PUT` | `HttpContentTransport.putBinary()`. The gateway writes none for an upload |
 | `GET` | `HttpContentTransport.getBinary()`, `getBinaryStream()`, `getResourceGraph()` and `getAnchoredText()`; and, for a read of bytes, the matching gateway route |
 

@@ -27,7 +27,7 @@ export interface LinkComponentProps {
  *
  * @example
  * ```tsx
- * // In the app (apps/browser/src/lib/routing.tsx)
+ * // In the app (images/browser/src/lib/routing.tsx)
  * export const routes: RouteBuilder = {
  *   resourceDetail: (id) => `/know/resource/${id}`,
  *   knowledge: () => '/know',

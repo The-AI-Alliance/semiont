@@ -44,7 +44,7 @@ test.describe('frame entity-type vocabulary', () => {
 
     // ── Bootstrap assertion ─────────────────────────────────────────────
     //
-    // The 9 defaults: the Archivist's DEFAULT_ENTITY_TYPES (apps/archivist/src/main.rs).
+    // The 9 defaults: the Archivist's DEFAULT_ENTITY_TYPES (images/archivist/src/main.rs).
     // If the bootstrap hadn't fired, none of these would render.
     const DEFAULT_ENTITY_TYPES = [
       'Person', 'Organization', 'Location', 'Event', 'Concept',

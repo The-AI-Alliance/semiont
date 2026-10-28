@@ -8,7 +8,7 @@ what the Librarian does against
 
 The suite imports nothing from a Librarian. The lines that name one are
 `LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts): today the
-Librarian in Python ([`apps/librarian`](../../../apps/librarian/README.md)),
+Librarian in Python ([`images/librarian`](../../../images/librarian/README.md)),
 run by the interpreter of its project's locked environment. Another
 implementation joins by adding its line, and every case runs against every
 entry.
@@ -16,8 +16,8 @@ entry.
 A Librarian writes nothing, so the suite reads no store to judge it. What a
 Librarian reads, the graph and the vector index, is written here by the two
 services that write it for an operator: a Weaver and a Smelter, the Python
-services of [`apps/weaver`](../../../apps/weaver/README.md) and
-[`apps/smelter`](../../../apps/smelter/README.md), which the suite starts
+services of [`images/weaver`](../../../images/weaver/README.md) and
+[`images/smelter`](../../../images/smelter/README.md), which the suite starts
 beside it. The suite does two things in the databases itself
 ([harness/librarian-world.ts](../harness/librarian-world.ts)): it empties the
 graph database, in Cypher, and it clears the index, by its own calls to
@@ -168,9 +168,9 @@ and a Qdrant:
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
 npm run build --workspace=@semiont/core
-uv sync --locked --no-dev --all-extras --project apps/weaver
-uv sync --locked --no-dev --project apps/smelter
-uv sync --locked --no-dev --all-extras --project apps/librarian
+uv sync --locked --no-dev --all-extras --project images/weaver
+uv sync --locked --no-dev --project images/smelter
+uv sync --locked --no-dev --all-extras --project images/librarian
 cd tests/conformance
 npm ci
 NEO4J_HOST=<address> NEO4J_PASSWORD=<password> QDRANT_HOST=<address> npm run test:librarian

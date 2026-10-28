@@ -24,9 +24,9 @@ name: Python Image Licences
 on:
   pull_request:
     paths:
-      - 'apps/*/uv.lock'
-      - 'apps/*/pyproject.toml'
-      - 'apps/*/Dockerfile'
+      - 'images/*/uv.lock'
+      - 'images/*/pyproject.toml'
+      - 'images/*/Dockerfile'
       - 'packages/*-python/pyproject.toml'
       - scripts/ci/python-floor.sh
       - '.github/licenses/**'
@@ -61,12 +61,12 @@ jobs:
       - name: Find the images that install from PyPI
         id: find
         run: |
-          found=$(grep -lE '^RUN uv sync ' apps/*/Dockerfile || true)
+          found=$(grep -lE '^RUN uv sync ' images/*/Dockerfile || true)
           if [ -z "$found" ]; then
-            echo "::error::No Dockerfile under apps/ installs with uv: this check has lost what it holds."
+            echo "::error::No Dockerfile under images/ installs with uv: this check has lost what it holds."
             exit 1
           fi
-          services=$(printf '%s\n' "$found" | sed -E 's#^apps/([^/]+)/Dockerfile$#\1#' | jq -R . | jq -sc .)
+          services=$(printf '%s\n' "$found" | sed -E 's#^images/([^/]+)/Dockerfile$#\1#' | jq -R . | jq -sc .)
           echo "services=$services" >> "$GITHUB_OUTPUT"
           echo "Python images: $services"
 
@@ -105,7 +105,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./apps/${{ matrix.service }}/Dockerfile
+          file: ./images/${{ matrix.service }}/Dockerfile
           target: builder
           load: true
           tags: semiont-${{ matrix.service }}:licences
@@ -126,9 +126,9 @@ jobs:
       # own, which the stage builds from this repository and installs.
       - name: The SBOM names what the stage installed
         run: |
-          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' "apps/${{ matrix.service }}/pyproject.toml" | head -1)
+          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' "images/${{ matrix.service }}/pyproject.toml" | head -1)
           if [ -z "$name" ]; then
-            echo "::error::apps/${{ matrix.service }}/pyproject.toml names no package."
+            echo "::error::images/${{ matrix.service }}/pyproject.toml names no package."
             exit 1
           fi
           if ! jq -e --arg name "$name" 'any(.packages[]; .name == $name)' sbom.spdx.json > /dev/null; then

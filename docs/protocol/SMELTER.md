@@ -69,20 +69,20 @@ and anyone else to the same schema.
 - **Started with no `--config`, with a path it cannot read, or with a document
   that is not the schema's, it refuses to start,** and says which. A refusal
   names a member of the document and what was expected of it, and never a
-  value found there. *Held by `apps/smelter/tests/test_service.py`.*
+  value found there. *Held by `images/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
   vector database's host, the embedding provider's kind, model or address,
   how many PDFs it works on at once, or the file of its cursors, it refuses
-  to start,** and names the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  to start,** and names the member that is missing. *Held by `images/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An index that lives in one process's memory is refused.** Nothing else
-  could search it. *Held by `apps/smelter/tests/test_service.py`.*
+  could search it. *Held by `images/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
   `SEMIONT_OIDC_CLIENT_SECRET` in its environment** ([Environment](#environment)).
   With either missing it refuses to start, and names what is missing.
-  *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  *Held by `images/smelter/tests/test_service.py` and `smelter/boot`.*
 - **An embedding provider's key is read from the variable its document
   names.** With that variable unset it refuses to start, and names the
-  variable. *Held by `apps/smelter/tests/test_service.py`.*
+  variable. *Held by `images/smelter/tests/test_service.py`.*
 
 ## What it follows
 
@@ -102,44 +102,44 @@ Archivist.
   until the next sweep. It follows the resources' logs, and not
   `__system__`: the knowledge base's own events change nothing either store
   is made of. Its cursors are kept in the file its document names.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Eleven events of the record do something:** `yield:created`,
   `yield:cloned`, `yield:updated`, `yield:representation-added`,
   `mark:archived`, `mark:unarchived`, `mark:added`, `mark:body-updated`,
   `mark:removed`, `mark:entity-tag-added` and `mark:entity-tag-removed`
   ([What each event does](#what-each-event-does)). Every other event is taken
-  as nothing. *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
+  as nothing. *Held by `images/smelter/tests/test_census.py` and `images/smelter/tests/test_smelter.py`.*
 - **A resource no cursor names when it starts is started by a reconcile**
   ([Reconcile](#reconcile)), and followed from its last event as the record
   listed it before the reconcile read anything. One first met after the
   start is a new one, and is taken from its first event. An index made
   anew at boot has the Smelter forget its cursors, so that every resource
   is started by a reconcile.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **A resource's events are taken a run at a time,** and within a run the
   `mark:added` events that follow one another have one turn, whose quotes are
   embedded in one batch ([Order](#order)).
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **It reads what the record holds from the Archivist, over the bus:** a
   resource's description (`browse:resource-requested`) and the catalog of
   resources that are not archived (`browse:resources-requested`, 200 to a
   page). It opens no file of the record.
-  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
 - **It reads a resource's bytes from the Archivist's own
   `GET /resources/{id}/content`, as its service account, and takes them as
   they are stored.** The checksum it works by is of exactly those bytes. It
   reads a resource's annotations the same way, from
   `GET /resources/{id}/annotations`: their number follows the document's, so
   they are no bus read.
-  *Held by `packages/service-python/tests/test_archivist.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `packages/service-python/tests/test_archivist.py` and `images/smelter/tests/test_smelter.py`.*
 - **It answers one command,** `smelt:rebuild-anchors` ([Rebuild](#rebuild)),
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **It writes the vector index, and the anchored-text store through the
   Archivist, and its cursors' file, and nothing else.** It records nothing,
   and no event is its.
-  *Held by `apps/smelter/tests/test_census.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_census.py` and `images/smelter/tests/test_smelter.py`.*
 
 ## What each event does
 
@@ -149,74 +149,74 @@ entity types from its description as the Archivist answers it then.
 
 - **`yield:created`, `yield:updated` and `yield:representation-added` index
   the resource** ([Indexing a resource](#indexing-a-resource)).
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`yield:cloned` indexes the copy,** as `yield:created` indexes a resource
   that was made: a copy is a resource of its own, with bytes of its own.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **Nothing in such an event's payload changes what is indexed.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_properties.py`.*
 - **`mark:archived` takes the resource's points out of the index, and the
   points of every annotation on it.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:unarchived` indexes the resource, and then each annotation the
   Archivist answers for it,** so that an unarchived resource is found again
   without a restart. The annotations are indexed whatever the resource's
   indexing came to: where its bytes were declined, or could not be read, too.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:added` indexes the annotation the event carries, where its
   resource is not archived**
   ([Indexing an annotation](#indexing-an-annotation)). An annotation made on
   an archived resource has no point until the resource is unarchived, which
   is what a start leaves too.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:body-updated` rewrites the entity types on the annotation's point
   to those its body states now, and asks nothing of the embedding
   provider:** a body changes nothing an annotation quotes. What the body
   states is asked of the Archivist then, and nothing of it is read from the
   event. An annotation that has no point is left with none, and one the
   Archivist no longer answers is passed by.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:entity-tag-added` and `mark:entity-tag-removed` rewrite the entity
   types on the resource's points to the resource's entity types as they now
   are, and ask nothing of the embedding provider.** A resource with no points
   is left with none: its entity types are written when it is next indexed.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 
 ### Indexing a resource
 
 - **It reads the resource's bytes and takes their checksum before it decides
   anything,** so that whatever it decides is said of those bytes.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's media type says where its text comes from**
   ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)):
   decoded from the bytes, derived from a PDF ([A PDF's text](#a-pdfs-text)),
   or nowhere. A `text/` type the registry does not list is decoded.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Decoded text is the text the protocol says those bytes are**
   ([W3C-SELECTORS.md](./W3C-SELECTORS.md#the-text-of-a-resource)).
   *Held by `packages/sdk-python/tests/test_decode_cases.py`, for the reader the Smelter decodes with.*
 - **The text is cut into chunks as
   [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states,** by
   the two numbers of its settings.
-  *Held by `apps/smelter/tests/test_chunk_cases.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_chunk_cases.py` and `smelter/index`.*
 - **Every chunk is embedded before any point is written.** A resource whose
   chunks could not all be embedded keeps the points it had.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's points are then replaced by the new ones, all of them.** A
   resource whose text grew shorter keeps no point of the longer text.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes and the media type they were read as, the resource's
   entity types, and a mark when the text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
   The media type is the one the Archivist answered the bytes with, as it is
   written, with whatever parameters it states.
-  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
-  *Held by `apps/smelter/tests/test_properties.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_properties.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 
 ### Indexing an annotation
 
@@ -224,49 +224,49 @@ entity types from its description as the Archivist answers it then.
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
-  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation's point outlives its resource's text.** An annotation that
   quotes text, on a resource of the catalog, has a point whether or not the
   resource has any: it is in the record, and it quotes what it quotes. A
   resource whose bytes are declined loses its own points and not its
   annotations', and a start leaves the same.
-  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_reconcile_cases.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_reconcile_cases.py`.*
 - **An annotation on a resource whose text was read from pixels carries the
   same mark,** read from the resource's points and not worked out again.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 
 ### Order
 
 - **The events of one resource are applied one at a time, in the order of
   its record.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_follow_cases.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_follow_cases.py`.*
 - **The `mark:added` events that follow one another in a run of a resource's
   events have one turn:** the texts they quote are embedded in one batch, and
   the Archivist is asked once whether the resource is archived. Nothing waits
   for more to arrive, and one that arrives once the turn has begun is taken
   in a run of its own. Where the turn fails, each of its events is logged.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **The events of different resources are applied in no fixed order,** and
   the index ends the same either way.
-  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_properties.py` and `images/smelter/tests/test_smelter.py`.*
 - **An event delivered again is dropped:** it is at or below its resource's
   cursor.
-  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_properties.py` and `images/smelter/tests/test_smelter.py`.*
 - **An event that fails is logged, and stops its resource's log where it
   is,** until the next sweep takes the log on from there. The events of
   other resources are applied, and its health says how many logs are stopped
   (`following`, [Health](#health)).
-  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
 - **An event whose payload is not its event's is refused:** it is logged,
   taken as nothing and counted, and the resource's later events are applied.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **The work a start plans, and a rebuild's, takes its turn among a
   resource's events as an event does.** So it never puts back what a later
   event changed. Taking out an annotation's point takes its turn among the
   events of the resource the point says the annotation is on.
-  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_properties.py` and `images/smelter/tests/test_smelter.py`.*
 - **No more PDFs are worked on at once than its document states**
   (`pdfsAtOnce`), whatever asks for them: an event, the work a start plans or
   a rebuild. A PDF's turn lasts from reading its bytes to writing its points
@@ -279,7 +279,7 @@ entity types from its description as the Archivist answers it then.
   its description, and its bytes are read when the turn comes. Bytes that
   turn out to be a PDF's where the description said otherwise are let go of,
   and read again in a turn. Every other resource is indexed beside them.
-  *Held by `apps/smelter/tests/test_smelter.py`, and by `apps/launcher/internal/launcher/smelterdoc_test.go` for what the launcher writes.*
+  *Held by `images/smelter/tests/test_smelter.py`, and by `apps/launcher/internal/launcher/smelterdoc_test.go` for what the launcher writes.*
 
 ## What it decides
 
@@ -290,33 +290,33 @@ and says so.
   checksum of the bytes it read, and `indexed` or `skipped`. A reader waits
   on that signal to know the Smelter has done with bytes it just saw
   recorded.
-  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py`, `smelter/index` and `smelter/pdf`.*
 - **`indexed` is signalled once the points are written.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`skipped` carries its reason,** one of six: `no-extractor`, the media
   type has no text; `empty`, the text is nothing but white space;
   `no-text-layer`, `encrypted`, `corrupt` and `too-large`, the ways a PDF is
   declined ([A PDF's text](#a-pdfs-text)).
-  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **A skipped resource has no points.** Points made from bytes it had before
   are taken out. The points of its annotations are kept.
-  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **The index remembers a skip of a media type that has text:** the checksum
   of the bytes that gave none, the media type they were read as, and the
   reason. It is forgotten when the resource is indexed, when it is archived,
   and when a start takes it out. A skip of a media type that has no text is
   not remembered: the catalog says as much of the resource.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_properties.py`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Bytes it could not read are not a decision.** Nothing is signalled, the
   resource's points are not changed, and the failure is logged. Whoever
   waits is left to the end of its own wait.
-  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py` and `smelter/index`.*
 - **A signal that cannot be sent does not undo what was indexed.**
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 
 ## A PDF's text
 
@@ -326,31 +326,31 @@ states what each kind of document becomes.
 
 - **A document with a text layer of its own is read from that layer,** run by
   run, each with its place on its page.
-  *Held by `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
 - **A scanned document is read from its pixels:** each page's images are
   taken out and read by OCR, and each word is placed on the page by the place
   of the image it was read from. No fixture of the table has a word in its
   pixels, so the table holds only that a scan in which nothing can be read is
   declined; the tests named here play the OCR engine.
-  *Held by `apps/smelter/tests/test_extraction.py` and `apps/smelter/tests/test_ocr_text.py`, which play the engine, and by `apps/smelter/tests/test_extraction_cases.py`, which reads a scan that has words in its pixels with the real engine.*
+  *Held by `images/smelter/tests/test_extraction.py` and `images/smelter/tests/test_ocr_text.py`, which play the engine, and by `images/smelter/tests/test_extraction_cases.py`, which reads a scan that has words in its pixels with the real engine.*
 - **A document with pages of each kind is read both ways,** and names the
   pages that could not be read.
-  *Held by `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_extraction.py`.*
+  *Held by `images/smelter/tests/test_extraction_cases.py` and `images/smelter/tests/test_extraction.py`.*
 - **A page that is a grid of cells is written as rows,** each row's cells on
   one line, in their order.
-  *Held by `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_tables.py`.*
+  *Held by `images/smelter/tests/test_extraction_cases.py` and `images/smelter/tests/test_tables.py`.*
 - **A filled form's values are part of its text.**
-  *Held by `apps/smelter/tests/test_extraction_cases.py`.*
+  *Held by `images/smelter/tests/test_extraction_cases.py`.*
 - **A document that cannot be parsed, or that is larger than 200 MB, is
   declined, by name,** and one too large is declined before anything parses
   it. A scanned document in which nothing can be read is declined as having
   no text layer.
-  *Held by `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
 - **An encrypted document is declined, by name.** No fixture the table names is encrypted.
-  *Held by `apps/smelter/tests/test_extraction_cases.py`, on a document that is encrypted.*
+  *Held by `images/smelter/tests/test_extraction_cases.py`, on a document that is encrypted.*
 - **The outcome says how the text was got** (its `method`), and text read by
   OCR is marked on every point made from it.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 
 ### The anchored-text store
 
@@ -359,30 +359,30 @@ states what each kind of document becomes.
   Archivist's own surface, as its service account, and mounts none of the
   store ([ARCHIVIST.md](./ARCHIVIST.md#the-http-surface)). The Archivist
   answers a resource's anchored text from it.
-  *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
   [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
-  *Held by `apps/smelter/tests/test_anchored_text_store.py`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_anchored_text_store.py`, `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The entry is stored before the decision is signalled,** so whoever hears
   that content was settled finds its entry.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Text that has no places on a page has no entry.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Bytes whose outcome is stored are not derived again:** the stored outcome
   is what is indexed.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **An entry that cannot be written does not stop the resource being
   indexed.** The entry is found missing when the Smelter next starts
   ([Reconcile](#reconcile)).
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The Smelter states its stamp,** once, before it stores or lists an entry,
   and the Archivist keeps it: a reader takes no entry under another stamp,
   nor one of another version of the entry's form. The stamp
   names the PDF reader and the OCR engine, and not the Smelter's version: an
   entry made by another reader or engine is a miss, and is derived again; one
   made by another release of the Smelter is not.
-  *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 
 ## The index
 
@@ -402,7 +402,7 @@ states what each kind of document becomes.
   model, and the two numbers a text is cut by. Where the model is served is
   no part of it. The two collections that are searched each state it, and an
   index whose two state different things states nothing.
-  *Held by `apps/smelter/tests/test_index_stamp.py` and `packages/vectors-python/tests/store_contract.py`, and for a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
+  *Held by `images/smelter/tests/test_index_stamp.py` and `packages/vectors-python/tests/store_contract.py`, and for a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
 - **What a search of the index answers is what
   [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
   *Held by `packages/vectors-python/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
@@ -470,7 +470,7 @@ reconcile.
   collections and the anchored-text store are kept apart, one may be restored
   or cleared without the others, and no stamp says so. That is the
   reconcile's to find.
-  *Held by `apps/smelter/tests/test_index_stamp.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_index_stamp.py` and `smelter/reconcile`.*
 - **Its health answers while a start's reconcile runs,** and events recorded
   from then on are applied as they arrive.
   *Held by `smelter/boot`.*
@@ -478,7 +478,7 @@ reconcile.
   and reported in its [health](#health), the Smelter goes on applying what
   arrives, and the start is begun again, a second later and then twice as
   long each time, up to a minute.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 
 ## Reconcile
 
@@ -497,55 +497,55 @@ in prose.
   was made anew. A Smelter started again with its cursors takes what was
   recorded since, and runs none. A reconcile asked for while another runs
   waits for it.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **It reads the index before it reads the catalog,** so that a resource
   indexed while it runs is never taken for one that should not be there.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **A resource of the catalog whose media type has text, and which has no
   points, is indexed,** unless the index remembers skipping it, by the
   checksum and the media type the catalog states of it: its bytes gave no
   text, and they are the bytes it has. A catalog that states no checksum does
   not say so, and such a resource is indexed.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **One whose points carry another checksum than the catalog states is
   indexed again.**
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **One whose points carry another media type than the catalog states, or
   none, is indexed again:** the same bytes read as another type are another
   text. A media type is compared as it is written.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `images/smelter/tests/test_smelter.py`.*
 - **One whose points carry the catalog's checksum and other entity types has
   its entity types rewritten, and nothing is embedded.**
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **One whose points carry the catalog's checksum, whose text has places on a
   page, and whose bytes the anchored-text store has no entry for, has its
   anchored text derived again,** from the bytes as they now are, and filed
   under their checksum. Nothing is embedded, the index is not touched, and
   nothing is signalled.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **A skipped document whose bytes the anchored-text store has no entry for
   has what it was skipped by derived again,** and is not indexed.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `images/smelter/tests/test_smelter.py`.*
 - **Points of a resource that is none of the catalog's resources with text
   are taken out, and so is what is remembered of its skip:** one that is
   archived, one that is gone, one whose media type has no text.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **An annotation that quotes text, on any resource of the catalog, and has
   no point is indexed; a point whose annotation is not among them is taken
   out.**
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **A point that carries other entity types than its annotation's body
   states has them rewritten, and nothing is embedded.** They are compared in
   no order.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **Where it plans to index a resource and an annotation on it, the resource
   comes first,** since an annotation's point takes its mark of text read from
   pixels from the resource's points as they then are. The rest of the work is
   in no stated order.
-  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
   its resource's events ([Order](#order)), and no more PDFs among them than
-  its document states. *Held by `apps/smelter/tests/test_smelter.py`.*
+  its document states. *Held by `images/smelter/tests/test_smelter.py`.*
 - **Work planned for a resource that an event has arrived for since the
   reconcile began to read is looked at again when its turn comes.** It asks
   the Archivist what the record holds then, and does what that wants. A
@@ -555,10 +555,10 @@ in prose.
   annotation, again. Work that is no longer wanted is not done, is counted
   nowhere, and a line of the log says so. Work planned for a resource no
   event has arrived for is done as it was planned.
-  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_properties.py`.*
 - **An index that was cleared is filled again whole** by this pass, when the
   Smelter next starts. So is an anchored-text store that was cleared.
-  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py` and `smelter/reconcile`.*
 - **It reports** what the resources it set out to index came to: how many
   were indexed (`resourcesEmbedded`), skipped, by reason
   (`resourcesSkipped`), unread (`resourcesUnavailable`), and failed
@@ -572,7 +572,7 @@ in prose.
   (`resourcesIndexed`). The first four add up to how many resources it set
   out to index, less any whose indexing was no longer wanted when its turn
   came.
-  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_reconcile_cases.py`, `smelter/boot` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_reconcile_cases.py`, `smelter/boot` and `smelter/reconcile`.*
 
 ## Rebuild
 
@@ -581,19 +581,19 @@ in prose.
   of every resource of the catalog whose text has places on a page.** A
   document that is declined is done, and its decline is what is stored. A
   resource named that has no such text is done, with nothing derived.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Nothing is deleted first, and an entry that is there is kept.** So a
-  rebuild that fails part way has lost nothing. *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  rebuild that fails part way has lost nothing. *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Nothing is embedded, and the index is not touched.**
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Rebuilds are done one at a time, and never while the work of reconcile
   is being done:** of a rebuild and a reconcile, the one whose work is ready
   first is done first, and the other waits.
-  *Held by `apps/smelter/tests/test_smelter.py`.*
+  *Held by `images/smelter/tests/test_smelter.py`.*
 - **It answers `smelt:rebuild-anchors-ok` when every resource was done, and
   `smelt:rebuild-anchors-failed`, saying how many of how many were not,
   otherwise.** The ones that could be done are done.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 
 ## Health
 
@@ -636,18 +636,18 @@ every resource had a cursor at its start.
   gives a stream what it missed for a scope alone
   ([TRANSPORT-HTTP.md § Event id and resumption](./TRANSPORT-HTTP.md#event-id-and-resumption)).
   The sweep at the reopening takes it from the record.
-  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/boot`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `smelter/boot`.*
 - **`eventsProcessed` is the number of events it has applied since it
   started:** events of the eleven kinds that do something, and not refused.
   An event taken as nothing is not counted.
-  *Held by `apps/smelter/tests/test_smelter.py`, and by `smelter/boot` for a Smelter that was delivered nothing.*
+  *Held by `images/smelter/tests/test_smelter.py`, and by `smelter/boot` for a Smelter that was delivered nothing.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
-  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
 - **`reconcile` is how far the latest reconcile has got:** a `phase`
   (`pending`, `running`, `done` or `failed`), with the pass's `summary` when
   it is done, or its `error` when it failed.
-  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
+  *Held by `images/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
 - **`index` is what the Smelter holds its index to, and what this start did
   for that:** `stamp`, the model and the cut it makes an index by
   ([Boot](#boot)); and `madeAnew`, whether this start made the index again,
@@ -680,7 +680,7 @@ every resource had a cursor at its start.
   interval, and the gauge says what was last answered. While the index does
   not answer, each asking that failed is logged as a warning and the gauge
   says nothing: a number answered before says nothing of now.
-  *Held by `smelter/telemetry`, `packages/service-python/tests/test_observability.py` and `apps/smelter/tests/test_telemetry.py`.*
+  *Held by `smelter/telemetry`, `packages/service-python/tests/test_observability.py` and `images/smelter/tests/test_telemetry.py`.*
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
@@ -713,9 +713,9 @@ the `tesseract` program, which finds its own language data.
 
 What each telemetry variable does is what the Worker service's does
 ([WORKER-SERVICE.md](./WORKER-SERVICE.md#environment)): the Smelter's code for
-it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
+it is the Worker's, held to it by `images/smelter/tests/test_census.py`.
 
-*Held by `smelter/boot`, `smelter/telemetry` and `apps/smelter/tests/test_census.py`.*
+*Held by `smelter/boot`, `smelter/telemetry` and `images/smelter/tests/test_census.py`.*
 
 ## Not specified here
 

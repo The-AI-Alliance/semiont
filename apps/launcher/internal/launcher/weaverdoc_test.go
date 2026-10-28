@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -111,7 +110,7 @@ func TestWeaverDocumentNamesTheGraphPassword(t *testing.T) {
 // descriptor's, which the document carries, the launcher publishes and the
 // image probes.
 func TestWeaverDocumentIsWhereTheImageLooks(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "weaver", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("weaver"))
 	if err != nil {
 		t.Fatal(err)
 	}

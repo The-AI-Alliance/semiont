@@ -1,6 +1,6 @@
-# The smelter image: the Smelter service (apps/smelter, Python) and the three
+# The smelter image: the Smelter service (images/smelter, Python) and the three
 # packages of this repository it runs on, built here from the repository, in
-# an environment of exactly what apps/smelter/uv.lock pins, with the program
+# an environment of exactly what images/smelter/uv.lock pins, with the program
 # that reads a scanned page beside it. Nothing is built, installed or fetched
 # when the container starts: the entrypoint runs the service.
 #
@@ -32,8 +32,8 @@ COPY packages/vectors-python/pyproject.toml packages/vectors-python/README.md pa
 COPY packages/vectors-python/src packages/vectors-python/src
 COPY packages/service-python/pyproject.toml packages/service-python/
 COPY packages/service-python/src packages/service-python/src
-COPY apps/smelter/pyproject.toml apps/smelter/uv.lock apps/smelter/
-COPY apps/smelter/src apps/smelter/src
+COPY images/smelter/pyproject.toml images/smelter/uv.lock images/smelter/
+COPY images/smelter/src images/smelter/src
 # The environment is made on this stage's Python and no other, with its
 # bytecode written here: the image's user cannot write it. uv keeps no cache,
 # and the stage mounts none: from a cache that outlives a build, uv installs
@@ -54,7 +54,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 # PDFium, which reads a PDF, comes in the wheel of its binding (pypdfium2),
 # built for Alpine's C library with its C++ runtime inside it. It asks for no
 # package of the system, in this stage or the next.
-RUN uv sync --project apps/smelter --locked --no-dev --no-editable
+RUN uv sync --project images/smelter --locked --no-dev --no-editable
 
 FROM python:${PYTHON_FLOOR}-alpine
 # Patch base-image OS packages so Alpine's security fixes apply even when the
@@ -80,7 +80,7 @@ RUN addgroup --system --gid 1001 semiont && \
 
 COPY --from=builder /opt/venv /opt/venv
 
-COPY LICENSE apps/smelter/NOTICE /home/semiont/
+COPY LICENSE images/smelter/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 

@@ -34,7 +34,7 @@ SERVICE="${1:?usage: check-python-image.sh <service> <image> [runtime]}"
 IMAGE="${2:?usage: check-python-image.sh <service> <image> [runtime]}"
 RT="${3:-docker}"
 REPOSITORY="$(cd "$(dirname "$0")/../.." && pwd)"
-DOCKERFILE="$REPOSITORY/apps/$SERVICE/Dockerfile"
+DOCKERFILE="$REPOSITORY/images/$SERVICE/Dockerfile"
 COMMAND=$(sed -n 's/^CMD \[\(.*\)\]$/\1/p' "$DOCKERFILE" | sed 's/", "/ /g; s/"//g')
 if [ -z "$COMMAND" ]; then
   echo "✗ $DOCKERFILE declares no exec-form CMD"
@@ -139,7 +139,7 @@ fi
 echo "✓ $IMAGE has the tesseract program with its English data: $(echo "$listed" | head -1)"
 
 # A PDF derived as the Smelter derives one, by its reader and its engine, as
-# apps/smelter/tests/test_extraction_cases.py derives the same document. The
+# images/smelter/tests/test_extraction_cases.py derives the same document. The
 # page is a picture of the words and has no text of its own, so a word in
 # what is derived is one the program read. What is printed is the stamp the
 # Smelter writes its anchored text under: the reader's version and the

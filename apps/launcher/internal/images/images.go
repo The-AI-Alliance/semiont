@@ -27,12 +27,12 @@ import (
 // container runtime runs, once as the SUPERVISE_PROBE the entrypoint watches.
 var probeURL = regexp.MustCompile(`http://localhost:\d+[^"' )]*`)
 
-// HealthURL returns the URL <root>/apps/<service>/Dockerfile declares, and
+// HealthURL returns the URL <root>/images/<service>/Dockerfile declares, and
 // fails when the image declares none or declares two that differ — an image
 // telling the runtime and its own entrypoint different things is a defect
 // before anybody reads it from here.
 func HealthURL(root, service string) (string, error) {
-	p := filepath.Join(root, "apps", service, "Dockerfile")
+	p := filepath.Join(root, "images", service, "Dockerfile")
 	b, err := os.ReadFile(p)
 	if err != nil {
 		return "", fmt.Errorf("%s declares no health route: %w", service, err)

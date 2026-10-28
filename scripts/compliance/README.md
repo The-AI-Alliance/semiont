@@ -21,7 +21,7 @@ cd packages/react-ui
 
 ### Browser Application
 ```bash
-cd apps/browser
+cd images/browser
 ./scripts/generate-compliance-report.sh
 # Outputs: .compliance/BROWSER-COMPLIANCE.md
 ```
@@ -40,7 +40,7 @@ scripts/compliance/          # Shared core scripts (workspace-agnostic)
 packages/react-ui/scripts/   # React-UI thin wrapper
 └── generate-compliance-report.sh
 
-apps/browser/scripts/       # Browser thin wrapper
+images/browser/scripts/       # Browser thin wrapper
 └── generate-compliance-report.sh
 ```
 
@@ -130,7 +130,7 @@ const handler = useCallback(() => {
 
 ### audit-hooks-ordering.ts
 
-**Purpose**: Find a React hook called where React's rules forbid one, in `packages/react-ui/src` and `apps/browser/src`.
+**Purpose**: Find a React hook called where React's rules forbid one, in `packages/react-ui/src` and `images/browser/src`.
 
 **Usage**:
 ```bash
@@ -285,7 +285,7 @@ jobs:
       # Audit Browser
       - name: Browser Compliance
         run: |
-          cd apps/browser
+          cd images/browser
           ./scripts/generate-compliance-report.sh
 ```
 

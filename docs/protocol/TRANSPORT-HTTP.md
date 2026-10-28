@@ -478,7 +478,7 @@ with more than one tenant.
 
 ## Where the code lives
 
-- `apps/gateway/src/routes/bus.rs`, `apps/gateway/src/routes/stream.rs` —
+- `images/gateway/src/routes/bus.rs`, `images/gateway/src/routes/stream.rs` —
   the `/bus/emit` and `/bus/subscribe` routes.
 - `specs/src/bus/registry.json` — the authority: channels, payloads,
   operations.

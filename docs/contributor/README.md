@@ -23,10 +23,10 @@ To run tools directly on your machine instead, the versions are:
 
 The repository holds code in four languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
-- **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
+- **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
-- **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`apps/worker`, `apps/weaver`, `apps/smelter`, `apps/librarian`). Each has an environment of its own, which is `uv`'s.
+- **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -73,7 +73,7 @@ semiont/
 └── website/                # The project site
 ```
 
-Each app and package has a README, and most have a `docs/` directory about how that part is built. [packages/README.md](../../packages/README.md) and [apps/README.md](../../apps/README.md) list them.
+Each app, image and package has a README, and most have a `docs/` directory about how that part is built. [packages/README.md](../../packages/README.md), [images/README.md](../../images/README.md) and [apps/README.md](../../apps/README.md) list them.
 
 ## The docs for contributors
 
@@ -106,7 +106,7 @@ Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.m
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): the pull-request process
 - [Architecture](../architecture/README.md): the actors, the stores, and why the pieces are shaped as they are
-- [Browser development](../../apps/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
+- [Browser development](../../images/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
 - [Adding a media type](../architecture/MEDIA-TYPES.md#adding-a-media-type): what a media type declares, and what each declaration costs
 - [Protocol](../protocol/README.md): the flows, the bus, the transport contract
 - [Builder docs](../builder/README.md): the SDKs, as someone building on them sees them

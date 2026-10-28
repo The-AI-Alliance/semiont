@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -97,7 +96,7 @@ func TestDispatcherDocumentNamesAnExternalBrokersPair(t *testing.T) {
 // document already carries every address. Its health port is the descriptor's,
 // which the document carries and the image probes.
 func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
-	df, err := os.ReadFile(filepath.Join("..", "..", "..", "dispatcher", "Dockerfile"))
+	df, err := os.ReadFile(serviceDockerfile("dispatcher"))
 	if err != nil {
 		t.Fatal(err)
 	}

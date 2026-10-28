@@ -6,7 +6,7 @@ set -euo pipefail
 # host; see README.md.
 #
 # This script:
-#   1. Builds the browser SPA (apps/browser/dist/)
+#   1. Builds the browser SPA (images/browser/dist/)
 #   2. Builds the Tauri builder image, from the Rust rust-toolchain.toml
 #      names and the Tauri CLI version package-lock.json pins for
 #      apps/desktop. Every run asks for the build: the runtime's layer cache

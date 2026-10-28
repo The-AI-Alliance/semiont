@@ -74,7 +74,7 @@ for (const dir of seen) console.log(dir);
 ' "$1"
 }
 
-for tree in apps/browser packages/*; do
+for tree in images/browser packages/*; do
   [ -d "$tree/src" ] || continue
 
   # Writes: this tree's own tests. Fabricating env for a package you merely

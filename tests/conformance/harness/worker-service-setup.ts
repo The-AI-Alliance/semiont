@@ -15,7 +15,7 @@ declare module 'vitest' {
 
 /** What builds each implementation, said when a file its command names is missing. */
 const BUILDS: Readonly<Record<string, string>> = {
-  python: '`uv sync --locked --no-dev --all-extras --project apps/worker` at the repository root',
+  python: '`uv sync --locked --no-dev --all-extras --project images/worker` at the repository root',
 };
 
 export default function setup(project: TestProject): void {

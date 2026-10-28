@@ -56,7 +56,7 @@ The one line that decides which providers' libraries an image has is the builder
 provider names that provider's in its place:
 
 ```dockerfile
-RUN uv sync --project apps/worker --locked --no-dev --no-editable --extra anthropic
+RUN uv sync --project images/worker --locked --no-dev --no-editable --extra anthropic
 ```
 
 An image for Ollama alone names none: Ollama is asked with what every install has. A
@@ -150,7 +150,7 @@ prints:
 
 ```bash
 docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
-  --file apps/worker/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-worker:local .
+  --file images/worker/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-worker:local .
 ```
 
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other

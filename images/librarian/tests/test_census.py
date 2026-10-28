@@ -271,7 +271,7 @@ def test_it_is_a_service_s_code_and_no_library() -> None:
     beside = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc"))
     assert beside == []
     assert "Private :: Do Not Upload" in listed(table(MANIFEST["project"], "project")["classifiers"], "classifiers")
-    for other in sorted(ROOT.glob("packages/*/pyproject.toml")) + sorted(ROOT.glob("apps/*/pyproject.toml")):
+    for other in sorted(ROOT.glob("packages/*/pyproject.toml")) + sorted(ROOT.glob("images/*/pyproject.toml")):
         if other.parent != PROJECT:
             assert "semiont-librarian" not in other.read_text(encoding="utf-8"), f"{other.relative_to(ROOT)} requires the Librarian"
 

@@ -38,7 +38,7 @@ COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 USER semiont
 
 COPY --from=installer --chown=semiont:nodejs /app /app
-COPY LICENSE apps/browser/NOTICE /app/
+COPY LICENSE images/browser/NOTICE /app/
 
 ENV NODE_ENV=production
 ENV PORT=3000

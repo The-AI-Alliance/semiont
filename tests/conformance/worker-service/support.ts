@@ -111,7 +111,7 @@ export const FORMATS = {
 /**
  * What a linking job's count asks its answer to be: an array of one object,
  * the count. Written as JSON, so that the worker's own tests read it whole
- * (apps/worker/tests/test_element_schemas.py).
+ * (images/worker/tests/test_element_schemas.py).
  */
 export const COUNT_FORMAT = { "type": "array", "items": { "type": "object", "properties": { "count": { "type": "integer" } }, "required": ["count"], "additionalProperties": false } } as const;
 

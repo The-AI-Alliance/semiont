@@ -56,7 +56,7 @@
  *    for a release and never on a pull request. `changes` outputs `tier`,
  *    which no filter defines.
  *
- * 5. Every directory under apps/ or packages/ that holds a manifest
+ * 5. Every directory under apps/, images/ or packages/ that holds a manifest
  *    (package.json, Cargo.toml, pyproject.toml, go.mod) is a pattern
  *    `<dir>/**` of some filter of the map. A package nobody mapped would be
  *    tested by no job on a pull request that changed it alone.
@@ -107,7 +107,7 @@ const CI = '.github/workflows/ci.yml';
 /** The workflow that keeps the Rust images' layers between runs. */
 const SMOKE = '.github/workflows/stack-smoke.yml';
 /** The Dockerfiles whose builder stage those layers are; their COPY lines are read. */
-const RUST_IMAGES = ['apps/gateway/Dockerfile', 'apps/dispatcher/Dockerfile', 'apps/archivist/Dockerfile'];
+const RUST_IMAGES = ['images/gateway/Dockerfile', 'images/dispatcher/Dockerfile', 'images/archivist/Dockerfile'];
 
 /** A workflow's concurrency group, led by its file name. */
 const groupOf = (file) => `${basename(file).replace(/\.ya?ml$/, '')}-\${{ github.event.pull_request.number || github.sha }}`;
@@ -342,7 +342,7 @@ function changedAreas(jobs) {
   const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
   const patterns = new Set(Object.values(filters).flat());
   const packages = repository
-    .filter((file) => /^(apps|packages)\/[^/]+\/[^/]+$/.test(file) && MANIFESTS.includes(basename(file)))
+    .filter((file) => /^(apps|images|packages)\/[^/]+\/[^/]+$/.test(file) && MANIFESTS.includes(basename(file)))
     .map((file) => dirname(file));
   for (const dir of new Set(packages)) {
     if (!patterns.has(`${dir}/**`)) failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/**: a change to it alone would run no job`);

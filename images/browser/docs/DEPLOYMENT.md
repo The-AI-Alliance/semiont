@@ -8,7 +8,7 @@ How the Semiont Browser is shipped and run.
 ## What ships
 
 `ghcr.io/the-ai-alliance/semiont-browser`, built by CI from
-[apps/browser/Dockerfile](../Dockerfile) and tagged per release plus `latest`. The container serves
+[images/browser/Dockerfile](../Dockerfile) and tagged per release plus `latest`. The container serves
 on **port 3000** and its entrypoint is a plain `node node_modules/@semiont/browser/server.js` — no
 CLI involved.
 
@@ -26,7 +26,7 @@ semiont stop --service browser      # the explicit off-switch
 
 The Browser runs `ghcr.io/the-ai-alliance/semiont-browser:latest`. Pin a version with
 `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:<version>`, and return to
-`latest` with `semiont settings browser-image --unset`. See [apps/launcher](../../launcher/README.md) and
+`latest` with `semiont settings browser-image --unset`. See [apps/launcher](../../../apps/launcher/README.md) and
 [administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md).
 
 ## Local development

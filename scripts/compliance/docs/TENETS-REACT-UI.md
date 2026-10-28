@@ -2,7 +2,7 @@
 
 **Scope**: This document defines the architecture patterns enforced in:
 - `packages/react-ui` - Shared React UI components and hooks
-- `apps/browser` - Next.js Browser application
+- `images/browser` - Next.js Browser application
 
 These rules are enforced via automated compliance auditing (see [../README.md](../README.md)).
 
@@ -242,7 +242,7 @@ These patterns are enforced via automated AST analysis:
 cd packages/react-ui && ./scripts/generate-compliance-report.sh
 
 # Browser
-cd apps/browser && ./scripts/generate-compliance-report.sh
+cd images/browser && ./scripts/generate-compliance-report.sh
 ```
 
 ---

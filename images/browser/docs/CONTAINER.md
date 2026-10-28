@@ -82,7 +82,7 @@ by digest ([Container Images](../../../docs/operator/administration/IMAGES.md#su
 
 ## Building it yourself
 
-The image is built from [`apps/browser/Dockerfile`](../Dockerfile). Its build arguments are the
+The image is built from [`images/browser/Dockerfile`](../Dockerfile). Its build arguments are the
 package version to install and the registry to install it from:
 
 ```bash
@@ -90,7 +90,7 @@ package version to install and the registry to install it from:
 docker build \
   --build-arg SEMIONT_BROWSER_VERSION=<version> \
   -t semiont-browser:custom \
-  -f apps/browser/Dockerfile .
+  -f images/browser/Dockerfile .
 ```
 
 | Build argument | Default | |

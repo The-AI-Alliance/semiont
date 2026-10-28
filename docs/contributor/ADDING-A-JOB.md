@@ -14,10 +14,10 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 |---|---|---|---|
 | 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `tests/conformance/worker-service/telemetry.test.ts` |
 | 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/core`, `packages/sdk-go`, `packages/sdk-python` | CI's `generated-artifacts` job |
-| 3 | [Admit it](#3-admit-it-the-dispatcher) | `apps/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `tests/conformance/dispatcher/create.test.ts` |
-| 4 | [Do it](#4-do-it-the-worker) | `apps/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `apps/worker` |
-| 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `apps/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
-| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `apps/worker/tests/test_prompts.py` |
+| 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `tests/conformance/dispatcher/create.test.ts` |
+| 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
+| 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
+| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Bind it to a worker](#8-bind-it-to-a-worker) | a knowledge base's Inference document; nothing in the launcher | `TestEveryRosterJobHasAFilter`, in `apps/launcher` |
 | 9 | [Word it in each client](#9-word-it-in-each-client) | `apps/launcher/internal/verbs/mark.go`, `packages/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
@@ -43,7 +43,7 @@ What the job needs no schema of its own for:
 
 What the dispatcher adds to a job it hands over is stated in [`JobParams.json`](../../specs/src/components/schemas/JobParams.json): the job's `resourceId`, and for a tagging job `schema`, the tag schema its `schemaId` names. Something added for the new job is a property there.
 
-The worker's telemetry is the spec's too. [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json) lists the values of `job.motivation` on the worker's three rows of a job, and of `detection.label` on its rows of a detection, where the label is the worker's own word for the kind (`tag`). The Worker service's suite holds the first to `MarkJobParams` (`telemetry.test.ts`), and the worker's tests the second to the labels its code has (`apps/worker/tests/test_chunk_plan.py`).
+The worker's telemetry is the spec's too. [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json) lists the values of `job.motivation` on the worker's three rows of a job, and of `detection.label` on its rows of a detection, where the label is the worker's own word for the kind (`tag`). The Worker service's suite holds the first to `MarkJobParams` (`telemetry.test.ts`), and the worker's tests the second to the labels its code has (`images/worker/tests/test_chunk_plan.py`).
 
 ## 2. Regenerate the types
 
@@ -62,7 +62,7 @@ In the TypeScript, the Rust and the Python SDK, `mark.delegate` takes a `MarkJob
 
 ## 3. Admit it: the dispatcher
 
-`admit`, in [`apps/dispatcher/handlers/src/admission.rs`](../../apps/dispatcher/handlers/src/admission.rs), matches every member of `MarkJobParams`. A new member does not build until admission says what it checks for that job and what it adds. For a tagging job it reads the knowledge base's tag schemas, refuses a `schemaId` that names none of them, and adds the schema to the job it will hand over, so that a worker needs no registry. A job with nothing to check joins the members that add nothing.
+`admit`, in [`images/dispatcher/handlers/src/admission.rs`](../../images/dispatcher/handlers/src/admission.rs), matches every member of `MarkJobParams`. A new member does not build until admission says what it checks for that job and what it adds. For a tagging job it reads the knowledge base's tag schemas, refuses a `schemaId` that names none of them, and adds the schema to the job it will hand over, so that a worker needs no registry. A job with nothing to check joins the members that add nothing.
 
 The retry budget is set there too, by the verb: one retry for a `mark` job, which reads the same text again and takes up where its checkpoint left it, and none for a `yield` job, of which a second run would be another document.
 
@@ -70,7 +70,7 @@ The retry budget is set there too, by the verb: one retry for a `mark` job, whic
 
 ## 4. Do it: the worker
 
-The Worker service is Python, in [`apps/worker/src/semiont_worker`](../../apps/worker/src/semiont_worker). Each module says at its head what it is. The ones a kind of job passes through:
+The Worker service is Python, in [`images/worker/src/semiont_worker`](../../images/worker/src/semiont_worker). Each module says at its head what it is. The ones a kind of job passes through:
 
 | Module | What it is |
 |---|---|
@@ -85,7 +85,7 @@ The Worker service is Python, in [`apps/worker/src/semiont_worker`](../../apps/w
 
 There is no class for a kind of job, and nothing to register. A new `mark` job is these, each as tagging has it:
 
-- **Which job was handed over.** `HeldMark` in `held_params.py` gains the generated params type, and `held_mark` answers it. A job that cannot be run without what the dispatcher adds is a type of its own that carries both, as `HeldTagging` carries the schema. `apps/worker/tests/test_held_params.py` fails until every motivation the spec has is answered.
+- **Which job was handed over.** `HeldMark` in `held_params.py` gains the generated params type, and `held_mark` answers it. A job that cannot be run without what the dispatcher adds is a type of its own that carries both, as `HeldTagging` carries the schema. `images/worker/tests/test_held_params.py` fails until every motivation the spec has is answered.
 - **The detection.** A prompt in `detection/prompts.py`, the element a reply is an array of and its reader in `detection/parsers.py`, and a function in `detection/annotation_detection.py` that asks about the text a piece at a time. The cutting of pieces, the budget, the halving of a piece whose answer cannot be used and the bound on a call are shared, and a new job writes none of them. `DetectionLabel` in `telemetry.py` gains the job's label.
 - **The processor,** in `processors.py`, as `process_tag_job` is.
 - **The branch.** `_detect` in `held_job.py` hands each kind to its processor. It ends in `assert_never`, so `mypy` and `pyright` fail a kind that has no branch.
@@ -100,11 +100,11 @@ A processor reads nothing and sends nothing itself. It is handed the text, a pro
 - **It never states who asked.** An annotation says what made it. Who asked for the job is the record's to say, from the job a commit cites.
 - **What stops it is raised.** Whatever a processor raises fails the job, and a `DeterministicJobError` fails it as a failure no second attempt can mend.
 
-A processor is tested with no bus, no session and no queue: `apps/worker/tests/test_processors.py` calls each one with the detection stood in for (`apps/worker/tests/standing_in.py`) and holds what it hands over to be committed, what it reports and what it answers. `apps/worker/tests/test_detection.py` holds a detection over a text, and `apps/worker/tests/test_cancellation.py` where a job stops. [Testing § Python](TESTING.md#python) is how they are run.
+A processor is tested with no bus, no session and no queue: `images/worker/tests/test_processors.py` calls each one with the detection stood in for (`images/worker/tests/standing_in.py`) and holds what it hands over to be committed, what it reports and what it answers. `images/worker/tests/test_detection.py` holds a detection over a text, and `images/worker/tests/test_cancellation.py` where a job stops. [Testing § Python](TESTING.md#python) is how they are run.
 
 ## 5. State how its reply is read
 
-What a worker does to a text and to a model's reply is stated in tables every worker runs, in whatever language it is written. A new `mark` job adds its cases to [`specs/src/worker/parser-cases.json`](../../specs/src/worker/parser-cases.json): for one reply to one piece, what is read of it, what is passed over, and what is refused. Its runner, `apps/worker/tests/test_parser_cases.py`, reads a case by its `motivation` and fails on one it cannot read.
+What a worker does to a text and to a model's reply is stated in tables every worker runs, in whatever language it is written. A new `mark` job adds its cases to [`specs/src/worker/parser-cases.json`](../../specs/src/worker/parser-cases.json): for one reply to one piece, what is read of it, what is passed over, and what is refused. Its runner, `images/worker/tests/test_parser_cases.py`, reads a case by its `motivation` and fails on one it cannot read.
 
 The tables beside it hold what every kind shares, and a new kind adds to one only where it changes the rule: where a text is cut ([`chunk-cases.json`](../../specs/src/text/chunk-cases.json)), how its pieces are planned ([`chunk-plan-cases.json`](../../specs/src/worker/chunk-plan-cases.json)), and how a failure is classed ([`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)).
 
@@ -114,7 +114,7 @@ The tables beside it hold what every kind shares, and a new kind adds to one onl
 
 The [worker-service suite](../../tests/conformance/worker-service/README.md) starts the service as a process and meets it only at its boundary, so its cases judge an implementation in any language. A kind of job has a file there, as [`tagging.test.ts`](../../tests/conformance/worker-service/tagging.test.ts) is: a job queued as the dispatcher would hand it over, the stand-in provider's answers scripted, and then every request to the provider, every batch committed, every checkpoint, every progress report and the completion, each held whole.
 
-- Each prompt the case holds is a file of `prompts/`, the exact text sent. `apps/worker/tests/test_prompts.py` fails until the worker's own tests build every such file word for word.
+- Each prompt the case holds is a file of `prompts/`, the exact text sent. `images/worker/tests/test_prompts.py` fails until the worker's own tests build every such file word for word.
 - The suite's README lists the file, with the rules it holds. `npm run lint:conformance-readmes` fails on a file the README does not name.
 - The comment that heads the file names the sections of `WORKER-SERVICE.md` it is about. `npm run lint:transport-contract` fails on a file no rule of that document names.
 
@@ -174,5 +174,5 @@ The verb is one of the eight. A job is how a verb is done on someone's behalf, a
 - [JOBS.md](../protocol/JOBS.md): the job protocol, and the dispatcher's side of it
 - [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md): what every worker promises, whoever wrote it
 - [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md): what Semiont's Worker service does, rule by rule
-- [`apps/worker`](../../apps/worker/README.md): the service's image, and how it is run
+- [`images/worker`](../../images/worker/README.md): the service's image, and how it is run
 - [Testing](TESTING.md): the suites, and what CI gates

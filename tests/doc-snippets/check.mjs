@@ -119,9 +119,9 @@ const SUITES = {
     docs: [
       ...markdownIn('docs/builder/react-ui'),
       ...markdownIn('packages/react-ui/docs'),
-      ...markdownIn('apps/browser/docs'),
+      ...markdownIn('images/browser/docs'),
       'packages/react-ui/README.md',
-      'apps/browser/README.md',
+      'images/browser/README.md',
     ],
     // react-ui's own declarations for the untyped jest-axe and its vitest
     // matcher ride along, so its accessibility tests read as the docs show them.
@@ -134,7 +134,7 @@ const SUITES = {
     options: {
       module: ts.ModuleKind.ESNext,
       moduleResolution: ts.ModuleResolutionKind.Bundler,
-      paths: { '@/*': [join(REPO_ROOT, 'apps/browser/src/*')] },
+      paths: { '@/*': [join(REPO_ROOT, 'images/browser/src/*')] },
       allowUmdGlobalAccess: true,
     },
     ambientModules: [

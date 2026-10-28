@@ -203,7 +203,7 @@ into any stack a host happens to use, and it is enforced, not merely intended:
 fail on a utility class or a non-`semiont-` selector.
 
 The rule binds the library, not its hosts. An app is free to use whatever it
-likes — `apps/browser` uses Tailwind — and consumes this package by whichever
+likes — `images/browser` uses Tailwind — and consumes this package by whichever
 route fits:
 
 | Host stack | Consume via |
@@ -345,8 +345,8 @@ function App({ children }: { children: React.ReactNode }) {
 }
 ```
 
-The Semiont Browser (`apps/browser`, Vite + React Router) is the full reference: its
-`apps/browser/src/app/providers.tsx` mounts the whole provider stack, with a translation
+The Semiont Browser (`images/browser`, Vite + React Router) is the full reference: its
+`images/browser/src/app/providers.tsx` mounts the whole provider stack, with a translation
 manager built over react-i18next.
 
 ## Development
@@ -398,4 +398,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 - [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../../docs/builder/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
 - [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
 - [@semiont/http-transport](../http-transport) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
-- [semiont-browser](../../apps/browser) - Reference implementation (Vite + React Router)
+- [semiont-browser](../../images/browser) - Reference implementation (Vite + React Router)

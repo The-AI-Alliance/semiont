@@ -84,7 +84,7 @@ release calls it.
 
 ### Labels (`labels.yml`)
 **Every label the repository has**, each a name, a colour and a description:
-- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
+- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/` and `images/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
 - Its colour says what it is: each `kind:` its own, bold, as GitHub's are; every other dimension one pale hue of its own, but `verb:`, one shade for each of the three ways the verbs work on the corpus (writing, reading, attention)
 - Three are of no dimension: `good first issue` and `help wanted`, which GitHub reads by those names, and `Ontology`
 - `from_name` renames a label in place, so what it is on keeps it; it is deleted once the sync has run
@@ -127,7 +127,7 @@ session code.
 ### Gateway Crate Advisories
 ```yaml
 # Runs on:
-- pull_request: # changes to apps/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
+- pull_request: # changes to images/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
 - schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
 - workflow_dispatch: # Manual trigger
 ```
@@ -243,7 +243,7 @@ If security tests fail:
 ### For Developers
 1. **Run security tests locally** before pushing:
    ```bash
-   cd apps/browser && npm run test:security
+   cd images/browser && npm run test:security
    cargo build --release -p semiont-gateway && (cd tests/conformance && npm run test:gateway)
    ```
 

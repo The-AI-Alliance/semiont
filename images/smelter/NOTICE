@@ -33,7 +33,7 @@ components:
     semiont-vectors - Apache-2.0 License (The AI Alliance)
 
   Python packages installed at build time from https://pypi.org, each at the
-  version apps/smelter/uv.lock pins: what those four require. Among them:
+  version images/smelter/uv.lock pins: what those four require. Among them:
     pypdfium2 - BSD-3-Clause OR Apache-2.0 License
       The binding the Smelter reads a PDF through. Its wheel carries PDFium
       itself, Chromium's PDF library (BSD-3-Clause OR Apache-2.0), and the

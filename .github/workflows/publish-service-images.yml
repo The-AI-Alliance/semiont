@@ -5,10 +5,10 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 # Builds and publishes the seven Semiont service images
 # (gateway · worker · smelter · weaver · archivist · librarian · dispatcher).
 # All seven are built from this checkout and report version.json's version:
-# the gateway, the dispatcher and the archivist compiled from apps/gateway,
-# apps/dispatcher and apps/archivist, and the worker, the smelter, the weaver
-# and the librarian, the Python services of apps/worker, apps/smelter,
-# apps/weaver and apps/librarian, each installed with what its uv.lock pins.
+# the gateway, the dispatcher and the archivist compiled from images/gateway,
+# images/dispatcher and images/archivist, and the worker, the smelter, the weaver
+# and the librarian, the Python services of images/worker, images/smelter,
+# images/weaver and images/librarian, each installed with what its uv.lock pins.
 # Each is scanned, pushed for both platforms, and attested with its SBOM, and
 # passes a license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
@@ -66,66 +66,66 @@ jobs:
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64
-            dockerfile: apps/gateway/Dockerfile
+            dockerfile: images/gateway/Dockerfile
             refusal: "Cannot read the gateway's configuration document"
           - service: gateway
             arch: arm64
             runner: ubuntu-24.04-arm
             scan: linux/arm64
             platforms: linux/arm64
-            dockerfile: apps/gateway/Dockerfile
+            dockerfile: images/gateway/Dockerfile
             refusal: "Cannot read the gateway's configuration document"
           - service: worker
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
-            dockerfile: apps/worker/Dockerfile
+            dockerfile: images/worker/Dockerfile
             refusal: "Cannot read the worker's configuration document"
           - service: smelter
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
-            dockerfile: apps/smelter/Dockerfile
+            dockerfile: images/smelter/Dockerfile
             refusal: "Cannot read the smelter's configuration document"
           - service: weaver
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
-            dockerfile: apps/weaver/Dockerfile
+            dockerfile: images/weaver/Dockerfile
             refusal: "Cannot read the weaver's configuration document"
           - service: archivist
             arch: amd64
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64
-            dockerfile: apps/archivist/Dockerfile
+            dockerfile: images/archivist/Dockerfile
             refusal: "Cannot read the archivist's configuration document"
           - service: archivist
             arch: arm64
             runner: ubuntu-24.04-arm
             scan: linux/arm64
             platforms: linux/arm64
-            dockerfile: apps/archivist/Dockerfile
+            dockerfile: images/archivist/Dockerfile
             refusal: "Cannot read the archivist's configuration document"
           - service: librarian
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
-            dockerfile: apps/librarian/Dockerfile
+            dockerfile: images/librarian/Dockerfile
             refusal: "Cannot read the librarian's configuration document"
           - service: dispatcher
             arch: amd64
             runner: ubuntu-latest
             scan: linux/amd64
             platforms: linux/amd64
-            dockerfile: apps/dispatcher/Dockerfile
+            dockerfile: images/dispatcher/Dockerfile
             refusal: "Cannot read the dispatcher's configuration document"
           - service: dispatcher
             arch: arm64
             runner: ubuntu-24.04-arm
             scan: linux/arm64
             platforms: linux/arm64
-            dockerfile: apps/dispatcher/Dockerfile
+            dockerfile: images/dispatcher/Dockerfile
             refusal: "Cannot read the dispatcher's configuration document"
 
     steps:

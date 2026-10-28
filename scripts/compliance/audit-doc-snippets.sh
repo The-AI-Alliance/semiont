@@ -8,7 +8,7 @@ set -euo pipefail
 #   - sdk:      docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/sdk READMEs.
 #   - skills:   the agent skills, docs/builder/skills/*/SKILL.md, and their README.
 #   - packages: the READMEs of the packages the services are built from.
-#   - ui:       docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.
+#   - ui:       docs/builder/react-ui, packages/react-ui/docs and images/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):
 #   - Shape, not meaning: a method whose semantics changed under a stable

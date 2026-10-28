@@ -11,7 +11,7 @@ through that lifecycle.
 | Container | What's inside | Where it comes from |
 |---|---|---|
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-gateway` | the gateway (Rust, `apps/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-archivist`, `semiont-librarian`, `semiont-dispatcher`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
 | plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres`, `semiont-nats`, `semiont-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 
@@ -29,9 +29,9 @@ So the "full rebuild" flow depends on what changed:
 | Change in | Rebuild | Restart |
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
-| `apps/browser` only | `local-build.sh` | browser |
-| `apps/librarian`, `apps/worker`, `apps/weaver`, `apps/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `semiont start` |
-| `apps/gateway` | `local-build.sh` | the stack: `semiont start` |
+| `images/browser` only | `local-build.sh` | browser |
+| `images/librarian`, `images/worker`, `images/weaver`, `images/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `semiont start` |
+| `images/gateway` | `local-build.sh` | the stack: `semiont start` |
 
 ## Apple container CLI primer
 

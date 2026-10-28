@@ -20,7 +20,7 @@ components:
     semiont-weaver - Apache-2.0 License (The AI Alliance)
 
   Python packages installed at build time from https://pypi.org, each at the
-  version apps/weaver/uv.lock pins: what those four require, and with every
+  version images/weaver/uv.lock pins: what those four require, and with every
   extra of semiont-graph the client each graph database is asked through
   (Neo4j's neo4j, Apache TinkerPop's gremlinpython), with what that client
   requires.

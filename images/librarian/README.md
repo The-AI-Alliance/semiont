@@ -152,7 +152,7 @@ stage's `uv sync` in the [Dockerfile](./Dockerfile). `--all-extras` asks for eve
 An image for one database and one provider names those two in its place:
 
 ```dockerfile
-RUN uv sync --project apps/librarian --locked --no-dev --no-editable --extra neo4j --extra anthropic
+RUN uv sync --project images/librarian --locked --no-dev --no-editable --extra neo4j --extra anthropic
 ```
 
 An image whose models are Ollama's names the database's extra alone: Ollama is asked with
@@ -173,7 +173,7 @@ prints:
 
 ```bash
 docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
-  --file apps/librarian/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-librarian:local .
+  --file images/librarian/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-librarian:local .
 ```
 
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other

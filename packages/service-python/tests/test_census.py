@@ -21,7 +21,7 @@ from spec import PROJECT, ROOT, SDK
 
 SRC = PROJECT / "src/semiont_service"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
-SERVICES = sorted(path.parent for path in ROOT.glob("apps/*/pyproject.toml"))
+SERVICES = sorted(path.parent for path in ROOT.glob("images/*/pyproject.toml"))
 
 FORCED = re.compile(r"\bcast\(|#\s*type:\s*ignore|#\s*pyright:\s*ignore|#\s*noqa\b|\btyping\.Any\b|^\s*from typing import [^\n]*\bAny\b")
 
@@ -208,7 +208,7 @@ def test_it_is_the_services_own_code_and_every_python_service_is_built_on_it() -
     assert len(SERVICES) >= 2
     for service in SERVICES:
         manifest = toml(service / "pyproject.toml")
-        assert "semiont-service" in required(manifest), f"apps/{service.name} is not built on semiont-service"
+        assert "semiont-service" in required(manifest), f"images/{service.name} is not built on semiont-service"
         sources = table(table(table(manifest["tool"], "tool")["uv"], "uv")["sources"], "sources")
         assert sources["semiont-service"] == {"path": "../../packages/service-python", "editable": True}, service.name
     for package in sorted(path.parent for path in ROOT.glob("packages/*/pyproject.toml")):

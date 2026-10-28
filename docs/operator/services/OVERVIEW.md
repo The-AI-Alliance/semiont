@@ -10,14 +10,14 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 
 | Service | Image | Port | Built from | What it does |
 |---|---|---|---|---|
-| [gateway](../../../apps/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `apps/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
-| [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
-| [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `apps/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
-| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | Python, `apps/librarian` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
-| [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | Python, `apps/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
-| [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | Python, `apps/smelter` | Keeps the vector index in step with the record, and derives a PDF's anchored text |
-| [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | Python, `apps/weaver` | Keeps the graph in step with the record |
-| [browser](../../../apps/browser/README.md) | `semiont-browser` | 3000 | `apps/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
+| [gateway](../../../images/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `images/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
+| [dispatcher](../../../images/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `images/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
+| [archivist](../../../images/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `images/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
+| [librarian](../../../images/librarian/README.md) | `semiont-librarian` | 24104 | Python, `images/librarian` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
+| [worker](../../../images/worker/README.md) | `semiont-worker` | 24100 | Python, `images/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
+| [smelter](../../../images/smelter/README.md) | `semiont-smelter` | 24101 | Python, `images/smelter` | Keeps the vector index in step with the record, and derives a PDF's anchored text |
+| [weaver](../../../images/weaver/README.md) | `semiont-weaver` | 24102 | Python, `images/weaver` | Keeps the graph in step with the record |
+| [browser](../../../images/browser/README.md) | `semiont-browser` | 3000 | `images/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
 
 ## What each service needs
 

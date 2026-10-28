@@ -104,7 +104,7 @@ export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/inference-python/tests/
 export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
-  python: [join(REPO_ROOT, 'apps/worker/.venv/bin/python'), '-P', '-m', 'semiont_worker'],
+  python: [join(REPO_ROOT, 'images/worker/.venv/bin/python'), '-P', '-m', 'semiont_worker'],
 };
 
 /**
@@ -119,7 +119,7 @@ export const WEAVER_SERVICES: Readonly<Record<string, WeaverService>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   python: {
-    command: [join(REPO_ROOT, 'apps/weaver/.venv/bin/python'), '-P', '-m', 'semiont_weaver'],
+    command: [join(REPO_ROOT, 'images/weaver/.venv/bin/python'), '-P', '-m', 'semiont_weaver'],
     healthPort: 24102,
   },
 };
@@ -137,7 +137,7 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   // It reads a scan with the `tesseract` program, which it finds on PATH.
-  python: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
+  python: [join(REPO_ROOT, 'images/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
 };
 
 /**
@@ -152,7 +152,7 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
 export const LIBRARIAN_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
-  python: [join(REPO_ROOT, 'apps/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
+  python: [join(REPO_ROOT, 'images/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

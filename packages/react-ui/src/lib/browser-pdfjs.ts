@@ -10,7 +10,7 @@
  * The worker can't be resolved inside this tsup-built library (Vite's `?url`
  * lives in the app), so the host hands us the worker URL via `setPdfWorkerSrc`
  * once at startup; it is applied to `GlobalWorkerOptions` when pdf.js loads.
- * See `apps/browser/src/main.tsx`.
+ * See `images/browser/src/main.tsx`.
  */
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
@@ -32,7 +32,7 @@ export function setPdfWorkerSrc(src: string): void {
  * are served — `openjpeg.wasm`, `jbig2.wasm`, `qcms_bg.wasm` and their JS
  * fallbacks, under their ORIGINAL names: pdf.js builds each fetch URL as
  * `wasmUrl + filename` itself, so a bundler-hashed asset can never be found.
- * The host stages them (apps/browser: `scripts/copy-pdf-wasm.js` →
+ * The host stages them (images/browser: `scripts/copy-pdf-wasm.js` →
  * `public/pdfjs/wasm/`) for the same reason the worker URL is handed in:
  * this tsup-built library cannot resolve assets.
  *

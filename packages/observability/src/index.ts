@@ -3,7 +3,7 @@
  *
  * Universal surface (works in Node + browser). A Node process initializes
  * the SDK from `@semiont/observability/node` at its entry point; the Browser
- * initializes its own tracer (`apps/browser/src/lib/tracing.ts`). Everything
+ * initializes its own tracer (`images/browser/src/lib/tracing.ts`). Everything
  * else uses this module.
  *
  * Traces and their propagation, and the one metric a client's transport

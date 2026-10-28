@@ -185,7 +185,7 @@ prints:
 
 ```bash
 docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
-  --file apps/smelter/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-smelter:local .
+  --file images/smelter/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-smelter:local .
 ```
 
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other

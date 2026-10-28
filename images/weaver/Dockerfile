@@ -1,6 +1,6 @@
-# The weaver image: the Weaver service (apps/weaver, Python) and the three
+# The weaver image: the Weaver service (images/weaver, Python) and the three
 # packages of this repository it runs on, built here from the repository, in
-# an environment of exactly what apps/weaver/uv.lock pins. Nothing is built,
+# an environment of exactly what images/weaver/uv.lock pins. Nothing is built,
 # installed or fetched when the container starts: the entrypoint runs the
 # service.
 #
@@ -32,8 +32,8 @@ COPY packages/graph-python/pyproject.toml packages/graph-python/README.md packag
 COPY packages/graph-python/src packages/graph-python/src
 COPY packages/service-python/pyproject.toml packages/service-python/
 COPY packages/service-python/src packages/service-python/src
-COPY apps/weaver/pyproject.toml apps/weaver/uv.lock apps/weaver/
-COPY apps/weaver/src apps/weaver/src
+COPY images/weaver/pyproject.toml images/weaver/uv.lock images/weaver/
+COPY images/weaver/src images/weaver/src
 # The environment is made on this stage's Python and no other, with its
 # bytecode written here: the image's user cannot write it. uv keeps no cache,
 # and the stage mounts none: from a cache that outlives a build, uv installs
@@ -52,7 +52,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 # brings the graph stores' extra of the same name, and with it the client
 # that database is asked through. An image for one database names that
 # database's extra in its place (`--extra neo4j`).
-RUN uv sync --project apps/weaver --locked --no-dev --no-editable --all-extras
+RUN uv sync --project images/weaver --locked --no-dev --no-editable --all-extras
 
 FROM python:${PYTHON_FLOOR}-alpine
 # Patch base-image OS packages so Alpine's security fixes apply even when the
@@ -68,7 +68,7 @@ RUN addgroup --system --gid 1001 semiont && \
 
 COPY --from=builder /opt/venv /opt/venv
 
-COPY LICENSE apps/weaver/NOTICE /home/semiont/
+COPY LICENSE images/weaver/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 

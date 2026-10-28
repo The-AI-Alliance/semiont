@@ -22,7 +22,7 @@ components:
     semiont-vectors - Apache-2.0 License (The AI Alliance)
 
   Python packages installed at build time from https://pypi.org, each at the
-  version apps/librarian/uv.lock pins: what those six require, and with every
+  version images/librarian/uv.lock pins: what those six require, and with every
   extra of semiont-graph the client each graph database is asked through, and
   with every extra of semiont-inference the library each model provider is
   asked through, each with what it requires.

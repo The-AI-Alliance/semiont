@@ -50,7 +50,7 @@ event flows through one of these.
 | `EMIT` | `HttpTransport.emit()` (http-transport)                          |
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `EMIT` | Gateway `/bus/emit` HTTP route                               |
-| `SSE`  | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs`|
+| `SSE`  | Gateway `Connection::deliver` in `images/gateway/src/routes/stream.rs`|
 | `PUT`  | `HttpContentTransport.putBinary()`                           |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 

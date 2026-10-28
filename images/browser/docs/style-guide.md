@@ -12,7 +12,7 @@ The Semiont Browser uses a hybrid CSS architecture that combines:
 All React UI components from `@semiont/react-ui` come with semantic CSS classes following BEM methodology. These styles are imported in `globals.css`, ahead of Tailwind:
 
 ```css
-/* apps/browser/src/app/globals.css */
+/* images/browser/src/app/globals.css */
 @import '@semiont/react-ui/styles';
 @import "tailwindcss";
 ```
@@ -36,7 +36,7 @@ This provides all component styles with the `semiont-` prefix:
 The Browser app uses Tailwind for its own components and layout. `globals.css` loads `tailwind.config.js` with `@config` and names the sources Tailwind scans for class names — the Browser's own `src`, and `packages/react-ui/src`:
 
 ```css
-/* apps/browser/src/app/globals.css */
+/* images/browser/src/app/globals.css */
 @config "../../tailwind.config.js";
 @plugin "@tailwindcss/typography";
 @source "../../src";

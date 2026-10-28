@@ -143,7 +143,7 @@ The one line that decides which databases' clients an image has is the builder s
 database names that database's in its place:
 
 ```dockerfile
-RUN uv sync --project apps/weaver --locked --no-dev --no-editable --extra neo4j
+RUN uv sync --project images/weaver --locked --no-dev --no-editable --extra neo4j
 ```
 
 A service whose document names a database its image has no client for refuses to start, and
@@ -156,7 +156,7 @@ prints:
 
 ```bash
 docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
-  --file apps/weaver/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-weaver:local .
+  --file images/weaver/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-weaver:local .
 ```
 
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other

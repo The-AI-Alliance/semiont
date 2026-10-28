@@ -34,7 +34,7 @@ components:
     semiont-worker - Apache-2.0 License (The AI Alliance)
 
   Python packages installed at build time from https://pypi.org, each at the
-  version apps/worker/uv.lock pins: what those four require, and with every
+  version images/worker/uv.lock pins: what those four require, and with every
   extra of semiont-inference the library each model provider is asked
   through, with what that library requires.
 

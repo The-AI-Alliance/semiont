@@ -10,7 +10,7 @@ what is particular to this app.
 ## Run it from source against a stack
 
 The Browser is a client, so it needs a knowledge base to talk to. Start one with the
-[`semiont` launcher](../../launcher/README.md), from a knowledge base's directory, and then
+[`semiont` launcher](../../../apps/launcher/README.md), from a knowledge base's directory, and then
 serve the app from source in place of the stack's own Browser.
 
 ```bash
@@ -22,7 +22,7 @@ semiont stop --service browser            # free port 3000 for the dev server
 
 ```bash
 # In this repository
-cd apps/browser
+cd images/browser
 npm run dev                               # Vite on http://localhost:3000, with hot reload
 ```
 
@@ -162,4 +162,4 @@ react-ui's [Styles](../../../docs/builder/react-ui/STYLES.md).
 - [Testing](./TESTING.md): how the tests are written and run
 - [Container](./CONTAINER.md): the image
 - [Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md): the monorepo's loop
-- [The launcher](../../launcher/README.md): every verb and flag
+- [The launcher](../../../apps/launcher/README.md): every verb and flag

@@ -12,7 +12,7 @@ import { openResourceByName } from '../fixtures/discover';
  * every annotation on the typed page silently moves.
  *
  * **What is already pinned elsewhere.** The Smelter's own tests
- * (`apps/smelter/tests/test_extraction.py`) cover the assembly thoroughly
+ * (`images/smelter/tests/test_extraction.py`) cover the assembly thoroughly
  * against a *played* recognizer — native and
  * OCR'd items coexisting, each still selecting its own text, `unreadPages`
  * reported in both directions. Mocking the engine is what lets those tests

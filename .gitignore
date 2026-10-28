@@ -22,7 +22,7 @@ dist/
 # transient tsc output: packages/core's build emits it, then rm -rf's it at the end
 dist-types/
 build/
-apps/browser/public
+images/browser/public
 
 # Testing
 coverage/
@@ -98,10 +98,10 @@ packages/*/scripts/*.js
 packages/*/scripts/*.js.map
 packages/*/scripts/*.d.ts
 packages/*/scripts/*.d.ts.map
-# Note: apps/*/scripts/*.js removed - these are actual source JS files, not compiled output
-apps/*/scripts/*.js.map
-apps/*/scripts/*.d.ts
-apps/*/scripts/*.d.ts.map
+# Note: images/*/scripts/*.js removed - these are actual source JS files, not compiled output
+images/*/scripts/*.js.map
+images/*/scripts/*.d.ts
+images/*/scripts/*.d.ts.map
 
 # Ephemeral Planning Documents
 .plans

@@ -1252,7 +1252,7 @@ describe('createActorStateUnit', () => {
 
   it('dedupes a deterministic-id reply delivered by both connections during the linger overlap', async () => {
     // The gateway stamps correlated replies with deterministic ephemeral ids
-    // (`e-<channel>:<correlationId>`, apps/gateway/src/routes/stream.rs)
+    // (`e-<channel>:<correlationId>`, images/gateway/src/routes/stream.rs)
     // precisely so both connections tag the same reply identically — one
     // emission, not two.
     const c1 = mockConn();

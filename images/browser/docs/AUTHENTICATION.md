@@ -84,7 +84,7 @@ Never writes to `localStorage` directly — all persistence goes through
 ## Route protection pattern
 
 A protected layout reads three observables and branches on three
-states. The order matters (`apps/browser/src/app/[locale]/know/layout.tsx`,
+states. The order matters (`images/browser/src/app/[locale]/know/layout.tsx`,
 abridged):
 
 ```tsx

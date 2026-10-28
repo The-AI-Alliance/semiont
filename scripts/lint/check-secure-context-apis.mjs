@@ -12,14 +12,14 @@
  * listed site that is not there fails too: an allowlist that outlives
  * its sites stops describing the tree.
  *
- * Scanned: the TypeScript of apps/browser, packages/react-ui, packages/sdk and
+ * Scanned: the TypeScript of images/browser, packages/react-ui, packages/sdk and
  * packages/core, comments blanked. Not scanned: tests.
  */
 import { readFileSync } from 'fs';
 import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
-const REACHABLE = ['apps/browser/src/', 'packages/react-ui/src/', 'packages/sdk/src/', 'packages/core/src/'];
+const REACHABLE = ['images/browser/src/', 'packages/react-ui/src/', 'packages/sdk/src/', 'packages/core/src/'];
 
 const ALLOWED = {
   'packages/react-ui/src/lib/clipboard.ts': [

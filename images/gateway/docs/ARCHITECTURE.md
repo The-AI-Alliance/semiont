@@ -11,7 +11,7 @@ The gateway is a member of the repository's Rust workspace
 
 | Crate | Directory | What the gateway takes from it |
 |---|---|---|
-| `semiont-gateway` | `apps/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
+| `semiont-gateway` | `images/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
 | `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
 | `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
 | `semiont-telemetry` | [packages/telemetry-rust](../../../packages/telemetry-rust) | Its spans' making and the trace context they travel in: a caller's trace continued, and the gateway's own carried on what it sends |

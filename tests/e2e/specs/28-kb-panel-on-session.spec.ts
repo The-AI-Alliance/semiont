@@ -1,7 +1,7 @@
 /**
  * A session becoming live opens the Knowledge Base panel.
  *
- * `useKbPanelOnLogin` (apps/browser/src/hooks/useKbPanelOnLogin.ts) exists for a
+ * `useKbPanelOnLogin` (images/browser/src/hooks/useKbPanelOnLogin.ts) exists for a
  * case an interactive sign-in CANNOT exercise, and the hook says so itself: you
  * reach the sign-in control through the KB panel, so after signing in you happen
  * to already be on it. The case it exists for is a session **restored at

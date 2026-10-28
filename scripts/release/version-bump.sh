@@ -134,7 +134,7 @@ for dir in packages/*/; do
   fi
 done
 
-for dir in apps/*/; do
+for dir in apps/*/ images/*/; do
   pkg="${dir}package.json"
   if [[ -f "$pkg" ]]; then
     update_package_json "$pkg" "$NEXT"
@@ -158,7 +158,7 @@ FILES+=(Cargo.toml Cargo.lock)
 echo ""
 echo "Verifying version sync..."
 ERRORS=0
-for pkg in packages/*/package.json apps/*/package.json; do
+for pkg in packages/*/package.json apps/*/package.json images/*/package.json; do
   [[ -f "$pkg" ]] || continue
   PKG_VERSION=$(jq -r .version "$pkg")
   if [[ "$PKG_VERSION" != "$NEXT" ]]; then

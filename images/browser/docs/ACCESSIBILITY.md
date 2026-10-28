@@ -32,7 +32,7 @@ i18n.on('languageChanged', (language) => {
 });
 ```
 
-`lang` names the language on screen: `languageChanged` fires once the locale's messages have loaded and i18next renders them. `i18n.dir` is i18next's own reading of a language's direction, so `ar`, `he` and `fa` set `dir="rtl"` and every other supported locale sets `dir="ltr"`. `apps/browser/index.html` declares `<html lang="en">`, which stands until the first locale loads.
+`lang` names the language on screen: `languageChanged` fires once the locale's messages have loaded and i18next renders them. `i18n.dir` is i18next's own reading of a language's direction, so `ar`, `he` and `fa` set `dir="rtl"` and every other supported locale sets `dir="ltr"`. `images/browser/index.html` declares `<html lang="en">`, which stands until the first locale loads.
 
 `src/__tests__/document-language.test.tsx` routes the app through several locales and checks both attributes.
 

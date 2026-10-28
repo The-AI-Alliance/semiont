@@ -72,7 +72,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ERRORS=0
-          for pkg in packages/*/package.json apps/*/package.json; do
+          for pkg in packages/*/package.json apps/*/package.json images/*/package.json; do
             PKG_VERSION=$(jq -r .version "$pkg")
             if [ "$PKG_VERSION" != "$VERSION" ]; then
               echo "::error::Version mismatch in $pkg: expected $VERSION, got $PKG_VERSION"

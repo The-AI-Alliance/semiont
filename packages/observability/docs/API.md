@@ -40,7 +40,7 @@ What is exported, and where, is read from the standard `OTEL_*` variables. They 
 
 ## In the browser
 
-The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`apps/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway in the `traceparent` header of each bus emit; the gateway hands trace context back to subscribers in the trace field of each SSE payload.
+The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`images/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway in the `traceparent` header of each bus emit; the gateway hands trace context back to subscribers in the trace field of each SSE payload.
 
 ## Universal API
 
