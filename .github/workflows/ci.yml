@@ -189,7 +189,7 @@ jobs:
               - 'packages/sdk/**'
               - 'package.json'
               - 'package-lock.json'
-              - 'tsconfig.json'
+              - 'tsconfig.base.json'
               - 'vitest.shared.config.ts'
               - '.node-version'
             conformance:

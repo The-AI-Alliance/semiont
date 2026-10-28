@@ -36,7 +36,7 @@
     "README.md"
   ],
   "scripts": {
-    "lint:css": "stylelint 'src/**/*.css' --config ../../.stylelintrc.json",
+    "lint:css": "stylelint 'src/**/*.css'",
     "build": "npm run lint:css && npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist dist-types",
