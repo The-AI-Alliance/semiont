@@ -1439,7 +1439,7 @@ requires-dist = [
     { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "semiont", editable = "../sdk" },
-    { name = "together", marker = "extra == 'together'", specifier = ">=2.40,<3" },
+    { name = "together", marker = "extra == 'together'", specifier = ">=2.40,<4" },
 ]
 provides-extras = ["anthropic", "google", "llamacpp", "openai", "together", "vllm"]
 
@@ -1474,7 +1474,7 @@ wheels = [
 
 [[package]]
 name = "together"
-version = "2.42.0"
+version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1489,9 +1489,9 @@ dependencies = [
     { name = "types-pyyaml" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/a2/8e4891e58cecd70979fd46af130b0ed31e40f869a1c56b1afd53887d306c/together-2.42.0.tar.gz", hash = "sha256:31a27759bf816981efb608a920a9ac7ca2935a9f0502a7b756a15a7e3c9901ff", size = 1203992, upload-time = "2026-10-18T17:27:01.389Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/7b/4c8dd7481e0c536e689c310bc217687d9b94457fe14946bb84cb1242723d/together-3.0.0.tar.gz", hash = "sha256:622c28b577f8f6e5af2b08d98a660de54f2f256ff425214fa6f7fb5eb1698809", size = 1143040, upload-time = "2026-10-22T18:33:03.431Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/15/b45262fc38309d4c7aed211dcf64d3672ed37a92e9dac85d52d1b8dced45/together-2.42.0-py3-none-any.whl", hash = "sha256:ed6e618f9f89a78222ce3cdaa2bcd7b7606f861a85473910e8fdf8bfaad31050", size = 973288, upload-time = "2026-10-18T17:27:02.786Z" },
+    { url = "https://files.pythonhosted.org/packages/27/20/f796ce992cf7cbcadc3773c44db9ee3e0cd5d3655cd3562abed0b8be66fb/together-3.0.0-py3-none-any.whl", hash = "sha256:13458c58200fb10034bfe7463a95c0a99b9dcedb592e9ebc16e3e708f402066b", size = 929509, upload-time = "2026-10-22T18:33:02.009Z" },
 ]
 
 [[package]]
