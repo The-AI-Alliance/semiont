@@ -26,7 +26,7 @@ claude mcp add semiont -- semiont mcp
 
 - **[Analyst](docs/analyst/README.md)**: work in a knowledge base, annotating, linking, and reviewing what agents propose. A [demo knowledge base](docs/KNOWLEDGE-BASES.md) comes with content to start on.
 - **[Operator](docs/operator/README.md)**: run a knowledge base, for yourself or for others.
-- **[Builder](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript, Rust or Python.
+- **[Builder](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript, Rust, Python or Go.
 - **[Contributor](docs/contributor/README.md)**: change Semiont itself.
 
 ## 📜 License
