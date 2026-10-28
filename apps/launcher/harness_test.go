@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +59,28 @@ func shimCmd(s *scenario, name string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(s.shim, name), args...)
 	cmd.Env = s.env()
 	return cmd
+}
+
+// listedByTheFake: the pids the fake says listen on port, asked the way the
+// launcher asks this system.
+func listedByTheFake(s *scenario, port string) ([]string, error) {
+	var pids []string
+	if runtime.GOOS == "windows" {
+		out, err := shimCmd(s, "netstat", "-ano", "-p", "TCP").Output()
+		for _, row := range strings.Split(string(out), "\n") {
+			if f := strings.Fields(row); len(f) == 5 && f[3] == "LISTENING" && strings.HasSuffix(f[1], ":"+port) {
+				pids = append(pids, f[4])
+			}
+		}
+		return pids, err
+	}
+	out, err := shimCmd(s, "lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN").Output()
+	for _, row := range strings.Split(string(out), "\n")[1:] {
+		if f := strings.Fields(row); len(f) > 1 {
+			pids = append(pids, f[1])
+		}
+	}
+	return pids, err
 }
 
 // namedByTheFake: what the fake says a process runs, asked the way the
@@ -153,6 +176,29 @@ func TestForwardPidfileRecordsItsPort(t *testing.T) {
 	s.killServes(t)
 	if !portIsFree(local) {
 		t.Errorf("port %s still held after killServes", local)
+	}
+}
+
+// A port held by a process no scenario described is named as the system
+// names it: the pid that really listens, and what that process runs. A holder
+// the fake made up would leave a listener one test left behind unnamed when a
+// later test fails on its port.
+func TestTheFakeNamesAPortsRealHolder(t *testing.T) {
+	s := newScenario(t)
+	port := heldPort(t) // held by this test's own process
+	self := strconv.Itoa(os.Getpid())
+	holders, err := listedByTheFake(s, port)
+	if err != nil {
+		t.Fatalf("asking the fake who holds %s: %v", port, err)
+	}
+	if !slices.Contains(holders, self) {
+		t.Errorf("the fake says %v hold port %s, which this test (pid %s) holds", holders, port, self)
+	}
+	name, err := namedByTheFake(s, self)
+	// Linux keeps a process's name to 15 characters; launcher.test is 13.
+	want := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	if err != nil || !strings.Contains(name, want) {
+		t.Errorf("the fake names this test's process %q (%v), want one naming %s", name, err, want)
 	}
 }
 
