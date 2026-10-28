@@ -4,7 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/semiont-codegen)](https://docs.rs/semiont-codegen)
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-codegen.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-codegen)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-codegen)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=rust-codegen)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The build-time code generator of the [Semiont Rust SDK](../sdk/README.md).
 It turns the [Semiont specification](../../../specs/README.md), an OpenAPI

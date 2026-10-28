@@ -1,6 +1,6 @@
 # semiont-graph
 
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=python-graph)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=python-graph)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=python-graph)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The graph databases [Semiont][semiont]'s Python services write and read,
 behind one interface: what the graph holds of a resource and of an

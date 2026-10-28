@@ -1,6 +1,6 @@
 # semiont-core
 
-[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=rust-core)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=rust-core)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=rust-core)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 What Semiont's Rust services share and no client needs.
 
