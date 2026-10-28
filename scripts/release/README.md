@@ -77,8 +77,10 @@ Inspects the artifacts rather than workflow conclusions:
 - the Python package on PyPI at the version: a wheel and a source
   distribution, each downloaded and hashed against the digest the index
   states, and each attested as built by `publish-pypi.yml` of this repository;
-- for every image, both platforms, an attestation whose subject matches the tag
-  digest, and `:latest` resolving to the same digest as the released version.
+- for every image, both platforms, build provenance whose subject matches the
+  tag digest, signed by the image's publish workflow of this repository at the
+  release's tag (the signer the launcher requires before it runs an image),
+  and `:latest` resolving to the same digest as the released version.
 
 Exits non-zero listing what failed.
 

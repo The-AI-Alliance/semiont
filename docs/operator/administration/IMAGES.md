@@ -111,22 +111,37 @@ An image tagged `:local` is built on this machine and never pulled, so no releas
 Requires the [GitHub CLI](https://cli.github.com/). No keys to
 manage — verification uses Sigstore's transparency log.
 
+The signer is the one `semiont start` requires: the image's publish
+workflow of `The-AI-Alliance/semiont`, at the release's tag.
+
 ```bash
-# <image> is any of: semiont-browser, semiont-gateway, semiont-archivist,
+# The Browser
+gh attestation verify \
+  oci://ghcr.io/the-ai-alliance/semiont-browser:VERSION \
+  --repo The-AI-Alliance/semiont \
+  --cert-identity https://github.com/The-AI-Alliance/semiont/.github/workflows/publish-browser.yml@refs/tags/vVERSION
+
+# <image> is any of the seven services': semiont-gateway, semiont-archivist,
 # semiont-librarian, semiont-worker, semiont-smelter, semiont-weaver,
 # semiont-dispatcher
 gh attestation verify \
   oci://ghcr.io/the-ai-alliance/<image>:VERSION \
-  --owner The-AI-Alliance
+  --repo The-AI-Alliance/semiont \
+  --cert-identity https://github.com/The-AI-Alliance/semiont/.github/workflows/publish-service-images.yml@refs/tags/vVERSION
 ```
+
+`--cert-identity` holds the signer to one workflow at one tag. `--owner`
+accepts any workflow of any repository in the organization, and
+`--signer-workflow` any workflow whose path begins with the one named, at
+any ref: both pass images `semiont start` refuses.
 
 A successful verification confirms:
 
 1. The image digest you pulled matches the digest the workflow
    built and pushed.
-2. The image was built from `The-AI-Alliance/semiont` at a specific
-   commit, by its publish workflow, with the inputs recorded in
-   the attestation.
+2. The image was built from `The-AI-Alliance/semiont` by its publish
+   workflow, run at the tag `vVERSION`, from the commit and with the
+   inputs recorded in the attestation.
 3. The signing certificate was issued by Sigstore's Fulcio CA to
    that workflow's OIDC identity.
 
@@ -136,17 +151,24 @@ attestations were stripped.
 
 ### Inspecting the SBOM
 
-The SBOM attestation is itself an OCI artifact. To download and
-inspect:
+The SBOM attestation is itself an OCI artifact, signed by the same
+workflow as the build provenance. Verify it under the same signer, by its
+predicate type, and print the SPDX document it carries (for the Browser,
+its own workflow, as above):
 
 ```bash
-gh attestation download \
+gh attestation verify \
   oci://ghcr.io/the-ai-alliance/<image>:VERSION \
-  --owner The-AI-Alliance \
-  --predicate-type https://spdx.dev/Document
+  --repo The-AI-Alliance/semiont \
+  --cert-identity https://github.com/The-AI-Alliance/semiont/.github/workflows/publish-service-images.yml@refs/tags/vVERSION \
+  --predicate-type https://spdx.dev/Document \
+  --format json --jq '.[0].verificationResult.statement.predicate'
 ```
 
-The downloaded JSON lists every package in the image with version,
+`gh attestation download` fetches attestations without checking who
+signed them.
+
+The document lists every package in the image with version,
 license, and supplier — useful for vulnerability triage when a CVE
 lands and you need to know whether your running image contains the
 affected package.

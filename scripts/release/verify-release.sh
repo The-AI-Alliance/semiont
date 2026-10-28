@@ -21,7 +21,6 @@ fi
 
 REPO=The-AI-Alliance/semiont
 TAP=The-AI-Alliance/homebrew-semiont
-OWNER=The-AI-Alliance
 GHCR=ghcr.io/the-ai-alliance
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -271,6 +270,10 @@ fi
 # ---------------------------------------------------------------------- images
 head_ "Container images"
 
+# The workflow that publishes the services' images, one for each service its
+# matrix names.
+SERVICES_WORKFLOW=publish-service-images.yml
+
 # The matrix in the publish workflow decides which services get images; the
 # Dockerfiles on disk decide which ones can. Disagreement means a service is
 # building nothing or is missing from the release, so treat it as a failure
@@ -278,13 +281,19 @@ head_ "Container images"
 # `sort -u`: a service whose architectures build on separate runners has one
 # matrix row per architecture, so it appears twice.
 # The question here is which services get images, not how many legs build them.
-matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/publish-service-images.yml" | awk '{print $3}' | sort -u)
+matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/$SERVICES_WORKFLOW" | awk '{print $3}' | sort -u)
 dockerfile_apps=$(ls -d "$ROOT"/images/*/Dockerfile 2>/dev/null | awk -F/ '{print $(NF-1)}' | grep -v '^browser$' | sort)
 if [ "$matrix_services" = "$dockerfile_apps" ]; then
   ok "service matrix matches images/*/Dockerfile ($(echo "$matrix_services" | tr '\n' ' '))"
 else
   bad "service matrix and images/*/Dockerfile disagree — matrix:[$(echo "$matrix_services" | tr '\n' ' ')] dockerfiles:[$(echo "$dockerfile_apps" | tr '\n' ' ')]"
 fi
+
+# The workflow that publishes the Browser's image: the one whose attestation
+# names it.
+BROWSER_WORKFLOW=$(cd "$ROOT/.github/workflows" && grep -lE "^[[:space:]]+subject-name: $GHCR/semiont-browser\$" -- *.yml)
+[ "$(wc -w <<< "$BROWSER_WORKFLOW")" -eq 1 ] \
+  || bad "the workflows whose attestation names $GHCR/semiont-browser are [$(echo "$BROWSER_WORKFLOW" | tr '\n' ' ')], not one"
 
 PREV=$(git -C "$ROOT" tag -l 'v*' --sort=-v:refname 2>/dev/null | grep -v "^v$VERSION$" | head -1 | sed 's/^v//')
 
@@ -294,6 +303,7 @@ mkdir -p "$WORK/docker-config"
 
 for svc in $matrix_services browser; do
   img="semiont-$svc"
+  if [ "$svc" = browser ]; then workflow=$BROWSER_WORKFLOW; else workflow=$SERVICES_WORKFLOW; fi
   tok=$(ghcr_token "$img")
   if [ -z "$tok" ] || [ "$tok" = "null" ]; then bad "$img: no registry token"; continue; fi
 
@@ -322,18 +332,29 @@ for svc in $matrix_services browser; do
   # through its credential helper. The images are public and need no
   # credential, and a helper that does not answer holds the check with nothing
   # printed. So gh is given an empty configuration, and a time limit.
+  #
+  # The signer is the one the launcher requires before it runs the image
+  # (apps/launcher/internal/launcher/imageverify.go): GitHub Actions running
+  # the workflow of this repository that publishes the image, at a release
+  # tag. The launcher takes any release tag; this release's images are held to
+  # its own. gh's defaults hold the issuer to GitHub Actions and the
+  # attestation to SLSA build provenance, as the launcher does. --owner, or
+  # --signer-workflow (a prefix of the certificate's identity, at any ref),
+  # passes images the launcher refuses.
+  signer="https://github.com/$REPO/.github/workflows/$workflow@refs/tags/v$VERSION"
   within "$ATTEST_LIMIT" env DOCKER_CONFIG="$WORK/docker-config" \
-    gh attestation verify "oci://$GHCR/$img:$VERSION" --owner "$OWNER" --format json > "$WORK/att.json" 2> "$WORK/att.err"
+    gh attestation verify "oci://$GHCR/$img:$VERSION" --repo "$REPO" --cert-identity "$signer" \
+      --format json > "$WORK/att.json" 2> "$WORK/att.err"
   att=$?
   if [ "$att" -eq 0 ]; then
     subj=$(jq -r '.[0].verificationResult.statement.subject[0].digest.sha256' "$WORK/att.json")
     [ "sha256:$subj" = "$d_ver" ] \
-      && ok "$img:$VERSION provenance verified, subject matches tag" \
+      && ok "$img:$VERSION provenance signed by $workflow of $REPO at v$VERSION, subject matches tag" \
       || bad "$img:$VERSION provenance subject sha256:${subj:0:16}… != tag digest ${d_ver:0:23}…"
   elif [ "$att" -eq 124 ]; then
     bad "$img:$VERSION provenance check gave no answer in ${ATTEST_LIMIT}s"
   else
-    bad "$img:$VERSION provenance did not verify: $(tail -n 1 "$WORK/att.err")"
+    bad "$img:$VERSION has no provenance signed by $workflow of $REPO at v$VERSION: $(tail -n 1 "$WORK/att.err")"
   fi
 done
 
