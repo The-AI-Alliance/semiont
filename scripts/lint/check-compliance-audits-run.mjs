@@ -52,7 +52,7 @@ let held = 0;
 for (const audit of audits) {
   if (audit in NOT_AN_AUDIT) continue;
   if (run.includes(audit)) held += 1;
-  else failures.push(`${audit} is run by no workflow: name it in a step of .github/workflows/architecture-compliance.yml`);
+  else failures.push(`${audit} is run by no workflow: name it in a step of the compliance-check job of .github/workflows/ci.yml`);
 }
 
 if (failures.length > 0) {

@@ -4,6 +4,7 @@
 #   scripts/release/smoke-stack.sh latest          # the published :latest images
 #   scripts/release/smoke-stack.sh 0.6.5           # one release's images
 #   scripts/release/smoke-stack.sh local           # images from scripts/ci/local-build.sh
+#   scripts/release/smoke-stack.sh local --e2e     # and run tests/e2e's default tier
 #
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
 # built from this checkout, apps/launcher/dist/semiont (scripts/ci/local-build.sh
@@ -20,6 +21,18 @@
 # every claimed port. It does NOT assert that inference works — what a model
 # does is tests/e2e's question, which assumes a stack is already up and drives
 # the product through a browser.
+#
+# WITH --e2e it asks that question too, of the stack it booted, before it stops
+# it: it makes a user in the realm with `useradd`, then runs tests/e2e's
+# default tier (`npm test`, which typechecks the specs and leaves out @slow) in
+# the Playwright image whose tag is the version tests/e2e/package.json pins. A
+# failing suite is a failed check like any other, so the container logs print
+# and the stack stops. The image reaches the stack at localhost through
+# `--network host`, which docker and podman have and Apple's `container` does
+# not, so --e2e refuses that runtime (tests/e2e/README.md runs the suite there
+# by hand, through the host bridge). The suite's packages, @semiont/core and
+# @semiont/sdk, link to this checkout's packages/, which must be built:
+# scripts/ci/local-build.sh builds them, as `npm run build:packages` does.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
 # did:web domain, then `start` with no --config, so the documents init writes
@@ -45,13 +58,33 @@
 
 set -uo pipefail
 
-IMAGES="${1:-}"
-if [ -z "$IMAGES" ]; then
-  echo "usage: $0 <images-tag>   e.g. $0 latest" >&2
+usage() {
+  echo "usage: $0 <images-tag> [--e2e]   e.g. $0 latest" >&2
   exit 2
-fi
+}
+IMAGES="${1:-}"
+[ -n "$IMAGES" ] && [ $# -le 2 ] || usage
+E2E=false
+case "${2:-}" in
+  "") ;;
+  --e2e) E2E=true ;;
+  *) usage ;;
+esac
 RUNTIME="${SMOKE_RUNTIME:-docker}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+if [ "$E2E" = true ]; then
+  if [ "$RUNTIME" = container ]; then
+    echo "--e2e runs the suite with --network host, which Apple's container has not; run it as tests/e2e/README.md says." >&2
+    exit 2
+  fi
+  # Playwright refuses to run when the image and the library disagree, so the
+  # tag is the version the suite pins, read here and never typed.
+  PLAYWRIGHT=$(sed -n 's/^ *"@playwright\/test": "\(.*\)",\{0,1\}$/\1/p' "$REPO_ROOT/tests/e2e/package.json")
+  if ! printf '%s' "$PLAYWRIGHT" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
+    echo "tests/e2e/package.json pins no exact @playwright/test version (read '$PLAYWRIGHT'), so no Playwright image can be named." >&2
+    exit 2
+  fi
+fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
 if [ ! -x "$SEMIONT" ]; then
   echo "No launcher built from this checkout at $SEMIONT. Build it with scripts/ci/local-build.sh." >&2
@@ -152,6 +185,40 @@ case "$HDR" in
   *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;
   *) bad "the realm did not allow http://localhost:3000 — a freshly imported realm cannot complete sign-in" ;;
 esac
+
+if [ "$E2E" = true ]; then
+  head_ "The e2e default tier, in mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble"
+  # A fresh realm has no users. The suite's is made here, with a password made
+  # here and known to nothing else, and both reach the suite under the names
+  # playwright.config.ts reads. The password goes to useradd on stdin and to
+  # the suite's container by name from this environment, never in an argument.
+  E2E_EMAIL=e2e@example.com
+  E2E_PASSWORD=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  export E2E_EMAIL E2E_PASSWORD
+  if printf '%s\n' "$E2E_PASSWORD" | "$SEMIONT" useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
+    ok "useradd made $E2E_EMAIL in the realm"
+    # tests/e2e is not a root workspace, so its dependencies are its own. The
+    # JSON report beside the list and HTML ones is for whoever summarises the
+    # run: PLAYWRIGHT_JSON_OUTPUT_NAME is Playwright's, and test-results/ is
+    # the suite's output directory, emptied when a run begins.
+    STARTED=$SECONDS
+    if "$RUNTIME" run --rm --network host --ipc host \
+      -v "$REPO_ROOT":/workspace -w /workspace/tests/e2e \
+      -e E2E_EMAIL -e E2E_PASSWORD \
+      -e E2E_BROWSER_URL=http://localhost:3000 \
+      -e E2E_GATEWAY_URL=http://localhost:4000 \
+      -e PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/report.json \
+      -e CI=1 \
+      "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
+      sh -c 'npm ci && npm test -- --reporter=list,html,json'; then
+      ok "the default tier passed ($((SECONDS - STARTED))s)"
+    else
+      bad "the default tier failed ($((SECONDS - STARTED))s): tests/e2e/playwright-report holds the report"
+    fi
+  else
+    bad "useradd refused $E2E_EMAIL, so the suite has no one to sign in as"
+  fi
+fi
 
 # `stop` removes the containers and their logs with them, so a failed run
 # prints each one's recent log first.

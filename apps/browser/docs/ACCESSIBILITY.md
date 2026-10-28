@@ -145,7 +145,7 @@ When building or reviewing a UI component:
 
 Component-level [`jest-axe`](https://github.com/nickcolley/jest-axe) assertions live with the components, in `@semiont/react-ui`'s `*.a11y.test.tsx` files — see [react-ui ACCESSIBILITY.md § Testing](../../../docs/builder/react-ui/ACCESSIBILITY.md#testing) for the pattern. The Browser has no `jest-axe` dependency of its own.
 
-The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — react-ui's axe tests, and a Lighthouse accessibility audit of the built Browser's signed-out pages that fails below a score of 90. `lighthouserc.json` names the pages and the score, and `src/__tests__/lighthouse-urls.test.tsx` holds each page to a route `App` serves. See [docs/contributor/TESTING.md](../../../docs/contributor/TESTING.md) for the testing-overview.
+CI runs accessibility tests on a pull request that changes the Browser or an npm package, in `.github/workflows/ci.yml`: react-ui's axe tests are tests of its suite, and the `lighthouse-accessibility` job audits the built Browser's signed-out pages and fails below a score of 90. `lighthouserc.json` names the pages and the score, and `src/__tests__/lighthouse-urls.test.tsx` holds each page to a route `App` serves. See [docs/contributor/TESTING.md](../../../docs/contributor/TESTING.md) for the testing-overview.
 
 ### Manual
 

@@ -131,7 +131,7 @@ flags:
       - packages/sdk/**
     carryforward: true
 
-  # App flags. These upload from security-tests.yml, not the package matrix.
+  # App flags. These upload from ci.yml's Browser Tests, not the package matrix.
 
   browser:
     paths:

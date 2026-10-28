@@ -4,28 +4,25 @@ This directory contains GitHub Actions workflows and automation configuration fo
 
 ## 🔄 Workflows
 
-### Security Tests (`security-tests.yml`)
-Runs on every push and pull request to `main` and `develop`. Its three jobs are
-required status checks, so the workflow carries no `paths:` filter.
-
-**Browser** (`browser-security`):
-- Runs `npm run test:security` (the session gates, the locale layout, validation) and `npm run test:coverage` in `apps/browser`
-- Builds the Browser, serves it, and probes `/moderate` and its sub-routes: each answers 200 with the SPA shell
-- Fails if the shell carries moderation content or a secret-shaped string
-
-**Gateway** (`gateway-security`):
-- Builds the gateway and starts it on a configuration document written for the run
-- `/api/status` and `/api/resources/does-not-exist` answer 401 with no credential and to a token that does not verify
-- The 401 body is the JSON error shape, and carries no secret, stack trace or source path
-
-These are probes of two routes. What a running gateway owes on every operation
-the spec declares is the gateway conformance suite's to check (the
-`gateway-conformance` job of `ci.yml`).
-
 ### Continuous Integration (`ci.yml`)
-The Browser's suite, the Rust workspace's checks, the three conformance suites,
-the package build, generated-code drift and the launcher's suites. Each job is
-listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
+The one workflow every pull request runs whole: the lint gates, the map of
+changed areas, generated-code drift, the Browser's and every npm package's
+suite (each once, with coverage), the Rust workspace's checks, the conformance
+suites on binaries built once, the Python projects, the launcher, the
+compliance audits, the Browser's and the gateway's security probes, and
+Lighthouse. A pull request and a push to `main` run the jobs whose areas they
+touched; the nightly schedule, a dispatch and a release's call run every job,
+the Windows launcher among them. One job, `CI Gate`, is the check the merge
+ruleset requires. Each job is listed in
+[Testing](../docs/contributor/TESTING.md#continuous-integration).
+
+The security probes are of two routes each. What a running gateway owes on
+every operation the spec declares is the gateway conformance suite's to check
+(the `gateway-conformance` job).
+
+### CodeQL Security Analysis (`codeql-analysis.yml`)
+CodeQL over the TypeScript, Go, Rust and Python, nightly on `main` and when a
+release calls it.
 
 ### Gateway Crate Advisories (`gateway-advisories.yml`)
 **The Rust workspace's crates against RustSec's advisory database**:
@@ -77,12 +74,12 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser and the seven service images; the desktop builder's is a Rust image, which the toolchain entry moves
 - A cooldown before a new release is adopted; security updates are not held by it
-- `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
-- `npm run lint:rust-toolchain` (Architecture Compliance) fails when the Rust version is written anywhere but `rust-toolchain.toml`
-- `npm run lint:go-toolchain` (Architecture Compliance) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
-- `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
-- `npm run lint:node-version` (Architecture Compliance) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
-- `npm run lint:nats-version` (Architecture Compliance) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
+- `npm run lint:dependabot` (the Census job of `ci.yml`) fails when a tracked manifest has no entry, or an entry names a directory with none
+- `npm run lint:rust-toolchain` (the Census job of `ci.yml`) fails when the Rust version is written anywhere but `rust-toolchain.toml`
+- `npm run lint:go-toolchain` (the Census job of `ci.yml`) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
+- `npm run lint:python-version` (the Census job of `ci.yml`) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
+- `npm run lint:node-version` (the Census job of `ci.yml`) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
+- `npm run lint:nats-version` (the Census job of `ci.yml`) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
 - Each entry's labels are `kind:dependencies` and, when all its directories are in one app, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`. The Path Labels workflow adds the labels of the files each pull request changes
 
 ### Labels (`labels.yml`)
@@ -109,20 +106,22 @@ session code.
 
 ## 🚀 Workflow Triggers
 
-### Security Tests
+### CI Tests
 ```yaml
 # Runs on:
 - push: [main, develop]
 - pull_request: [main, develop]
-- workflow_dispatch: # Manual trigger
+- schedule: "17 8 * * *" # Nightly, the full tier
+- workflow_dispatch: # Manual trigger, the full tier
+- workflow_call: # release.yml, the full tier
 ```
 
-### CI Tests
-```yaml  
+### CodeQL Security Analysis
+```yaml
 # Runs on:
-- push: [main, develop]
-- pull_request: [main, develop]
+- schedule: "17 8 * * *" # Nightly
 - workflow_dispatch: # Manual trigger
+- workflow_call: # release.yml
 ```
 
 ### Gateway Crate Advisories

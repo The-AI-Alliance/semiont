@@ -290,7 +290,7 @@ Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../.
 - **Project:** target 70%, allowed to drop by 1%.
 - **Patch:** new code targets 80%, with a 5% threshold.
 
-Each package and the Browser has a flag (with carryforward) and a component. `package-tests.yml` uploads each package's `lcov.info` under its flag; `security-tests.yml` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run never fails a suite.
+Each package and the Browser has a flag (with carryforward) and a component. In `ci.yml`, `test-package` uploads each package's `lcov.info` under its flag and `test-browser` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run fails exactly when the suite does, and CI runs each suite once, with coverage.
 
 Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, and `scripts/`.
 
@@ -298,23 +298,30 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to `main` and `develop`, on pull requests into them, and on manual dispatch. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the one workflow every pull request runs whole. It also runs on pushes to `main` and `develop`, nightly on `main` at 08:17 UTC, on manual dispatch, and when a release calls it. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
+
+It runs in one of two tiers, which the `changes` job decides. A pull request and a push to `main` run in tier `change`: the jobs whose areas they touched, on Linux. The nightly schedule, a dispatch and a release's call run in tier `full`: every job, and those that run in it alone, today the launcher on Windows. A scheduled run that fails mails whoever last changed its schedule line.
 
 It runs in two stages and ends in a gate. `census`, `changes` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for all three, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires.
 
-On a pull request, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, one per Python project), and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/sdk-go`. A change under `.github/`, `scripts/ci/` or `specs/` runs everything, and so does a push to `main` or a dispatch. A skipped job is reported as Success and passes the gate.
+In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, `compliance`, one per Python project), comparing a pull request with its base and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/sdk-go`; the compliance audits on the code they read, the docs and their own scripts. A change under `.github/`, `scripts/ci/` or `specs/` runs every area. A skipped job is reported as Success and passes the gate.
 
 The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) looks, and builds nothing of its own.
 
-`npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, that no job of them checks out, installs or builds and then checks nothing, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines, and that `cargo build` runs in `build-rust` alone.
+`npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, its group led by the workflow's file name, that no job of them checks out, installs or builds and then checks nothing, that every other workflow running on pull requests names the paths it checks, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines or the tier alone, and that `cargo build` runs in `build-rust` alone.
 
 | Job | What it covers |
 |---|---|
 | `census` | The `lint:*` gates, over the tree and no build: the stylesheets, the translations, the docs' names, the spec's own consistency, the toolchain versions, the Dependabot entries, the workflows, and more |
 | `changes` | Which areas the push touched, for every other job's `if` |
-| `test-browser` | `npm run typecheck` and `npm test` for `apps/browser` |
+| `test-browser` | `npm run typecheck` and the suite, with coverage, for `apps/browser`, uploaded under the `browser` flag |
+| `test-package` | A matrix over every npm package with a suite: build, typecheck and the suite with coverage, uploaded under the package's flag |
+| `browser-security` | A built Browser probed for privileged content and secret-shaped strings in the shell it serves for the moderation routes |
+| `lighthouse-accessibility` | Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`apps/browser/lighthouserc.json` names the pages and the score) |
+| `compliance-check` | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports |
 | `build-rust` | `cargo build --release` of the gateway, the dispatcher, the Archivist and the Rust SDK's three conformance drivers, once, published as an artifact the nine conformance jobs fetch into `target/release` |
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
+| `gateway-security` | The gateway, on the binaries `build-rust` built, probed for 401s on protected routes, the error shape, and leaked secrets |
 | `gateway-conformance` | Runs the conformance suite's `gateway` project against the binaries `build-rust` built |
 | `dispatcher-conformance` | Runs the `dispatcher` project |
 | `archivist-conformance` | Runs the `archivist` project |
@@ -340,19 +347,12 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `build-all` | `npm run build` over every npm workspace |
 | `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for the launcher; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
-| `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows |
+| `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
 
-Four other workflows gate the same pushes and pull requests:
+[`codeql-analysis.yml`](../../.github/workflows/codeql-analysis.yml) runs CodeQL over the TypeScript, Go, Rust and Python nightly at 08:17 UTC and when a release calls it, not on pull requests. GitHub's default-setup Code Quality analysis, which no file here configures, runs on pull requests.
 
-| Workflow | What it runs |
-|---|---|
-| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job |
-| [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`; a built Browser probed for privileged content in its shell; a built gateway probed for 401s on protected routes, the error shape, and leaked secrets |
-| [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`apps/browser/lighthouserc.json` names the pages and the score). Also daily |
-| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports. Also on pushes to `feature/**` |
-
-[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on every pull request. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh), which boots a real stack and says what it checks. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `local-build.sh` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `local-build.sh --layer-cache <dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on pull requests; it gates releases. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh) with `--e2e`, which boots a real stack, says what it checks, and runs [`tests/e2e`](../../tests/e2e/README.md)'s default tier against it with the models a new knowledge base names. The run's summary has a table of the suite's specs, and its Playwright report is kept for 30 days. A release calls it on the commit it is about to tag. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `local-build.sh` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `local-build.sh --layer-cache <dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
 
 Locally, run the suite for the code you changed. CI runs the whole matrix.
 

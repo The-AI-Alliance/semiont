@@ -1,6 +1,6 @@
 # @semiont/sdk
 
-[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+sdk%22)
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+sdk%22)
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=sdk)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=sdk)
 [![npm version](https://img.shields.io/npm/v/@semiont/sdk.svg)](https://www.npmjs.com/package/@semiont/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/sdk.svg)](https://www.npmjs.com/package/@semiont/sdk)

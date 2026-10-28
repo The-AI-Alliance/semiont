@@ -25,8 +25,31 @@ jobs:
       contents: read
     uses: ./.github/workflows/npm-advisories.yml
 
+  # The release gate, on the exact commit about to be tagged: every job of
+  # ci.yml in its full tier (Windows included), CodeQL, and a stack booted from
+  # images built from the commit. "The nightly was green" goes stale the moment
+  # main moves, so the gate runs its own. A dry run is held to it too.
+  gate-ci:
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  gate-codeql:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/codeql-analysis.yml
+
+  gate-stack-smoke:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/stack-smoke.yml
+
   tag:
-    needs: advisories
+    needs: [advisories, gate-ci, gate-codeql, gate-stack-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write
