@@ -14,7 +14,8 @@ name: Gateway Crate Advisories
 on:
   pull_request:
     paths:
-      - '**/Cargo.toml'
+      - 'packages/rust/**/Cargo.toml'
+      - 'images/**/Cargo.toml'
       - packages/rust/Cargo.lock
       - packages/rust/deny.toml
       - packages/rust/rust-toolchain.toml

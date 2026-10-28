@@ -45,13 +45,6 @@ release calls it.
 - The images are found, not listed: a new Python image is judged from its first pull request
 - The publish still runs the gate: this one runs earlier, not in its place
 
-### CodeQL Analysis (`codeql-analysis.yml`)
-**Automated security code scanning**:
-- Runs on push, PR, and weekly schedule
-- Analyzes the TypeScript, Go, Rust and Python code
-- Runs the `security-and-quality` query suite
-- Uploads results to GitHub Security tab
-
 ### Labels (`labels.yml`)
 **The repository's labels, made `labels.yml`'s**:
 - On a push to main, creates, updates, renames and deletes labels until they are `labels.yml`'s; a label made by hand is deleted by the next sync
@@ -103,73 +96,6 @@ What a pull request states: the type of change, the areas changed, the suites
 run, breaking changes and documentation. Its Security section applies to a
 change that touches the gateway's routes, token handling or the Browser's
 session code.
-
-## 🚀 Workflow Triggers
-
-### CI Tests
-```yaml
-# Runs on:
-- push: [main, develop]
-- pull_request: [main, develop]
-- schedule: "17 8 * * *" # Nightly, the full tier
-- workflow_dispatch: # Manual trigger, the full tier
-- workflow_call: # release.yml, the full tier
-```
-
-### CodeQL Security Analysis
-```yaml
-# Runs on:
-- schedule: "17 8 * * *" # Nightly
-- workflow_dispatch: # Manual trigger
-- workflow_call: # release.yml
-```
-
-### Gateway Crate Advisories
-```yaml
-# Runs on:
-- pull_request: # changes to images/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
-- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
-- workflow_dispatch: # Manual trigger
-```
-
-### npm Advisories
-```yaml
-# Runs on:
-- pull_request: # changes to a package.json, a package-lock.json, .node-version, the ignore list, the check and the file listing it imports, or the workflow
-- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
-- workflow_dispatch: # Manual trigger
-- workflow_call: # release.yml, before the tag
-```
-
-### Python Image Licences
-```yaml
-# Runs on:
-- pull_request: # changes to a service's uv.lock, pyproject.toml or Dockerfile, a Python package's pyproject.toml, the Python floor's reader, the licence policy and the two scripts that judge, or the workflow
-- workflow_dispatch: # Manual trigger
-```
-
-### CodeQL Analysis
-```yaml
-# Runs on:
-- push: [main, develop]
-- pull_request: [main, develop]
-- schedule: "0 6 * * 1" # Weekly Monday 6 AM UTC
-- workflow_dispatch: # Manual trigger
-```
-
-### Labels
-```yaml
-# Runs on:
-- push: [main] # changes to labels.yml or the workflow; the one run that changes labels
-- pull_request: [main, develop] # changes to labels.yml or the workflow; a dry run
-- workflow_dispatch: # Manual trigger; a dry run but on main
-```
-
-### Path Labels
-```yaml
-# Runs on:
-- pull_request_target: [opened, synchronize, reopened] # every pull request, as main has the workflow
-```
 
 ## 🛡️ Security Workflow Details
 
