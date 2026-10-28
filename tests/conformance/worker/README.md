@@ -191,7 +191,7 @@ Rust's is
 Python's is
 [conformance/worker.py](../../../packages/sdk-python/conformance/worker.py),
 and Go's is
-[semiont-go-worker-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-worker-driver/main.go).
+[semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go).
 
 ## Running it
 
@@ -201,7 +201,7 @@ the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
-(cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 npm run build:packages
 cd tests/conformance
 npm ci

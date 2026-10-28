@@ -28,7 +28,7 @@
 - [ ] TypeScript packages (`packages/sdk` and the other npm workspaces under `packages/`)
 - [ ] Rust crates (`packages/*-rust`)
 - [ ] Python packages (`packages/sdk-python` and the others under `packages/*-python`)
-- [ ] Go SDK (`packages/sdk-go`)
+- [ ] Go SDK (`packages/go/sdk`)
 - [ ] Conformance suites (`tests/conformance`)
 - [ ] End-to-end suite (`tests/e2e`)
 - [ ] Scripts (`scripts/`)
@@ -44,7 +44,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Rust: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
 - [ ] Python: from each project changed (`packages/sdk-python`, `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `images/worker`, `images/weaver`, `images/smelter`, `images/librarian`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...`
-- [ ] Go SDK: `cd packages/sdk-go && go test -timeout 5m ./...`
+- [ ] Go SDK: `cd packages/go/sdk && go test -timeout 5m ./...`
 - [ ] Gateway conformance: `cd tests/conformance && npm run test:gateway`
 - [ ] Dispatcher conformance: `cd tests/conformance && npm run test:dispatcher`
 - [ ] Archivist conformance: `cd tests/conformance && npm run test:archivist`

@@ -39,9 +39,9 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // issuerStub is the token endpoint: it answers the refresh grant as scripted

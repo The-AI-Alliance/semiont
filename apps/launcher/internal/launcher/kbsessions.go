@@ -15,7 +15,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // KnowledgeBase is a stack this machine records, with a stored sign-in.

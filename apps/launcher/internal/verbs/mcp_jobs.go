@@ -17,8 +17,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // jobCancelWithin is how long a cancelled call waits for the queue to take

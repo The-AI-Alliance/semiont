@@ -28,9 +28,9 @@ pip install semiont
 Go, in a program inside this repository (the module is not published), whose `go.mod` names it and the SDK's directory:
 
 ```text
-require github.com/The-AI-Alliance/semiont/packages/sdk-go v0.0.0-00010101000000-000000000000
+require github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
 
-replace github.com/The-AI-Alliance/semiont/packages/sdk-go => ../../packages/sdk-go
+replace github.com/The-AI-Alliance/semiont/packages/go/sdk => ../../packages/go/sdk
 ```
 
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
@@ -87,7 +87,7 @@ The guides' examples are TypeScript. The namespaces, methods and behaviour are t
 - **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
 - **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions and the state units, and no registry of several knowledge bases.
-- **[Go](../../packages/sdk-go/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/sdk-go`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
+- **[Go](../../packages/go/sdk/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
 
 ## Agent skills
 

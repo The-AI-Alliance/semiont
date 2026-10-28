@@ -48,7 +48,7 @@ const BANNER = `// ⚠ GENERATED FILE — do not edit.
 //
 // Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
 // Regenerate:  node scripts/bus/generate-ts.mjs
-// Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
+// Go counterpart: node scripts/bus/generate-go.mjs → packages/go/sdk/bus
 //
 // Payload schemas themselves live in the OpenAPI components; the registry
 // names which one each channel carries, and every payload type here is

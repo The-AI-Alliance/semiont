@@ -1,7 +1,7 @@
 package launcher
 
 // weaverdoc.go — the Weaver's configuration document: WeaverConfig in specs/,
-// the Go type generated from it (packages/sdk-go). The launcher writes it for
+// the Go type generated from it (packages/go/sdk). The launcher writes it for
 // the Weaver it starts, every address a literal (placement), and mounts it
 // where the Weaver's image points its `--config` flag, so the Weaver neither
 // reads a knowledge base's documents nor resolves or defaults anything. A
@@ -13,7 +13,7 @@ package launcher
 import (
 	"encoding/json"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // weaverDocumentFile: the Weaver is configured by a document, not a copy of

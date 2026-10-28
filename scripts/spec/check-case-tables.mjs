@@ -47,7 +47,7 @@ const IMPLEMENTATIONS = {
   typescript: ['packages/core', 'packages/sdk', 'packages/http-transport', 'packages/react-ui'],
   rust: ['packages/sdk-rust', 'packages/http-transport-rust'],
   python: ['packages/sdk-python'],
-  go: ['packages/sdk-go'],
+  go: ['packages/go/sdk'],
   launcher: ['apps/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],

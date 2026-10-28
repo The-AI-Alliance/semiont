@@ -19,7 +19,7 @@
  * What a method does when it is called is not read here: each SDK's surface
  * test runs the table's cases (packages/sdk/src/__tests__/client-surface.test.ts,
  * packages/sdk-rust/tests/surface.rs, packages/sdk-python/tests/test_surface.py,
- * packages/sdk-go/surface_test.go).
+ * packages/go/sdk/surface_test.go).
  *
  * TypeScript's signatures are the interfaces of
  * packages/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
@@ -27,7 +27,7 @@
  * methods of each `class <Name>Namespace` in
  * packages/sdk-python/src/semiont/namespaces whose names begin with no
  * underscore; Go's are the exported methods of each `type <Name>Namespace
- * struct` of the root package, packages/sdk-go, each declared with its
+ * struct` of the root package, packages/go/sdk, each declared with its
  * methods in `<namespace>.go`, a method being the table's name with its
  * first letter a capital (`Kb`, `HealthCheck`).
  *
@@ -70,7 +70,7 @@
  * and fields of `type HeldMarkJob struct` and `type HeldYieldJob struct`,
  * with those of the struct each embeds, of `type Claims struct`, and the
  * exported methods of `type HeldJob interface` for a job of either verb, in
- * the files of packages/sdk-go; what a member takes is its parameters less
+ * the files of packages/go/sdk; what a member takes is its parameters less
  * its context, a type of the spec's named as the spec names it. A
  * declaration this cannot read is a failure, never a member passed over.
  *
@@ -102,7 +102,7 @@
  * `impl StateUnit for` it. Python's is a class of
  * packages/sdk-python/src/semiont, its members its public methods,
  * properties and attributes, a unit being one that names `StateUnit` as a
- * base. Go's is a `type <name> struct` of packages/sdk-go and the packages
+ * base. Go's is a `type <name> struct` of packages/go/sdk and the packages
  * below it, its test double (a package whose name ends in `test`, as Go's own
  * `httptest` does) and its conformance drivers left out; its members are its
  * exported fields and methods, with those of each struct it embeds, each as
@@ -127,7 +127,7 @@
  * its inherent `impl`s in packages/sdk-rust/src, Python's the public methods,
  * properties and attributes of its class in packages/sdk-python/src/semiont,
  * Go's the exported methods of its struct in the root package,
- * packages/sdk-go, with the package's exported functions that take it: a Go
+ * packages/go/sdk, with the package's exported functions that take it: a Go
  * method takes no type parameters, so a member generic in its channel is a
  * function of the package (`Emit(ctx, w, bus.MarkSubmit, payload)`).
  *
@@ -153,8 +153,8 @@ const TS_SDK = 'packages/sdk/src';
 const TS_CORE = 'packages/core/src';
 const RUST_SDK = 'packages/sdk-rust/src';
 const PYTHON_SDK = 'packages/sdk-python/src/semiont';
-const GO_SDK = 'packages/sdk-go';
-const GO_CLAIMS = 'packages/sdk-go/claims.go';
+const GO_SDK = 'packages/go/sdk';
+const GO_CLAIMS = 'packages/go/sdk/claims.go';
 const SCHEMAS = 'specs/src/components/schemas';
 /** Each SDK as a message names it. */
 const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go' };
@@ -572,7 +572,7 @@ function goShape(results) {
 /** A Go name as the table spells it: its first letter small. */
 const tableName = (goName) => goName[0].toLowerCase() + goName.slice(1);
 
-/** The root package's files, its tests left out: every `.go` file directly in packages/sdk-go. */
+/** The root package's files, its tests left out: every `.go` file directly in packages/go/sdk. */
 function goFiles() {
   return filesIn(GO_SDK, '.go')
     .filter((name) => !name.endsWith('_test.go'))
@@ -1278,7 +1278,7 @@ function pythonUnit(made, directory) {
 
 /**
  * The Go SDK's files a unit can be declared in, each with its code: every
- * `.go` file under packages/sdk-go, its tests (`_test.go`), its test double (a
+ * `.go` file under packages/go/sdk, its tests (`_test.go`), its test double (a
  * package whose name ends in `test`) and its conformance drivers left out.
  */
 function goSources() {

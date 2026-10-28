@@ -20,9 +20,9 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 const listenUsage = `Usage: semiont listen [--channel <name>]... [options]
@@ -57,7 +57,7 @@ const (
 )
 
 // The default subscription is the GENERATED broadcast set
-// (packages/sdk-go/bus/bridged_gen.go, from specs/src/bus/registry.json) —
+// (packages/go/sdk/bus/bridged_gen.go, from specs/src/bus/registry.json) —
 // the same list the TypeScript side derives. A hand-copied list here would be
 // precisely the drift the registry exists to prevent.
 

@@ -27,7 +27,7 @@ export default function setup(project: TestProject): void {
   }
   const go = drivers['go']?.wire?.[0];
   if (go !== undefined && !existsSync(go)) {
-    throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/sdk-go/conformance.`);
+    throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/go/sdk/conformance.`);
   }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;

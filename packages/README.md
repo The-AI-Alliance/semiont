@@ -22,7 +22,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [sdk-rust](./sdk-rust/README.md), [http-transport-rust](./http-transport-rust/README.md) |
 | Python | `pip install semiont` | [sdk-python](./sdk-python/README.md) |
-| Go | The module `github.com/The-AI-Alliance/semiont/packages/sdk-go`, by a `replace` on its path: it is published nowhere | [sdk-go](./sdk-go/README.md) |
+| Go | The module `github.com/The-AI-Alliance/semiont/packages/go/sdk`, by a `replace` on its path: it is published nowhere | [go/sdk](./go/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
 
 The rest is what those are built on, and what Semiont's own services are built on.
@@ -69,7 +69,7 @@ The first is how a Python program uses Semiont. The other four are what the Pyth
 
 | Module | Published | What it is |
 |---|---|---|
-| [sdk-go](./sdk-go/README.md) | Not published | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on it |
+| [go/sdk](./go/sdk/README.md) | Not published | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on it |
 
 ## Working on a package
 

@@ -10,7 +10,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // noGatewayFixture is verbFixture with the local stack's record naming no

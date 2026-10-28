@@ -13,17 +13,26 @@ export const SPEC_PARTS = {
   launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
 };
 
-/** The directory of packages/ that holds the TypeScript SDK; every other SDK's is sdk-<language>. */
+/** The directory of packages/ that holds the TypeScript SDK. */
 const TYPESCRIPT_SDK = 'sdk';
 
-const isSdk = (directory) => directory === TYPESCRIPT_SDK || directory.startsWith('sdk-');
-const sdkLanguage = (directory) => (directory === TYPESCRIPT_SDK ? 'typescript' : directory.slice('sdk-'.length));
+/**
+ * The language of the SDK a path below packages/<owner>/ is in, or null. An SDK
+ * in its language's directory is packages/<language>/sdk/; the others are
+ * packages/sdk-<language>/.
+ */
+function sdkLanguage(owner, below) {
+  if (owner === TYPESCRIPT_SDK) return 'typescript';
+  if (owner.startsWith('sdk-')) return owner.slice('sdk-'.length);
+  if (below[0] === 'sdk' && below.length > 1) return owner;
+  return null;
+}
 
 /**
  * The label of what `path` is in, or null for a path in none. A path is in an
  * app, an image, a test suite or an SDK when it is below its directory
- * (apps/<x>/, images/<x>/, tests/<x>/, packages/sdk/ or
- * packages/sdk-<language>/), and in a part of the spec when it is an entry of
+ * (apps/<x>/, images/<x>/, tests/<x>/, packages/sdk/, packages/sdk-<language>/
+ * or packages/<language>/sdk/), and in a part of the spec when it is an entry of
  * specs/src or below one. A directory is written with its trailing slash: it
  * is in what everything below it is in.
  */
@@ -37,6 +46,9 @@ export function pathLabel(path) {
   if (top === 'apps') return `app:${owner}`;
   if (top === 'images') return `image:${owner}`;
   if (top === 'tests') return `tests:${owner}`;
-  if (top === 'packages' && isSdk(owner)) return `sdk:${sdkLanguage(owner)}`;
+  if (top === 'packages') {
+    const language = sdkLanguage(owner, below);
+    return language === null ? null : `sdk:${language}`;
+  }
   return null;
 }

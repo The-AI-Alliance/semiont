@@ -129,7 +129,7 @@ updates:
 
   # Go launcher (apps/launcher): go.yaml.in/yaml, santhosh-tekuri/jsonschema,
   # oapi-codegen/runtime, and
-  # packages/sdk-go through a replace directive, plus the `go`
+  # packages/go/sdk through a replace directive, plus the `go`
   # directive/toolchain. Reachability-aware stdlib CVE scanning is handled by
   # govulncheck in ci.yml.
   # nats-server is a requirement of the launcher's tests, which read the
@@ -165,7 +165,7 @@ updates:
       prefix: "launcher"
       include: "scope"
 
-  # Go SDK (packages/sdk-go). Its OWN entry because gomod is not
+  # Go SDK (packages/go/sdk). Its OWN entry because gomod is not
   # workspace-aware: this is a separate module, and the launcher's entry above
   # updates the launcher's go.mod only.
   #
@@ -176,7 +176,7 @@ updates:
   # green everywhere, and nothing reports it. But sdk-go is consumed by module
   # path, so an EXTERNAL consumer resolves the stale minimum declared here.
   - package-ecosystem: "gomod"
-    directory: "/packages/sdk-go"
+    directory: "/packages/go/sdk"
     cooldown:
       default-days: 5
     schedule:
@@ -195,11 +195,11 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Go SDK's conformance drivers (packages/sdk-go/conformance): a module of
+  # The Go SDK's conformance drivers (packages/go/sdk/conformance): a module of
   # their own, so that what only a driver takes (an OTLP exporter) reaches no
   # other module. gomod is not workspace-aware, so it has its own entry.
   - package-ecosystem: "gomod"
-    directory: "/packages/sdk-go/conformance"
+    directory: "/packages/go/sdk/conformance"
     cooldown:
       default-days: 5
     schedule:

@@ -123,11 +123,11 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 ## The Go modules
 
-`packages/sdk-go` is one module, `github.com/The-AI-Alliance/semiont/packages/sdk-go`, package `semiont`: the client, its transport over a gateway, sign-in, the state units (package `state`) and the doubles a test is built on (package `semionttest`). It depends on `oapi-codegen`'s runtime, `google/uuid`, the OpenTelemetry API and `golang.org/x/text`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates. It is published nowhere: a program in this repository requires it with a `replace` directive on its path.
+`packages/go/sdk` is one module, `github.com/The-AI-Alliance/semiont/packages/go/sdk`, package `semiont`: the client, its transport over a gateway, sign-in, the state units (package `state`) and the doubles a test is built on (package `semionttest`). It depends on `oapi-codegen`'s runtime, `google/uuid`, the OpenTelemetry API and `golang.org/x/text`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates. It is published nowhere: a program in this repository requires it with a `replace` directive on its path.
 
-`packages/sdk-go/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
+`packages/go/sdk/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
 
-`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/sdk-go`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
+`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/go/sdk`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
 
 ## What each service image runs
 

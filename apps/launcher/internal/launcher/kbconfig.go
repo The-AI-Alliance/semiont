@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // projectFileYAML: the project file's name, below .semiont.

@@ -196,7 +196,7 @@ jobs:
               - 'tests/conformance/**'
             go:
               - 'apps/launcher/**'
-              - 'packages/sdk-go/**'
+              - 'packages/go/sdk/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -1297,11 +1297,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version-file: packages/sdk-go/conformance/go.mod
+          go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
-        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
+        run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's drivers, put through the corpus against the gateway; the
       # suite type-checks the TypeScript drivers and makes the Python SDK's
@@ -1372,11 +1372,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version-file: packages/sdk-go/conformance/go.mod
+          go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
-        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
+        run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's worker driver, put through the corpus against the gateway;
       # the suite type-checks the TypeScript driver and makes the Python SDK's
@@ -2483,7 +2483,7 @@ jobs:
 
       # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
       # the gateway's channel classification (images/gateway/src), and Go
-      # (packages/sdk-go/bus). Any of them drifting means two sides can disagree
+      # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime.
       - name: Bus registry vs generated code
         run: |
@@ -2511,7 +2511,7 @@ jobs:
           node scripts/spec/generate-media-types-python.mjs --check
           node scripts/spec/generate-encodings-python.mjs --check
 
-      # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
+      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk):
       # the kinds of id (api/ids_gen.go, whose generator also holds
       # oapi-codegen's exclude-schemas to the kinds), the error codes, the
       # client's timing, the cache-refresh table, the SDK telemetry table, the sign-in store's entry,
@@ -2556,15 +2556,15 @@ jobs:
       - name: Bundle the OpenAPI spec
         run: npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json
 
-      # Authority: specs/openapi.json → packages/sdk-go/api/client_gen.go.
+      # Authority: specs/openapi.json → packages/go/sdk/api/client_gen.go.
       # Deterministic because the generator version is pinned.
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-            -config packages/sdk-go/oapi-codegen.yaml \
+            -config packages/go/sdk/oapi-codegen.yaml \
             -o /tmp/client_gen.check.go specs/openapi.json
-          if ! diff -q /tmp/client_gen.check.go packages/sdk-go/api/client_gen.go; then
-            echo "::error::packages/sdk-go/api/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
+          if ! diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go; then
+            echo "::error::packages/go/sdk/api/client_gen.go is stale — run: cd packages/go/sdk && go generate ./..."
             exit 1
           fi
           echo "sdk-go client matches the spec"
@@ -2644,7 +2644,7 @@ jobs:
       # any output instead.
       - name: Check formatting (gofmt)
         run: |
-          unformatted=$(gofmt -l apps/launcher packages/sdk-go)
+          unformatted=$(gofmt -l apps/launcher packages/go/sdk)
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofmt-clean:"
             echo "$unformatted"
@@ -2670,25 +2670,25 @@ jobs:
             done
           done
 
-      # packages/sdk-go is a separate module (the generated API client + bus
+      # packages/go/sdk is a separate module (the generated API client + bus
       # registry the launcher consumes via a replace directive) — it needs its
       # own vet/build, or a broken generated file only surfaces downstream.
       # `go test` too: the bus client's wire-contract tests (subscribe before
       # emit, correlation, failure channels) and the bridged-set invariants
       # live here, and a build-only step never ran a single one of them.
       - name: Vet, build and test sdk-go
-        run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
+        run: cd packages/go/sdk && go vet ./... && go build ./... && go test -timeout 5m ./...
 
       # The SDK's conformance drivers are a module of their own.
       - name: Vet the Go SDK's drivers
-        run: cd packages/sdk-go/conformance && go vet ./...
+        run: cd packages/go/sdk/conformance && go vet ./...
 
       # The launcher's deps are go.yaml.in/yaml and santhosh-tekuri/jsonschema
       # (the stack's documents and their schemas), golang.org/x/sys (the Windows build's
       # file lock, access lists and process calls), golang.org/x/term (hidden
       # input and the terminal's size), sigstore/sigstore-go (an image's build
       # provenance, checked before it runs, and what it pulls in: protobuf,
-      # TUF, the Sigstore clients) and packages/sdk-go (whose client pulls
+      # TUF, the Sigstore clients) and packages/go/sdk (whose client pulls
       # oapi-codegen/runtime, whose telemetry is the OpenTelemetry API, and
       # whose reader of a resource's text decodes the legacy multi-byte
       # charsets with golang.org/x/text),
@@ -2807,7 +2807,7 @@ jobs:
       # The launcher's Windows binary carries this module's client and bus
       # registry.
       - name: Test sdk-go
-        working-directory: packages/sdk-go
+        working-directory: packages/go/sdk
         run: go test -timeout 5m ./...
 
   # ── The gate ─────────────────────────────────────────────────────────

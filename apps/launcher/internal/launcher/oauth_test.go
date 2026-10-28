@@ -10,7 +10,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // `semiont login` shows the one-time code AND the verification URI, always,

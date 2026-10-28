@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Every container-bearing driver carries an explicit ceiling — the silent

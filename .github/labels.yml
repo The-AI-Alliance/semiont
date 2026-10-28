@@ -114,7 +114,7 @@
   description: "The Rust SDK (packages/sdk-rust)"
 - name: "sdk:go"
   color: "bfd4f2"
-  description: "The Go SDK (packages/sdk-go)"
+  description: "The Go SDK (packages/go/sdk)"
 - name: "sdk:kotlin"
   color: "bfd4f2"
   description: "A Kotlin SDK, not yet written"

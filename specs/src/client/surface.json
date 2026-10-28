@@ -969,7 +969,7 @@
           "packages/sdk-python/src/semiont/annotations.py"
         ],
         "go": [
-          "packages/sdk-go/annotations"
+          "packages/go/sdk/annotations"
         ]
       },
       "whole": [
@@ -1172,7 +1172,7 @@
           "packages/sdk-python/src/semiont/job_filter.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "whole": [
@@ -1200,7 +1200,7 @@
           "packages/sdk-python/src/semiont/retry.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "members": [
@@ -1224,7 +1224,7 @@
           "packages/sdk-python/src/semiont/http/endpoint.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "members": [
@@ -1249,7 +1249,7 @@
           "packages/sdk-python/src/semiont/session.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "members": [
@@ -1304,7 +1304,7 @@
           "packages/sdk-python/src/semiont/storage.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "members": [
@@ -1335,8 +1335,8 @@
           "packages/sdk-python/src/semiont/channels.py"
         ],
         "go": [
-          "packages/sdk-go",
-          "packages/sdk-go/bus"
+          "packages/go/sdk",
+          "packages/go/sdk/bus"
         ]
       },
       "members": [
@@ -1384,7 +1384,7 @@
           "packages/sdk-python/src/semiont/session.py"
         ],
         "go": [
-          "packages/sdk-go/registry"
+          "packages/go/sdk/registry"
         ]
       },
       "whole": [
@@ -1669,7 +1669,7 @@
           "packages/sdk-python/src/semiont/session.py"
         ],
         "go": [
-          "packages/sdk-go"
+          "packages/go/sdk"
         ]
       },
       "members": [
@@ -1759,7 +1759,7 @@
           "packages/sdk-python/src/semiont/session.py"
         ],
         "go": [
-          "packages/sdk-go/discovery"
+          "packages/go/sdk/discovery"
         ]
       },
       "whole": [
@@ -1887,7 +1887,7 @@
           "packages/sdk-python/src/semiont/testing/__init__.py"
         ],
         "go": [
-          "packages/sdk-go/semionttest"
+          "packages/go/sdk/semionttest"
         ]
       },
       "members": [

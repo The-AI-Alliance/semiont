@@ -13,7 +13,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // inheritsFromItsParent: whether a path's access list still takes entries

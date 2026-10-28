@@ -7,7 +7,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // The knowledge verbs, in process against the fake transport.

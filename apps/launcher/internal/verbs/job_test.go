@@ -14,7 +14,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // A verb's result has no discriminant: each of its two members is told from

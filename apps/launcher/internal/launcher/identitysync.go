@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 var adminHTTP = &http.Client{Transport: launcherTransport, Timeout: 15 * time.Second}

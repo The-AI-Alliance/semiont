@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // `semiont identity sync` — the repair the identity preflight's refusals name.

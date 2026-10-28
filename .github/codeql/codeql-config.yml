@@ -30,7 +30,7 @@ paths:
   # Go launcher — module root, not a src/ dir (main.go + internal/)
   - apps/launcher
   # The Go SDK the launcher is built on: a module root too
-  - packages/sdk-go
+  - packages/go/sdk
   - packages/http-transport/src
   - packages/core/src
   - packages/react-ui/src

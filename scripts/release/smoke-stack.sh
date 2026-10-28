@@ -91,9 +91,9 @@ if [ ! -x "$SEMIONT" ]; then
   echo "No launcher built from this checkout at $SEMIONT. Build it with scripts/ci/local-build.sh." >&2
   exit 2
 fi
-# The launcher compiles apps/launcher and packages/sdk-go; a source file newer
+# The launcher compiles apps/launcher and packages/go/sdk; a source file newer
 # than the binary means the binary is not this checkout's launcher.
-NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/sdk-go" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
+NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
   \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
 if [ -n "$NEWER" ]; then
   echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with scripts/ci/local-build.sh." >&2

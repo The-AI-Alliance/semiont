@@ -47,12 +47,12 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
-/** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
-export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-wire-driver');
+/** The Go SDK's wire driver, built by `go build` in packages/go/sdk/conformance (its README). */
+export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-wire-driver');
 /** The Go SDK's live driver, built beside its wire driver. */
-export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-live-driver');
+export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-live-driver');
 /** The Go SDK's worker driver, built beside its wire driver. */
-export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-worker-driver');
+export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-worker-driver');
 
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');

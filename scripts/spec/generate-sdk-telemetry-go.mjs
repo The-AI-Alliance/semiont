@@ -4,7 +4,7 @@
 // by name and kind, every metric, by name and meaning, and every attribute
 // key the rows carry.
 //
-//   packages/sdk-go/telemetry_gen.go
+//   packages/go/sdk/telemetry_gen.go
 //
 // The reading of the table is sdk-telemetry-table.mjs's, shared with the
 // Python generator. The output is committed; `--check` compares without
@@ -18,7 +18,7 @@ import { CHANNEL, readSdkTelemetry } from './sdk-telemetry-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/sdk-telemetry/telemetry.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/telemetry_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/telemetry_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

@@ -14,7 +14,7 @@ import (
 	"os"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"golang.org/x/term"
 )
 

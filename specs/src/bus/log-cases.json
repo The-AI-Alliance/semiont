@@ -4,7 +4,7 @@
     "typescript": ["packages/core/src/__tests__/bus-log-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/bus_log.rs"],
     "python": ["packages/sdk-python/tests/test_bus_log.py"],
-    "go": ["packages/sdk-go/buslog_test.go"]
+    "go": ["packages/go/sdk/buslog_test.go"]
   },
   "names": [
     "token",

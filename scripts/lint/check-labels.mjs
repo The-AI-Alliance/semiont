@@ -32,7 +32,8 @@
  *              listed below as no verb
  *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
  *    sdk: has a label for every SDK the repository holds (packages/sdk, the
- *    TypeScript one, and each packages/sdk-<language>), and for the languages
+ *    TypeScript one, each packages/sdk-<language> and each
+ *    packages/<language>/sdk), and for the languages
  *    ruled ahead of their SDKs. The app:, image:, tests: and sdk: values
  *    the repository owns are the labels its files give (path-labels.mjs),
  *    the rule the Path Labels workflow applies to a pull request's files. kind:

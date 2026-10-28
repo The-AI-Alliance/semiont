@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // The launcher records what it believes each stack IS in stack.json under
