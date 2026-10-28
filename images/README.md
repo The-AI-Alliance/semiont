@@ -41,3 +41,19 @@ All seven service images are built by
 **The Archivist and the Librarian are a deliberate pair.** The Archivist holds the record
 and answers *"what is there?"*; the Librarian searches it and answers *"what is relevant to
 my question?"* — the distinction the professions themselves draw.
+
+## This directory is the set of images
+
+Every directory here with a `Dockerfile` is an image, and the tooling takes the set from
+this directory, not from a list: `scripts/ci/local-build.sh` builds what is here, and the
+supervision gate, the NOTICE and Rust-builder lints and the Python licence check all read it.
+Two lists are still written by hand, and each is held to this directory: the matrix in
+[`publish-service-images.yml`](../.github/workflows/publish-service-images.yml), by
+`scripts/release/verify-release.sh`, and the path filters in
+[`ci.yml`](../.github/workflows/ci.yml), by `lint:workflows`.
+
+So an image added here needs its directory — its source, a `Dockerfile` that passes the
+supervision gate, and a `NOTICE` that credits exactly what the image ships — then its row in
+that matrix (the Browser has its own workflow), a CI path filter, and a role in the
+launcher's [`descriptors.go`](../apps/launcher/internal/launcher/descriptors.go), which is
+what starts it.
