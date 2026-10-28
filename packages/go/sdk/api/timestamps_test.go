@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // A timestamp read and written again is the text the gateway sent: a client

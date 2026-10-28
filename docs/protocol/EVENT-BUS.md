@@ -240,7 +240,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 |---|---|---|
 | **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
 | **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
-| **Test time** | [bus-invariants.test.ts](../../packages/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/sdk-go/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
+| **Test time** | [bus-invariants.test.ts](../../packages/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/go/sdk/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
 
 The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
@@ -272,7 +272,7 @@ Four implementations write the log. Each is switched on for a whole process, and
 | TypeScript, in a browser | `window.__SEMIONT_BUS_LOG__ = true` | the console, with `console.debug` |
 | Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/sdk-rust/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 | Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/sdk-python/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
-| Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/sdk-go/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
+| Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/go/sdk/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 
 Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python and Go transports log at the same points as the TypeScript one this table names:
 
@@ -315,7 +315,7 @@ Two generators read it:
 | Output | Generator |
 |---|---|
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
-| `packages/sdk-go/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
+| `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
 | `packages/sdk-python/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
 
@@ -452,7 +452,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
 - **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.
 - **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
-- **`packages/sdk-go/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
+- **`packages/go/sdk/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.

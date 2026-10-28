@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/state"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
 
 // ShowHover shows what is hovered as it changes.

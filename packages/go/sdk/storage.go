@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // SessionStorage is a store of text by key: the seam an application fills in

@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // The identity preflight: before anything starts, each service account's

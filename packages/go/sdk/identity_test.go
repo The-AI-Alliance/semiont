@@ -12,12 +12,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 func readTable(t *testing.T, into any, path ...string) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "specs", "src"}, path...)...))
+	b, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "specs", "src"}, path...)...))
 	if err != nil {
 		t.Fatal(err)
 	}

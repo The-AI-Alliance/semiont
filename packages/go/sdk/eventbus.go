@@ -9,8 +9,8 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // EventBus is a client's own bus. A client makes one and hands it to its

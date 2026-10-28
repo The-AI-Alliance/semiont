@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // The state home, as every program that finds tokens.json computes it
 // (specs/src/sign-in-store/cases.json).
 func TestTheStateHomeIsTheTables(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "sign-in-store", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "sign-in-store", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

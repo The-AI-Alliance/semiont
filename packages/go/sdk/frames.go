@@ -12,8 +12,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // Envelope is the routing beside a payload, never inside it: the correlation

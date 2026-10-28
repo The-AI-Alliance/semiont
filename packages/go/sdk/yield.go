@@ -9,9 +9,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/mediatypes"
 )
 
 // generationStallDeadline is how long a followed generation may say nothing

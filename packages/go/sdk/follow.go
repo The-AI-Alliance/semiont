@@ -36,9 +36,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // JobEvent is what a followed job reports, and how it ends: a JobCreated

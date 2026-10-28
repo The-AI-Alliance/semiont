@@ -14,10 +14,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/registry"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/registry"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
 
 // ended is whether a reader of something a registry showed sees no more: its

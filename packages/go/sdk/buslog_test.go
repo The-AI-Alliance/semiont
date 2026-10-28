@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,7 +28,7 @@ type busLogTable struct {
 
 func readBusLogTable(t *testing.T) busLogTable {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "bus", "log-cases.json"))
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "bus", "log-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

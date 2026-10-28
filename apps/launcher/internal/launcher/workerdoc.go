@@ -1,7 +1,7 @@
 package launcher
 
 // workerdoc.go — the worker's configuration document: WorkerConfig in specs/,
-// the Go type generated from it (packages/sdk-go). The launcher writes it for
+// the Go type generated from it (packages/go/sdk). The launcher writes it for
 // the worker it starts, every address a literal (placement), and mounts it
 // where the worker's image points its `--config` flag, so the worker neither
 // reads a knowledge base's documents nor resolves or defaults anything.
@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // workerDocumentFile: the worker is configured by a document, not a copy of

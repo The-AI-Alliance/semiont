@@ -88,7 +88,7 @@ believe them at first:
    ([`semiont`](../../packages/sdk-python/README.md)) has the same client,
    cache, state units and sessions on asyncio, typed for `mypy` and `pyright`,
    and is held to the same tables and the same suite. The Go SDK
-   ([`sdk-go`](../../packages/sdk-go/README.md)), the module the `semiont`
+   ([`go/sdk`](../../packages/go/sdk/README.md)), the module the `semiont`
    launcher is built on, has the same client, cache, state units and
    sessions, with a context on every call that waits and an iterator for
    every sequence, and is held to the same tables and the same suite. The

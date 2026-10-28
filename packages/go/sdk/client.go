@@ -8,7 +8,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // ClientConfig is what a client is made over. Every field is required.

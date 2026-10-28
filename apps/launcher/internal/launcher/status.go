@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
@@ -1060,7 +1060,7 @@ func containerState(runtimes []string, name string) (state, rt string) {
 //
 // The GATEWAY goes through the Go SDK. It is the only role in this table that
 // is a semiont service with a generated client, and an application request to
-// the gateway is the thing packages/sdk-go exists to own, never a hand-written
+// the gateway is the thing packages/go/sdk exists to own, never a hand-written
 // path here — as the TypeScript side covers it (`healthCheck` on
 // `IGatewayOperations`).
 //

@@ -1,7 +1,7 @@
 package launcher
 
 // gatewaydoc.go — the gateway's configuration document: GatewayConfig in
-// specs/, the Go type generated from it (packages/sdk-go). The launcher
+// specs/, the Go type generated from it (packages/go/sdk). The launcher
 // writes it for the gateway it starts, every address a literal (placement), so
 // the gateway neither reads a knowledge base's documents nor resolves or
 // defaults anything. Secrets are never values in it: a credential is a
@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // connectionAllowance: the memory a gateway's capacity sets aside for each open

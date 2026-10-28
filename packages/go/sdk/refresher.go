@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // window is one key's B19 window: what asks again for its key, and whether

@@ -54,8 +54,8 @@ import (
 
 	"github.com/google/uuid"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // checksAtOnce is how many open resources are checked at once when a session

@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/conformance/internal/protocol"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/conformance/internal/protocol"
 )
 
 // renewals is the refresher a case's renewals give the client: each time it

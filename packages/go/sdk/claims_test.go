@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // workerWire is a transport a test answers by hand: every request goes to
@@ -370,7 +370,7 @@ func finish(t *testing.T, job HeldJob) {
 
 func specCases(t *testing.T, path string) []json.RawMessage {
 	t.Helper()
-	text, err := os.ReadFile("../../specs/src/" + path)
+	text, err := os.ReadFile("../../../specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestEveryFailureClassAndEveryObservationTheSpecNamesIsAnswered(t *testing.T
 	}
 	for schema, answered := range map[string][]string{"FailureClass": classes, "DurabilityEvidence": evidence} {
 		slices.Sort(answered)
-		text, err := os.ReadFile("../../specs/src/components/schemas/" + schema + ".json")
+		text, err := os.ReadFile("../../../specs/src/components/schemas/" + schema + ".json")
 		if err != nil {
 			t.Fatal(err)
 		}

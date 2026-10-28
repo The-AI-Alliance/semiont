@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // Transport is the bus: an emit out, frames in, the connection's state, the

@@ -20,11 +20,11 @@ ideas are this module's too.
 
 ## Install
 
-The module is `github.com/The-AI-Alliance/semiont/packages/sdk-go`, package
+The module is `github.com/The-AI-Alliance/semiont/packages/go/sdk`, package
 `semiont`:
 
 ```text
-import semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+import semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 ```
 
 It is published nowhere: the import path is its identity. A program in the
@@ -32,9 +32,9 @@ monorepo depends on it through a `replace` directive on its relative path, as
 the launcher's `go.mod` does:
 
 ```text
-require github.com/The-AI-Alliance/semiont/packages/sdk-go v0.0.0-00010101000000-000000000000
+require github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
 
-replace github.com/The-AI-Alliance/semiont/packages/sdk-go => ../../packages/sdk-go
+replace github.com/The-AI-Alliance/semiont/packages/go/sdk => ../../packages/go/sdk
 ```
 
 It requires the Go toolchain its `go.mod` names. One module holds all of it:
@@ -64,7 +64,7 @@ import (
 	"fmt"
 	"net/http"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // Work signs the agent in, and opens a stream as it.
@@ -113,9 +113,9 @@ import (
 	"net/http"
 	"path/filepath"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 func show(code semiont.DeviceCode) {
@@ -223,8 +223,8 @@ client comes to be signed in.
 import (
 	"context"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Summarize ingests a paper, has a model mark the concepts it mentions,
@@ -306,8 +306,8 @@ import (
 	"context"
 	"fmt"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Annotate reads a resource, has it highlighted, and directs attention to
@@ -411,8 +411,8 @@ import (
 	"context"
 	"fmt"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Watch shows a resource's annotations as they change, until ctx is done.
@@ -493,7 +493,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/state"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
 
 // ShowHover shows what is hovered as it changes.
@@ -528,8 +528,8 @@ import (
 	"fmt"
 	"strings"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Count is your work: read the resource, and say how many lines it has. A
@@ -648,7 +648,7 @@ and [its conformance suite][worker-conformance] holds this module to it.
 
 Package `annotations` is what reads an annotation and what builds one, as
 every SDK reads and builds them, case for case
-([`specs/src/annotations`](../../specs/src/annotations)).
+([`specs/src/annotations`](../../../specs/src/annotations)).
 
 - **The readers** take an `api.Annotation` apart: what kind it is
   (`IsHighlight`, `IsComment`, `IsTag`, `IsReference`, `IsAssessment`), the
@@ -723,10 +723,10 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
 
 // TitleOf is the code under test: a resource's name, in capitals.
@@ -804,9 +804,9 @@ import (
 	"fmt"
 	"net/http"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 // Read asks for a resource on the bus, then hears what is added to it.
@@ -888,8 +888,8 @@ import (
 	"context"
 	"fmt"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Store uploads a page, reads it back, and asks the gateway who is signed in
@@ -952,7 +952,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Ids makes ids from text, and a command of them.
@@ -1013,15 +1013,15 @@ log keeps) is written as `[withheld]`.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../specs/src/session/oauth.json) |
-| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) |
-| `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) |
+| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../../specs/src/session/oauth.json) |
+| `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json) |
+| `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
 | `annotations` | Reading an annotation, building one of a span or of a resource, and `Reconcile` | hand-written |
 | `registry` | Several knowledge bases: `SemiontBrowser`, its storage and its keys, `HttpSessionFactory`, and a person's sign-in landing on the knowledge base that answered | hand-written |
-| `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../specs/src/discovery/DiscoveryDocument.json), through `api` |
+| `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../../specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
-| `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json) |
+| `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../../specs/src/media-types/registry.json) |
 | `readme` | The programs this page shows, each run by its tests | hand-written |
 
 Everything generated is committed, as the monorepo's other generated
@@ -1034,7 +1034,7 @@ differs from what the spec generates.
 Nothing regenerates by itself. When the spec changes, the client:
 
 ```sh
-cd packages/sdk-go && go generate ./...
+cd packages/go/sdk && go generate ./...
 ```
 
 That runs the pinned generator (`oapi-codegen@v2.6.0`) in a `golang`
@@ -1074,7 +1074,7 @@ Each has a `:check` form that verifies without writing, as CI does.
 
 ## Working on it
 
-The module is [`packages/sdk-go`][package] of the [Semiont repository][semiont],
+The module is [`packages/go/sdk`][package] of the [Semiont repository][semiont],
 and [Testing][testing] says how its checks and its tests are run. Go runs in a
 `golang` container at the toolchain its `go.mod` names. The programs this page
 shows are files of package `readme`, word for word: the compiler checks them,
@@ -1082,35 +1082,35 @@ and its tests run each one.
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See [LICENSE](../../../LICENSE).
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
-[introduction]: ../../docs/builder/INTRODUCTION.md
-[quick-start]: ../../docs/builder/QUICK-START.md
-[developer-guide]: ../../docs/builder/DEVELOPER-GUIDE.md
-[skills]: ../../docs/builder/skills
-[flows]: ../../docs/protocol/flows/README.md
-[reactive-model]: ../../docs/builder/REACTIVE-MODEL.md
-[protocol]: ../../docs/protocol/README.md
-[transport-contract]: ../../docs/protocol/TRANSPORT-CONTRACT.md
-[transport-http]: ../../docs/protocol/TRANSPORT-HTTP.md
-[cache-semantics]: ../../docs/protocol/CACHE-SEMANTICS.md
-[conformance]: ../../tests/conformance/sdk/README.md
-[worker-contract]: ../../docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: ../../tests/conformance/worker/README.md
-[sdk-typescript]: ../sdk/README.md
-[sdk-rust]: ../sdk-rust/README.md
-[sdk-python]: ../sdk-python/README.md
-[launcher]: ../../apps/launcher/README.md
-[surface]: ../../specs/src/client/surface.json
-[refresh]: ../../specs/src/client/refresh.json
-[codes]: ../../specs/src/errors/codes.json
-[session-cases]: ../../specs/src/session/cases.json
-[resource-text]: ../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
-[sign-in-store]: ../../specs/src/sign-in-store/README.md
-[telemetry]: ../../specs/src/sdk-telemetry/telemetry.json
-[bus-log]: ../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
+[introduction]: ../../../docs/builder/INTRODUCTION.md
+[quick-start]: ../../../docs/builder/QUICK-START.md
+[developer-guide]: ../../../docs/builder/DEVELOPER-GUIDE.md
+[skills]: ../../../docs/builder/skills
+[flows]: ../../../docs/protocol/flows/README.md
+[reactive-model]: ../../../docs/builder/REACTIVE-MODEL.md
+[protocol]: ../../../docs/protocol/README.md
+[transport-contract]: ../../../docs/protocol/TRANSPORT-CONTRACT.md
+[transport-http]: ../../../docs/protocol/TRANSPORT-HTTP.md
+[cache-semantics]: ../../../docs/protocol/CACHE-SEMANTICS.md
+[conformance]: ../../../tests/conformance/sdk/README.md
+[worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
+[worker-conformance]: ../../../tests/conformance/worker/README.md
+[sdk-typescript]: ../../sdk/README.md
+[sdk-rust]: ../../sdk-rust/README.md
+[sdk-python]: ../../sdk-python/README.md
+[launcher]: ../../../apps/launcher/README.md
+[surface]: ../../../specs/src/client/surface.json
+[refresh]: ../../../specs/src/client/refresh.json
+[codes]: ../../../specs/src/errors/codes.json
+[session-cases]: ../../../specs/src/session/cases.json
+[resource-text]: ../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
+[sign-in-store]: ../../../specs/src/sign-in-store/README.md
+[telemetry]: ../../../specs/src/sdk-telemetry/telemetry.json
+[bus-log]: ../../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: .
-[testing]: ../../docs/contributor/TESTING.md
-[state-units]: ../../docs/builder/STATE-UNITS.md
-[state-units-cases]: ../../specs/src/client/state-units.json
+[testing]: ../../../docs/contributor/TESTING.md
+[state-units]: ../../../docs/builder/STATE-UNITS.md
+[state-units-cases]: ../../../specs/src/client/state-units.json

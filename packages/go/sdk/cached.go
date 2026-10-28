@@ -7,7 +7,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Cached is a live query. Building it touches nothing, so a query is made

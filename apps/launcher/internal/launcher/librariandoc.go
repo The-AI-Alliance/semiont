@@ -1,7 +1,7 @@
 package launcher
 
 // librariandoc.go — the Librarian's configuration document: LibrarianConfig in
-// specs/, the Go type generated from it (packages/sdk-go). The launcher writes
+// specs/, the Go type generated from it (packages/go/sdk). The launcher writes
 // it for the Librarian it starts, every address a literal (placement), and
 // mounts it where the Librarian's image points its `--config` flag, so the
 // Librarian neither reads a knowledge base's documents nor resolves or
@@ -12,7 +12,7 @@ package launcher
 import (
 	"encoding/json"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // librarianDocumentFile: the Librarian is configured by a document, not a copy

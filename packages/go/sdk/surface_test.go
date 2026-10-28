@@ -30,10 +30,10 @@ import (
 	"testing"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
 
 // sdk is this runner's SDK, as the table's `absent` names it.
@@ -68,7 +68,7 @@ type surfaceTable struct {
 
 func readSurface(t *testing.T) surfaceTable {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "client", "surface.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "client", "surface.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

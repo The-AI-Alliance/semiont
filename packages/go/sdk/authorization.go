@@ -20,7 +20,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // PendingAuthorizationKey is the key a pending sign-in is remembered under.

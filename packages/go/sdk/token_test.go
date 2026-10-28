@@ -30,7 +30,7 @@ type sessionTables struct {
 
 func readSessionTables(t *testing.T) sessionTables {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "session", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

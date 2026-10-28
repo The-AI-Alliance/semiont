@@ -22,7 +22,7 @@ type registry struct {
 
 func readRegistry(t *testing.T) registry {
 	t.Helper()
-	b, err := os.ReadFile("../../../specs/src/media-types/registry.json")
+	b, err := os.ReadFile("../../../../specs/src/media-types/registry.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ type mediaTypeCases struct {
 
 func readCases(t *testing.T) mediaTypeCases {
 	t.Helper()
-	b, err := os.ReadFile("../../../specs/src/media-types/cases.json")
+	b, err := os.ReadFile("../../../../specs/src/media-types/cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

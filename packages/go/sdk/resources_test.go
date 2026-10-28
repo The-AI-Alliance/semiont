@@ -23,10 +23,10 @@ import (
 	"strings"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/mediatypes"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
 
 // strictly decodes data into into, refusing a member into does not read: a
@@ -42,7 +42,7 @@ func strictly(t *testing.T, data []byte, into any) {
 
 func readSpec(t *testing.T, path ...string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "specs", "src"}, path...)...))
+	data, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "specs", "src"}, path...)...))
 	if err != nil {
 		t.Fatal(err)
 	}

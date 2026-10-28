@@ -4,7 +4,7 @@
     "typescript": ["packages/core/src/__tests__/offset-cases.test.ts", "packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts"],
     "rust": ["packages/sdk-rust/src/text_offsets.rs"],
     "python": ["packages/sdk-python/tests/test_offsets.py"],
-    "go": ["packages/sdk-go/annotations/offsets_test.go"]
+    "go": ["packages/go/sdk/annotations/offsets_test.go"]
   },
   "cases": [
     {

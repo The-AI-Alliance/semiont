@@ -35,7 +35,7 @@ jobs:
     # into PATH to trace the build, and a later setup-go would shadow it (CodeQL
     # warns "Expected `which go` to return .../codeql-action-go-tracing/bin/go").
     # cache: false — setup-go's default lookup is for a go.sum at the root, and it
-    # warns when there is none: the modules are apps/launcher and packages/sdk-go.
+    # warns when there is none: the modules are apps/launcher and packages/go/sdk.
     - name: Setup Go
       if: matrix.language == 'go'
       uses: actions/setup-go@v7.0.0
@@ -71,7 +71,7 @@ jobs:
       if: matrix.language == 'go'
       run: |
         (cd apps/launcher && go build ./...)
-        (cd packages/sdk-go && go build ./...)
+        (cd packages/go/sdk && go build ./...)
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4.39.1

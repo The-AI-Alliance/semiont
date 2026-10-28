@@ -9,7 +9,7 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Bookmarks is where a stream's place in each scope is kept across a

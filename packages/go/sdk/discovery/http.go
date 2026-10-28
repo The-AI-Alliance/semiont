@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 type httpDiscovery struct {

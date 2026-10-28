@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 const kb = "kb-alpha"
@@ -38,7 +38,7 @@ type sessionRow struct {
 
 func readSessionRows(t *testing.T) (startup, refusal []sessionRow) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "session", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

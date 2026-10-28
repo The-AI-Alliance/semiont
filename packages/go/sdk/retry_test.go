@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // notKept is each rule of the table this SDK does not keep, with why.
@@ -37,7 +37,7 @@ type statedWait struct {
 
 func readRetryTable(t *testing.T) (rules []retryRow, waits []statedWait) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "retry", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "retry", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

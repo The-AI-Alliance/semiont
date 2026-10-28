@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/internal/required"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 func TestAFollowerThatEndsOnAnythingButACompletionIsNoCompletion(t *testing.T) {
@@ -55,7 +55,7 @@ func TestHowLongAGenerationMayBeSilentGrowsWithWhatWasAskedOfIt(t *testing.T) {
 // specSchema is a schema of specs/src/components/schemas.
 func specSchema(t *testing.T, name string) map[string]json.RawMessage {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "components", "schemas", name+".json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "components", "schemas", name+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}

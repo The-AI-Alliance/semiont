@@ -296,7 +296,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 # specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
 # payload shapes, and the request/reply operations. BOTH languages are
 # generated from it — packages/core/src/bus-protocol.ts + bus-operations.ts
-# (TypeScript) and packages/sdk-go/bus/*_gen.go — so an edit to one language's
+# (TypeScript) and packages/go/sdk/bus/*_gen.go — so an edit to one language's
 # generated file, or a registry change without regeneration, is drift that
 # would let the two sides disagree at runtime. Each generator's --check diffs
 # without writing.
@@ -313,7 +313,7 @@ else
   echo -e "  Regenerate both languages and commit:"
   echo ""
   echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/core/src/bus-protocol.ts, bus-operations.ts)"
-  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/sdk-go/bus/*_gen.go)"
+  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/go/sdk/bus/*_gen.go)"
   echo ""
   echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
   echo ""
@@ -481,8 +481,8 @@ done
 
 # --- sdk-go drift gate ---
 #
-# packages/sdk-go/api/client_gen.go is GENERATED from specs/openapi.json and
-# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
+# packages/go/sdk/api/client_gen.go is GENERATED from specs/openapi.json and
+# COMMITTED (see packages/go/sdk/README.md). Nothing regenerates it
 # automatically, so a spec change can leave it stale. This gate regenerates
 # to a scratch path inside the container (never the working tree — builds
 # don't mutate source) and diffs: byte-identical or fail. Deterministic
@@ -499,12 +499,12 @@ else
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:go${RESET}   (packages/sdk-go)"
+  echo -e "    ${BOLD}npm run generate:go${RESET}   (packages/go/sdk)"
   echo ""
   exit 1
 fi
 
-step "Checking packages/sdk-go/api/client_gen.go against specs/openapi.json..."
+step "Checking packages/go/sdk/api/client_gen.go against specs/openapi.json..."
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache
 # corrupt it — Go's cache locking is flock, which does not hold across VM
@@ -556,9 +556,9 @@ run_drift_check() {
     -w /workspace \
     "$GO_IMAGE" \
     sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-             -config packages/sdk-go/oapi-codegen.yaml \
+             -config packages/go/sdk/oapi-codegen.yaml \
              -o /tmp/client_gen.check.go specs/openapi.json || exit 3
-           diff -q /tmp/client_gen.check.go packages/sdk-go/api/client_gen.go >/dev/null || exit 4' \
+           diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go >/dev/null || exit 4' \
     2>&1 | tee "$DRIFT_LOG" \
     || DRIFT_RC=$?
 }
@@ -590,16 +590,16 @@ fi
 
 case "$DRIFT_RC" in
   0)
-    ok "packages/sdk-go matches the spec"
+    ok "packages/go/sdk matches the spec"
     rm -f "$DRIFT_LOG"
     ;;
   4)
-    fail "packages/sdk-go/api/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
+    fail "packages/go/sdk/api/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
     echo ""
     echo -e "  Regenerate and commit it:"
     echo ""
-    echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-    echo -e "    ${BOLD}git add packages/sdk-go/api/client_gen.go${RESET}   (then commit)"
+    echo -e "    ${BOLD}cd packages/go/sdk && go generate ./...${RESET}"
+    echo -e "    ${BOLD}git add packages/go/sdk/api/client_gen.go${RESET}   (then commit)"
     echo ""
     exit 1
     ;;
@@ -671,7 +671,7 @@ if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   node scripts/ci/check-go-schema-coverage.mjs; then
   fail "The generated Go client is missing schemas (see above)."
   echo ""
-  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+  echo -e "    ${BOLD}cd packages/go/sdk && go generate ./...${RESET}"
   echo ""
   exit 1
 fi

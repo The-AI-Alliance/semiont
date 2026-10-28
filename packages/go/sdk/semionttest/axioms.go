@@ -36,7 +36,7 @@ import (
 	"testing"
 	"testing/synctest"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // Given is a dependency a unit was given, as the axioms watch it.

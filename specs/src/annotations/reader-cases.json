@@ -4,7 +4,7 @@
     "typescript": ["packages/core/src/__tests__/annotation-reader-cases.test.ts", "packages/sdk/src/__tests__/annotation-readers.test.ts"],
     "rust": ["packages/sdk-rust/tests/annotation_reader_cases.rs", "packages/sdk-rust/tests/builder_cases.rs"],
     "python": ["packages/sdk-python/tests/test_annotation_builders.py", "packages/sdk-python/tests/test_annotations.py"],
-    "go": ["packages/sdk-go/annotations/readers_test.go"]
+    "go": ["packages/go/sdk/annotations/readers_test.go"]
   },
   "readers": [
     "bodySource",

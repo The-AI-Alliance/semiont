@@ -147,7 +147,7 @@ const typesText = `// Code generated from specs/src/stack and specs/src/kb-ident
 // Regenerate: node scripts/spec/generate-stack-go.mjs
 
 package stack
-${usesSDK ? '\nimport "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"\n' : ''}
+${usesSDK ? '\nimport "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"\n' : ''}
 ${[...types.values()].join('\n')}`;
 
 // ── the schemas ───────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 package launcher
 
 // archivistdoc.go — the Archivist's configuration document: ArchivistConfig
-// in specs/, the Go type generated from it (packages/sdk-go). The launcher
+// in specs/, the Go type generated from it (packages/go/sdk). The launcher
 // writes it for the Archivist it starts, every address a literal (placement),
 // and mounts it where the Archivist's image points its `--config` flag, so the
 // Archivist neither reads a knowledge base's documents nor resolves or
@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // archivistDocumentFile: the Archivist is configured by a document, not a

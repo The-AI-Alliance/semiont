@@ -16,11 +16,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/state"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
 
 func idOf[T any](t *testing.T, text string) T {

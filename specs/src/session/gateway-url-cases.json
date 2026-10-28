@@ -4,7 +4,7 @@
     "typescript": ["packages/sdk/src/session/__tests__/gateway-url-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/session/knowledge_base.rs"],
     "python": ["packages/sdk-python/tests/test_gateway_url.py"],
-    "go": ["packages/sdk-go/endpoint_test.go"]
+    "go": ["packages/go/sdk/endpoint_test.go"]
   },
   "cases": [
     {

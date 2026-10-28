@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 func numbered(channel bus.Channel, n int) Frame {

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"sync"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // held is a value the registry holds and anyone may watch, of a type Go

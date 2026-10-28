@@ -393,7 +393,7 @@ The Go client has the same nine shapes, with no reactive library under them. Wha
 - **Events** are iterators with a queue per reader, so a reader that falls behind loses nothing. Each reader takes a context, and ends when it is done.
 - **Composition** is the language's own: `for` over an iterator, goroutines, and `context` for deadlines and cancelling. The module brings no operator library.
 
-The Go README shows [each shape at the call site](../../packages/sdk-go/README.md#the-client), and [a watched query](../../packages/sdk-go/README.md#live-queries).
+The Go README shows [each shape at the call site](../../packages/go/sdk/README.md#the-client), and [a watched query](../../packages/go/sdk/README.md#live-queries).
 
 ## See also
 
@@ -406,4 +406,4 @@ The Go README shows [each shape at the call site](../../packages/sdk-go/README.m
 - [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
 - [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust form of each shape
 - [The Python SDK's README](../../packages/sdk-python/README.md) — the Python form of each shape
-- [The Go SDK's README](../../packages/sdk-go/README.md) — the Go form of each shape
+- [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape

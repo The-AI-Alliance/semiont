@@ -3,7 +3,7 @@
 // the scope a sign-in asks for from specs/src/session/oauth.json, the file the
 // TypeScript, Rust and Python SDKs generate theirs from.
 //
-//   packages/sdk-go/oauthclients_gen.go
+//   packages/go/sdk/oauthclients_gen.go
 //
 // The SDK signs in as the script client, and the launcher registers both
 // clients in a knowledge base's realm, so an id restated by hand is a sign-in
@@ -19,7 +19,7 @@ import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/oauthclients_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/oauthclients_gen.go');
 const CHECK = process.argv.includes('--check');
 
 const { clients, scope } = readOAuthClients(TABLE);

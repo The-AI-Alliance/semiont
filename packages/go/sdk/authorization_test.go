@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 const redirectURI = "http://127.0.0.1:9/callback"

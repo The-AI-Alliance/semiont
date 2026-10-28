@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // SearchState is what a search shows: its results, and whether more are on

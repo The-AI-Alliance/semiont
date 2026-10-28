@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 type codeEntry struct {
@@ -35,7 +35,7 @@ type codesTable struct {
 
 func readCodes(t *testing.T) codesTable {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "errors", "codes.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "errors", "codes.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

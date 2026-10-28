@@ -2,7 +2,7 @@
 // Generate the Go SDK's client timing from specs/src/client/timing.json: one
 // field of `Timing` per entry, and `DefaultTiming`, the table's values.
 //
-//   packages/sdk-go/timing_gen.go
+//   packages/go/sdk/timing_gen.go
 //
 // A duration (`…Ms`) is a time.Duration named without its unit (`reconnectMs`
 // is `Reconnect`), a retry budget (`…Retry`) a RetryPolicy, and a count
@@ -18,7 +18,7 @@ import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/client/timing.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/timing_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/timing_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

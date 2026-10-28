@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // Work signs the agent in, and opens a stream as it.

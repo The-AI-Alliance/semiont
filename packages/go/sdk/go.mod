@@ -1,4 +1,4 @@
-module github.com/The-AI-Alliance/semiont/packages/sdk-go
+module github.com/The-AI-Alliance/semiont/packages/go/sdk
 
 go 1.27
 

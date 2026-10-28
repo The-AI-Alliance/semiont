@@ -17,8 +17,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/discovery"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/discovery"
 )
 
 func entry(host string, port int, did string) map[string]any {

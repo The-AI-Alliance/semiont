@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // idLength is how many characters of the digest's base64url an id is.

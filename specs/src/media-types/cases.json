@@ -4,7 +4,7 @@
     "typescript": ["packages/core/src/__tests__/media-type-registry.test.ts"],
     "rust": ["packages/sdk-rust/tests/media_types.rs"],
     "python": ["packages/sdk-python/tests/test_media_types.py"],
-    "go": ["packages/sdk-go/mediatypes/mediatypes_test.go"]
+    "go": ["packages/go/sdk/mediatypes/mediatypes_test.go"]
   },
   "cloneFormat": [
     {

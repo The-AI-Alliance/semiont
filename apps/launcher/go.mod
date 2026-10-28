@@ -10,7 +10,7 @@ go 1.27
 toolchain go1.27.3
 
 require (
-	github.com/The-AI-Alliance/semiont/packages/sdk-go v0.0.0-00010101000000-000000000000
+	github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nats-io/nats-server/v2 v2.15.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
@@ -108,4 +108,4 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 )
 
-replace github.com/The-AI-Alliance/semiont/packages/sdk-go => ../../packages/sdk-go
+replace github.com/The-AI-Alliance/semiont/packages/go/sdk => ../../packages/go/sdk

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
 )

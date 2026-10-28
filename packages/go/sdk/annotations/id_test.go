@@ -9,11 +9,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 func TestTheIdOfAnAnnotationIsTheTablesForWhatItIs(t *testing.T) {
-	text, err := os.ReadFile("../../../specs/src/annotations/id-cases.json")
+	text, err := os.ReadFile("../../../../specs/src/annotations/id-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

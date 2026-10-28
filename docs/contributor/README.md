@@ -17,7 +17,7 @@ To run tools directly on your machine instead, the versions are:
 | Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
 | Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/sdk-python/pyproject.toml) of the Python SDK |
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
-| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/sdk-go`](../../packages/sdk-go/go.mod) |
+| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 
 ## Four toolchains, one spec
 
@@ -25,7 +25,7 @@ The repository holds code in four languages, and none of them depends on another
 
 - **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
-- **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
+- **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
 - **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
@@ -57,7 +57,7 @@ semiont/
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
-│   ├── sdk-go/             # The Go SDK
+│   ├── go/sdk/             # The Go SDK
 │   ├── sdk-python/         # The Python SDK (package `semiont`)
 │   ├── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
 │   ├── graph-python/       # The graph databases a Python service writes and reads (package `semiont_graph`)

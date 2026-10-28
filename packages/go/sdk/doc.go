@@ -5,7 +5,7 @@
 //
 // The launcher (apps/launcher) consumes this module via a replace directive on
 // its relative path. Publishing is mechanical: drop the replace and push a
-// packages/sdk-go/vX.Y.Z tag — the import path
-// github.com/The-AI-Alliance/semiont/packages/sdk-go is the permanent
+// packages/go/sdk/vX.Y.Z tag — the import path
+// github.com/The-AI-Alliance/semiont/packages/go/sdk is the permanent
 // identity.
 package semiont

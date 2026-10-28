@@ -6,7 +6,7 @@
 
 package semiont
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // Why a bus request did not resolve. Some members restate a failure the
 // answering peer declared on the wire (`wire` names its `CommandError.code`);

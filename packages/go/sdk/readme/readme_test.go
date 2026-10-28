@@ -1,6 +1,6 @@
 package readme_test
 
-// The README's programs: each Go block packages/sdk-go/README.md shows is one
+// The README's programs: each Go block packages/go/sdk/README.md shows is one
 // file of this package, word for word below its package clause, and each is
 // run here. What takes a client runs over semionttest's doubles; what needs a
 // gateway or an issuer runs against a stand-in one, on this machine.
@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/readme"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/state"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/readme"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
 
 // goBlock is a Go block of a Markdown text: what is between its fences.
@@ -74,7 +74,7 @@ func TestEachGoBlockOfTheREADMEIsAProgramOfThisPackageWordForWord(t *testing.T) 
 		}
 		if file == "" {
 			first, _, _ := strings.Cut(strings.TrimPrefix(block[1], "import ("), "\n\n")
-			t.Errorf("a Go block of the README is no program of packages/sdk-go/readme, word for word: the one whose imports are %s", strings.TrimSpace(first))
+			t.Errorf("a Go block of the README is no program of packages/go/sdk/readme, word for word: the one whose imports are %s", strings.TrimSpace(first))
 			continue
 		}
 		if seen[file] {

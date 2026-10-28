@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 const keptKey = "semiont.cache.kb.resource"

@@ -10,14 +10,14 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/annotations"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/annotations"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // readSpec is a file of specs/src.
 func readSpec(t *testing.T, path string) []byte {
 	t.Helper()
-	text, err := os.ReadFile("../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../../specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}

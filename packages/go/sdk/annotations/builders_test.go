@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/annotations"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/annotations"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // createdLayout is an RFC 3339 date-time in UTC to the millisecond.

@@ -4,7 +4,7 @@ package semionttest
 // client's own; only what it speaks through is a double.
 
 import (
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // TestClient is a client, and the doubles it speaks through.

@@ -3,7 +3,7 @@
 // which live queries each event on the bus, and the reopening of a dropped
 // stream, asks again for, writes, or removes.
 //
-//   packages/sdk-go/refresh_gen.go
+//   packages/go/sdk/refresh_gen.go
 //
 // Beside the table it writes the two interfaces the client's refresher
 // implements: what each trigger's event names, and what each act does to each
@@ -23,7 +23,7 @@ import { goComment } from './go-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/client/refresh.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/refresh_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/refresh_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

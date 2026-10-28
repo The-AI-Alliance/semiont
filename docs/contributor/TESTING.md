@@ -8,7 +8,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 |---|---|---|---|
 | Workspace suites | every npm workspace in `apps/*`, `images/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running |
 | Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../rust-toolchain.toml) names |
-| Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
+| Go | `apps/launcher`, `packages/go/sdk` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/service-python` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, a resource's bytes, its annotations and the record by position read from an Archivist a test plays over HTTP, how a follower of the record takes each log against its case table and beyond it (the stream it watches, a sweep tried again, a log taken again, its cursors' file), where a file of the record is filed against its case table, what white space is, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
@@ -149,7 +149,7 @@ As CI runs them:
 
 ```bash
 cd apps/launcher && go test -timeout 30m ./...
-cd packages/sdk-go && go test -timeout 5m ./...
+cd packages/go/sdk && go test -timeout 5m ./...
 ```
 
 The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](../../apps/launcher/README.md#development).
@@ -304,7 +304,7 @@ It runs in one of two tiers, which the `changes` job decides. A pull request and
 
 It runs in two stages and ends in a gate. `census`, `changes` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for all three, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires.
 
-In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, `compliance`, one per Python project), comparing a pull request with its base and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/sdk-go`; the compliance audits on the code they read, the docs and their own scripts. A change under `.github/`, `scripts/ci/` or `specs/` runs every area. A skipped job is reported as Success and passes the gate.
+In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, `compliance`, one per Python project), comparing a pull request with its base and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/go/sdk`; the compliance audits on the code they read, the docs and their own scripts. A change under `.github/`, `scripts/ci/` or `specs/` runs every area. A skipped job is reported as Success and passes the gate.
 
 The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) looks, and builds nothing of its own.
 
@@ -345,8 +345,8 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build` over every npm workspace |
-| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
-| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
+| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/go/sdk/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
+| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/go/sdk`; `govulncheck` for the launcher |
 | `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the module's other packages. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |

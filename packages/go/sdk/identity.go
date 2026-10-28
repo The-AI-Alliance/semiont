@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // EncodeUriComponent is value as ECMAScript's encodeURIComponent writes it:

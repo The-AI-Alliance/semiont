@@ -4,7 +4,7 @@
 
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // Channel is a bus channel's name: what a channel chosen at run time is
 // given as, and what each typed value below is named by.

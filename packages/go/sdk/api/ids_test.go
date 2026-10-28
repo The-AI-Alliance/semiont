@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 type kindCase struct {
@@ -65,7 +65,7 @@ var kinds = map[string]kind{
 
 func table(t *testing.T) []kindRow {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "identifiers", "kinds.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "identifiers", "kinds.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 type awaitedReply struct {

@@ -12,7 +12,7 @@ import (
 )
 
 func TestAnOffsetCountsCodePointsBothWays(t *testing.T) {
-	text, err := os.ReadFile("../../../specs/src/text/offset-cases.json")
+	text, err := os.ReadFile("../../../../specs/src/text/offset-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

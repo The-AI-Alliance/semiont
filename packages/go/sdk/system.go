@@ -5,7 +5,7 @@ package semiont
 import (
 	"context"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // SystemNamespace is what the knowledge base says about itself.

@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // tokensPath is the sign-in store's file; "" when there is no state home.

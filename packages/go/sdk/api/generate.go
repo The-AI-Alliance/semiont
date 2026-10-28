@@ -10,4 +10,4 @@
 // what it and the launcher send and receive.
 package api
 
-//go:generate sh -c "cd ../../.. && container run --rm -v $(pwd):/w -w /w golang:$(scripts/ci/go-toolchain.sh) go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -config packages/sdk-go/oapi-codegen.yaml -o packages/sdk-go/api/client_gen.go specs/openapi.json"
+//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:$(scripts/ci/go-toolchain.sh) go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -config packages/go/sdk/oapi-codegen.yaml -o packages/go/sdk/api/client_gen.go specs/openapi.json"

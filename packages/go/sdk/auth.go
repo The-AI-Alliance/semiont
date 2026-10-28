@@ -5,7 +5,7 @@ package semiont
 import (
 	"context"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // AuthNamespace is the gateway's view of who is signed in.

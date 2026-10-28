@@ -31,11 +31,11 @@ import (
 	"time"
 	"unicode"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/semionttest"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/state"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
 
 // sdk is this SDK, as the names table's `absent` names it.
@@ -72,7 +72,7 @@ type namesTable struct {
 
 func readJSON[T any](t *testing.T, path string) T {
 	t.Helper()
-	text, err := os.ReadFile("../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../../specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}

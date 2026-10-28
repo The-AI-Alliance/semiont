@@ -14,7 +14,7 @@ import (
 	"os"
 	"sync"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // Arguments is an operation's arguments, by name.

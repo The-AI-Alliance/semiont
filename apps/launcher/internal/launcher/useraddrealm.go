@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // useraddOpts: what the flags mean once parsed. The launcher owns them

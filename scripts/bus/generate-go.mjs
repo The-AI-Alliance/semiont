@@ -3,19 +3,19 @@
 // specs/src/bus/registry.json, the same file the TypeScript and Python
 // generators read.
 //
-//   packages/sdk-go/bus/channels_gen.go   every channel, typed by its payload, and the field a
+//   packages/go/sdk/bus/channels_gen.go   every channel, typed by its payload, and the field a
 //                                         relayed frame's trace rides in
-//   packages/sdk-go/bus/operations_gen.go every request, typed, with its two replies; and the
+//   packages/go/sdk/bus/operations_gen.go every request, typed, with its two replies; and the
 //                                         replies of each by name, with what each result
 //                                         states beside its response
-//   packages/sdk-go/bus/bridged_gen.go    the channels bridged to every client, and those a
+//   packages/go/sdk/bus/bridged_gen.go    the channels bridged to every client, and those a
 //                                         resource's scope carries
 //
 // A channel's payload type is DERIVED from its shape, as the TypeScript and
 // Python generators derive it: the registry states the payload once, in a
 // form every language reads. The payload types themselves are the OpenAPI
-// schemas', generated into packages/sdk-go/api/client_gen.go. The typed
-// values are of the kinds packages/sdk-go/bus/typed.go declares.
+// schemas', generated into packages/go/sdk/api/client_gen.go. The typed
+// values are of the kinds packages/go/sdk/bus/typed.go declares.
 //
 // --check diffs without writing (the CI drift gate).
 
@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
-const OUT_DIR = resolve(ROOT, 'packages/sdk-go/bus');
+const OUT_DIR = resolve(ROOT, 'packages/go/sdk/bus');
 const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
 const CHECK = process.argv.includes('--check');
 
@@ -107,7 +107,7 @@ const channelRows = alignRows(
 const channelsGo = `${BANNER}
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // Channel is a bus channel's name: what a channel chosen at run time is
 // given as, and what each typed value below is named by.
@@ -159,7 +159,7 @@ const repliesRows = alignRows(
 const operationsGo = `${BANNER}
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // Every operation, named for its request channel and typed by what it sends
 // and what each of its replies carries.
@@ -258,11 +258,11 @@ for (const [name, text] of [
   const path = resolve(OUT_DIR, name);
   const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
   if (current === text) {
-    console.log(`ok    packages/sdk-go/bus/${name}`);
+    console.log(`ok    packages/go/sdk/bus/${name}`);
     continue;
   }
   drift++;
-  console.log(`${current ? 'DRIFT' : 'new  '} packages/sdk-go/bus/${name}`);
+  console.log(`${current ? 'DRIFT' : 'new  '} packages/go/sdk/bus/${name}`);
   if (!CHECK) writeFileSync(path, text);
 }
 console.log(

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/registry"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/registry"
 )
 
 func TestAStoredValueThatLacksAMemberOfASessionIsNone(t *testing.T) {

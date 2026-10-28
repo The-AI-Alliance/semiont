@@ -1,10 +1,10 @@
 {
-  "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (docs/protocol/JOBS.md, Retries). TypeScript (packages/sdk: willRetryAfter), Rust (packages/sdk-rust: will_retry_after, which the dispatcher uses), Python (packages/sdk-python: will_retry_after) and Go (packages/sdk-go: WillRetryAfter) run every case and fail on any difference. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
+  "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (docs/protocol/JOBS.md, Retries). TypeScript (packages/sdk: willRetryAfter), Rust (packages/sdk-rust: will_retry_after, which the dispatcher uses), Python (packages/sdk-python: will_retry_after) and Go (packages/go/sdk: WillRetryAfter) run every case and fail on any difference. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
   "runBy": {
     "typescript": ["packages/sdk/src/__tests__/job-claims.test.ts"],
     "rust": ["packages/sdk-rust/tests/job_retry_cases.rs"],
     "python": ["packages/sdk-python/tests/test_claims.py"],
-    "go": ["packages/sdk-go/claims_test.go"]
+    "go": ["packages/go/sdk/claims_test.go"]
   },
   "cases": [
     { "why": "a transient failure with budget left", "retryCount": 0, "maxRetries": 1, "failureClass": "transient", "retries": true },

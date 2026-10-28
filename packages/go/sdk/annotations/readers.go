@@ -21,7 +21,7 @@ package annotations
 import (
 	"bytes"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // listed is whether raw is a JSON array: a union of one item or a list of

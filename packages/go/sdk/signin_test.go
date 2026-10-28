@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // stack is a stand-in gateway and the issuer it trusts. Each handler of the

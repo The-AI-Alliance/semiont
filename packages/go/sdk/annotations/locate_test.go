@@ -10,11 +10,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 func TestASpanIsLocatedAsTheTableSays(t *testing.T) {
-	text, err := os.ReadFile("../../../specs/src/annotations/pdf-locate-cases.json")
+	text, err := os.ReadFile("../../../../specs/src/annotations/pdf-locate-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

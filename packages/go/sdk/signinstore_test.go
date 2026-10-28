@@ -291,7 +291,7 @@ type renewalCase struct {
 // every row stating every member.
 func renewalCases(t *testing.T) []renewalCase {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "specs", "src", "sign-in-store", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "sign-in-store", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

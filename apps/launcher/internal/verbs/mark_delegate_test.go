@@ -18,8 +18,8 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
 func specFile(t *testing.T, path ...string) []byte {

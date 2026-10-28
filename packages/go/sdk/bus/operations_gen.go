@@ -4,7 +4,7 @@
 
 package bus
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // Every operation, named for its request channel and typed by what it sends
 // and what each of its replies carries.

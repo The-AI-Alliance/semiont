@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // Credential is a service account at an issuer.

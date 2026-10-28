@@ -6,7 +6,7 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // life is a unit's: whether it is closed, and the context its work runs

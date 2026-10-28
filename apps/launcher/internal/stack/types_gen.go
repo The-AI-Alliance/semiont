@@ -4,7 +4,7 @@
 
 package stack
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 // KnowledgeBase: A knowledge base's record and the services that keep it: the
 // Gateway, the Dispatcher, the Archivist, and the broker between them. They
