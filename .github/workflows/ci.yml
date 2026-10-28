@@ -922,12 +922,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
+      # Built from these sources before? Then the six binaries come back and
+      # nothing compiles: a pull request that changes no Rust starts its suites
+      # minutes sooner. The key hashes what the Rust images' layers' key in
+      # stack-smoke.yml hashes, which lint:workflows holds to everything the
+      # build reads, and holds equal to this one. No restore-keys: a binary
+      # built from other sources is the wrong binary.
+      - name: Restore the binaries built from these sources
+        id: binaries
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            target/release/semiont-gateway
+            target/release/semiont-dispatcher
+            target/release/semiont-archivist
+            target/release/semiont-wire-driver
+            target/release/semiont-live-driver
+            target/release/semiont-worker-driver
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+
       - name: Install the pinned Rust toolchain
+        if: steps.binaries.outputs.cache-hit != 'true'
         run: |
           rustup toolchain install
 
       # Its own key, for the release profile: see Gateway Tests.
       - name: Cache cargo
+        if: steps.binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v6.1.0
         with:
           path: |
@@ -939,6 +960,7 @@ jobs:
             ${{ runner.os }}-gateway-release-
 
       - name: Build the services and the Rust drivers
+        if: steps.binaries.outputs.cache-hit != 'true'
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 
       # Several paths: the artifact's root is their common directory, so a
@@ -2599,8 +2621,11 @@ jobs:
       - name: Encoding Standard vs the table of its labels and single-byte encodings
         run: npm run generate:encoding-cases:check
 
-  test-launcher:
-    name: Launcher Tests (Go)
+  # Everything about the launcher's module but its suite: formatting, vet on
+  # every target a release ships, the Go SDK's own build and tests, and the
+  # vulnerability scan. The suite is test-launcher's.
+  check-launcher:
+    name: Launcher Checks (Go)
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.go == 'true'
@@ -2644,14 +2669,6 @@ jobs:
               echo "::endgroup::"
             done
           done
-
-      # An EXPLICIT budget. These tests drive a fake runtime through real
-      # start/stop lifecycles, so the suite is minutes long and serial; it had
-      # been running at 594-612s against Go's undeclared 600s default, and the
-      # first batch of new tests to cross that line failed as a "timeout" with
-      # no bad code anywhere. A budget you never declared is not a budget.
-      - name: Test launcher
-        run: cd apps/launcher && go test -timeout 30m ./...
 
       # packages/sdk-go is a separate module (the generated API client + bus
       # registry the launcher consumes via a replace directive) — it needs its
@@ -2698,6 +2715,63 @@ jobs:
   #
   # The checkout is byte-for-byte what Linux gets (.gitattributes), which the
   # goldens and fixtures are compared against.
+  # The launcher's suite, split across three runners by test. Its tests drive
+  # a fake runtime whose stand-ins bind the stack's real host ports, so they
+  # cannot run side by side in one process; on runners of their own, each with
+  # its own loopback, they can. Each leg lists the root package's tests in
+  # source order (`go test -list`) and runs its third of them, a block in that
+  # order, so each test follows the test it follows in a serial run: some
+  # tests leave a stand-in listening that the next test sees, and taking every
+  # third test instead failed a golden that a serial run passes. The first leg
+  # also runs the module's other packages. A new test lands in a leg with
+  # nothing to update, and a leg left with no test fails.
+  #
+  # An EXPLICIT budget. These tests drive a fake runtime through real
+  # start/stop lifecycles, so each leg is minutes long and serial; the whole
+  # suite once ran at 594-612s against Go's undeclared 600s default, and the
+  # first batch of new tests to cross that line failed as a "timeout" with no
+  # bad code anywhere. A budget you never declared is not a budget.
+  test-launcher:
+    name: Launcher Tests (Go, ${{ matrix.leg }} of ${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.go == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: apps/launcher
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+          cache-dependency-path: apps/launcher/go.sum
+
+      - name: Choose this leg's tests
+        id: tests
+        run: |
+          names=$(go test -list '.*' . | grep '^Test' | awk -v k=${{ strategy.job-index }} -v n=${{ strategy.job-total }} '{ t[NR] = $0 } END { for (i = int(k * NR / n) + 1; i <= int((k + 1) * NR / n); i++) print t[i] }' | paste -sd '|' -)
+          if [ -z "$names" ]; then
+            echo "::error::leg ${{ matrix.leg }} has no test: go test -list found fewer tests than there are legs"
+            exit 1
+          fi
+          echo "$names" | tr '|' '\n' | wc -l | xargs echo "tests in this leg:"
+          echo "run=^($names)\$" >> "$GITHUB_OUTPUT"
+
+      - name: Test the launcher
+        run: go test -timeout 30m -run '${{ steps.tests.outputs.run }}' .
+
+      - name: Test the launcher's other packages
+        if: strategy.job-index == 0
+        run: go test -timeout 30m $(go list ./... | grep -vx "$(go list .)")
+
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
     runs-on: windows-latest
@@ -2783,6 +2857,7 @@ jobs:
       - check-phantom-deps
       - build-all
       - generated-artifacts
+      - check-launcher
       - test-launcher
       - test-launcher-windows
     steps:
