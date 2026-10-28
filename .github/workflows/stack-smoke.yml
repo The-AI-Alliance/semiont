@@ -3,7 +3,8 @@
 # stops. The check itself is scripts/release/smoke-stack.sh, which this
 # workflow runs with --e2e and a laptop runs the same way; what it asserts is
 # said there, once. The stack serves inference and embedding from the models a
-# new knowledge base names, so the suite's result is a measure of those.
+# new knowledge base names. The suite runs without its @model tests, which
+# those models, on a runner with no GPU, do not answer in time.
 # Whatever the suite's result, its Playwright report is kept as an artifact and
 # a table of its specs is written to the run's summary.
 #
@@ -132,7 +133,7 @@ jobs:
       - name: Boot a stack, check it, and run the e2e default tier
         # There is no Ollama on a runner, so the new KB's inference and
         # embedding start one as a container and pull their models — about
-        # 1.8 GB of image plus two small models. That is the supported path,
+        # 1.8 GB of image plus two models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
         run: scripts/release/smoke-stack.sh "$IMAGES" --e2e

@@ -73,7 +73,7 @@ async function expectRectsPersist(page: Page, rects: Locator, before: number) {
 }
 
 test.describe('delegated detection on a text-layer PDF', () => {
-  test('delegated commenting on a PDF dispatches, renders rect-anchored annotations, and persists', async ({ signedInPage: page, bus }) => {
+  test('delegated commenting on a PDF dispatches, renders rect-anchored annotations, and persists', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(150_000); // includes a real LLM comment round-trip
 
     await openPdfInAnnotateMode(page);
@@ -109,7 +109,7 @@ test.describe('delegated detection on a text-layer PDF', () => {
     await expectRectsPersist(page, rects, rectsBefore);
   });
 
-  test('delegated linking on a PDF dispatches, renders rect-anchored references, and persists', async ({ signedInPage: page, bus }) => {
+  test('delegated linking on a PDF dispatches, renders rect-anchored references, and persists', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(150_000); // includes a real LLM entity-extraction round-trip
 
     await openPdfInAnnotateMode(page);

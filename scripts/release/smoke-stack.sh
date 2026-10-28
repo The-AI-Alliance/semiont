@@ -24,8 +24,9 @@
 #
 # WITH --e2e it asks that question too, of the stack it booted, before it stops
 # it: it makes a user in the realm with `useradd`, then runs tests/e2e's
-# default tier (`npm test`, which typechecks the specs and leaves out @slow) in
-# the Playwright image whose tag is the version tests/e2e/package.json pins. A
+# default tier less its @model tests (`npm run test:ci`, which typechecks the
+# specs and leaves out @slow and @model) in the Playwright image whose tag is
+# the version tests/e2e/package.json pins. A
 # failing suite is a failed check like any other, so the container logs print
 # and the stack stops. The image reaches the stack at localhost through
 # `--network host`, which docker and podman have and Apple's `container` does
@@ -36,8 +37,8 @@
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
 # did:web domain, then `start` with no --config, so the documents init writes
-# and the Inference document it records are what boot. A new KB that could not
-# start is the defect this check found on its first run.
+# and the Inference document it records are what boot. A new KB that could not start is the
+# defect this check found on its first run.
 #
 # THE RUN LEAVES NOTHING BEHIND. The launcher keeps a KB's daemon state and
 # secrets under a key derived from its domain, and the domain here is the same
@@ -210,7 +211,7 @@ if [ "$E2E" = true ]; then
       -e PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/report.json \
       -e CI=1 \
       "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
-      sh -c 'npm ci && npm test -- --reporter=list,html,json'; then
+      sh -c 'npm ci && npm run test:ci -- --reporter=list,html,json'; then
       ok "the default tier passed ($((SECONDS - STARTED))s)"
     else
       bad "the default tier failed ($((SECONDS - STARTED))s): tests/e2e/playwright-report holds the report"
