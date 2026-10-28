@@ -68,6 +68,8 @@ container run -d --name semiont-smelter --memory 2G --publish 192.168.64.1:24101
 container run -d --name semiont-weaver --memory 2G --publish 192.168.64.1:24102:24102 --volume <config-stage>/weaver.json:/etc/semiont/weaver.json:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:latest@sha256:<verified>
 container inspect semiont-browser
 lsof -nP -iTCP:3000 -sTCP:LISTEN
+lsof -nP -iTCP:13000 -sTCP:LISTEN
 lsof -nP -iTCP:3000 -sTCP:LISTEN
+lsof -nP -iTCP:13000 -sTCP:LISTEN
 container image pull ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:<verified>
-container run -d --name semiont-browser --memory 1G --publish 127.0.0.1:3000:3000 -v <state-home>/discovery:/discovery:ro --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:<verified>
+container run -d --name semiont-browser --memory 1G --publish 127.0.0.1:3000:3000 --publish 192.168.64.1:13000:3000 -v <state-home>/discovery:/discovery:ro --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:<verified>

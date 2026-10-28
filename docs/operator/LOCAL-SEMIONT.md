@@ -78,7 +78,7 @@ The services' own ports and the infrastructure's are in [the service catalog](se
 
 Where each port listens depends on the container runtime:
 
-- **Apple `container`:** what you open listens on `127.0.0.1`. What the containers dial listens on the bridge address, `192.168.64.1`, which answers this Mac and its containers and refuses other machines: the databases, the broker, the vector store, the collector and Jaeger's OTLP port, a containerized Ollama, the services' own ports, and Keycloak, whose address is the bridge address so that you and the containers sign in at the same URL, `http://192.168.64.1:8080`. The gateway and Neo4j's bolt port, which you and the containers both dial, take a second port on the bridge address, 10000 above their own: 14000 and 17687.
+- **Apple `container`:** what you open listens on `127.0.0.1`. What the containers dial listens on the bridge address, `192.168.64.1`, which answers this Mac and its containers and refuses other machines: the databases, the broker, the vector store, the collector and Jaeger's OTLP port, a containerized Ollama, the services' own ports, and Keycloak, whose address is the bridge address so that you and the containers sign in at the same URL, `http://192.168.64.1:8080`. The gateway and Neo4j's bolt port, which you and the containers both dial, take a second port on the bridge address, 10000 above their own: 14000 and 17687. So does the Browser, at 13000, for a browser that runs in a container, as the end-to-end suite's does.
 - **Docker and Podman:** every port listens on every interface, and Keycloak is at `http://keycloak.localhost:8080`.
 
 ## Reaching it from another machine
