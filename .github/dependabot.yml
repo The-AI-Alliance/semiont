@@ -127,12 +127,36 @@ updates:
       prefix: "tests"
       include: "scope"
 
-  # Go launcher (apps/launcher): go.yaml.in/yaml, santhosh-tekuri/jsonschema,
-  # oapi-codegen/runtime, and
+  # The launcher's program (apps/launcher): the MCP go-sdk and go.yaml.in/yaml,
+  # and packages/go/launcher and packages/go/sdk through replace directives,
+  # plus the `go` directive/toolchain. Reachability-aware stdlib CVE scanning
+  # is handled by govulncheck in ci.yml.
+  # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
+  - package-ecosystem: "gomod"
+    directory: "/apps/launcher"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "app:launcher"
+    groups:
+      launcher:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "launcher"
+      include: "scope"
+
+  # The launcher's libraries (packages/go/launcher): go.yaml.in/yaml,
+  # santhosh-tekuri/jsonschema, sigstore-go, the MCP go-sdk, and
   # packages/go/sdk through a replace directive, plus the `go`
-  # directive/toolchain. Reachability-aware stdlib CVE scanning is handled by
-  # govulncheck in ci.yml.
-  # nats-server is a requirement of the launcher's tests, which read the
+  # directive/toolchain.
+  # nats-server is a requirement of the libraries' tests, which read the
   # broker's config with the parser of the image the launcher runs. Its
   # version moves with that image's tag (descriptors.go): a bump here alone
   # fails TestBrokerPairIsReadByTheLaunchedBrokersParser. It is also the
@@ -141,7 +165,7 @@ updates:
   # against the new broker.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
-    directory: "/apps/launcher"
+    directory: "/packages/go/launcher"
     cooldown:
       default-days: 5
     schedule:
@@ -158,7 +182,7 @@ updates:
       nats-server:
         patterns:
           - "github.com/nats-io/nats-server/v2"
-      launcher:
+      launcher-libraries:
         patterns:
           - "*"
     commit-message:

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // generate-mcp-tools-go.mjs — the tools `semiont mcp` serves, from the table
-// that curates them (apps/launcher/internal/verbs/mcp-tools.json) and the
+// that curates them (packages/go/launcher/verbs/mcp-tools.json) and the
 // spec's components it names.
 //
-//   apps/launcher/internal/verbs/mcp_tools_gen.go   every tool, with its input
+//   packages/go/launcher/verbs/mcp_tools_gen.go   every tool, with its input
 //                                                   and output schema, and
 //                                                   every SDK method no tool
 //                                                   calls, with its reason
@@ -30,8 +30,8 @@ import { writeOrCheck } from './committed-source.mjs';
 import { component, selfContained } from './openapi-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const TABLE = 'apps/launcher/internal/verbs/mcp-tools.json';
-const OUT = resolve(ROOT, 'apps/launcher/internal/verbs/mcp_tools_gen.go');
+const TABLE = 'packages/go/launcher/verbs/mcp-tools.json';
+const OUT = resolve(ROOT, 'packages/go/launcher/verbs/mcp_tools_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(where, message) {

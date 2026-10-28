@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // powershellKey: the PowerShell that ends in 32 random bytes as hex.

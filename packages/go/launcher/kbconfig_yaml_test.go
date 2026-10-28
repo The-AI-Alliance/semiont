@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // A root whose config.yaml does not hold is refused however a command finds

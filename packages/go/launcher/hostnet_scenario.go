@@ -9,7 +9,7 @@ package launcher
 // address binds loopback. A released launcher has none of this (hostnet.go).
 
 // fakeHostAddress: the host address the fake runtime reports under Apple
-// container (internal/fakert answers `ip route` with it).
+// container (fakert answers `ip route` with it).
 const fakeHostAddress = "192.168.64.1"
 
 // fakeLANAddress: the address a `network lan` start reads as this machine's

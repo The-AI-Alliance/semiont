@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // A directory kept to its owner is closed to its group and to everyone else,

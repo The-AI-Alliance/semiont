@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 const imageRegistry = "ghcr.io/the-ai-alliance"

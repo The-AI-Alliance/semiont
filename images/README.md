@@ -55,5 +55,5 @@ Two lists are still written by hand, and each is held to this directory: the mat
 So an image added here needs its directory — its source, a `Dockerfile` that passes the
 supervision gate, and a `NOTICE` that credits exactly what the image ships — then its row in
 that matrix (the Browser has its own workflow), a CI path filter, and a role in the
-launcher's [`descriptors.go`](../apps/launcher/internal/launcher/descriptors.go), which is
+launcher's [`descriptors.go`](../packages/go/launcher/descriptors.go), which is
 what starts it.

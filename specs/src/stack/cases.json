@@ -1,20 +1,20 @@
 {
-  "$comment": "What a knowledge base's documents are held to: the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity). Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. Run by scripts/spec/check-stack.mjs (lint:spec-stack, Ajv) and by the launcher (apps/launcher/internal/launcher/stack_test.go, which also names the line). A schema with no refused case is held to nothing.",
+  "$comment": "What a knowledge base's documents are held to: the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity). Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. Run by scripts/spec/check-stack.mjs (lint:spec-stack, Ajv) and by the launcher (packages/go/launcher/stack_test.go, which also names the line). A schema with no refused case is held to nothing.",
   "runBy": {
-    "launcher": ["apps/launcher/internal/stack/read_test.go"]
+    "launcher": ["packages/go/launcher/stack/read_test.go"]
   },
   "cases": [
     {
       "why": "the fixture's KnowledgeBase, as it is",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": {},
       "verdict": "accepted"
     },
     {
       "why": "a broker and an issuer somebody else runs",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": {
         "spec": {
           "messaging": {
@@ -31,7 +31,7 @@
     {
       "why": "a misspelled field beside the right one",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "gateway": { "imgae": "ghcr.io/the-ai-alliance/semiont-gateway:latest" } } },
       "verdict": "refused",
       "at": "/spec/gateway/imgae",
@@ -40,7 +40,7 @@
     {
       "why": "a field the document's top does not have",
       "schema": "WorkerPool",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/workers.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
       "patch": { "status": { "ready": true } },
       "verdict": "refused",
       "at": "/status",
@@ -49,7 +49,7 @@
     {
       "why": "a port written as text",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "gateway": { "port": "4000" } } },
       "verdict": "refused",
       "at": "/spec/gateway/port",
@@ -58,7 +58,7 @@
     {
       "why": "a service with no image: the document names every image it runs",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "dispatcher": { "image": null } } },
       "verdict": "refused",
       "at": "/spec/dispatcher/image",
@@ -67,7 +67,7 @@
     {
       "why": "a service with no memory ceiling: the document states every one",
       "schema": "WorkerPool",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/workers.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
       "patch": { "spec": { "worker": { "resources": { "limits": { "memory": null } } } } },
       "verdict": "refused",
       "at": "/spec/worker/resources/limits/memory",
@@ -76,7 +76,7 @@
     {
       "why": "a memory ceiling in another unit",
       "schema": "KnowledgeIndex",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
       "patch": { "spec": { "smelter": { "resources": { "limits": { "memory": "8GB" } } } } },
       "verdict": "refused",
       "at": "/spec/smelter/resources/limits/memory",
@@ -85,7 +85,7 @@
     {
       "why": "another version of the kinds",
       "schema": "Issuer",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
       "patch": { "apiVersion": "semiont.the-ai-alliance.github.io/v1beta1" },
       "verdict": "refused",
       "at": "/apiVersion",
@@ -94,7 +94,7 @@
     {
       "why": "a document of another kind",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "kind": "KnowledgeIndex" },
       "verdict": "refused",
       "at": "/kind",
@@ -103,7 +103,7 @@
     {
       "why": "a name Kubernetes refuses",
       "schema": "WorkerPool",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/workers.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
       "patch": { "metadata": { "name": "Workers" } },
       "verdict": "refused",
       "at": "/metadata/name",
@@ -112,7 +112,7 @@
     {
       "why": "a broker the launcher runs and somebody else's at once",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "messaging": { "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } } } } },
       "verdict": "refused",
       "at": "/spec/messaging",
@@ -121,7 +121,7 @@
     {
       "why": "somebody else's broker, with an image left behind",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "messaging": { "resources": null, "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } } } } },
       "verdict": "refused",
       "at": "/spec/messaging",
@@ -130,7 +130,7 @@
     {
       "why": "a graph store nobody runs",
       "schema": "KnowledgeIndex",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
       "patch": { "spec": { "graph": { "image": null, "resources": null } } },
       "verdict": "refused",
       "at": "/spec/graph",
@@ -139,7 +139,7 @@
     {
       "why": "an issuer named and somebody else's at once",
       "schema": "KnowledgeBase",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "issuer": { "external": { "type": "oidc", "url": "https://login.example.com" } } } },
       "verdict": "refused",
       "at": "/spec/issuer",
@@ -148,7 +148,7 @@
     {
       "why": "graph and vector stores somebody else runs",
       "schema": "KnowledgeIndex",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
       "patch": {
         "spec": {
           "graph": { "image": null, "resources": null, "external": { "uri": "bolt://graph.example.com:7687", "password": { "fromEnv": "NEO4J_PASSWORD" } } },
@@ -160,7 +160,7 @@
     {
       "why": "a similarity above one",
       "schema": "KnowledgeIndex",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
       "patch": { "spec": { "librarian": { "search": { "semanticFloor": 1.5 } } } },
       "verdict": "refused",
       "at": "/spec/librarian/search/semanticFloor",
@@ -169,7 +169,7 @@
     {
       "why": "a Smelter that works on no PDF at once",
       "schema": "KnowledgeIndex",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
       "patch": { "spec": { "smelter": { "pdfsAtOnce": 0 } } },
       "verdict": "refused",
       "at": "/spec/smelter/pdfsAtOnce",
@@ -178,7 +178,7 @@
     {
       "why": "a database name that is no lowercase identifier: PostgreSQL would fold it, and the issuer would ask for another",
       "schema": "Issuer",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
       "patch": { "spec": { "database": { "name": "Keycloak" } } },
       "verdict": "refused",
       "at": "/spec/database/name",
@@ -187,7 +187,7 @@
     {
       "why": "a database the launcher runs and somebody else's at once",
       "schema": "Issuer",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
       "patch": { "spec": { "database": { "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
       "verdict": "refused",
       "at": "/spec/database",
@@ -196,14 +196,14 @@
     {
       "why": "the fixture's Inference for Anthropic, as it is",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": {},
       "verdict": "accepted"
     },
     {
       "why": "a provider the roster does not name",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "providers": { "mistral": {} } } },
       "verdict": "refused",
       "at": "/spec/providers/mistral",
@@ -212,7 +212,7 @@
     {
       "why": "a roster with no actors",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "roster": { "actors": null } } },
       "verdict": "refused",
       "at": "/spec/roster/actors",
@@ -221,7 +221,7 @@
     {
       "why": "a role served by a provider the roster does not name",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "roster": { "workers": { "yield": { "provider": "mistral" } } } } },
       "verdict": "refused",
       "at": "/spec/roster/workers/yield/provider",
@@ -230,7 +230,7 @@
     {
       "why": "a key written into the document instead of named",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "providers": { "anthropic": { "apiKey": "the-key-itself-pasted-in" } } } },
       "verdict": "refused",
       "at": "/spec/providers/anthropic/apiKey",
@@ -239,7 +239,7 @@
     {
       "why": "a secret named by a variable name no shell has",
       "schema": "Inference",
-      "base": "apps/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "providers": { "anthropic": { "apiKey": { "fromEnv": "1KEY" } } } } },
       "verdict": "refused",
       "at": "/spec/providers/anthropic/apiKey/fromEnv",
@@ -256,21 +256,21 @@
     {
       "why": "the fixture's project file, as it is",
       "schema": "ProjectConfig",
-      "base": "apps/launcher/testdata/kb/.semiont/config.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
       "patch": {},
       "verdict": "accepted"
     },
     {
       "why": "a project file with no version, which nothing changes",
       "schema": "ProjectConfig",
-      "base": "apps/launcher/testdata/kb/.semiont/config.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
       "patch": { "project": { "version": null } },
       "verdict": "accepted"
     },
     {
       "why": "a project file with a key nothing reads",
       "schema": "ProjectConfig",
-      "base": "apps/launcher/testdata/kb/.semiont/config.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
       "patch": { "site": { "adminEmail": "admin@example.com" } },
       "verdict": "refused",
       "at": "/site/adminEmail",
@@ -279,7 +279,7 @@
     {
       "why": "a project file with no identity",
       "schema": "ProjectConfig",
-      "base": "apps/launcher/testdata/kb/.semiont/config.yaml",
+      "base": "packages/go/launcher/testdata/kb/.semiont/config.yaml",
       "patch": { "site": { "domain": null } },
       "verdict": "refused",
       "at": "/site/domain",

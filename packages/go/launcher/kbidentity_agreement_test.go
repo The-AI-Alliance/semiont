@@ -15,7 +15,7 @@ import (
 // the Go SDK run its cases that declare a domain; together they gate a mirror
 // that spans languages and cannot be generated. Absent is "" here and null in the table.
 func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // A moved KB re-registers its did at the new path; the old path's row is

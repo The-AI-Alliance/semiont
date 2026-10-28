@@ -7,7 +7,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // externalBroker: st with a broker somebody else runs at nats.internal, its

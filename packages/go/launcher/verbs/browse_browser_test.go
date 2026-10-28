@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
-	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 func recordBrowserFixture(t *testing.T, b *launcher.ServiceState) {

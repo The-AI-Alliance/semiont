@@ -163,7 +163,7 @@ spec:
 // Each document of the fixture knowledge base reads into its type, and a
 // refused one is refused with its file and kind.
 func TestTheFixtureDocumentsReadIntoTheirTypes(t *testing.T) {
-	semiont := filepath.Join(repository, "apps", "launcher", "testdata", "kb", ".semiont")
+	semiont := filepath.Join(repository, "packages", "go", "launcher", "testdata", "kb", ".semiont")
 	stack := filepath.Join(semiont, "stack")
 
 	kb, err := Read[KnowledgeBase](filepath.Join(stack, "knowledge-base.yaml"), "KnowledgeBase")

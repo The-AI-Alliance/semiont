@@ -13,7 +13,7 @@ import (
 
 // workflowsDir: the repository's GitHub Actions workflows, from this
 // package's directory.
-var workflowsDir = filepath.Join("..", "..", "..", "..", ".github", "workflows")
+var workflowsDir = filepath.Join("..", "..", "..", ".github", "workflows")
 
 // actionsWorkflow: what a workflow file says about what its jobs attest.
 type actionsWorkflow struct {
@@ -53,7 +53,7 @@ var (
 // standing for the service.
 func imageTagsImage(t *testing.T) string {
 	t.Helper()
-	script, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "scripts", "ci", "image-tags.sh"))
+	script, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "ci", "image-tags.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}

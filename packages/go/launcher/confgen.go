@@ -23,7 +23,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 type genParams struct {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 func main() {

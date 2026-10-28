@@ -9,7 +9,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // Ollama reports an untagged model as ":latest". A config naming it without

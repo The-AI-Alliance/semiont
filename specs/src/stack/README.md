@@ -43,10 +43,10 @@ keep, and no document names them.
 - **The cases.** [`cases.json`](cases.json) states, for a document, whether it
   is accepted, or refused where and why. `scripts/spec/check-stack.mjs`
   (`lint:spec-stack`) runs every case with Ajv, and so does the launcher
-  (`apps/launcher/internal/stack/read_test.go`), with the schemas it carries.
+  (`packages/go/launcher/stack/read_test.go`), with the schemas it carries.
   The lint also validates every document of the launcher's fixture knowledge
   base, and fails on a schema no case is refused against.
-- **The launcher's reader.** `apps/launcher/internal/stack` validates a
+- **The launcher's reader.** `packages/go/launcher/stack` validates a
   document against its schema, naming the line of each refusal, and only then
   decodes it into its type. The types and the schema text are generated:
   `node scripts/spec/generate-stack-go.mjs`, checked for drift in CI, and

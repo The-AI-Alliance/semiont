@@ -4,11 +4,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // fixtureRoot: the fixture knowledge base the launcher's tests read.
-var fixtureRoot = filepath.Join("..", "..", "testdata", "kb")
+var fixtureRoot = filepath.Join("testdata", "kb")
 
 // fixtureStack: the fixture knowledge base's documents, with the Inference
 // document named inference ("anthropic" or "ollama-gemma"), read as a start

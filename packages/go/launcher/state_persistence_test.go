@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // The "state" store is the Archivist's host volume at /semiont-state. The

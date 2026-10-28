@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 )
 
 // The subscriber count is the only thing standing between "sent" and "seen",

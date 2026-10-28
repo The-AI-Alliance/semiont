@@ -27,7 +27,7 @@ import (
 //
 //	SEMIONT_LIVE_KEYCLOAK=http://localhost:8080 \
 //	KC_BOOTSTRAP_ADMIN_PASSWORD=$(cat "$HOME/Library/Application Support/semiont/roots/<root>/keycloak-admin-password") \
-//	go test ./internal/launcher/ -run TestIdentitySyncLive -v
+//	go -C packages/go/launcher test . -run TestIdentitySyncLive -v
 //
 // It creates its own realm and deletes it, so the KB's realm is never touched.
 func TestIdentitySyncLive(t *testing.T) {

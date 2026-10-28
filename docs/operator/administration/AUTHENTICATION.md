@@ -69,7 +69,7 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
+| Access | the realm the launcher imports, [`packages/go/launcher/identity.go`](../../../packages/go/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
 | Agent | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 

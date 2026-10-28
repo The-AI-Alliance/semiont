@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // A port this process listens on is reported with this process as its holder.

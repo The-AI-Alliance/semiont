@@ -13,7 +13,7 @@ import (
 // serviceDockerfile: the image recipe of a service that ships as an image,
 // from this package's directory.
 func serviceDockerfile(service string) string {
-	return filepath.Join("..", "..", "..", "..", "images", service, "Dockerfile")
+	return filepath.Join("..", "..", "..", "images", service, "Dockerfile")
 }
 
 // The Archivist's image names the KB mount twice — as git's one trusted
@@ -145,7 +145,7 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 			t.Errorf("the archivist Dockerfile is missing %s (expected to find %q) — a crashed or hung Archivist stays down, and its absence looks like a frontend hang", what, want)
 		}
 	}
-	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "scripts", "container", "supervise.sh"))
+	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "container", "supervise.sh"))
 	if err != nil {
 		t.Fatalf("reading supervise.sh: %v", err)
 	}

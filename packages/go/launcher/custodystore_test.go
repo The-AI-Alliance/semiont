@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // Every custody value is read, written and located through custodyStore, so a
@@ -174,7 +174,7 @@ var fakeOpBin = sync.OnceValues(func() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if out, err := exec.Command("go", "build", "-o", filepath.Join(dir, harness.Exe("op")), "../fakert").CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-o", filepath.Join(dir, harness.Exe("op")), "./fakert").CombinedOutput(); err != nil {
 		return "", fmt.Errorf("building fakert as op: %v\n%s", err, out)
 	}
 	return dir, nil

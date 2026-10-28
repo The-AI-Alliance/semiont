@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // service.go — the `--service` half of the lifecycle verbs.

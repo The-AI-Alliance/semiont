@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/provenance"
 )
 
 // imageVerifier: what decides whether an image of Semiont's is a release's —

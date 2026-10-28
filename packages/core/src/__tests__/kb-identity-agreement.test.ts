@@ -3,7 +3,7 @@
  * the same way in every language: every case of
  * specs/src/kb-identity/cases.json that declares a domain, run through
  * `kbDid` and `kbResource`. The launcher runs the whole table in Go
- * (apps/launcher/internal/launcher/kbidentity_agreement_test.go), reading the
+ * (packages/go/launcher/kbidentity_agreement_test.go), reading the
  * domain from the knowledge base's config as well. Together they gate a
  * mirror that spans languages and cannot be generated.
  */

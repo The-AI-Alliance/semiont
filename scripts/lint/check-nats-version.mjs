@@ -11,7 +11,7 @@
  * the suites run against, and a second copy of the version is a copy nothing
  * moves: it is refused here, not kept in step.
  *
- * 1. apps/launcher/go.mod requires the module, once.
+ * 1. packages/go/launcher/go.mod requires the module, once.
  * 2. No file writes the broker's version out: a `nats` image's tag, a release
  *    asset's name, a variable given a version, or the module's line.
  * 3. A nats-server release is fetched in one place,
@@ -21,7 +21,8 @@
  * Four places state the version beside go.mod, and each is held to it by
  * something that is not this check:
  *
- * - apps/launcher/go.sum, which Go writes from go.mod;
+ * - packages/go/launcher/go.sum and apps/launcher/go.sum, which Go writes from
+ *   the module graph;
  * - the launcher's descriptor of the broker, whose image tag
  *   TestBrokerPairIsReadByTheLaunchedBrokersParser holds to the module;
  * - the launcher's golden files, which its tests compare with what the
@@ -42,20 +43,20 @@ import { fileURLToPath } from 'node:url';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const OWNER = 'apps/launcher/go.mod';
+const OWNER = 'packages/go/launcher/go.mod';
 const MODULE = 'github.com/nats-io/nats-server/v2';
 const READER = 'scripts/ci/nats-version.sh';
 const INSTALLER = 'scripts/ci/install-nats-server.sh';
 /** This file names what it refuses. */
 const SELF = 'scripts/lint/check-nats-version.mjs';
 
-/** What Go writes from the owner. */
-const DERIVED = 'apps/launcher/go.sum';
+/** What Go writes from the owner: its own go.sum, and the program's, whose module graph holds the module. */
+const DERIVED = ['packages/go/launcher/go.sum', 'apps/launcher/go.sum'];
 /** Where the launcher states the image it runs, and where its tests keep what that prints: the launcher's tests hold both. */
-const DESCRIPTOR = 'apps/launcher/internal/launcher/descriptors.go';
-const GOLDEN = 'apps/launcher/testdata/golden/';
+const DESCRIPTOR = 'packages/go/launcher/descriptors.go';
+const GOLDEN = 'packages/go/launcher/testdata/golden/';
 /** The fixture knowledge base's stack documents: the launcher's tests hold their images to the descriptor. */
-const FIXTURE_STACK = 'apps/launcher/testdata/kb/.semiont/stack/';
+const FIXTURE_STACK = 'packages/go/launcher/testdata/kb/.semiont/stack/';
 
 /** Rule 2: a `nats` image's tag. A host and its port (`nats:4222`) is not one: a tag has a dot or a variant. */
 const IMAGE_TAG = /\bnats:[0-9]+(?:\.[0-9]|-[a-z])/;
@@ -105,7 +106,7 @@ for (const file of files) {
   if (text.includes('\u0000')) continue; // not text
   read += 1;
   const statesTheImage = file === DESCRIPTOR || file.startsWith(GOLDEN) || file.startsWith(FIXTURE_STACK);
-  const statesTheModule = file === OWNER || file === DERIVED;
+  const statesTheModule = file === OWNER || DERIVED.includes(file);
 
   text.split('\n').forEach((line, index) => {
     const at = `${file}:${index + 1}`;

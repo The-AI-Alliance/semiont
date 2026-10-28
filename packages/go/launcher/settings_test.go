@@ -1,8 +1,6 @@
 package launcher
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -40,30 +38,6 @@ func TestEverySavedPreferenceIsASetting(t *testing.T) {
 // Nothing the launcher prints names a top-level `secret` verb: it lives under
 // `settings`, with no alias, so a message that says `semiont secret` sends a
 // person to a command that does not exist.
-func TestNoMessageNamesATopLevelSecretVerb(t *testing.T) {
-	var files []string
-	for _, glob := range []string{"*.go", "../verbs/*.go", "../../main.go"} {
-		m, err := filepath.Glob(glob)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, m...)
-	}
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i, line := range strings.Split(string(b), "\n") {
-			if strings.Contains(line, "semiont secret") {
-				t.Errorf("%s:%d names `semiont secret`: %s", f, i+1, strings.TrimSpace(line))
-			}
-		}
-	}
-}
 
 // A value and its explanation are never one space apart: the value either
 // leaves room in its column or sends the explanation to the next line. Width

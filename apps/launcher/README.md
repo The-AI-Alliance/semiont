@@ -773,7 +773,7 @@ the other clients' form. What the server does that a verb does not:
   carries it. A session the SDK reports over ends that call, and the next one
   is refused at once, naming `semiont login`, without asking the issuer again.
 - **The tools are a curated set**, named by the verbs, in
-  `internal/verbs/mcp-tools.json`, which names the SDK methods each tool calls
+  `packages/go/launcher/verbs/mcp-tools.json`, which names the SDK methods each tool calls
   and gives a reason for every method of the client surface no tool calls.
   Each tool's input and output schema is the spec's, made self-contained by
   `scripts/spec/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
@@ -958,16 +958,20 @@ regenerates regardless.
 
 ## Development
 
-Build and test (hermetically — no Go on the host required):
+This directory is the program: `main.go`, and the tests that build it and
+drive it. Everything else it runs on is its libraries,
+[packages/go/launcher](../../packages/go/launcher/README.md).
+
+Build and test both (hermetically — no Go on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work/apps/launcher "golang:$(scripts/ci/go-toolchain.sh)" \
-  sh -c "go vet ./... && go test ./..."
+container run --rm -v "$(pwd)":/work -w /work "golang:$(scripts/ci/go-toolchain.sh)" \
+  sh -c "cd apps/launcher && go vet ./... && go test ./... && cd ../../packages/go/launcher && go vet ./... && go test ./..."
 ```
 
 The tests in `launcher_test.go` are the executable spec: golden files under
-`testdata/golden/` pin the exact runtime argv sequences per scenario, and a
-fake-runtime binary (`internal/fakert`) impersonates
+`packages/go/launcher/testdata/golden/` pin the exact runtime argv sequences per scenario, and a
+fake-runtime binary (`packages/go/launcher/fakert`) impersonates
 container/docker/podman/git, and lsof/ps (netstat/tasklist on Windows), on a
 private PATH — tests never touch a real runtime. If a behavior change is
 intended, adjudicate deliberately (the goldens are the spec), then refresh

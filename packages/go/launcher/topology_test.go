@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // externalIssuer: st trusting a Keycloak somebody else runs at

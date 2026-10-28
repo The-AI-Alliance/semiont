@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // Service dependencies are data: there is ONE start order and a set of edges
@@ -110,7 +110,7 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 		"start-dryrun-local.txt",
 		"start-dryrun-keycloak-identity.txt",
 	} {
-		body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "golden", golden))
+		body, err := os.ReadFile(filepath.Join("testdata", "golden", golden))
 		if err != nil {
 			t.Fatalf("%s: %v", golden, err)
 		}

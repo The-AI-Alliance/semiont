@@ -10,8 +10,8 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // genFor: what `init --inference <inference>` builds the documents from.

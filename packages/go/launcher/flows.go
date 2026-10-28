@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 type flowCtx struct {

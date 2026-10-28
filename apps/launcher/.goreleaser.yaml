@@ -26,9 +26,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildVersion={{.Version}}
-      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildCommit={{.ShortCommit}}
-      - -X github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher.BuildDate={{.Date}}
+      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildVersion={{.Version}}
+      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildCommit={{.ShortCommit}}
+      - -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildDate={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:

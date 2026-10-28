@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 )
 
 const frameUsage = `Usage: semiont frame --entity-type <name> [--entity-type <name> ...]

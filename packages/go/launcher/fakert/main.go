@@ -64,7 +64,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/images"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )

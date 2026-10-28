@@ -17,7 +17,7 @@ To run tools directly on your machine instead, the versions are:
 | Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
 | Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/sdk-python/pyproject.toml) of the Python SDK |
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
-| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
+| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 
 ## Four toolchains, one spec
 
@@ -37,7 +37,7 @@ semiont/
 ├── specs/                  # The spec every implementation is built against
 │   └── src/                #   OpenAPI paths and schemas, the bus registry, and the
 │                           #   shared case tables (principals, retry, media types, …)
-├── apps/
+├── images/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
@@ -45,9 +45,10 @@ semiont/
 │   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── weaver/             # Python: keeps the graph in step with the record
 │   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
-│   ├── browser/            # The Semiont Browser: a Vite + React single-page app
+│   └── browser/            # The Semiont Browser: a Vite + React single-page app
+├── apps/
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
-│   └── launcher/           # Go: the `semiont` command
+│   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
 │   ├── core/               # Generated types, typed ids, the bus protocol
 │   ├── sdk/                # The TypeScript SDK
@@ -58,6 +59,7 @@ semiont/
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
 │   ├── go/sdk/             # The Go SDK
+│   ├── go/launcher/        # The launcher's libraries: its engine, the verbs, the fake runtime its tests drive
 │   ├── sdk-python/         # The Python SDK (package `semiont`)
 │   ├── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
 │   ├── graph-python/       # The graph databases a Python service writes and reads (package `semiont_graph`)

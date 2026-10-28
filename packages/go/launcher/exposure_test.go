@@ -250,7 +250,7 @@ func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {
 // containers' side of a port a person dials too, on a role a container can
 // reach at all.
 func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "tests", "e2e", "e2e-localhost-bridge.mjs"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "tests", "e2e", "e2e-localhost-bridge.mjs"))
 	if err != nil {
 		t.Fatal(err)
 	}

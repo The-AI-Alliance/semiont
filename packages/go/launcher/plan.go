@@ -1,7 +1,7 @@
 package launcher
 
 // plan.go — derivePlan: the pure function from a knowledge base's documents
-// (internal/stack, each already held to its schema) to the launcher's work.
+// (package stack, each already held to its schema) to the launcher's work.
 // Per dependency role the documents decide the OBLIGATION: a daemon that
 // states `external` is somebody else's, at the address it states, and one
 // that does not is the launcher's, run from the image and with the memory it
@@ -19,7 +19,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // presence: whether a role is part of this stack, and WHO runs it. What the

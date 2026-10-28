@@ -334,7 +334,7 @@ for svc in $matrix_services browser; do
   # printed. So gh is given an empty configuration, and a time limit.
   #
   # The signer is the one the launcher requires before it runs the image
-  # (apps/launcher/internal/launcher/imageverify.go): GitHub Actions running
+  # (packages/go/launcher/imageverify.go): GitHub Actions running
   # the workflow of this repository that publishes the image, at a release
   # tag. The launcher takes any release tag; this release's images are held to
   # its own. gh's defaults hold the issuer to GitHub Actions and the

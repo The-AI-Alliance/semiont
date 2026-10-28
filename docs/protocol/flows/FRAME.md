@@ -80,5 +80,5 @@ From the launcher: `semiont frame --entity-type Person --entity-type Organizatio
 - What records the events, and how the two vocabularies are projected and read: [the Archivist](../ARCHIVIST.md), in [images/archivist](../../../images/archivist/)
 - Where the dispatcher resolves a schema id: [images/dispatcher/handlers/src/admission.rs](../../../images/dispatcher/handlers/src/admission.rs)
 - The entity types a new knowledge base starts with: `DEFAULT_ENTITY_TYPES`, in [images/archivist/src/main.rs](../../../images/archivist/src/main.rs)
-- The launcher verb: [apps/launcher/internal/verbs/frame.go](../../../apps/launcher/internal/verbs/frame.go)
+- The launcher verb: [packages/go/launcher/verbs/frame.go](../../../packages/go/launcher/verbs/frame.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

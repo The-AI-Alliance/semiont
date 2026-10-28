@@ -3,7 +3,7 @@ package launcher
 import (
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/provenance"
 )
 
 // semiontWorkflow: the workflow of The-AI-Alliance/semiont that builds and

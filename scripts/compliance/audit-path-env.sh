@@ -14,7 +14,7 @@ set -euo pipefail
 # P3  every entry of the list is still a read. An entry nothing reads is a
 #     reason given for something that is not there.
 #
-# The launcher (apps/launcher) is not in scope: it runs on a person's machine,
+# The launcher (apps/launcher, packages/go/launcher) is not in scope: it runs on a person's machine,
 # where the XDG defaults are real places, and it has its own tests of them.
 #
 # Exit code: 0 if clean, 1 if violations found.

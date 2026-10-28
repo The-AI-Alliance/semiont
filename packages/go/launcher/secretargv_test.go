@@ -12,7 +12,7 @@ import (
 // rides argv only when onCommandLine allows its name; every other value crosses
 // through the runtime's own environment.
 func TestGoldensCarryNoSecretValue(t *testing.T) {
-	goldens, err := filepath.Glob(filepath.Join("..", "..", "testdata", "golden", "*"))
+	goldens, err := filepath.Glob(filepath.Join("testdata", "golden", "*"))
 	if err != nil || len(goldens) == 0 {
 		t.Fatalf("no goldens found (%v): a gate that reads nothing passes on silence", err)
 	}

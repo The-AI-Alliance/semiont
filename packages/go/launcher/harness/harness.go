@@ -56,7 +56,7 @@ var standIn = sync.OnceValues(func() ([]byte, error) {
 	}
 	defer os.RemoveAll(dir)
 	bin := filepath.Join(dir, Exe("standin"))
-	const pkg = "github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness/standin"
+	const pkg = "github.com/The-AI-Alliance/semiont/packages/go/launcher/harness/standin"
 	if out, err := exec.Command("go", "build", "-o", bin, pkg).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("building %s: %v\n%s", pkg, err, out)
 	}

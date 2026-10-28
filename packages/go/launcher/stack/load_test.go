@@ -14,7 +14,7 @@ import (
 // the test may change.
 func fixtureCopy(t *testing.T) string {
 	t.Helper()
-	from := filepath.Join(repository, "apps", "launcher", "testdata", "kb")
+	from := filepath.Join(repository, "packages", "go", "launcher", "testdata", "kb")
 	root := t.TempDir()
 	err := filepath.WalkDir(filepath.Join(from, Dir), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

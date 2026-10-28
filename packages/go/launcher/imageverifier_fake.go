@@ -2,7 +2,7 @@
 
 package launcher
 
-import "github.com/The-AI-Alliance/semiont/apps/launcher/internal/provenance"
+import "github.com/The-AI-Alliance/semiont/packages/go/launcher/provenance"
 
 // imageVerifier, in a launcher built for the scenario suite (-tags
 // scenario): sigstore-go's checks over what Sigstore's test authority

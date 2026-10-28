@@ -47,5 +47,5 @@ From the launcher: `semiont beckon <resourceId> --annotation <annotationId>`, or
 
 - The SDK namespace: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
 - The gateway's relay: [images/gateway/src/routes/bus.rs](../../../images/gateway/src/routes/bus.rs) and [stream.rs](../../../images/gateway/src/routes/stream.rs)
-- The launcher verb: [apps/launcher/internal/verbs/beckon.go](../../../apps/launcher/internal/verbs/beckon.go)
+- The launcher verb: [packages/go/launcher/verbs/beckon.go](../../../packages/go/launcher/verbs/beckon.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

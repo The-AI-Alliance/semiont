@@ -3,7 +3,7 @@ package launcher
 import (
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // renderCmd prints one runtime invocation the way a shell would take it,

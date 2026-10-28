@@ -27,7 +27,7 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )

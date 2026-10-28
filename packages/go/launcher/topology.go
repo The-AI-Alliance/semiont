@@ -20,7 +20,7 @@ package launcher
 import (
 	"fmt"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // keycloakRealmName: the realm of the Keycloak the launcher runs.

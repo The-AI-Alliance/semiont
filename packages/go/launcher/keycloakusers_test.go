@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // The realm's ACCOUNT surface. `identitysync.go` reconciles clients,

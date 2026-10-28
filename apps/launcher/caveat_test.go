@@ -3,11 +3,12 @@ package main_test
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // brewCaveat: the caveat .goreleaser.yaml gives the Homebrew formula, which
@@ -69,6 +70,31 @@ func TestBrewCaveatNamesOnlyRealCommands(t *testing.T) {
 		for _, word := range strings.Fields(m[2]) {
 			if !strings.Contains(settingsHelp, word) {
 				t.Errorf("the caveat names `semiont settings ... %s`, which semiont settings --help does not know", word)
+			}
+		}
+	}
+}
+
+func TestNoMessageNamesATopLevelSecretVerb(t *testing.T) {
+	var files []string
+	for _, glob := range []string{"*.go", "../../packages/go/launcher/*.go", "../../packages/go/launcher/verbs/*.go"} {
+		m, err := filepath.Glob(glob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, m...)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if strings.Contains(line, "semiont secret") {
+				t.Errorf("%s:%d names `semiont secret`: %s", f, i+1, strings.TrimSpace(line))
 			}
 		}
 	}

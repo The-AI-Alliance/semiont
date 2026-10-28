@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // The health budget is WALL-CLOCK, not a count of attempts. A failing probe

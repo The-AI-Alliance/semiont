@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // setting: one setting `semiont settings` lists.

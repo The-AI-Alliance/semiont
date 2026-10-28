@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/images"
 )
 
 // The launcher's health probe for one of Semiont's own services is a MIRROR
@@ -19,8 +19,8 @@ import (
 // The image is what actually runs, so the image wins any disagreement. That
 // is the whole of what this test says.
 func TestLauncherProbesWhatTheImageDeclares(t *testing.T) {
-	// internal/launcher → internal → apps/launcher → apps → the repo.
-	const root = "../../../.."
+	// packages/go/launcher → packages/go → packages → the repo.
+	const root = "../../.."
 	check := func(role, want string) {
 		t.Helper()
 		if got := healthEndpoint(role, driverSemiont, nil, exposure{}); got != want {

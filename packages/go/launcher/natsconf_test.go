@@ -55,7 +55,7 @@ func TestBrokerReadsItsKeptPairAsText(t *testing.T) {
 // refuses the publish of an emit the gateway accepted, and the emitter is told
 // the plane is down: a reply too large for the broker is never sent.
 func TestBrokerTakesTwiceTheLargestEmit(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "paths", "bus_emit.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "paths", "bus_emit.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
