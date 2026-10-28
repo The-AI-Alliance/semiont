@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Adds to a pull request the labels of the files it changes: the app, test
- * suite, SDK or part of the spec each is in (scripts/lint/path-labels.mjs). A
+ * Adds to a pull request the labels of the files it changes: the app, image,
+ * test suite, SDK or part of the spec each is in (scripts/lint/path-labels.mjs). A
  * renamed file gives the labels of both its paths.
  *
  * It only adds. A label already on the pull request, put there by hand or by
  * Dependabot, stays, and so does one whose files a later push no longer
- * changes. A label the repository does not have, as an app's before the merge
+ * changes. A label the repository does not have, as an image's before the merge
  * that adds it, is skipped and named: the add-labels call would make it, and
  * the next sync would delete it.
  *

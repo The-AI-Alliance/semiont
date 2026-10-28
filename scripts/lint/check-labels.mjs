@@ -20,9 +20,10 @@
  *    A dimension is one group, but kind:, whose every label is its own group,
  *    and verb:, whose groups are the three ways a verb works on the corpus,
  *    listed below. A label of no dimension is its own group.
- * 3. Five dimensions restate what something else owns, and are held to it
+ * 3. Six dimensions restate what something else owns, and are held to it
  *    both ways:
  *      app:    the directories under apps/
+ *      image:  the directories under images/
  *      tests:  the directories under tests/
  *      spec:   the parts of the spec, by who honours them (SPEC_PARTS); every
  *              directory under specs/src/, and every file directly in it, is
@@ -32,9 +33,9 @@
  *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
  *    sdk: has a label for every SDK the repository holds (packages/sdk, the
  *    TypeScript one, and each packages/sdk-<language>), and for the languages
- *    ruled ahead of their SDKs. The app:, tests: and sdk: values the
- *    repository owns are the labels its files give (path-labels.mjs), the
- *    rule the Path Labels workflow applies to a pull request's files. kind:
+ *    ruled ahead of their SDKs. The app:, image:, tests: and sdk: values
+ *    the repository owns are the labels its files give (path-labels.mjs),
+ *    the rule the Path Labels workflow applies to a pull request's files. kind:
  *    and media: are vocabularies, and nothing owns them.
  * 4. Every entry of .github/dependabot.yml states its labels. One that states
  *    none gets Dependabot's own, which the next sync deletes; a label it
@@ -59,7 +60,7 @@ const DEPENDABOT = '.github/dependabot.yml';
 const SURFACE = 'specs/src/client/surface.json';
 const STACK = 'specs/src/stack/';
 
-const DIMENSIONS = ['kind', 'verb', 'app', 'sdk', 'stack', 'spec', 'media', 'tests'];
+const DIMENSIONS = ['kind', 'verb', 'app', 'image', 'sdk', 'stack', 'spec', 'media', 'tests'];
 const KEYS = ['name', 'color', 'description', 'from_name'];
 
 /** Labels of no dimension, each with why. */
@@ -180,6 +181,7 @@ function heldBothWays(dimension, owned, owner) {
   for (const value of have) if (!owned.has(value)) fail(`${dimension}:${value} names nothing ${owner} has`);
 }
 heldBothWays('app', givenIn('app'), 'apps/');
+heldBothWays('image', givenIn('image'), 'images/');
 heldBothWays('tests', givenIn('tests'), 'tests/');
 
 /** What specs/src holds: its directories, and the files directly in it. */
@@ -237,5 +239,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions, each colour one group's; app:, tests:, spec:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
+  `✅ lint:labels — ${labels.length} labels in ${LABELS}, ${DIMENSIONS.length} dimensions, each colour one group's; app:, image:, tests:, spec:, verb: and stack: agree with what they name, every SDK has its sdk:, and each of ${updates.length} Dependabot entries applies the labels its directories give it`,
 );

@@ -373,7 +373,7 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "kind:dependencies"
-      - "app:browser"
+      - "image:browser"
     groups:
       browser-image:
         patterns:
