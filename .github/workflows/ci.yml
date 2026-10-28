@@ -104,6 +104,7 @@ jobs:
           npm run lint:internal-deps || fail=1
           npm run lint:workflows || fail=1
           npm run lint:labels || fail=1
+          npm run lint:path-globs || fail=1
           exit $fail
 
   # Which areas this push changed, read by every job's `if:`. A job whose
