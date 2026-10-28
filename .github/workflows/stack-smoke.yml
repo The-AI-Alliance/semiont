@@ -31,10 +31,10 @@ on:
         type: string
   # Self-testing: a change to this workflow, its script, the build it runs or
   # what that build leaves out of an image's context proves it still boots a
-  # stack. Deliberately NOT a gate on other work — the
-  # fake covers per-PR regression, and this lane answers "does the model match
-  # reality", which periodic verification suffices for. It is also the only way
-  # to exercise a dispatch-only workflow before it reaches the default branch,
+  # stack. NOT a gate on other pull requests — the fake covers per-PR
+  # regression, and this lane answers "does the model match reality", which a
+  # nightly run and each release suffice for. It is also the only way to
+  # exercise a dispatch-only workflow before it reaches the default branch,
   # which GitHub requires before `gh workflow run` will find it.
   pull_request:
     paths:
@@ -50,6 +50,9 @@ on:
   # A scheduled run that fails mails whoever last changed this line.
   schedule:
     - cron: '17 8 * * *'
+  # The release gate: release.yml calls it on the commit it is about to tag,
+  # with no images named, so it boots images built from that commit.
+  workflow_call:
 
 # One run per pull request: a push cancels the run of the push before it, which
 # nobody is waiting for. A push to main is never cancelled: it is the run that
