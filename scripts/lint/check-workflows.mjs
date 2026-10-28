@@ -79,6 +79,13 @@
  *    a stage built from its old contents, and the image would be stale and
  *    green.
  *
+ * 10. build-rust keeps the six binaries between runs under a key that hashes
+ *    the same files, in the same list, as Stack Smoke's key for the Rust
+ *    images' layers, which rule 8 holds to everything that build reads; and
+ *    with no `restore-keys`. A file the key does not hash would hand the
+ *    conformance suites binaries built from its old contents, and a
+ *    restore-key would hand them binaries built from other sources.
+ *
  * 9. One workflow runs on every pull request: ci.yml. Any other workflow that
  *    triggers on `pull_request` names the `paths` it checks. Six workflows
  *    once ran whole on every push, each with its own summary for the ruleset
@@ -178,6 +185,27 @@ for (const file of workflows) {
     oneRustBuild(workflow.jobs ?? {});
   }
   if (file === SMOKE) layerCacheKey(workflow.jobs ?? {});
+}
+
+/** The hashFiles patterns of the first actions/cache step whose key holds `marker`, and the step. */
+function cacheKeyOf(file, marker) {
+  const workflow = yaml.load(readFileSync(join(ROOT, file), 'utf8'));
+  const steps = Object.values(workflow.jobs ?? {}).flatMap((job) => job.steps ?? []);
+  const step = steps.find((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/cache@') && String(s.with?.key ?? '').includes(marker));
+  return step == null ? null : { step, patterns: [...String(step.with.key).matchAll(/'([^']+)'/g)].map((m) => m[1]) };
+}
+
+// Rule 10: the binaries' key hashes what the images' layers' key hashes, and restores nothing else.
+{
+  const binaries = cacheKeyOf(CI, 'rust-binaries');
+  const layers = cacheKeyOf(SMOKE, 'rust-image-layers');
+  if (binaries == null) failures.push(`${CI}: no actions/cache step keys the Rust binaries (rust-binaries)`);
+  else if (layers != null) {
+    if (binaries.patterns.join(' ') !== layers.patterns.join(' ')) {
+      failures.push(`${CI}: the rust-binaries key hashes ${JSON.stringify(binaries.patterns)}, not the rust-image-layers key's ${JSON.stringify(layers.patterns)} in ${SMOKE}`);
+    }
+    if (binaries.step.with['restore-keys'] != null) failures.push(`${CI}: the rust-binaries cache has restore-keys: it would restore binaries built from other sources`);
+  }
 }
 
 /** A hashFiles pattern as a test of a repository path: `**` crosses directories, `*` does not. */
