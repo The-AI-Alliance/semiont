@@ -55,7 +55,7 @@ export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/s
 export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-worker-driver');
 
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
-export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
+export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
 
 /**
@@ -99,7 +99,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
  * reads it only for a provider whose own API does not state a model's facts,
  * and no suite here runs one.
  */
-export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/inference-python/tests/catalogue/model-catalogue.json');
+export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/python/inference/tests/catalogue/model-catalogue.json');
 
 export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.

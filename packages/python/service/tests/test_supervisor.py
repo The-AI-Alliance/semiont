@@ -21,7 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
-SUPERVISOR: Final = Path(__file__).resolve().parents[3] / "scripts" / "container" / "supervise.sh"
+SUPERVISOR: Final = Path(__file__).resolve().parents[4] / "scripts" / "container" / "supervise.sh"
 
 _LONGEST_WAIT: Final = 90.0
 """How long a test waits for a line it expects, in seconds: a crash-looping life here is eleven of them."""

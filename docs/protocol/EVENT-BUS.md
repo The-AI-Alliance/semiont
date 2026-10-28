@@ -271,7 +271,7 @@ Four implementations write the log. Each is switched on for a whole process, and
 | TypeScript, in Node ([`bus-log.ts`](../../packages/core/src/bus-log.ts)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout, with `console.debug` |
 | TypeScript, in a browser | `window.__SEMIONT_BUS_LOG__ = true` | the console, with `console.debug` |
 | Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/sdk-rust/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
-| Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/sdk-python/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
+| Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/python/sdk/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 | Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/go/sdk/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 
 Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python and Go transports log at the same points as the TypeScript one this table names:
@@ -317,7 +317,7 @@ Two generators read it:
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
-| `packages/sdk-python/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
+| `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
 
 ```sh
 npm run generate:bus          # regenerate TypeScript and Go

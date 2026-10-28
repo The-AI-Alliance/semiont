@@ -5,9 +5,9 @@ from pathlib import Path
 from pydantic import JsonValue, TypeAdapter
 
 PROJECT = Path(__file__).resolve().parents[1]
-ROOT = PROJECT.parents[1]
+ROOT = PROJECT.parents[2]
 SPEC = ROOT / "specs/src"
-SDK = ROOT / "packages/sdk-python"
+SDK = ROOT / "packages/python/sdk"
 
 type JsonObject = dict[str, JsonValue]
 

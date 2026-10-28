@@ -193,7 +193,7 @@ Qdrant's `resources`, `annotations` and `declined` collections before each
 case, and fails, and is not skipped, without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
-[sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
+[sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/payload-cases.json
 [store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/store-cases.json
 [vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/VectorsConfig.json

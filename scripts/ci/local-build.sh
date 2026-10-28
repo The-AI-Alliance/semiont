@@ -7,7 +7,7 @@ set -euo pipefail
 # KB's stack documents name them; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
 # yields everything a fully-local stack needs. And it builds the Python SDK's
-# distributions (packages/sdk-python/dist), which no image installs (the
+# distributions (packages/python/sdk/dist), which no image installs (the
 # worker's, the smelter's, the weaver's and the librarian's build the SDK from
 # the working tree) and Verdaccio cannot hold, so they are built and checked and published nowhere.
 # No npm, Go or Python required on the host — everything runs inside containers.
@@ -88,11 +88,11 @@ fi
 
 # --- Python toolchain (derived, not restated) ---
 #
-# The oldest Python the SDK supports is a fact packages/sdk-python/pyproject.toml
+# The oldest Python the SDK supports is a fact packages/python/sdk/pyproject.toml
 # owns (requires-python), and the SDK's generator runs on that one, here as in
 # CI. No fallback, as for Go.
 if ! PYTHON_FLOOR="$("$REPO_ROOT/scripts/ci/python-floor.sh")"; then
-  fail "No 'requires-python = \">=X.Y\"' line in packages/sdk-python/pyproject.toml — cannot choose a Python image."
+  fail "No 'requires-python = \">=X.Y\"' line in packages/python/sdk/pyproject.toml — cannot choose a Python image."
   exit 1
 fi
 PYTHON_IMAGE="python:${PYTHON_FLOOR}-alpine"
@@ -215,7 +215,7 @@ while [[ $# -gt 0 ]]; do
       echo "then build the service container images against it, tagged"
       echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed),"
       echo "plus the semiont launcher binary (apps/launcher/dist/semiont) and the"
-      echo "Python SDK's wheel and source distribution (packages/sdk-python/dist)."
+      echo "Python SDK's wheel and source distribution (packages/python/sdk/dist)."
       echo "No npm or Go required on the host — everything runs inside containers."
       echo ""
       echo "Built images are also loaded into every other responsive container"
@@ -340,7 +340,7 @@ fi
 # --- Python SDK drift gate ---
 #
 # The Python SDK has no build: what it holds of specs/src is generated and
-# COMMITTED (packages/sdk-python/src/semiont), so a spec change can leave it
+# COMMITTED (packages/python/sdk/src/semiont), so a spec change can leave it
 # stale. Node generators write the tables and the bus vocabulary; the models
 # (types.py) are written by a Python tool pinned in the package's lockfile.
 
@@ -355,7 +355,7 @@ else
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
-  echo -e "    ${BOLD}npm run generate:python${RESET}   (packages/sdk-python/src/semiont)"
+  echo -e "    ${BOLD}npm run generate:python${RESET}   (packages/python/sdk/src/semiont)"
   echo ""
   exit 1
 fi
@@ -379,8 +379,8 @@ $RT run --rm \
   -w /workspace \
   "$PYTHON_IMAGE" \
   sh -c 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
-         uv sync --quiet --locked --project packages/sdk-python || exit 3
-         uv run --no-sync --project packages/sdk-python python packages/sdk-python/scripts/generate_models.py --check || exit 4' \
+         uv sync --quiet --locked --project packages/python/sdk || exit 3
+         uv run --no-sync --project packages/python/sdk python packages/python/sdk/scripts/generate_models.py --check || exit 4' \
   2>&1 | tee "$MODELS_LOG" \
   || MODELS_RC=$?
 
@@ -390,11 +390,11 @@ if [[ "$MODELS_RC" == 0 ]]; then
   ok "the Python SDK's models match the spec"
   rm -f "$MODELS_LOG"
 elif [[ "$MODELS_RC" == 4 ]] && grep -qE '^(DRIFT|new) ' "$MODELS_LOG"; then
-  fail "packages/sdk-python/src/semiont/types.py is STALE (or was hand-edited) — it must match the OpenAPI spec."
+  fail "packages/python/sdk/src/semiont/types.py is STALE (or was hand-edited) — it must match the OpenAPI spec."
   echo ""
   echo -e "  Regenerate and commit it:"
   echo ""
-  echo -e "    ${BOLD}uv run --project packages/sdk-python python packages/sdk-python/scripts/generate_models.py${RESET}"
+  echo -e "    ${BOLD}uv run --project packages/python/sdk python packages/python/sdk/scripts/generate_models.py${RESET}"
   echo ""
   exit 1
 else
@@ -407,7 +407,7 @@ else
     echo -e "  The generator refused the spec or failed. Its message names what it met."
   else
     echo -e "  The locked environment could not be made in ${BOLD}${PYTHON_IMAGE}${RESET}: a failed download"
-    echo -e "  (${BOLD}pypi.org${RESET}) is the usual cause, or ${BOLD}packages/sdk-python/uv.lock${RESET} no longer"
+    echo -e "  (${BOLD}pypi.org${RESET}) is the usual cause, or ${BOLD}packages/python/sdk/uv.lock${RESET} no longer"
     echo -e "  agreeing with its pyproject.toml."
   fi
   echo ""
@@ -418,9 +418,9 @@ fi
 
 # --- Python lockfile gate ---
 #
-# The inference drivers (packages/inference-python), the graph stores
-# (packages/graph-python), the vector stores (packages/vectors-python), the
-# service package (packages/service-python) and every Python image under
+# The inference drivers (packages/python/inference), the graph stores
+# (packages/python/graph), the vector stores (packages/python/vectors), the
+# service package (packages/python/service) and every Python image under
 # images/ are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
@@ -432,7 +432,7 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-PYTHON_PROJECTS="packages/inference-python packages/graph-python packages/vectors-python packages/service-python"
+PYTHON_PROJECTS="packages/python/inference packages/python/graph packages/python/vectors packages/python/service"
 for pyproject in "$REPO_ROOT"/images/*/pyproject.toml; do
   PYTHON_PROJECTS+=" images/$(basename "$(dirname "$pyproject")")"
 done
@@ -1385,7 +1385,7 @@ ok "apps/launcher/dist/semiont built"
 # It is published nowhere. Verdaccio holds npm packages and nothing else, and
 # the images that carry the SDK, the worker's, the smelter's, the weaver's and
 # the librarian's, build it from the working tree, so nothing in a local stack would read it from
-# an index. What is left in packages/sdk-python/dist installs by path.
+# an index. What is left in packages/python/sdk/dist installs by path.
 #
 # Last, since the stack needs nothing of it: a run that fails here has built
 # everything a local stack runs on.
@@ -1410,7 +1410,7 @@ $RT run --rm \
   || PYTHON_SDK_RC=$?
 
 if [[ "$PYTHON_SDK_RC" == 0 ]]; then
-  PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/sdk-python/dist/*.whl)
+  PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/python/sdk/dist/*.whl)
   ok "${PYTHON_SDK_WHEELS[0]#"$REPO_ROOT"/} built, with its source distribution"
 elif [[ "$PYTHON_SDK_RC" == 3 ]]; then
   fail "The Python SDK's build could not RUN (its output is above)."

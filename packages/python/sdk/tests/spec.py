@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import JsonValue, TypeAdapter
 
 PACKAGE = Path(__file__).resolve().parents[1]
-ROOT = PACKAGE.parents[1]
+ROOT = PACKAGE.parents[2]
 SPEC = ROOT / "specs/src"
 BUNDLED = ROOT / "specs/openapi.json"
 

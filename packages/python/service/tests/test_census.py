@@ -187,13 +187,13 @@ def test_a_dependency_the_sdk_bounds_is_named_here_without_a_bound_of_its_own() 
 
 def test_the_sdk_is_the_one_in_this_repository() -> None:
     sources = table(table(table(toml(PROJECT / "pyproject.toml")["tool"], "tool")["uv"], "uv")["sources"], "sources")
-    assert sources == {"semiont": {"path": "../sdk-python", "editable": True}}
-    assert (PROJECT / "../sdk-python").resolve() == SDK.resolve()
+    assert sources == {"semiont": {"path": "../sdk", "editable": True}}
+    assert (PROJECT / "../sdk").resolve() == SDK.resolve()
     # And the lockfile took it from there.
     locked = toml(PROJECT / "uv.lock")["package"]
     assert isinstance(locked, list)
     taken_from = {table(package, "a package")["name"]: table(package, "a package")["source"] for package in locked}
-    assert taken_from["semiont"] == {"editable": "../sdk-python"}
+    assert taken_from["semiont"] == {"editable": "../sdk"}
     assert taken_from["semiont-service"] == {"editable": "."}
 
 
@@ -210,8 +210,8 @@ def test_it_is_the_services_own_code_and_every_python_service_is_built_on_it() -
         manifest = toml(service / "pyproject.toml")
         assert "semiont-service" in required(manifest), f"images/{service.name} is not built on semiont-service"
         sources = table(table(table(manifest["tool"], "tool")["uv"], "uv")["sources"], "sources")
-        assert sources["semiont-service"] == {"path": "../../packages/service-python", "editable": True}, service.name
-    for package in sorted(path.parent for path in ROOT.glob("packages/*/pyproject.toml")):
+        assert sources["semiont-service"] == {"path": "../../packages/python/service", "editable": True}, service.name
+    for package in sorted(path.parent for path in ROOT.glob("packages/python/*/pyproject.toml")):
         if package != PROJECT:
             requires = {name_of(requirement) for requirement in required(toml(package / "pyproject.toml"))}
             assert "semiont-service" not in requires, package.name

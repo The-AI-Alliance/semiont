@@ -140,7 +140,7 @@ jobs:
 
       # The gateway, the dispatcher and the archivist compile with the toolchain
       # rust-toolchain.toml pins; the worker, the smelter, the weaver and the
-      # librarian run on the Python packages/sdk-python/pyproject.toml states as
+      # librarian run on the Python packages/python/sdk/pyproject.toml states as
       # the oldest supported. The toolchain, or the Python, is read before
       # anything is written, so a file that names none fails this step, and so
       # does a service that is neither.

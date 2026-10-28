@@ -36,7 +36,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *
  * **Lexical search never reads the body** — every term must appear in a
  * resource's name, storage URI or entity types
- * (`packages/graph-python/src/semiont_graph/_query.py`, which Neo4j expresses in Cypher).
+ * (`packages/python/graph/src/semiont_graph/_query.py`, which Neo4j expresses in Cypher).
  * So a query drawn from a resource's BODY, whose tokens appear in none of
  * those, returns zero lexical hits by construction. Any result at all can only
  * have come from the fallback.

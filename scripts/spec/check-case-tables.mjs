@@ -46,7 +46,7 @@ const SPECS = 'specs/src';
 const IMPLEMENTATIONS = {
   typescript: ['packages/core', 'packages/sdk', 'packages/http-transport', 'packages/react-ui'],
   rust: ['packages/sdk-rust', 'packages/http-transport-rust'],
-  python: ['packages/sdk-python'],
+  python: ['packages/python/sdk'],
   go: ['packages/go/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
@@ -54,10 +54,10 @@ const IMPLEMENTATIONS = {
   smelter: ['images/smelter'],
   weaver: ['images/weaver'],
   worker: ['images/worker'],
-  'graph-python': ['packages/graph-python'],
-  'vectors-python': ['packages/vectors-python'],
-  'inference-python': ['packages/inference-python'],
-  'service-python': ['packages/service-python'],
+  'graph-python': ['packages/python/graph'],
+  'vectors-python': ['packages/python/vectors'],
+  'inference-python': ['packages/python/inference'],
+  'service-python': ['packages/python/service'],
   conformance: ['tests/conformance'],
 };
 

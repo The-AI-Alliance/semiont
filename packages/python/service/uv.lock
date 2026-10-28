@@ -836,7 +836,7 @@ wheels = [
 
 [[package]]
 name = "semiont"
-source = { editable = "../sdk-python" }
+source = { editable = "../sdk" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -893,7 +893,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pydantic" },
-    { name = "semiont", editable = "../sdk-python" },
+    { name = "semiont", editable = "../sdk" },
 ]
 
 [package.metadata.requires-dev]

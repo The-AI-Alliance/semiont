@@ -67,8 +67,8 @@ uv run pytest
 ```
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
-[worker]: ../../images/worker/README.md
-[weaver]: ../../images/weaver/README.md
-[smelter]: ../../images/smelter/README.md
-[sdk-python]: ../sdk-python/README.md
-[telemetry]: ../../specs/src/service-telemetry/telemetry.json
+[worker]: ../../../images/worker/README.md
+[weaver]: ../../../images/weaver/README.md
+[smelter]: ../../../images/smelter/README.md
+[sdk-python]: ../sdk/README.md
+[telemetry]: ../../../specs/src/service-telemetry/telemetry.json

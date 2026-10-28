@@ -1,5 +1,5 @@
 # Generated from specs/openapi.json, the bundled spec; do not edit.
-# Regenerate: uv run python scripts/generate_models.py (in packages/sdk-python)
+# Regenerate: uv run python scripts/generate_models.py (in packages/python/sdk)
 
 from __future__ import annotations
 

@@ -5,7 +5,7 @@ you'll need them. Each recipe is a short description of the capability followed 
 lines of TypeScript that exercise it.
 
 Building in Rust, Python or Go? The recipes are the same: the namespaces and methods match, and
-the [Rust](../../packages/sdk-rust/README.md), [Python](../../packages/sdk-python/README.md)
+the [Rust](../../packages/sdk-rust/README.md), [Python](../../packages/python/sdk/README.md)
 and [Go](../../packages/go/sdk/README.md) READMEs show each call in their own language.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see

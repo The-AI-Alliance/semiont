@@ -225,4 +225,4 @@ holds.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [models-dev]: https://models.dev
-[sdk-python]: ../sdk-python/
+[sdk-python]: ../sdk/

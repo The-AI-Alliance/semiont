@@ -373,4 +373,4 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### System Documentation
 - [Architecture](../../../docs/architecture/README.md) - Overall system architecture
-- [Graph Package](../../../packages/graph-python/) - Graph database implementations (Neo4j, Neptune, JanusGraph)
+- [Graph Package](../../../packages/python/graph/) - Graph database implementations (Neo4j, Neptune, JanusGraph)

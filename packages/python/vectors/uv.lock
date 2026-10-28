@@ -563,7 +563,7 @@ wheels = [
 
 [[package]]
 name = "semiont"
-source = { editable = "../sdk-python" }
+source = { editable = "../sdk" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -614,7 +614,7 @@ dev = [
 requires-dist = [
     { name = "httpx" },
     { name = "pydantic" },
-    { name = "semiont", editable = "../sdk-python" },
+    { name = "semiont", editable = "../sdk" },
 ]
 
 [package.metadata.requires-dev]

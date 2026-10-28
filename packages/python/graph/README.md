@@ -145,5 +145,5 @@ constraints and the indexes a store makes, and a store that connects makes
 them again.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
-[sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
+[sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [codec-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/graph/codec-cases.json

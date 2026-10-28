@@ -4,7 +4,7 @@
 the worker service's conformance suite holds the words of each to a started
 process. How the document is found, read and refused is every Python
 service's, and is held where it is stated
-(`packages/service-python/tests/test_config.py`). Here is what the document
+(`packages/python/service/tests/test_config.py`). Here is what the document
 names and the environment holds: an agent's key, and that a refusal never
 repeats what the document gave as its variable's name.
 """

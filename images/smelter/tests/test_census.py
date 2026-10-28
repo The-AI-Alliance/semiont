@@ -35,7 +35,7 @@ from semiont_smelter.tesseract import TesseractEngine
 
 SRC = PACKAGE / "src/semiont_smelter"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rglob("*.py"))
-SHARED = ROOT / "packages/service-python"
+SHARED = ROOT / "packages/python/service"
 
 # The public names, by the module that has each.
 SURFACE = {
@@ -316,7 +316,7 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # Every variable the service's code names: in the two modules that say what it is started with, and in the
     # shared package it is built on. Its other modules name what PDFium calls its own things, in the same letters.
     sources = sorted([SRC / "service.py", SRC / "config.py", *(SHARED / "src").rglob("*.py")])
-    assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
+    assert any(path.is_relative_to(SHARED) for path in sources), "packages/python/service has no source"
     # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
     texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
     read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
@@ -346,7 +346,7 @@ def test_the_distribution_is_named_for_the_service() -> None:
 def test_it_is_a_service_s_code_and_no_library() -> None:
     assert not (SRC / "py.typed").exists()
     assert "Private :: Do Not Upload" in listed(table(MANIFEST["project"], "project")["classifiers"], "classifiers")
-    for other in sorted(ROOT.glob("packages/*/pyproject.toml")) + sorted(ROOT.glob("images/*/pyproject.toml")):
+    for other in sorted(ROOT.glob("packages/python/*/pyproject.toml")) + sorted(ROOT.glob("images/*/pyproject.toml")):
         if other.parent != PACKAGE:
             assert "semiont-smelter" not in other.read_text(encoding="utf-8"), f"{other.relative_to(ROOT)} requires the Smelter"
 

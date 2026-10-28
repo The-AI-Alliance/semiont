@@ -923,7 +923,7 @@ what the specification generates.
 
 ## Working on it
 
-The package is [`packages/sdk-python`][package] of the
+The package is [`packages/python/sdk`][package] of the
 [Semiont repository][semiont], and [Testing][testing] says how its checks and
 its tests are run. The programs this page shows are files of its tests, word
 for word: both type checkers check them, and each one is run.
@@ -962,7 +962,7 @@ Apache-2.0. See [LICENSE][license].
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
-[package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
+[package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [testing]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/TESTING.md
 [state-units]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md
 [state-units-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/state-units.json

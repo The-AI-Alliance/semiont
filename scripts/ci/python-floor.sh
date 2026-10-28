@@ -1,6 +1,6 @@
 #!/bin/sh
 # python-floor.sh — the oldest Python the SDK supports, printed: the X.Y of
-# `requires-python = ">=X.Y"` in packages/sdk-python/pyproject.toml.
+# `requires-python = ">=X.Y"` in packages/python/sdk/pyproject.toml.
 #
 # An installer reads that line itself, and so does ruff. What cannot asks
 # here, so the line is read in one place and one way: scripts/ci/local-build.sh
@@ -15,9 +15,9 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
-floor=$(sed -n 's/^requires-python = ">=\([0-9][0-9.]*\)"$/\1/p' packages/sdk-python/pyproject.toml)
+floor=$(sed -n 's/^requires-python = ">=\([0-9][0-9.]*\)"$/\1/p' packages/python/sdk/pyproject.toml)
 if [ -z "$floor" ]; then
-  echo "python-floor.sh: packages/sdk-python/pyproject.toml has no 'requires-python = \">=X.Y\"' line" >&2
+  echo "python-floor.sh: packages/python/sdk/pyproject.toml has no 'requires-python = \">=X.Y\"' line" >&2
   exit 1
 fi
 echo "$floor"

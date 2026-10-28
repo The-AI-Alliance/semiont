@@ -65,7 +65,7 @@ default-groups = ["conformance", "dev"]
 
 # The version is the repository's, stated once, in version.json.
 [tool.hatch.version]
-path = "../../version.json"
+path = "../../../version.json"
 pattern = '"version": "(?P<version>[^"]+)"'
 
 [tool.hatch.build.targets.wheel]

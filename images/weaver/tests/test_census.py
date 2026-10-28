@@ -14,7 +14,7 @@ an extra, and its image asks for every one.
 What it copies from the protocol, it copies under a gate: the events its
 fold applies are the ones the protocol's page lists. How its document is read, how
 its log is written and what exports its telemetry are every Python service's,
-in the package the service is built on (`packages/service-python`).
+in the package the service is built on (`packages/python/service`).
 """
 
 import re
@@ -29,8 +29,8 @@ from semiont_weaver.recorded import FOLDED
 
 SRC = PROJECT / "src/semiont_weaver"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
-GRAPH = ROOT / "packages/graph-python"
-SHARED = ROOT / "packages/service-python"
+GRAPH = ROOT / "packages/python/graph"
+SHARED = ROOT / "packages/python/service"
 
 FORCED = re.compile(r"\bcast\(|#\s*type:\s*ignore|#\s*pyright:\s*ignore|#\s*noqa\b|\btyping\.Any\b|^\s*from typing import [^\n]*\bAny\b")
 
@@ -137,13 +137,13 @@ def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
 def test_the_sdk_the_graph_stores_and_the_service_package_are_the_ones_in_this_repository() -> None:
     sources = table(table(table(MANIFEST["tool"], "tool")["uv"], "uv")["sources"], "sources")
     assert sources == {
-        "semiont": {"path": "../../packages/sdk-python", "editable": True},
-        "semiont-graph": {"path": "../../packages/graph-python", "editable": True},
-        "semiont-service": {"path": "../../packages/service-python", "editable": True},
+        "semiont": {"path": "../../packages/python/sdk", "editable": True},
+        "semiont-graph": {"path": "../../packages/python/graph", "editable": True},
+        "semiont-service": {"path": "../../packages/python/service", "editable": True},
     }
-    assert (PROJECT / "../../packages/sdk-python/pyproject.toml").resolve() == SDK / "pyproject.toml"
-    assert (PROJECT / "../../packages/graph-python/pyproject.toml").resolve() == GRAPH / "pyproject.toml"
-    assert (PROJECT / "../../packages/service-python/pyproject.toml").resolve() == SHARED / "pyproject.toml"
+    assert (PROJECT / "../../packages/python/sdk/pyproject.toml").resolve() == SDK / "pyproject.toml"
+    assert (PROJECT / "../../packages/python/graph/pyproject.toml").resolve() == GRAPH / "pyproject.toml"
+    assert (PROJECT / "../../packages/python/service/pyproject.toml").resolve() == SHARED / "pyproject.toml"
 
 
 def test_the_distribution_is_named_for_the_service() -> None:
@@ -155,7 +155,7 @@ def test_the_distribution_is_named_for_the_service() -> None:
 def test_it_is_a_service_s_code_and_no_library() -> None:
     assert not (SRC / "py.typed").exists()
     assert "Private :: Do Not Upload" in listed(table(MANIFEST["project"], "project")["classifiers"], "classifiers")
-    for other in sorted(ROOT.glob("packages/*/pyproject.toml")) + sorted(ROOT.glob("images/*/pyproject.toml")):
+    for other in sorted(ROOT.glob("packages/python/*/pyproject.toml")) + sorted(ROOT.glob("images/*/pyproject.toml")):
         if other.parent != PROJECT:
             assert "semiont-weaver" not in other.read_text(encoding="utf-8"), f"{other.relative_to(ROOT)} requires the Weaver"
 
@@ -260,7 +260,7 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     }
     # Every variable the service's code names: its own, and the shared package's it is built on.
     sources = sorted([*SRC.rglob("*.py"), *(SHARED / "src").rglob("*.py")])
-    assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
+    assert any(path.is_relative_to(SHARED) for path in sources), "packages/python/service has no source"
     # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
     texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
     read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}

@@ -118,14 +118,14 @@ than the time after which a held job is called stalled.
 ## What the image carries
 
 The service, and the five Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the graph
-stores ([`packages/graph-python`](../../packages/graph-python/)), which ask a graph database;
+([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway; the graph
+stores ([`packages/python/graph`](../../packages/python/graph/)), which ask a graph database;
 the vector stores and embedding providers
-([`packages/vectors-python`](../../packages/vectors-python/)), which ask a Qdrant and a
+([`packages/python/vectors`](../../packages/python/vectors/)), which ask a Qdrant and a
 provider over HTTP; the inference drivers
-([`packages/inference-python`](../../packages/inference-python/)), which ask a model
+([`packages/python/inference`](../../packages/python/inference/)), which ask a model
 provider; and what every Python service is built on
-([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+([`packages/python/service`](../../packages/python/service/)), which reads its configuration,
 answers for its health, writes its log, exports its telemetry and reads a resource's bytes
 from the Archivist. All six are built into the image from the commit it is published from,
 and carry [`version.json`](../../version.json)'s version. Everything else in its environment
@@ -135,8 +135,8 @@ container starts.
 **Every graph database's client and every provider's library is in it.** The stores ask each
 database through that database's own client, and the drivers ask each provider through that
 provider's own library. Each is an extra of its package, named for the store or the provider
-(what an install has: [the stores'](../../packages/graph-python/README.md#what-an-install-has),
-[the drivers'](../../packages/inference-python/README.md#what-an-install-has)). The image is
+(what an install has: [the stores'](../../packages/python/graph/README.md#what-an-install-has),
+[the drivers'](../../packages/python/inference/README.md#what-an-install-has)). The image is
 built with every extra, so it is not rebuilt to be pointed at another database or another
 provider. The vector stores and the embedding providers have no extra: each is asked with
 what every install has.
@@ -184,8 +184,8 @@ checks what a built one promises.
 
 - [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) — what a Librarian does, rule by rule
 - [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCH.md) — the client's side of what it answers
-- [`semiont-graph`](../../packages/graph-python/), [`semiont-vectors`](../../packages/vectors-python/)
-  and [`semiont-inference`](../../packages/inference-python/) — the stores, the embedding
+- [`semiont-graph`](../../packages/python/graph/), [`semiont-vectors`](../../packages/python/vectors/)
+  and [`semiont-inference`](../../packages/python/inference/) — the stores, the embedding
   providers and the drivers it reads and asks through
 - [Gateway](../gateway/) — the bus it rides
 - [Archivist](../archivist/) — the other half of the pair: it holds the record and answers

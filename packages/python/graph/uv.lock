@@ -1147,7 +1147,7 @@ wheels = [
 
 [[package]]
 name = "semiont"
-source = { editable = "../sdk-python" }
+source = { editable = "../sdk" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
@@ -1211,7 +1211,7 @@ requires-dist = [
     { name = "gremlinpython", marker = "extra == 'neptune'", specifier = ">=3.8,<4" },
     { name = "neo4j", marker = "extra == 'neo4j'", specifier = ">=6.4,<7" },
     { name = "pydantic" },
-    { name = "semiont", editable = "../sdk-python" },
+    { name = "semiont", editable = "../sdk" },
 ]
 provides-extras = ["janusgraph", "neo4j", "neptune"]
 

@@ -5,7 +5,7 @@
 # service.
 #
 # Built from the repository root, on the oldest Python the repository's Python
-# packages support, which packages/sdk-python/pyproject.toml states
+# packages support, which packages/python/sdk/pyproject.toml states
 # (requires-python), the one place it is written:
 #
 #   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
@@ -26,12 +26,12 @@ COPY version.json ./
 # this repository's, and no index holds the version the service is written
 # against: each is built from its manifest, the README its manifest names,
 # where it names one, and its source.
-COPY packages/sdk-python/pyproject.toml packages/sdk-python/README.md packages/sdk-python/
-COPY packages/sdk-python/src packages/sdk-python/src
-COPY packages/graph-python/pyproject.toml packages/graph-python/README.md packages/graph-python/
-COPY packages/graph-python/src packages/graph-python/src
-COPY packages/service-python/pyproject.toml packages/service-python/
-COPY packages/service-python/src packages/service-python/src
+COPY packages/python/sdk/pyproject.toml packages/python/sdk/README.md packages/python/sdk/
+COPY packages/python/sdk/src packages/python/sdk/src
+COPY packages/python/graph/pyproject.toml packages/python/graph/README.md packages/python/graph/
+COPY packages/python/graph/src packages/python/graph/src
+COPY packages/python/service/pyproject.toml packages/python/service/
+COPY packages/python/service/src packages/python/service/src
 COPY images/weaver/pyproject.toml images/weaver/uv.lock images/weaver/
 COPY images/weaver/src images/weaver/src
 # The environment is made on this stage's Python and no other, with its

@@ -55,7 +55,7 @@ from typing import Never
 from pydantic import JsonValue, TypeAdapter
 
 PACKAGE = Path(__file__).resolve().parents[1]
-ROOT = PACKAGE.parents[1]
+ROOT = PACKAGE.parents[2]
 SPEC = ROOT / "specs/openapi.json"
 KINDS = ROOT / "specs/src/identifiers/kinds.json"
 OUT = PACKAGE / "src/semiont/types.py"
@@ -69,7 +69,7 @@ KEPT_AS_TEXT = frozenset({"date-time", "uri"})
 BYTES = "binary"
 BANNER = (
     "# Generated from specs/openapi.json, the bundled spec; do not edit.\n"
-    "# Regenerate: uv run python scripts/generate_models.py (in packages/sdk-python)\n"
+    "# Regenerate: uv run python scripts/generate_models.py (in packages/python/sdk)\n"
 )
 
 type JsonObject = dict[str, JsonValue]

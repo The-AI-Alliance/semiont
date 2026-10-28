@@ -14,7 +14,7 @@ updates:
   # version. A model catalogue file is generated from it: the file an image
   # carries for the Python inference drivers, and the one copy the repository
   # keeps, the fixture of the Python inference package's tests
-  # (packages/inference-python/tests/catalogue). The package is published every
+  # (packages/python/inference/tests/catalogue). The package is published every
   # day: this entry's weekly schedule is what keeps it to one bump a week. A
   # bump comes with the fixture regenerated (`npm run generate:model-catalogue`):
   # CI's drift job fails until it is, and the diff is the models whose facts
@@ -261,11 +261,11 @@ updates:
   # names the tool.
   - package-ecosystem: "uv"
     directories:
-      - "/packages/sdk-python"
-      - "/packages/inference-python"
-      - "/packages/graph-python"
-      - "/packages/vectors-python"
-      - "/packages/service-python"
+      - "/packages/python/sdk"
+      - "/packages/python/inference"
+      - "/packages/python/graph"
+      - "/packages/python/vectors"
+      - "/packages/python/service"
       - "/images/worker"
       - "/images/weaver"
       - "/images/smelter"
@@ -440,7 +440,7 @@ updates:
   # images/weaver/Dockerfile, images/smelter/Dockerfile,
   # images/librarian/Dockerfile). Their Python base is no
   # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
-  # packages/sdk-python/pyproject.toml states, which a person moves. What each
+  # packages/python/sdk/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
   # the image's environment, in all four at once. Outside the service group,
   # whose base is Alpine.
