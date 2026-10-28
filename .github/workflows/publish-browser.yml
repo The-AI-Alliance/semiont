@@ -212,9 +212,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       # SLSA build provenance via GitHub's OIDC + Sigstore. Stored as an
-      # OCI attestation alongside the image in GHCR. Verify with:
-      #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-browser:VERSION \
-      #     --owner The-AI-Alliance
+      # OCI attestation alongside the image in GHCR, signed by this workflow
+      # at the ref it runs at; the launcher runs the image only when that ref
+      # is a release tag. The Summary step prints the command that verifies it.
       - name: Attest build provenance
         if: ${{ !inputs.dry_run }}
         uses: actions/attest-build-provenance@v4.2.2
@@ -248,5 +248,6 @@ jobs:
           echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-browser:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
-          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
+          echo "  --repo $GITHUB_REPOSITORY \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --cert-identity https://github.com/${GITHUB_WORKFLOW_REF%@*}@refs/tags/v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
