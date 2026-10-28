@@ -74,7 +74,7 @@
   description: "Semiont Desktop (apps/desktop): the Tauri shell around the Browser"
 - name: "app:launcher"
   color: "c6e8c0"
-  description: "The launcher (apps/launcher): the semiont command, which runs a local stack"
+  description: "The semiont command (apps/launcher) and its libraries (packages/go/launcher)"
 
 # image: one for each directory under images/.
 - name: "image:archivist"

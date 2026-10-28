@@ -9,7 +9,7 @@
  * Browser and the gateway listen for a person on the Mac's loopback, which
  * no container reaches, so they are forwarded to their containers' side on
  * the bridge address, 10000 above. The launcher's suite holds this map to
- * the launcher's own (`apps/launcher/internal/launcher/exposure_test.go`).
+ * the launcher's own (`packages/go/launcher/exposure_test.go`).
  *
  * A stopgap: the container cannot reach the host as localhost.
  */

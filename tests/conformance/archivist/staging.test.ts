@@ -8,6 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { sha256, shardOf, withArchivist } from '../harness/archivist-world';
+import { gitByHand } from '../harness/git';
 import { eventually } from '../harness/net';
 
 const logOf = (id: string) => `.semiont/events/${shardOf(id)}/${id}/events-000001.jsonl`;
@@ -69,11 +70,11 @@ withArchivist('staging, in a knowledge base that syncs git', (world) => {
 
   it('names the branch the tree is on, read when asked', async () => {
     const reader = await world().person('reader');
-    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=Conformance', '-c', 'user.email=conformance@example.com', ...args], { cwd: world().dirs.root, encoding: 'utf8' });
-    git('commit', '--quiet', '--allow-empty', '-m', 'a first commit');
-    git('checkout', '--quiet', '-b', 'a-branch-of-its-own');
+    const git = (...args: string[]) => gitByHand(world().dirs.root, ...args);
+    await git('commit', '--quiet', '--allow-empty', '-m', 'a first commit');
+    await git('checkout', '--quiet', '-b', 'a-branch-of-its-own');
     expect((await reader.ask('browse:kb-requested', {}))['gitBranch']).toBe('a-branch-of-its-own');
-    git('checkout', '--quiet', '-b', 'another');
+    await git('checkout', '--quiet', '-b', 'another');
     expect((await reader.ask('browse:kb-requested', {}))['gitBranch']).toBe('another');
   });
 

@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/verbs"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/verbs"
 )
 
 func usage(w *os.File) {

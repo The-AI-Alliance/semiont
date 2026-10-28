@@ -92,5 +92,5 @@ From the launcher: `semiont gather <resourceId>` for a resource, and `semiont ga
 - The SDK namespace: [packages/sdk/src/namespaces/gather.ts](../../../packages/sdk/src/namespaces/gather.ts)
 - The Gatherer, in the Librarian: [annotation_gather.py](../../../images/librarian/src/semiont_librarian/annotation_gather.py) and [resource_gather.py](../../../images/librarian/src/semiont_librarian/resource_gather.py)
 - What refers to a resource: [referenced_by.py](../../../images/librarian/src/semiont_librarian/referenced_by.py)
-- The launcher verb: [apps/launcher/internal/verbs/gather.go](../../../apps/launcher/internal/verbs/gather.go)
+- The launcher verb: [packages/go/launcher/verbs/gather.go](../../../packages/go/launcher/verbs/gather.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

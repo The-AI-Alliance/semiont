@@ -35,7 +35,8 @@ jobs:
     # into PATH to trace the build, and a later setup-go would shadow it (CodeQL
     # warns "Expected `which go` to return .../codeql-action-go-tracing/bin/go").
     # cache: false — setup-go's default lookup is for a go.sum at the root, and it
-    # warns when there is none: the modules are apps/launcher and packages/go/sdk.
+    # warns when there is none: the modules are apps/launcher, packages/go/launcher
+    # and packages/go/sdk.
     - name: Setup Go
       if: matrix.language == 'go'
       uses: actions/setup-go@v7.0.0
@@ -66,11 +67,12 @@ jobs:
     # Go is a compiled language: the CodeQL extractor needs a real build to trace.
     # Rust and Python are extracted from source, with no build.
     # Each Go module is built: the launcher's build compiles only the packages of
-    # the Go SDK it imports.
+    # its libraries and of the Go SDK that it imports.
     - name: Build the Go modules for CodeQL extraction
       if: matrix.language == 'go'
       run: |
         (cd apps/launcher && go build ./...)
+        (cd packages/go/launcher && go build ./...)
         (cd packages/go/sdk && go build ./...)
 
     - name: Perform CodeQL Analysis

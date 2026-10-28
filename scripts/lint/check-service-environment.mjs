@@ -23,7 +23,7 @@ import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TABLE = 'specs/src/service-environment/variables.json';
-const BOOT_GOLDEN = 'apps/launcher/testdata/golden/start-default-boot.argv';
+const BOOT_GOLDEN = 'packages/go/launcher/testdata/golden/start-default-boot.argv';
 const SUPERVISOR = 'scripts/container/supervise.sh';
 
 /** Each service the table covers: its crate, its image, and its suite. */

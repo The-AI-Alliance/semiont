@@ -8,5 +8,5 @@ the desktop app's `Dockerfile.builder` is the environment its Linux bundles are 
 
 | App | Source | Distribution | Description |
 | --- | ------ | ------------ | ----------- |
-| `semiont` launcher | [launcher](./launcher/) | `brew install the-ai-alliance/semiont/semiont` (also [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases)) | Single static Go binary that runs a local KB stack — pulls the published images and drives Apple `container`, Docker, or Podman directly (`semiont start` / `status` / `logs` / `stop`) |
+| `semiont` launcher | [launcher](./launcher/) | `brew install the-ai-alliance/semiont/semiont` (also [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases)) | Single static Go binary that runs a local KB stack — pulls the published images and drives Apple `container`, Docker, or Podman directly (`semiont start` / `status` / `logs` / `stop`). Its libraries are [packages/go/launcher](../packages/go/launcher/README.md) |
 | Semiont Desktop | [desktop](./desktop/) | [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases) (macOS, Linux) | Native [Tauri](https://tauri.app/) shell around the Semiont Browser SPA — no container runtime to install and no local-network permission to grant |

@@ -70,6 +70,7 @@ The first is how a Python program uses Semiont. The other four are what the Pyth
 | Module | Published | What it is |
 |---|---|---|
 | [go/sdk](./go/sdk/README.md) | Not published | The Go SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, the state units, a worker's claims, and the doubles a test is built on (`semionttest`). The `semiont` launcher ([apps/launcher](../apps/launcher/README.md)) is built on it |
+| [go/launcher](./go/launcher/README.md) | Not published | The launcher's libraries: its engine, the reader of a knowledge base's documents (`stack`), what an image declares (`images`) and whether a release built it (`provenance`), the verbs on the command line and over MCP (`verbs`), and the fake runtime its tests drive (`fakert`). The program, [apps/launcher](../apps/launcher/README.md), is built on them |
 
 ## Working on a package
 

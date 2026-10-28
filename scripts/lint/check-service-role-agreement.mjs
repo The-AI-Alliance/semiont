@@ -34,12 +34,12 @@ const ROLES = [
     label: 'service role',
     sites: [
       {
-        file: 'apps/launcher/internal/launcher/identity.go',
+        file: 'packages/go/launcher/identity.go',
         what: 'the realm mapper the launcher writes',
         pattern: /serviceRole\s*=\s*"([^"]+)"/,
       },
       {
-        file: 'apps/launcher/internal/fakert/main.go',
+        file: 'packages/go/launcher/fakert/main.go',
         what: "the fake runtime's emitted claim",
         pattern: /roles\s*:=\s*\[\]string\{"([^"]+)"\}/,
       },
@@ -54,12 +54,12 @@ const ROLES = [
     label: 'worker role',
     sites: [
       {
-        file: 'apps/launcher/internal/launcher/identity.go',
+        file: 'packages/go/launcher/identity.go',
         what: "the realm mapper's worker grant",
         pattern: /workerRole\s*=\s*"([^"]+)"/,
       },
       {
-        file: 'apps/launcher/internal/fakert/main.go',
+        file: 'packages/go/launcher/fakert/main.go',
         what: "the fake runtime's worker grant",
         pattern: /append\(roles,\s*"([^"]+)"\)/,
       },

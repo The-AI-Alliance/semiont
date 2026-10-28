@@ -197,6 +197,7 @@ jobs:
               - 'tests/conformance/**'
             go:
               - 'apps/launcher/**'
+              - 'packages/go/launcher/**'
               - 'packages/go/sdk/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
@@ -2536,16 +2537,16 @@ jobs:
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the
-      # schema text it validates them against (apps/launcher/internal/stack).
+      # schema text it validates them against (packages/go/launcher/stack).
       # lint:spec-stack, in the Census job, holds every property of the schemas
       # to a field of the generated types.
       - name: Knowledge base documents vs the launcher's generated Go
         run: node scripts/spec/generate-stack-go.mjs --check
 
-      # `semiont mcp`'s tools (apps/launcher/internal/verbs/mcp-tools.json) and
+      # `semiont mcp`'s tools (packages/go/launcher/verbs/mcp-tools.json) and
       # the components they name → each tool's input and output schema, made
       # self-contained, and the SDK methods no tool calls
-      # (apps/launcher/internal/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
+      # (packages/go/launcher/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
       # the launcher's suite, holds the table to the client surface both ways.
       - name: MCP tools vs the launcher's generated Go
         run: node scripts/spec/generate-mcp-tools-go.mjs --check
@@ -2645,7 +2646,7 @@ jobs:
       # any output instead.
       - name: Check formatting (gofmt)
         run: |
-          unformatted=$(gofmt -l apps/launcher packages/go/sdk)
+          unformatted=$(gofmt -l apps/launcher packages/go)
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofmt-clean:"
             echo "$unformatted"
@@ -2654,7 +2655,9 @@ jobs:
           echo "gofmt clean"
 
       - name: Vet launcher
-        run: cd apps/launcher && go vet ./...
+        run: |
+          (cd apps/launcher && go vet ./...)
+          (cd packages/go/launcher && go vet ./...)
 
       # Every target a release ships. A call one system lacks compiles on
       # this job's Linux and on a developer's Mac; this is what finds it for
@@ -2662,11 +2665,11 @@ jobs:
       # compiles the tests too.
       - name: Launcher compiles for every target
         run: |
-          cd apps/launcher
           for os in darwin linux windows; do
             for arch in amd64 arm64; do
               echo "::group::$os/$arch"
-              GOOS=$os GOARCH=$arch go vet ./...
+              (cd apps/launcher && GOOS=$os GOARCH=$arch go vet ./...)
+              (cd packages/go/launcher && GOOS=$os GOARCH=$arch go vet ./...)
               echo "::endgroup::"
             done
           done
@@ -2706,7 +2709,8 @@ jobs:
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
-          cd apps/launcher && govulncheck ./...
+          (cd apps/launcher && govulncheck ./...)
+          (cd packages/go/launcher && govulncheck ./...)
 
   # The same suite, run as a Windows program. The job above proves the
   # launcher compiles for Windows; nothing but a Windows machine proves what
@@ -2724,8 +2728,9 @@ jobs:
   # order, so each test follows the test it follows in a serial run: some
   # tests leave a stand-in listening that the next test sees, and taking every
   # third test instead failed a golden that a serial run passes. The first leg
-  # also runs the module's other packages. A new test lands in a leg with
-  # nothing to update, and a leg left with no test fails.
+  # also runs the tests of the launcher's libraries (packages/go/launcher). A
+  # new test lands in a leg with nothing to update, and a leg left with no
+  # test fails.
   #
   # An EXPLICIT budget. These tests drive a fake runtime through real
   # start/stop lifecycles, so each leg is minutes long and serial; the whole
@@ -2753,7 +2758,9 @@ jobs:
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
-          cache-dependency-path: apps/launcher/go.sum
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
 
       - name: Choose this leg's tests
         id: tests
@@ -2769,9 +2776,10 @@ jobs:
       - name: Test the launcher
         run: go test -timeout 30m -run '${{ steps.tests.outputs.run }}' .
 
-      - name: Test the launcher's other packages
+      - name: Test the launcher's libraries
         if: strategy.job-index == 0
-        run: go test -timeout 30m $(go list ./... | grep -vx "$(go list .)")
+        working-directory: packages/go/launcher
+        run: go test -timeout 30m ./...
 
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
@@ -2796,13 +2804,23 @@ jobs:
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
-          cache-dependency-path: apps/launcher/go.sum
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
 
       - name: Vet launcher
         run: go vet ./...
 
+      - name: Vet the launcher's libraries
+        working-directory: packages/go/launcher
+        run: go vet ./...
+
       # An explicit budget, as the Linux job has, under the job's ceiling.
       - name: Test launcher
+        run: go test -timeout 50m ./...
+
+      - name: Test the launcher's libraries
+        working-directory: packages/go/launcher
         run: go test -timeout 50m ./...
 
       # The launcher's Windows binary carries this module's client and bus
