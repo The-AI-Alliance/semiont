@@ -24,8 +24,9 @@
 #
 # WITH --e2e it asks that question too, of the stack it booted, before it stops
 # it: it makes a user in the realm with `useradd`, then runs tests/e2e's
-# default tier (`npm test`, which typechecks the specs and leaves out @slow) in
-# the Playwright image whose tag is the version tests/e2e/package.json pins. A
+# default tier less its @model tests (`npm run test:ci`, which typechecks the
+# specs and leaves out @slow and @model) in the Playwright image whose tag is
+# the version tests/e2e/package.json pins. A
 # failing suite is a failed check like any other, so the container logs print
 # and the stack stops. The image reaches the stack at localhost through
 # `--network host`, which docker and podman have and Apple's `container` does
@@ -35,9 +36,8 @@
 # scripts/ci/local-build.sh builds them, as `npm run build:packages` does.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
-# did:web domain (and, with --e2e, a larger model: see E2E_MODEL), then
-# `start` with no --config, so the documents init writes and the Inference
-# document it records are what boot. A new KB that could not start is the
+# did:web domain, then `start` with no --config, so the documents init writes
+# and the Inference document it records are what boot. A new KB that could not start is the
 # defect this check found on its first run.
 #
 # THE RUN LEAVES NOTHING BEHIND. The launcher keeps a KB's daemon state and
@@ -73,11 +73,6 @@ case "${2:-}" in
 esac
 RUNTIME="${SMOKE_RUNTIME:-docker}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# The model a run with --e2e binds in place of init's default. Against
-# gemma3:270m, on a four-core runner with no GPU, every test the suite tags
-# @model failed: a structured reply cut off at its token limit, delegated
-# detection that found nothing, generations that never finished.
-E2E_MODEL=gemma3:1b
 if [ "$E2E" = true ]; then
   if [ "$RUNTIME" = container ]; then
     echo "--e2e runs the suite with --network host, which Apple's container has not; run it as tests/e2e/README.md says." >&2
@@ -126,10 +121,7 @@ echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
 mkdir -p "$KB" && cd "$KB" || exit 1
 git init -q && git config user.email smoke@example.com && git config user.name smoke
 # The domain is the one setting with no safe default, so it is the one flag.
-INIT_MODEL=()
-[ "$E2E" = true ] && INIT_MODEL=(--model "$E2E_MODEL")
-# An empty array under `set -u` is an unbound variable to macOS's bash 3.2.
-if "$SEMIONT" init --yes --domain example.github.io:stack-smoke ${INIT_MODEL[@]+"${INIT_MODEL[@]}"} >/dev/null; then
+if "$SEMIONT" init --yes --domain example.github.io:stack-smoke >/dev/null; then
   ok "init wrote a config the plan deriver accepts"
 else
   bad "init refused"; exit 1
@@ -219,7 +211,7 @@ if [ "$E2E" = true ]; then
       -e PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/report.json \
       -e CI=1 \
       "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
-      sh -c 'npm ci && npm test -- --reporter=list,html,json'; then
+      sh -c 'npm ci && npm run test:ci -- --reporter=list,html,json'; then
       ok "the default tier passed ($((SECONDS - STARTED))s)"
     else
       bad "the default tier failed ($((SECONDS - STARTED))s): tests/e2e/playwright-report holds the report"

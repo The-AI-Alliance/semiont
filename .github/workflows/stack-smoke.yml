@@ -2,9 +2,9 @@
 # cannot, then run tests/e2e's default tier against that same stack before it
 # stops. The check itself is scripts/release/smoke-stack.sh, which this
 # workflow runs with --e2e and a laptop runs the same way; what it asserts is
-# said there, once. With --e2e the stack serves inference from gemma3:1b, in
-# place of a new knowledge base's default (smoke-stack.sh's E2E_MODEL), and
-# embedding from the default; the suite's @model tests are a measure of those.
+# said there, once. The stack serves inference and embedding from the models a
+# new knowledge base names. The suite runs without its @model tests, which
+# those models, on a runner with no GPU, do not answer in time.
 # Whatever the suite's result, its Playwright report is kept as an artifact and
 # a table of its specs is written to the run's summary.
 #
