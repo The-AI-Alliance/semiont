@@ -2,9 +2,13 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-librarian)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-**The reference desk.** It answers the questions that need the graph, the vector index or a
-model: what a reference could refer to, which resources a text finds, what surrounds an
-annotation or a resource, and what refers to a resource. It records nothing.
+**The Librarian is a Semiont knowledge base's reference desk**: a Python service that answers the
+questions that need the graph the Weaver writes, the vector index the Smelter writes, or a
+model — what a reference could refer to, which resources a text finds, what surrounds an
+annotation or a resource, and what refers to a resource. It records nothing. Every question
+reaches it, and every answer leaves it, on the gateway's event
+[bus](../../docs/protocol/EVENT-BUS.md); its one HTTP route is `/health`, on port 24104. The
+launcher starts it with `semiont start`.
 
 | | |
 | --- | --- |
@@ -12,13 +16,9 @@ annotation or a resource, and what refers to a resource. It records nothing.
 | Port | 24104 (`/health`, and nothing else: everything it answers is on the bus) |
 | Command | `python -P -m semiont_librarian --config /etc/semiont/librarian.json` |
 | Code | Python, in this directory: [`src/semiont_librarian`](./src/semiont_librarian/) |
-| Package indexes | not published — container only |
-
-What the service does is written rule by rule in [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md),
-and the [librarian conformance suite](../../tests/conformance/librarian/README.md) holds a
-Librarian to it, as a process behind a real gateway and a real Archivist, reading a neo4j a
-real Weaver writes and a Qdrant a real Smelter writes. This page is the image, and how it is
-run.
+| Specification | [docs/protocol/LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) |
+| Judged by | [tests/conformance/librarian](../../tests/conformance/librarian/README.md) |
+| Published | to no package index: the image only |
 
 ## What it does
 
@@ -40,13 +40,13 @@ Two actors ask a model: the **Matcher**, in a reference search, and the **Gather
 gather and a summary. Each has a model of its own. The service is one agent whatever those
 models are.
 
-**It owns no store, and makes nothing in one.** It reads the graph the Weaver writes and the
-vector index the Smelter writes, and puts no node, no edge, no collection and no point in
-either. What it needs of the record, and what the knowledge base calls the people a reply
+**It owns no store, and makes nothing in one.** It reads the graph and the vector index, and
+puts no node, no edge, no collection and no point in either. What it needs of
+[the record](../../docs/protocol/ARCHIVIST.md), and what the knowledge base calls the people a reply
 names, it asks the Archivist on the bus, each read bounded by its question. A Librarian that
 is stopped and started again has lost nothing.
 
-## What it reaches
+## What it talks to
 
 - **The gateway**, for the bus: requests arrive and replies leave this way, and nothing dials
   the Librarian. A resource's anchored text is read from the gateway too
@@ -59,7 +59,9 @@ is stopped and started again has lost nothing.
 - **An embedding provider**, for the vector of a query, and **the provider of each actor's
   model**.
 
-It mounts no volume and no piece of the knowledge base, and opens no file of the record.
+**It mounts no piece of the knowledge base, and opens no file of the record.** The launcher
+mounts two things in it: its configuration document, read-only, and a store of its own for its
+supervisor's events log.
 
 ## Readers of two signals
 
@@ -94,6 +96,7 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 | `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
 | `matcher`, `gatherer` | each actor's model ([`LibrarianModelConfig`](../../specs/src/components/schemas/LibrarianModelConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
+| `modelCatalogue` | the path of the model catalogue: what each model of `google`, `openai` and `together` can take, which those providers' APIs do not say. It is read only where an actor's model is one of theirs |
 | `gather.settleTimeoutMs` | how long a gather around a resource waits for the Smelter |
 | `search.semanticFloor` | the least similarity a hit by meaning must have |
 | `port` | the port `/health` answers on |
@@ -111,28 +114,32 @@ the bus, what a driver records of each request of a model, and the count of gath
 went without something (`semiont.gather.degraded`). Without the endpoint the Librarian
 exports nothing. Its log lines carry the trace and the span they were written in.
 
-Started without its document, without its account or without a variable its document names,
-it refuses to start: one line on stderr that begins `[fatal] `, and a status other than 0. A graph or a
-vector index of the kind `memory` is refused too: neither could be shared with the service
-that writes it. So is a settle bound that, with the longest wait for the graph, is not less
-than the time after which a held job is called stalled.
+**It refuses to start** without its document, without its account or without a variable its
+document names: one line on stderr that begins `[fatal] `, and a status other than 0. It
+refuses a graph or a vector index of the kind `memory` too: neither could be shared with the
+service that writes it. It refuses a settle bound that, with the longest wait for the graph,
+is not less than the time after which a held job is called stalled.
 
 ## What the image carries
 
-The service, and the five Python packages of this repository it runs on: the SDK
-([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway; the graph
-stores ([`packages/python/graph`](../../packages/python/graph/)), which ask a graph database;
-the vector stores and embedding providers
-([`packages/python/vectors`](../../packages/python/vectors/)), which ask a Qdrant and a
-provider over HTTP; the inference drivers
-([`packages/python/inference`](../../packages/python/inference/)), which ask a model
-provider; and what every Python service is built on
-([`packages/python/service`](../../packages/python/service/)), which reads its configuration,
-answers for its health, writes its log, exports its telemetry and reads a resource's bytes
-from the Archivist. All six are built into the image from the commit it is published from,
-and carry [`version.json`](../../version.json)'s version. Everything else in its environment
-is what [`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when the
-container starts.
+The service, and the five Python packages of this repository it runs on:
+
+- the SDK ([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway;
+- the graph stores ([`packages/python/graph`](../../packages/python/graph/)), which ask a
+  graph database;
+- the vector stores and embedding providers ([`packages/python/vectors`](../../packages/python/vectors/)),
+  which ask a Qdrant and a provider over HTTP;
+- the inference drivers ([`packages/python/inference`](../../packages/python/inference/)),
+  which ask a model provider;
+- what every Python service is built on ([`packages/python/service`](../../packages/python/service/)),
+  which reads its configuration, answers for its health, writes its log, exports its telemetry
+  and reads a resource's bytes from the Archivist.
+
+All six are built into the image from the commit it is published from, and carry
+[`version.json`](../../version.json)'s version. Everything else in its environment is what
+[`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when the container starts.
+The image also carries the model catalogue, at `/usr/share/semiont/model-catalogue.json`, the
+path the launcher writes into `modelCatalogue`.
 
 **Every graph database's client and every provider's library is in it.** The stores ask each
 database through that database's own client, and the drivers ask each provider through that
@@ -163,10 +170,17 @@ has no client or library for refuses to start, and names the extra that brings i
 
 ## Working on it
 
+In this directory:
+
 ```sh
 uv sync --locked
 uv run pytest
 ```
+
+The [librarian conformance suite](../../tests/conformance/librarian/README.md) holds a
+Librarian to [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md), as a process behind a real
+gateway and a real Archivist, reading a Neo4j a real Weaver writes and a Qdrant a real Smelter
+writes.
 
 ## Building it
 

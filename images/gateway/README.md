@@ -1,22 +1,27 @@
-# Semiont Gateway
+# semiont-gateway
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-gateway)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-The HTTP entry point to a Semiont knowledge base. It is the one address clients
-and sidecar services dial, and in almost every deployment it runs as the
-`semiont-gateway` container on port 4000. It is a Rust binary built against
-[`specs/`](../../specs/src/openapi.json), which is compiled into it.
+**The HTTP entry point to a Semiont knowledge base**: the one address clients and sidecar
+services dial. It is a Rust binary built against [`specs/`](../../specs/src/openapi.json),
+which is compiled into it, and it serves on port 4000. The launcher starts it, as the
+`semiont-gateway` container, with the rest of the stack (`semiont start`).
 
-Its job is narrow on purpose: **authenticate callers, run the bus hub, and proxy
-content bytes.** It holds no part of the knowledge base. The five actors that
-make meaning live in other processes, the resource tree belongs to the
-Archivist, the job queue belongs to the dispatcher, and the event log is
-reached over HTTP like everything else.
+| | |
+| --- | --- |
+| Image | `ghcr.io/the-ai-alliance/semiont-gateway` |
+| Port | 4000 |
+| Command | `/usr/local/bin/semiont-gateway --config /etc/semiont/gateway.json` |
+| Code | Rust, in this directory: [src](./src) |
+| Specification | the OpenAPI spec, [specs/src/openapi.json](../../specs/src/openapi.json) |
+| Judged by | [tests/conformance/gateway](../../tests/conformance/gateway/README.md) |
+| Published | to no package index: the image only |
 
-## What it owns, and what it does not
+## What it does
 
-The gateway is defined more by subtraction than addition, so this table is the
-fastest way to understand it.
+Its job is narrow on purpose: **authenticate callers, run the bus hub, and proxy content
+bytes.** It holds no part of the knowledge base: the resource tree and the event log are the
+Archivist's, reached over HTTP.
 
 | It owns | It does not |
 |---|---|
@@ -25,112 +30,20 @@ fastest way to understand it.
 | **The correlation ledger** — records who asked, decides who may see the reply, retains replies for reconnect recovery | Own the job queue or hold a database: the queue is the dispatcher's, accounts live at the issuer, and the PostgreSQL in a stack is Keycloak's |
 | **The content proxy** — forwards resource bytes to the Archivist | Connect to Neo4j, Qdrant, or an inference provider; read or write projections, views, or content directly; store bytes |
 
-The invariant, enforced by tests rather than convention: the gateway **dials no
-meaning-tier service and writes no meaning-tier state.**
-`TestExactlyOneContainerMountsTheKB` pins the mount half in the launcher's
-golden run arguments — exactly one container mounts the KB, and it is the
-Archivist.
+The invariant, enforced by tests rather than convention: **the gateway dials no meaning-tier
+service and writes no meaning-tier state** — the meaning tier being the actors, the knowledge
+base and the stores the right-hand column names. For the mount half, the launcher's
+`gatewayArgs` takes no KB root, so mounting the KB in the gateway takes a signature change,
+and `TestExactlyOneContainerMountsTheKB` checks the launcher's run arguments: exactly one
+container mounts the KB, and it is the Archivist.
 
-## Running it
+## What it talks to
 
-Normally you do not run it directly. The launcher starts it with the rest of the
-stack:
-
-```bash
-semiont start
-```
-
-That resolves to roughly this, which is worth reading once because it is the
-whole deployment contract:
-
-```
-container run -d --name semiont-gateway \
-  --publish 4000:4000 \
-  --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro \
-  --volume <state>:/semiont-state \
-  --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
-  --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
-  --env JWT_SECRET=<key> \
-  ghcr.io/the-ai-alliance/semiont-gateway:latest
-```
-
-The state volume holds only the supervisor's events log; the gateway itself
-writes nothing to disk. **There is no KB volume**, and that absence is the point. It is also enforced:
-the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
-signature change, not a line someone can slip in.
-
-Required in the environment: `JWT_SECRET` (≥32 chars), plus
-`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own
-service account at the knowledge base's issuer, which it exchanges for a token
-to reach the Archivist. It takes no database address: the gateway holds no
-database.
-
-## Boot and shutdown
-
-The container entrypoint (`tini` as PID 1, exec'ing the shared `boot.sh`) runs
-one step:
-
-1. **`/usr/local/bin/semiont-gateway`** — the image CMD, exec'd by the shared
-   `boot.sh`: directly when `SEMIONT_SUPERVISE` is unset (the container exits
-   when the server dies), under the shared supervisor when the launcher sets it
-   for local runs. `tini` forwards `SIGTERM` either way. Nothing is built,
-   installed or fetched at start; the image carries the binary and no source.
-
-Startup then refuses rather than degrades. A configuration document that does
-not validate, an absent or short `JWT_SECRET`, no service account, a broker that
-does not answer or runs without JetStream, or routes that are not exactly the
-spec's operations each stop the process before it listens (the order is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#boot)) — a gateway that
-accepts connections it cannot authenticate, or serves a route no one declared,
-is the failure mode these checks exist to prevent.
-
-`SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline
-so in-flight frames reach the broker, export what telemetry is buffered, and
-exit.
-
-## Configuration
-
-One document: a JSON `GatewayConfig`
-([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path
-its `--config` flag names, bind-mounted read-only. The image passes
-`/etc/semiont/gateway.json`, where the launcher mounts the document; without
-`--config`, the gateway refuses to start. The launcher writes it from the knowledge base's stack
-documents and its committed identity, every address in it literal and every credential named by
-the variable that holds it, and the gateway defaults nothing.
-The gateway validates it against the schema at boot, and refuses to serve —
-naming each failing field by its JSON pointer — when it does not match.
-
-```json
-{
-  "kb": { "name": "My KB", "domain": "example.github.io:my-kb" },
-  "port": 4000,
-  "publicUrl": "http://localhost:4000",
-  "identity": { "issuer": "http://keycloak:8080/realms/semiont", "subjectClaim": "sub" },
-  "archivist": { "host": "archivist", "port": 24103 },
-  "signal": { "type": "nats", "servers": "nats:4222" },
-  "logLevel": "info",
-  "logFormat": "json",
-  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }
-}
-```
-
-`signal.type` is `in-process` (one gateway) or `nats` (the fabric replicas
-share, which needs `servers` and a broker with JetStream). `capacity` is what
-the process can hold: the bytes queued for all its streams, and the
-connections it holds open. The launcher derives both from the memory it gives
-the container — half for queued bytes, the other half at 20 KiB a connection. A gateway started
-without the launcher is given the same document.
-
-Secrets are never in it. The gateway's own are environment variables —
-`JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` — and a
-broker credential is named by the variable holding it (`signal.userEnv`,
-`signal.passwordEnv`). Every environment variable the gateway reads, what
-sets it and what it changes, is in
-[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
-
-It runs one worker thread per CPU it may use — its container's CPU limit and
-affinity — so that limit is what sizes it. No variable does: not even
-`TOKIO_WORKER_THREADS`, which its runtime would otherwise read.
+- **The issuer** — for the published keys that verify every bearer, and for the token,
+  granted to its own service account, with which it reaches the Archivist.
+- **The Archivist** — for every content route, and the events a resumed subscription replays
+  ([the calls](docs/ARCHITECTURE.md#calls-to-the-archivist)).
+- **A NATS broker with JetStream**, when `signal.type` is `nats`.
 
 ## HTTP surface
 
@@ -160,36 +73,139 @@ validated against the schema the bus registry binds to each channel, so an
 ill-formed event is a 400 at the edge rather than a confused subscriber
 downstream.
 
-## Development
+## When it starts
 
-The gateway is a member of the repository's Rust workspace
-([Cargo.toml](../../packages/rust/Cargo.toml) in packages/rust), and the toolchain is the one
+For the gateway, `semiont start` resolves to roughly this:
+
+```
+container run -d --name semiont-gateway \
+  --publish 4000:4000 \
+  --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro \
+  --volume <state>:/semiont-state \
+  --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
+  --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
+  --env JWT_SECRET=<key> \
+  ghcr.io/the-ai-alliance/semiont-gateway:latest
+```
+
+The state volume holds only the supervisor's events log; the gateway itself writes nothing to
+disk. There is no KB volume.
+
+`tini` is PID 1 and execs the shared `boot.sh`, which execs the image CMD,
+`/usr/local/bin/semiont-gateway`: directly when `SEMIONT_SUPERVISE` is unset, so the container
+exits when the server dies; under the shared supervisor when the launcher sets it, for local
+runs. `tini` forwards `SIGTERM` either way.
+
+**Startup refuses rather than degrades.** Each of these stops the process before it listens
+(the order is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#boot)):
+
+- a configuration document that does not validate
+- an absent or short `JWT_SECRET`
+- no service account
+- a broker that does not answer, or runs without JetStream
+- routes that are not exactly the spec's operations
+
+A gateway that accepts connections it cannot authenticate, or serves a route no one declared,
+is the failure these checks exist to prevent.
+
+`SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline so in-flight
+frames reach the broker, export what telemetry is buffered, and exit.
+
+## Configuration
+
+One document: a JSON `GatewayConfig`
+([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path its `--config`
+flag names, bind-mounted read-only. Without `--config`, the gateway refuses to start; the
+image passes `/etc/semiont/gateway.json`, where the launcher mounts the document. The
+launcher writes it from the knowledge base's stack documents and its committed identity:
+
+- every address in it is a literal;
+- every credential is named by the variable that holds it;
+- the gateway defaults nothing.
+
+A gateway started without the launcher is given the same document. At boot the gateway
+validates it against the schema and, when it does not match, refuses to serve, naming each
+failing field by its JSON pointer.
+
+```json
+{
+  "kb": { "name": "My KB", "domain": "example.github.io:my-kb" },
+  "port": 4000,
+  "publicUrl": "http://localhost:4000",
+  "identity": { "issuer": "http://keycloak:8080/realms/semiont", "subjectClaim": "sub" },
+  "archivist": { "host": "archivist", "port": 24103 },
+  "signal": { "type": "nats", "servers": "nats:4222" },
+  "logLevel": "info",
+  "logFormat": "json",
+  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }
+}
+```
+
+`signal.type` is `in-process` (one gateway) or `nats` (shared by every replica on one broker;
+it needs `servers` and a broker with JetStream). `capacity` is what the process can hold: the
+bytes queued for all its streams, and the connections it holds open. The launcher derives both
+from the memory it gives the container: half for queued bytes, the other half at 20 KiB a
+connection.
+
+**Secrets are never in it.** The gateway's own are environment variables, each required:
+
+- `JWT_SECRET`, its token-signing key, at least 32 characters
+- `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service account at the
+  knowledge base's issuer
+
+A broker credential is named by the variable holding it (`signal.userEnv`,
+`signal.passwordEnv`). Every environment variable the gateway reads, what sets it and what it
+changes, is in
+[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
+
+It runs one worker thread per CPU it may use — its container's CPU limit and affinity — so
+that limit is what sizes it. No variable does: not even `TOKIO_WORKER_THREADS`, which its
+runtime would otherwise read.
+
+## What the image carries
+
+The binary, at `/usr/local/bin/semiont-gateway`, with the spec compiled into it; `tini`; and
+the shared `boot.sh` and supervisor. It carries no source, and nothing is built, installed or
+fetched at start.
+
+## Working on it
+
+The gateway is a member of the repository's Rust workspace, whose root is `packages/rust`
+([Cargo.toml](../../packages/rust/Cargo.toml)). The toolchain is the one
 [rust-toolchain.toml](../../packages/rust/rust-toolchain.toml) pins; run it in its image
-(`rust:<channel>-alpine`) as the rest of the repository runs its tools, in
-packages/rust, the workspace's root:
+(`rust:<channel>-alpine`), as the repository runs its other tools, from `packages/rust`:
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace                 # every crate's tests; the gateway crate has none of its own
+cargo test --workspace                 # every crate's tests, the gateway's among them
 cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/conformance/gateway/README.md), run against the
-built binary on both signal planes; see [TESTING.md](docs/TESTING.md). To run
-one by hand, write a `GatewayConfig` to a file, pass its path to `--config`, and
-set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
+[conformance suite](../../tests/conformance/gateway/README.md), run against the built binary
+on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, write a
+`GatewayConfig` to a file, pass its path to `--config`, and set the three variables under
+[Configuration](#configuration).
 
-The image ([Dockerfile](Dockerfile)) compiles the crate from the repository
-with that toolchain — pass `--build-arg RUST_TOOLCHAIN=<channel>`, as
-`scripts/ci/local-build.sh` and the publish workflow do. Its builder stage is
-the dispatcher image's too, building both binaries (`lint:rust-images`). It is
+## Building it
+
+From the repository root, with the toolchain
+[`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh) prints:
+
+```bash
+docker build --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh) \
+  --file images/gateway/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-gateway:local .
+```
+
+[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and the publish workflow pass
+the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the Archivist's
+and the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to
 [`scripts/container/check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh):
 no source in it, and `/api/health` served within its start bound.
 
-## Further reading
+## Related
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — how it is built: the embedded spec, boot, the signal plane, the ledger, the stream
 - [AUTHENTICATION.md](docs/AUTHENTICATION.md) — tokens, agents, sign-in

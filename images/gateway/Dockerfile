@@ -21,7 +21,7 @@ RUN cargo install cargo-auditable --locked --version 0.7.6
 WORKDIR /build
 COPY version.json ./
 COPY specs/src specs/src
-# The workspace (Cargo.toml at the repository root): cargo loads every member
+# The workspace (packages/rust/Cargo.toml): cargo loads every member
 # to build any one of them, so each member's crate is copied.
 COPY packages/rust/Cargo.toml packages/rust/Cargo.lock packages/rust/
 COPY images/archivist/Cargo.toml images/archivist/
