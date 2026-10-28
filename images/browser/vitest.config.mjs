@@ -2,7 +2,7 @@ import { mergeConfig, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import baseConfig from '../../vitest.shared.config.js'
+import baseConfig from '../../packages/typescript/vitest.shared.config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

@@ -5,12 +5,12 @@ how to emit and subscribe, and how to debug wire-level problems.
 
 For the underlying class model (`SemiontBrowser`, `SemiontClient`,
 `SemiontSession`) see [SESSION.md](SESSION.md). For the canonical
-channel list, see `packages/core/src/bus-protocol.ts` —
+channel list, see `packages/typescript/core/src/bus-protocol.ts` —
 `EventMap` is the single source of truth.
 
 What only someone working on react-ui itself needs, the wire log in e2e tests
 and two gotchas in the implementation, is in the package's
-[EVENTS.md](../../../packages/react-ui/docs/EVENTS.md).
+[EVENTS.md](../../../packages/typescript/react-ui/docs/EVENTS.md).
 
 ## Two buses
 
@@ -120,7 +120,7 @@ function MarkButton({ resourceId, selector }: {
 ```
 
 If you can't tell which bus to target from the channel name, look
-it up in `packages/core/src/bus-protocol.ts`. Don't guess — a
+it up in `packages/typescript/core/src/bus-protocol.ts`. Don't guess — a
 mis-routed emit silently vanishes and the bug shows up as "the UI
 stopped reacting" with no error in the console.
 
@@ -152,7 +152,7 @@ result channel and a failure channel (`browse:resource-requested` → `browse:re
 the frame's **envelope**, not the payload.
 
 Nothing in a component writes that loop. `Bus.request(operation, payload)` in
-`@semiont/core` (`packages/core/src/bus.ts`), which a client hands out as `client.wire`, sends the request, waits for the frame
+`@semiont/core` (`packages/typescript/core/src/bus.ts`), which a client hands out as `client.wire`, sends the request, waits for the frame
 carrying its `correlationId`, and resolves with the reply or rejects with a `BusRequestError`.
 The SDK's namespace methods call it:
 
@@ -196,7 +196,7 @@ regresses, even if the UI eventually converges.
 
 ### State machines driven by events
 
-Most VMs in `packages/sdk/src/state/flows/` follow the
+Most VMs in `packages/typescript/sdk/src/state/flows/` follow the
 same shape: listen for `*-requested`/`*-ok`/`*-failed` triples on
 the session client, project the state machine into BehaviorSubjects,
 and expose them as `vm.state$`. Components read via

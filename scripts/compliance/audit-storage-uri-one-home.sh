@@ -49,7 +49,7 @@ VIOLATIONS=$(grep -rnE '((^|[^.A-Za-z0-9_$])(resource|descriptor|sourceDoc|targe
   --include='*.ts' --include='*.tsx' \
   2>/dev/null \
   | grep -vE "/node_modules/|/dist/|/coverage/" \
-  | grep -v "packages/react-ui/src/components/navigation/SortableResourceTab.tsx" \
+  | grep -v "packages/typescript/react-ui/src/components/navigation/SortableResourceTab.tsx" \
   || true)
 
 if [ -n "$VIOLATIONS" ]; then

@@ -13,14 +13,14 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 | | Step | Where | What fails when it is left out |
 |---|---|---|---|
 | 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `tests/conformance/worker-service/telemetry.test.ts` |
-| 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
+| 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/typescript/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
 | 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `tests/conformance/dispatcher/create.test.ts` |
 | 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
 | 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
 | 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Bind it to a worker](#8-bind-it-to-a-worker) | a knowledge base's Inference document; nothing in the launcher | `TestEveryRosterJobHasAFilter`, in `apps/launcher` |
-| 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
+| 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/typescript/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
 
 The numbers are the order the change reaches each part, and not the order to write it in. The repository works test first: step 5's cases and step 6's case are written before step 4's code, and each is seen to fail for the missing job.
 
@@ -148,7 +148,7 @@ A knowledge base serves the new job once its Inference document's roster binds i
 The wire carries no sentence, so each client has its own words for a job:
 
 - **The launcher** calls an annotation of each motivation by a noun, in `markNouns` ([`mark.go`](../../packages/go/launcher/verbs/mark.go)), and `TestEveryMotivationHasItsNoun` holds that table to `Motivation.json`. `semiont mark --delegate` takes the job's params as flags, and a param no flag gives is a flag added in the same file.
-- **The Browser** words a progress report from [`packages/react-ui/translations`](../../packages/react-ui/translations). `delegate-progress-copy.test.ts` holds that there is one noun for every motivation the spec has, and `npm run lint:translations` that every locale has every key.
+- **The Browser** words a progress report from [`packages/typescript/react-ui/translations`](../../packages/typescript/react-ui/translations). `delegate-progress-copy.test.ts` holds that there is one noun for every motivation the spec has, and `npm run lint:translations` that every locale has every key.
 
 A new progress code is words in both: the launcher's `progressText` ([`job.go`](../../packages/go/launcher/verbs/job.go)), and a key in every locale. What a client shows a person to ask for the job with is that client's own.
 

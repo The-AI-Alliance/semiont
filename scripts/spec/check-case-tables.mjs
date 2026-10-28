@@ -44,7 +44,7 @@ const SPECS = 'specs/src';
 
 /** Each implementation that runs a case table, and the directories its files are in. */
 const IMPLEMENTATIONS = {
-  typescript: ['packages/core', 'packages/sdk', 'packages/http-transport', 'packages/react-ui'],
+  typescript: ['packages/typescript/core', 'packages/typescript/sdk', 'packages/typescript/http-transport', 'packages/typescript/react-ui'],
   rust: ['packages/rust/sdk', 'packages/rust/http-transport'],
   python: ['packages/python/sdk'],
   go: ['packages/go/sdk'],

@@ -4,7 +4,7 @@ The session layer is the per-KB authentication, token-refresh, event-bus,
 and HTTP client glue that sits between the React tree and the gateway.
 
 The file layout and the invariants the implementation keeps are in the
-package's [SESSION.md](../../../packages/react-ui/docs/SESSION.md).
+package's [SESSION.md](../../../packages/typescript/react-ui/docs/SESSION.md).
 
 ## Core classes
 
@@ -104,7 +104,7 @@ or with zero KBs configured.
 to the wrong bus is a silent no-op — subscribers on the other bus
 never see it. `EventMap` is the single source of truth for which
 channel belongs where; if you can't tell from the name, check
-`packages/core/src/bus-protocol.ts`.
+`packages/typescript/core/src/bus-protocol.ts`.
 
 Components pick based on the channel scope:
 
@@ -313,7 +313,7 @@ wiring required.
 Tests use `InMemorySessionStorage` (or a simple subclass adding
 `subscribe()` for cross-context sync simulation) to drive session state
 without depending on jsdom's `localStorage`. See
-`packages/sdk/src/session/__tests__/test-storage-helpers.ts` for
+`packages/typescript/sdk/src/session/__tests__/test-storage-helpers.ts` for
 the test harness pattern.
 
 StateUnit factory tests drive a real `SemiontClient` from `createTestClient()`

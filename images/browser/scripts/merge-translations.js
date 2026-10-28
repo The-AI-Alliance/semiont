@@ -4,7 +4,7 @@
  * Merge react-ui translations into Browser messages
  *
  * This script reads translations from:
- * - packages/react-ui/translations/*.json (react-ui component translations)
+ * - packages/typescript/react-ui/translations/*.json (react-ui component translations)
  * - images/browser/messages-source/*.json (Browser-specific translations)
  *
  * And merges them into:
@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const REACT_UI_TRANSLATIONS_DIR = path.resolve(__dirname, '../../../packages/react-ui/translations');
+const REACT_UI_TRANSLATIONS_DIR = path.resolve(__dirname, '../../../packages/typescript/react-ui/translations');
 const BROWSER_MESSAGES_SOURCE_DIR = path.resolve(__dirname, '../messages-source');
 const BROWSER_MESSAGES_OUTPUT_DIR = path.resolve(__dirname, '../messages');
 // Public copy served by Vite at /messages/{locale}.json for i18next-http-backend

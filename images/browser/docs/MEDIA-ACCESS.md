@@ -52,7 +52,7 @@ header.
 **This preserves authentication — it doesn't bypass it.** Getting a media token
 requires a valid session. The full claim format, validation, and OpenAPI spec
 live in the canonical
-[`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md);
+[`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/typescript/http-transport/docs/MEDIA-TOKENS.md);
 this doc covers how the SPA uses it.
 
 ### Isn't a token in the URL a security hole?
@@ -65,7 +65,7 @@ load-bearing safety property — a leaked media token is cryptographically usele
 against any *other* resource, even one the same user could open with their
 session token. That scoping is exactly why putting it on the URL is acceptable
 where putting a session token there would not be. See the **Threat model**
-section of [MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md).
+section of [MEDIA-TOKENS.md](../../../packages/typescript/http-transport/docs/MEDIA-TOKENS.md).
 
 ## React usage
 
@@ -128,7 +128,7 @@ The split is **display vs programmatic**, not text vs binary:
 
 ## Related documentation
 
-- [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
+- [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/typescript/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
 - [Browser Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
 - [Gateway Authentication Guide](../../gateway/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
 - [System Authentication Architecture](../../../docs/operator/administration/AUTHENTICATION.md) — end-to-end auth flows
@@ -136,9 +136,9 @@ The split is **display vs programmatic**, not text vs binary:
 ---
 
 **Key implementation**:
-- `packages/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
-- `packages/react-ui/src/lib/media-url.ts` — `mediaUrl()`, the one place the `?token=` URL is built
-- `packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx` — the `<img>` / PDF.js consumer, for binary resources
-- `packages/react-ui/src/components/resource/DownloadFileLink.tsx` — the `<a download>` consumer (unsupported-media fallback in both resource views)
-- `packages/sdk/src/namespaces/auth.ts` — `auth.mediaToken()` → `POST /api/tokens/media`
-- `packages/react-ui/src/lib/browser-pdfjs.ts` — PDF.js loader that consumes the `?token=` URL
+- `packages/typescript/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
+- `packages/typescript/react-ui/src/lib/media-url.ts` — `mediaUrl()`, the one place the `?token=` URL is built
+- `packages/typescript/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx` — the `<img>` / PDF.js consumer, for binary resources
+- `packages/typescript/react-ui/src/components/resource/DownloadFileLink.tsx` — the `<a download>` consumer (unsupported-media fallback in both resource views)
+- `packages/typescript/sdk/src/namespaces/auth.ts` — `auth.mediaToken()` → `POST /api/tokens/media`
+- `packages/typescript/react-ui/src/lib/browser-pdfjs.ts` — PDF.js loader that consumes the `?token=` URL

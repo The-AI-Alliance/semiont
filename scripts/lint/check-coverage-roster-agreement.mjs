@@ -68,7 +68,7 @@ const manifestOf = (dir) => {
 
 const workspaces = workspaceDirectories(process.cwd())
   // Keyed by DIRECTORY basename, not npm name: every list this gate compares is
-  // written that way — the matrix interpolates `packages/${matrix.package}`, and
+  // written that way — the matrix interpolates `packages/typescript/${matrix.package}`, and
   // the flags scope `images/browser/**`. `images/browser` is the npm package
   // `semiont-browser`, so keying by npm name silently matches nothing.
   .map((dir) => ({ name: basename(dir), dir }))

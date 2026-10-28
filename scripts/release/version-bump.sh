@@ -126,7 +126,7 @@ update_version_json "$NEXT"
 
 FILES=(version.json package.json)
 
-for dir in packages/*/; do
+for dir in packages/typescript/*/; do
   pkg="${dir}package.json"
   if [[ -f "$pkg" ]]; then
     update_package_json "$pkg" "$NEXT"
@@ -158,7 +158,7 @@ FILES+=(packages/rust/Cargo.toml packages/rust/Cargo.lock)
 echo ""
 echo "Verifying version sync..."
 ERRORS=0
-for pkg in packages/*/package.json apps/*/package.json images/*/package.json; do
+for pkg in packages/typescript/*/package.json apps/*/package.json images/*/package.json; do
   [[ -f "$pkg" ]] || continue
   PKG_VERSION=$(jq -r .version "$pkg")
   if [[ "$PKG_VERSION" != "$NEXT" ]]; then

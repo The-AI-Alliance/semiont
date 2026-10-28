@@ -1,7 +1,7 @@
 // Code generated from specs/src/media-types/registry.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-media-types-go.mjs
-// The TypeScript side (packages/core/src/generated/media-types.ts) and the
+// The TypeScript side (packages/typescript/core/src/generated/media-types.ts) and the
 // Rust side (semiont::media_types) generate from the same registry.
 
 package mediatypes

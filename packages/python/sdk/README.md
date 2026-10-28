@@ -946,7 +946,7 @@ Apache-2.0. See [LICENSE][license].
 [conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/sdk/README.md
 [worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md
 [worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/worker/README.md
-[sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/README.md
+[sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md

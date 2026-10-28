@@ -13,7 +13,7 @@ The Browser uses **i18next** + **react-i18next** for internationalization.
 ## Architecture
 
 ```text
-packages/react-ui/translations/{locale}.json   ← component-level strings
+packages/typescript/react-ui/translations/{locale}.json   ← component-level strings
        +
 images/browser/messages-source/{locale}.json   ← app-level strings
        │
@@ -87,7 +87,7 @@ Translation file (`messages-source/en.json`):
 
 **Source files (edit these):**
 - `images/browser/messages-source/{locale}.json` — app-specific keys (Navigation, KnowledgeBasePanel, UserPanel, etc.)
-- `packages/react-ui/translations/{locale}.json` — react-ui component keys (BrowseView, ResourceViewer, etc.)
+- `packages/typescript/react-ui/translations/{locale}.json` — react-ui component keys (BrowseView, ResourceViewer, etc.)
 
 **Generated files (do not edit):**
 - `images/browser/messages/{locale}.json`
@@ -107,7 +107,7 @@ The languages Semiont supports are the rows of `specs/src/locales/registry.json`
 
 3. Add the react-ui translations:
    ```bash
-   cp packages/react-ui/translations/en.json packages/react-ui/translations/{locale}.json
+   cp packages/typescript/react-ui/translations/en.json packages/typescript/react-ui/translations/{locale}.json
    # Translate all values in {locale}.json
    ```
 
@@ -175,4 +175,4 @@ The test mock reads `messages/en.json` which is generated. Run `npm test` (which
 
 - [i18next Documentation](https://www.i18next.com/)
 - [react-i18next Documentation](https://react.i18next.com/)
-- [@semiont/react-ui documentation](../../../packages/react-ui/README.md)
+- [@semiont/react-ui documentation](../../../packages/typescript/react-ui/README.md)

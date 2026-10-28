@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the error codes a Semiont client reports. Every SDK generates its code types and its classifiers from this file, so a code means one thing in every language. TypeScript: scripts/spec/generate-error-codes.mjs writes packages/core/src/generated/error-codes.ts. A code belongs here only when something produces it: a member nothing emits promises a distinction the system does not make.",
+  "$comment": "AUTHORITY for the error codes a Semiont client reports. Every SDK generates its code types and its classifiers from this file, so a code means one thing in every language. TypeScript: scripts/spec/generate-error-codes.mjs writes packages/typescript/core/src/generated/error-codes.ts. A code belongs here only when something produces it: a member nothing emits promises a distinction the system does not make.",
   "busRequest": {
     "docs": "Why a bus request did not resolve. Some members restate a failure the answering peer declared on the wire (`wire` names its `CommandError.code`); the rest are facts only the requesting side knows, which is why this vocabulary and the wire's stay separate.",
     "unrecognizedFailure": "bus.rejected",

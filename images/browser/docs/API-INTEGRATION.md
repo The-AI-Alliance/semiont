@@ -23,7 +23,7 @@ that maintains framework independence:
               │ mounts
               ▼
 ┌─────────────────────────────────────┐
-│    packages/react-ui                │
+│    packages/typescript/react-ui                │
 │  (Framework-agnostic library)       │
 │                                     │
 │  • SemiontProvider — the single     │
@@ -34,7 +34,7 @@ that maintains framework independence:
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/sdk                     │
+│    packages/typescript/sdk                     │
 │  (SemiontClient + sessions)         │
 │                                     │
 │  • SemiontBrowser / SemiontSession  │
@@ -45,7 +45,7 @@ that maintains framework independence:
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/http-transport          │
+│    packages/typescript/http-transport          │
 │  (Wire adapter)                     │
 │                                     │
 │  • OpenAPI-generated types          │
@@ -362,14 +362,14 @@ like `browse:resources-failed`), raised from the promise returned by
 ### React UI library
 
 - [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) — provider reference
-- [`@semiont/react-ui/docs/ARCHITECTURE.md`](../../../packages/react-ui/docs/ARCHITECTURE.md) — architectural overview
+- [`@semiont/react-ui/docs/ARCHITECTURE.md`](../../../packages/typescript/react-ui/docs/ARCHITECTURE.md) — architectural overview
 - [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) — annotation UI components
 
 ### API client
 
-- [`@semiont/http-transport/README.md`](../../../packages/http-transport/README.md) — API overview
+- [`@semiont/http-transport/README.md`](../../../packages/typescript/http-transport/README.md) — API overview
 - [`docs/builder/Usage.md`](../../../docs/builder/Usage.md) — setup, bus subscription, namespace reference
-- [`@semiont/http-transport/docs/API-Reference.md`](../../../packages/http-transport/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
+- [`@semiont/http-transport/docs/API-Reference.md`](../../../packages/typescript/http-transport/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
 
 ### Gateway
 

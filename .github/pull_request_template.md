@@ -25,7 +25,7 @@
 - [ ] Librarian (`images/librarian`: its image, and its Python code)
 - [ ] Browser (`images/browser`, `apps/desktop`)
 - [ ] Launcher (`apps/launcher`)
-- [ ] TypeScript packages (`packages/sdk` and the other npm workspaces under `packages/`)
+- [ ] TypeScript packages (`packages/typescript/sdk` and the other npm workspaces under `packages/`)
 - [ ] Rust crates (`packages/*-rust`)
 - [ ] Python packages (`packages/python/sdk` and the others under `packages/*-python`)
 - [ ] Go SDK (`packages/go/sdk`)
@@ -67,7 +67,7 @@ Complete this section if the change touches the gateway's routes, how any part m
 - [ ] The cases no schema can state are added under `tests/conformance/gateway/`, each citing the text it checks, and `cd tests/conformance && npm run test:gateway` passes
 - [ ] A credential travels only as `Authorization: Bearer`, or as `?token=` on `GET /api/resources/{id}`: no cookie, and CORS carries no credentials
 - [ ] No token, key or secret reaches a log line, an error body or a committed file
-- [ ] Session code (`packages/sdk/src/session/`, `images/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd images/browser && npm run test:security` pass
+- [ ] Session code (`packages/typescript/sdk/src/session/`, `images/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd images/browser && npm run test:security` pass
 - [ ] `SECURITY.md` and `AUTHENTICATION.md` describe the result
 
 ## Breaking Changes

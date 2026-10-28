@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const sourceDir = path.join(__dirname, '../../../packages/react-ui/public/favicons');
+const sourceDir = path.join(__dirname, '../../../packages/typescript/react-ui/public/favicons');
 const targetDir = path.join(__dirname, '../public/favicons');
 
 // Ensure target directory exists

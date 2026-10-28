@@ -36,7 +36,7 @@ check_tailwind_in_react_ui() {
     )
 
     for pattern in "${PATTERNS[@]}"; do
-        results=$(grep -r "$pattern" packages/react-ui/src --include="*.tsx" --include="*.jsx" 2>/dev/null | grep -v "// Allow" | grep -v ".test." | grep -v ".stories.")
+        results=$(grep -r "$pattern" packages/typescript/react-ui/src --include="*.tsx" --include="*.jsx" 2>/dev/null | grep -v "// Allow" | grep -v ".test." | grep -v ".stories.")
         if [ ! -z "$results" ]; then
             echo -e "${RED}❌ Found Tailwind classes:${NC}"
             echo "$results" | head -5
@@ -54,7 +54,7 @@ check_semiont_prefix() {
     echo "Checking for proper semiont- prefix in react-ui CSS classes..."
 
     # Look for class definitions that don't start with semiont- or allowed exceptions
-    results=$(grep -r "^\." packages/react-ui/src/styles --include="*.css" |
+    results=$(grep -r "^\." packages/typescript/react-ui/src/styles --include="*.css" |
               grep -v "\.semiont-" |
               grep -v "\.annotation-" |
               grep -v "\.red-underline" |
@@ -79,7 +79,7 @@ check_hardcoded_colors() {
     echo "Checking for hardcoded colors in CSS..."
 
     # Look for hex colors and named colors (except in comments)
-    hex_colors=$(grep -r "#[0-9a-fA-F]\{3,6\}" packages/react-ui/src/styles --include="*.css" |
+    hex_colors=$(grep -r "#[0-9a-fA-F]\{3,6\}" packages/typescript/react-ui/src/styles --include="*.css" |
                  grep -v "^[[:space:]]*\*" |
                  grep -v "^[[:space:]]*\/\/" |
                  grep -v "rgba\|rgb\|hsl" |
@@ -92,7 +92,7 @@ check_hardcoded_colors() {
     fi
 
     # Check for named colors
-    named_colors=$(grep -r "\bcolor:[[:space:]]*\(red\|blue\|green\|yellow\|black\|white\|gray\)" packages/react-ui/src/styles --include="*.css" |
+    named_colors=$(grep -r "\bcolor:[[:space:]]*\(red\|blue\|green\|yellow\|black\|white\|gray\)" packages/typescript/react-ui/src/styles --include="*.css" |
                    grep -v "var(--" |
                    head -5)
 
@@ -108,7 +108,7 @@ check_theme_selectors() {
     echo "Checking for problematic theme selectors..."
 
     # Look for the problematic :root:not pattern
-    bad_selectors=$(grep -r ":root:not(\[data-theme" packages/react-ui/src/styles --include="*.css")
+    bad_selectors=$(grep -r ":root:not(\[data-theme" packages/typescript/react-ui/src/styles --include="*.css")
 
     if [ ! -z "$bad_selectors" ]; then
         echo -e "${RED}❌ Found problematic :root:not selectors:${NC}"
@@ -132,7 +132,7 @@ check_theme_selectors
 # Run Stylelint for comprehensive checking
 echo ""
 echo "Running Stylelint..."
-cd packages/react-ui
+cd packages/typescript/react-ui
 npm run lint:css 2>/dev/null
 STYLELINT_EXIT=$?
 cd ../..

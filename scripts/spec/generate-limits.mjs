@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const SPEC = resolve(ROOT, 'specs/openapi.json');
-const OUT_DIR = resolve(ROOT, 'packages/core/src/generated');
+const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 const OUT = resolve(OUT_DIR, 'protocol-limits.ts');
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
@@ -48,4 +48,4 @@ export const itemLimits = ${JSON.stringify(itemLimits, null, 2)} as const;
 `,
 );
 
-console.log(`generated ${Object.keys(operationLimits).length} operations' limits and ${Object.keys(itemLimits).length} item limits → packages/core/src/generated/protocol-limits.ts`);
+console.log(`generated ${Object.keys(operationLimits).length} operations' limits and ${Object.keys(itemLimits).length} item limits → packages/typescript/core/src/generated/protocol-limits.ts`);

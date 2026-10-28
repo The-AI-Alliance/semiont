@@ -492,14 +492,14 @@ but for a connection's `bidirectional` flag, which that prompt does not state.
 - **A citation is a `cites` edge to the main resource from an annotation that
   an `annotation-of` edge places on a resource.** That resource cites the
   main resource, once however many of its annotations do.
-  *Held by `images/librarian/tests/test_derive_views_cases.py`, `packages/core/src/__tests__/derive-views-cases.test.ts` and `images/worker/tests/test_derive_views_cases.py`.*
+  *Held by `images/librarian/tests/test_derive_views_cases.py`, `packages/typescript/core/src/__tests__/derive-views-cases.test.ts` and `images/worker/tests/test_derive_views_cases.py`.*
 - **A connection is any other edge whose source is the main resource,**
   whatever its type, with the name and entity types of its target's node and
   the edge's `bidirectional` flag, which is false where the edge states none.
-  *Held by `images/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `images/librarian/tests/test_derive_views_cases.py` and `packages/typescript/core/src/__tests__/derive-views-cases.test.ts`.*
 - **The sibling entity types are those of the annotation nodes on the main
   resource, but for the focal annotation,** each once.
-  *Held by `images/librarian/tests/test_derive_views_cases.py`, `packages/core/src/__tests__/derive-views-cases.test.ts` and `images/worker/tests/test_derive_views_cases.py`.*
+  *Held by `images/librarian/tests/test_derive_views_cases.py`, `packages/typescript/core/src/__tests__/derive-views-cases.test.ts` and `images/worker/tests/test_derive_views_cases.py`.*
 
 ## The two waits
 

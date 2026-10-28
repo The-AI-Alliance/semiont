@@ -105,7 +105,7 @@
 # sdk: one for each language a Semiont SDK is written in, or is to be.
 - name: "sdk:typescript"
   color: "bfd4f2"
-  description: "The TypeScript SDK (packages/sdk)"
+  description: "The TypeScript SDK (packages/typescript/sdk)"
 - name: "sdk:python"
   color: "bfd4f2"
   description: "The Python SDK (packages/python/sdk)"

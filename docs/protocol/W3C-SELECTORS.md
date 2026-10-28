@@ -16,7 +16,7 @@ how a scanned page gets one at all, is
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
 - [OpenAPI Specification](../../specs/src/openapi.json) - Machine-readable API spec
 - [Media Types](../architecture/MEDIA-TYPES.md) - What each media type declares, and what that changes
-- [@semiont/core Utilities](../../packages/core/docs/Utilities.md) - Implementation aids: fuzzy anchoring, SVG selector parsing, position validation
+- [@semiont/core Utilities](../../packages/typescript/core/docs/Utilities.md) - Implementation aids: fuzzy anchoring, SVG selector parsing, position validation
 
 ## Text selectors
 
@@ -110,7 +110,7 @@ the text that starts at end, as long as suffix is       is suffix   // when suff
 
 Every position and every length there is counted in code points.
 
-This write-time reconciliation (`reconcile` in `@semiont/core`, and in every SDK) is where fuzzy matching lives — verbatim, then deterministic normalization (smart quotes, whitespace), then Levenshtein within a 5% tolerance — because the source content is in hand and the output is the authoritative record. All five annotation-detection workers converge on it. When `exact` appears more than once, prefix/suffix disambiguate; an undisambiguated multi-occurrence match is flagged `first-of-many` for audit rather than silently anchored. See [@semiont/core Utilities](../../packages/core/docs/Utilities.md#reconcile-what-a-model-quoted).
+This write-time reconciliation (`reconcile` in `@semiont/core`, and in every SDK) is where fuzzy matching lives — verbatim, then deterministic normalization (smart quotes, whitespace), then Levenshtein within a 5% tolerance — because the source content is in hand and the output is the authoritative record. All five annotation-detection workers converge on it. When `exact` appears more than once, prefix/suffix disambiguate; an undisambiguated multi-occurrence match is flagged `first-of-many` for audit rather than silently anchored. See [@semiont/core Utilities](../../packages/typescript/core/docs/Utilities.md#reconcile-what-a-model-quoted).
 
 ### Render-Time Anchoring (Verbatim Only)
 

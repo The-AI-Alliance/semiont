@@ -1,0 +1,33 @@
+{
+  "extends": [
+    "../../packages/typescript/react-ui/.stylelintrc.json"
+  ],
+  "rules": {
+    "semiont/invariants": null,
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "config",
+          "plugin",
+          "theme",
+          "utility",
+          "variant",
+          "custom-variant",
+          "source",
+          "layer",
+          "apply"
+        ]
+      }
+    ],
+    "function-no-unknown": [
+      true,
+      {
+        "ignoreFunctions": [
+          "theme"
+        ]
+      }
+    ],
+    "selector-class-pattern": null
+  }
+}

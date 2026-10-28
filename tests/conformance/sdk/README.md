@@ -363,9 +363,9 @@ remembers.
 
 Write a driver for each layer over the SDK's public API, add them to its line
 of `SDK_DRIVERS`, and run the suite. TypeScript's are
-[packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts)
+[packages/typescript/http-transport/conformance/driver.ts](../../../packages/typescript/http-transport/conformance/driver.ts)
 for the wire and
-[packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
+[packages/typescript/sdk/conformance/driver.ts](../../../packages/typescript/sdk/conformance/driver.ts)
 for the live layer. Rust's are the two binaries of the crate
 [packages/rust/http-transport/conformance](../../../packages/rust/http-transport/conformance):
 [semiont-wire-driver](../../../packages/rust/http-transport/conformance/src/bin/semiont-wire-driver.rs)

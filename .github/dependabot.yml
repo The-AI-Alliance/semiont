@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # All npm dependencies — root + every workspace (apps/*, images/*, packages/*) in one pass.
+  # All npm dependencies — root + every workspace (apps/*, images/*, packages/typescript/*) in one pass.
   # A single "/" entry traverses all npm workspaces, so per-workspace entries are
   # redundant. Groups below match by package name across every workspace.
   #

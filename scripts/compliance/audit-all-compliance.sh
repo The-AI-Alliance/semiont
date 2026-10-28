@@ -64,13 +64,13 @@ bash "$COMPLIANCE_DIR/audit-compliance-gate.sh"
 echo ""
 
 # React-UI source code
-echo "📦 Auditing packages/react-ui source..."
-cd "$REPO_ROOT/packages/react-ui"
+echo "📦 Auditing packages/typescript/react-ui source..."
+cd "$REPO_ROOT/packages/typescript/react-ui"
 npm run audit:compliance
 echo ""
 
 # React-UI tests
-echo "🧪 Auditing packages/react-ui tests..."
+echo "🧪 Auditing packages/typescript/react-ui tests..."
 npm run audit:compliance:tests
 echo ""
 

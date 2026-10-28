@@ -1,5 +1,5 @@
 {
-  "$comment": "GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel's attributes, as packages/core/src/bus-classification.ts states them; the Rust gateway embeds this file.",
+  "$comment": "GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel's attributes, as packages/typescript/core/src/bus-classification.ts states them; the Rust gateway embeds this file.",
   "channels": {
     "yield:created": {
       "recorded": true,

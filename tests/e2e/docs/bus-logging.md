@@ -36,7 +36,7 @@ This is **Tier 1 of the three-tier observability stack** —
 correlation-ID discipline at the transport contract layer. Tier 2
 (OpenTelemetry spans) and Tier 3 (metrics + log correlation) reuse the
 same choke points;
-[`@semiont/observability`](../../../packages/observability/README.md)
+[`@semiont/observability`](../../../packages/typescript/observability/README.md)
 lists the three.
 
 ## Choke points

@@ -15,9 +15,9 @@ const { execFileSync, spawn } = require('child_process');
 const PACKAGES = [
   {
     name: '@semiont/react-ui',
-    input: 'packages/react-ui/src/styles/index.css',
-    output: 'packages/react-ui/dist/styles/index.css',
-    watch: 'packages/react-ui/src/styles/**/*.css'
+    input: 'packages/typescript/react-ui/src/styles/index.css',
+    output: 'packages/typescript/react-ui/dist/styles/index.css',
+    watch: 'packages/typescript/react-ui/src/styles/**/*.css'
   }
 ];
 

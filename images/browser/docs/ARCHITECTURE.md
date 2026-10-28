@@ -239,7 +239,7 @@ ResourceViewerPage
 
 Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
 
-See [`@semiont/http-transport/docs/MEDIA-TOKENS.md`](../../../packages/http-transport/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
+See [`@semiont/http-transport/docs/MEDIA-TOKENS.md`](../../../packages/typescript/http-transport/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
 
 ### UI State (React Context)
 
@@ -298,7 +298,7 @@ The table of what each event does to which cache is `specs/src/client/refresh.js
 **Auth failures (401 / 403):** The transport stamps every failure with a `TransportErrorCode` — `unauthorized` for 401, `forbidden` for 403 — and republishes them on `session.errors$`. `SemiontBrowser` subscribes to the active session's error stream and routes them to that session's `SessionSignals`:
 
 ```typescript
-// SemiontBrowser, when a session activates (packages/sdk/src/session/semiont-browser.ts)
+// SemiontBrowser, when a session activates (packages/typescript/sdk/src/session/semiont-browser.ts)
 const signals = createSessionSignals(); // handed to the session factory, then published as activeSignals$
 session.errors$.subscribe((err) => {
   if (err.code === 'unauthorized') void session.refresh();
@@ -464,7 +464,7 @@ images/browser/src/
 │   └── browser-stubs/     # Browser API stubs
 └── types/                 # TypeScript type definitions
 
-packages/react-ui/src/      # Reusable React components library
+packages/typescript/react-ui/src/      # Reusable React components library
 ├── features/              # Feature-based components
 │   ├── auth/              # Authentication error surface
 │   │   ├── components/
@@ -503,11 +503,11 @@ packages/react-ui/src/      # Reusable React components library
 
 **Key Separation:**
 - `images/browser/src` - Vite SPA pages and app-specific implementations
-- `packages/react-ui/src` - Framework-agnostic components and interfaces
+- `packages/typescript/react-ui/src` - Framework-agnostic components and interfaces
 
-**Note**: `AuthErrorDisplay` is framework-agnostic and lives in `packages/react-ui/src/features/auth/`. Signing in is not a component: the Browser sends the user to the knowledge base's issuer and completes the exchange on its callback route. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
+**Note**: `AuthErrorDisplay` is framework-agnostic and lives in `packages/typescript/react-ui/src/features/auth/`. Signing in is not a component: the Browser sends the user to the knowledge base's issuer and completes the exchange on its callback route. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
 
-See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
+See [`@semiont/react-ui/docs/`](../../../packages/typescript/react-ui/docs/) for documentation on the reusable component library.
 
 ## Key Design Patterns
 
@@ -677,13 +677,13 @@ Panels keep their entries' DOM nodes through React ref callbacks, not through an
 ### React UI Library
 - [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) - Provider Pattern architecture
 - [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system documentation
-- [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
+- [`@semiont/react-ui/docs/`](../../../packages/typescript/react-ui/docs/) - Complete library documentation
 
 ### Browser Documentation
 - [AUTHENTICATION.md](./AUTHENTICATION.md) - Authentication and authorization
 - [AUTHORIZATION.md](./AUTHORIZATION.md) - Permission model
-- [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
-- [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
+- [RENDERING-ARCHITECTURE.md](../../../packages/typescript/react-ui/docs/RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
+- [CODEMIRROR-INTEGRATION.md](../../../packages/typescript/react-ui/docs/CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
-- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/typescript/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard navigation implementation

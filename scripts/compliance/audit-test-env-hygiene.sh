@@ -26,7 +26,7 @@ FAIL=0
 is_test_file() { echo "$1" | grep -qE '__tests__|test-setup|\.test\.ts$|vitest\.setup'; }
 
 # Reads per workspace directory, computed once. A closure can be most of
-# packages/*, and every package computes its own closure, so without this
+# packages/typescript/*, and every package computes its own closure, so without this
 # the same trees get re-scanned a dozen times.
 READS_CACHE=$(mktemp -d)
 trap 'rm -rf "$READS_CACHE"' EXIT
@@ -65,7 +65,7 @@ const visit = (dir) => {
   }
   for (const name of Object.keys(pkg.dependencies ?? {})) {
     if (!name.startsWith("@semiont/")) continue;
-    const dep = path.join("packages", name.slice("@semiont/".length));
+    const dep = path.join("packages", "typescript", name.slice("@semiont/".length));
     if (fs.existsSync(path.join(dep, "package.json"))) visit(dep);
   }
 };
@@ -74,7 +74,7 @@ for (const dir of seen) console.log(dir);
 ' "$1"
 }
 
-for tree in images/browser packages/*; do
+for tree in images/browser packages/typescript/*; do
   [ -d "$tree/src" ] || continue
 
   # Writes: this tree's own tests. Fabricating env for a package you merely

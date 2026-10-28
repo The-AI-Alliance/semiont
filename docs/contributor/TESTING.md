@@ -41,7 +41,7 @@ There is no test orchestrator and no test environment to select. A suite's confi
 
 ### One shared Vitest config
 
-[`vitest.shared.config.ts`](../../vitest.shared.config.ts) at the repository root holds what every workspace suite has in common:
+[`vitest.shared.config.ts`](../../packages/typescript/vitest.shared.config.ts), beside the TypeScript packages, holds what every workspace suite has in common:
 
 - `globals: true` and the `node` environment;
 - the test files, `src/**/*.test.{ts,tsx}`, excluding `node_modules` and `dist`;
@@ -56,8 +56,8 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 | Workspace | Local configuration |
 |---|---|
 | `images/browser` | `jsdom`; [`vitest.setup.ts`](../../images/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
-| `packages/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
-| `packages/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
+| `packages/typescript/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/typescript/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
+| `packages/typescript/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
 | `packages/` `http-transport`, `observability`, `sdk` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
@@ -119,7 +119,7 @@ npm run test:coverage       # everything, with coverage
 npm run test:watch          # watch mode
 ```
 
-`test`, `test:coverage` and `test:security` first generate the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist. The Browser's own guide is [images/browser/docs/TESTING.md](../../images/browser/docs/TESTING.md), and react-ui's is [packages/react-ui/docs/TESTING.md](../../packages/react-ui/docs/TESTING.md).
+`test`, `test:coverage` and `test:security` first generate the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist. The Browser's own guide is [images/browser/docs/TESTING.md](../../images/browser/docs/TESTING.md), and react-ui's is [packages/typescript/react-ui/docs/TESTING.md](../../packages/typescript/react-ui/docs/TESTING.md).
 
 ### Rust
 
@@ -168,7 +168,7 @@ uv run ruff check && uv run ruff format --check
 uv run pytest
 ```
 
-Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The skill's complete TypeScript worker is run, as the skill shows it, by `packages/sdk/src/__tests__/worker-skill.test.ts`, which needs the packages built. The package's own tests are built on `semiont.testing`, the doubles it ships.
+Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The skill's complete TypeScript worker is run, as the skill shows it, by `packages/typescript/sdk/src/__tests__/worker-skill.test.ts`, which needs the packages built. The package's own tests are built on `semiont.testing`, the doubles it ships.
 
 ### In a container
 
@@ -364,6 +364,6 @@ Locally, run the suite for the code you changed. CI runs the whole matrix.
 ## Related
 
 - [Local Development](LOCAL-DEVELOPMENT.md): building a stack from your tree to test against
-- [Browser testing](../../images/browser/docs/TESTING.md), [react-ui testing](../../packages/react-ui/docs/TESTING.md), [gateway testing](../../images/gateway/docs/TESTING.md): each part's own guide
+- [Browser testing](../../images/browser/docs/TESTING.md), [react-ui testing](../../packages/typescript/react-ui/docs/TESTING.md), [gateway testing](../../images/gateway/docs/TESTING.md): each part's own guide
 - [The conformance suites](../../tests/conformance/README.md): what they are and how the harness works
 - [Testing with the SDK's doubles](../builder/react-ui/TESTING.md): for anyone building on the SDK

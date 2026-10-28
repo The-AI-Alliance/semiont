@@ -13,7 +13,7 @@ import { readOAuthClients } from './oauth-clients.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
-const OUT = resolve(ROOT, 'packages/core/src/generated/oauth-clients.ts');
+const OUT = resolve(ROOT, 'packages/typescript/core/src/generated/oauth-clients.ts');
 
 const { clients, scope } = readOAuthClients(TABLE);
 

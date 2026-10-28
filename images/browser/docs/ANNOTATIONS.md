@@ -77,7 +77,7 @@ For complete architecture details on how annotations flow through the gateway da
 
 The Annotation Registry is provided by `@semiont/react-ui` and is a centralized system that provides a **single source of truth** for all annotation type metadata. This eliminates hard-coded lists scattered across the codebase.
 
-**Implementation**: [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts)
+**Implementation**: [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/typescript/react-ui/src/lib/annotation-registry.ts)
 
 ### Design Philosophy
 
@@ -169,22 +169,22 @@ announceAnnotationCreated(annotation); // 'Highlight created', 'Comment created'
 The registry holds every per-motivation fact, but supporting another motivation takes more than a registry entry. It touches:
 
 - `specs/src/components/schemas/Motivation.json` — the `Motivation` enum must admit it (then regenerate the types in `@semiont/core`), and a type guard in `@semiont/core` recognizes it
-- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) — its annotator
-- `packages/react-ui/src/types/annotation-props.ts` and `packages/react-ui/src/lib/annotation-groups.ts` — `AnnotationsCollection` and the grouping that fills it have one bucket per motivation
-- `packages/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx` — its tab, and a panel for it
-- `packages/react-ui/src/styles/motivations/` — the stylesheet for its `annotation-<type>` class
+- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/typescript/react-ui/src/lib/annotation-registry.ts) — its annotator
+- `packages/typescript/react-ui/src/types/annotation-props.ts` and `packages/typescript/react-ui/src/lib/annotation-groups.ts` — `AnnotationsCollection` and the grouping that fills it have one bucket per motivation
+- `packages/typescript/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx` — its tab, and a panel for it
+- `packages/typescript/react-ui/src/styles/motivations/` — the stylesheet for its `annotation-<type>` class
 
 ### Files Using the Registry
 
 The registry is imported and used in `@semiont/react-ui`:
 
-- [`@semiont/react-ui/src/lib/annotation-overlay.ts`](../../../packages/react-ui/src/lib/annotation-overlay.ts) - Annotation overlay (BrowseView)
-- [`@semiont/react-ui/src/lib/codemirror-logic.ts`](../../../packages/react-ui/src/lib/codemirror-logic.ts) - CodeMirror decoration classes
-- [`@semiont/react-ui/src/components/resource/BrowseView.tsx`](../../../packages/react-ui/src/components/resource/BrowseView.tsx) - Browse mode rendering
-- [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
-- [`@semiont/react-ui/src/components/resource/ResourceViewer.tsx`](../../../packages/react-ui/src/components/resource/ResourceViewer.tsx) - Click handlers
-- [`@semiont/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx`](../../../packages/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx) - Grouping and tabs
-- [`@semiont/react-ui/src/state/shell-state-unit.ts`](../../../packages/react-ui/src/state/shell-state-unit.ts) - Motivation → panel tab
+- [`@semiont/react-ui/src/lib/annotation-overlay.ts`](../../../packages/typescript/react-ui/src/lib/annotation-overlay.ts) - Annotation overlay (BrowseView)
+- [`@semiont/react-ui/src/lib/codemirror-logic.ts`](../../../packages/typescript/react-ui/src/lib/codemirror-logic.ts) - CodeMirror decoration classes
+- [`@semiont/react-ui/src/components/resource/BrowseView.tsx`](../../../packages/typescript/react-ui/src/components/resource/BrowseView.tsx) - Browse mode rendering
+- [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/typescript/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
+- [`@semiont/react-ui/src/components/resource/ResourceViewer.tsx`](../../../packages/typescript/react-ui/src/components/resource/ResourceViewer.tsx) - Click handlers
+- [`@semiont/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx`](../../../packages/typescript/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx) - Grouping and tabs
+- [`@semiont/react-ui/src/state/shell-state-unit.ts`](../../../packages/typescript/react-ui/src/state/shell-state-unit.ts) - Motivation → panel tab
 
 ### Benefits
 
@@ -247,7 +247,7 @@ An offset counts the content's Unicode code points; `offsets` is `textOffsets(co
 
 ## Visual Design System
 
-Each motivation's styles live in `packages/react-ui/src/styles/motivations/` (`motivation-highlight.css`, `motivation-comment.css`, …) as its `annotation-<type>` class, with dark-theme variants.
+Each motivation's styles live in `packages/typescript/react-ui/src/styles/motivations/` (`motivation-highlight.css`, `motivation-comment.css`, …) as its `annotation-<type>` class, with dark-theme variants.
 
 ### Interaction States
 - **Hover**: Each annotation class has its own hover style
@@ -300,9 +300,9 @@ const entityTypes$ = session.client.browse.entityTypes();
 
 ## Testing
 
-- `packages/react-ui/src/lib/__tests__/annotation-registry.test.ts` - The registry
-- `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` - Text segmentation
-- `packages/react-ui/src/lib/__tests__/annotation-overlay.test.ts` - The BrowseView overlay
+- `packages/typescript/react-ui/src/lib/__tests__/annotation-registry.test.ts` - The registry
+- `packages/typescript/react-ui/src/lib/__tests__/text-segmentation.test.ts` - Text segmentation
+- `packages/typescript/react-ui/src/lib/__tests__/annotation-overlay.test.ts` - The BrowseView overlay
 
 ## W3C Annotation Data Model
 
@@ -360,16 +360,16 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### React UI Library
 - [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) - Complete annotation system documentation with Provider Pattern architecture
-- [`@semiont/react-ui/docs/ANNOTATION-CLICK.md`](../../../packages/react-ui/docs/ANNOTATION-CLICK.md) - Click and hover coordination
-- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
+- [`@semiont/react-ui/docs/ANNOTATION-CLICK.md`](../../../packages/typescript/react-ui/docs/ANNOTATION-CLICK.md) - Click and hover coordination
+- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/typescript/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 
 ### W3C Web Annotation Implementation
 - [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)
 
 ### Browser Documentation
-- [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
-- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
-- [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [CODEMIRROR-INTEGRATION.md](../../../packages/typescript/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
+- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/typescript/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [RENDERING-ARCHITECTURE.md](../../../packages/typescript/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### System Documentation
 - [Architecture](../../../docs/architecture/README.md) - Overall system architecture

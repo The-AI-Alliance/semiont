@@ -50,11 +50,12 @@ semiont/
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
-│   ├── core/               # Generated types, typed ids, the bus protocol
-│   ├── sdk/                # The TypeScript SDK
-│   ├── http-transport/     # The SDK's transport over a gateway
-│   ├── react-ui/           # React components and hooks
-│   ├── observability/      # Tracing and metrics for the TypeScript transport
+│   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
+│   │   ├── core/           # Generated types, typed ids, the bus protocol
+│   │   ├── sdk/            # The TypeScript SDK
+│   │   ├── http-transport/ # The SDK's transport over a gateway
+│   │   ├── react-ui/       # React components and hooks
+│   │   └── observability/  # Tracing and metrics for the TypeScript transport
 │   ├── rust/               # The Rust workspace: Cargo.toml, Cargo.lock, rust-toolchain.toml, deny.toml
 │   │   ├── sdk/            # The Rust SDK (crate `semiont`), with
 │   │   ├── http-transport/ telemetry/ codegen/
@@ -92,7 +93,7 @@ Each app, image and package has a README, and most have a `docs/` directory abou
 
 1. Create `packages/<name>/` with a `package.json`, `tsconfig.json` and build config, following a neighbor. Name it `@semiont/<name>`. Depend on other `@semiont/*` packages as `"*"`, never a version ([why](DEPENDENCIES.md#how-packages-here-depend-on-each-other)).
 2. Add it to [`version.json`](../../version.json), after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `local-build.sh`, and anything that installs it gets a 404.
-3. Give it a `vitest.config.ts` that merges the [shared config](../../vitest.shared.config.ts), and a `test:coverage` script. `npm run lint:vitest-coverage` and `npm run lint:coverage-roster` say what else has to list it.
+3. Give it a `vitest.config.ts` that merges the [shared config](../../packages/typescript/vitest.shared.config.ts), and a `test:coverage` script. `npm run lint:vitest-coverage` and `npm run lint:coverage-roster` say what else has to list it.
 4. A package that will be published needs seeding on npm before its first release ([Release](RELEASE.md#a-new-package)).
 
 ## Changing the builder docs and the SDK

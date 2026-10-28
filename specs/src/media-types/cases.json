@@ -1,7 +1,7 @@
 {
   "$comment": "The rules every SDK reads from registry.json, as cases each SDK runs. `cloneFormat`: the format a clone of a resource takes: its source's base media type when that is one a person can author, and text/plain otherwise, since a clone opens where a person writes. `storageFileName`: the name a resource's content is stored under: its title in lower case, every run of characters that are not a to z or 0 to 9 made one hyphen, none at either end, and then the format's extension. A `file://` storage URI is that name behind the scheme. `textSource`: where the text of a resource of a format comes from, and the two things that follow from it. A format's parameters and its letter case are not part of its type. A type the registry lists answers as its row says: `decode`, its bytes are its text; `pdf-text-layer`, its text is derived by reading its bytes; `none`, it has no text. A type the registry does not list is `decode` when it is a `text/` type, and `none` otherwise. `yieldsGeometry` is whether that text comes with where each run of it is on a page: a text derived from a PDF does, and a decoded one does not. `derivesText` is whether the text is derived from the bytes, and not decoded from them. Every case states all three: TypeScript's `textSourceOf`, `yieldsGeometryOf` and `derivesTextOf`, and `text_source_of`, `yields_geometry_of` and `derives_text_of` in Rust and in Python.",
   "runBy": {
-    "typescript": ["packages/core/src/__tests__/media-type-registry.test.ts"],
+    "typescript": ["packages/typescript/core/src/__tests__/media-type-registry.test.ts"],
     "rust": ["packages/rust/sdk/tests/media_types.rs"],
     "python": ["packages/python/sdk/tests/test_media_types.py"],
     "go": ["packages/go/sdk/mediatypes/mediatypes_test.go"]
