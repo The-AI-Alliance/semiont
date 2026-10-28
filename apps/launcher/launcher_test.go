@@ -48,18 +48,6 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-	// Refuse to run if a (possibly live) stack's staged configs exist: the
-	// launcher's preflight sweeps /tmp/semiont-config.* and deleting the
-	// backing files under a live container mount breaks that stack. In CI and
-	// in a build container /tmp is clean; on a dev host, stop the stack first.
-	// Windows has no shared /tmp to guard: a scenario there stages under the
-	// temporary directory its own environment names.
-	if runtime.GOOS != "windows" {
-		if pre, _ := filepath.Glob("/tmp/semiont-config.*"); len(pre) > 0 {
-			fmt.Fprintf(os.Stderr, "refusing to run: %v exist — a live stack may mount them (run semiont stop, or test in a container)\n", pre)
-			os.Exit(1)
-		}
-	}
 	binDir, err := os.MkdirTemp("", "launcher-bins")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -69,13 +57,15 @@ func TestMain(m *testing.M) {
 	launcherBin = filepath.Join(binDir, harness.Exe("semiont"))
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
 	// The launcher under test is built with the scenario tag, and only that
-	// build can be told two things a released one cannot: it verifies images
+	// build does three things a released one does not: it verifies images
 	// against Sigstore's test authority (internal/provenance/fake.go), told by
 	// fake-sigstore.json in its data directory what each image's attestation
-	// says; and it dials the fake runtime's host address and a fake network
+	// says; it dials the fake runtime's host address and a fake network
 	// address at loopback, where the fake's stand-in services listen, and binds
 	// a listener asked for the network address there too
-	// (internal/launcher/hostnet_scenario.go).
+	// (internal/launcher/hostnet_scenario.go); and it stages the configs it
+	// mounts under the temporary directory its environment names, which is
+	// each scenario's own (internal/launcher/staging_scenario.go).
 	for _, build := range [][]string{
 		{"build", "-tags", "scenario", "-o", launcherBin, "."},
 		{"build", "-o", fakertBin, "./internal/fakert"},
@@ -167,10 +157,8 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 		home:      asTheSystemNamesIt(t, t.TempDir()),
 		fakertDir: t.TempDir(),
 	}
-	if runtime.GOOS == "windows" {
-		if err := os.MkdirAll(s.stagingParent(), 0o755); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.MkdirAll(s.stagingParent(), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	s.log = filepath.Join(s.fakertDir, "argv.log")
 	// The audience fakert's issuer stamps into service-account tokens, so the
@@ -198,14 +186,14 @@ func asTheSystemNamesIt(t *testing.T, dir string) string {
 	return resolved
 }
 
-// stagingParent: where this scenario's launcher stages the configs it mounts.
-// /tmp on macOS and Linux, which every scenario shares; on Windows the
-// temporary directory the scenario's environment names.
+// stagingParent: where this scenario's launcher stages the configs it mounts:
+// the temporary directory the scenario's environment names, under its own
+// home, so no scenario finds another's staged configs.
 func (s *scenario) stagingParent() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(s.home, "AppData", "Local", "Temp")
 	}
-	return "/tmp"
+	return filepath.Join(s.home, "tmp")
 }
 
 // stagingPattern: every staging dir under it, as the launcher prints it.
@@ -394,6 +382,8 @@ func (s *scenario) env() []string {
 			"TEMP="+s.stagingParent(),
 			"TMP="+s.stagingParent(),
 		)
+	} else {
+		env = append(env, "TMPDIR="+s.stagingParent())
 	}
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
@@ -479,8 +469,8 @@ func (s *scenario) argv(t *testing.T) string {
 // either can never bake a tmp dir into a golden that greens on refresh and
 // reds on every later run.
 func (s *scenario) norm(text string) string {
-	// A directory before the one it is under: on Windows the staging dir and
-	// both homes are under the scenario's home.
+	// A directory before the one it is under: the staging dir and both homes
+	// are under the scenario's home.
 	out := strings.ReplaceAll(text, s.stagingPattern(), "<config-stages>")
 	out = withPlaceholder(out, s.stageRe(), "<config-stage>")
 	for _, d := range []struct{ dir, placeholder string }{
@@ -5989,10 +5979,6 @@ func TestStopTwiceIsHonest(t *testing.T) {
 	// A stop with no record, no containers, and no staging says so — it
 	// doesn't claim to have stopped a stack that wasn't there.
 	s := newScenario(t, "container", "docker")
-	removeStale, _ := filepath.Glob(s.stagingPattern())
-	for _, d := range removeStale {
-		os.RemoveAll(d) // suite-order leftovers from boot tests
-	}
 	stdout, _, code := s.run(t, "stop")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stdout)
