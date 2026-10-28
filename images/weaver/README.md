@@ -113,10 +113,10 @@ same graph.
 ## What the image carries
 
 The service, and the three Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the
-graph stores ([`packages/graph-python`](../../packages/graph-python/)), which ask a graph
+([`packages/python/sdk`](../../packages/python/sdk/)), its client of the gateway; the
+graph stores ([`packages/python/graph`](../../packages/python/graph/)), which ask a graph
 database; and what every Python service is built on
-([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+([`packages/python/service`](../../packages/python/service/)), which reads its configuration,
 answers for its health, writes its log and exports its telemetry. All four are built into
 the image from the commit it is published from, and carry
 [`version.json`](../../version.json)'s version. Everything else in its environment is what
@@ -125,7 +125,7 @@ starts.
 
 **Every graph database's client is in it.** The stores ask each database through that
 database's own client, which their package brings as an extra named for the store
-([what an install has](../../packages/graph-python/README.md#what-an-install-has)). The image
+([what an install has](../../packages/python/graph/README.md#what-an-install-has)). The image
 is built with every extra, so it is not rebuilt to be pointed at another database.
 
 **The launcher writes its document for Neo4j alone,** the one graph database it runs and the
@@ -166,7 +166,7 @@ checks what a built one promises.
 ## Related
 
 - [WEAVER.md](../../docs/protocol/WEAVER.md) — what a Weaver does, rule by rule
-- [`semiont-graph`](../../packages/graph-python/) — the graph stores, and what the graph holds
+- [`semiont-graph`](../../packages/python/graph/) — the graph stores, and what the graph holds
 - [Gateway](../gateway/) — the bus it rides
 - [Librarian](../librarian/) and [Archivist](../archivist/) — the readers whose barriers wait on
   its signals

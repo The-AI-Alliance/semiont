@@ -966,7 +966,7 @@
           "packages/sdk-rust/src/annotations.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/annotations.py"
+          "packages/python/sdk/src/semiont/annotations.py"
         ],
         "go": [
           "packages/go/sdk/annotations"
@@ -1169,7 +1169,7 @@
           "packages/sdk-rust/src/job_filter.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/job_filter.py"
+          "packages/python/sdk/src/semiont/job_filter.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1197,7 +1197,7 @@
           "packages/sdk-rust/src/retry.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/retry.py"
+          "packages/python/sdk/src/semiont/retry.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1221,7 +1221,7 @@
           "packages/sdk-rust/src/session/knowledge_base.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/http/endpoint.py"
+          "packages/python/sdk/src/semiont/http/endpoint.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1246,7 +1246,7 @@
           "packages/sdk-rust/src/session/stored.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/session.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1301,7 +1301,7 @@
           "packages/sdk-rust/src/cache.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/storage.py"
+          "packages/python/sdk/src/semiont/storage.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1330,9 +1330,9 @@
           "packages/sdk-rust/src/transport.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/bus.py",
-          "packages/sdk-python/src/semiont/transport.py",
-          "packages/sdk-python/src/semiont/channels.py"
+          "packages/python/sdk/src/semiont/bus.py",
+          "packages/python/sdk/src/semiont/transport.py",
+          "packages/python/sdk/src/semiont/channels.py"
         ],
         "go": [
           "packages/go/sdk",
@@ -1381,7 +1381,7 @@
           "packages/http-transport-rust/src/session.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/session.py"
         ],
         "go": [
           "packages/go/sdk/registry"
@@ -1666,7 +1666,7 @@
           "packages/sdk-rust/src/errors.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/session.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1756,7 +1756,7 @@
           "packages/http-transport-rust/src/discovery.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/session.py"
         ],
         "go": [
           "packages/go/sdk/discovery"
@@ -1884,7 +1884,7 @@
           "packages/sdk-rust/src/testing/storage.rs"
         ],
         "python": [
-          "packages/sdk-python/src/semiont/testing/__init__.py"
+          "packages/python/sdk/src/semiont/testing/__init__.py"
         ],
         "go": [
           "packages/go/sdk/semionttest"

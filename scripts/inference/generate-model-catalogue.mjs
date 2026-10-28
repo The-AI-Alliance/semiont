@@ -24,7 +24,7 @@
 // the repository's generated copy (images/worker/Dockerfile,
 // images/librarian/Dockerfile).
 //
-// The repository keeps one generated copy: packages/inference-python/tests/catalogue.
+// The repository keeps one generated copy: packages/python/inference/tests/catalogue.
 // It is the fixture of the Python package's tests and the file the images
 // carry. It is real
 // data at the pin, so those tests read real entries, and CI's drift job

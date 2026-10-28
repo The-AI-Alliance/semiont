@@ -59,10 +59,10 @@ jobs:
       - name: Name the package and the version
         id: plan
         run: |
-          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' packages/sdk-python/pyproject.toml)
+          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' packages/python/sdk/pyproject.toml)
           version=$(jq -r .version version.json)
           if [ -z "$name" ] || [ -z "$version" ] || [ "$version" = "null" ]; then
-            echo "::error::no name in packages/sdk-python/pyproject.toml, or no version in version.json"
+            echo "::error::no name in packages/python/sdk/pyproject.toml, or no version in version.json"
             exit 1
           fi
           if [ "${{ inputs.stable_release }}" != "true" ]; then
@@ -111,7 +111,7 @@ jobs:
         if: ${{ !inputs.dry_run && steps.there.outputs.published == 'false' }}
         uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
-          packages-dir: packages/sdk-python/dist/
+          packages-dir: packages/python/sdk/dist/
 
       - name: Summary
         env:

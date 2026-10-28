@@ -3,7 +3,7 @@
   "runBy": {
     "typescript": ["packages/core/src/__tests__/pdf-locate-cases.test.ts"],
     "rust": ["packages/sdk-rust/src/annotations/locate.rs"],
-    "python": ["packages/sdk-python/tests/test_pdf_locate.py"],
+    "python": ["packages/python/sdk/tests/test_pdf_locate.py"],
     "go": ["packages/go/sdk/annotations/locate_test.go"],
     "worker": ["images/worker/tests/test_claim_cases.py"]
   },

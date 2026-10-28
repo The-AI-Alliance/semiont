@@ -2,7 +2,7 @@
 
 What each event does to the graph is the table's to hold
 (`test_fold_cases.py`), how a follower of the record takes each log is the
-follower's table's (`packages/service-python/tests/test_follow_cases.py`), and
+follower's table's (`packages/python/service/tests/test_follow_cases.py`), and
 what a Weaver process does behind a real gateway, a real Archivist and a real
 database is the conformance suite's (`tests/conformance/weaver`). Here is what
 none of them reaches: the Weaver's fold taken as a follower's take, a store

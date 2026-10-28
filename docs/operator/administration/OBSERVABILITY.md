@@ -215,7 +215,7 @@ variables as above.
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
   the Python services', in
-  `packages/service-python/src/semiont_service/log.py`) — JSON-line,
+  `packages/python/service/src/semiont_service/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one

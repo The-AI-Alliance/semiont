@@ -14,7 +14,7 @@ every one.
 One module tells OpenTelemetry of the service's work, one names the logger,
 and one reads the process's environment. How its document is read, how its
 log is written and what exports its telemetry are every Python service's, in
-the package the service is built on (`packages/service-python`).
+the package the service is built on (`packages/python/service`).
 """
 
 import re
@@ -29,8 +29,8 @@ from semiont_worker.config import SERVICE
 
 SRC = PROJECT / "src/semiont_worker"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
-INFERENCE = ROOT / "packages/inference-python"
-SHARED = ROOT / "packages/service-python"
+INFERENCE = ROOT / "packages/python/inference"
+SHARED = ROOT / "packages/python/service"
 
 FORCED = re.compile(r"\bcast\(|#\s*type:\s*ignore|#\s*pyright:\s*ignore|#\s*noqa\b|\btyping\.Any\b|^\s*from typing import [^\n]*\bAny\b")
 
@@ -167,20 +167,20 @@ def test_the_sdk_the_inference_drivers_and_the_service_package_are_the_ones_in_t
     # that package is the project, so without the SDK's own line here the SDK would come from an index.
     sources = table(table(table(toml(PROJECT / "pyproject.toml")["tool"], "tool")["uv"], "uv")["sources"], "sources")
     assert sources == {
-        "semiont": {"path": "../../packages/sdk-python", "editable": True},
-        "semiont-inference": {"path": "../../packages/inference-python", "editable": True},
-        "semiont-service": {"path": "../../packages/service-python", "editable": True},
+        "semiont": {"path": "../../packages/python/sdk", "editable": True},
+        "semiont-inference": {"path": "../../packages/python/inference", "editable": True},
+        "semiont-service": {"path": "../../packages/python/service", "editable": True},
     }
-    assert (PROJECT / "../../packages/sdk-python").resolve() == SDK.resolve()
-    assert (PROJECT / "../../packages/inference-python").resolve() == INFERENCE.resolve()
-    assert (PROJECT / "../../packages/service-python").resolve() == SHARED.resolve()
+    assert (PROJECT / "../../packages/python/sdk").resolve() == SDK.resolve()
+    assert (PROJECT / "../../packages/python/inference").resolve() == INFERENCE.resolve()
+    assert (PROJECT / "../../packages/python/service").resolve() == SHARED.resolve()
     # And the lockfile took each from there.
     locked = toml(PROJECT / "uv.lock")["package"]
     assert isinstance(locked, list)
     taken_from = {table(package, "a package")["name"]: table(package, "a package")["source"] for package in locked}
-    assert taken_from["semiont"] == {"editable": "../../packages/sdk-python"}
-    assert taken_from["semiont-inference"] == {"editable": "../../packages/inference-python"}
-    assert taken_from["semiont-service"] == {"editable": "../../packages/service-python"}
+    assert taken_from["semiont"] == {"editable": "../../packages/python/sdk"}
+    assert taken_from["semiont-inference"] == {"editable": "../../packages/python/inference"}
+    assert taken_from["semiont-service"] == {"editable": "../../packages/python/service"}
     assert taken_from["semiont-worker"] == {"editable": "."}
 
 
@@ -238,7 +238,7 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
     # Every variable the service's code names, its own and the shared package's it is built on, as a variable's
     # name is written: capitals, joined by underscores.
     shared = [path.read_text(encoding="utf-8") for path in sorted((SHARED / "src").rglob("*.py"))]
-    assert shared, "packages/service-python has no source: the variables it reads for the service are not seen"
+    assert shared, "packages/python/service has no source: the variables it reads for the service are not seen"
     # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
     texts = [re.sub(r"^__all__ = \[.*?\]$", "", source, flags=re.DOTALL | re.MULTILINE) for source in (*sources.values(), *shared)]
     named = {found for text in texts for found in re.findall(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', text)}

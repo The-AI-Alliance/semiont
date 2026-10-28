@@ -2,7 +2,7 @@
 // Generate the Python SDK's error vocabularies from specs/src/errors/codes.json:
 // the code types, the wire → bus-code mapping, and the HTTP status classifier.
 //
-//   packages/sdk-python/src/semiont/error_codes.py
+//   packages/python/sdk/src/semiont/error_codes.py
 //
 // The reading of the table, and the account it is held to, are
 // error-codes-table.mjs's, shared with the TypeScript generator. The output is
@@ -24,7 +24,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/errors/codes.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/sdk-python/src/semiont/error_codes.py'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/error_codes.py'));
 const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
 const CHECK = process.argv.includes('--check');
 

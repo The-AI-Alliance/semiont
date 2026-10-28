@@ -123,7 +123,7 @@ The Librarian supplies no value.
   providers refuses to start, by that member, where the file cannot be read
   and where it states nothing of the model. A Librarian with no such model
   does not read the file.
-  *Held by `images/librarian/tests/test_service.py` and `packages/inference-python/tests/test_factory.py`.*
+  *Held by `images/librarian/tests/test_service.py` and `packages/python/inference/tests/test_factory.py`.*
 
 ## What it answers
 
@@ -179,13 +179,13 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   in the index and nothing in a view.** Connecting to the graph database
   makes no constraint and no index there, and connecting to the vector index
   makes no collection and no payload index.
-  *Held by `images/librarian/tests/test_census.py`, and by `packages/graph-python/tests/neo4j_live.py` and `packages/vectors-python/tests/qdrant_live.py`, for the two readers against a database.*
+  *Held by `images/librarian/tests/test_census.py`, and by `packages/python/graph/tests/neo4j_live.py` and `packages/python/vectors/tests/qdrant_live.py`, for the two readers against a database.*
 - **A search of a collection the Smelter has not made yet fails,** and makes
   none. An index nobody has started is no index that found nothing: a
   reference search, a text search and both gathers each answer on their
   failure channel, saying the index has no such collection. Every other
   failure of the index is as each operation's own rules say.
-  *Held by `packages/vectors-python/tests/qdrant_live.py`, and by `images/librarian/tests/test_reference_search.py`, `images/librarian/tests/test_search_cases.py` and `images/librarian/tests/test_annotation_gather.py`.*
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, and by `images/librarian/tests/test_reference_search.py`, `images/librarian/tests/test_search_cases.py` and `images/librarian/tests/test_annotation_gather.py`.*
 - **A resource the Archivist answers `not-found` for has no view; any other
   failure of the read is a failure,** and is never taken for a resource with
   no view. Of a resource the record holds, an annotation the Archivist refuses
@@ -358,7 +358,7 @@ search as what each store answers and the page that follows, and is the rule.
   name answers the text: a name that is the text, then one that begins with
   it, then one that has every word of it, then the rest; within each, the
   newest first, and by id where two were made at one moment.
-  *Held by `images/librarian/tests/test_search_cases.py` and `librarian/search`, and by `packages/graph-python/tests/contract.py`, for what matches and the order.*
+  *Held by `images/librarian/tests/test_search_cases.py` and `librarian/search`, and by `packages/python/graph/tests/contract.py`, for what matches and the order.*
 - **A graph that fails fails the search,** on the failure channel.
   *Held by `images/librarian/tests/test_search_cases.py`.*
 - **Where the graph's total is more than 0, or the offset is more than 0,
@@ -769,11 +769,11 @@ among them.
   model, and `gather:limits-requested` with those of the Gatherer's:** a list
   of one item, the provider, the model, and the model's `contextTokens`,
   `maxOutputTokens` and, where the provider says, `acceptsTemperature`.
-  *Held by `images/librarian/tests/test_librarian.py`, `packages/inference-python/tests/test_limits_report.py` and `librarian/search`.*
+  *Held by `images/librarian/tests/test_librarian.py`, `packages/python/inference/tests/test_limits_report.py` and `librarian/search`.*
 - **A provider that has not said within 1.5 seconds, or that fails, leaves
   the list empty, and the request is still answered on its result channel.**
   A later request states the limits once the provider has said them.
-  *Held by `packages/inference-python/tests/test_limits_report.py`, and by `librarian/search`, for an answer within 5 seconds.*
+  *Held by `packages/python/inference/tests/test_limits_report.py`, and by `librarian/search`, for an answer within 5 seconds.*
 
 ## Names
 
@@ -900,7 +900,7 @@ asked for text.
   *Held by `images/librarian/tests/test_prompt_cases.py`.*
 - **A model whose `acceptsTemperature` is `false`, as every Anthropic
   model's is, is sent no temperature.** *Held by the inference drivers' own
-  tests, in `packages/inference-python/tests/`.*
+  tests, in `packages/python/inference/tests/`.*
 - **What a prompt may be given is bounded:** the score prompt lists at most
   twenty candidates and names at most five connected resources; the
   relationship prompt names at most ten connected resources, five citing
@@ -958,7 +958,7 @@ requests; opens its health port.
   *Held by `librarian/boot`.*
 - **It gives up when the graph database or the vector index does not answer
   within sixty seconds,** says which, and exits with a status other than 0.
-  *Held by `packages/service-python/tests/test_connect.py`.*
+  *Held by `packages/python/service/tests/test_connect.py`.*
 - **It reaches no embedding provider and no model at start.** It makes no
   collection, so it has no width of a vector to learn.
   *Held by `images/librarian/tests/test_service.py`, for a reader of the index that is made with nothing dialled.*
@@ -974,11 +974,11 @@ requests; opens its health port.
 - **`GET /health`, on the port its document states, answers `200` with a
   JSON object:** `status`; and `actors`, the two it runs, `matcher` and
   `gatherer`. Any other path answers `404`.
-  *Held by `images/librarian/tests/test_service.py`, `packages/service-python/tests/test_health.py` and `librarian/boot`.*
+  *Held by `images/librarian/tests/test_service.py`, `packages/python/service/tests/test_health.py` and `librarian/boot`.*
 - **The health port opens last,** after the Librarian has begun to take
   requests from the bus. So a Librarian whose health answers is answering. A
   port it cannot take ends it as a refusal to start does.
-  *Held by `packages/service-python/tests/test_health.py`, for a port that is held and answers nothing until it is told to.*
+  *Held by `packages/python/service/tests/test_health.py`, for a port that is held and answers nothing until it is told to.*
 - **`status` is `ok` whenever the Librarian answers**
   ([Known defects](#known-defects)). *Held by no case.*
 
@@ -1014,14 +1014,14 @@ requests; opens its health port.
   *Held by `librarian/telemetry`.*
 - **What is counted of a request of a model is the driver's to count,** the
   same whichever service asks.
-  *Held by `packages/inference-python/tests/test_telemetry.py`.*
+  *Held by `packages/python/inference/tests/test_telemetry.py`.*
 - **A request is handled in the trace its frame was sent under,** so the
   frames it sends in reply, and the lines it logs, are of that trace.
   *Held by no case.*
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
-  *Held by `packages/service-python/tests/test_log.py`.*
+  *Held by `packages/python/service/tests/test_log.py`.*
 
 ## Environment
 

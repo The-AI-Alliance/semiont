@@ -3,7 +3,7 @@
 // from specs/src/media-types/registry.json, the registry the TypeScript, Rust
 // and Go generators read.
 //
-//   packages/sdk-python/src/semiont/media_types_table.py
+//   packages/python/sdk/src/semiont/media_types_table.py
 //
 // Python reads the registry for the two rules specs/src/media-types/cases.json
 // holds in every SDK (the format a clone takes, and the name content is
@@ -23,7 +23,7 @@ import { pyBanner, pyString } from './python-source.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/media-types/registry.json');
 const ENUM = resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json');
-const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/media_types_table.py');
+const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/media_types_table.py');
 const CHECK = process.argv.includes('--check');
 
 const { table, rows } = readMediaTypeTable(TABLE, ENUM);

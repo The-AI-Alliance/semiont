@@ -26,8 +26,8 @@ peers that answer differently.
 |---|---|---|---|
 | `STARTUP_FETCH_RETRY` | a TypeScript agent signing in (`agent-token.ts`, in `@semiont/http-transport`) | the **gateway** and the issuer to accept authentication | 8 × 1s→8s ≈ 39s |
 | `EMIT_RETRY` | every peer | the **gateway** to accept one `/bus/emit` | 4 × 1s→4s ≈ 7s |
-| the catalog reader's, in `packages/service-python/src/semiont_service/catalog.py` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
-| `EMBEDDING_PROVIDER_RETRY`, in `packages/vectors-python/src/semiont_vectors/_retry.py` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
+| the catalog reader's, in `packages/python/service/src/semiont_service/catalog.py` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
+| `EMBEDDING_PROVIDER_RETRY`, in `packages/python/vectors/src/semiont_vectors/_retry.py` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
 `EMBED_ROUND_TRIP_SECONDS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `Bus.request`'s

@@ -35,7 +35,7 @@ What a full run does:
 3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
 4. Loads the images into every container runtime on the machine, so the stack can run under any of them.
 5. Builds the launcher from the working tree, as `apps/launcher/dist/semiont`.
-6. Builds the Python SDK's wheel and source distribution into `packages/sdk-python/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and the worker, weaver, smelter and librarian images build the SDK from the working tree. The wheel installs by path.
+6. Builds the Python SDK's wheel and source distribution into `packages/python/sdk/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and the worker, weaver, smelter and librarian images build the SDK from the working tree. The wheel installs by path.
 
 Two things make the stack use your build:
 

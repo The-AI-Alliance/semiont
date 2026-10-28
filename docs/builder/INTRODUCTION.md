@@ -85,7 +85,7 @@ believe them at first:
    same client, cache, state units and sessions, and is held to the same
    shared case tables and conformance suite; its README maps each shape in
    this book to its Rust form. The Python SDK
-   ([`semiont`](../../packages/sdk-python/README.md)) has the same client,
+   ([`semiont`](../../packages/python/sdk/README.md)) has the same client,
    cache, state units and sessions on asyncio, typed for `mypy` and `pyright`,
    and is held to the same tables and the same suite. The Go SDK
    ([`go/sdk`](../../packages/go/sdk/README.md)), the module the `semiont`

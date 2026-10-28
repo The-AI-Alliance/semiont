@@ -5,7 +5,7 @@
 # when the container starts: the entrypoint runs the service.
 #
 # Built from the repository root, on the oldest Python the repository's Python
-# packages support, which packages/sdk-python/pyproject.toml states
+# packages support, which packages/python/sdk/pyproject.toml states
 # (requires-python), the one place it is written:
 #
 #   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
@@ -26,12 +26,12 @@ COPY version.json ./
 # this repository's, and no index holds the version the service is written
 # against: each is built from its manifest, the README its manifest names,
 # where it names one, and its source.
-COPY packages/sdk-python/pyproject.toml packages/sdk-python/README.md packages/sdk-python/
-COPY packages/sdk-python/src packages/sdk-python/src
-COPY packages/vectors-python/pyproject.toml packages/vectors-python/README.md packages/vectors-python/
-COPY packages/vectors-python/src packages/vectors-python/src
-COPY packages/service-python/pyproject.toml packages/service-python/
-COPY packages/service-python/src packages/service-python/src
+COPY packages/python/sdk/pyproject.toml packages/python/sdk/README.md packages/python/sdk/
+COPY packages/python/sdk/src packages/python/sdk/src
+COPY packages/python/vectors/pyproject.toml packages/python/vectors/README.md packages/python/vectors/
+COPY packages/python/vectors/src packages/python/vectors/src
+COPY packages/python/service/pyproject.toml packages/python/service/
+COPY packages/python/service/src packages/python/service/src
 COPY images/smelter/pyproject.toml images/smelter/uv.lock images/smelter/
 COPY images/smelter/src images/smelter/src
 # The environment is made on this stage's Python and no other, with its

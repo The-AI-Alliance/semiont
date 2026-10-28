@@ -234,9 +234,9 @@ head_ "Python package"
 # its files, and each file is downloaded and hashed against the digest the
 # index states. Each also carries an attestation of what built it, which is to
 # be the publish workflow of this repository.
-PYPI_NAME=$(sed -n 's/^name = "\(.*\)"$/\1/p' "$ROOT/packages/sdk-python/pyproject.toml")
+PYPI_NAME=$(sed -n 's/^name = "\(.*\)"$/\1/p' "$ROOT/packages/python/sdk/pyproject.toml")
 PYPI_WORKFLOW=publish-pypi.yml
-[ -n "$PYPI_NAME" ] || bad "packages/sdk-python/pyproject.toml names no package"
+[ -n "$PYPI_NAME" ] || bad "packages/python/sdk/pyproject.toml names no package"
 release=$(curl -sf "https://pypi.org/pypi/$PYPI_NAME/$VERSION/json")
 if [ -z "$release" ]; then
   latest=$(curl -sf "https://pypi.org/pypi/$PYPI_NAME/json" | jq -r '.info.version // empty')

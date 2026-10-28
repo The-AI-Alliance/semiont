@@ -5,4 +5,4 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
 SPEC = ROOT / "specs/src"
-SDK = ROOT / "packages/sdk-python"
+SDK = ROOT / "packages/python/sdk"

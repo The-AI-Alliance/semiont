@@ -124,14 +124,14 @@ Archivist.
   resource's description (`browse:resource-requested`) and the catalog of
   resources that are not archived (`browse:resources-requested`, 200 to a
   page). It opens no file of the record.
-  *Held by `images/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `packages/python/service/tests/test_catalog.py`.*
 - **It reads a resource's bytes from the Archivist's own
   `GET /resources/{id}/content`, as its service account, and takes them as
   they are stored.** The checksum it works by is of exactly those bytes. It
   reads a resource's annotations the same way, from
   `GET /resources/{id}/annotations`: their number follows the document's, so
   they are no bus read.
-  *Held by `packages/service-python/tests/test_archivist.py` and `images/smelter/tests/test_smelter.py`.*
+  *Held by `packages/python/service/tests/test_archivist.py` and `images/smelter/tests/test_smelter.py`.*
 - **It answers one command,** `smelt:rebuild-anchors` ([Rebuild](#rebuild)),
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).
@@ -175,7 +175,7 @@ entity types from its description as the Archivist answers it then.
   states is asked of the Archivist then, and nothing of it is read from the
   event. An annotation that has no point is left with none, and one the
   Archivist no longer answers is passed by.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py` and `smelter/index`.*
+  *Held by `packages/python/vectors/tests/store_contract.py`, `images/smelter/tests/test_smelter.py`, `images/smelter/tests/test_properties.py` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
   *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -183,7 +183,7 @@ entity types from its description as the Archivist answers it then.
   types on the resource's points to the resource's entity types as they now
   are, and ask nothing of the embedding provider.** A resource with no points
   is left with none: its entity types are written when it is next indexed.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/python/vectors/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 
 ### Indexing a resource
 
@@ -197,7 +197,7 @@ entity types from its description as the Archivist answers it then.
   *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Decoded text is the text the protocol says those bytes are**
   ([W3C-SELECTORS.md](./W3C-SELECTORS.md#the-text-of-a-resource)).
-  *Held by `packages/sdk-python/tests/test_decode_cases.py`, for the reader the Smelter decodes with.*
+  *Held by `packages/python/sdk/tests/test_decode_cases.py`, for the reader the Smelter decodes with.*
 - **The text is cut into chunks as
   [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states,** by
   the two numbers of its settings.
@@ -207,14 +207,14 @@ entity types from its description as the Archivist answers it then.
   *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's points are then replaced by the new ones, all of them.** A
   resource whose text grew shorter keeps no point of the longer text.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/python/vectors/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes and the media type they were read as, the resource's
   entity types, and a mark when the text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
   The media type is the one the Archivist answered the bytes with, as it is
   written, with whatever parameters it states.
-  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/python/vectors/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
   *Held by `images/smelter/tests/test_properties.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 
@@ -224,7 +224,7 @@ entity types from its description as the Archivist answers it then.
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/python/vectors/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
   *Held by `images/smelter/tests/test_reconcile_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation's point outlives its resource's text.** An annotation that
@@ -241,7 +241,7 @@ entity types from its description as the Archivist answers it then.
 
 - **The events of one resource are applied one at a time, in the order of
   its record.**
-  *Held by `images/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_follow_cases.py`.*
+  *Held by `images/smelter/tests/test_smelter.py` and `packages/python/service/tests/test_follow_cases.py`.*
 - **The `mark:added` events that follow one another in a run of a resource's
   events have one turn:** the texts they quote are embedded in one batch, and
   the Archivist is asked once whether the resource is archived. Nothing waits
@@ -306,7 +306,7 @@ and says so.
   reason. It is forgotten when the resource is indexed, when it is archived,
   and when a start takes it out. A skip of a media type that has no text is
   not remembered: the catalog says as much of the resource.
-  *Held by `packages/vectors-python/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_properties.py`.*
+  *Held by `packages/python/vectors/tests/store_contract.py`, `images/smelter/tests/test_smelter.py` and `images/smelter/tests/test_properties.py`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
@@ -391,21 +391,21 @@ states what each kind of document becomes.
   searched,** which holds what is remembered of each skipped resource.
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
-  *Held by `packages/vectors-python/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/vectors-python/tests/qdrant_live.py`.*
+  *Held by `packages/python/vectors/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/python/vectors/tests/qdrant_live.py`.*
 - **A collection that is searched is as wide as the embedding model's
   vectors,** which the Smelter learns by asking the provider to embed once,
   each time it makes the collections: where there are none when it connects,
   and when it makes the index again. A Smelter that starts on an index that
   is there, and was made as it makes one, asks nothing.
-  *Held by `packages/vectors-python/tests/qdrant_live.py`, against a Qdrant.*
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant.*
 - **The index states what made it:** the embedding provider's type and its
   model, and the two numbers a text is cut by. Where the model is served is
   no part of it. The two collections that are searched each state it, and an
   index whose two state different things states nothing.
-  *Held by `images/smelter/tests/test_index_stamp.py` and `packages/vectors-python/tests/store_contract.py`, and for a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
+  *Held by `images/smelter/tests/test_index_stamp.py` and `packages/python/vectors/tests/store_contract.py`, and for a Qdrant by `packages/python/vectors/tests/qdrant_live.py`.*
 - **What a search of the index answers is what
   [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
-  *Held by `packages/vectors-python/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
+  *Held by `packages/python/vectors/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
 
 ## The embedding provider
 
@@ -417,34 +417,34 @@ A Smelter asks one provider for its vectors: an Ollama
   says so where the provider asks.** Voyage is told `input_type: document`;
   whoever searches the index tells it `query`. An Ollama is told neither: its
   API has no such member.
-  *Held by `packages/vectors-python/tests/test_voyage.py` and `packages/vectors-python/tests/test_ollama.py`.*
+  *Held by `packages/python/vectors/tests/test_voyage.py` and `packages/python/vectors/tests/test_ollama.py`.*
 
 - **A batch of texts is cut into slices of 128, each one request, made in
   the order of the texts,** and the vectors are given back in that order.
-  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/python/vectors/tests/test_slices.py` and `smelter/provider`.*
 - **Each request has 15 seconds of its own,** counted from when it is sent
   and not from when its batch began. Asking a busy provider again is within
   them.
-  *Held by `packages/vectors-python/tests/test_slices.py`.*
+  *Held by `packages/python/vectors/tests/test_slices.py`.*
 - **One request at a time is made of an Ollama, and four of Voyage,** however
   many resources are being indexed.
-  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/python/vectors/tests/test_slices.py` and `smelter/provider`.*
 - **A request for the vectors of documents that a provider answers 429 or
   503 is asked again,** after 1, 2 and 4 seconds, while the request's own 15
   seconds allow the wait. A provider that says it is busy four times fails
   the request with that status. A query is asked once: whoever searches is
   waiting.
-  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/python/vectors/tests/test_slices.py` and `smelter/provider`.*
 - **A request that fails fails its whole batch, and says which provider,
   which model, what status and which slice.** The resource it was for gets no
   points from that attempt.
-  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/python/vectors/tests/test_slices.py` and `smelter/provider`.*
 - **A provider that answers 404 when the Smelter starts is taken to be still
   fetching the model, and one that cannot be reached to be still starting:
   either is asked again,** up to twelve times, within the time the Smelter
   has to start ([Boot](#boot)). No other failing status is waited on by a
   start, and the request that measures the model's vectors is asked once.
-  *Held by `smelter/boot` for a 404, and by `packages/vectors-python/tests/test_dimensions.py` for both.*
+  *Held by `smelter/boot` for a 404, and by `packages/python/vectors/tests/test_dimensions.py` for both.*
 
 ## Boot
 
@@ -457,7 +457,7 @@ reconcile.
 
 - **It gives up when the embedding provider or the vector database does not
   answer within a minute,** and exits with a status other than 0.
-  *Held by `packages/service-python/tests/test_connect.py`.*
+  *Held by `packages/python/service/tests/test_connect.py`.*
 - **An index that states another model or another cut than the Smelter is
   configured with, or states nothing, is made again:** emptied, and as wide
   as the provider's vectors are then, before anything is followed. A warning
@@ -680,11 +680,11 @@ every resource had a cursor at its start.
   interval, and the gauge says what was last answered. While the index does
   not answer, each asking that failed is logged as a warning and the gauge
   says nothing: a number answered before says nothing of now.
-  *Held by `smelter/telemetry`, `packages/service-python/tests/test_observability.py` and `images/smelter/tests/test_telemetry.py`.*
+  *Held by `smelter/telemetry`, `packages/python/service/tests/test_observability.py` and `images/smelter/tests/test_telemetry.py`.*
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
-  *Held by `packages/service-python/tests/test_log.py`.*
+  *Held by `packages/python/service/tests/test_log.py`.*
 
 ## Environment
 

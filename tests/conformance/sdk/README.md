@@ -372,11 +372,11 @@ for the live layer. Rust's are the two binaries of the crate
 and
 [semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
 Python's are
-[packages/sdk-python/conformance/wire.py](../../../packages/sdk-python/conformance/wire.py)
+[packages/python/sdk/conformance/wire.py](../../../packages/python/sdk/conformance/wire.py)
 and
-[packages/sdk-python/conformance/live.py](../../../packages/sdk-python/conformance/live.py),
+[packages/python/sdk/conformance/live.py](../../../packages/python/sdk/conformance/live.py),
 run by the interpreter of the SDK's locked environment
-(`packages/sdk-python/.venv`), which the suite's setup makes with
+(`packages/python/sdk/.venv`), which the suite's setup makes with
 `uv sync --locked --no-dev` before any case runs. Go's are two commands of
 the module [packages/go/sdk/conformance](../../../packages/go/sdk/conformance):
 [semiont-go-wire-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-wire-driver/main.go)

@@ -3,7 +3,7 @@
 // store from specs/src/sign-in-store/SignIn.json, the schema the launcher and
 // the Rust SDK generate their own from.
 //
-//   packages/sdk-python/src/semiont/sign_in.py
+//   packages/python/sdk/src/semiont/sign_in.py
 //
 // The launcher, an application on the Rust SDK and one on this SDK all read
 // and write <stateDir>/tokens.json, so the entry's shape is the contract's to
@@ -19,7 +19,7 @@ import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
-const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/sign_in.py');
+const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/sign_in.py');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

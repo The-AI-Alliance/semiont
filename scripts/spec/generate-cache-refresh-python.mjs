@@ -3,7 +3,7 @@
 // which live queries each event on the bus, and the reopening of a dropped
 // stream, asks again for, writes, or removes.
 //
-//   packages/sdk-python/src/semiont/refresh.py
+//   packages/python/sdk/src/semiont/refresh.py
 //
 // The reading of the table, and the account it is held to, are
 // cache-refresh-table.mjs's, shared with the TypeScript generator. The output
@@ -25,7 +25,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/refresh.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/sdk-python/src/semiont/refresh.py'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/refresh.py'));
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

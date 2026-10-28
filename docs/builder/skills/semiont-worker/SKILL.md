@@ -509,7 +509,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                             await job.complete(result)
 ```
 
-`gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, and passes what it found. [The package's README](../../../../packages/sdk-python/README.md#a-worker) has the rules this program keeps.
+`gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, and passes what it found. [The package's README](../../../../packages/python/sdk/README.md#a-worker) has the rules this program keeps.
 
 What differs from TypeScript is what the language gives:
 
