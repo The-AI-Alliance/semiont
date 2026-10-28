@@ -270,7 +270,7 @@ Four implementations write the log. Each is switched on for a whole process, and
 |---|---|---|
 | TypeScript, in Node ([`bus-log.ts`](../../packages/core/src/bus-log.ts)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout, with `console.debug` |
 | TypeScript, in a browser | `window.__SEMIONT_BUS_LOG__ = true` | the console, with `console.debug` |
-| Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/sdk-rust/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
+| Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/rust/sdk/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 | Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/python/sdk/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 | Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/go/sdk/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 
@@ -316,7 +316,7 @@ Two generators read it:
 |---|---|
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
-| The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
+| The Rust SDK's channel and operation tables | its build script, [`packages/rust/sdk/build.rs`](../../packages/rust/sdk/build.rs), on every build |
 | `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
 
 ```sh

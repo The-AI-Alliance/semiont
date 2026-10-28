@@ -1099,7 +1099,7 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
 [worker-conformance]: ../../../tests/conformance/worker/README.md
 [sdk-typescript]: ../../sdk/README.md
-[sdk-rust]: ../../sdk-rust/README.md
+[sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md
 [surface]: ../../../specs/src/client/surface.json

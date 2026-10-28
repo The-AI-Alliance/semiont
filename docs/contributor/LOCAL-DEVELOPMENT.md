@@ -75,7 +75,7 @@ container run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)-
   sh -c 'npm ci --include=optional && npm run build:packages'
 ```
 
-For the Rust workspace, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
+For the Rust workspace, in `packages/rust`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
 
 [Testing](TESTING.md) has every suite, what each needs, and how to run it in a container.
 

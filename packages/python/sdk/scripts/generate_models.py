@@ -31,7 +31,7 @@ Before, on a copy of the spec:
   named the same way (`BrowseDirectoryRequestSort`), so a function that takes
   one names its type and does not restate its words; a set of one word is
   what tells a union's members apart, and stays where it is. It is the rule
-  Rust's generator names them by (`packages/codegen-rust`), so a shape has
+  Rust's generator names them by (`packages/rust/codegen`), so a shape has
   one name in both.
 
 After, on what it wrote:

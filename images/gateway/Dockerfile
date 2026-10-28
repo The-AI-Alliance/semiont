@@ -23,7 +23,7 @@ COPY version.json ./
 COPY specs/src specs/src
 # The workspace (Cargo.toml at the repository root): cargo loads every member
 # to build any one of them, so each member's crate is copied.
-COPY Cargo.toml Cargo.lock ./
+COPY packages/rust/Cargo.toml packages/rust/Cargo.lock packages/rust/
 COPY images/archivist/Cargo.toml images/archivist/
 COPY images/archivist/src images/archivist/src
 COPY images/archivist/record/Cargo.toml images/archivist/record/
@@ -38,32 +38,33 @@ COPY images/dispatcher/handlers/Cargo.toml images/dispatcher/handlers/
 COPY images/dispatcher/handlers/src images/dispatcher/handlers/src
 COPY images/dispatcher/jetstream/Cargo.toml images/dispatcher/jetstream/build.rs images/dispatcher/jetstream/
 COPY images/dispatcher/jetstream/src images/dispatcher/jetstream/src
-COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
-COPY packages/codegen-rust/src packages/codegen-rust/src
-COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
-COPY packages/core-rust/src packages/core-rust/src
-COPY packages/http-service-rust/Cargo.toml packages/http-service-rust/
-COPY packages/http-service-rust/src packages/http-service-rust/src
-COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
-COPY packages/http-transport-rust/src packages/http-transport-rust/src
-COPY packages/http-transport-rust/conformance/Cargo.toml packages/http-transport-rust/conformance/
-COPY packages/http-transport-rust/conformance/src packages/http-transport-rust/conformance/src
-COPY packages/observability-rust/Cargo.toml packages/observability-rust/
-COPY packages/observability-rust/src packages/observability-rust/src
-COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
-COPY packages/sdk-rust/src packages/sdk-rust/src
+COPY packages/rust/codegen/Cargo.toml packages/rust/codegen/
+COPY packages/rust/codegen/src packages/rust/codegen/src
+COPY packages/rust/core/Cargo.toml packages/rust/core/build.rs packages/rust/core/
+COPY packages/rust/core/src packages/rust/core/src
+COPY packages/rust/http-service/Cargo.toml packages/rust/http-service/
+COPY packages/rust/http-service/src packages/rust/http-service/src
+COPY packages/rust/http-transport/Cargo.toml packages/rust/http-transport/
+COPY packages/rust/http-transport/src packages/rust/http-transport/src
+COPY packages/rust/http-transport/conformance/Cargo.toml packages/rust/http-transport/conformance/
+COPY packages/rust/http-transport/conformance/src packages/rust/http-transport/conformance/src
+COPY packages/rust/observability/Cargo.toml packages/rust/observability/
+COPY packages/rust/observability/src packages/rust/observability/src
+COPY packages/rust/sdk/Cargo.toml packages/rust/sdk/build.rs packages/rust/sdk/
+COPY packages/rust/sdk/src packages/rust/sdk/src
 # The SDK's build script reads the spec through its own `specs`, a link in the
 # repository: made here, where only what is named is copied.
-RUN ln -s ../../specs/src packages/sdk-rust/specs
-COPY packages/telemetry-rust/Cargo.toml packages/telemetry-rust/
-COPY packages/telemetry-rust/src packages/telemetry-rust/src
+RUN ln -s ../../../specs/src packages/rust/sdk/specs
+COPY packages/rust/telemetry/Cargo.toml packages/rust/telemetry/
+COPY packages/rust/telemetry/src packages/rust/telemetry/src
 # The builder stage is the same in each Rust service's Dockerfile
 # (lint:rust-images): it builds every service's binary, so an image built
 # after, or beside, another reuses its stage instead of compiling the
 # workspace again. A spec that does not compile fails here, in the build
 # scripts, never at boot.
+WORKDIR /build/packages/rust
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/build/target \
+    --mount=type=cache,target=/build/packages/rust/target \
     cargo auditable build --release --locked -p semiont-archivist -p semiont-dispatcher -p semiont-gateway && \
     cp target/release/semiont-archivist target/release/semiont-dispatcher target/release/semiont-gateway /
 

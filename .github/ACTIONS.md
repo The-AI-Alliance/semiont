@@ -244,7 +244,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd images/browser && npm run test:security
-   cargo build --release -p semiont-gateway && (cd tests/conformance && npm run test:gateway)
+   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd tests/conformance && npm run test:gateway)
    ```
 
 2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code

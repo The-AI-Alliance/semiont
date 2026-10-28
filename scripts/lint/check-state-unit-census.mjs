@@ -2,7 +2,7 @@
 /**
  * lint:state-unit-census — every TypeScript state unit is held to the
  * state-unit axioms, as every Rust and Python one is by its SDK's census
- * (packages/sdk-rust/tests/census.rs, packages/python/sdk/tests/test_census.py).
+ * (packages/rust/sdk/tests/census.rs, packages/python/sdk/tests/test_census.py).
  * A unit added without a test that runs the axioms against it fails here.
  *
  * A unit is an interface that extends `StateUnit`, or a class that implements

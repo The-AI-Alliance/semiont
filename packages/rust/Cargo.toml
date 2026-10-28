@@ -4,23 +4,22 @@
 [workspace]
 resolver = "3"
 members = [
-    "images/archivist",
-    "images/archivist/record",
-    "images/archivist/staging",
-    "images/dispatcher",
-    "images/dispatcher/handlers",
-    "images/dispatcher/jetstream",
-    "images/gateway",
-    "packages/codegen-rust",
-    "packages/core-rust",
-    "packages/http-service-rust",
-    "packages/http-transport-rust",
-    "packages/http-transport-rust/conformance",
-    "packages/observability-rust",
-    "packages/sdk-rust",
-    "packages/telemetry-rust",
+    "codegen",
+    "core",
+    "http-service",
+    "http-transport",
+    "http-transport/conformance",
+    "observability",
+    "sdk",
+    "telemetry",
+    "../../images/archivist",
+    "../../images/archivist/record",
+    "../../images/archivist/staging",
+    "../../images/dispatcher",
+    "../../images/dispatcher/handlers",
+    "../../images/dispatcher/jetstream",
+    "../../images/gateway",
 ]
-exclude = ["apps/desktop/src-tauri"]
 
 # What the crates published to crates.io share. `version` is version.json's:
 # scripts/release/cargo-version.sh writes it here, beside the three paths
@@ -33,17 +32,17 @@ repository = "https://github.com/The-AI-Alliance/semiont"
 # Every crate a member uses, by version, once: a member names the ones it uses
 # with `.workspace = true` and adds the features it needs.
 [workspace.dependencies]
-semiont = { path = "packages/sdk-rust", version = "0.7.1" }
-semiont-codegen = { path = "packages/codegen-rust", version = "0.7.1" }
-semiont-archivist-record = { path = "images/archivist/record" }
-semiont-archivist-staging = { path = "images/archivist/staging" }
-semiont-dispatcher-handlers = { path = "images/dispatcher/handlers" }
-semiont-dispatcher-jetstream = { path = "images/dispatcher/jetstream" }
-semiont-core = { path = "packages/core-rust" }
-semiont-http-service = { path = "packages/http-service-rust" }
-semiont-http-transport = { path = "packages/http-transport-rust" }
-semiont-observability = { path = "packages/observability-rust" }
-semiont-telemetry = { path = "packages/telemetry-rust", version = "0.7.1" }
+semiont = { path = "sdk", version = "0.7.1" }
+semiont-codegen = { path = "codegen", version = "0.7.1" }
+semiont-archivist-record = { path = "../../images/archivist/record" }
+semiont-archivist-staging = { path = "../../images/archivist/staging" }
+semiont-dispatcher-handlers = { path = "../../images/dispatcher/handlers" }
+semiont-dispatcher-jetstream = { path = "../../images/dispatcher/jetstream" }
+semiont-core = { path = "core" }
+semiont-http-service = { path = "http-service" }
+semiont-http-transport = { path = "http-transport" }
+semiont-observability = { path = "observability" }
+semiont-telemetry = { path = "telemetry", version = "0.7.1" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"

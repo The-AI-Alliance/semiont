@@ -365,7 +365,7 @@ The Rust client has the same nine shapes, with no reactive library under them.
 - **Events** come as a `Stream`. A reader that falls behind is told how far (`Lagged`) and reads on.
 - **Composition** uses `futures::StreamExt` or `tokio-stream`. The crate brings no operator library.
 
-The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/sdk-rust/README.md#what-a-method-returns).
+The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/rust/sdk/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/rust/sdk/README.md#what-a-method-returns).
 
 ## In Python
 
@@ -404,6 +404,6 @@ The Go README shows [each shape at the call site](../../packages/go/sdk/README.m
 - [docs/protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
 - [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
 - [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
-- [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust form of each shape
+- [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust form of each shape
 - [The Python SDK's README](../../packages/python/sdk/README.md) — the Python form of each shape
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape

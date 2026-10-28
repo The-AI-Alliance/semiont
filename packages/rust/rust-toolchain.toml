@@ -1,0 +1,10 @@
+# The toolchain every Rust build in the repository uses: the workspace's
+# crates and the desktop app's. rustup reads this file wherever cargo runs in
+# packages/rust. A Rust image's tag is its `channel` (rust:<channel>-alpine,
+# rust:<channel>-bookworm), and the desktop app, outside the workspace, sets
+# rustup's default to it; scripts/ci/rust-toolchain.sh reads it for both. So the version is written here and nowhere else, and
+# lint:rust-toolchain refuses a second copy.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

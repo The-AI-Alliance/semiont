@@ -6,7 +6,7 @@
 //   packages/core/src/persisted-events.ts    (the persisted-event catalog)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
-//   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
+//   packages/rust/core/src/bus-classification.json (the same attributes, for the Rust services)
 //
 // Regenerating over the committed files must leave `git diff` empty. Run
 // with --check to diff without writing (the CI drift gate).
@@ -26,7 +26,7 @@ const PERSISTED = resolve(ROOT, 'packages/core/src/persisted-events.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
-const CLASSIFICATION_JSON = resolve(ROOT, 'packages/core-rust/src/bus-classification.json');
+const CLASSIFICATION_JSON = resolve(ROOT, 'packages/rust/core/src/bus-classification.json');
 
 const CHECK = process.argv.includes('--check');
 const registryText = readFileSync(REGISTRY, 'utf8');

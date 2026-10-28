@@ -5,7 +5,7 @@
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-telemetry.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The traces and counts of the [Semiont Rust SDK](../sdk-rust/README.md), as
+The traces and counts of the [Semiont Rust SDK](../sdk/README.md), as
 [OpenTelemetry](https://opentelemetry.io). When a Semiont client sends to a
 knowledge base or receives from it, the transport says so through this
 crate, and this crate reports it to whatever OpenTelemetry the application
@@ -17,7 +17,7 @@ recorded and no trace context leaves the process.
 ## Do you need it?
 
 - **To see the client's traces in your own telemetry**, you install your
-  OpenTelemetry as usual. [`semiont-http-transport`](../http-transport-rust/README.md)
+  OpenTelemetry as usual. [`semiont-http-transport`](../http-transport/README.md)
   already depends on this crate, so its spans appear with yours. See
   [Turning it on](#turning-it-on).
 - **To write a transport** for the SDK, you report through the functions
@@ -57,7 +57,7 @@ semiont::bus_log::set_trace_id_provider(semiont_telemetry::active_trace_id);
 ## What is reported
 
 The spans and the count are the rows of the SDK telemetry table
-([telemetry.json](../../specs/src/sdk-telemetry/telemetry.json)), which
+([telemetry.json](../../../specs/src/sdk-telemetry/telemetry.json)), which
 every Semiont SDK reports the same way.
 
 | Name | Kind | When |
@@ -103,7 +103,7 @@ A transport depends on this crate and on no OpenTelemetry crate.
 
 Semiont's own services state spans of their own, the rows of the service
 telemetry table
-([telemetry.json](../../specs/src/service-telemetry/telemetry.json)), over
+([telemetry.json](../../../specs/src/service-telemetry/telemetry.json)), over
 four more functions:
 
 | Function | |
@@ -117,9 +117,9 @@ four more functions:
 
 | Crate | |
 |---|---|
-| [`semiont`](../sdk-rust/README.md) | The SDK's client. |
-| [`semiont-http-transport`](../http-transport-rust/README.md) | The transport over a gateway, which reports through this crate. |
-| [`semiont-codegen`](../codegen-rust/README.md) | The build-time generator of the SDK's types. Cargo builds it for you. |
+| [`semiont`](../sdk/README.md) | The SDK's client. |
+| [`semiont-http-transport`](../http-transport/README.md) | The transport over a gateway, which reports through this crate. |
+| [`semiont-codegen`](../codegen/README.md) | The build-time generator of the SDK's types. Cargo builds it for you. |
 
 ## Contributing
 
@@ -130,4 +130,4 @@ holds the crate to the telemetry table in both directions.
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See [LICENSE](../../../LICENSE).

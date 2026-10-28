@@ -301,7 +301,7 @@ updates:
   # especially), and every bump runs the conformance suites and the crate
   # licence gate.
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/packages/rust"
     cooldown:
       default-days: 5
     schedule:
@@ -327,7 +327,7 @@ updates:
   # scripts/ci/rust-toolchain.sh for it, so one bump moves the compiler
   # everywhere; the cooldown gives the official images time to be published.
   - package-ecosystem: "rust-toolchain"
-    directory: "/"
+    directory: "/packages/rust"
     cooldown:
       default-days: 5
     schedule:

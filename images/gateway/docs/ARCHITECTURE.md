@@ -7,23 +7,23 @@ that serves it.
 ## The crates it is built from
 
 The gateway is a member of the repository's Rust workspace
-([Cargo.toml](../../../Cargo.toml)), and is built from these of its crates:
+([Cargo.toml](../../../packages/rust/Cargo.toml)), and is built from these of its crates:
 
 | Crate | Directory | What the gateway takes from it |
 |---|---|---|
 | `semiont-gateway` | `images/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
-| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
-| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
-| `semiont-telemetry` | [packages/telemetry-rust](../../../packages/telemetry-rust) | Its spans' making and the trace context they travel in: a caller's trace continued, and the gateway's own carried on what it sends |
-| `semiont-http-service` | [packages/http-service-rust](../../../packages/http-service-rust) | Connections a service can close from its side, the bearer credential, and the verifier of the trusted issuer's tokens |
-| `semiont-observability` | [packages/observability-rust](../../../packages/observability-rust) | What exports that telemetry, logging and the process's readings of itself |
-| `semiont-http-transport` | [packages/http-transport-rust](../../../packages/http-transport-rust) | Signing in as a service account, to reach the Archivist |
-| `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the core's and the SDK's build scripts bundle the spec and generate their types with it |
+| `semiont-core` | [packages/rust/core](../../../packages/rust/core) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
+| `semiont` | [packages/rust/sdk](../../../packages/rust/sdk) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
+| `semiont-telemetry` | [packages/rust/telemetry](../../../packages/rust/telemetry) | Its spans' making and the trace context they travel in: a caller's trace continued, and the gateway's own carried on what it sends |
+| `semiont-http-service` | [packages/rust/http-service](../../../packages/rust/http-service) | Connections a service can close from its side, the bearer credential, and the verifier of the trusted issuer's tokens |
+| `semiont-observability` | [packages/rust/observability](../../../packages/rust/observability) | What exports that telemetry, logging and the process's readings of itself |
+| `semiont-http-transport` | [packages/rust/http-transport](../../../packages/rust/http-transport) | Signing in as a service account, to reach the Archivist |
+| `semiont-codegen` | [packages/rust/codegen](../../../packages/rust/codegen) | Nothing at run time: the core's and the SDK's build scripts bundle the spec and generate their types with it |
 
 ## Built against the spec
 
 The spec is compiled into the binary.
-[semiont-core's build.rs](../../../packages/core-rust/build.rs) reads
+[semiont-core's build.rs](../../../packages/rust/core/build.rs) reads
 `specs/src` — the bundles in `specs/` are gitignored build output — and writes
 three documents the binary embeds: the protocol's OpenAPI document, the
 Archivist's, and the component schemas as JSON Schema draft 7 (OpenAPI 3.0's
@@ -31,7 +31,7 @@ Archivist's, and the component schemas as JSON Schema draft 7 (OpenAPI 3.0's
 malformed spec fails the build, never a boot or a request, and it generates the
 Rust types of the configuration documents from their schemas. The binary also
 embeds the bus registry and
-[bus-classification.json](../../../packages/core-rust/src/bus-classification.json),
+[bus-classification.json](../../../packages/rust/core/src/bus-classification.json),
 which `scripts/bus/generate-ts.mjs` derives from the registry beside core's
 TypeScript table. `semiont_core::spec` reads them: validators by schema name,
 each channel's schema, the registry's operations, and which channels are
@@ -64,7 +64,7 @@ step — the process exits non-zero, saying what is missing and never a secret:
    ([src/routes/mod.rs](../src/routes/mod.rs)): a route the spec does not
    declare, or a declared operation nothing serves, stops the process.
 7. **Listen** on `0.0.0.0:<port>`, on its own accept loop
-   ([serve.rs](../../../packages/http-service-rust/src/serve.rs)), which lets a stream close its connection
+   ([serve.rs](../../../packages/rust/http-service/src/serve.rs)), which lets a stream close its connection
    from the gateway's side.
 
 `SIGTERM` and `SIGINT` stop accepting connections, flush the plane under the

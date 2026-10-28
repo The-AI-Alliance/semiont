@@ -82,7 +82,7 @@ GO_IMAGE="golang:${GO_TOOLCHAIN}"
 # rust-toolchain.toml pins, passed to its Dockerfile as
 # RUST_TOOLCHAIN. No fallback, as for Go.
 if ! RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"; then
-  fail "No channel in rust-toolchain.toml — cannot choose a Rust image."
+  fail "No channel in packages/rust/rust-toolchain.toml — cannot choose a Rust image."
   exit 1
 fi
 

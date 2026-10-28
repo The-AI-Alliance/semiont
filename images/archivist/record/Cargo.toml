@@ -1,5 +1,6 @@
 [package]
 name = "semiont-archivist-record"
+workspace = "../../../packages/rust"
 edition = "2024"
 publish = false
 license = "Apache-2.0"

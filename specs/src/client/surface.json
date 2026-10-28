@@ -963,7 +963,7 @@
           "packages/core/src/annotation-builders.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/annotations.rs"
+          "packages/rust/sdk/src/annotations.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/annotations.py"
@@ -1166,7 +1166,7 @@
           "packages/core/src/job-filter.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/job_filter.rs"
+          "packages/rust/sdk/src/job_filter.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/job_filter.py"
@@ -1194,7 +1194,7 @@
           "packages/core/src/retry.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/retry.rs"
+          "packages/rust/sdk/src/retry.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/retry.py"
@@ -1218,7 +1218,7 @@
           "packages/sdk/src/session/storage.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/session/knowledge_base.rs"
+          "packages/rust/sdk/src/session/knowledge_base.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/http/endpoint.py"
@@ -1242,8 +1242,8 @@
           "packages/sdk/src/session/storage.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/session/mod.rs",
-          "packages/sdk-rust/src/session/stored.rs"
+          "packages/rust/sdk/src/session/mod.rs",
+          "packages/rust/sdk/src/session/stored.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/session.py"
@@ -1298,7 +1298,7 @@
           "packages/sdk/src/cache-persister.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/cache.rs"
+          "packages/rust/sdk/src/cache.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/storage.py"
@@ -1326,8 +1326,8 @@
           "packages/core/src/persisted-events.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/bus.rs",
-          "packages/sdk-rust/src/transport.rs"
+          "packages/rust/sdk/src/bus.rs",
+          "packages/rust/sdk/src/transport.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/bus.py",
@@ -1373,12 +1373,12 @@
           "packages/sdk/src/session/storage.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/session/browser.rs",
-          "packages/sdk-rust/src/session/factory.rs",
-          "packages/sdk-rust/src/session/knowledge_base.rs",
-          "packages/sdk-rust/src/session/open_resource.rs",
-          "packages/sdk-rust/src/session/stored.rs",
-          "packages/http-transport-rust/src/session.rs"
+          "packages/rust/sdk/src/session/browser.rs",
+          "packages/rust/sdk/src/session/factory.rs",
+          "packages/rust/sdk/src/session/knowledge_base.rs",
+          "packages/rust/sdk/src/session/open_resource.rs",
+          "packages/rust/sdk/src/session/stored.rs",
+          "packages/rust/http-transport/src/session.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/session.py"
@@ -1661,9 +1661,9 @@
           "packages/sdk/src/session/connect.ts"
         ],
         "rust": [
-          "packages/http-transport-rust/src/oauth.rs",
-          "packages/http-transport-rust/src/session.rs",
-          "packages/sdk-rust/src/errors.rs"
+          "packages/rust/http-transport/src/oauth.rs",
+          "packages/rust/http-transport/src/session.rs",
+          "packages/rust/sdk/src/errors.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/session.py"
@@ -1752,8 +1752,8 @@
           "packages/sdk/src/discovery.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/discovery.rs",
-          "packages/http-transport-rust/src/discovery.rs"
+          "packages/rust/sdk/src/discovery.rs",
+          "packages/rust/http-transport/src/discovery.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/session.py"
@@ -1878,10 +1878,10 @@
           "packages/sdk/src/testing.ts"
         ],
         "rust": [
-          "packages/sdk-rust/src/testing/liveness.rs",
-          "packages/sdk-rust/src/testing/client.rs",
-          "packages/sdk-rust/src/testing/sessions.rs",
-          "packages/sdk-rust/src/testing/storage.rs"
+          "packages/rust/sdk/src/testing/liveness.rs",
+          "packages/rust/sdk/src/testing/client.rs",
+          "packages/rust/sdk/src/testing/sessions.rs",
+          "packages/rust/sdk/src/testing/storage.rs"
         ],
         "python": [
           "packages/python/sdk/src/semiont/testing/__init__.py"

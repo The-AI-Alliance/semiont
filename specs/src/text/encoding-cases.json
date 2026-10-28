@@ -5,8 +5,8 @@
       "packages/core/src/__tests__/decode-cases.test.ts"
     ],
     "rust": [
-      "packages/sdk-rust/src/resources.rs",
-      "packages/sdk-rust/tests/decode_cases.rs"
+      "packages/rust/sdk/src/resources.rs",
+      "packages/rust/sdk/tests/decode_cases.rs"
     ],
     "python": [
       "packages/python/sdk/tests/test_decode_cases.py"

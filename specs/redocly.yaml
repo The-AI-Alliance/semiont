@@ -34,7 +34,7 @@ rules:
 
   # A reference that may be null is written
   # `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators generated
-  # from the spec (scripts/spec/generate-validators.mjs, packages/codegen-rust)
+  # from the spec (scripts/spec/generate-validators.mjs, packages/rust/codegen)
   # and the type generators of every SDK read that as the reference, or null.
   # This rule wants a `type` beside `nullable`. With one, the validators read
   # that type or null, and the reference as well, which null does not satisfy.

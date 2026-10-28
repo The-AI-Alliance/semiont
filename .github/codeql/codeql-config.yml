@@ -18,13 +18,13 @@ paths:
   - images/archivist/src
   - images/archivist/record
   - images/archivist/staging
-  - packages/codegen-rust
-  - packages/core-rust
-  - packages/http-service-rust
-  - packages/http-transport-rust
-  - packages/observability-rust
-  - packages/sdk-rust
-  - packages/telemetry-rust
+  - packages/rust/codegen
+  - packages/rust/core
+  - packages/rust/http-service
+  - packages/rust/http-transport
+  - packages/rust/observability
+  - packages/rust/sdk
+  - packages/rust/telemetry
   # The desktop shell: a Cargo workspace of its own, outside the root one
   - apps/desktop/src-tauri/src
   # Go launcher — module root, not a src/ dir (main.go and its tests)

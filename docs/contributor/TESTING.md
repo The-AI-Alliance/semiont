@@ -7,7 +7,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Suite | Where | What it exercises | Needs |
 |---|---|---|---|
 | Workspace suites | every npm workspace in `apps/*`, `images/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running |
-| Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../rust-toolchain.toml) names |
+| Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) names |
 | Go | `apps/launcher`, `packages/go/sdk` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/python/sdk` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/python/inference` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
@@ -124,6 +124,7 @@ npm run test:watch          # watch mode
 ### Rust
 
 ```bash
+cd packages/rust
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
@@ -134,7 +135,7 @@ cargo test --workspace
 ### The conformance suites
 
 ```bash
-cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
+(cd packages/rust && cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers)
 npm run build:packages
 cd tests/conformance
 npm ci

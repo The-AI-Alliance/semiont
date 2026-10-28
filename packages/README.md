@@ -20,7 +20,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | | Install | Read |
 |---|---|---|
 | TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
-| Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [sdk-rust](./sdk-rust/README.md), [http-transport-rust](./http-transport-rust/README.md) |
+| Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [rust/sdk](./rust/sdk/README.md), [rust/http-transport](./rust/http-transport/README.md) |
 | Python | `pip install semiont` | [python/sdk](./python/sdk/README.md) |
 | Go | The module `github.com/The-AI-Alliance/semiont/packages/go/sdk`, by a `replace` on its path: it is published nowhere | [go/sdk](./go/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
@@ -45,13 +45,13 @@ The first four are how a Rust program uses Semiont. The last three are what the 
 
 | Crate | Published | What it is |
 |---|---|---|
-| [semiont](./sdk-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont) | The Rust SDK: the client of a knowledge base, the protocol's types, sessions and state units |
-| [semiont-http-transport](./http-transport-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport) | The SDK's transport over a gateway, and signing a person or a service in |
-| [semiont-telemetry](./telemetry-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry) | The SDK's spans and counts, reported to whatever OpenTelemetry the application installed. It exports nothing |
-| [semiont-codegen](./codegen-rust/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-codegen.svg)](https://crates.io/crates/semiont-codegen) | The build-time generator of Rust types from the spec. A build dependency of `semiont`: nobody adds it by hand |
-| [semiont-core](./core-rust/README.md) | Not published | What the Rust services share and no client needs: the embedded spec and its validators, the configuration documents, the reach to the messaging broker |
-| [semiont-http-service](./http-service-rust/README.md) | Not published | What the Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the trusted issuer |
-| [semiont-observability](./observability-rust/README.md) | Not published | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
+| [semiont](./rust/sdk/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont) | The Rust SDK: the client of a knowledge base, the protocol's types, sessions and state units |
+| [semiont-http-transport](./rust/http-transport/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport) | The SDK's transport over a gateway, and signing a person or a service in |
+| [semiont-telemetry](./rust/telemetry/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry) | The SDK's spans and counts, reported to whatever OpenTelemetry the application installed. It exports nothing |
+| [semiont-codegen](./rust/codegen/README.md) | [![crates.io](https://img.shields.io/crates/v/semiont-codegen.svg)](https://crates.io/crates/semiont-codegen) | The build-time generator of Rust types from the spec. A build dependency of `semiont`: nobody adds it by hand |
+| [semiont-core](./rust/core/README.md) | Not published | What the Rust services share and no client needs: the embedded spec and its validators, the configuration documents, the reach to the messaging broker |
+| [semiont-http-service](./rust/http-service/README.md) | Not published | What the Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the trusted issuer |
+| [semiont-observability](./rust/observability/README.md) | Not published | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
 
 ## Python
 

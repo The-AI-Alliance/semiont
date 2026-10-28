@@ -266,7 +266,7 @@ from [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json).
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
   before the listener was taken.
-  *Held by `sdk/wire/stream-rate-limited`, `packages/http-transport-rust/tests/stream.rs`.*
+  *Held by `sdk/wire/stream-rate-limited`, `packages/rust/http-transport/tests/stream.rs`.*
 - A refused stream is reported, and opened again no sooner than the
   refusal's `Retry-After`; a stream whose credential was refused waits for
   another credential instead (§ A refused credential).

@@ -5,15 +5,15 @@
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The HTTP transport of the [Semiont Rust SDK](../sdk-rust/README.md). It
+The HTTP transport of the [Semiont Rust SDK](../sdk/README.md). It
 connects a [`semiont`](https://crates.io/crates/semiont) client to a
 knowledge base's gateway, and signs in the person or the service that uses
 it.
 
-[Semiont](../../README.md) is an open platform for building trusted AI
+[Semiont](../../../README.md) is an open platform for building trusted AI
 knowledge bases. The SDK's client does no networking of its own: this crate
 is how it reaches a knowledge base. Start with the
-[SDK's README](../sdk-rust/README.md) for what the client does, and come
+[SDK's README](../sdk/README.md) for what the client does, and come
 here for how to connect it.
 
 ## Install
@@ -55,7 +55,7 @@ A person signs in at the identity provider the knowledge base trusts, never
 at the gateway, and their password never passes through the process. A
 service signs in with an account of its own. Which way fits depends on the
 program, a script, a daemon or an application, as in the SDK's
-[three ways to use the client](../sdk-rust/README.md#three-ways-to-use-it).
+[three ways to use the client](../sdk/README.md#three-ways-to-use-it).
 
 | Who | Signs in with | Gives |
 |---|---|---|
@@ -80,9 +80,9 @@ In the examples:
 
 ### A script, after `semiont login`
 
-The [launcher](../../apps/launcher/README.md)'s `semiont login` signs a
+The [launcher](../../../apps/launcher/README.md)'s `semiont login` signs a
 person in and keeps the sign-in on disk
-([sign-in store](../../specs/src/sign-in-store/README.md)). A script reuses
+([sign-in store](../../../specs/src/sign-in-store/README.md)). A script reuses
 it. `state_home` is the directory that holds it:
 `semiont::sign_in_store::state_dir` of what the script read of its own
 environment. The crates read none themselves.
@@ -318,7 +318,7 @@ The service account needs two roles at the issuer: `semiont-service`, to be
 given an agent, and `semiont-worker`, without which every claim is refused.
 What claiming does, what a held job is, and what `reconcile` and
 `annotation_of_span` do with a model's words are in the SDK's
-[A worker](../sdk-rust/README.md#a-worker).
+[A worker](../sdk/README.md#a-worker).
 
 ### An application
 
@@ -359,14 +359,14 @@ The issuer sends a person back only to an address its registration of the
 client lists. The realm a Semiont launcher sets up lists the loopback
 address for the browser client, at any port. What an issuer of your own has
 to provide is in
-[Authentication](../../docs/operator/administration/AUTHENTICATION.md).
+[Authentication](../../../docs/operator/administration/AUTHENTICATION.md).
 
 ## What it implements
 
 The SDK states three contracts a client needs of the wire
 (`semiont::transport`), and this crate implements each over a gateway
-([HTTP transport](../../docs/protocol/TRANSPORT-HTTP.md),
-[transport contract](../../docs/protocol/TRANSPORT-CONTRACT.md)):
+([HTTP transport](../../../docs/protocol/TRANSPORT-HTTP.md),
+[transport contract](../../../docs/protocol/TRANSPORT-CONTRACT.md)):
 
 | Contract | Type here | Carries |
 |---|---|---|
@@ -408,7 +408,7 @@ its `auth` and `system` namespaces are there.
 
 Each emit and each content request runs in a span, and each frame received
 is delivered with the trace it was sent under. The spans are made by
-[`semiont-telemetry`](../telemetry-rust/README.md) and reported to whatever
+[`semiont-telemetry`](../telemetry/README.md) and reported to whatever
 OpenTelemetry the application installed. Its README says how to turn that
 on. With none installed, nothing is recorded and no `traceparent` is sent.
 
@@ -435,23 +435,23 @@ credential goes by (`token`, `password`, `apiKey` and the rest of the list in
 
 | Crate | |
 |---|---|
-| [`semiont`](../sdk-rust/README.md) | The client this crate carries, and the contracts it implements. |
-| [`semiont-telemetry`](../telemetry-rust/README.md) | The spans and counts this crate reports, and how an application turns tracing on. |
-| [`semiont-codegen`](../codegen-rust/README.md) | The build-time generator of the SDK's types. Cargo builds it for you. |
+| [`semiont`](../sdk/README.md) | The client this crate carries, and the contracts it implements. |
+| [`semiont-telemetry`](../telemetry/README.md) | The spans and counts this crate reports, and how an application turns tracing on. |
+| [`semiont-codegen`](../codegen/README.md) | The build-time generator of the SDK's types. Cargo builds it for you. |
 
 ## Contributing
 
 Every Rust block on this page is a region of
 [tests/sign_in.rs](tests/sign_in.rs), compiled and run there against a
 stand-in gateway and issuer. The Rust block of the
-[`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md)
+[`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md)
 is held to the same regions. [tests/stream.rs](tests/stream.rs) holds the
 stream's behaviour against a gateway that misbehaves on cue.
 [conformance/](conformance) holds the two drivers the
-[SDK conformance suite](../../tests/conformance/sdk/README.md) runs, and the
-one the [worker conformance suite](../../tests/conformance/worker/README.md)
+[SDK conformance suite](../../../tests/conformance/sdk/README.md) runs, and the
+one the [worker conformance suite](../../../tests/conformance/worker/README.md)
 runs.
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See [LICENSE](../../../LICENSE).

@@ -12,9 +12,9 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
-channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' packages/rust/rust-toolchain.toml)
 if [ -z "$channel" ]; then
-  echo "rust-toolchain.sh: rust-toolchain.toml names no channel" >&2
+  echo "rust-toolchain.sh: packages/rust/rust-toolchain.toml names no channel" >&2
   exit 1
 fi
 echo "$channel"

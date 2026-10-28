@@ -1175,9 +1175,10 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
 
 #[tokio::test]
 async fn every_renewal_is_the_tables() {
-    let table: Value =
-        serde_json::from_str(include_str!("../../../specs/src/sign-in-store/cases.json"))
-            .expect("the table");
+    let table: Value = serde_json::from_str(include_str!(
+        "../../../../specs/src/sign-in-store/cases.json"
+    ))
+    .expect("the table");
     let rows = table["renewals"].as_array().expect("the renewals");
     assert!(!rows.is_empty(), "the table has no renewals");
     let members = HashSet::from([
@@ -3151,7 +3152,7 @@ fn every_rust_block_of_the_readme_is_an_example_that_ran_here() {
 #[test]
 fn every_rust_block_of_the_worker_skill_is_an_example_that_ran_here() {
     assert_blocks_are_examples(
-        include_str!("../../../docs/builder/skills/semiont-worker/SKILL.md"),
+        include_str!("../../../../docs/builder/skills/semiont-worker/SKILL.md"),
         &[include_str!("sign_in.rs")],
     )
     .unwrap_or_else(|odd| panic!("{odd}"));

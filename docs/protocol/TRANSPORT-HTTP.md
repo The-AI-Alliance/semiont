@@ -488,9 +488,9 @@ with more than one tenant.
   stream: the reader, the reconnect and handoff logic, the subscription
   matrix.
 - `packages/core/src/bus.ts` — `Bus.request`.
-- `packages/http-transport-rust/src/transport.rs` — the Rust client's
+- `packages/rust/http-transport/src/transport.rs` — the Rust client's
   `Transport`, and `actor.rs`, its stream.
-- `packages/sdk-rust/src/bus.rs` — its bus request.
+- `packages/rust/sdk/src/bus.rs` — its bus request.
 - `packages/python/sdk/src/semiont/http/transport.py` — the Python client's
   `Transport`, and `stream.py`, its stream.
 - `packages/python/sdk/src/semiont/bus.py` — its bus request.
