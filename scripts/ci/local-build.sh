@@ -184,7 +184,19 @@ FANOUT=true
 LAYER_CACHE=""
 PACKAGES=""
 START_FROM=""
-ALL_IMAGES="gateway worker smelter weaver archivist dispatcher librarian browser"
+# The images are images/*/Dockerfile. They build in the order the shared Rust
+# builder stage wants: one Rust image first, compiling the workspace while the
+# others build beside it, and the other Rust images last, so they reuse its
+# stage instead of compiling from cold.
+FIRST_RUST="" LATER_RUST="" OTHER_IMAGES=""
+for df in "$REPO_ROOT"/images/*/Dockerfile; do
+  img=$(basename "$(dirname "$df")")
+  if ! grep -q '^FROM rust:' "$df"; then OTHER_IMAGES+=" $img"
+  elif [[ -z "$FIRST_RUST" ]]; then FIRST_RUST="$img"
+  else LATER_RUST+=" $img"
+  fi
+done
+ALL_IMAGES="$FIRST_RUST$OTHER_IMAGES$LATER_RUST"
 IMAGES="$ALL_IMAGES"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -260,19 +272,10 @@ done
 
 # Map an image name to its Dockerfile (the same production Dockerfiles that
 # publish-browser.yml / publish-service-images.yml build — the only delta for
-# a local image is the registry the packages are installed from).
+# a local image is the registry the packages are installed from). Fails for a
+# name that is not an image.
 image_dockerfile() {
-  case "$1" in
-    gateway)  echo "images/gateway/Dockerfile" ;;
-    worker)   echo "images/worker/Dockerfile" ;;
-    smelter)  echo "images/smelter/Dockerfile" ;;
-    weaver)   echo "images/weaver/Dockerfile" ;;
-    archivist) echo "images/archivist/Dockerfile" ;;
-    librarian) echo "images/librarian/Dockerfile" ;;
-    dispatcher) echo "images/dispatcher/Dockerfile" ;;
-    browser) echo "images/browser/Dockerfile" ;;
-    *) return 1 ;;
-  esac
+  [[ -f "$REPO_ROOT/images/$1/Dockerfile" ]] && echo "images/$1/Dockerfile"
 }
 
 for img in $IMAGES; do
@@ -417,9 +420,8 @@ fi
 #
 # The inference drivers (packages/inference-python), the graph stores
 # (packages/graph-python), the vector stores (packages/vectors-python), the
-# service package (packages/service-python), the Worker (images/worker), the
-# Weaver (images/weaver), the Smelter (images/smelter) and the Librarian
-# (images/librarian) are Python projects with a
+# service package (packages/service-python) and every Python image under
+# images/ are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
@@ -430,7 +432,12 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python images/worker images/weaver images/smelter images/librarian; do
+PYTHON_PROJECTS="packages/inference-python packages/graph-python packages/vectors-python packages/service-python"
+for pyproject in "$REPO_ROOT"/images/*/pyproject.toml; do
+  PYTHON_PROJECTS+=" images/$(basename "$(dirname "$pyproject")")"
+done
+
+for PYTHON_PROJECT in $PYTHON_PROJECTS; do
   step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.
