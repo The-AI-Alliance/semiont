@@ -1,7 +1,8 @@
 # @semiont Applications
 
 The applications that run on a host rather than in a container. The services that ship as
-container images are in [images/](../images/README.md).
+container images are in [images/](../images/README.md). Nothing here is published as an image:
+the desktop app's `Dockerfile.builder` is the environment its Linux bundles are built in.
 
 ## Host-installed binaries
 
