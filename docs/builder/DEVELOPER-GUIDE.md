@@ -5,7 +5,7 @@ you'll need them. Each recipe is a short description of the capability followed 
 lines of TypeScript that exercise it.
 
 Building in Rust, Python or Go? The recipes are the same: the namespaces and methods match, and
-the [Rust](../../packages/sdk-rust/README.md), [Python](../../packages/python/sdk/README.md)
+the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md)
 and [Go](../../packages/go/sdk/README.md) READMEs show each call in their own language.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
@@ -706,6 +706,6 @@ after that.
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
-- **[@semiont/react-ui](../../packages/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
+- **[@semiont/react-ui](../../packages/typescript/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
 - **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
 - **[`docs/protocol/`](../protocol/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.

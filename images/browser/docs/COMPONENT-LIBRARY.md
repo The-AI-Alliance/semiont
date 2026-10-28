@@ -25,7 +25,7 @@ composes the library.
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/react-ui                │
+│    packages/typescript/react-ui                │
 │  (Framework-agnostic library)       │
 │                                     │
 │  • UI components                    │
@@ -234,17 +234,17 @@ Decide where the component lives:
 
 For library components:
 
-1. Create in `packages/react-ui/src/components/`
-2. Export from `packages/react-ui/src/index.ts`
-3. Add tests in `packages/react-ui/src/components/__tests__/`
-4. Add styles in `packages/react-ui/src/styles/`
+1. Create in `packages/typescript/react-ui/src/components/`
+2. Export from `packages/typescript/react-ui/src/index.ts`
+3. Add tests in `packages/typescript/react-ui/src/components/__tests__/`
+4. Add styles in `packages/typescript/react-ui/src/styles/`
 
 For Browser components: create in `images/browser/src/`, compose
 library components as needed, use framework-specific APIs directly.
 
 ### Testing strategy
 
-- Unit tests for library components + hooks live in `packages/react-ui`.
+- Unit tests for library components + hooks live in `packages/typescript/react-ui`.
 - Integration tests (provider stack, page-level behavior) live in `images/browser`.
 - E2E tests live at the repo root.
 
@@ -307,8 +307,8 @@ npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
 
 ## Related Documentation
 
-- [`@semiont/react-ui` README](../../../packages/react-ui/README.md)
+- [`@semiont/react-ui` README](../../../packages/typescript/react-ui/README.md)
 - [`@semiont/react-ui` providers](../../../docs/builder/react-ui/SESSION.md)
-- [`@semiont/react-ui` architecture](../../../packages/react-ui/docs/ARCHITECTURE.md)
+- [`@semiont/react-ui` architecture](../../../packages/typescript/react-ui/docs/ARCHITECTURE.md)
 - [API Integration](./API-INTEGRATION.md)
 - [Browser Architecture](./ARCHITECTURE.md)

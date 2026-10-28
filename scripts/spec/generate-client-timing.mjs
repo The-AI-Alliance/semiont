@@ -24,7 +24,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/timing.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/client-timing.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/client-timing.ts'));
 
 function refuse(message) {
   console.error(`✗ ${TABLE}: ${message}`);

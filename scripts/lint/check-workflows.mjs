@@ -57,9 +57,11 @@
  *    which no filter defines.
  *
  * 5. Every directory under apps/, images/ or packages/ that holds a manifest
- *    (package.json, Cargo.toml, pyproject.toml, go.mod) is a pattern
- *    `<dir>/**` of some filter of the map. A package nobody mapped would be
- *    tested by no job on a pull request that changed it alone.
+ *    (package.json, Cargo.toml, pyproject.toml, go.mod), at any depth, is
+ *    under a pattern `<dir>/**` of some filter of the map: the directory's
+ *    own, or one above it (packages/<language>/** holds each package of the
+ *    language). A package nobody mapped would be tested by no job on a pull
+ *    request that changed it alone.
  *
  * 6. `cargo build` is run by one job of ci.yml, build-rust, which publishes
  *    the release binaries the conformance suites start. A suite that built
@@ -391,12 +393,14 @@ function changedAreas(jobs) {
 
   // Rule 5: every package of the repository is under some filter.
   const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
-  const patterns = new Set(Object.values(filters).flat());
+  const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|images|packages)\/[^/]+\/[^/]+$/.test(file) && MANIFESTS.includes(basename(file)))
+    .filter((file) => /^(apps|images|packages)\//.test(file) && MANIFESTS.includes(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   for (const dir of new Set(packages)) {
-    if (!patterns.has(`${dir}/**`)) failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/**: a change to it alone would run no job`);
+    if (!trees.some((tree) => dir === tree || dir.startsWith(`${tree}/`))) {
+      failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/** or a directory above it: a change to it alone would run no job`);
+    }
   }
 }
 

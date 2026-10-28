@@ -1,0 +1,964 @@
+{
+  "$comment": "GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel's attributes, as packages/typescript/core/src/bus-classification.ts states them; the Rust gateway embeds this file.",
+  "channels": {
+    "yield:created": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "yield:cloned": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "yield:updated": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "yield:moved": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "yield:representation-added": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "yield:representation-removed": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "yield:create": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "yield:clone-persist": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "yield:update": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "yield:clone": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "yield:clone-token-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "yield:clone-resource-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "yield:clone-create": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "yield:create-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:create-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-persist-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-persist-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:update-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:update-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-token-generated": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-token-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-resource-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-resource-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-created": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "yield:clone-create-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:added": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:removed": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:body-updated": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:entity-tag-added": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:entity-tag-removed": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:archived": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:unarchived": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "mark:create-request": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:delete": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:update-body": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:archive": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:unarchive": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:update-entity-types": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:create-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:create-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:commit": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "mark:commit-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:commit-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:delete-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:delete-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:archive-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:archive-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:unarchive-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:unarchive-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:update-entity-types-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:update-entity-types-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "mark:body-update-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "mark:requested": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "mark:submit": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "mark:delegate-timeout": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "mark:create-error": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "mark:delete-error": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "bind:body-error": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "frame:entity-type-added": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "frame:tag-schema-added": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "frame:add-entity-type": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "frame:add-tag-schema": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "frame:entity-type-add-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "frame:entity-type-add-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "frame:tag-schema-add-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "frame:tag-schema-add-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "person:profiled": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "person:profile": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "bind:initiate": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "bind:update-body": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "bind:body-updated": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "bind:body-update-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:search-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "match:search-results": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:search-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:resources-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "match:resources-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:resources-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "match:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:limits-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:complete": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:resource-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:resource-complete": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:resource-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:summary-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:summary-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:summary-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:referenced-by-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:referenced-by-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:referenced-by-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:limits-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:resource-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:resource-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:resource-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:resources-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:resources-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:resources-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:annotation-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:annotation-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:annotation-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:events-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:events-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:events-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:annotation-history-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:annotation-history-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:annotation-history-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:entity-types-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:entity-types-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:entity-types-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:tag-schemas-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:tag-schemas-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:tag-schemas-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:agents-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:agents-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:agents-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:people-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:people-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:people-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:kb-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:kb-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:kb-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:directory-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "browse:directory-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:directory-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "browse:click": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "browse:resource-open": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "browse:resource-viewed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "browse:entity-type-clicked": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "panel:toggle": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "panel:open": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "panel:close": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "shell:sidebar-toggle": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "tabs:close": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "tabs:reorder": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "nav:link-clicked": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "nav:push": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "nav:external": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "beckon:hover": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "beckon:focus": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "beckon:sparkle": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "job:started": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "job:assigned": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "job:completed": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "job:failed": {
+      "recorded": true,
+      "direction": "inbound",
+      "delivery": "positioned"
+    },
+    "job:start": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:assign": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:report-progress": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "job:complete": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "job:fail": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "job:checkpoint": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:queued": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "job:cancel-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:cancel": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "job:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:limits-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:status-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "job:create": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:claim": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "job:status-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:status-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:created": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:create-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:claimed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:claim-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:cancel-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:cancel-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "weave:applied": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "smelt:settled": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "weave:rebuild": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "weave:rebuild-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "weave:rebuild-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "smelt:rebuild-anchors": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": true,
+      "delivery": "passing"
+    },
+    "smelt:rebuild-anchors-ok": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "smelt:rebuild-anchors-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "settings:theme-changed": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "settings:line-numbers-toggled": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "settings:locale-changed": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "settings:hover-delay-changed": {
+      "recorded": false,
+      "direction": "in-process"
+    },
+    "bus:resume-gap": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "session:joined": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    },
+    "session:left": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "passing"
+    }
+  }
+}

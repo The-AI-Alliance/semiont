@@ -1528,6 +1528,7 @@ dev = [
     { name = "mypy", specifier = "==2.4.0" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "ruff", specifier = "==0.17.2" },
 ]
 
@@ -1565,6 +1566,7 @@ dev = [
     { name = "mypy", specifier = "==2.4.0" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "ruff", specifier = "==0.17.2" },
     { name = "semiont-graph", extras = ["janusgraph", "neo4j", "neptune"] },
 ]
@@ -1596,6 +1598,7 @@ dev = [
     { name = "mypy", specifier = "==2.4.0" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
     { name = "ruff", specifier = "==0.17.2" },
 ]
 

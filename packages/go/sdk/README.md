@@ -1,5 +1,7 @@
 # Semiont Go SDK
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 The Go SDK for [Semiont][semiont], an open platform for building trusted AI
 knowledge bases: a shared workspace where humans and AI agents annotate,
 connect and govern a corpus of documents.
@@ -1098,8 +1100,8 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [conformance]: ../../../tests/conformance/sdk/README.md
 [worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
 [worker-conformance]: ../../../tests/conformance/worker/README.md
-[sdk-typescript]: ../../sdk/README.md
-[sdk-rust]: ../../sdk-rust/README.md
+[sdk-typescript]: ../../typescript/sdk/README.md
+[sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md
 [surface]: ../../../specs/src/client/surface.json

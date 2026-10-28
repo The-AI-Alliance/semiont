@@ -1,0 +1,205 @@
+/**
+ * Bus logging — runtime-toggleable cross-wire visibility.
+ *
+ * One line per event that crosses a process boundary, in a grep-able
+ * format that's the same in every process:
+ *
+ *   [bus EMIT] <channel> scope=<resource> cid=<first8> <payload>
+ *   [bus RECV] <channel> scope=<resource> cid=<first8> <payload>
+ *   [bus SSE] <channel> scope=<resource> cid=<first8> <payload>
+ *
+ * `scope=` and `cid=` are each written where the frame has one.
+ *
+ * Tier 1 of the observability stack. With a Tier 2 trace-id provider
+ * registered, each line also carries `trace=<first8>` of the active span's
+ * W3C trace-id.
+ *
+ * No line holds a credential. The value of a member whose whole name is one
+ * a credential goes by (`token`, which is what a payload names the token a
+ * resource is cloned by, and the rest of `CREDENTIALS` below) is written as
+ * `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
+ *
+ * Cost when disabled: one property read per call, zero allocations.
+ *
+ * Enable:
+ *   - Browser:  `window.__SEMIONT_BUS_LOG__ = true` (DevTools or e2e init)
+ *   - Node:     `SEMIONT_BUS_LOG=1` in the process env (read at module load)
+ */
+
+import { BRIDGED_CHANNELS } from './bridged-channels';
+import { isObject } from './type-guards';
+
+const NODE_BUS_LOG =
+  typeof process !== 'undefined' && !!process.env?.SEMIONT_BUS_LOG;
+
+const IS_NODE =
+  typeof process !== 'undefined' && !!process.versions?.node;
+
+export type BusOp = 'EMIT' | 'RECV' | 'SSE' | 'PUT' | 'GET';
+
+export function busLogEnabled(): boolean {
+  const g = globalThis as { __SEMIONT_BUS_LOG__?: boolean };
+  if (g.__SEMIONT_BUS_LOG__) return true;
+  return NODE_BUS_LOG;
+}
+
+/**
+ * Optional active-span trace-id provider. When a Tier 2 OTel SDK is
+ * initialized, `@semiont/observability` registers a provider here that
+ * returns the active span's W3C `trace_id`. busLog appends it to each
+ * emitted line so the grep-timeline correlates with the span tree in
+ * an APM UI.
+ *
+ * Decoupling: `@semiont/core` does not depend on `@opentelemetry/api`.
+ * If no provider is registered (Tier 1-only deployments, or before
+ * `initObservabilityNode` runs), the field is omitted from the line.
+ */
+let traceIdProvider: (() => string | undefined) | undefined;
+
+export function setBusLogTraceIdProvider(fn: (() => string | undefined) | undefined): void {
+  traceIdProvider = fn;
+}
+
+/** What a line says in place of a credential. */
+const WITHHELD = '[withheld]';
+
+/**
+ * The names of the members whose value is one: the list
+ * specs/src/bus/log-cases.json states for every bus log, which this
+ * package's tests hold this one to.
+ */
+const CREDENTIALS: ReadonlySet<string> = new Set([
+  'token',
+  'cloneToken',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'apiKey',
+  'api_key',
+  'clientSecret',
+  'client_secret',
+  'secret',
+  'password',
+  'authorization',
+  'Authorization',
+  'x-api-key',
+  'x-goog-api-key',
+]);
+
+/**
+ * A payload as a line shows it: as it is, less the value of each credential.
+ *
+ * Arrays and plain objects are read through and shown as copies, so the
+ * payload itself, which its bus goes on to deliver, is left as it was.
+ * Anything else (a date, a DOM rectangle, a callback) is shown as it is.
+ * `copies` holds what has been read so far, so a payload that holds itself
+ * is read once.
+ */
+function shown(value: unknown, copies: Map<unknown, unknown>): unknown {
+  if (copies.has(value)) return copies.get(value);
+  if (Array.isArray(value)) {
+    const items: unknown[] = [];
+    copies.set(value, items);
+    for (const item of value) items.push(shown(item, copies));
+    return items;
+  }
+  if (!isObject(value)) return value;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  const members: Record<string, unknown> = {};
+  copies.set(value, members);
+  for (const [name, member] of Object.entries(value)) {
+    // Defined, not assigned: assigning a member named `__proto__` would set the copy's prototype.
+    Object.defineProperty(members, name, {
+      value: CREDENTIALS.has(name) ? WITHHELD : shown(member, copies),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return members;
+}
+
+export function busLog(
+  op: BusOp,
+  channel: string,
+  payload: unknown,
+  scope?: string,
+  correlationId?: string,
+): void {
+  if (!busLogEnabled()) return;
+  const cid = correlationId ? correlationId.slice(0, 8) : undefined;
+  let traceId: string | undefined;
+  if (traceIdProvider) {
+    try { traceId = traceIdProvider(); } catch { /* noop */ }
+  }
+  const tag =
+    `[bus ${op}] ${channel}` +
+    (scope ? ` scope=${scope}` : '') +
+    (cid ? ` cid=${cid}` : '') +
+    (traceId ? ` trace=${traceId.slice(0, 8)}` : '');
+  // eslint-disable-next-line no-console
+  console.debug(tag, shown(payload, new Map()));
+}
+
+/**
+ * Whether to run the unobserved-reply check on every local emit.
+ *
+ * On in Node (a process on an SDK session), where a dropped reply is a real
+ * delivery bug; off in the browser, where a 0-observer bridged reply just
+ * means the awaiting `Bus.request` already resolved/timed out (benign).
+ *
+ * Always-on (no env flag) by design: the failure it catches is rare and
+ * high-signal, and the whole point is that it fires with zero setup — a
+ * flag-gated check stays silent in every process running with bus-logging off.
+ */
+export function warnUnobservedRepliesEnabled(): boolean {
+  return IS_NODE;
+}
+
+/** One line per channel per process — a missing fan-in wiring is a config
+ *  bug, so the first dropped reply is enough; we don't spam on retries. */
+const unobservedReplyWarned = new Set<string>();
+
+/**
+ * The silent-dropped-reply detector.
+ *
+ * A correlation-bearing payload is a request/reply *reply* (`*-result`,
+ * `*-complete`, `*-failed`, …). If one is emitted on a service's bus with
+ * **zero local observers**, nothing forwards it — no SSE subscription, no
+ * in-process consumer — so the awaiting client never receives it and times
+ * out 30 s later with no error logged anywhere.
+ *
+ * Emits one WARN per channel naming the likely fix. Ignored (no warning):
+ * non-reply emits (no `correlationId`), emits with observers, and — crucially —
+ * channels already in `BRIDGED_CHANNELS`: a 0-observer emit there is a redundant
+ * copy, not a gap. So the detector fires only
+ * for a genuine missing forwarder, and its remediation text is always correct.
+ */
+export function warnIfUnobservedReply(
+  channel: string,
+  correlationId: string | undefined,
+  observerCount: number,
+): void {
+  if (observerCount > 0) return;
+  if (correlationId === undefined || correlationId.length === 0) return;
+  // A 0-observer emit on a *bridged* channel is a redundant copy (a global +
+  // resource-scoped dual-emit, or an SSE reconnect replay), not a missing
+  // forwarder — the first copy already reached the awaiting `take(1)`
+  // subscriber. Only a NOT-bridged channel is a genuine drop. (A `Bus.request`
+  // reply channel comes from the registry, and every registry reply derives
+  // into `BRIDGED_CHANNELS`; this runtime check covers non-`Bus.request`
+  // correlation emits.)
+  if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
+  if (unobservedReplyWarned.has(channel)) return;
+  unobservedReplyWarned.add(channel);
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[bus DROP] ${channel} cid=${correlationId.slice(0, 8)} emitted with 0 subscribers and not in ` +
+      `BRIDGED_CHANNELS — a correlation reply with no forwarder is dropped, so the awaiting ` +
+      `client times out (no error). Bridge it by declaring its operation in BUS_OPERATIONS ` +
+      `(packages/typescript/core/src/bus-operations.ts) — or, if it is a non-reply broadcast, add it to ` +
+      `BRIDGED_BROADCASTS (packages/typescript/core/src/bridged-channels.ts) — so transports subscribe to it.`,
+  );
+}

@@ -32,8 +32,8 @@ const constant = (name, docs, value) => `${goComment(`${name}: ${docs}`)}\nconst
 const text = `// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-oauth-clients-go.mjs
-// The TypeScript (packages/core/src/generated/oauth-clients.ts), Rust
-// (packages/sdk-rust/build.rs) and Python (semiont.oauth_clients) SDKs generate
+// The TypeScript (packages/typescript/core/src/generated/oauth-clients.ts), Rust
+// (packages/rust/sdk/build.rs) and Python (semiont.oauth_clients) SDKs generate
 // from the same file.
 
 package semiont

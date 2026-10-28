@@ -235,7 +235,7 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
         dev = listed(table(of["dependency-groups"], "dependency-groups")["dev"], "dev")
         return {name_of(requirement): requirement for requirement in dev}
 
-    checkers = ("mypy", "pyright", "pytest", "ruff")
+    checkers = ("mypy", "pyright", "pytest", "pytest-cov", "ruff")
     assert set(tools(MANIFEST)) == set(checkers)
     assert tools(MANIFEST) == {name: tools(theirs)[name] for name in checkers}
 
@@ -246,6 +246,10 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert settings(MANIFEST, "mypy", but=("files",)) == settings(theirs, "mypy", but=("files",))
     assert settings(MANIFEST, "pydantic-mypy", but=()) == settings(theirs, "pydantic-mypy", but=())
     assert settings(MANIFEST, "pytest", but=()) == settings(theirs, "pytest", but=())
+    # A coverage run measures its own package's source, and reports as the SDK's does.
+    our_run = table(settings(MANIFEST, "coverage", but=())["run"], "coverage's run")
+    their_run = table(settings(theirs, "coverage", but=())["run"], "coverage's run")
+    assert {key: our_run[key] for key in our_run if key != "source"} == {key: their_run[key] for key in their_run if key != "source"}
     assert settings(MANIFEST, "pyright", but=("include",)) == settings(theirs, "pyright", but=("include",))
     # The SDK's formatter is told which of its modules are generated, and its linter which of its tests are
     # programs that must not type-check. This package has neither.

@@ -18,7 +18,7 @@
 //
 // Each is held to the other before anything is written: TextDecoder must
 // take every label as the encoding the table gives it, and refuse the labels
-// of `replacement`. The Rust SDK's runner (packages/sdk-rust/tests/decode_cases.rs)
+// of `replacement`. The Rust SDK's runner (packages/rust/sdk/tests/decode_cases.rs)
 // then holds what is written to encoding_rs, which is the standard as Firefox
 // has it: label by label and byte by byte.
 //
@@ -157,14 +157,14 @@ const table = {
     `the npm package ${PACKAGE}, an implementation of the standard, at the version the repository's package.json pins ` +
     '(MIT, Exodus Movement); the characters of each byte, and the text of each case\'s bytes, are what Node\'s ' +
     'TextDecoder reads; and the generator refuses ' +
-    'to write where the two disagree about a label. RUN BY TypeScript in packages/core (decode-cases.test.ts), by the ' +
+    'to write where the two disagree about a label. RUN BY TypeScript in packages/typescript/core (decode-cases.test.ts), by the ' +
     'Rust SDK (tests/decode_cases.rs), by the Python SDK (tests/test_decode_cases.py) and by the Go SDK ' +
     '(resources_test.go), each for every label of every case. The Rust SDK\'s reader is encoding_rs, which is the standard as ' +
     'Firefox has it, so its run is the check of this table against a second implementation, label by label and byte ' +
     'by byte. A reader in another language runs it too.',
   runBy: {
-    typescript: ['packages/core/src/__tests__/decode-cases.test.ts'],
-    rust: ['packages/sdk-rust/src/resources.rs', 'packages/sdk-rust/tests/decode_cases.rs'],
+    typescript: ['packages/typescript/core/src/__tests__/decode-cases.test.ts'],
+    rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
     python: ['packages/python/sdk/tests/test_decode_cases.py'],
     go: ['packages/go/sdk/resources_test.go'],
   },

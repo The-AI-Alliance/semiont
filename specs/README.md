@@ -176,7 +176,7 @@ High-level guides in [docs/protocol/](../docs/protocol/):
 
 For implementation details:
 - [Gateway Documentation](../images/gateway/README.md) - Gateway architecture
-- [API Client Documentation](../packages/http-transport/README.md) - TypeScript SDK
+- [API Client Documentation](../packages/typescript/http-transport/README.md) - TypeScript SDK
 
 ## Decomposition Notes
 
@@ -209,12 +209,12 @@ Bundling takes no configuration: a schema is kept in the bundle because `compone
 - [Root README](../README.md) - Project overview
 - [Architecture](../docs/architecture/README.md) - System architecture index
 - [Gateway README](../images/gateway/README.md) - Gateway implementation
-- [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
-- [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them
+- [@semiont/http-transport](../packages/typescript/http-transport/README.md) - HTTP + SSE wire adapters
+- [@semiont/sdk](../packages/typescript/sdk/README.md) - The TypeScript client built over them
 
 ---
 
-**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/http-transport/docs/API-Reference.md) for the wire adapters
+**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/typescript/http-transport/docs/API-Reference.md) for the wire adapters
 
 **For spec editing**: Edit files in [src/](src/), then run `npm run openapi:bundle`
 

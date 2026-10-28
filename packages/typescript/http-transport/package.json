@@ -1,0 +1,66 @@
+{
+  "name": "@semiont/http-transport",
+  "version": "0.7.1",
+  "description": "HTTP transport adapters for the Semiont SDK",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/typescript/http-transport"
+  },
+  "scripts": {
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/observability --if-present",
+    "typecheck": "tsc --noEmit",
+    "typecheck:conformance": "tsc -p conformance",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist dist-types",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@semiont/core": "*",
+    "@semiont/observability": "*",
+    "ky": "^2.2.0",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.5",
+    "fast-check": "^4.10.0",
+    "rollup": "^4.64.12",
+    "rollup-plugin-dts": "^6.4.1",
+    "tsup": "^9.0.0",
+    "typescript": "^6.0.2",
+    "vitest": "^5.0.2"
+  },
+  "keywords": [
+    "semiont",
+    "http",
+    "transport",
+    "sse",
+    "sdk"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0"
+}

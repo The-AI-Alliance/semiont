@@ -202,7 +202,7 @@ tree and cannot call hooks. The transport stamps each failure with a
 stream and routes failures to that session's `SessionSignals`:
 
 ```typescript
-// SemiontBrowser, on session activation (packages/sdk/src/session/semiont-browser.ts)
+// SemiontBrowser, on session activation (packages/typescript/sdk/src/session/semiont-browser.ts)
 declare const signals: SessionSignals; // the session's signals
 
 session.errors$.subscribe((err) => {

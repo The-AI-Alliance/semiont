@@ -235,6 +235,11 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     assert settings(ours, "pyright", but=("include",)) == settings(theirs, "pyright", but=("include",))
     assert settings(ours, "pydantic-mypy", but=()) == settings(theirs, "pydantic-mypy", but=())
     assert settings(ours, "pytest", but=()) == settings(theirs, "pytest", but=())
+    # A coverage run measures its own package's source, and reports as the SDK's does.
+    our_run, their_run = settings(ours, "coverage", but=())["run"], settings(theirs, "coverage", but=())["run"]
+    assert isinstance(our_run, dict)
+    assert isinstance(their_run, dict)
+    assert {key: our_run[key] for key in our_run if key != "source"} == {key: their_run[key] for key in their_run if key != "source"}
     # The SDK's formatter is told which of its modules are generated. This package has none.
     assert settings(ours, "ruff", but=()) == settings(theirs, "ruff", but=("extend-exclude",))
     # Which Pythons the two run on is lint:python-version's to hold: it is the one gate that reads that line.

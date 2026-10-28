@@ -38,11 +38,12 @@ jobs:
         with:
           node-version-file: .node-version
 
-      # rustup installs the toolchain rust-toolchain.toml names, the one every
-      # Rust build in the repository uses, then the platform's target for it.
+      # The desktop app is outside the Rust workspace, so rustup cannot find
+      # packages/rust/rust-toolchain.toml from it: its default is the channel
+      # that file names, then the platform's target for it.
       - name: Install the pinned Rust toolchain
         run: |
-          rustup toolchain install
+          rustup default "$(scripts/ci/rust-toolchain.sh)"
           rustup target add ${{ matrix.target }}
 
       - name: Install Linux dependencies

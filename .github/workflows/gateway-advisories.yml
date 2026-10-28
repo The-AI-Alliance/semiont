@@ -14,9 +14,11 @@ name: Gateway Crate Advisories
 on:
   pull_request:
     paths:
-      - '**/Cargo.toml'
-      - Cargo.lock
-      - deny.toml
+      - 'packages/rust/**/Cargo.toml'
+      - 'images/**/Cargo.toml'
+      - packages/rust/Cargo.lock
+      - packages/rust/deny.toml
+      - packages/rust/rust-toolchain.toml
       - .github/workflows/gateway-advisories.yml
   schedule:
     - cron: '0 6 * * *'
@@ -37,6 +39,9 @@ jobs:
     name: Gateway Crate Advisories
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -54,7 +59,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cargo/bin/cargo-deny
-          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'packages/rust/rust-toolchain.toml') }}
 
       - name: Install cargo-deny
         if: steps.cache.outputs.cache-hit != 'true'

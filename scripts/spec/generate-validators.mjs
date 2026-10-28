@@ -30,7 +30,7 @@ import { convertNullable } from './openapi-schema.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const SPEC = resolve(ROOT, 'specs/openapi.json');
-const OUT_DIR = resolve(ROOT, 'packages/core/src/generated');
+const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 // CommonJS, deliberately. Ajv's `code.esm` option only changes the EXPORT
 // syntax — `compile/codegen/scope.js` has no ESM handling, so scope values
 // (ajv-formats' format table, ajv's ucs2length) are emitted as `require()`
@@ -116,4 +116,4 @@ writeFileSync(
     `\n`,
 );
 
-console.log(`generated ${names.length} validators → packages/core/src/generated/openapi-validators.cjs`);
+console.log(`generated ${names.length} validators → packages/typescript/core/src/generated/openapi-validators.cjs`);

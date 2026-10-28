@@ -560,8 +560,8 @@ states `transient`.
 
 A worker evaluates the same predicate, on
 the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
-([`claims.ts`](../../packages/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
-([`claims.rs`](../../packages/sdk-rust/src/claims.rs)) and the Python SDK
+([`claims.ts`](../../packages/typescript/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
+([`claims.rs`](../../packages/rust/sdk/src/claims.rs)) and the Python SDK
 ([`claims.py`](../../packages/python/sdk/src/semiont/claims.py)), which a held job's `fail` applies. The
 dispatcher's own is the Rust SDK's. Every implementation answers
 [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) alike. With the budgets set at admission, a `yield` job is never retried and a

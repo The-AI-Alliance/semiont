@@ -12,7 +12,7 @@ Dark mode is `data-theme="dark"` on a parent element. The semantic tokens
 the palette tokens (`--semiont-color-*`) are one fixed hue in both themes.
 
 How the styles are written, named and linted inside the package is in its
-[STYLES.md](../../../packages/react-ui/docs/STYLES.md).
+[STYLES.md](../../../packages/typescript/react-ui/docs/STYLES.md).
 
 ## Using the Styles in Your App
 

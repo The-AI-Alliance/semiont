@@ -281,7 +281,7 @@ Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
 (`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
 `BrowseNamespace` + cache + `Bus.request` composition by the property
-suite ([browse-liveness.property.test.ts](../../packages/sdk/src/__tests__/browse-liveness.property.test.ts)).
+suite ([browse-liveness.property.test.ts](../../packages/typescript/sdk/src/__tests__/browse-liveness.property.test.ts)).
 Changing the retry count is a policy change that must edit L2's budget
 visibly, not drift past it.
 
@@ -311,7 +311,7 @@ holds it.** No observer sees `failed` while another sees `pending`.
    governs them.
 
 Rationale: liveness axiom L1, which the property suite
-([browse-liveness.property.test.ts](../../packages/sdk/src/__tests__/browse-liveness.property.test.ts))
+([browse-liveness.property.test.ts](../../packages/typescript/sdk/src/__tests__/browse-liveness.property.test.ts))
 holds the real composition to.
 B14 converts "reply lost" into one slow load when the retry succeeds;
 B15 covers the remaining corner — the retry ALSO fails — where an idle
@@ -701,7 +701,7 @@ constructor runs once per `SemiontClient`.
 ## Test-parity
 
 The TypeScript SDK asserts each behavior by its number, in suites under
-`packages/sdk/src/`: `namespaces/__tests__/cache-semantics.test.ts`
+`packages/typescript/sdk/src/`: `namespaces/__tests__/cache-semantics.test.ts`
 against `BrowseNamespace`, `__tests__/cache.test.ts` against
 `createCache` alone, and, for persistence (B17, B18),
 `__tests__/cache-persistence.test.ts`, `cache-persister.test.ts` and

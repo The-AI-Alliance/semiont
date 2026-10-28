@@ -6,7 +6,7 @@
 //
 // Four suites, each one TypeScript program with its own preludes:
 //   - sdk: the builder docs (docs/builder) and the protocol docs
-//     (docs/protocol and its flows), plus the repo-root and packages/sdk READMEs, which
+//     (docs/protocol and its flows), plus the repo-root and packages/typescript/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. They teach scripts as well as
 //     applications, so Node's types are on; resolved like an external node
@@ -15,10 +15,10 @@
 //     README). They teach Node scripts, so Node's types are on; resolved like
 //     the sdk suite.
 //   - packages: the READMEs of the packages the SDK is built on
-//     (packages/*/README.md, but the sdk's and react-ui's, which the suites
+//     (packages/typescript/*/README.md, but the sdk's and react-ui's, which the suites
 //     beside this one hold). Node's types are on, and there is no prelude: a
 //     fence there is a whole example, and imports or declares what it uses.
-//   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
+//   - ui: the react-ui docs (docs/builder/react-ui and packages/typescript/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
 //     (bundler resolution, as Vite does), with the Browser's `@/` alias, since
 //     the Browser docs teach its own modules. Only diagnostics inside the doc
@@ -83,7 +83,7 @@ const SUITES = {
       ...markdownIn('docs/protocol'),
       ...markdownIn('docs/protocol/flows'),
       'README.md',
-      'packages/sdk/README.md',
+      'packages/typescript/sdk/README.md',
     ],
     preludes: ['prelude.ts'],
     options: { types: ['node'] },
@@ -109,7 +109,7 @@ const SUITES = {
   // its package to someone working on it, with one example that runs. A fence
   // imports or declares everything it uses: there is no shared vocabulary.
   packages: {
-    docs: ['core', 'http-transport', 'observability'].map((dir) => join('packages', dir, 'README.md')),
+    docs: ['core', 'http-transport', 'observability'].map((dir) => join('packages', 'typescript', dir, 'README.md')),
     preludes: [],
     options: { types: ['node'] },
     ambientModules: [],
@@ -118,9 +118,9 @@ const SUITES = {
   ui: {
     docs: [
       ...markdownIn('docs/builder/react-ui'),
-      ...markdownIn('packages/react-ui/docs'),
+      ...markdownIn('packages/typescript/react-ui/docs'),
       ...markdownIn('images/browser/docs'),
-      'packages/react-ui/README.md',
+      'packages/typescript/react-ui/README.md',
       'images/browser/README.md',
     ],
     // react-ui's own declarations for the untyped jest-axe and its vitest
@@ -128,8 +128,8 @@ const SUITES = {
     preludes: [
       'prelude-ui.ts',
       'prelude-ui-assets.ts',
-      '../../packages/react-ui/src/types/jest-axe.d.ts',
-      '../../packages/react-ui/src/types/vitest-matchers.d.ts',
+      '../../packages/typescript/react-ui/src/types/jest-axe.d.ts',
+      '../../packages/typescript/react-ui/src/types/vitest-matchers.d.ts',
     ],
     options: {
       module: ts.ModuleKind.ESNext,

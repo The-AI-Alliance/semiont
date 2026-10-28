@@ -88,7 +88,7 @@ await semiont.bind.body(resourceId, annotationId, [                             
 
 Three surfaces speak these verbs:
 
-- **The SDKs**, in [TypeScript](../../packages/sdk/README.md), [Rust](../../packages/sdk-rust/README.md), [Python](../../packages/python/sdk/README.md) and [Go](../../packages/go/sdk/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
+- **The SDKs**, in [TypeScript](../../packages/typescript/sdk/README.md), [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md) and [Go](../../packages/go/sdk/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
 - **[Agent skills](../builder/skills/)** are ready-made skill definitions that agentic coding assistants use to work in a knowledge base without writing integration code.
 - **[The launcher](../../apps/launcher/README.md)**, the `semiont` binary, exposes the verbs as terminal commands against a running stack; `semiont <verb> --help` for each.
 

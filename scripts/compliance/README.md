@@ -14,7 +14,7 @@ This system provides zero-configuration compliance auditing that:
 
 ### React-UI Package
 ```bash
-cd packages/react-ui
+cd packages/typescript/react-ui
 ./scripts/generate-compliance-report.sh
 # Outputs: .compliance/REACT-UI-COMPLIANCE.md
 ```
@@ -37,7 +37,7 @@ scripts/compliance/          # Shared core scripts (workspace-agnostic)
 └── docs/
     └── TENETS-REACT-UI.md   # React UI architecture rules
 
-packages/react-ui/scripts/   # React-UI thin wrapper
+packages/typescript/react-ui/scripts/   # React-UI thin wrapper
 └── generate-compliance-report.sh
 
 images/browser/scripts/       # Browser thin wrapper
@@ -130,7 +130,7 @@ const handler = useCallback(() => {
 
 ### audit-hooks-ordering.ts
 
-**Purpose**: Find a React hook called where React's rules forbid one, in `packages/react-ui/src` and `images/browser/src`.
+**Purpose**: Find a React hook called where React's rules forbid one, in `packages/typescript/react-ui/src` and `images/browser/src`.
 
 **Usage**:
 ```bash
@@ -148,11 +148,11 @@ It takes no arguments and writes no report. It exits 1 on an error, and 0 with w
 
 Thin shell scripts that call shared core with workspace-specific paths.
 
-### Example: packages/react-ui/scripts/generate-compliance-report.sh
+### Example: packages/typescript/react-ui/scripts/generate-compliance-report.sh
 ```bash
 #!/bin/bash
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-SRC_DIR="$REPO_ROOT/packages/react-ui/src"
+SRC_DIR="$REPO_ROOT/packages/typescript/react-ui/src"
 
 # Shared compliance scripts
 DISCOVER="$REPO_ROOT/scripts/compliance/discover-symbols.ts"
@@ -279,7 +279,7 @@ jobs:
       # Audit React-UI: the script exits non-zero on a failing symbol
       - name: React-UI Compliance
         run: |
-          cd packages/react-ui
+          cd packages/typescript/react-ui
           ./scripts/generate-compliance-report.sh
 
       # Audit Browser

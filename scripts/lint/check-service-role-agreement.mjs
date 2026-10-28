@@ -44,7 +44,7 @@ const ROLES = [
         pattern: /roles\s*:=\s*\[\]string\{"([^"]+)"\}/,
       },
       {
-        file: 'packages/sdk-rust/src/roles.rs',
+        file: 'packages/rust/sdk/src/roles.rs',
         what: 'the value the Rust SDK holds, which the gateway gates /api/tokens/agent on',
         pattern: /SERVICE_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },
@@ -64,7 +64,7 @@ const ROLES = [
         pattern: /append\(roles,\s*"([^"]+)"\)/,
       },
       {
-        file: 'packages/sdk-rust/src/roles.rs',
+        file: 'packages/rust/sdk/src/roles.rs',
         what: 'the grant the Rust SDK holds, which the gateway delegates to a worker\'s agent token and the dispatcher authorizes a job:claim by',
         pattern: /WORKER_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },

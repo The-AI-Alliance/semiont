@@ -122,7 +122,7 @@ From the launcher: `semiont mark --delegate <resourceId> --motivation linking --
 
 ## Where it is implemented
 
-- The SDK namespace: [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts)
+- The SDK namespace: [packages/typescript/sdk/src/namespaces/mark.ts](../../../packages/typescript/sdk/src/namespaces/mark.ts)
 - What records the events: [the Archivist](../ARCHIVIST.md), in [images/archivist/src/commands.rs](../../../images/archivist/src/commands.rs)
 - The Worker service, which runs the detections: [images/worker](../../../images/worker/README.md), held to [WORKER-SERVICE.md](../WORKER-SERVICE.md)
 - The launcher verb: [packages/go/launcher/verbs/mark.go](../../../packages/go/launcher/verbs/mark.go)

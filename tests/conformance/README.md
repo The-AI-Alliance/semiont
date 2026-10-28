@@ -48,7 +48,7 @@ both, and the Librarian's environment, which `uv` makes
 ([librarian/README.md](librarian/README.md)):
 
 ```bash
-cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
+(cd packages/rust && cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers)
 npm run build:packages
 uv sync --locked --no-dev --all-extras --project images/worker
 uv sync --locked --no-dev --all-extras --project images/weaver

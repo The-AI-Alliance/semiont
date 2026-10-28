@@ -17,10 +17,12 @@
  *    any one, so a member the stage leaves out fails every image's build.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+/** The workspace's root, which names its members. */
+const WORKSPACE = 'packages/rust';
 const failures = [];
 const fail = (message) => failures.push(message);
 
@@ -59,9 +61,10 @@ if (first) {
 }
 
 if (first) {
-  const workspace = readFileSync(join(ROOT, 'Cargo.toml'), 'utf8');
-  const members = [...(workspace.match(/^members = \[([^\]]*)\]/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  if (members.length === 0) fail('Cargo.toml names no workspace members: the check has lost what it reads');
+  const workspace = readFileSync(join(ROOT, WORKSPACE, 'Cargo.toml'), 'utf8');
+  // A member is named from the workspace's root; the builder stage copies it from the repository's.
+  const members = [...(workspace.match(/^members = \[([^\]]*)\]/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => posix.normalize(posix.join(WORKSPACE, m[1])));
+  if (members.length === 0) fail(`${WORKSPACE}/Cargo.toml names no workspace members: the check has lost what it reads`);
   const copies = (source) => new RegExp(`^COPY (?:\\S+ )*${source.replaceAll('/', '\\/')} `, 'm').test(first.builder);
   for (const member of members) {
     if (!copies(`${member}/Cargo.toml`)) fail(`the builder stage does not copy ${member}/Cargo.toml, a member of the workspace`);

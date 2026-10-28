@@ -1,8 +1,8 @@
 {
   "$comment": "The origin of a knowledge base's gateway, made from its HTTP endpoint, as every SDK must make it: what a session sends its requests to and opens its stream at. TypeScript (`kbGatewayUrl`, @semiont/sdk), Rust (`HttpEndpoint::gateway_url`, semiont) and Python (`gateway_url`, semiont.http) each run every case and fail on a difference. A host is a host's name or it is refused, and a refused host is never put into a URL: a host's name is labels of ASCII letters, digits and hyphens with a dot between each two, every label 1 to 63 characters long and none beginning or ending with a hyphen. A dotted address and `localhost` are such names; a host with a slash, a colon, a space, a query, a bracket or a letter outside ASCII is not. The origin is the protocol, `://`, the host in lowercase and nothing else done to it, `:` and the port, written even when it is the protocol's own. READING A CASE. `endpoint` is an HttpEndpoint (components/schemas/HttpEndpoint.json), and `origin` the gateway's origin, or null when the host is refused.",
   "runBy": {
-    "typescript": ["packages/sdk/src/session/__tests__/gateway-url-cases.test.ts"],
-    "rust": ["packages/sdk-rust/src/session/knowledge_base.rs"],
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/gateway-url-cases.test.ts"],
+    "rust": ["packages/rust/sdk/src/session/knowledge_base.rs"],
     "python": ["packages/python/sdk/tests/test_gateway_url.py"],
     "go": ["packages/go/sdk/endpoint_test.go"]
   },

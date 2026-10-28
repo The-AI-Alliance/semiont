@@ -250,7 +250,7 @@ A unit is a struct built over an `Arc<SemiontClient>` it never closes. Its state
 
 One TypeScript rule has no Rust form: a unit is a struct, not a closure.
 
-The Rust README lists [the units and what each holds](../../packages/sdk-rust/README.md#state-units), and has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk).
+The Rust README lists [the units and what each holds](../../packages/rust/sdk/README.md#state-units), and has [the table that maps each TypeScript shape to its Rust form](../../packages/rust/sdk/README.md#from-the-typescript-sdk).
 
 ## In Python
 
@@ -270,7 +270,7 @@ The structural contract — `dispose()` exists — is the only part the **type s
 
 That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`) and Go's (`semionttest.AssertStateUnitAxioms`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/sdk/src/__tests__/state-cases.test.ts`, `packages/sdk-rust/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py` and `packages/go/sdk/state/cases_test.go`.
+What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py` and `packages/go/sdk/state/cases_test.go`.
 
 Five enforcement tiers:
 
@@ -282,7 +282,7 @@ Five enforcement tiers:
 | **Static compliance** — CI grep (`scripts/compliance/`, run by the `compliance-check` job of `ci.yml`) | bash + grep | no `class` in a `*-state-unit.ts` file (TypeScript's convention: its units are made by factories) · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3: Rust, as a test that fails any `static` item; Python, as a test that fails module state not marked `Final` |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/sdk-rust/tests/census.rs` fails a Rust unit with no axiom test, `packages/python/sdk/tests/test_census.py` a Python one, and `packages/go/sdk/units_axioms_test.go` a Go one.
+Every state unit's test carries an `assertStateUnitAxioms<Unit>({...})` block that names its unit — all 17 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`, `SemiontSession` among them. `lint:state-unit-census` (`scripts/lint/check-state-unit-census.mjs`) fails an interface that extends `StateUnit`, or a class that implements it, with no such block, as `packages/rust/sdk/tests/census.rs` fails a Rust unit with no axiom test, `packages/python/sdk/tests/test_census.py` a Python one, and `packages/go/sdk/units_axioms_test.go` a Go one.
 
 ### Rule reference
 
@@ -309,6 +309,6 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 - [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) — the four return-shape categories (Promise / StreamObservable / CacheObservable / void) and the naming convention. State unit method returns follow the same convention.
 - [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
-- [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
+- [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
 - [The Python SDK's README](../../packages/python/sdk/README.md#state-units) — the Python units, and a program that watches one.
 - [The Go SDK's README](../../packages/go/sdk/README.md#state-units) — the Go units, and a program that watches one.

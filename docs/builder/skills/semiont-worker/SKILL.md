@@ -421,7 +421,7 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
-`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. `passages` stands for your model: given the text, the passages it would highlight, each as the words it quoted (a `Vec<QuotedText>`). [The transport's README](../../../../packages/http-transport-rust/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/sdk-rust/README.md#a-worker) has the rules it keeps.
+`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. `passages` stands for your model: given the text, the passages it would highlight, each as the words it quoted (a `Vec<QuotedText>`). [The transport's README](../../../../packages/rust/http-transport/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/rust/sdk/README.md#a-worker) has the rules it keeps.
 
 What differs from TypeScript is what the language gives:
 

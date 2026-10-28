@@ -14,7 +14,7 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 | A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | none | `begin_sign_in`, `complete_sign_in` | none |
 | A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README |
 
-Each SDK's README has its own forms in full: [TypeScript](../../packages/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/http-transport-rust/README.md).
+Each SDK's README has its own forms in full: [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/rust/http-transport/README.md).
 
 ## What every way has in common
 

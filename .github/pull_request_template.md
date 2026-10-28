@@ -25,7 +25,7 @@
 - [ ] Librarian (`images/librarian`: its image, and its Python code)
 - [ ] Browser (`images/browser`, `apps/desktop`)
 - [ ] Launcher (`apps/launcher`)
-- [ ] TypeScript packages (`packages/sdk` and the other npm workspaces under `packages/`)
+- [ ] TypeScript packages (`packages/typescript/sdk` and the other npm workspaces under `packages/`)
 - [ ] Rust crates (`packages/*-rust`)
 - [ ] Python packages (`packages/python/sdk` and the others under `packages/*-python`)
 - [ ] Go SDK (`packages/go/sdk`)
@@ -41,7 +41,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 
 - [ ] Tests are added or updated for the behavior this changes
 - [ ] npm workspaces: `npm run typecheck`, and `npm test --workspace=<name>` for each one changed
-- [ ] Rust: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
+- [ ] Rust: in `packages/rust`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
 - [ ] Python: from each project changed (`packages/python/sdk`, `packages/python/inference`, `packages/python/graph`, `packages/python/vectors`, `packages/python/service`, `images/worker`, `images/weaver`, `images/smelter`, `images/librarian`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...` and `cd packages/go/launcher && go test -timeout 30m ./...`
 - [ ] Go SDK: `cd packages/go/sdk && go test -timeout 5m ./...`
@@ -67,7 +67,7 @@ Complete this section if the change touches the gateway's routes, how any part m
 - [ ] The cases no schema can state are added under `tests/conformance/gateway/`, each citing the text it checks, and `cd tests/conformance && npm run test:gateway` passes
 - [ ] A credential travels only as `Authorization: Bearer`, or as `?token=` on `GET /api/resources/{id}`: no cookie, and CORS carries no credentials
 - [ ] No token, key or secret reaches a log line, an error body or a committed file
-- [ ] Session code (`packages/sdk/src/session/`, `images/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd images/browser && npm run test:security` pass
+- [ ] Session code (`packages/typescript/sdk/src/session/`, `images/browser/src/contexts/AuthShell.tsx`): `npm test --workspace=@semiont/sdk` and `cd images/browser && npm run test:security` pass
 - [ ] `SECURITY.md` and `AUTHENTICATION.md` describe the result
 
 ## Breaking Changes

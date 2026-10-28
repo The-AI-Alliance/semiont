@@ -21,7 +21,7 @@ const (
 	// vendor-neutral by design — the gateway's verification path names no
 	// Keycloak structure, so an operator federating another issuer maps their
 	// own groups into the same claim. Must equal SERVICE_ROLE in
-	// packages/sdk-rust/src/roles.rs (npm run lint:service-role holds them together).
+	// packages/rust/sdk/src/roles.rs (npm run lint:service-role holds them together).
 	serviceRole = "semiont-service"
 
 	// workerRole: the realm role marking a client permitted to CLAIM JOBS.
@@ -31,7 +31,7 @@ const (
 	// every service client carries: service-ness is the floor, worker-ness the
 	// finer grant. Authorizing a job:claim by this ROLE — not by matching the
 	// worker's client id — is what lets a foreign worker claim. Must equal
-	// WORKER_ROLE in packages/sdk-rust/src/roles.rs (held by lint:service-role).
+	// WORKER_ROLE in packages/rust/sdk/src/roles.rs (held by lint:service-role).
 	workerRole = "semiont-worker"
 
 	// keycloakAccessTokenLifespan: how long an access token the realm mints

@@ -1,3 +1,7 @@
+# Its own workspace: the desktop app is no member of the repository's Rust
+# workspace (packages/rust), and Cargo stops looking for one here.
+[workspace]
+
 [package]
 name = "semiont-desktop"
 version = "0.0.0"

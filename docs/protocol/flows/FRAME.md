@@ -76,7 +76,7 @@ From the launcher: `semiont frame --entity-type Person --entity-type Organizatio
 
 ## Where it is implemented
 
-- The SDK namespace: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
+- The SDK namespace: [packages/typescript/sdk/src/namespaces/frame.ts](../../../packages/typescript/sdk/src/namespaces/frame.ts)
 - What records the events, and how the two vocabularies are projected and read: [the Archivist](../ARCHIVIST.md), in [images/archivist](../../../images/archivist/)
 - Where the dispatcher resolves a schema id: [images/dispatcher/handlers/src/admission.rs](../../../images/dispatcher/handlers/src/admission.rs)
 - The entity types a new knowledge base starts with: `DEFAULT_ENTITY_TYPES`, in [images/archivist/src/main.rs](../../../images/archivist/src/main.rs)

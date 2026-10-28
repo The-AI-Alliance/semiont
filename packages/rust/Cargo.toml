@@ -1,0 +1,83 @@
+# The Rust workspace: the services written in Rust and the crates they share.
+# One lockfile, one target/ and one toolchain (rust-toolchain.toml) for all of
+# them. The desktop app's crate is its own project, outside the workspace.
+[workspace]
+resolver = "3"
+members = [
+    "codegen",
+    "core",
+    "http-service",
+    "http-transport",
+    "http-transport/conformance",
+    "observability",
+    "sdk",
+    "telemetry",
+    "../../images/archivist",
+    "../../images/archivist/record",
+    "../../images/archivist/staging",
+    "../../images/dispatcher",
+    "../../images/dispatcher/handlers",
+    "../../images/dispatcher/jetstream",
+    "../../images/gateway",
+]
+
+# What the crates published to crates.io share. `version` is version.json's:
+# scripts/release/cargo-version.sh writes it here, beside the three paths
+# below that name it, and in Cargo.lock, and CI fails a crate that carries
+# another.
+[workspace.package]
+version = "0.7.1"
+repository = "https://github.com/The-AI-Alliance/semiont"
+
+# Every crate a member uses, by version, once: a member names the ones it uses
+# with `.workspace = true` and adds the features it needs.
+[workspace.dependencies]
+semiont = { path = "sdk", version = "0.7.1" }
+semiont-codegen = { path = "codegen", version = "0.7.1" }
+semiont-archivist-record = { path = "../../images/archivist/record" }
+semiont-archivist-staging = { path = "../../images/archivist/staging" }
+semiont-dispatcher-handlers = { path = "../../images/dispatcher/handlers" }
+semiont-dispatcher-jetstream = { path = "../../images/dispatcher/jetstream" }
+semiont-core = { path = "core" }
+semiont-http-service = { path = "http-service" }
+semiont-http-transport = { path = "http-transport" }
+semiont-observability = { path = "observability" }
+semiont-telemetry = { path = "telemetry", version = "0.7.1" }
+async-nats = { version = "0.50.0", default-features = false }
+axum = { version = "0.8.9", default-features = false }
+base64 = "0.23.1"
+bytes = "1.12.1"
+encoding_rs = "0.8.42"
+chrono = { version = "0.4.45", default-features = false }
+futures = "0.3.34"
+futures-core = "0.3.34"
+http-body = "1.1.0"
+http-body-util = "0.1.5"
+hyper = "1.11.1"
+hyper-util = "0.1.21"
+jsonschema = { version = "0.60.0", default-features = false }
+jsonwebtoken = { version = "11.1.0", default-features = false }
+opentelemetry = { version = "0.33.0", default-features = false }
+opentelemetry_sdk = { version = "0.33.0", default-features = false }
+opentelemetry-otlp = { version = "0.33.0", default-features = false }
+opentelemetry-stdout = { version = "0.33.0", default-features = false }
+percent-encoding = "2.3.2"
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+reqwest = { version = "0.13.5", default-features = false }
+ring = "0.17.14"
+rustls = { version = "0.23.46", default-features = false }
+serde = "1.0.229"
+serde_json = "1.0.151"
+serde-saphyr = "2.0.0"
+socket2 = "0.6.5"
+tikv-jemalloc-ctl = "0.7.0"
+tikv-jemallocator = "0.7.0"
+tokio = "1.53.1"
+tokio-stream = { version = "0.1.19", default-features = false }
+tower = "0.5.3"
+unicode-normalization = "0.1.24"
+uuid = "1.26.1"
+
+[profile.release]
+strip = true
+lto = "thin"

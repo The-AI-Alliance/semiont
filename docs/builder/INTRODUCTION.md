@@ -80,8 +80,8 @@ believe them at first:
 
 2. **Language SDKs are peers.** This book uses `@semiont/sdk` — the
    TypeScript/npm SDK — as its vehicle. The Rust SDK
-   ([`semiont`](../../packages/sdk-rust/README.md), with
-   [`semiont-http-transport`](../../packages/http-transport-rust/README.md)) has the
+   ([`semiont`](../../packages/rust/sdk/README.md), with
+   [`semiont-http-transport`](../../packages/rust/http-transport/README.md)) has the
    same client, cache, state units and sessions, and is held to the same
    shared case tables and conformance suite; its README maps each shape in
    this book to its Rust form. The Python SDK
@@ -97,7 +97,7 @@ believe them at first:
    pseudocode with a working implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
-   [`@semiont/react-ui`](../../packages/react-ui/) is the one binding.
+   [`@semiont/react-ui`](../../packages/typescript/react-ui/) is the one binding.
    But the SDK is deliberately framework-free — plain classes and observables,
    no React anywhere — so a Vue or Svelte binding is a seam awaiting an author,
    not a rearchitecture.

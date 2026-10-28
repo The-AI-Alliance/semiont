@@ -6,9 +6,9 @@ name: Continuous Integration
 # run at night and for a release alone among them (`tier == 'full'`).
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   workflow_dispatch:
   # 08:17 UTC: 4:17 in the morning Eastern under daylight time, 3:17 under
   # standard, off the hour, when GitHub delays scheduled runs least. A scheduled
@@ -109,10 +109,11 @@ jobs:
 
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
-  # reports it as Success. A push to main, a dispatch, or a change to the
-  # workflows, the CI scripts or the spec runs everything
-  # (.github/scripts/changed-areas.mjs). lint:workflows holds every job to an
-  # `if` over areas this map defines, so a job cannot fall out of it.
+  # reports it as Success. The nightly schedule, a dispatch and a release's
+  # call run everything, and so does a change to this workflow, the script that
+  # maps the areas, the CI scripts or the spec (.github/scripts/changed-areas.mjs).
+  # lint:workflows holds every job to an `if` over areas this map defines, so a
+  # job cannot fall out of it.
   changes:
     name: Changed Areas
     runs-on: ubuntu-latest
@@ -124,6 +125,7 @@ jobs:
     outputs:
       rust: ${{ steps.areas.outputs.rust }}
       ts: ${{ steps.areas.outputs.ts }}
+      ui: ${{ steps.areas.outputs.ui }}
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
@@ -149,10 +151,16 @@ jobs:
         uses: dorny/paths-filter@v4.0.3
         with:
           filters: |
+            # What every job runs on. Of .github/, this workflow reads the
+            # script that maps the areas alone; the census, which always runs,
+            # holds the rest of it.
             all:
-              - '.github/**'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/changed-areas.mjs'
               - 'scripts/ci/**'
-              - 'specs/**'
+              - 'specs/src/**'
+              - 'specs/redocly.yaml'
+              - 'specs/.redocly.lint-ignore.yaml'
             # The Rust workspace: the three services, the crates they share,
             # the lockfile, the toolchain, cargo-deny's policy, and the two
             # scripts the Gateway Tests job runs over the crates. lint:workflows
@@ -163,42 +171,34 @@ jobs:
               - 'images/gateway/**'
               - 'images/dispatcher/**'
               - 'images/archivist/**'
-              - 'packages/codegen-rust/**'
-              - 'packages/core-rust/**'
-              - 'packages/http-service-rust/**'
-              - 'packages/http-transport-rust/**'
-              - 'packages/observability-rust/**'
-              - 'packages/sdk-rust/**'
-              - 'packages/telemetry-rust/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
-              - 'deny.toml'
+              - 'packages/rust/**'
               - 'scripts/lint/check-image-crates.mjs'
               - 'scripts/release/cargo-version.sh'
-            # The npm workspaces, each named (the filter takes no exclusion
-            # without a quantifier that breaks a list of several), and what
-            # builds them. The conformance suites build @semiont/core or the
-            # packages from the root, so a change here runs them too.
+            # The npm libraries, what they share, and what installs them. The
+            # conformance suites build @semiont/core from the root, so a change
+            # here runs them too. Each is named: the filter takes no exclusion
+            # without a quantifier that breaks a list of several.
             ts:
-              - 'images/browser/**'
-              - 'apps/desktop/**'
-              - 'packages/core/**'
-              - 'packages/http-transport/**'
-              - 'packages/observability/**'
-              - 'packages/react-ui/**'
-              - 'packages/sdk/**'
+              - 'packages/typescript/core/**'
+              - 'packages/typescript/http-transport/**'
+              - 'packages/typescript/observability/**'
+              - 'packages/typescript/sdk/**'
+              # What the packages share: every file beside them, none below.
+              - 'packages/typescript/*'
               - 'package.json'
               - 'package-lock.json'
-              - 'tsconfig.base.json'
-              - 'vitest.shared.config.ts'
               - '.node-version'
+            # The interfaces: the design system and the two apps built on it.
+            # No conformance suite reads them.
+            ui:
+              - 'packages/typescript/react-ui/**'
+              - 'images/browser/**'
+              - 'apps/desktop/**'
             conformance:
               - 'tests/conformance/**'
             go:
               - 'apps/launcher/**'
-              - 'packages/go/launcher/**'
-              - 'packages/go/sdk/**'
+              - 'packages/go/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -240,7 +240,7 @@ jobs:
     name: Browser Tests
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -295,7 +295,7 @@ jobs:
     name: Test ${{ matrix.package }}
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -354,7 +354,7 @@ jobs:
 
       - name: Run the tests with coverage
         run: |
-          cd packages/${{ matrix.package }}
+          cd packages/typescript/${{ matrix.package }}
           npm run test:coverage
           node -e "
             const total = require('./coverage/coverage-summary.json').total;
@@ -368,9 +368,9 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/${{ matrix.package }}/coverage/lcov.info
-          flags: ${{ matrix.package }}
-          name: ${{ matrix.package }}
+          files: ./packages/typescript/${{ matrix.package }}/coverage/lcov.info
+          flags: typescript-${{ matrix.package }}
+          name: typescript-${{ matrix.package }}
           verbose: true
         continue-on-error: true
 
@@ -380,7 +380,7 @@ jobs:
     name: Browser Security Tests
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
     defaults:
       run:
         working-directory: ./images/browser
@@ -458,7 +458,7 @@ jobs:
     name: Lighthouse - Signed-out Pages
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -571,7 +571,7 @@ jobs:
     name: React Hooks Architecture Review
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.compliance == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.compliance == 'true'
 
     steps:
       - name: Checkout repository
@@ -682,7 +682,7 @@ jobs:
         id: react-ui-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          cd packages/react-ui
+          cd packages/typescript/react-ui
           ./scripts/generate-compliance-report.sh
 
       - name: Run Browser Compliance Audit
@@ -757,6 +757,9 @@ jobs:
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true'
 
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -766,7 +769,21 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: |
           rustup toolchain install
+          rustup component add llvm-tools-preview
           cargo --version
+
+      # Keyed by this file, which pins cargo-llvm-cov's version, and by the
+      # toolchain that compiles it.
+      - name: Cache cargo-llvm-cov
+        id: llvm-cov
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('.github/workflows/ci.yml', 'packages/rust/rust-toolchain.toml') }}
+
+      - name: Install cargo-llvm-cov
+        if: steps.llvm-cov.outputs.cache-hit != 'true'
+        run: cargo install cargo-llvm-cov --locked --version 0.9.1
 
       # Its own key: this job builds the dev profile (clippy, tests) and
       # Gateway Conformance the release one. A cache key is saved once, by
@@ -778,19 +795,34 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-dev-
 
       # The gateway's behaviour is the Gateway Conformance job's; what runs
-      # here is the code's own hygiene and the runners for the shared case
-      # tables, its only Rust tests.
-      - name: Format, lint, and run the shared-table runners
+      # here is the code's own hygiene and the workspace's tests, measured.
+      # An instrumented run on a stable toolchain runs no doc tests, so they
+      # run after it.
+      - name: Format, lint, and run the tests
         run: |
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --locked -- -D warnings
-          cargo test --workspace --locked
+          cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
+          cargo test --workspace --locked --doc
+
+      # One report for the workspace; each crate's flag is scoped to its
+      # directory by codecov.yml.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/rust/lcov.info
+          flags: rust-codegen,rust-core,rust-http-service,rust-http-transport,rust-observability,rust-sdk,rust-telemetry
+          name: rust
+          verbose: true
+        continue-on-error: true
+
 
       # The broker is reached only by a crate that asks for semiont-core's
       # `nats` feature: the SDK, its telemetry, its HTTP transport,
@@ -852,7 +884,7 @@ jobs:
       # (scripts/release/cargo-version.sh keeps it so).
       - name: Check which crates are published, and at what version
         run: |
-          released=$(jq -r .version version.json)
+          released=$(jq -r .version ../../version.json)
           expected=$(printf '%s\n' semiont semiont-codegen semiont-http-transport semiont-telemetry | sed "s/$/ $released/" | sort)
           published=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' | sort)
           if [ "$published" != "$expected" ]; then
@@ -905,11 +937,11 @@ jobs:
                 > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
             done
           done
-          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
+          node ../../scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
-  # Archivist or the Rust SDK's three drivers, all from target/release
+  # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
   # (tests/conformance/harness/paths.ts). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
@@ -922,6 +954,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true'
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -937,13 +972,13 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -958,8 +993,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
@@ -968,18 +1003,18 @@ jobs:
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 
       # Several paths: the artifact's root is their common directory, so a
-      # suite fetching it into target/release gets the six files there.
+      # suite fetching it into packages/rust/target/release gets the six files there.
       - name: Publish the binaries
         uses: actions/upload-artifact@v7
         with:
           name: rust-binaries
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
           # Long enough for a job re-run to find them; storage is free here.
           retention-days: 30
           if-no-files-found: error
@@ -1001,10 +1036,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Write the gateway's configuration document
         run: |
@@ -1033,7 +1068,7 @@ jobs:
           export JWT_SECRET=test-secret-key-for-testing-32char
           export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
-          nohup target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
+          nohup packages/rust/target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
           echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health >/dev/null; then echo "The gateway is healthy"; exit 0; fi
@@ -1109,10 +1144,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1160,10 +1195,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1210,10 +1245,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1260,10 +1295,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1335,10 +1370,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1416,10 +1451,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1503,10 +1538,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1601,10 +1636,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1717,10 +1752,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1822,7 +1857,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/sdk/coverage.xml
+          flags: python-sdk
+          name: python-sdk
+          verbose: true
+        continue-on-error: true
 
       # What publish-pypi.yml uploads, built and checked here on every change:
       # a release is not the first place a packaging break is seen.
@@ -1911,7 +1957,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/inference/coverage.xml
+          flags: python-inference
+          name: python-inference
+          verbose: true
+        continue-on-error: true
 
   # What every Python service is built on (packages/python/service), as the
   # Python SDK is checked: both type checkers, strict, on the oldest Python
@@ -1964,7 +2021,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/service/coverage.xml
+          flags: python-service
+          name: python-service
+          verbose: true
+        continue-on-error: true
 
   # The Worker service's Python code (images/worker), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
@@ -2084,7 +2152,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/graph/coverage.xml
+          flags: python-graph
+          name: python-graph
+          verbose: true
+        continue-on-error: true
 
   # The Python neo4j store against a real neo4j: the same store contract the
   # in-memory store is held to, asked of the database. It starts the neo4j the
@@ -2133,7 +2212,17 @@ jobs:
 
       - name: Run the store contract against it
         working-directory: packages/python/graph
-        run: uv run pytest tests/neo4j_live.py
+        run: uv run pytest tests/neo4j_live.py --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/graph/coverage.xml
+          flags: python-graph
+          name: graph-neo4j
+          verbose: true
+        continue-on-error: true
 
   # The Python vector stores and embedding providers (packages/python/vectors),
   # as the Python SDK is checked: both type checkers, strict, on the oldest
@@ -2186,7 +2275,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/vectors/coverage.xml
+          flags: python-vectors
+          name: python-vectors
+          verbose: true
+        continue-on-error: true
 
   # The Python Qdrant store against a real Qdrant: the same store contract the
   # in-memory store is held to, asked of the database, and what the database
@@ -2234,7 +2334,17 @@ jobs:
 
       - name: Run the store contract against it
         working-directory: packages/python/vectors
-        run: uv run pytest tests/qdrant_live.py
+        run: uv run pytest tests/qdrant_live.py --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/vectors/coverage.xml
+          flags: python-vectors
+          name: vectors-qdrant
+          verbose: true
+        continue-on-error: true
 
   # The Weaver's Python code (images/weaver), as the Python SDK is checked: both
   # type checkers, strict, on the oldest Python supported, and the tests on
@@ -2408,7 +2518,7 @@ jobs:
     name: Phantom Dependency Check
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -2433,7 +2543,7 @@ jobs:
     name: Build All Applications
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -2485,7 +2595,7 @@ jobs:
         with:
           go-version-file: apps/launcher/go.mod
 
-      # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
+      # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime.
@@ -2683,7 +2793,17 @@ jobs:
       # emit, correlation, failure channels) and the bridged-set invariants
       # live here, and a build-only step never ran a single one of them.
       - name: Vet, build and test sdk-go
-        run: cd packages/go/sdk && go vet ./... && go build ./... && go test -timeout 5m ./...
+        run: cd packages/go/sdk && go vet ./... && go build ./... && go test -timeout 5m -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/sdk/coverage.out
+          flags: go-sdk
+          name: go-sdk
+          verbose: true
+        continue-on-error: true
 
       # The SDK's conformance drivers are a module of their own.
       - name: Vet the Go SDK's drivers
@@ -2781,7 +2901,18 @@ jobs:
       - name: Test the launcher's libraries
         if: strategy.job-index == 0
         working-directory: packages/go/launcher
-        run: go test -timeout 30m ./...
+        run: go test -timeout 30m -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        if: strategy.job-index == 0
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/launcher/coverage.out
+          flags: go-launcher
+          name: go-launcher
+          verbose: true
+        continue-on-error: true
 
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)

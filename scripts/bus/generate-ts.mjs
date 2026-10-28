@@ -2,11 +2,11 @@
 // generate-ts.mjs — regenerate the TypeScript bus authority from
 // specs/src/bus/registry.json.
 //
-//   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, and TRACE_FIELD)
-//   packages/core/src/persisted-events.ts    (the persisted-event catalog)
-//   packages/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
-//   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
-//   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
+//   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, and TRACE_FIELD)
+//   packages/typescript/core/src/persisted-events.ts    (the persisted-event catalog)
+//   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
+//   packages/typescript/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
+//   packages/rust/core/src/bus-classification.json (the same attributes, for the Rust services)
 //
 // Regenerating over the committed files must leave `git diff` empty. Run
 // with --check to diff without writing (the CI drift gate).
@@ -21,12 +21,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
-const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
-const PERSISTED = resolve(ROOT, 'packages/core/src/persisted-events.ts');
-const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
-const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
-const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
-const CLASSIFICATION_JSON = resolve(ROOT, 'packages/core-rust/src/bus-classification.json');
+const PROTOCOL = resolve(ROOT, 'packages/typescript/core/src/bus-protocol.ts');
+const PERSISTED = resolve(ROOT, 'packages/typescript/core/src/persisted-events.ts');
+const BRIDGED = resolve(ROOT, 'packages/typescript/core/src/bridged-channels.ts');
+const OPERATIONS = resolve(ROOT, 'packages/typescript/core/src/bus-operations.ts');
+const CLASSIFICATION = resolve(ROOT, 'packages/typescript/core/src/bus-classification.ts');
+const CLASSIFICATION_JSON = resolve(ROOT, 'packages/rust/core/src/bus-classification.json');
 
 const CHECK = process.argv.includes('--check');
 const registryText = readFileSync(REGISTRY, 'utf8');
@@ -383,7 +383,7 @@ const attrLines = attrs.map(({ channel, recorded, direction, writes, delivery })
 const classificationJson =
   JSON.stringify(
     {
-      $comment: 'GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel\'s attributes, as packages/core/src/bus-classification.ts states them; the Rust gateway embeds this file.',
+      $comment: 'GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel\'s attributes, as packages/typescript/core/src/bus-classification.ts states them; the Rust gateway embeds this file.',
       channels: Object.fromEntries(attrs.map(({ channel, ...rest }) => [channel, rest])),
     },
     null,

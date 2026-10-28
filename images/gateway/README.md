@@ -161,10 +161,10 @@ downstream.
 ## Development
 
 The gateway is a member of the repository's Rust workspace
-([Cargo.toml](../../Cargo.toml) at the root), and the toolchain is the one
-[rust-toolchain.toml](../../rust-toolchain.toml) pins; run it in its image
-(`rust:<channel>-alpine`) as the rest of the repository runs its tools, from
-the repository root:
+([Cargo.toml](../../packages/rust/Cargo.toml) in packages/rust), and the toolchain is the one
+[rust-toolchain.toml](../../packages/rust/rust-toolchain.toml) pins; run it in its image
+(`rust:<channel>-alpine`) as the rest of the repository runs its tools, in
+packages/rust, the workspace's root:
 
 ```bash
 cargo fmt --all --check

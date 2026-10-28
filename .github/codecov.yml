@@ -34,7 +34,12 @@ coverage:
   # Coverage range for color coding
   range: "50...90"
 
-# Component-specific coverage configuration
+# One component and one flag for each package, packages/<language>/<name>, named
+# <language>-<name>, and the Browser's, and a component for each language, its
+# packages together. A component is scoped by its paths in every report, so the
+# badges read components: a flag is scoped by the uploads that carry it, and the
+# Rust workspace's one upload carries every crate's. lint:coverage-roster holds the
+# lists, ci.yml's uploads and the READMEs' badges to the packages there are.
 component_management:
   default_rules:
     statuses:
@@ -42,31 +47,107 @@ component_management:
         target: auto
         threshold: 1%
   individual_components:
-    # Core packages with higher coverage requirements
-    - component_id: core
-      name: "@semiont/core"
+    - component_id: typescript-core
+      name: "packages/typescript/core"
       paths:
-        - packages/core/**
-    - component_id: http-transport
-      name: "@semiont/http-transport"
+        - packages/typescript/core/**
+    - component_id: typescript-http-transport
+      name: "packages/typescript/http-transport"
       paths:
-        - packages/http-transport/**
-    - component_id: react-ui
-      name: "@semiont/react-ui"
+        - packages/typescript/http-transport/**
+    - component_id: typescript-observability
+      name: "packages/typescript/observability"
       paths:
-        - packages/react-ui/**
-    - component_id: sdk
-      name: "@semiont/sdk"
+        - packages/typescript/observability/**
+    - component_id: typescript-react-ui
+      name: "packages/typescript/react-ui"
       paths:
-        - packages/sdk/**
-    - component_id: observability
-      name: "@semiont/observability"
+        - packages/typescript/react-ui/**
+    - component_id: typescript-sdk
+      name: "packages/typescript/sdk"
       paths:
-        - packages/observability/**
+        - packages/typescript/sdk/**
+    - component_id: rust-codegen
+      name: "packages/rust/codegen"
+      paths:
+        - packages/rust/codegen/**
+    - component_id: rust-core
+      name: "packages/rust/core"
+      paths:
+        - packages/rust/core/**
+    - component_id: rust-http-service
+      name: "packages/rust/http-service"
+      paths:
+        - packages/rust/http-service/**
+    - component_id: rust-http-transport
+      name: "packages/rust/http-transport"
+      paths:
+        - packages/rust/http-transport/**
+    - component_id: rust-observability
+      name: "packages/rust/observability"
+      paths:
+        - packages/rust/observability/**
+    - component_id: rust-sdk
+      name: "packages/rust/sdk"
+      paths:
+        - packages/rust/sdk/**
+    - component_id: rust-telemetry
+      name: "packages/rust/telemetry"
+      paths:
+        - packages/rust/telemetry/**
+    - component_id: python-sdk
+      name: "packages/python/sdk"
+      paths:
+        - packages/python/sdk/**
+    - component_id: python-graph
+      name: "packages/python/graph"
+      paths:
+        - packages/python/graph/**
+    - component_id: python-inference
+      name: "packages/python/inference"
+      paths:
+        - packages/python/inference/**
+    - component_id: python-service
+      name: "packages/python/service"
+      paths:
+        - packages/python/service/**
+    - component_id: python-vectors
+      name: "packages/python/vectors"
+      paths:
+        - packages/python/vectors/**
+    - component_id: go-sdk
+      name: "packages/go/sdk"
+      paths:
+        - packages/go/sdk/**
+    - component_id: go-launcher
+      name: "packages/go/launcher"
+      paths:
+        - packages/go/launcher/**
+    - component_id: typescript
+      name: "packages/typescript"
+      paths:
+        - packages/typescript/**
+    - component_id: rust
+      name: "packages/rust"
+      paths:
+        - packages/rust/**
+    - component_id: python
+      name: "packages/python"
+      paths:
+        - packages/python/**
+    - component_id: go
+      name: "packages/go"
+      paths:
+        - packages/go/**
     - component_id: browser
-      name: "Browser (app)"
+      name: "images/browser"
       paths:
         - images/browser/**
+
+# A Go profile names each file by its import path, which is the repository's
+# own path below this prefix.
+fixes:
+  - "github.com/The-AI-Alliance/semiont/::"
 
 # Ignore certain files from coverage
 ignore:
@@ -91,6 +172,7 @@ ignore:
 
   # Generated files
   - "**/generated/**"
+  - "**/*_gen.go"
 
   # Scripts
   - "scripts/**"
@@ -103,35 +185,102 @@ comment:
   require_base: false
   require_head: true
 
-# Flag configuration for different test suites
 flags:
-  # Individual package flags
-  http-transport:
+
+  typescript-core:
     paths:
-      - packages/http-transport/**
+      - packages/typescript/core/**
     carryforward: true
 
-  core:
+  typescript-http-transport:
     paths:
-      - packages/core/**
+      - packages/typescript/http-transport/**
     carryforward: true
 
-  observability:
+  typescript-observability:
     paths:
-      - packages/observability/**
+      - packages/typescript/observability/**
     carryforward: true
 
-  react-ui:
+  typescript-react-ui:
     paths:
-      - packages/react-ui/**
+      - packages/typescript/react-ui/**
     carryforward: true
 
-  sdk:
+  typescript-sdk:
     paths:
-      - packages/sdk/**
+      - packages/typescript/sdk/**
     carryforward: true
 
-  # App flags. These upload from ci.yml's Browser Tests, not the package matrix.
+  rust-codegen:
+    paths:
+      - packages/rust/codegen/**
+    carryforward: true
+
+  rust-core:
+    paths:
+      - packages/rust/core/**
+    carryforward: true
+
+  rust-http-service:
+    paths:
+      - packages/rust/http-service/**
+    carryforward: true
+
+  rust-http-transport:
+    paths:
+      - packages/rust/http-transport/**
+    carryforward: true
+
+  rust-observability:
+    paths:
+      - packages/rust/observability/**
+    carryforward: true
+
+  rust-sdk:
+    paths:
+      - packages/rust/sdk/**
+    carryforward: true
+
+  rust-telemetry:
+    paths:
+      - packages/rust/telemetry/**
+    carryforward: true
+
+  python-sdk:
+    paths:
+      - packages/python/sdk/**
+    carryforward: true
+
+  python-graph:
+    paths:
+      - packages/python/graph/**
+    carryforward: true
+
+  python-inference:
+    paths:
+      - packages/python/inference/**
+    carryforward: true
+
+  python-service:
+    paths:
+      - packages/python/service/**
+    carryforward: true
+
+  python-vectors:
+    paths:
+      - packages/python/vectors/**
+    carryforward: true
+
+  go-sdk:
+    paths:
+      - packages/go/sdk/**
+    carryforward: true
+
+  go-launcher:
+    paths:
+      - packages/go/launcher/**
+    carryforward: true
 
   browser:
     paths:

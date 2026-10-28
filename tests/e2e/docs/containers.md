@@ -28,7 +28,7 @@ So the "full rebuild" flow depends on what changed:
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
+| `packages/typescript/react-ui`, `packages/typescript/http-transport`, `packages/typescript/core` | `local-build.sh` | browser |
 | `images/browser` only | `local-build.sh` | browser |
 | `images/librarian`, `images/worker`, `images/weaver`, `images/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `semiont start` |
 | `images/gateway` | `local-build.sh` | the stack: `semiont start` |

@@ -156,7 +156,7 @@ gh workflow run publish-crates.yml --ref v<version>
 gh workflow run publish-crates.yml --field dry_run=true
 ```
 
-The SDK's build script reads the spec through `packages/sdk-rust/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
+The SDK's build script reads the spec through `packages/rust/sdk/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
 
 ### The Python package
 
@@ -188,7 +188,7 @@ gh workflow run publish-pypi.yml --field dry_run=true                   # build 
 
 ```json
 "@semiont/core": {
-  "dir": "packages/core",
+  "dir": "packages/typescript/core",
   "version": "<version>",
   "publish": true
 }

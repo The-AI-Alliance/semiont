@@ -82,7 +82,7 @@ GO_IMAGE="golang:${GO_TOOLCHAIN}"
 # rust-toolchain.toml pins, passed to its Dockerfile as
 # RUST_TOOLCHAIN. No fallback, as for Go.
 if ! RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"; then
-  fail "No channel in rust-toolchain.toml — cannot choose a Rust image."
+  fail "No channel in packages/rust/rust-toolchain.toml — cannot choose a Rust image."
   exit 1
 fi
 
@@ -150,7 +150,7 @@ trap verdaccio_cleanup ERR INT TERM
 # `"@semiont/core": "*"` into a concrete pin in the working tree.
 STAMPED_PATHS=(
   version.json
-  ':(glob)packages/*/package.json'
+  ':(glob)packages/typescript/*/package.json'
   ':(glob)apps/*/package.json'
   ':(glob)images/*/package.json'
   package-lock.json
@@ -295,7 +295,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 #
 # specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
 # payload shapes, and the request/reply operations. BOTH languages are
-# generated from it — packages/core/src/bus-protocol.ts + bus-operations.ts
+# generated from it — packages/typescript/core/src/bus-protocol.ts + bus-operations.ts
 # (TypeScript) and packages/go/sdk/bus/*_gen.go — so an edit to one language's
 # generated file, or a registry change without regeneration, is drift that
 # would let the two sides disagree at runtime. Each generator's --check diffs
@@ -312,7 +312,7 @@ else
   echo ""
   echo -e "  Regenerate both languages and commit:"
   echo ""
-  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/core/src/bus-protocol.ts, bus-operations.ts)"
+  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts)"
   echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/go/sdk/bus/*_gen.go)"
   echo ""
   echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."

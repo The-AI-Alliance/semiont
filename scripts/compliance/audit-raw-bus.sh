@@ -27,18 +27,18 @@ set -euo pipefail
 # component lifetimes.
 #
 # Allowlist:
-#   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
+#   - packages/typescript/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
-#   - packages/http-transport/src/**        — HTTP adapters
-#   - packages/core/src/faulty-transport.ts
+#   - packages/typescript/http-transport/src/**        — HTTP adapters
+#   - packages/typescript/core/src/faulty-transport.ts
 #                                       — FaultyTransport (liveness-axioms
 #                                          simulator, @semiont/core/testing)
 #                                          implements ITransport on top of
 #                                          EventBus; consumed by test suites only
-#   - packages/react-ui/src/state/**    — cross-feature page state units (shell, session)
+#   - packages/typescript/react-ui/src/state/**    — cross-feature page state units (shell, session)
 #                                          that subscribe to bus events for
 #                                          UI workflow coordination
-#   - packages/react-ui/src/features/*/state/**
+#   - packages/typescript/react-ui/src/features/*/state/**
 #                                       — per-feature page state units (compose,
 #                                          resource-viewer, admin, etc.) that
 #                                          subscribe to bus events for the
@@ -55,9 +55,9 @@ set -euo pipefail
 #                                          public API, explicitly "not @internal"), so auditing those
 #                                          extracts flags the documentation of a legal
 #                                          escape hatch. Same class as /dist/ above.
-#   - packages/react-ui/src/session/channel-subscription.ts — a channel read
+#   - packages/typescript/react-ui/src/session/channel-subscription.ts — a channel read
 #                                          by name, for the generic event hooks
-#   - packages/react-ui/src/contexts/useEventSubscription.ts, for pattern 3
+#   - packages/typescript/react-ui/src/contexts/useEventSubscription.ts, for pattern 3
 #                                          only — `useResourceEventSubscriptions`
 #                                          reads a resource's channel on the wire,
 #                                          by name, for one resource
@@ -73,12 +73,12 @@ filter_allowlist() {
     | grep -v "/\.generated/" \
     | grep -v "__tests__/" \
     | grep -v "/test-utils\." \
-    | grep -v "^packages/sdk/src/" \
-    | grep -v "^packages/http-transport/src/" \
-    | grep -v "^packages/core/src/faulty-transport\.ts:" \
-    | grep -v "^packages/react-ui/src/state/" \
-    | grep -v "^packages/react-ui/src/features/[^/]*/state/" \
-    | grep -v "^packages/react-ui/src/session/channel-subscription\.ts:"
+    | grep -v "^packages/typescript/sdk/src/" \
+    | grep -v "^packages/typescript/http-transport/src/" \
+    | grep -v "^packages/typescript/core/src/faulty-transport\.ts:" \
+    | grep -v "^packages/typescript/react-ui/src/state/" \
+    | grep -v "^packages/typescript/react-ui/src/features/[^/]*/state/" \
+    | grep -v "^packages/typescript/react-ui/src/session/channel-subscription\.ts:"
 }
 
 cd "$REPO_ROOT"
@@ -115,7 +115,7 @@ WIRE_VIOLATIONS=$(grep -rnE "\.wire\.[A-Za-z_][A-Za-z0-9_]*\(" \
   --include='*.ts' --include='*.tsx' \
   2>/dev/null \
   | filter_allowlist \
-  | grep -v "^packages/react-ui/src/contexts/useEventSubscription\.ts:" \
+  | grep -v "^packages/typescript/react-ui/src/contexts/useEventSubscription\.ts:" \
   || true)
 
 VIOLATIONS=""

@@ -11,7 +11,7 @@
 @source "../../src";
 
 /* Scan @semiont/react-ui for Tailwind classes */
-@source "../../../../packages/react-ui/src";
+@source "../../../../packages/typescript/react-ui/src";
 
 /* Light mode (default) */
 :root {

@@ -10,14 +10,14 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
  * the environment, and talk to it over HTTP. vitest.config.ts provides it to
  * the cases as `gatewayCommand`.
  */
-export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-gateway')];
+export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-gateway')];
 
 /**
  * How a dispatcher is started. The dispatcher suite runs it
  * with `--config <document>` and the environment, and meets it only on the bus
  * and its health port. vitest.config.ts provides it as `dispatcherCommand`.
  */
-export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-dispatcher')];
+export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-dispatcher')];
 
 /**
  * How an Archivist is started. The Archivist suite runs it with
@@ -25,7 +25,7 @@ export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/re
  * HTTP surface, and in the files it keeps. vitest.config.ts provides it as
  * `archivistCommand`.
  */
-export const ARCHIVIST_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-archivist')];
+export const ARCHIVIST_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-archivist')];
 
 /** An SDK's drivers: the programs the SDK suite talks to in that SDK's place (sdk/README.md § The driver protocol). */
 export interface SdkDrivers {
@@ -64,14 +64,14 @@ const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
  */
 export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
-    wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
-    live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
-    worker: ['node', join(REPO_ROOT, 'packages/sdk/conformance/worker-driver.ts')],
+    wire: ['node', join(REPO_ROOT, 'packages/typescript/http-transport/conformance/driver.ts')],
+    live: { command: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/driver.ts')], tier: 'parity' },
+    worker: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/worker-driver.ts')],
   },
   rust: {
-    wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
-    live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
-    worker: [join(REPO_ROOT, 'target/release/semiont-worker-driver')],
+    wire: [join(REPO_ROOT, 'packages/rust/target/release/semiont-wire-driver')],
+    live: { command: [join(REPO_ROOT, 'packages/rust/target/release/semiont-live-driver')], tier: 'parity' },
+    worker: [join(REPO_ROOT, 'packages/rust/target/release/semiont-worker-driver')],
   },
   python: {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],

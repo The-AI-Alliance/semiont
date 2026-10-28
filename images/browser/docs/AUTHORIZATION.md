@@ -100,7 +100,7 @@ raised.
 ## Testing it
 
 Raise the signal on a test browser and render the modal against it. This is the pattern of
-`packages/react-ui/src/components/modals/__tests__/PermissionDeniedModal.test.tsx`, which also
+`packages/typescript/react-ui/src/components/modals/__tests__/PermissionDeniedModal.test.tsx`, which also
 replaces `@headlessui/react`'s `Dialog` and `Transition` with plain elements:
 
 ```tsx
@@ -131,4 +131,4 @@ describe('Authorization', () => {
 
 - [Authentication](./AUTHENTICATION.md): sessions, 401s and the session-ended path
 - [RBAC](../../../docs/protocol/RBAC.md): the one decision a gateway makes, and the two service roles
-- [`APIError`](../../../packages/http-transport/docs/API-Reference.md#apierror): the transport's error
+- [`APIError`](../../../packages/typescript/http-transport/docs/API-Reference.md#apierror): the transport's error

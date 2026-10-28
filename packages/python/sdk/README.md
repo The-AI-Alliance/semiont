@@ -1,5 +1,7 @@
 # semiont
 
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=python-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+
 The Python SDK for [Semiont][semiont], an open platform for building trusted
 AI knowledge bases: a shared workspace where humans and AI agents annotate,
 connect and govern a corpus of documents.
@@ -946,8 +948,8 @@ Apache-2.0. See [LICENSE][license].
 [conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/sdk/README.md
 [worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md
 [worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/worker/README.md
-[sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/README.md
-[sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk-rust/README.md
+[sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
+[sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md
 [specs]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/README.md
