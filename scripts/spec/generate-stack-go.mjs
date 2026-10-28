@@ -3,10 +3,10 @@
 // documents, and the schemas it reads them against, from specs/src/stack/ and
 // specs/src/kb-identity/ProjectConfig.json.
 //
-//   apps/launcher/internal/stack/types_gen.go    a Go type for each kind of
+//   packages/go/launcher/stack/types_gen.go    a Go type for each kind of
 //                                                document, and for each object
 //                                                in one
-//   apps/launcher/internal/stack/schemas_gen.go  the text of every schema a
+//   packages/go/launcher/stack/schemas_gen.go  the text of every schema a
 //                                                kind reaches
 //
 // The launcher validates a document against its schema (the one
@@ -26,7 +26,7 @@ import { goComment } from './go-source.mjs';
 import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const OUT = resolve(ROOT, 'apps/launcher/internal/stack');
+const OUT = resolve(ROOT, 'packages/go/launcher/stack');
 const CHECK = process.argv.includes('--check');
 
 /** The kinds of document, in the order their types are written. */

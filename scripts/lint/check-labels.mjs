@@ -22,7 +22,8 @@
  *    listed below. A label of no dimension is its own group.
  * 3. Six dimensions restate what something else owns, and are held to it
  *    both ways:
- *      app:    the directories under apps/
+ *      app:    the directories under apps/, whose libraries are
+ *              packages/<language>/<app>/
  *      image:  the directories under images/
  *      tests:  the directories under tests/
  *      spec:   the parts of the spec, by who honours them (SPEC_PARTS); every

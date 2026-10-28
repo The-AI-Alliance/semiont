@@ -5,6 +5,9 @@
  * request the labels of the files it changes.
  */
 
+import { fileURLToPath } from 'node:url';
+import { repositoryFiles } from './repository-files.mjs';
+
 /** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
 export const SPEC_PARTS = {
   protocol: ['openapi.json', 'components', 'paths', 'bus', 'identifiers', 'principals', 'jobs', 'media-types', 'locales'],
@@ -12,6 +15,13 @@ export const SPEC_PARTS = {
   services: ['archivist', 'librarian', 'smelter', 'weaver', 'worker', 'follower', 'graph', 'vectors', 'text', 'annotations', 'service-environment', 'service-telemetry'],
   launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
 };
+
+/** The apps: the directories under apps/. */
+const APPS = new Set(
+  repositoryFiles(fileURLToPath(new URL('../..', import.meta.url)))
+    .filter((file) => file.startsWith('apps/') && file.split('/').length > 2)
+    .map((file) => file.split('/')[1]),
+);
 
 /** The directory of packages/ that holds the TypeScript SDK. */
 const TYPESCRIPT_SDK = 'sdk';
@@ -33,8 +43,9 @@ function sdkLanguage(owner, below) {
  * app, an image, a test suite or an SDK when it is below its directory
  * (apps/<x>/, images/<x>/, tests/<x>/, packages/sdk/, packages/sdk-<language>/
  * or packages/<language>/sdk/), and in a part of the spec when it is an entry of
- * specs/src or below one. A directory is written with its trailing slash: it
- * is in what everything below it is in.
+ * specs/src or below one. An app's libraries, packages/<language>/<app>/, are in
+ * the app. A directory is written with its trailing slash: it is in what
+ * everything below it is in.
  */
 export function pathLabel(path) {
   const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
@@ -48,7 +59,8 @@ export function pathLabel(path) {
   if (top === 'tests') return `tests:${owner}`;
   if (top === 'packages') {
     const language = sdkLanguage(owner, below);
-    return language === null ? null : `sdk:${language}`;
+    if (language !== null) return `sdk:${language}`;
+    return below.length > 1 && APPS.has(below[0]) ? `app:${below[0]}` : null;
   }
   return null;
 }
