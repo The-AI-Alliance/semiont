@@ -36,6 +36,10 @@ type Session struct {
 	token  *semiont.Variable[string]
 	client *VerbClient
 	sdk    *semiont.Session
+	// resumed is closed once sdk is set. The client is made before the SDK's
+	// session, and its stream can be refused, and ask Refresh for a token,
+	// while that session is still being resumed.
+	resumed chan struct{}
 
 	// ended is done once the session is over for this command, with a
 	// *SessionRejected as its cause.
@@ -97,7 +101,7 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
 	ended, stop := context.WithCancelCause(context.Background())
-	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewVariable(""), ended: ended, stop: stop}
+	s := &Session{u: u, key: key, base: base, signIn: signIn, token: semiont.NewVariable(""), resumed: make(chan struct{}), ended: ended, stop: stop}
 	// A sign-in that cannot be renewed is no session the SDK holds: its token
 	// is sent as it is, and the gateway is the judge.
 	if signIn.RefreshToken == "" {
@@ -121,6 +125,7 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 		s.client.close()
 		return nil, fmt.Errorf("the session for %s cannot be resumed: %w", key, err)
 	}
+	close(s.resumed)
 	if err := s.sdk.Ready(context.Background()); err != nil {
 		s.Close()
 		return nil, fmt.Errorf("the session for %s was not ready: %w", key, err)
@@ -211,6 +216,16 @@ func kbTarget(key, base string) (api.KbTarget, error) {
 // asks the gateway who the new one is. ok=false: the session is over, and its
 // end's cause says why.
 func (s *Session) Refresh(ctx context.Context) (token string, ok bool) {
+	// A refusal that comes before the SDK's session exists is answered by it
+	// once it does. ctx is the stream's, done when the client closes, as it
+	// does when that session cannot be resumed.
+	select {
+	case <-s.resumed:
+	case <-s.ended.Done():
+		return "", false
+	case <-ctx.Done():
+		return "", false
+	}
 	if s.ended.Err() != nil {
 		return "", false
 	}
