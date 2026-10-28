@@ -8,10 +8,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -311,6 +313,170 @@ func TestRefusalsThatArriveTogetherCostOneRenewalAndOneAsk(t *testing.T) {
 		if token != w.token.Value() {
 			t.Errorf("refusal %d was given another token than the session's", i+1)
 		}
+	}
+}
+
+// refusedAtTheGateway is the gateway's refusal of a token.
+var refusedAtTheGateway = &semiont.TransportError{Code: semiont.TransportErrorCodeUnauthorized, Message: "HTTP 401"}
+
+// invalidGrant is the issuer's refusal of a renewal, in its own words.
+var invalidGrant = errors.New("The issuer refused the token refresh (invalid_grant: Token is not active)")
+
+// keptUnexpired is a kept sign-in whose access token lives an hour.
+func keptUnexpired(t *testing.T, kept semiont.SignInKept) {
+	t.Helper()
+	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: tokenFor(time.Hour, 0), Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// forgetsSlowly is a kept sign-in that takes a moment to forget, or until
+// let: the moment between a session's token going and its saying why.
+type forgetsSlowly struct {
+	*semiont.MemorySignIn
+	let chan struct{}
+}
+
+func (f forgetsSlowly) Forget(ctx context.Context) error {
+	select {
+	case <-f.let:
+	case <-time.After(300 * time.Millisecond):
+	}
+	return f.MemorySignIn.Forget(ctx)
+}
+
+// The start and the stream are refused the kept token together, and the
+// stream's refusal is answered first, with a renewal the issuer refuses: the
+// session is ready only once it has said why it ended. A host that finds it
+// ready holding no token, with nothing said, is left to guess why.
+func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
+	kept := forgetsSlowly{MemorySignIn: &semiont.MemorySignIn{}, let: make(chan struct{})}
+	keptUnexpired(t, kept)
+	token := semiont.NewVariable("")
+	var mu sync.Mutex
+	var said []*semiont.SessionError
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
+		Refresh: func(context.Context) (string, error) { return "", invalidGrant },
+		// The gateway refuses the start's ask once the stream's refusal has
+		// taken the token.
+		Validate: func(ctx context.Context, _ string) (api.UserResponse, error) {
+			for held := range token.Reading().Changes(ctx) {
+				if held == "" {
+					break
+				}
+			}
+			return api.UserResponse{}, refusedAtTheGateway
+		},
+		OnError: func(err *semiont.SessionError) {
+			mu.Lock()
+			defer mu.Unlock()
+			said = append(said, err)
+		},
+		Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(session.Close)
+	answered := make(chan struct{})
+	go func() {
+		defer close(answered)
+		session.Refresh(context.Background())
+	}()
+
+	ready, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatalf("the session was not ready: %v", err)
+	}
+	mu.Lock()
+	saidByReady := slices.Clone(said)
+	mu.Unlock()
+	close(kept.let)
+	<-answered
+
+	if len(saidByReady) != 1 || saidByReady[0].Code != semiont.SessionErrorCodeRefreshExhausted {
+		t.Fatalf("by the time it was ready the session had said %v, want the one %s", saidByReady, semiont.SessionErrorCodeRefreshExhausted)
+	}
+	if !strings.Contains(saidByReady[0].Message, "invalid_grant") {
+		t.Errorf("the session said %q, not why the issuer refused", saidByReady[0].Message)
+	}
+	if token.Value() != "" {
+		t.Error("a session that ended still holds a token")
+	}
+}
+
+// The start is answering its refusal, at an issuer that takes a moment to
+// refuse, when the stream is refused too: the stream's refusal waits for the
+// start's answer, which ended the session and said why, and costs the issuer
+// no second renewal.
+func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
+	kept := &semiont.MemorySignIn{}
+	keptUnexpired(t, kept)
+	token := semiont.NewVariable("")
+	renewing := make(chan struct{})
+	var mu sync.Mutex
+	grants := 0
+	var said []*semiont.SessionError
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
+		// Nothing kept is nothing to renew, and no grant is sent, as
+		// Issuer.RenewKept sends none.
+		Refresh: func(ctx context.Context) (string, error) {
+			if _, held, _ := kept.Held(ctx); !held {
+				return "", nil
+			}
+			mu.Lock()
+			grants++
+			first := grants == 1
+			mu.Unlock()
+			if first {
+				close(renewing)
+				time.Sleep(300 * time.Millisecond)
+			}
+			return "", invalidGrant
+		},
+		Validate: func(context.Context, string) (api.UserResponse, error) {
+			return api.UserResponse{}, refusedAtTheGateway
+		},
+		OnError: func(err *semiont.SessionError) {
+			mu.Lock()
+			defer mu.Unlock()
+			said = append(said, err)
+		},
+		Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(session.Close)
+	select {
+	case <-renewing:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the start never renewed the refused token")
+	}
+
+	given, ok := session.Refresh(context.Background())
+	mu.Lock()
+	saidByAnswer := slices.Clone(said)
+	mu.Unlock()
+	ready, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatalf("the session was not ready: %v", err)
+	}
+
+	if ok || given != "" {
+		t.Error("the stream was given a token by a session that ended")
+	}
+	if len(saidByAnswer) != 1 || saidByAnswer[0].Code != semiont.SessionErrorCodeRefreshExhausted {
+		t.Errorf("by the time the stream's refusal was answered the session had said %v, want the one %s", saidByAnswer, semiont.SessionErrorCodeRefreshExhausted)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if grants != 1 || len(said) != 1 {
+		t.Errorf("two refusals met together cost %d renewals and said %d failures, want one each", grants, len(said))
 	}
 }
 

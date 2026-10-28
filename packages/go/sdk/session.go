@@ -144,8 +144,10 @@ type Session struct {
 	ready  chan struct{}
 	once   sync.Once
 	work   sync.WaitGroup
-	// answering is held while a refusal is answered, so the refusals that
-	// arrive during it are answered by it.
+	// answering is held while a refusal is answered, by Refresh or by the
+	// session's start, so the refusals that arrive during it are answered by
+	// it. An answer that ends the session has ended it in full before it
+	// lets go: the token gone, the sign-in forgotten, and why told.
 	answering sync.Mutex
 
 	// id is which live session this is: a new one for the same knowledge
@@ -368,7 +370,8 @@ func (s *Session) failed(err *SessionError) {
 // start is what a session does at its start, with the sign-in it found kept.
 // It renews one that has expired, then asks the gateway who it is. A token
 // the gateway refuses is renewed once and asked about once more; a token the
-// issuer has just issued and the gateway refuses is final.
+// issuer has just issued and the gateway refuses is final. A refusal is
+// answered holding answering, as Refresh answers one.
 func (s *Session) start(kept HeldSignIn, has bool) {
 	if !has {
 		return
@@ -405,31 +408,41 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 			s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: err.Error(), KbID: s.config.Kb.Id})
 			return
 		}
-		if justIssued {
-			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
+		next, goOn := s.answerAtStart(token, justIssued)
+		if !goOn {
 			return
 		}
-		// The session's token is no longer the one asked about: the stream
-		// was refused with it too, and Refresh renewed it meanwhile. That token
-		// is the just-issued one, and is not renewed again.
-		if current := s.config.Token.Value(); current != token {
-			if current == "" {
-				return
-			}
-			token, justIssued = current, true
-			continue
-		}
-		renewed, failure := s.tryRefresh()
-		if s.closing() {
-			return
-		}
-		if renewed == "" {
-			s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
-			return
-		}
-		s.config.Token.Set(renewed)
-		token, justIssued = renewed, true
+		token, justIssued = next, true
 	}
+}
+
+// answerAtStart answers the gateway's refusal of token at the session's
+// start: the just-issued token to ask about next, or false when there is
+// none.
+func (s *Session) answerAtStart(token string, justIssued bool) (string, bool) {
+	s.answering.Lock()
+	defer s.answering.Unlock()
+	if justIssued {
+		s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
+		return "", false
+	}
+	// The session's token is no longer the one asked about: the stream was
+	// refused with it too, and Refresh answered that refusal meanwhile. A
+	// token it renewed to is the just-issued one, and is not renewed again;
+	// none is a session that answer ended.
+	if current := s.config.Token.Value(); current != token {
+		return current, current != ""
+	}
+	renewed, failure := s.tryRefresh()
+	if s.closing() {
+		return "", false
+	}
+	if renewed == "" {
+		s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
+		return "", false
+	}
+	s.config.Token.Set(renewed)
+	return renewed, true
 }
 
 // renewWhenDue renews the token whenever it is due, until alive ends. The
