@@ -18,7 +18,7 @@
 //
 // Each is held to the other before anything is written: TextDecoder must
 // take every label as the encoding the table gives it, and refuse the labels
-// of `replacement`. The Rust SDK's runner (packages/sdk-rust/tests/decode_cases.rs)
+// of `replacement`. The Rust SDK's runner (packages/rust/sdk/tests/decode_cases.rs)
 // then holds what is written to encoding_rs, which is the standard as Firefox
 // has it: label by label and byte by byte.
 //
@@ -164,7 +164,7 @@ const table = {
     'by byte. A reader in another language runs it too.',
   runBy: {
     typescript: ['packages/core/src/__tests__/decode-cases.test.ts'],
-    rust: ['packages/sdk-rust/src/resources.rs', 'packages/sdk-rust/tests/decode_cases.rs'],
+    rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
     python: ['packages/python/sdk/tests/test_decode_cases.py'],
     go: ['packages/go/sdk/resources_test.go'],
   },

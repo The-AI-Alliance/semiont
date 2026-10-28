@@ -17,7 +17,7 @@
  * 3. Exercise. The service's conformance suite names every row that lists it.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withoutComments } from './source-text.mjs';
 
@@ -38,7 +38,7 @@ const PROVIDERS = new Set(['launcher', 'image', 'operator']);
 
 /** Files that read by a computed name, and why each is bounded. */
 const DYNAMIC = {
-  'packages/core-rust/src/config.rs': 'from_environment reads the variables a document names (the gateway\'s signal.userEnv and signal.passwordEnv, the dispatcher\'s queue.userEnv and queue.passwordEnv)',
+  'packages/rust/core/src/config.rs': 'from_environment reads the variables a document names (the gateway\'s signal.userEnv and signal.passwordEnv, the dispatcher\'s queue.userEnv and queue.passwordEnv)',
 };
 
 const failures = [];
@@ -82,16 +82,17 @@ const WHOLE = /\benv::vars(?:_os)?\s*\(/g;
 const IMPLICIT = /\bfrom_default_env\b/g;
 
 /**
- * The workspace's crates by package name: their directories (Cargo.toml at the
- * root). A published crate's entry names its version beside its path.
+ * The workspace's crates by package name: their directories, from the
+ * repository's root (packages/rust/Cargo.toml names each from its own). A
+ * published crate's entry names its version beside its path.
  */
 const WORKSPACE = new Map(
-  [...read('Cargo.toml').matchAll(/^([a-z][a-z0-9-]*) = \{ path = "([^"]+)"(?:, version = "[^"]+")? \}$/gm)].map(([, name, path]) => [name, path]),
+  [...read('packages/rust/Cargo.toml').matchAll(/^([a-z][a-z0-9-]*) = \{ path = "([^"]+)"(?:, version = "[^"]+")? \}$/gm)].map(([, name, path]) => [name, posix.normalize(posix.join('packages/rust', path))]),
 );
 // An entry written any other way would be a crate whose source is never read,
 // and a variable read there would look like one nothing reads.
-const BY_PATH = read('Cargo.toml').split('\n').filter((line) => line.includes('path = "')).length;
-if (WORKSPACE.size !== BY_PATH) fail(`Cargo.toml names ${BY_PATH} crates by path, and ${WORKSPACE.size} of them were read: an entry is written in a shape this lint does not know`);
+const BY_PATH = read('packages/rust/Cargo.toml').split('\n').filter((line) => line.includes('path = "')).length;
+if (WORKSPACE.size !== BY_PATH) fail(`packages/rust/Cargo.toml names ${BY_PATH} crates by path, and ${WORKSPACE.size} of them were read: an entry is written in a shape this lint does not know`);
 
 /**
  * The source a service's binary is built from: its crate's, and each workspace

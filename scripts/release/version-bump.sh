@@ -152,7 +152,7 @@ update_package_json package.json "$NEXT"
 
 # The crates published to crates.io move with every package.json.
 ./scripts/release/cargo-version.sh "$NEXT"
-FILES+=(Cargo.toml Cargo.lock)
+FILES+=(packages/rust/Cargo.toml packages/rust/Cargo.lock)
 
 # Phase 2: Verify
 echo ""

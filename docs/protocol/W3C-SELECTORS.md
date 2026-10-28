@@ -179,7 +179,7 @@ hold it, which every reader runs.
   feature decodes UTF-8 alone. The TypeScript reader decodes what the
   platform's `TextDecoder` does: every encoding of the standard in a browser,
   and in a Node built with full ICU, as Node's own distributions are.
-  *Held by `packages/sdk-rust/src/resources.rs` for the Rust SDK's reader of UTF-8 alone.*
+  *Held by `packages/rust/sdk/src/resources.rs` for the Rust SDK's reader of UTF-8 alone.*
 - **T7. The bytes of the seven legacy multi-byte encodings are read by each
   reader's own decoder, and those differ at the edges.** Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP and
   Shift_JIS are encodings of the standard: their labels are labels (T2), and a

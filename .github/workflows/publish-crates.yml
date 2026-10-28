@@ -30,6 +30,9 @@ jobs:
     # The token crates.io issues lasts 30 minutes.
     timeout-minutes: 45
 
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
@@ -47,7 +50,7 @@ jobs:
       - name: Name the crates, their order and the version
         id: plan
         run: |
-          version=$(jq -r .version version.json)
+          version=$(jq -r .version ../../version.json)
           metadata=$(cargo metadata --locked --no-deps --format-version 1)
 
           published=$(jq -r '.packages[] | select(.publish == null) | .name' <<< "$metadata" | sort)
@@ -57,7 +60,7 @@ jobs:
           fi
           # verify-release.sh and cargo-version.sh read published-crates.sh;
           # the two answers must be one.
-          named=$(scripts/release/published-crates.sh | sort)
+          named=$(../../scripts/release/published-crates.sh | sort)
           if [ "$published" != "$named" ]; then
             echo "::error::cargo publishes [${published//$'\n'/ }] and scripts/release/published-crates.sh names [${named//$'\n'/ }]"
             exit 1

@@ -2,7 +2,7 @@
   "$comment": "Whether a job matches a filter, as every implementation must answer it: the Dispatcher choosing the next job a claim takes, and a party checking an announcement against its own claim before it asks. A filter is a partial job description (JobFilter). A job matches when every field the filter states equals the job's at the same path; what the filter leaves out is not compared. `job` is the description as it is announced or held: its `jobType` and its `params`. Each implementation runs every case and fails on a difference. Add a case here before changing any of them.",
   "runBy": {
     "typescript": ["packages/core/src/__tests__/job-filter.test.ts"],
-    "rust": ["packages/sdk-rust/tests/job_filter.rs"],
+    "rust": ["packages/rust/sdk/tests/job_filter.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"]
   },

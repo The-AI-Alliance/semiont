@@ -3,10 +3,10 @@
 What a Semiont service writes about itself, and what exports it.
 
 **Not published.** It is a crate of this workspace, built into the
-[gateway](../../images/gateway/README.md) and the
-[dispatcher](../../images/dispatcher/README.md). An application built on the
+[gateway](../../../images/gateway/README.md) and the
+[dispatcher](../../../images/dispatcher/README.md). An application built on the
 SDK installs an OpenTelemetry of its own instead:
-[`semiont-telemetry`](../telemetry-rust/README.md) says how.
+[`semiont-telemetry`](../telemetry/README.md) says how.
 
 | Module | What it holds |
 |---|---|

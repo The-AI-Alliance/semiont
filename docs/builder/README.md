@@ -85,7 +85,7 @@ Read in this order. Most people need only the first three.
 The guides' examples are TypeScript. The namespaces, methods and behaviour are the same in Rust, Python and Go, and each SDK's README shows them in its own language:
 
 - **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
-- **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
+- **[Rust](../../packages/rust/sdk/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/rust/http-transport/README.md) has the sessions and signing in.
 - **[Python](../../packages/python/sdk/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions and the state units, and no registry of several knowledge bases.
 - **[Go](../../packages/go/sdk/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.
 

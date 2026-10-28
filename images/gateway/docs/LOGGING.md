@@ -2,7 +2,7 @@
 
 The gateway logs structured lines to stdout, which is the container's contract:
 `semiont logs` reads the runtime's stream, and anything that ships logs reads
-the same. Its code is `semiont-observability`'s [logging.rs](../../../packages/observability-rust/src/logging.rs).
+the same. Its code is `semiont-observability`'s [logging.rs](../../../packages/rust/observability/src/logging.rs).
 
 ## Level and format
 

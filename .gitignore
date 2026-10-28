@@ -117,8 +117,8 @@ images/*/scripts/*.d.ts.map
 # Backups written beside .env.local by tooling
 .env*.backup*
 
-# Cargo's build output, for the whole Rust workspace (Cargo.toml).
-/target
+# Cargo's build output, for the whole Rust workspace (packages/rust/Cargo.toml).
+/packages/rust/target
 
 # The Go SDK's conformance drivers, built by CI and by hand (packages/go/sdk/conformance).
 /packages/go/sdk/conformance/bin/

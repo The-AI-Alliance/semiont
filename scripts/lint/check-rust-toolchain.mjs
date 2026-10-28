@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * lint:rust-toolchain — the Rust version is written in rust-toolchain.toml and
- * nowhere else.
+ * lint:rust-toolchain — the Rust version is written in
+ * packages/rust/rust-toolchain.toml and nowhere else.
  *
- * Every Rust build takes its compiler from that file. rustup reads it, and a
- * Rust image's tag is its `channel`, handed to the Dockerfile as
- * RUST_TOOLCHAIN. Dependabot moves the file and runs no script of this
+ * Every Rust build takes its compiler from that file. rustup reads it where
+ * cargo runs in packages/rust, the workspace's root; a Rust image's tag is its
+ * `channel`, handed to the Dockerfile as RUST_TOOLCHAIN; and a build outside
+ * the workspace, where rustup cannot find the file, sets rustup's default to
+ * the channel scripts/ci/rust-toolchain.sh prints. Dependabot moves the file and runs no script of this
  * repository, so a second copy of the version is a copy nothing moves: it is
  * refused here, not kept in step.
  *
@@ -14,9 +16,10 @@
  *    file declares `ARG RUST_TOOLCHAIN` with no default, so a build that is
  *    not told the toolchain stops at the FROM.
  * 3. Nothing but a document picks a toolchain another way: rustup's default
- *    or override, a toolchain named to `rustup toolchain install`, the
- *    RUSTUP_TOOLCHAIN variable, `cargo +<toolchain>`, or an action that
- *    installs one.
+ *    (but `rustup default "$(scripts/ci/rust-toolchain.sh)"`, the channel the
+ *    one reader prints) or override, a toolchain named to `rustup toolchain
+ *    install`, the RUSTUP_TOOLCHAIN variable, `cargo +<toolchain>`, or an
+ *    action that installs one.
  * 4. `channel` is read out of the file in one place, scripts/ci/rust-toolchain.sh.
  *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs):
@@ -28,14 +31,14 @@ import { fileURLToPath } from 'node:url';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const OWNER = 'rust-toolchain.toml';
+const OWNER = 'packages/rust/rust-toolchain.toml';
 const READER = 'scripts/ci/rust-toolchain.sh';
 /** This file names what it refuses. */
 const SELF = 'scripts/lint/check-rust-toolchain.mjs';
 
 /** Rule 3: each way of picking a toolchain that is not the file. */
 const OTHER_WAYS = [
-  [/\brustup\s+default\b/, '`rustup default`'],
+  [/\brustup\s+default\b(?!\s+"\$\(scripts\/ci\/rust-toolchain\.sh\)")/, '`rustup default`'],
   [/\brustup\s+override\b/, '`rustup override`'],
   [/\brustup\s+toolchain\s+install\s+[A-Za-z0-9]/, 'a toolchain named to `rustup toolchain install`'],
   [/\bRUSTUP_TOOLCHAIN\b/, 'RUSTUP_TOOLCHAIN'],

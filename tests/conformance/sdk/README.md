@@ -367,10 +367,10 @@ of `SDK_DRIVERS`, and run the suite. TypeScript's are
 for the wire and
 [packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
 for the live layer. Rust's are the two binaries of the crate
-[packages/http-transport-rust/conformance](../../../packages/http-transport-rust/conformance):
-[semiont-wire-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-wire-driver.rs)
+[packages/rust/http-transport/conformance](../../../packages/rust/http-transport/conformance):
+[semiont-wire-driver](../../../packages/rust/http-transport/conformance/src/bin/semiont-wire-driver.rs)
 and
-[semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
+[semiont-live-driver](../../../packages/rust/http-transport/conformance/src/bin/semiont-live-driver.rs).
 Python's are
 [packages/python/sdk/conformance/wire.py](../../../packages/python/sdk/conformance/wire.py)
 and

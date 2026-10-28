@@ -163,17 +163,7 @@ jobs:
               - 'images/gateway/**'
               - 'images/dispatcher/**'
               - 'images/archivist/**'
-              - 'packages/codegen-rust/**'
-              - 'packages/core-rust/**'
-              - 'packages/http-service-rust/**'
-              - 'packages/http-transport-rust/**'
-              - 'packages/observability-rust/**'
-              - 'packages/sdk-rust/**'
-              - 'packages/telemetry-rust/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
-              - 'deny.toml'
+              - 'packages/rust/**'
               - 'scripts/lint/check-image-crates.mjs'
               - 'scripts/release/cargo-version.sh'
             # The npm workspaces, each named (the filter takes no exclusion
@@ -757,6 +747,9 @@ jobs:
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true'
 
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -778,8 +771,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-dev-
 
@@ -852,7 +845,7 @@ jobs:
       # (scripts/release/cargo-version.sh keeps it so).
       - name: Check which crates are published, and at what version
         run: |
-          released=$(jq -r .version version.json)
+          released=$(jq -r .version ../../version.json)
           expected=$(printf '%s\n' semiont semiont-codegen semiont-http-transport semiont-telemetry | sed "s/$/ $released/" | sort)
           published=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' | sort)
           if [ "$published" != "$expected" ]; then
@@ -905,11 +898,11 @@ jobs:
                 > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
             done
           done
-          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
+          node ../../scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
-  # Archivist or the Rust SDK's three drivers, all from target/release
+  # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
   # (tests/conformance/harness/paths.ts). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
@@ -922,6 +915,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true'
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -937,13 +933,13 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -958,8 +954,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
@@ -968,18 +964,18 @@ jobs:
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 
       # Several paths: the artifact's root is their common directory, so a
-      # suite fetching it into target/release gets the six files there.
+      # suite fetching it into packages/rust/target/release gets the six files there.
       - name: Publish the binaries
         uses: actions/upload-artifact@v7
         with:
           name: rust-binaries
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
           # Long enough for a job re-run to find them; storage is free here.
           retention-days: 30
           if-no-files-found: error
@@ -1001,10 +997,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Write the gateway's configuration document
         run: |
@@ -1033,7 +1029,7 @@ jobs:
           export JWT_SECRET=test-secret-key-for-testing-32char
           export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
-          nohup target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
+          nohup packages/rust/target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
           echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health >/dev/null; then echo "The gateway is healthy"; exit 0; fi
@@ -1109,10 +1105,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1160,10 +1156,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1210,10 +1206,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1260,10 +1256,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1335,10 +1331,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1416,10 +1412,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1503,10 +1499,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1601,10 +1597,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1717,10 +1713,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

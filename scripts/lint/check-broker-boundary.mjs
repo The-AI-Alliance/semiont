@@ -40,7 +40,7 @@ const RULES = [
     what: 'the async_nats crate',
     uses: /\basync_nats\b/,
     scope: rustSource,
-    allowed: ['images/gateway/src/signal/nats.rs', 'images/dispatcher/jetstream/src/lib.rs', 'packages/core-rust/src/nats.rs'],
+    allowed: ['images/gateway/src/signal/nats.rs', 'images/dispatcher/jetstream/src/lib.rs', 'packages/rust/core/src/nats.rs'],
   },
   {
     what: "the gateway's NATS plane",

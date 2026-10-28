@@ -111,7 +111,7 @@
   description: "The Python SDK (packages/python/sdk)"
 - name: "sdk:rust"
   color: "bfd4f2"
-  description: "The Rust SDK (packages/sdk-rust)"
+  description: "The Rust SDK (packages/rust/sdk)"
 - name: "sdk:go"
   color: "bfd4f2"
   description: "The Go SDK (packages/go/sdk)"

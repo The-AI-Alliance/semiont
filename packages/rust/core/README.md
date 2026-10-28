@@ -3,9 +3,9 @@
 What Semiont's Rust services share and no client needs.
 
 **Not published.** It is a crate of this workspace, built into the
-[gateway](../../images/gateway/README.md) and the
-[dispatcher](../../images/dispatcher/README.md). To use Semiont from Rust, the
-crate you want is [`semiont`](../sdk-rust/README.md).
+[gateway](../../../images/gateway/README.md) and the
+[dispatcher](../../../images/dispatcher/README.md). To use Semiont from Rust, the
+crate you want is [`semiont`](../sdk/README.md).
 
 | Module | What it holds |
 |---|---|
@@ -18,6 +18,6 @@ validators, no configuration reader, no broker.
 
 A protocol type it reaches is the SDK's (`semiont::types`): one home for
 each. What a service writes about itself is
-[`semiont-observability`](../observability-rust/README.md)'s, and how it
+[`semiont-observability`](../observability/README.md)'s, and how it
 reaches the bus is the SDK's client over
-[`semiont-http-transport`](../http-transport-rust/README.md).
+[`semiont-http-transport`](../http-transport/README.md).

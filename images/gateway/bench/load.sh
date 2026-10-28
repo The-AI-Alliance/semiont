@@ -3,7 +3,7 @@
 # after another, on Alpine as the image is. From the repository root:
 #
 #   container run --rm -c 12 -m 8g -v "$PWD":/work -w /work alpine:3.24 \
-#     sh images/gateway/bench/load.sh now=target/release/semiont-gateway
+#     sh images/gateway/bench/load.sh now=packages/rust/target/release/semiont-gateway
 #
 # The gateway gets CPUs 0-7 (so eight workers) and wrk the next four, so the
 # two never share a core. Each scenario runs once to warm up and then RUNS

@@ -5,8 +5,8 @@
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-codegen.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The build-time code generator of the [Semiont Rust SDK](../sdk-rust/README.md).
-It turns the [Semiont specification](../../specs/README.md), an OpenAPI
+The build-time code generator of the [Semiont Rust SDK](../sdk/README.md).
+It turns the [Semiont specification](../../../specs/README.md), an OpenAPI
 document and its JSON Schemas, into the Rust types of `semiont::types`.
 
 ## You do not need to add it
@@ -17,7 +17,7 @@ in the SDK's build script and is linked into no program. It is published
 because a published crate's build dependencies have to be.
 
 To use Semiont from Rust, add `semiont` and
-[`semiont-http-transport`](../http-transport-rust/README.md).
+[`semiont-http-transport`](../http-transport/README.md).
 
 ## What it does
 
@@ -33,12 +33,12 @@ the reason: a build script has nothing better to do with a spec it cannot
 read.
 
 Two build scripts use it, and each is a worked example:
-[the SDK's](../sdk-rust/build.rs), for the protocol's types, and
-[the services' shared crate's](../core-rust/build.rs), for the types only a
+[the SDK's](../sdk/build.rs), for the protocol's types, and
+[the services' shared crate's](../core/build.rs), for the types only a
 service needs. One generator, so the two are never generated two ways.
 
 Every item is documented on [docs.rs](https://docs.rs/semiont-codegen).
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See [LICENSE](../../../LICENSE).

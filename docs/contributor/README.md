@@ -16,7 +16,7 @@ To run tools directly on your machine instead, the versions are:
 |---|---|---|
 | Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
 | Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/python/sdk/pyproject.toml) of the Python SDK |
-| Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
+| Rust | the pinned channel | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 
 ## Four toolchains, one spec
@@ -55,9 +55,10 @@ semiont/
 │   ├── http-transport/     # The SDK's transport over a gateway
 │   ├── react-ui/           # React components and hooks
 │   ├── observability/      # Tracing and metrics for the TypeScript transport
-│   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
-│   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
-│   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
+│   ├── rust/               # The Rust workspace: Cargo.toml, Cargo.lock, rust-toolchain.toml, deny.toml
+│   │   ├── sdk/            # The Rust SDK (crate `semiont`), with
+│   │   ├── http-transport/ telemetry/ codegen/
+│   │   └── core/ observability/ http-service/    # what the Rust services share
 │   ├── go/sdk/             # The Go SDK
 │   ├── go/launcher/        # The launcher's libraries: its engine, the verbs, the fake runtime its tests drive
 │   ├── python/sdk/         # The Python SDK (package `semiont`)

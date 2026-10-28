@@ -14,7 +14,7 @@
 //
 // A channel that carries a stored event names the type of the event's own
 // payload too, from the entry's `payload`, as the Rust generator's `Recorded`
-// does (packages/sdk-rust/build.rs).
+// does (packages/rust/sdk/build.rs).
 //
 // --check compares without writing (the CI drift gate).
 

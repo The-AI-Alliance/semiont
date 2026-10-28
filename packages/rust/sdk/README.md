@@ -5,7 +5,7 @@
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The Rust SDK for [Semiont](../../README.md), an open platform for building
+The Rust SDK for [Semiont](../../../README.md), an open platform for building
 trusted AI knowledge bases: a shared workspace where humans and AI agents
 annotate, connect and govern a corpus of documents.
 
@@ -16,10 +16,10 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods and behaviour as the
-[TypeScript SDK](../sdk/README.md), the [Python SDK](../python/sdk/README.md)
-and the [Go SDK](../go/sdk/README.md), and the four are held to the same
-[conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
-The [Introduction](../../docs/builder/INTRODUCTION.md) explains the domain
+[TypeScript SDK](../../sdk/README.md), the [Python SDK](../../python/sdk/README.md)
+and the [Go SDK](../../go/sdk/README.md), and the four are held to the same
+[conformance suite](../../../tests/conformance/sdk/README.md). New to Semiont?
+The [Introduction](../../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
 
@@ -34,18 +34,18 @@ Two crates, because the client does no networking of its own:
 
 - **`semiont`** is the client, the protocol's types, and what an application
   holds: sessions, state, storage. It links no HTTP library.
-- **[`semiont-http-transport`](../http-transport-rust/README.md)** carries
+- **[`semiont-http-transport`](../http-transport/README.md)** carries
   it to a knowledge base's gateway and signs people and services in. Its
   README covers TLS and each way to sign in.
 
 A client is built and used inside a [Tokio](https://tokio.rs) runtime, and
 speaks to a running knowledge base. The
-[Quick Start](../../docs/builder/QUICK-START.md) sets one up on your own
+[Quick Start](../../../docs/builder/QUICK-START.md) sets one up on your own
 machine.
 
 | Feature | What it adds |
 |---|---|
-| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
+| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
 | `testing` | Doubles and harnesses for the tests of code built on the client. See [Testing your code](#testing-your-code). |
 
 Every type and method is documented on [docs.rs](https://docs.rs/semiont).
@@ -65,7 +65,7 @@ is the transport crate's:
 | A daemon | `AgentToken::sign_in` | A service account. It needs no `sign-in` feature. |
 
 Each is shown, compiled and run, in
-[the transport's README](../http-transport-rust/README.md#signing-in).
+[the transport's README](../http-transport/README.md#signing-in).
 A script's sign-in gives an `OpenedSession`: `opened.session()` is its
 `SemiontSession`, and `session.client()` is the `SemiontClient` the examples
 below start from. A daemon builds its client
@@ -91,14 +91,14 @@ attention. Each is a namespace of the client.
 `yield` and `match` are Rust's own words, so those two namespaces take a
 trailing underscore. Beside the eight are `job`, and `auth` and `system`
 when the client has a gateway. What each flow means is in
-[docs/protocol/flows](../../docs/protocol/flows/README.md).
+[docs/protocol/flows](../../../docs/protocol/flows/README.md).
 
 ## A first program
 
 From a signed-in client, this ingests a paper, has a model mark the concepts
 it mentions, gathers the context around it, and generates a summary grounded
 in that context. Those are the
-[Quick Start](../../docs/builder/QUICK-START.md)'s last two steps, from code,
+[Quick Start](../../../docs/builder/QUICK-START.md)'s last two steps, from code,
 and the two that come next. [Connect](#connect) is how a client comes to be
 signed in.
 
@@ -161,12 +161,12 @@ base for the next participant, person or agent, to read and build on.
 
 Where to go from here:
 
-- The [Developer Guide](../../docs/builder/DEVELOPER-GUIDE.md) has each of
+- The [Developer Guide](../../../docs/builder/DEVELOPER-GUIDE.md) has each of
   these steps as a recipe, and the ones after them: reading, searching,
   annotating by hand, reacting to what others do, and testing. Its code is
   TypeScript, and [the table below](#from-the-typescript-sdk) maps each shape
   to this crate's.
-- The [agent skills](../../docs/builder/skills/README.md) are whole scripts,
+- The [agent skills](../../../docs/builder/skills/README.md) are whole scripts,
   one per task, for an AI coding assistant to load: ingesting a corpus,
   annotating it, linking it, and the layers built on those. They are
   TypeScript as well.
@@ -247,7 +247,7 @@ lifecycle.
 
 A worker signs in as an agent, which is the transport crate's to do, so a
 whole worker is shown, compiled and run, in
-[the transport's README](../http-transport-rust/README.md#a-daemon).
+[the transport's README](../http-transport/README.md#a-daemon).
 
 What a worker does with a job it holds is its own. One that marks a text
 asks a model what to mark, and the model quotes the text. `annotations` turns
@@ -301,7 +301,7 @@ annotation again, on a retry or after another worker's attempt, gives it the
 same id, and committing it a second time changes nothing. An offset counts
 Unicode code points from the start of the text, as the wire's do, and the
 text is given as the `&str` it is. The tables under
-[`specs/src/annotations`](../../specs/src/annotations) hold every SDK's
+[`specs/src/annotations`](../../../specs/src/annotations) hold every SDK's
 builders to the same answers.
 
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
@@ -357,8 +357,8 @@ builders to the same answers.
   that has shown no activity for fifteen minutes.
 
 What a worker promises the dispatcher is the
-[worker contract](../../docs/protocol/WORKER-CONTRACT.md), and
-[its conformance suite](../../tests/conformance/worker/README.md) holds this
+[worker contract](../../../docs/protocol/WORKER-CONTRACT.md), and
+[its conformance suite](../../../tests/conformance/worker/README.md) holds this
 crate to it.
 
 ## What a method returns
@@ -388,7 +388,7 @@ resource is watched, the client holds that resource's scope, which is what
 brings it that resource's events, and lets go of it when the watcher is
 dropped. A watcher that falls behind is given the latest state, not each one
 it missed. The rules a query keeps are
-[Cache Semantics](../../docs/protocol/CACHE-SEMANTICS.md).
+[Cache Semantics](../../../docs/protocol/CACHE-SEMANTICS.md).
 
 A stream of events never drops frames silently. A reader that falls behind
 is given `Lagged(n)` in place of what it missed, and reads on.
@@ -401,7 +401,7 @@ shares for it.
 A resource, an annotation, a job and whoever did something are each named by
 an id of its own type: `ResourceId`, `AnnotationId`, `JobId`, `UserId`
 (`semiont::types`). The rule each is held to is the spec's
-([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json)):
+([`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json)):
 the first three are a name of 1 to 128 letters, digits, `_` and `-`, never a
 URI or a path, and the last is a DID.
 
@@ -442,7 +442,7 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
 
 What must outlive a client is kept in a `SessionStorage`
 (`semiont::storage`). `semiont::sign_in_store` is the sign-ins
-`semiont login` keeps ([sign-in store](../../specs/src/sign-in-store/README.md)),
+`semiont login` keeps ([sign-in store](../../../specs/src/sign-in-store/README.md)),
 as a `SessionStorage`, so one sign-in serves the launcher and an application
 built on this SDK.
 
@@ -464,7 +464,7 @@ so does dropping it.
 | `HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `enter`, `leave` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 
-The ideas behind them are in [State Units](../../docs/builder/STATE-UNITS.md).
+The ideas behind them are in [State Units](../../../docs/builder/STATE-UNITS.md).
 
 ## Ending things: `close` and `Drop`
 
@@ -529,7 +529,7 @@ assert!(refused.is_err());
 ## From the TypeScript SDK
 
 The two SDKs have the same namespaces, methods and behaviour: both are held
-to [`specs/src/client/surface.json`](../../specs/src/client/surface.json)
+to [`specs/src/client/surface.json`](../../../specs/src/client/surface.json)
 and the same case tables. What differs is how each language says "later".
 
 | TypeScript | Rust | |
@@ -557,19 +557,19 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `types` | The protocol's types, generated from the spec when the crate is built: the ids, and every request, response and event |
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. Each is `Scoped`, carried by a resource's scope, or `Unscoped`. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
-| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../specs/src/annotations/builder-cases.json). |
-| `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../docs/protocol/WORKER-CONTRACT.md) |
+| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../../specs/src/annotations/builder-cases.json). |
+| `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../../docs/protocol/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |
 | `state`, `state_unit` | The state units, and what every unit commits to |
 | `cache`, `refresh`, `resume` | The cache queries answer from, what each event does to it, and where a stream resumes after a restart |
 | `transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `bus`, `event_bus` | The typed client of the bus over a transport, and a client's own in-process bus. A client hands out its bus over its transport as `client.wire()`. `bus.frames::<C>()` reads a channel of no scope. A resource's channel is read for the resource, `bus.frames_of::<MarkAdded>(&resource)`, which holds that resource's scope until it is dropped; read with no resource, it does not compile. |
-| `media_types` | The media types a knowledge base admits, and what the system can do with each. Of any media type: where its text comes from (`text_source_of`), whether that text has places on a page (`yields_geometry_of`), and whether it is derived by reading the bytes, where a decoded text is the bytes themselves (`derives_text_of`). [`cases.json`](../../specs/src/media-types/cases.json) holds every SDK's rules to the same answers. |
-| `resources` | The readers of a resource's description: its first representation (`primary_representation`), that representation's media type (`primary_media_type`), and its entity types (`resource_entity_types`). Its representations are one or a list, and these read either. [`reader-cases.json`](../../specs/src/resources/reader-cases.json) holds every SDK's readers to the same answers. And `decode_representation(bytes, media_type)`, a representation's bytes as the text they are, which `browse.resource_content` reads with. It refuses by name a media type whose text is not its bytes, and a charset it does not decode. |
+| `media_types` | The media types a knowledge base admits, and what the system can do with each. Of any media type: where its text comes from (`text_source_of`), whether that text has places on a page (`yields_geometry_of`), and whether it is derived by reading the bytes, where a decoded text is the bytes themselves (`derives_text_of`). [`cases.json`](../../../specs/src/media-types/cases.json) holds every SDK's rules to the same answers. |
+| `resources` | The readers of a resource's description: its first representation (`primary_representation`), that representation's media type (`primary_media_type`), and its entity types (`resource_entity_types`). Its representations are one or a list, and these read either. [`reader-cases.json`](../../../specs/src/resources/reader-cases.json) holds every SDK's readers to the same answers. And `decode_representation(bytes, media_type)`, a representation's bytes as the text they are, which `browse.resource_content` reads with. It refuses by name a media type whose text is not its bytes, and a charset it does not decode. |
 | `discovery` | The knowledge bases a launcher manages |
 | `identity`, `roles` | How a knowledge base names its people and agents, and the realm's roles |
-| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json)) is written as `[withheld]` |
+| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json)) is written as `[withheld]` |
 | `testing` | The doubles and harnesses, behind the `testing` feature |
 
 `SEMIONT_BUS_LOG` is the only environment variable the crate reads.
@@ -580,10 +580,10 @@ environment and says what it found.
 
 | Crate | |
 |---|---|
-| [`semiont-http-transport`](../http-transport-rust/README.md) | The transport over a gateway, and signing in. A program that reaches a knowledge base uses it. |
-| [`semiont-telemetry`](../telemetry-rust/README.md) | The spans and counts the transport reports, to whatever OpenTelemetry an application installs. Its README says how to turn tracing on. |
-| [`semiont-codegen`](../codegen-rust/README.md) | The build-time generator of `semiont::types`. Cargo builds it for you. |
+| [`semiont-http-transport`](../http-transport/README.md) | The transport over a gateway, and signing in. A program that reaches a knowledge base uses it. |
+| [`semiont-telemetry`](../telemetry/README.md) | The spans and counts the transport reports, to whatever OpenTelemetry an application installs. Its README says how to turn tracing on. |
+| [`semiont-codegen`](../codegen/README.md) | The build-time generator of `semiont::types`. Cargo builds it for you. |
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See [LICENSE](../../../LICENSE).

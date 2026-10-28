@@ -14,7 +14,7 @@ pub const VERSION: &str = env!("SEMIONT_VERSION");
 const OPENAPI: &str = include_str!(concat!(env!("OUT_DIR"), "/openapi.json"));
 const ARCHIVIST_OPENAPI: &str = include_str!(concat!(env!("OUT_DIR"), "/archivist.openapi.json"));
 const SCHEMAS: &str = include_str!(concat!(env!("OUT_DIR"), "/schemas.json"));
-const REGISTRY: &str = include_str!("../../../specs/src/bus/registry.json");
+const REGISTRY: &str = include_str!("../../../../specs/src/bus/registry.json");
 const CLASSIFICATION: &str = include_str!("bus-classification.json");
 
 pub const HTTP_METHODS: [&str; 8] = [

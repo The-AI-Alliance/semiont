@@ -45,7 +45,7 @@ const SERVICE_SCHEMAS: [&str; 17] = [
 fn main() {
     let crate_dir =
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
-    let repo = crate_dir.join("../..");
+    let repo = crate_dir.join("../../..");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR"));
     let specs = repo.join("specs/src");
     for watched in [
