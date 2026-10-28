@@ -4,7 +4,7 @@ The library is not a dependency of this package. It comes with the extra
 `semiont-inference[anthropic]`, and this module is the one place it is
 imported: whoever does not ask for this driver does not need it.
 
-What this driver leans on in the library (`anthropic`, read at 2.1.0), so
+What this driver leans on in the library (`anthropic`, read at 2.2.0), so
 that a new release of it is read for the same:
 
 - It speaks API version 2026-10-21, in an `anthropic-version` header on
