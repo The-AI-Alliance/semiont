@@ -110,7 +110,8 @@
     "lint:state-unit-cases": "node scripts/lint/check-state-unit-cases.mjs",
     "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs",
     "lint:workflows": "node scripts/lint/check-workflows.mjs",
-    "lint:labels": "node scripts/lint/check-labels.mjs"
+    "lint:labels": "node scripts/lint/check-labels.mjs",
+    "lint:path-globs": "node scripts/lint/check-path-globs.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
