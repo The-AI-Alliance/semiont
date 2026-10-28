@@ -26,7 +26,7 @@ FAIL=0
 is_test_file() { echo "$1" | grep -qE '__tests__|test-setup|\.test\.ts$|vitest\.setup'; }
 
 # Reads per workspace directory, computed once. A closure can be most of
-# packages/*, and every package computes its own closure, so without this
+# packages/typescript/*, and every package computes its own closure, so without this
 # the same trees get re-scanned a dozen times.
 READS_CACHE=$(mktemp -d)
 trap 'rm -rf "$READS_CACHE"' EXIT

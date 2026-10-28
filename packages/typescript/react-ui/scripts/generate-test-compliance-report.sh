@@ -5,7 +5,7 @@ set -e
 # Calls shared compliance scripts with workspace-specific paths
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
 REPORT_DIR="$REPO_ROOT/.compliance"
 mkdir -p "$REPORT_DIR"

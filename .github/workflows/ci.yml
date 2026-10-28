@@ -181,8 +181,7 @@ jobs:
               - 'tests/conformance/**'
             go:
               - 'apps/launcher/**'
-              - 'packages/go/launcher/**'
-              - 'packages/go/sdk/**'
+              - 'packages/go/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
