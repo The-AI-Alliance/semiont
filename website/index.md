@@ -5,9 +5,9 @@ title: Semiont - Trusted AI Knowledge Bases
 
 ## Semiont
 
-**Semiont is an open, source-grounded platform for building trusted AI knowledge bases — a shared workspace where humans and AI agents annotate, connect, and govern domain knowledge.**
+**Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.** Agents propose what a passage mentions, what it links to and what to make of it; people accept, correct or reject each proposal. Applications and agents built on the result can cite their sources, so their answers can be checked. It is open source, and can run entirely on your own machines.
 
-![Semiont screenshot](assets/images/semiont-2026-03-10.png)
+![The Semiont browser: a document with its references highlighted, and a panel of assessments beside it](assets/images/semiont-2026-03-10.png)
 
 - **Annotate and link documents.** Humans and AI agents mark entities, comments, and references directly in your corpus — every annotation anchors to a specific passage, in the W3C Web Annotation standard.
 - **Grow a grounded knowledge graph.** Annotations and links project into a graph where every node traces back to its source. Search it semantically, navigate it, audit its provenance.
