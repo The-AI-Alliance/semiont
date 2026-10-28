@@ -9,9 +9,9 @@ title: Semiont - Trusted AI Knowledge Bases
 
 ![The Semiont browser: a document with its references highlighted, and a panel of assessments beside it](assets/images/semiont-2026-03-10.png)
 
-- **Annotate and link documents.** Humans and AI agents mark entities, comments, and references directly in your corpus — every annotation anchors to a specific passage, in the W3C Web Annotation standard.
-- **Grow a grounded knowledge graph.** Annotations and links project into a graph where every node traces back to its source. Search it semantically, navigate it, audit its provenance.
-- **Serve trusted context to AI.** Feed RAG pipelines, agents, and applications from cited sources instead of unchecked generation. Self-hosted, with inference on [Anthropic](https://www.anthropic.com/) (cloud) or [Ollama](https://ollama.com/) (fully local).
+- **Annotate and link documents.** Every mark is a W3C Web Annotation, an open standard, kept with your documents in a git repository you own.
+- **Grow a knowledge graph.** The marks and links build a graph of the people, things and documents in your corpus. Search it by meaning, navigate it, and see who changed what, and when.
+- **Serve context to AI.** Applications reach it through the [SDK](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md), in TypeScript, Rust, Python or Go, and AI assistants such as Claude through [MCP](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/AI-APPLICATIONS.md). Its models can be hosted or run locally.
 
 **No cold start.** Most knowledge systems are useless until someone invests weeks in schema design, taxonomy building, and manual data entry — the *cold-start problem*. Semiont skips it: import documents and AI agents immediately begin detecting entities, proposing annotations, and linking related material for humans to review and refine. The knowledge graph grows as a byproduct of that work — no upfront schema, no ETL pipeline.
 
