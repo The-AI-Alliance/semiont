@@ -40,7 +40,7 @@ async function sourceStorageUri(id: string): Promise<string> {
 }
 
 test.describe('generate to the proposed save location', () => {
-  test('an untouched Save location follows title and format, and the artifact lands at the proposal', async ({ signedInPage: page, bus }) => {
+  test('an untouched Save location follows title and format, and the artifact lands at the proposal', { tag: ['@model'] }, async ({ signedInPage: page, bus }) => {
     test.setTimeout(180_000);
 
     const modal = await openConfigureStep(page, bus);

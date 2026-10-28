@@ -104,7 +104,7 @@ function epochOrNull(value: string | null, label: string): number | null {
 }
 
 test.describe('worker vitals (/health)', () => {
-  test('payload is the vitals contract and one real delegated job advances the lifecycle', async () => {
+  test('payload is the vitals contract and one real delegated job advances the lifecycle', { tag: ['@model'] }, async () => {
     test.setTimeout(120_000);
 
     // ── 1. Freshness gate: the enriched payload must exist on this stack ──
