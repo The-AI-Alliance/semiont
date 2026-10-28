@@ -460,7 +460,7 @@ so does dropping it.
 | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather_annotation`, `gather_resource` |
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
 | `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
-| `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
+| `BeckonStateUnit` (one resource) | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
 | `HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `enter`, `leave` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 

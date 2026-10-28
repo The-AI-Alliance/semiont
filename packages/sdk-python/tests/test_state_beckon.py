@@ -11,18 +11,18 @@ from typing import final, override
 from aio import run, soon, turns
 
 from semiont.channels import BRIDGED_CHANNELS
-from semiont.identifiers import AnnotationId
+from semiont.identifiers import AnnotationId, ResourceId
 from semiont.state import BeckonStateUnit
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
 
-ANN = AnnotationId("ann-1")
+RES, ANN = ResourceId("res-1"), AnnotationId("ann-1")
 
 
 def test_a_state_set_to_what_it_already_holds_wakes_nobody() -> None:
     async def scenario() -> None:
         made = create_test_client(transport=FaultyTransport([], channels=BRIDGED_CHANNELS))
-        async with made.client as client, BeckonStateUnit(client) as unit:
+        async with made.client as client, BeckonStateUnit(client, RES) as unit:
             readers = aiter(unit.hovered_annotation_id)
             assert await soon(anext(readers)) is None
 
@@ -46,7 +46,7 @@ class Beckons(AxiomSubject[BeckonStateUnit]):
     @override
     def setup(self) -> Fresh[BeckonStateUnit]:
         made = create_test_client(transport=FaultyTransport([], channels=BRIDGED_CHANNELS))
-        return Fresh(BeckonStateUnit(made.client)).given(made.client)
+        return Fresh(BeckonStateUnit(made.client, RES)).given(made.client)
 
     @override
     def surfaces(self, unit: BeckonStateUnit) -> Sequence[AsyncIterable[object]]:

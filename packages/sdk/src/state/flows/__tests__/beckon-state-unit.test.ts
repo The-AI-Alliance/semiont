@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { annotationId } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 import { createBeckonStateUnit, createHoverDwell, type BeckonStateUnit, type HoverDwell } from '../beckon-state-unit';
 import { makeTestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
@@ -20,7 +20,7 @@ describe('BeckonStateUnit — StateUnit axioms', () => {
     assertStateUnitAxioms<BeckonStateUnit>({
       setup: () => {
         const tc = makeTestClient();
-        return { unit: createBeckonStateUnit(tc.client), teardown: () => tc.bus.destroy() };
+        return { unit: createBeckonStateUnit(tc.client, resourceId('res-ax')), teardown: () => tc.bus.destroy() };
       },
       surfaces: (u) => [u.hoveredAnnotationId$],
       invocations: (u) => [() => u.focus(aid)],

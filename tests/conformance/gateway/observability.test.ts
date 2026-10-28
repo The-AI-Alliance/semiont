@@ -52,7 +52,7 @@ eachPlane(
       const marker = randomUUID();
       const reply = await call(world().origin, 'POST', '/bus/emit', {
         token: await world().person('tracer'),
-        json: { channel: 'beckon:focus', payload: { annotationId: marker } },
+        json: { channel: 'beckon:focus', payload: { annotationId: marker, resourceId: 'res-1' } },
         headers: { traceparent: t.header },
       });
       expect(reply.status).toBe(202);
@@ -142,7 +142,7 @@ eachPlane(
       // Something to count for each: an emit, a subscriber, a resume gap, a
       // reply withheld from a subscriber that did not ask for it.
       const token = await world().person('metered');
-      await world().emit(token, { channel: 'beckon:focus', payload: {} });
+      await world().emit(token, { channel: 'beckon:focus', payload: { resourceId: 'res-1' } });
       const gap = await world().open(token, { clientId: randomUUID(), scoped: [{ scope: 'res-metered', channels: ['mark:added'], lastEventId: 'garbage' }] });
       await gap.next('the first ping', (m) => m.event === 'ping');
       const request = 'browse:resource-requested';
@@ -167,7 +167,7 @@ eachPlane(
       const { baseline } = spec().principalLimit<{ perSecond: number; burst: number }>('post', '/bus/emit', 'emitsPerPrincipal');
       const hasty = await world().person('hasty');
       await eventually('an emit refused past its bucket', 15_000, async () => {
-        const replies = await Promise.all(Array.from({ length: baseline.burst }, () => world().emit(hasty, { channel: 'beckon:focus', payload: {} })));
+        const replies = await Promise.all(Array.from({ length: baseline.burst }, () => world().emit(hasty, { channel: 'beckon:focus', payload: { resourceId: 'res-1' } })));
         return replies.some((r) => r.status === 429) ? true : undefined;
       });
 

@@ -38,8 +38,8 @@ eachPlane('the broker', (world) => {
     const alice = await world().person('alice');
     const clientId = randomUUID();
     const stream = await world().subscribe(alice, { clientId, global: [result, 'beckon:focus'], scoped: [{ scope: 'res-broker', channels: ['beckon:focus'] }] });
-    await world().emit(alice, { channel: 'beckon:focus', payload: {} });
-    await world().emit(alice, { channel: 'beckon:focus', payload: {}, scope: 'res-broker' });
+    await world().emit(alice, { channel: 'beckon:focus', payload: { resourceId: 'res-broker' } });
+    await world().emit(alice, { channel: 'beckon:focus', payload: { resourceId: 'res-broker' }, scope: 'res-broker' });
     const correlationId = randomUUID();
     await world().emit(alice, { channel: REQUEST, payload: { resourceId: 'r' }, correlationId, clientId });
     await stream.frame(result, (f) => f.correlationId === correlationId);

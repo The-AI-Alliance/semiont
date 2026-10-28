@@ -370,13 +370,13 @@ describe('ResourceViewerPage', () => {
 
       expect(capturedHistory.props).not.toBeNull();
 
-      const focused: Array<EventMap['beckon:focus']['annotationId']> = [];
-      const sub = stubClient.bus.on('beckon:focus').subscribe(({ annotationId }: EventMap['beckon:focus']) => focused.push(annotationId));
+      const focused: Array<EventMap['beckon:focus']> = [];
+      const sub = stubClient.bus.on('beckon:focus').subscribe((focus: EventMap['beckon:focus']) => focused.push(focus));
 
       const { onEventClick } = historyProps();
       if (!onEventClick) throw new Error('the page gave the history no onEventClick');
       onEventClick(makeAnnotationId('ann-42'));
-      expect(focused).toEqual(['ann-42']);
+      expect(focused).toEqual([{ resourceId: 'test-123', annotationId: 'ann-42' }]);
 
       sub.unsubscribe();
       localStorage.clear();

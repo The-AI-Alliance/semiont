@@ -37,7 +37,7 @@
 //		Setup: func(t *testing.T) semionttest.Fresh[*state.BeckonStateUnit] {
 //			made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
 //			t.Cleanup(func() { made.Client.Close(); made.Transport.Close() })
-//			unit := state.NewBeckonStateUnit(made.Client)
+//			unit := state.NewBeckonStateUnit(made.Client, resourceID)
 //			return semionttest.Fresh[*state.BeckonStateUnit]{Unit: unit}.With(semionttest.TheClient(made.Client))
 //		},
 //		Surfaces: func(unit *state.BeckonStateUnit) []semionttest.Surface {

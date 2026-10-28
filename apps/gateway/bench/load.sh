@@ -16,8 +16,8 @@
 # gateway's resident memory before and with them open, and the cost per stream.
 #
 #   health   GET /api/health: the accept loop and the router, nothing else
-#   emit     POST /bus/emit, an empty beckon:focus: a token checked, a body read
-#            and validated, a frame published
+#   emit     POST /bus/emit, a beckon:focus naming only its resource: a token
+#            checked, a body read and validated, a frame published
 #   emit-8k  the same with an 8 KiB mark:added payload
 set -eu
 
@@ -68,7 +68,7 @@ wrk.headers["Authorization"] = "Bearer $TOKEN"
 wrk.body = '$2'
 LUA
 }
-emit_script "$WORK/emit.lua" '{"channel":"beckon:focus","payload":{}}'
+emit_script "$WORK/emit.lua" '{"channel":"beckon:focus","payload":{"resourceId":"res-1"}}'
 emit_script "$WORK/emit-8k.lua" "{\"channel\":\"mark:added\",\"payload\":{\"filler\":\"$(head -c 8192 /dev/zero | tr '\0' x)\"}}"
 printf 'wrk.method = "GET"\n' > "$WORK/health.lua"
 

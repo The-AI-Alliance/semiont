@@ -67,7 +67,7 @@ export function createResourceViewerPageStateUnit(
   const { client } = session;
   const disposer = createDisposer();
 
-  const beckon = createBeckonStateUnit(client);
+  const beckon = createBeckonStateUnit(client, resourceId);
   const mark = createMarkStateUnit(client, resourceId);
   const gather = createGatherStateUnit(client, resourceId);
   const matchStateUnit = createMatchStateUnit(client);

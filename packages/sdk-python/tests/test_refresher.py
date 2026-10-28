@@ -290,7 +290,7 @@ def test_an_event_that_cannot_be_read_asks_again_for_everything_held() -> None:
             unreadable = Frame(channel="mark:added", payload={"not": "a recorded event"})
             assert await asked_after(transport, content, unreadable) == expected(CACHE_QUERIES, "held")
             # And a frame on a channel that is no trigger asks for nothing.
-            focused = Frame(channel="beckon:focus", payload={"annotationId": ANNOTATION})
+            focused = Frame(channel="beckon:focus", payload={"resourceId": RESOURCE, "annotationId": ANNOTATION})
             assert await asked_after(transport, content, focused) == Counter()
 
     run(scenario())

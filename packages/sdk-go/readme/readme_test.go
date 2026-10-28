@@ -364,7 +364,7 @@ func TestLiveQueries(t *testing.T) {
 
 func TestStateUnits(t *testing.T) {
 	made := testClient(t, semiont.DefaultTiming())
-	beckon := state.NewBeckonStateUnit(made.Client)
+	beckon := state.NewBeckonStateUnit(made.Client, idOf(t, "res-1"))
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

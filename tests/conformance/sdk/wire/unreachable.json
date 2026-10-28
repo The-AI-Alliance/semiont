@@ -9,7 +9,7 @@
 
     {"backend": "down"},
     {"state": "reconnecting"},
-    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "fails": {"code": "unavailable"}},
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "resourceId": "res-1"}}, "fails": {"code": "unavailable"}},
     {"error": {"code": "unavailable"}},
     {"driver": "get", "with": {"resource": {"$var": "r1"}}, "fails": {"code": "unavailable"}},
     {"error": {"code": "unavailable"}}

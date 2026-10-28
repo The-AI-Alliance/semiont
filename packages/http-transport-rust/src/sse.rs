@@ -79,7 +79,7 @@ impl SseParser {
 mod tests {
     use super::*;
 
-    const STREAM: &str = "event: bus-event\nid: e-beckon:focus:1\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"annotationId\":\"naïve — 日本語 😀\"}}\n\nevent: ping\ndata:\n\nevent: bus-event\nid: p-res-1-2\ndata: {\"channel\":\"mark:added\",\"payload\":{},\"scope\":\"res-1\"}\n\n";
+    const STREAM: &str = "event: bus-event\nid: e-beckon:focus:1\ndata: {\"channel\":\"beckon:focus\",\"payload\":{\"resourceId\":\"res-1\",\"annotationId\":\"naïve — 日本語 😀\"}}\n\nevent: ping\ndata:\n\nevent: bus-event\nid: p-res-1-2\ndata: {\"channel\":\"mark:added\",\"payload\":{},\"scope\":\"res-1\"}\n\n";
 
     fn whole() -> Vec<SseEvent> {
         SseParser::new().feed(STREAM.as_bytes())

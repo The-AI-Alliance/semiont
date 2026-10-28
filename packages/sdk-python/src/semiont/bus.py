@@ -6,7 +6,7 @@ channel, gives a frame its payload's type, and gives a request its
 operation's reply:
 
     bus = Bus(transport)
-    await bus.emit(BECKON_FOCUS, BeckonFocusEvent(annotation_id=annotation))
+    await bus.emit(BECKON_FOCUS, BeckonFocusEvent(resource_id=resource, annotation_id=annotation))
     async for frame in bus.frames(BECKON_FOCUS): ...        # frame.payload is that channel's
     async with bus.frames(MARK_ADDED, resource) as added: ...  # a resource's channel, read for it
     created = await bus.request(MARK_CREATE_REQUEST, command)

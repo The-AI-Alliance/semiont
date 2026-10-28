@@ -143,7 +143,7 @@ describe('starting a gateway', () => {
         const stream = opened.stream!;
         await stream.next('the first ping', (m) => m.event === 'ping');
         const mark = randomUUID();
-        const reply = await call(admitted.origin, 'POST', '/bus/emit', { token, json: { channel: 'beckon:focus', payload: { annotationId: mark } } });
+        const reply = await call(admitted.origin, 'POST', '/bus/emit', { token, json: { channel: 'beckon:focus', payload: { annotationId: mark, resourceId: 'res-1' } } });
         expect(reply.status, reply.text).toBe(202);
         await stream.frame('beckon:focus', (f) => f.payload['annotationId'] === mark);
         stream.close();
@@ -186,7 +186,7 @@ describe('starting a gateway', () => {
         const stream = opened.stream!;
         await stream.next('the first ping', (m) => m.event === 'ping');
         const mark = randomUUID();
-        expect((await call(gateway.origin, 'POST', '/bus/emit', { token, json: { channel: 'beckon:focus', payload: { annotationId: mark } } })).status).toBe(202);
+        expect((await call(gateway.origin, 'POST', '/bus/emit', { token, json: { channel: 'beckon:focus', payload: { annotationId: mark, resourceId: 'res-1' } } })).status).toBe(202);
         await stream.frame('beckon:focus', (f) => f.payload['annotationId'] === mark);
         stream.close();
         expect(stream.violations).toEqual([]);

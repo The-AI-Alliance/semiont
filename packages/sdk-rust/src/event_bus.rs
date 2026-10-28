@@ -311,6 +311,13 @@ mod tests {
         json!({ "n": n }).as_object().cloned().unwrap_or_default()
     }
 
+    /// A sample focus: it names its resource, as every focus does.
+    fn focus(n: u64) -> Map<String, Value> {
+        let mut focus = payload(n);
+        focus.insert("resourceId".to_owned(), json!("res-1"));
+        focus
+    }
+
     #[tokio::test]
     async fn a_global_view_does_not_see_a_scope_and_a_scope_sees_only_its_own() {
         let bus = EventBus::new();
@@ -350,14 +357,14 @@ mod tests {
     #[tokio::test]
     async fn the_count_follows_the_readers() {
         let bus = EventBus::new();
-        assert_eq!(bus.emit("beckon:focus", payload(1), Envelope::default()), 0);
+        assert_eq!(bus.emit("beckon:focus", focus(1), Envelope::default()), 0);
         let first = bus.frames("beckon:focus");
         let second = bus.frames("beckon:focus");
-        assert_eq!(bus.emit("beckon:focus", payload(2), Envelope::default()), 2);
+        assert_eq!(bus.emit("beckon:focus", focus(2), Envelope::default()), 2);
         assert_eq!(bus.observed_channels(), ["beckon:focus"]);
         drop(first);
         drop(second);
-        assert_eq!(bus.emit("beckon:focus", payload(3), Envelope::default()), 0);
+        assert_eq!(bus.emit("beckon:focus", focus(3), Envelope::default()), 0);
         assert!(bus.observed_channels().is_empty());
     }
 
@@ -416,7 +423,7 @@ mod tests {
         bus.destroy();
         bus.destroy();
         assert!(bus.destroyed());
-        assert_eq!(bus.emit("beckon:focus", payload(1), Envelope::default()), 0);
+        assert_eq!(bus.emit("beckon:focus", focus(1), Envelope::default()), 0);
         assert_eq!(bus.frames("beckon:focus").next().await, None);
         assert_eq!(bus.frames_among(&["beckon:focus"]).next().await, None);
     }

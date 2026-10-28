@@ -66,12 +66,26 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
             await opened(transport)
             frames = transport.frames("beckon:focus")
             gateway.write("event: ping\ndata:\n\n")
-            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"annotationId": "a-1", "_userId": "did:web:example.org:users:a"}})
-            gateway.send("e-2", {"channel": "beckon:focus", "payload": {}, "scope": "not an id"})
+            gateway.send(
+                "e-1",
+                {
+                    "channel": "beckon:focus",
+                    "payload": {"resourceId": "res-1", "annotationId": "a-1", "_userId": "did:web:example.org:users:a"},
+                },
+            )
+            gateway.send("e-2", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "scope": "not an id"})
             gateway.write("id: e-3\nevent: bus-event\ndata: {not json\n\n")
-            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"annotationId": "the same id again"}})
-            gateway.send("e-4", {"channel": "beckon:focus", "payload": {"annotationId": "a-2"}, "scope": "res-1", "correlationId": "c"})
-            gateway.send("e-5", {"channel": "beckon:focus", "payload": {}, "addedByALaterGateway": True})
+            gateway.send("e-1", {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": "the same id again"}})
+            gateway.send(
+                "e-4",
+                {
+                    "channel": "beckon:focus",
+                    "payload": {"resourceId": "res-1", "annotationId": "a-2"},
+                    "scope": "res-1",
+                    "correlationId": "c",
+                },
+            )
+            gateway.send("e-5", {"channel": "beckon:focus", "payload": {"resourceId": "res-1"}, "addedByALaterGateway": True})
             delivered = [await soon(anext(frames)), await soon(anext(frames)), await soon(anext(frames))]
         assert [frame async for frame in frames] == []
         return delivered
@@ -79,10 +93,12 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
     with caplog.at_level(logging.WARNING, logger="semiont.http"):
         delivered = run(scenario())
     assert delivered == [
-        Frame(channel="beckon:focus", payload={"annotationId": "a-1", "_userId": "did:web:example.org:users:a"}),
-        Frame(channel="beckon:focus", payload={"annotationId": "a-2"}, scope=ResourceId("res-1"), correlation_id="c"),
+        Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-1", "_userId": "did:web:example.org:users:a"}),
+        Frame(
+            channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "a-2"}, scope=ResourceId("res-1"), correlation_id="c"
+        ),
         # A frame a later gateway adds a field to is still a frame.
-        Frame(channel="beckon:focus", payload={}),
+        Frame(channel="beckon:focus", payload={"resourceId": "res-1"}),
     ]
     assert [record.getMessage().split(":")[0] for record in caplog.records] == [
         "the stream carried what is not a frame (id e-2)",
@@ -116,7 +132,7 @@ def test_a_closed_transport_has_ended_everything_it_began() -> None:
             with pytest.raises(BusRequestError) as after:
                 await soon(request(transport, BROWSE_RESOURCE_REQUESTED, {"resourceId": "res-1"}))
             with pytest.raises(TransportError) as emitted:
-                await soon(transport.emit("beckon:focus", {}))
+                await soon(transport.emit("beckon:focus", {"resourceId": "res-1"}))
             await transport.close()
             return (
                 states,
@@ -139,7 +155,7 @@ def test_a_transport_closed_before_it_was_opened_is_closed_and_cannot_be_opened(
     async def scenario() -> str:
         transport = HttpTransport("http://127.0.0.1:1", token=Variable[str | None](None), channels=CHANNELS)
         with pytest.raises(RuntimeError):
-            await transport.emit("beckon:focus", {})
+            await transport.emit("beckon:focus", {"resourceId": "res-1"})
         await transport.close()
         await transport.close()
         with pytest.raises(RuntimeError):
@@ -160,7 +176,7 @@ def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
             async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=patient) as transport:
                 await opened(transport)
                 failures = transport.failures()
-                emitting = asyncio.ensure_future(transport.emit("beckon:focus", {}))
+                emitting = asyncio.ensure_future(transport.emit("beckon:focus", {"resourceId": "res-1"}))
                 await soon(gateway.arrived("POST", "/bus/emit"))
                 await asyncio.sleep(0.01)
             with pytest.raises(TransportError) as raised:
@@ -185,7 +201,7 @@ def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reach
                 refused = await soon(anext(failures))
                 await opened(transport)
                 token.set("second")
-                await soon(transport.emit("beckon:focus", {}))
+                await soon(transport.emit("beckon:focus", {"resourceId": "res-1"}))
             return [refused.code, str(refused.status)], sorted({asked.headers["authorization"] for asked in gateway.asked})
 
     assert run(scenario()) == (["unavailable", "503"], ["Bearer first", "Bearer second"])

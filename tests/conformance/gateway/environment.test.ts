@@ -36,7 +36,7 @@ async function withGateway(
 }
 
 async function emit(world: World): Promise<void> {
-  const reply = await world.emit(await world.person('environment'), { channel: 'beckon:focus', payload: {} });
+  const reply = await world.emit(await world.person('environment'), { channel: 'beckon:focus', payload: { resourceId: 'res-1' } });
   expect(reply.status).toBe(202);
 }
 
@@ -162,7 +162,7 @@ describe("the document's logFormat", () => {
         const traceparent = `00-${traceId}-${randomUUID().replaceAll('-', '').slice(0, 16)}-01`;
         const reply = await call(world.origin, 'POST', '/bus/emit', {
           token: await world.person('traced'),
-          json: { channel: 'beckon:focus', payload: {} },
+          json: { channel: 'beckon:focus', payload: { resourceId: 'res-1' } },
           headers: { traceparent },
         });
         expect(reply.status).toBe(202);

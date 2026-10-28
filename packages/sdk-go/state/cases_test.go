@@ -354,8 +354,12 @@ var makers = map[string]func(r *run, made map[string]any) (semiont.StateUnit, er
 	"match": func(r *run, _ map[string]any) (semiont.StateUnit, error) {
 		return state.NewMatchStateUnit(r.client), nil
 	},
-	"beckon": func(r *run, _ map[string]any) (semiont.StateUnit, error) {
-		return state.NewBeckonStateUnit(r.client), nil
+	"beckon": func(r *run, made map[string]any) (semiont.StateUnit, error) {
+		resource, err := decoded[api.ResourceId](made["resourceId"])
+		if err != nil {
+			return nil, err
+		}
+		return state.NewBeckonStateUnit(r.client, resource), nil
 	},
 	"hoverDwell": func(r *run, made map[string]any) (semiont.StateUnit, error) {
 		delay, err := durationOf(made["delayMs"])

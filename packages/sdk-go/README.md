@@ -477,7 +477,7 @@ built from. `Close()` ends a unit: what it had running has stopped, and every
 | `state.GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `GatherAnnotation`, `GatherResource` |
 | `state.MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.Match.RequestSearch` |
 | `state.YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `Generate`, `DismissProgress` |
-| `state.BeckonStateUnit` | the annotation hovered | `client.Beckon.Hover`; an annotation opened, here or by another participant; `Focus` |
+| `state.BeckonStateUnit` (one resource) | the annotation hovered | `client.Beckon.Hover`; an annotation opened, here or by another participant; `Focus` |
 | `state.HoverDwell` | nothing: it says an annotation is hovered once the pointer has rested on it for a delay, and none the moment the pointer leaves | `Enter`, `Leave` |
 | `state.SearchPipeline[T]` | a query and the results of the query it settled on | `SetQuery` |
 | `semiont.SessionSignals` | that the session ended, that a request was refused for lack of permission, that another knowledge base answers at a registered address | `Notify…`, `Acknowledge…` |

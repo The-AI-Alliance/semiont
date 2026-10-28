@@ -43,13 +43,17 @@ async fn a_typed_emit_sends_the_channels_name_and_its_payload_as_an_object() {
     let (bus, transport) = bus();
     let mut sent = transport.frames(BeckonFocus::NAME).expect("frames");
     let event: BeckonFocusEvent =
-        serde_json::from_value(json!({ "annotationId": "ann-1" })).expect("an event");
+        serde_json::from_value(json!({ "annotationId": "ann-1", "resourceId": "res-1" }))
+            .expect("an event");
     bus.emit::<BeckonFocus>(&event, Envelope::default())
         .await
         .expect("it is sent");
     let frame = sent.next().await.expect("a frame").expect("not lagged");
     assert_eq!(frame.channel, "beckon:focus");
-    assert_eq!(frame.payload, object(json!({ "annotationId": "ann-1" })));
+    assert_eq!(
+        frame.payload,
+        object(json!({ "annotationId": "ann-1", "resourceId": "res-1" }))
+    );
 }
 
 #[tokio::test]
@@ -65,8 +69,12 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
             trace: None,
         })
     };
-    deliver(json!({ "annotationId": "ann-1", "_userId": "did:web:example.org:users:alice" }));
-    deliver(json!({ "annotationId": 7 }));
+    deliver(json!({
+        "annotationId": "ann-1",
+        "resourceId": "res-1",
+        "_userId": "did:web:example.org:users:alice"
+    }));
+    deliver(json!({ "annotationId": 7, "resourceId": "res-1" }));
 
     let delivered = focus.next().await.expect("a frame").expect("it decodes");
     assert_eq!(delivered.payload.annotation_id.as_deref(), Some("ann-1"));
