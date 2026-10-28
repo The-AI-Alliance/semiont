@@ -59,7 +59,7 @@ interface Case {
   steps: Json[];
 }
 
-const read = (path: string): unknown => JSON.parse(readFileSync(new URL(`../../../../specs/src/${path}`, import.meta.url), 'utf8'));
+const read = (path: string): unknown => JSON.parse(readFileSync(new URL(`../../../../../specs/src/${path}`, import.meta.url), 'utf8'));
 
 const TABLE = read('client/state-units.json') as { fixtures: Record<string, Json>; cases: Case[] };
 const NAMES = read('client/surface.json') as { stateUnits: Array<{ unit: string; absent?: Record<string, string> }> };

@@ -65,7 +65,7 @@ const visit = (dir) => {
   }
   for (const name of Object.keys(pkg.dependencies ?? {})) {
     if (!name.startsWith("@semiont/")) continue;
-    const dep = path.join("packages", name.slice("@semiont/".length));
+    const dep = path.join("packages", "typescript", name.slice("@semiont/".length));
     if (fs.existsSync(path.join(dep, "package.json"))) visit(dep);
   }
 };
@@ -74,7 +74,7 @@ for (const dir of seen) console.log(dir);
 ' "$1"
 }
 
-for tree in images/browser packages/*; do
+for tree in images/browser packages/typescript/*; do
   [ -d "$tree/src" ] || continue
 
   # Writes: this tree's own tests. Fabricating env for a package you merely

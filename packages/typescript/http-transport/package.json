@@ -26,7 +26,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "packages/http-transport"
+    "directory": "packages/typescript/http-transport"
   },
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/observability --if-present",

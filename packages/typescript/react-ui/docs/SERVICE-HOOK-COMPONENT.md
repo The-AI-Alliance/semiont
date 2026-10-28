@@ -39,7 +39,7 @@ across all of them), and the last unsubscribe releases it. There is no
 explicit `subscribeToResource` call.
 
 ```typescript
-// The live queries packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
+// The live queries packages/typescript/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
 // tracks, each through trackList, which exposes it as a ListState (value$, loading$, error$):
 const annotations = client.browse.annotations(resourceId);     // CacheObservable<Annotation[]>
 const events = client.browse.events(resourceId);               // CacheObservable<AttributedEvent[]>
@@ -144,7 +144,7 @@ export function useDelegateToasts(resourceId: ResourceId) {
 **Example**: the page reads the mark state unit; the panel it renders delegates the job
 
 ```tsx
-// packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx, condensed
+// packages/typescript/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx, condensed
 export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewerPageProps) {
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
@@ -469,7 +469,7 @@ event library.
 
 ## Related Documentation
 
-- [EVENTS.md](../../../docs/builder/react-ui/EVENTS.md) - Event bus usage and event types
+- [EVENTS.md](../../../../docs/builder/react-ui/EVENTS.md) - Event bus usage and event types
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Overall architecture principles
 - [TESTING.md](TESTING.md) - Testing strategies
 

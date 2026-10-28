@@ -1359,7 +1359,7 @@ describe('willRetryAfter (specs/src/jobs/retry-cases.json)', () => {
     failureClass?: NonNullable<JobFailure['failureClass']>;
     retries: boolean;
   }
-  const { cases } = JSON.parse(readFileSync(new URL('../../../../specs/src/jobs/retry-cases.json', import.meta.url), 'utf8')) as { cases: RetryCase[] };
+  const { cases } = JSON.parse(readFileSync(new URL('../../../../../specs/src/jobs/retry-cases.json', import.meta.url), 'utf8')) as { cases: RetryCase[] };
 
   it('has cases to run', () => {
     expect(cases.length).toBeGreaterThan(0);

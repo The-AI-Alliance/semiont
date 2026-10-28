@@ -64,9 +64,9 @@ const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
  */
 export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
-    wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
-    live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
-    worker: ['node', join(REPO_ROOT, 'packages/sdk/conformance/worker-driver.ts')],
+    wire: ['node', join(REPO_ROOT, 'packages/typescript/http-transport/conformance/driver.ts')],
+    live: { command: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/driver.ts')], tier: 'parity' },
+    worker: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/worker-driver.ts')],
   },
   rust: {
     wire: [join(REPO_ROOT, 'packages/rust/target/release/semiont-wire-driver')],

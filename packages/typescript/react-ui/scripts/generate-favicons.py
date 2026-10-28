@@ -18,8 +18,8 @@ except ImportError:
 # Paths
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-SVG_PATH = PROJECT_ROOT / "packages/react-ui/public/favicons/favicon.svg"
-FAVICON_DIR = PROJECT_ROOT / "packages/react-ui/public/favicons"
+SVG_PATH = PROJECT_ROOT / "packages/typescript/react-ui/public/favicons/favicon.svg"
+FAVICON_DIR = PROJECT_ROOT / "packages/typescript/react-ui/public/favicons"
 
 # Ensure output directory exists
 FAVICON_DIR.mkdir(parents=True, exist_ok=True)

@@ -27,7 +27,7 @@ import { repositoryFiles } from './repository-files.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const REGISTRY = 'specs/src/bus/registry.json';
 const GENERATED = [
-  'packages/core/src/bus-protocol.ts',
+  'packages/typescript/core/src/bus-protocol.ts',
   'packages/go/sdk/bus/channels_gen.go',
   'packages/python/sdk/src/semiont/channels.py',
 ];

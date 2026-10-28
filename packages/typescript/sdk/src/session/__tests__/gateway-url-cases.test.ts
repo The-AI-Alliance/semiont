@@ -16,7 +16,7 @@ interface GatewayUrlCase {
   origin: string | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/session/gateway-url-cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../specs/src/session/gateway-url-cases.json');
 const { cases } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { cases: GatewayUrlCase[] };
 
 describe("a gateway's origin, as the shared table states it", () => {

@@ -53,7 +53,7 @@ The [Introduction](./INTRODUCTION.md) explains these ideas. [Architecture](../ar
 
 The SDK is a library, not a service. It runs no process of its own: you give a client a transport and somewhere to keep its session, and it lives inside whatever you are building.
 
-- **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](../../packages/react-ui/README.md) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
+- **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](../../packages/typescript/react-ui/README.md) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
 - **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust SDK in a native one. A person signs in in their own browser and is sent back to the app.
 - **A mobile app.** The same shape as a desktop app. Nothing in the SDK assumes a browser or a server around it, and where a session is kept is an interface, so the app keeps it in the platform's own secure store.
 - **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the four languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.delegate` and follows the job.
@@ -84,7 +84,7 @@ Read in this order. Most people need only the first three.
 
 The guides' examples are TypeScript. The namespaces, methods and behaviour are the same in Rust, Python and Go, and each SDK's README shows them in its own language:
 
-- **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
+- **[TypeScript](../../packages/typescript/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/rust/sdk/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/rust/http-transport/README.md) has the sessions and signing in.
 - **[Python](../../packages/python/sdk/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries, sessions and the state units, and no registry of several knowledge bases.
 - **[Go](../../packages/go/sdk/README.md)**, the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`: reads over time with iterators and is stopped by a context. It has the client, live queries, sessions, the state units, a worker's claims, the annotation readers and builders, and a registry of several knowledge bases with a person's sign-in by a page redirect, and the launcher is built on it.

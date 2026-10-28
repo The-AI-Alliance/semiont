@@ -42,9 +42,9 @@ const client = new SemiontClient(transport, new HttpContentTransport(transport),
 
 ## What a change must keep
 
-- **The transport contract.** What every transport must do is [TRANSPORT-CONTRACT](../../docs/protocol/TRANSPORT-CONTRACT.md), and what this one does on the wire is [TRANSPORT-HTTP](../../docs/protocol/TRANSPORT-HTTP.md). The [SDK conformance suite](../../tests/conformance/sdk/README.md) holds it to both, through [conformance/driver.ts](conformance/driver.ts), beside the Rust transport.
+- **The transport contract.** What every transport must do is [TRANSPORT-CONTRACT](../../../docs/protocol/TRANSPORT-CONTRACT.md), and what this one does on the wire is [TRANSPORT-HTTP](../../../docs/protocol/TRANSPORT-HTTP.md). The [SDK conformance suite](../../../tests/conformance/sdk/README.md) holds it to both, through [conformance/driver.ts](conformance/driver.ts), beside the Rust transport.
 - **One token source.** A transport reads the current token from `token$`. `tokenRefresher` is the only way a token is renewed, for a refused request, emit and stream alike.
-- **Timing is the spec's.** The reconnect, linger and retry values are [`specs/src/client/timing.json`](../../specs/src/client/timing.json)'s. The config fields that override them are for a test or the conformance driver, which cannot wait them out.
+- **Timing is the spec's.** The reconnect, linger and retry values are [`specs/src/client/timing.json`](../../../specs/src/client/timing.json)'s. The config fields that override them are for a test or the conformance driver, which cannot wait them out.
 - **A narrowed stream still hears its replies.** A process that passes `channels` names the reply channels of every operation it awaits. A request whose replies are outside the set fails at once with `bus.unsubscribed`, rather than timing out.
 - **Wire shapes are generated.** Requests and responses are `@semiont/core`'s types, from the spec. None is retyped here.
 

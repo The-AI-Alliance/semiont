@@ -188,7 +188,7 @@ gh workflow run publish-pypi.yml --field dry_run=true                   # build 
 
 ```json
 "@semiont/core": {
-  "dir": "packages/core",
+  "dir": "packages/typescript/core",
   "version": "<version>",
   "publish": true
 }

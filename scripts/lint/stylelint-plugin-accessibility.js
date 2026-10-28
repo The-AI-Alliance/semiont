@@ -277,9 +277,9 @@ const plugin = stylelint.createPlugin(
           // Check for color contrast risks
           // Skip if we have global contrast utilities
           const hasGlobalContrastSupport =
-            filename.includes('packages/react-ui/src/styles') ||
-            filename.includes('packages/react-ui/src/components') ||
-            filename.includes('packages/react-ui/src/features');
+            filename.includes('packages/typescript/react-ui/src/styles') ||
+            filename.includes('packages/typescript/react-ui/src/components') ||
+            filename.includes('packages/typescript/react-ui/src/features');
 
           if (!hasGlobalContrastSupport &&
               (prop === 'color' || prop === 'background-color') &&
@@ -333,9 +333,9 @@ const plugin = stylelint.createPlugin(
           // Check for color-only status indicators
           // Skip if we have global semantic indicators utilities
           const hasGlobalSemanticIndicators =
-            filename.includes('packages/react-ui/src/styles') ||
-            filename.includes('packages/react-ui/src/components') ||
-            filename.includes('packages/react-ui/src/features');
+            filename.includes('packages/typescript/react-ui/src/styles') ||
+            filename.includes('packages/typescript/react-ui/src/components') ||
+            filename.includes('packages/typescript/react-ui/src/features');
 
           if (!hasGlobalSemanticIndicators &&
               (selector.includes('status') ||
@@ -434,9 +434,9 @@ const plugin = stylelint.createPlugin(
       // This includes both src/styles/* and src/components/* since all are imported
       // into the main stylesheet which includes motion-overrides.css
       const hasGlobalMotionOverrides =
-        filename.includes('packages/react-ui/src/styles') ||
-        filename.includes('packages/react-ui/src/components') ||
-        filename.includes('packages/react-ui/src/features');
+        filename.includes('packages/typescript/react-ui/src/styles') ||
+        filename.includes('packages/typescript/react-ui/src/components') ||
+        filename.includes('packages/typescript/react-ui/src/features');
 
       if (hasAnimations && !hasReducedMotionSupport(root) && !hasGlobalMotionOverrides) {
         animatedSelectors.forEach((selector) => {

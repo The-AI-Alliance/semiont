@@ -6,7 +6,7 @@ All of them are plain functions in the main import, which runs in a browser as w
 
 ## Text Encoding
 
-What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
+What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
 
 ### Decode with Charset
 
@@ -55,7 +55,7 @@ const span = reconcile(rightText, { exact: 'café' });
 - What the encoding does not have is U+FFFD.
 - A charset that is no label of the standard, or that the platform's `TextDecoder` does not decode, throws a `SemiontError` whose `code` is `error` and whose message names the charset. Nothing is read as UTF-8 in its place.
 
-The cases are [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../specs/src/text/encoding-cases.json), which the Rust, Python and Go SDKs' readers run too.
+The cases are [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../../specs/src/text/encoding-cases.json), which the Rust, Python and Go SDKs' readers run too.
 
 ## Text Context Extraction
 
@@ -133,7 +133,7 @@ A prefix or suffix that is empty, or only white space, is no context.
 
 The `fuzzy` search allows one edit (a code point inserted, deleted or replaced) for every twenty code points of `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code points is found by the searches before it or not at all. The span it answers is the source's own, and may be longer or shorter than `exact`.
 
-Returns `null` when `exact` is empty or only white space, or is text that doesn't appear in source. [`specs/src/annotations/reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) holds the rule, as cases.
+Returns `null` when `exact` is empty or only white space, or is text that doesn't appear in source. [`specs/src/annotations/reconcile-cases.json`](../../../../specs/src/annotations/reconcile-cases.json) holds the rule, as cases.
 
 **Use Case:** Worker-side annotation construction. The span `reconcile` returns is what `annotationOfSpan` takes.
 
@@ -182,7 +182,7 @@ const link = annotationOfResource({
 
 For a PDF, give `annotationOfSpan` the PDF's `anchored` text in place of `text`: the annotation has one `FragmentSelector` for each line the span is on, and no `TextPositionSelector`.
 
-**Refusals** (`SpanRefusal`): `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, and for a PDF `nothing-located`, `exact-not-covered` and `item-out-of-range`. The last is said of the PDF's anchored text and not of the span: one of its items is no stretch of its text, so no span of it is built. [`specs/src/annotations/builder-cases.json`](../../../specs/src/annotations/builder-cases.json) holds the rule, as cases.
+**Refusals** (`SpanRefusal`): `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, and for a PDF `nothing-located`, `exact-not-covered` and `item-out-of-range`. The last is said of the PDF's anchored text and not of the span: one of its items is no stretch of its text, so no span of it is built. [`specs/src/annotations/builder-cases.json`](../../../../specs/src/annotations/builder-cases.json) holds the rule, as cases.
 
 ## Render-Time Anchoring
 
@@ -355,7 +355,7 @@ const draft = isDraft(resource);
 
 Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is `decodeWithCharset`'s, above: the one every reader of a resource's text keeps.
 
-A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust, Python and Go SDKs run them through theirs.
+A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust, Python and Go SDKs run them through theirs.
 
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';

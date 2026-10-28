@@ -1,7 +1,7 @@
 # Session internals
 
 What the session layer is and how a React app uses it is in the builder docs:
-[SESSION.md](../../../docs/builder/react-ui/SESSION.md). This page holds the
+[SESSION.md](../../../../docs/builder/react-ui/SESSION.md). This page holds the
 file layout and the invariants the implementation keeps.
 
 ## Package layout

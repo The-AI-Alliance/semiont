@@ -17,9 +17,8 @@ pnpm-debug.log*
 .env.production.local
 
 # Build outputs
-packages/*/dist/
 dist/
-# transient tsc output: packages/core's build emits it, then rm -rf's it at the end
+# transient tsc output: packages/typescript/core's build emits it, then rm -rf's it at the end
 dist-types/
 build/
 images/browser/public
@@ -77,9 +76,9 @@ temp/
 *.tsbuildinfo
 
 # Generated types and copied specs (NOT the source OpenAPI spec!)
-packages/core/openapi.json
-packages/core/src/types.ts
-packages/core/src/generated/
+packages/typescript/core/openapi.json
+packages/typescript/core/src/types.ts
+packages/typescript/core/src/generated/
 
 # Python: an environment, and what the interpreter and its tools cache
 .venv/
@@ -94,10 +93,10 @@ specs/openapi.json
 specs/archivist.openapi.json
 
 # Compiled scripts (should use tsx, not tsc)
-packages/*/scripts/*.js
-packages/*/scripts/*.js.map
-packages/*/scripts/*.d.ts
-packages/*/scripts/*.d.ts.map
+packages/typescript/*/scripts/*.js
+packages/typescript/*/scripts/*.js.map
+packages/typescript/*/scripts/*.d.ts
+packages/typescript/*/scripts/*.d.ts.map
 # Note: images/*/scripts/*.js removed - these are actual source JS files, not compiled output
 images/*/scripts/*.js.map
 images/*/scripts/*.d.ts

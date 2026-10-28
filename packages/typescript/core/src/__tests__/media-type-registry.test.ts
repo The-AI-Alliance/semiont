@@ -27,7 +27,7 @@ import {
 } from '../media-types';
 import { deriveStorageUri, storageFileName } from '../storage-uri';
 
-const at = (path: string): string => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
+const at = (path: string): string => fileURLToPath(new URL(`../../../../../${path}`, import.meta.url));
 const GENERATOR = at('scripts/spec/generate-media-types.mjs');
 const TABLE = at('specs/src/media-types/registry.json');
 const ENUM = at('specs/src/components/schemas/SupportedMediaType.json');

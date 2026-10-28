@@ -182,7 +182,7 @@ react-ui's stylesheet, so dark mode needs nothing more.
 
 ## Favicon Assets
 
-The package includes Semiont-branded favicons in multiple formats (SVG, PNG, ICO) and a React component for inline usage. See [FAVICON.md](../../docs/builder/react-ui/FAVICON.md) for complete usage instructions.
+The package includes Semiont-branded favicons in multiple formats (SVG, PNG, ICO) and a React component for inline usage. See [FAVICON.md](../../../docs/builder/react-ui/FAVICON.md) for complete usage instructions.
 
 ## Architecture
 
@@ -226,7 +226,7 @@ Key directories:
 - `styles/panels/` - Panel layouts and containers
 - `styles/features/` - Feature-specific styling
 
-See [STYLES.md](../../docs/builder/react-ui/STYLES.md) for detailed CSS documentation.
+See [STYLES.md](../../../docs/builder/react-ui/STYLES.md) for detailed CSS documentation.
 
 ## Core Concepts
 
@@ -238,7 +238,7 @@ Cross-cutting concerns use the Provider Pattern:
 - **TranslationProvider** - Internationalization
 - **Routing** - Not a provider: components that link take the host's `Link` and `routes` as props (`LinkComponentProps`, `RouteBuilder`)
 
-See [SESSION.md](../../docs/builder/react-ui/SESSION.md) for details.
+See [SESSION.md](../../../docs/builder/react-ui/SESSION.md) for details.
 
 ### Page state machines
 
@@ -250,7 +250,7 @@ See [SESSION.md](../../docs/builder/react-ui/SESSION.md) for details.
 
 Adjacent to the state units: `useKBDiscovery` binds the sdk's
 launcher-KB discovery subscription (`subscribeDiscovery`) to React state —
-see [SESSION.md](../../docs/builder/react-ui/SESSION.md#usekbdiscovery--launcher-published-kbs).
+see [SESSION.md](../../../docs/builder/react-ui/SESSION.md#usekbdiscovery--launcher-published-kbs).
 
 Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
 
@@ -281,7 +281,7 @@ function Example() {
 }
 ```
 
-See [API-INTEGRATION.md](../../docs/builder/react-ui/API-INTEGRATION.md) for details.
+See [API-INTEGRATION.md](../../../docs/builder/react-ui/API-INTEGRATION.md) for details.
 
 ### Testing
 
@@ -296,24 +296,24 @@ it('should render component', () => {
 });
 ```
 
-See [TESTING.md](../../docs/builder/react-ui/TESTING.md) for details.
+See [TESTING.md](../../../docs/builder/react-ui/TESTING.md) for details.
 
 ## Documentation
 
-- [SESSION.md](../../docs/builder/react-ui/SESSION.md) - Provider Pattern and manager interfaces
-- [INTERNATIONALIZATION.md](../../docs/builder/react-ui/INTERNATIONALIZATION.md) - Translation approach
-- [TESTING.md](../../docs/builder/react-ui/TESTING.md) - Testing utilities and patterns
-- [API-INTEGRATION.md](../../docs/builder/react-ui/API-INTEGRATION.md) - Working with the Semiont API
-- [EVENTS.md](../../docs/builder/react-ui/EVENTS.md) - Subscribing and emitting from React, and reading the wire log
-- [COMPONENTS.md](../../docs/builder/react-ui/COMPONENTS.md) - Component library reference
-- [navigation-components.md](../../docs/builder/react-ui/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
-- [modal-components.md](../../docs/builder/react-ui/modal-components.md) - Modal components (SearchModal)
-- [ROUTING.md](../../docs/builder/react-ui/ROUTING.md) - Framework-agnostic routing
+- [SESSION.md](../../../docs/builder/react-ui/SESSION.md) - Provider Pattern and manager interfaces
+- [INTERNATIONALIZATION.md](../../../docs/builder/react-ui/INTERNATIONALIZATION.md) - Translation approach
+- [TESTING.md](../../../docs/builder/react-ui/TESTING.md) - Testing utilities and patterns
+- [API-INTEGRATION.md](../../../docs/builder/react-ui/API-INTEGRATION.md) - Working with the Semiont API
+- [EVENTS.md](../../../docs/builder/react-ui/EVENTS.md) - Subscribing and emitting from React, and reading the wire log
+- [COMPONENTS.md](../../../docs/builder/react-ui/COMPONENTS.md) - Component library reference
+- [navigation-components.md](../../../docs/builder/react-ui/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
+- [modal-components.md](../../../docs/builder/react-ui/modal-components.md) - Modal components (SearchModal)
+- [ROUTING.md](../../../docs/builder/react-ui/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
-- [STYLES.md](../../docs/builder/react-ui/STYLES.md) - Using the styles, design tokens and classes
-- [FAVICON.md](../../docs/builder/react-ui/FAVICON.md) - Favicon assets and usage
-- [ANNOTATIONS.md](../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system
-- [ACCESSIBILITY.md](../../docs/builder/react-ui/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
+- [STYLES.md](../../../docs/builder/react-ui/STYLES.md) - Using the styles, design tokens and classes
+- [FAVICON.md](../../../docs/builder/react-ui/FAVICON.md) - Favicon assets and usage
+- [ANNOTATIONS.md](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system
+- [ACCESSIBILITY.md](../../../docs/builder/react-ui/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
 
 ## Examples
 
@@ -370,7 +370,7 @@ npm run typecheck
 The files in `public/favicons/` are generated from the source SVG:
 
 ```bash
-cd packages/react-ui
+cd packages/typescript/react-ui
 python scripts/generate-favicons.py
 ```
 
@@ -387,7 +387,7 @@ This library follows strict quality standards:
 - **No cruft** - Delete dead code immediately, no "legacy" patterns
 - **Direct fixes** - If something is wrong, fix it directly (no aliases/wrappers)
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full guidelines.
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) in the repository root for full guidelines.
 
 ## License
 
@@ -395,7 +395,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 
 ## Related Packages
 
-- [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../../docs/builder/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
+- [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../../../docs/builder/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
 - [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
 - [@semiont/http-transport](../http-transport) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
-- [semiont-browser](../../images/browser) - Reference implementation (Vite + React Router)
+- [semiont-browser](../../../images/browser) - Reference implementation (Vite + React Router)

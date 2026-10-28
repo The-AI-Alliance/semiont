@@ -20,7 +20,7 @@ interface IdentityCase {
   resource: string | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../specs/src/kb-identity/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/kb-identity/cases.json');
 const { cases } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { cases: IdentityCase[] };
 
 const declared = cases.flatMap((c) => (c.domain === null ? [] : [{ why: c.why, domain: c.domain, did: c.did, resource: c.resource }]));

@@ -1,7 +1,7 @@
 # Testing
 
 The test utilities, and the way of testing they are built for, are in the
-builder docs: [TESTING.md](../../../docs/builder/react-ui/TESTING.md). This
+builder docs: [TESTING.md](../../../../docs/builder/react-ui/TESTING.md). This
 page is how the library's own tests are run, written and organized.
 
 ## Overview
@@ -243,6 +243,6 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 
 ## See Also
 
-- [SESSION.md](../../../docs/builder/react-ui/SESSION.md) - Provider configuration
-- [API-INTEGRATION.md](../../../docs/builder/react-ui/API-INTEGRATION.md) - Testing API hooks
-- [COMPONENTS.md](../../../docs/builder/react-ui/COMPONENTS.md) - Component testing examples
+- [SESSION.md](../../../../docs/builder/react-ui/SESSION.md) - Provider configuration
+- [API-INTEGRATION.md](../../../../docs/builder/react-ui/API-INTEGRATION.md) - Testing API hooks
+- [COMPONENTS.md](../../../../docs/builder/react-ui/COMPONENTS.md) - Component testing examples

@@ -46,12 +46,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "packages/core"
+    "directory": "packages/typescript/core"
   },
   "scripts": {
-    "bundle-spec": "cd ../.. && npm run openapi:bundle",
-    "copy-spec": "cp ../../specs/openapi.json openapi.json",
-    "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts && node ../../scripts/spec/generate-identifiers.mjs",
+    "bundle-spec": "cd ../../.. && npm run openapi:bundle",
+    "copy-spec": "cp ../../../specs/openapi.json openapi.json",
+    "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts && node ../../../scripts/spec/generate-identifiers.mjs",
     "prebuild": "npm run generate:openapi && npm run generate:validators && npm run generate:limits && npm run generate:error-codes && npm run generate:client-timing && npm run generate:oauth-clients && npm run generate:media-types && npm run generate:locales && npm run generate:cache-refresh && npm run generate:job-storage",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
@@ -60,15 +60,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "generate:validators": "node ../../scripts/spec/generate-validators.mjs",
-    "generate:limits": "node ../../scripts/spec/generate-limits.mjs",
-    "generate:error-codes": "node ../../scripts/spec/generate-error-codes.mjs",
-    "generate:client-timing": "node ../../scripts/spec/generate-client-timing.mjs",
-    "generate:oauth-clients": "node ../../scripts/spec/generate-oauth-clients.mjs",
-    "generate:media-types": "node ../../scripts/spec/generate-media-types.mjs",
-    "generate:locales": "node ../../scripts/spec/generate-locales.mjs",
-    "generate:cache-refresh": "node ../../scripts/spec/generate-cache-refresh.mjs",
-    "generate:job-storage": "node ../../scripts/spec/generate-job-storage.mjs"
+    "generate:validators": "node ../../../scripts/spec/generate-validators.mjs",
+    "generate:limits": "node ../../../scripts/spec/generate-limits.mjs",
+    "generate:error-codes": "node ../../../scripts/spec/generate-error-codes.mjs",
+    "generate:client-timing": "node ../../../scripts/spec/generate-client-timing.mjs",
+    "generate:oauth-clients": "node ../../../scripts/spec/generate-oauth-clients.mjs",
+    "generate:media-types": "node ../../../scripts/spec/generate-media-types.mjs",
+    "generate:locales": "node ../../../scripts/spec/generate-locales.mjs",
+    "generate:cache-refresh": "node ../../../scripts/spec/generate-cache-refresh.mjs",
+    "generate:job-storage": "node ../../../scripts/spec/generate-job-storage.mjs"
   },
   "keywords": [
     "types",

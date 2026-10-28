@@ -39,7 +39,7 @@ while read -r path; do
   v=$(gh api "repos/$REPO/contents/$path?ref=$SHA" --jq .content 2>/dev/null | base64 -d | jq -r .version)
   [ "$v" = "$VERSION" ] || { bad "$path is at $v, expected $VERSION"; mismatch=1; }
 done < <(cd "$ROOT" && git ls-tree -r --name-only "origin/main" 2>/dev/null | grep -E '^(packages|apps|images)/[^/]+/package\.json$' \
-         || ls -d "$ROOT"/packages/*/package.json "$ROOT"/apps/*/package.json "$ROOT"/images/*/package.json | sed "s|$ROOT/||")
+         || ls -d "$ROOT"/packages/typescript/*/package.json "$ROOT"/apps/*/package.json "$ROOT"/images/*/package.json | sed "s|$ROOT/||")
 [ "$mismatch" -eq 0 ] && ok "all package.json files at $VERSION"
 
 # ------------------------------------------------------------------ tag is free

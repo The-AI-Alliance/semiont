@@ -12,7 +12,7 @@
  * Designed to live below the Save button in the compose form so the
  * visual association with the action that triggered the upload is
  * direct. Uses the existing `.semiont-progress` styles in
- * `packages/react-ui/src/styles/core/progress.css`.
+ * `packages/typescript/react-ui/src/styles/core/progress.css`.
  */
 
 import React from 'react';

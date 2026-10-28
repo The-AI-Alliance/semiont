@@ -1098,7 +1098,7 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [conformance]: ../../../tests/conformance/sdk/README.md
 [worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
 [worker-conformance]: ../../../tests/conformance/worker/README.md
-[sdk-typescript]: ../../sdk/README.md
+[sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md

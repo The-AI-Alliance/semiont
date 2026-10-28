@@ -1,6 +1,6 @@
 package bus
 
-// The Go counterpart of packages/core/src/__tests__/bus-invariants.test.ts.
+// The Go counterpart of packages/typescript/core/src/__tests__/bus-invariants.test.ts.
 //
 // TypeScript catches most of these at compile time through `satisfies`
 // clauses; Go has no equivalent, so the same properties are asserted at test

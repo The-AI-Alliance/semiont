@@ -16,7 +16,7 @@ interface Span { exact: string; occurrence: number; start: number; end: number }
 interface Case { why: string; text: string; codePoints: number; spans: Span[] }
 
 const TABLE = 'specs/src/text/offset-cases.json';
-const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', TABLE), 'utf8'));
+const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', TABLE), 'utf8'));
 
 /** Where the string holds the n-th occurrence of `exact`, in the string's own count. */
 function found(text: string, exact: string, occurrence: number): number {

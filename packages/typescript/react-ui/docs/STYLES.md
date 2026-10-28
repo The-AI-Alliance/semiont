@@ -1,7 +1,7 @@
 # Semiont React UI - Styles Documentation
 
 Using the styles in an app, the design tokens and the class reference are in
-the builder docs: [STYLES.md](../../../docs/builder/react-ui/STYLES.md). This
+the builder docs: [STYLES.md](../../../../docs/builder/react-ui/STYLES.md). This
 page is how the styles are written, named and linted inside the package.
 
 ## Overview
@@ -18,7 +18,7 @@ drags that framework in with it.
 
 Three gates enforce it, so this is a build failure rather than a convention:
 
-- `npm run lint:no-utility-classes` — no utility framework in `packages/react-ui`
+- `npm run lint:no-utility-classes` — no utility framework in `packages/typescript/react-ui`
 - `semiont/invariants` — rejects utility class names and hardcoded colours
 - `.stylelintrc.json`'s `selector-class-pattern` — class names must be
   `semiont-*` (plus a short, explicit allowlist for `annotation-*`, CodeMirror,
@@ -49,7 +49,7 @@ This pattern provides:
 ### Directory Structure
 
 ```text
-packages/react-ui/src/
+packages/typescript/react-ui/src/
 ├── components/                    # Components with co-located CSS
 │   ├── pdf-annotation/
 │   │   ├── PdfAnnotationCanvas.tsx

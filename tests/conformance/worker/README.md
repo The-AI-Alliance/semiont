@@ -185,7 +185,7 @@ report a handover.
 
 Write a worker driver over the SDK's worker surface, add it as `worker` to
 the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
-[packages/sdk/conformance/worker-driver.ts](../../../packages/sdk/conformance/worker-driver.ts),
+[packages/typescript/sdk/conformance/worker-driver.ts](../../../packages/typescript/sdk/conformance/worker-driver.ts),
 Rust's is
 [semiont-worker-driver.rs](../../../packages/rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),
 Python's is

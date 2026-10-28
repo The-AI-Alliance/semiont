@@ -17,12 +17,12 @@
  * channel names one the registry has, and a `request` names an operation.
  *
  * What a method does when it is called is not read here: each SDK's surface
- * test runs the table's cases (packages/sdk/src/__tests__/client-surface.test.ts,
+ * test runs the table's cases (packages/typescript/sdk/src/__tests__/client-surface.test.ts,
  * packages/rust/sdk/tests/surface.rs, packages/python/sdk/tests/test_surface.py,
  * packages/go/sdk/surface_test.go).
  *
  * TypeScript's signatures are the interfaces of
- * packages/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
+ * packages/typescript/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
  * `impl <Name>Namespace` in packages/rust/sdk/src/namespaces; Python's are the
  * methods of each `class <Name>Namespace` in
  * packages/python/sdk/src/semiont/namespaces whose names begin with no
@@ -59,7 +59,7 @@
  * worker conformance suite holds each SDK to it.
  *
  * TypeScript's members are those of `interface Held` and of the class
- * `ClaimsObservable` in packages/sdk/src/claims.ts, a held job of a verb
+ * `ClaimsObservable` in packages/typescript/sdk/src/claims.ts, a held job of a verb
  * being `Held<'<verb>', <what its verb's members take>>`. Rust's are the
  * `pub fn`s of `impl<V> Held<V>`, of `impl Held<Mark>` and `impl Held<Yield>`
  * for a job of each verb, of `impl HeldJob` for a job of either, and of
@@ -96,7 +96,7 @@
  *
  * Each SDK's unit is read where it is declared in that SDK's source, its
  * tests and its test doubles (`testing`) left out. TypeScript's is an
- * interface of packages/sdk/src, a unit being one that extends `StateUnit`.
+ * interface of packages/typescript/sdk/src, a unit being one that extends `StateUnit`.
  * Rust's is a `pub struct` of packages/rust/sdk/src, its members the `pub
  * fn`s of its inherent `impl`s that take it (`self`), a unit being one with
  * `impl StateUnit for` it. Python's is a class of
@@ -123,7 +123,7 @@
  *
  * A bus hands out no transport: a client's transport is the client's
  * `transport`, and only there, so a `transport` row is refused. TypeScript's
- * bus is the class of packages/core/src, Rust's the `pub fn`s that take it of
+ * bus is the class of packages/typescript/core/src, Rust's the `pub fn`s that take it of
  * its inherent `impl`s in packages/rust/sdk/src, Python's the public methods,
  * properties and attributes of its class in packages/python/sdk/src/semiont,
  * Go's the exported methods of its struct in the root package,
@@ -143,14 +143,14 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const REPOSITORY = repositoryFiles(ROOT);
 const TABLE = 'specs/src/client/surface.json';
 const REGISTRY = 'specs/src/bus/registry.json';
-const TS_INTERFACES = 'packages/sdk/src/namespaces/types.ts';
+const TS_INTERFACES = 'packages/typescript/sdk/src/namespaces/types.ts';
 const RUST_NAMESPACES = 'packages/rust/sdk/src/namespaces';
 const PYTHON_NAMESPACES = 'packages/python/sdk/src/semiont/namespaces';
-const TS_CLAIMS = 'packages/sdk/src/claims.ts';
+const TS_CLAIMS = 'packages/typescript/sdk/src/claims.ts';
 const RUST_CLAIMS = 'packages/rust/sdk/src/claims.rs';
 const PYTHON_CLAIMS = 'packages/python/sdk/src/semiont/claims.py';
-const TS_SDK = 'packages/sdk/src';
-const TS_CORE = 'packages/core/src';
+const TS_SDK = 'packages/typescript/sdk/src';
+const TS_CORE = 'packages/typescript/core/src';
 const RUST_SDK = 'packages/rust/sdk/src';
 const PYTHON_SDK = 'packages/python/sdk/src/semiont';
 const GO_SDK = 'packages/go/sdk';

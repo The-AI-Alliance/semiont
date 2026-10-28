@@ -74,11 +74,11 @@ From the launcher: `semiont browse`, and `semiont browse <resourceId> --browser`
 
 ## Channels that stay in the page
 
-`browse:entity-type-clicked`, and the `nav:`, `panel:`, `tabs:`, `shell:` and `settings:` channels, are published on a client's own bus and never cross the wire. They belong to the Browser's interface, not to the protocol. See [react-ui's event internals](../../../packages/react-ui/docs/EVENTS.md).
+`browse:entity-type-clicked`, and the `nav:`, `panel:`, `tabs:`, `shell:` and `settings:` channels, are published on a client's own bus and never cross the wire. They belong to the Browser's interface, not to the protocol. See [react-ui's event internals](../../../packages/typescript/react-ui/docs/EVENTS.md).
 
 ## Where it is implemented
 
-- The SDK namespace: [packages/sdk/src/namespaces/browse.ts](../../../packages/sdk/src/namespaces/browse.ts)
+- The SDK namespace: [packages/typescript/sdk/src/namespaces/browse.ts](../../../packages/typescript/sdk/src/namespaces/browse.ts)
 - What answers the reads: [the Archivist](../ARCHIVIST.md), in [images/archivist/src/browse.rs](../../../images/archivist/src/browse.rs)
 - What a live query refreshes on: [specs/src/client/refresh.json](../../../specs/src/client/refresh.json)
 - The launcher verb: [packages/go/launcher/verbs/browse.go](../../../packages/go/launcher/verbs/browse.go)

@@ -31,7 +31,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "packages/observability"
+    "directory": "packages/typescript/observability"
   },
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present",

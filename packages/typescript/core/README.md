@@ -6,7 +6,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
 [![License](https://img.shields.io/npm/l/@semiont/core.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-What every TypeScript package in Semiont stands on: the protocol's types, generated from the [spec](../../specs/README.md), and the logic that has to be the same wherever it runs. That is ids, the event bus and its channels, the transport contract, annotations and how they are anchored, and identities.
+What every TypeScript package in Semiont stands on: the protocol's types, generated from the [spec](../../../specs/README.md), and the logic that has to be the same wherever it runs. That is ids, the event bus and its channels, the transport contract, annotations and how they are anchored, and identities.
 
 ## Who uses it
 
@@ -56,7 +56,7 @@ const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no n
 
 ## What a change must keep
 
-- **The spec is the source.** `src/types.ts`, [src/bus-protocol.ts](src/bus-protocol.ts) and everything in `src/generated/` are generated from [`specs/src`](../../specs/src/), and never edited. Only `bus-protocol.ts` is committed; the rest is made when the package is built. Change the spec, then run `npm run generate:openapi --workspace=@semiont/core`. A type written by hand that restates a schema is a second copy that nothing keeps true: use the spec's type, under the spec's name.
+- **The spec is the source.** `src/types.ts`, [src/bus-protocol.ts](src/bus-protocol.ts) and everything in `src/generated/` are generated from [`specs/src`](../../../specs/src/), and never edited. Only `bus-protocol.ts` is committed; the rest is made when the package is built. Change the spec, then run `npm run generate:openapi --workspace=@semiont/core`. A type written by hand that restates a schema is a second copy that nothing keeps true: use the spec's type, under the spec's name.
 - **The main import runs in a browser.** It uses no Node builtin. The validators and the test issuer are reachable only by their subpaths, because of the weight they would add to every bundle, and `npm run lint:core-subpaths` fails a re-export of either from the root.
 - **It depends on no other Semiont package.** Everything else depends on it.
 - **An id is made only by its constructor or its guard.** One kind is never assignable to another.
@@ -67,7 +67,7 @@ const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no n
 
 - [API tour](docs/API.md): each area, with examples.
 - [Utilities](docs/Utilities.md): the small helpers.
-- [The spec](../../specs/README.md), which this package is generated from.
+- [The spec](../../../specs/README.md), which this package is generated from.
 
 ## License
 

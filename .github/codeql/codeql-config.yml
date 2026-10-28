@@ -33,11 +33,11 @@ paths:
   - packages/go/launcher
   # The Go SDK the launcher is built on: a module root too
   - packages/go/sdk
-  - packages/http-transport/src
-  - packages/core/src
-  - packages/react-ui/src
-  - packages/observability/src
-  - packages/sdk/src
+  - packages/typescript/http-transport/src
+  - packages/typescript/core/src
+  - packages/typescript/react-ui/src
+  - packages/typescript/observability/src
+  - packages/typescript/sdk/src
   # The Python SDK and the Python inference drivers: what each wheel holds
   - packages/python/sdk/src
   - packages/python/inference/src

@@ -959,8 +959,8 @@
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables.",
       "where": {
         "typescript": [
-          "packages/core/src/web-annotation-utils.ts",
-          "packages/core/src/annotation-builders.ts"
+          "packages/typescript/core/src/web-annotation-utils.ts",
+          "packages/typescript/core/src/annotation-builders.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/annotations.rs"
@@ -1163,7 +1163,7 @@
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
       "where": {
         "typescript": [
-          "packages/core/src/job-filter.ts"
+          "packages/typescript/core/src/job-filter.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/job_filter.rs"
@@ -1191,7 +1191,7 @@
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
       "where": {
         "typescript": [
-          "packages/core/src/retry.ts"
+          "packages/typescript/core/src/retry.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/retry.rs"
@@ -1215,7 +1215,7 @@
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json.",
       "where": {
         "typescript": [
-          "packages/sdk/src/session/storage.ts"
+          "packages/typescript/sdk/src/session/storage.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/session/knowledge_base.rs"
@@ -1239,7 +1239,7 @@
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json.",
       "where": {
         "typescript": [
-          "packages/sdk/src/session/storage.ts"
+          "packages/typescript/sdk/src/session/storage.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/session/mod.rs",
@@ -1295,7 +1295,7 @@
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
         "typescript": [
-          "packages/sdk/src/cache-persister.ts"
+          "packages/typescript/sdk/src/cache-persister.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/cache.rs"
@@ -1322,8 +1322,8 @@
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
       "where": {
         "typescript": [
-          "packages/core/src/bus-request.ts",
-          "packages/core/src/persisted-events.ts"
+          "packages/typescript/core/src/bus-request.ts",
+          "packages/typescript/core/src/persisted-events.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/bus.rs",
@@ -1365,12 +1365,12 @@
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
       "where": {
         "typescript": [
-          "packages/sdk/src/session/semiont-browser.ts",
-          "packages/sdk/src/session/session-factory.ts",
-          "packages/sdk/src/session/http-session-factory.ts",
-          "packages/sdk/src/session/knowledge-base.ts",
-          "packages/sdk/src/session/open-resource.ts",
-          "packages/sdk/src/session/storage.ts"
+          "packages/typescript/sdk/src/session/semiont-browser.ts",
+          "packages/typescript/sdk/src/session/session-factory.ts",
+          "packages/typescript/sdk/src/session/http-session-factory.ts",
+          "packages/typescript/sdk/src/session/knowledge-base.ts",
+          "packages/typescript/sdk/src/session/open-resource.ts",
+          "packages/typescript/sdk/src/session/storage.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/session/browser.rs",
@@ -1657,8 +1657,8 @@
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
       "where": {
         "typescript": [
-          "packages/sdk/src/session/oauth.ts",
-          "packages/sdk/src/session/connect.ts"
+          "packages/typescript/sdk/src/session/oauth.ts",
+          "packages/typescript/sdk/src/session/connect.ts"
         ],
         "rust": [
           "packages/rust/http-transport/src/oauth.rs",
@@ -1749,7 +1749,7 @@
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {
         "typescript": [
-          "packages/sdk/src/discovery.ts"
+          "packages/typescript/sdk/src/discovery.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/discovery.rs",
@@ -1874,8 +1874,8 @@
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
       "where": {
         "typescript": [
-          "packages/core/src/liveness-axioms.ts",
-          "packages/sdk/src/testing.ts"
+          "packages/typescript/core/src/liveness-axioms.ts",
+          "packages/typescript/sdk/src/testing.ts"
         ],
         "rust": [
           "packages/rust/sdk/src/testing/liveness.rs",

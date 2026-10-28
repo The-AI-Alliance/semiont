@@ -1,7 +1,7 @@
 // Code generated from specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-oauth-clients-go.mjs
-// The TypeScript (packages/core/src/generated/oauth-clients.ts), Rust
+// The TypeScript (packages/typescript/core/src/generated/oauth-clients.ts), Rust
 // (packages/rust/sdk/build.rs) and Python (semiont.oauth_clients) SDKs generate
 // from the same file.
 

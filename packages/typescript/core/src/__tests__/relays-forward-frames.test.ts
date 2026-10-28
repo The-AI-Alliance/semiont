@@ -30,7 +30,7 @@ import { REPO, stripComments, typeScriptFiles } from './repository-files';
 const CHANNEL_SUBSCRIBE = /\.\s*(?:stream|on|frames)\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\.\s*subscribe\s*\(/g;
 
 /** The one home of the relay itself. */
-const RELAY_HOME = 'packages/core/src/relay-frames.ts';
+const RELAY_HOME = 'packages/typescript/core/src/relay-frames.ts';
 
 /** The callback text, by balancing parens from `subscribe(`. A line window
  *  instead flags the emit a test does NEXT to a subscribe — five false

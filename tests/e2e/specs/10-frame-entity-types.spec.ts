@@ -16,7 +16,7 @@ import { test, expect } from '../fixtures/auth';
  *    `client.frame.addEntityType(...)` which emits `frame:add-entity-type`
  *    over the wire. The Archivist's Stower handles it and broadcasts
  *    `frame:entity-type-added` (a bridged channel — see
- *    `packages/core/src/bridged-channels.ts`); the frontend's
+ *    `packages/typescript/core/src/bridged-channels.ts`); the frontend's
  *    `browse.entityTypes()` cache invalidates on receipt and the new
  *    tag renders without a refresh.
  *

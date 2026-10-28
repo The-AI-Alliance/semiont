@@ -30,7 +30,7 @@ type Motivation = components['schemas']['Motivation'];
 // 'linking' | 'commenting' | 'highlighting' | 'tagging' | 'assessing'
 ```
 
-**Location**: types and annotation utilities in `packages/core/`; the SDK in `packages/sdk/`
+**Location**: types and annotation utilities in `packages/typescript/core/`; the SDK in `packages/typescript/sdk/`
 
 ### Layer 2: State Layer (React Components)
 
@@ -63,7 +63,7 @@ type Motivation = components['schemas']['Motivation'];
 - **Callbacks Up**: Children notify parents via callback props (e.g., `onScrollCompleted`)
 - **Refs Via Callbacks**: Parents receive refs via `ref={(el) => setEntryRef(id, el)}`
 
-**Location**: `packages/react-ui/src/components/`, `packages/react-ui/src/features/`
+**Location**: `packages/typescript/react-ui/src/components/`, `packages/typescript/react-ui/src/features/`
 
 ### Layer 3: Coordination Layer (Event Bus)
 
@@ -82,7 +82,7 @@ session's channels; the browser holds a second, app-scoped one for shell channel
 - ❌ Tracking DOM refs (use React ref callbacks instead)
 - ❌ Data persistence (use the SDK instead)
 
-**Location**: `packages/core/src/event-bus.ts` (the bus), `packages/core/src/bus-protocol.ts` (the channels)
+**Location**: `packages/typescript/core/src/event-bus.ts` (the bus), `packages/typescript/core/src/bus-protocol.ts` (the channels)
 
 ## Event Catalog
 
@@ -632,5 +632,5 @@ These rules MUST be followed:
 ## Related Documentation
 
 - **OpenAPI Spec**: `specs/src/openapi.json`, and `specs/src/components/schemas/Annotation.json` in it - Source of truth for annotation types
-- **Event channels**: `packages/core/src/bus-protocol.ts` - `EventMap`, the channel type definitions
-- **Annotation Utilities**: `packages/core/src/web-annotation-utils.ts` - Pure functions for annotation manipulation
+- **Event channels**: `packages/typescript/core/src/bus-protocol.ts` - `EventMap`, the channel type definitions
+- **Annotation Utilities**: `packages/typescript/core/src/web-annotation-utils.ts` - Pure functions for annotation manipulation

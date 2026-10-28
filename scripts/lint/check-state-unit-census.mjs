@@ -13,7 +13,7 @@
  * Python's, and the compiler holds the subject's `setup` to it. A call that
  * names no unit holds none.
  *
- * The harness's own probe (`DisposeProbe`, in packages/core/src/state-unit-axioms.ts)
+ * The harness's own probe (`DisposeProbe`, in packages/typescript/core/src/state-unit-axioms.ts)
  * stands in for what a unit is given, and is no unit.
  */
 import { readFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const HARNESS = 'packages/core/src/state-unit-axioms.ts';
+const HARNESS = 'packages/typescript/core/src/state-unit-axioms.ts';
 
 const typescript = (file) => /^(apps|images|packages)\//.test(file) && /\.tsx?$/.test(file) && !file.endsWith('.d.ts');
 const isTest = (file) => /(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);

@@ -23,7 +23,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/locales/registry.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/locales.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/locales.ts'));
 
 function refuse(message) {
   console.error(`✗ ${TABLE}: ${message}`);

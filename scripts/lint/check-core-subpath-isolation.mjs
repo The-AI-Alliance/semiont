@@ -15,7 +15,7 @@
  */
 import { readFileSync } from 'fs';
 
-const ROOT_INDEX = 'packages/core/src/index.ts';
+const ROOT_INDEX = 'packages/typescript/core/src/index.ts';
 const FORBIDDEN = [
   { module: './openapi', subpath: '@semiont/core/openapi', why: 'pulls ~1.3 MB of generated validators' },
   { module: './testing/issuer', subpath: '@semiont/core/testing/issuer', why: 'pulls `jose` into every browser bundle' },

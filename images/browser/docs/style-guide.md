@@ -33,14 +33,14 @@ This provides all component styles with the `semiont-` prefix:
 - And more...
 
 #### Tailwind Configuration
-The Browser app uses Tailwind for its own components and layout. `globals.css` loads `tailwind.config.js` with `@config` and names the sources Tailwind scans for class names — the Browser's own `src`, and `packages/react-ui/src`:
+The Browser app uses Tailwind for its own components and layout. `globals.css` loads `tailwind.config.js` with `@config` and names the sources Tailwind scans for class names — the Browser's own `src`, and `packages/typescript/react-ui/src`:
 
 ```css
 /* images/browser/src/app/globals.css */
 @config "../../tailwind.config.js";
 @plugin "@tailwindcss/typography";
 @source "../../src";
-@source "../../../../packages/react-ui/src";
+@source "../../../../packages/typescript/react-ui/src";
 ```
 
 ### Using @semiont/react-ui Components
@@ -316,7 +316,7 @@ Every `semiont-button` dims to 50% opacity with a `not-allowed` cursor when it i
 
 ## Annotation Styles
 
-Each motivation's class name lives in the `ANNOTATORS` registry (`packages/react-ui/src/lib/annotation-registry.ts`); its colours live in `packages/react-ui/src/styles/motivations/`.
+Each motivation's class name lives in the `ANNOTATORS` registry (`packages/typescript/react-ui/src/lib/annotation-registry.ts`); its colours live in `packages/typescript/react-ui/src/styles/motivations/`.
 
 ### Highlights
 - **Background:** Yellow (`--semiont-motivation-highlight-bg`: yellow-200; yellow-900 at 50% in dark mode)

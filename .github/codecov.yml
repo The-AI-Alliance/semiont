@@ -46,23 +46,23 @@ component_management:
     - component_id: core
       name: "@semiont/core"
       paths:
-        - packages/core/**
+        - packages/typescript/core/**
     - component_id: http-transport
       name: "@semiont/http-transport"
       paths:
-        - packages/http-transport/**
+        - packages/typescript/http-transport/**
     - component_id: react-ui
       name: "@semiont/react-ui"
       paths:
-        - packages/react-ui/**
+        - packages/typescript/react-ui/**
     - component_id: sdk
       name: "@semiont/sdk"
       paths:
-        - packages/sdk/**
+        - packages/typescript/sdk/**
     - component_id: observability
       name: "@semiont/observability"
       paths:
-        - packages/observability/**
+        - packages/typescript/observability/**
     - component_id: browser
       name: "Browser (app)"
       paths:
@@ -108,27 +108,27 @@ flags:
   # Individual package flags
   http-transport:
     paths:
-      - packages/http-transport/**
+      - packages/typescript/http-transport/**
     carryforward: true
 
   core:
     paths:
-      - packages/core/**
+      - packages/typescript/core/**
     carryforward: true
 
   observability:
     paths:
-      - packages/observability/**
+      - packages/typescript/observability/**
     carryforward: true
 
   react-ui:
     paths:
-      - packages/react-ui/**
+      - packages/typescript/react-ui/**
     carryforward: true
 
   sdk:
     paths:
-      - packages/sdk/**
+      - packages/typescript/sdk/**
     carryforward: true
 
   # App flags. These upload from ci.yml's Browser Tests, not the package matrix.

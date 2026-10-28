@@ -12,7 +12,7 @@ import * as core from '@semiont/core';
 import { annotationOfResource, annotationOfSpan, reconcile, SpanRefusedError } from '../index';
 
 const table: { builders: string[] } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each builder the SDK exports, under the name the table gives it, beside core's. */

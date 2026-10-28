@@ -1,13 +1,13 @@
 # Event internals
 
 How to use the event buses from a React app is in the builder docs:
-[EVENTS.md](../../../docs/builder/react-ui/EVENTS.md). This page holds what
+[EVENTS.md](../../../../docs/builder/react-ui/EVENTS.md). This page holds what
 only someone working on react-ui itself needs.
 
 ## The wire log in e2e tests
 
 **Enable in e2e tests:** automatic via the `bus` fixture — see
-[tests/e2e/docs/bus-logging.md](../../../tests/e2e/docs/bus-logging.md).
+[tests/e2e/docs/bus-logging.md](../../../../tests/e2e/docs/bus-logging.md).
 
 The wire log covers the Browser-to-gateway edge. An equivalent
 instrumentation on the gateway's own bus — gated behind the same
@@ -32,8 +32,8 @@ where an event reaches `/bus/emit` but never produces a response.
 ## Channels that never leave the page
 
 Some channels are published on a client's own bus and never cross the wire. The
-protocol's flow docs say which channels cross ([Browse](../../../docs/protocol/flows/BROWSE.md),
-[Beckon](../../../docs/protocol/flows/BECKON.md)); this section is the other half.
+protocol's flow docs say which channels cross ([Browse](../../../../docs/protocol/flows/BROWSE.md),
+[Beckon](../../../../docs/protocol/flows/BECKON.md)); this section is the other half.
 
 ### The rule: `browse:*` may cross, `nav:*` never does
 

@@ -30,7 +30,7 @@ import {
 } from '../index';
 
 const table: { readers: string[] } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each reader the SDK exports, under the name the table gives it, beside core's. */

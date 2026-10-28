@@ -2,7 +2,7 @@
 
 `@semiont/http-transport` ships the HTTP-specific implementations of the transport contracts in `@semiont/core`. The developer-facing surface (`SemiontClient`, the verb namespaces, sessions, state units) lives in `@semiont/sdk`. This doc covers the HTTP adapters only.
 
-For the namespace-level API tour, see [`docs/builder/Usage.md`](../../../docs/builder/Usage.md).
+For the namespace-level API tour, see [`docs/builder/Usage.md`](../../../../docs/builder/Usage.md).
 
 ## `HttpTransport`
 
@@ -17,7 +17,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 - **`channels`** narrows what the stream carries. A worker that awaits only some operations names their reply channels, and is sent nothing else.
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
-- **`timeout`** bounds a plain request. One is made a second time at most once, after `REQUEST_RETRY_PAUSE_MS`, when `RETRY_RULES.transport` approves its status and method, with or without a `tokenRefresher`. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
+- **`timeout`** bounds a plain request. One is made a second time at most once, after `REQUEST_RETRY_PAUSE_MS`, when `RETRY_RULES.transport` approves its status and method, with or without a `tokenRefresher`. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
 
 ### `TokenRefresher`
 
@@ -25,7 +25,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 type TokenRefresher = () => Promise<string | null>;
 ```
 
-Called when the gateway refuses a request's credential: a 401, or a 429 whose body names the limit `refusal-rate` ([TRANSPORT-CONTRACT § A refused credential](../../../docs/protocol/TRANSPORT-CONTRACT.md#a-refused-credential)). A REST call, a content read or upload through ky, and an emit each ask it **once**, and are sent again at once with the token it returns, when that is not the token refused; accepted, they settle as if never refused and nothing is reported. Given no token, the same one, or a second refusal, they fail as `unauthorized` with the status the gateway answered, and are not sent a third time. The SSE connect path asks it **once per outage** before the actor parks `unauthenticated` (a successful open re-arms the once). A refused credential is never retried by a retry rule and never waits out a `Retry-After`; without a refresher it is final at once. Should return a new access token (no `Bearer ` prefix), or `null` to give up; a throw counts as `null`. The transport does **not** push the result into `token$` — rotating the token source is the refresher owner's job (`SemiontSession.refresh()` does exactly that), which is also how the SSE path reconnects: the actor re-reads its token getter rather than trusting the returned value. An upload sent through `XMLHttpRequest` (a browser page asking for progress or giving a `signal`) is not renewed: its refused credential fails as `unauthorized`.
+Called when the gateway refuses a request's credential: a 401, or a 429 whose body names the limit `refusal-rate` ([TRANSPORT-CONTRACT § A refused credential](../../../../docs/protocol/TRANSPORT-CONTRACT.md#a-refused-credential)). A REST call, a content read or upload through ky, and an emit each ask it **once**, and are sent again at once with the token it returns, when that is not the token refused; accepted, they settle as if never refused and nothing is reported. Given no token, the same one, or a second refusal, they fail as `unauthorized` with the status the gateway answered, and are not sent a third time. The SSE connect path asks it **once per outage** before the actor parks `unauthenticated` (a successful open re-arms the once). A refused credential is never retried by a retry rule and never waits out a `Retry-After`; without a refresher it is final at once. Should return a new access token (no `Bearer ` prefix), or `null` to give up; a throw counts as `null`. The transport does **not** push the result into `token$` — rotating the token source is the refresher owner's job (`SemiontSession.refresh()` does exactly that), which is also how the SSE path reconnects: the actor re-reads its token getter rather than trusting the returned value. An upload sent through `XMLHttpRequest` (a browser page asking for progress or giving a `signal`) is not renewed: its refused credential fails as `unauthorized`.
 
 For session-managed refresh (proactive refresh on a timer, terminal-auth-failure surface, cross-tab sync), use `SemiontSession` from `@semiont/sdk` rather than the raw `tokenRefresher` hook — `SemiontSession.refresh()` orchestrates the lifecycle and `tokenRefresher` is the lower-level escape hatch.
 
@@ -66,7 +66,7 @@ The MCP server imports from `@semiont/http-transport` itself, because it builds 
 
 ## Behavioral contract
 
-The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`docs/protocol/TRANSPORT-CONTRACT.md`](../../../docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, per-scope `lastEventId` replay, seven-state connection machine) live in [`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md).
+The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`docs/protocol/TRANSPORT-CONTRACT.md`](../../../../docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, per-scope `lastEventId` replay, seven-state connection machine) live in [`docs/protocol/TRANSPORT-HTTP.md`](../../../../docs/protocol/TRANSPORT-HTTP.md).
 
 ## Other docs in this package
 

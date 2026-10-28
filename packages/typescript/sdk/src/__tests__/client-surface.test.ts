@@ -87,7 +87,7 @@ interface Table {
 }
 
 const TABLE: Table = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/client/surface.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/client/surface.json', import.meta.url), 'utf8'),
 );
 
 /** `value` with each `{"$fixture": name}` replaced by the table's fixture. */

@@ -35,7 +35,7 @@ interface Case {
 }
 
 const table: { readers: string[]; cases: Case[] } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each reader of the table, given the part of the annotation it reads. Nothing is `null`, as the table writes it. */

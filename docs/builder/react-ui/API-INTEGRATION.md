@@ -22,7 +22,7 @@ The shape is:
 The cache's freshness and invalidation contract lives in the SDK, not here —
 see [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md).
 For the layered Service → Hook → Component pattern these pieces compose into,
-see [SERVICE-HOOK-COMPONENT.md](../../../packages/react-ui/docs/SERVICE-HOOK-COMPONENT.md). This guide stays
+see [SERVICE-HOOK-COMPONENT.md](../../../packages/typescript/react-ui/docs/SERVICE-HOOK-COMPONENT.md). This guide stays
 focused on how a component reaches the client and reads/writes through it.
 
 ## Getting the client
@@ -170,7 +170,7 @@ The closure can return `undefined` to signal "still loading" — see
 
 `createSearchPipeline` is unit-testable without React: pass a stub fetch
 function, push values into `setQuery`, assert on emissions from `state$`. See
-`packages/sdk/src/state/lib/__tests__/search-pipeline.test.ts`.
+`packages/typescript/sdk/src/state/lib/__tests__/search-pipeline.test.ts`.
 
 ## Writing data
 
@@ -296,9 +296,9 @@ it('renders resources', async () => {
 
 ## See Also
 
-- [SERVICE-HOOK-COMPONENT.md](../../../packages/react-ui/docs/SERVICE-HOOK-COMPONENT.md) — the three-layer Service → Hook → Component pattern
+- [SERVICE-HOOK-COMPONENT.md](../../../packages/typescript/react-ui/docs/SERVICE-HOOK-COMPONENT.md) — the three-layer Service → Hook → Component pattern
 - [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md) — read-through cache freshness and invalidation contract
 - [EVENTS.md](EVENTS.md) — event-driven architecture and channels
 - [SESSION.md](SESSION.md) — `SemiontProvider` / session lifecycle
 - [TESTING.md](TESTING.md) — testing components that read and write through the client
-- [@semiont/sdk](../../../packages/sdk) — `SemiontBrowser`, `SemiontClient`, the read-through cache, and `BrowseNamespace`
+- [@semiont/sdk](../../../packages/typescript/sdk) — `SemiontBrowser`, `SemiontClient`, the read-through cache, and `BrowseNamespace`

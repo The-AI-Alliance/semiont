@@ -41,7 +41,7 @@ function sdkLanguage(owner, below) {
 /**
  * The label of what `path` is in, or null for a path in none. A path is in an
  * app, an image, a test suite or an SDK when it is below its directory
- * (apps/<x>/, images/<x>/, tests/<x>/, packages/sdk/, packages/sdk-<language>/
+ * (apps/<x>/, images/<x>/, tests/<x>/, packages/typescript/sdk/, packages/sdk-<language>/
  * or packages/<language>/sdk/), and in a part of the spec when it is an entry of
  * specs/src or below one. An app's libraries, packages/<language>/<app>/, are in
  * the app. A directory is written with its trailing slash: it is in what

@@ -19,8 +19,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { isObject, isString } from '@semiont/core';
 import { JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS } from '../claims';
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const PACKAGE = join(REPO, 'packages/sdk');
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../../..');
+const PACKAGE = join(REPO, 'packages/typescript/sdk');
 const SKILL = readFileSync(join(REPO, 'docs/builder/skills/semiont-worker/SKILL.md'), 'utf-8');
 
 /** The skill's TypeScript blocks that are a whole program: the ones that have a `main`. */
@@ -196,7 +196,7 @@ describe('the complete worker of the semiont-worker skill', () => {
     expect(PROGRAMS, 'the skill shows one TypeScript program').toHaveLength(1);
     const [program] = PROGRAMS;
     for (const imported of program.matchAll(/from '@semiont\/([a-z-]+)'/g)) {
-      const built = join(REPO, 'packages', imported[1], 'dist/index.js');
+      const built = join(REPO, 'packages', 'typescript', imported[1], 'dist/index.js');
       if (!existsSync(built)) throw new Error(`${built} is missing: this test runs the built packages, so run \`npm run build --workspace=@semiont/sdk\` first`);
     }
 

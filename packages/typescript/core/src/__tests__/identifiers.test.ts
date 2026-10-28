@@ -24,7 +24,7 @@ import {
   type components,
 } from '../index';
 
-const SPEC = resolve(__dirname, '../../../../specs/src');
+const SPEC = resolve(__dirname, '../../../../../specs/src');
 
 interface Kind {
   schema: string;

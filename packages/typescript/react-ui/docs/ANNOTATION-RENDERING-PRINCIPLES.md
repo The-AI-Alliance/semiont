@@ -184,7 +184,7 @@ Property-based tests ([fast-check](https://github.com/dubzzz/fast-check)) cover 
 - See `src/components/resource/AnnotateView.tsx` - Main annotation UI
 
 ### Data Model & API
-- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
+- [W3C-WEB-ANNOTATION.md](../../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
 - See `@semiont/sdk` package - API client and utilities
 
 ### Testing

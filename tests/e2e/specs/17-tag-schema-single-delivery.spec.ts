@@ -22,7 +22,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * (The reconnect-overlap half is guarded below the Browser: one id per frame
  * on every connection, `tests/conformance/gateway/stream.test.ts`, and the
  * client's overlap dedup,
- * `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.)
+ * `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.)
  *
  * Signal: `[bus RECV]` is logged at `actor-state-unit.ts` only for events that
  * pass the `seenEventIds` dedup, so `bus.receives(channel).length` is the

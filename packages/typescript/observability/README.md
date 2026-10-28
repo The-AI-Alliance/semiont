@@ -52,7 +52,7 @@ const length = await withSpan('read-document', async (span) => {
 ## Documentation
 
 - [API reference](docs/API.md): the helpers, with an example of each.
-- [Observability](../../docs/operator/administration/OBSERVABILITY.md): the variables that turn it on, and where a stack sends its telemetry.
+- [Observability](../../../docs/operator/administration/OBSERVABILITY.md): the variables that turn it on, and where a stack sends its telemetry.
 
 ## License
 

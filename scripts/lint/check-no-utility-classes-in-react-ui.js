@@ -3,7 +3,7 @@
 /**
  * Check for utility-class frameworks in @semiont/react-ui
  *
- * This script scans TSX/JSX files in packages/react-ui/src for utility-class patterns from:
+ * This script scans TSX/JSX files in packages/typescript/react-ui/src for utility-class patterns from:
  * - Tailwind CSS
  * - UnoCSS
  * - Tachyons
@@ -144,17 +144,17 @@ function checkFileForUtilityClasses(filePath) {
 }
 
 /**
- * The TSX/JSX files under packages/react-ui/src that git says the repository
+ * The TSX/JSX files under packages/typescript/react-ui/src that git says the repository
  * holds (repository-files.mjs), tests left out
  */
 function findReactUIFiles() {
   const root = path.join(__dirname, '..', '..');
   const files = repositoryFiles(root)
-    .filter((file) => file.startsWith('packages/react-ui/src/') && /\.[jt]sx$/.test(file))
+    .filter((file) => file.startsWith('packages/typescript/react-ui/src/') && /\.[jt]sx$/.test(file))
     .filter((file) => !file.includes('/__tests__/') && !/\.(test|spec)\.[jt]sx$/.test(file));
 
   if (files.length === 0) {
-    console.error('Error: packages/react-ui/src holds no TSX or JSX files');
+    console.error('Error: packages/typescript/react-ui/src holds no TSX or JSX files');
     process.exit(1);
   }
 
@@ -206,7 +206,7 @@ function main() {
   console.log('⚠️  Utility-class frameworks (Tailwind, UnoCSS, Bootstrap utilities, etc.) are NOT allowed in @semiont/react-ui');
   console.log('   Policy: use semantic BEM classes prefixed with "semiont-", styled in a CSS file');
   console.log('   co-located with the component, using the CSS variables from');
-  console.log('   packages/react-ui/src/styles/variables.css (add [data-theme="dark"] variants');
+  console.log('   packages/typescript/react-ui/src/styles/variables.css (add [data-theme="dark"] variants');
   console.log('   for theme-sensitive properties). Good examples: Toast.css, ErrorBoundary.tsx.');
   console.log(`   Total violations: ${allViolations.length}\n`);
 

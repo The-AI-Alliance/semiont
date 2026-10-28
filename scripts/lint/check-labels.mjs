@@ -32,7 +32,7 @@
  *      verb:   the namespaces of specs/src/client/surface.json, but the ones
  *              listed below as no verb
  *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
- *    sdk: has a label for every SDK the repository holds (packages/sdk, the
+ *    sdk: has a label for every SDK the repository holds (packages/typescript/sdk, the
  *    TypeScript one, each packages/sdk-<language> and each
  *    packages/<language>/sdk), and for the languages
  *    ruled ahead of their SDKs. The app:, image:, tests: and sdk: values

@@ -27,7 +27,7 @@ interface LocateCase {
 }
 
 const table: { cases: LocateCase[] } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/pdf-locate-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/pdf-locate-cases.json', import.meta.url), 'utf8'),
 );
 
 describe('locating a span of a PDF (specs/src/annotations/pdf-locate-cases.json)', () => {

@@ -17,7 +17,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../specs/src/components/schemas');
+const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/components/schemas');
 
 function schema(name: string): { properties?: Record<string, unknown>; required?: string[] } {
   return JSON.parse(readFileSync(join(SCHEMA_DIR, `${name}.json`), 'utf-8'));

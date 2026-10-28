@@ -97,7 +97,7 @@ believe them at first:
    pseudocode with a working implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
-   [`@semiont/react-ui`](../../packages/react-ui/) is the one binding.
+   [`@semiont/react-ui`](../../packages/typescript/react-ui/) is the one binding.
    But the SDK is deliberately framework-free — plain classes and observables,
    no React anywhere — so a Vue or Svelte binding is a seam awaiting an author,
    not a rearchitecture.

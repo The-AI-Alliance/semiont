@@ -161,7 +161,7 @@ same: `yield:created`, `yield:updated`, `yield:cloned`, `yield:moved`,
 `frame:entity-type-added` and `frame:tag-schema-added`. The record is kept
 per resource, and these are delivered to every client on no scope, so they
 have no position a client could resume from.
-*Held by `packages/core/src/__tests__/bus-classification.test.ts`.*
+*Held by `packages/typescript/core/src/__tests__/bus-classification.test.ts`.*
 
 A **request**, as the service that answers it receives it, is a passing
 frame: a service whose stream is down when a request is published is not
@@ -212,7 +212,7 @@ repairs a drop by asking:
 A row of the refresh table whose trigger is a passing channel may only
 refetch, and `reopened` refetches whatever it does: the table's generator
 refuses anything else.
-*Held by `packages/core/src/__tests__/cache-refresh.test.ts`.*
+*Held by `packages/typescript/core/src/__tests__/cache-refresh.test.ts`.*
 
 ### Order
 
@@ -433,7 +433,7 @@ Bytes do not ride the bus.
   *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*
 - So is an upload whose credential is refused, and its progress, sent
   twice, is never less than it last said.
-  *Held by `sdk/wire/upload-credential-renewed`, `packages/http-transport/src/transport/__tests__/http-content-transport.xhr.test.ts`.*
+  *Held by `sdk/wire/upload-credential-renewed`, `packages/typescript/http-transport/src/transport/__tests__/http-content-transport.xhr.test.ts`.*
 
 ## Telemetry
 

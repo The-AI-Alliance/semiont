@@ -153,7 +153,7 @@ interface Span { exact: string; occurrence: number; start: number; end: number }
 interface Case { why: string; text: string; codePoints: number; spans: Span[] }
 
 const TABLE = 'specs/src/text/offset-cases.json';
-const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', TABLE), 'utf8'));
+const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../../..', TABLE), 'utf8'));
 
 describe('the offset table, through what makes an offset and what applies one (specs/src/text/offset-cases.json)', () => {
   it('has cases, and one at least with a character outside the basic plane', () => {

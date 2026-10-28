@@ -36,7 +36,7 @@ await withSpan('handle-request', async (span) => {
 });
 ```
 
-What is exported, and where, is read from the standard `OTEL_*` variables. They are listed in [Observability](../../../docs/operator/administration/OBSERVABILITY.md).
+What is exported, and where, is read from the standard `OTEL_*` variables. They are listed in [Observability](../../../../docs/operator/administration/OBSERVABILITY.md).
 
 ## In the browser
 

@@ -43,7 +43,7 @@ const table: {
   cases: SpanCase[];
   resources: ResourceCase[];
 } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
 );
 
 /**
@@ -52,7 +52,7 @@ const table: {
  * `code`, is generated from.
  */
 const REFUSALS: string[] = (
-  JSON.parse(readFileSync(new URL('../../../../specs/src/errors/codes.json', import.meta.url), 'utf8')) as {
+  JSON.parse(readFileSync(new URL('../../../../../specs/src/errors/codes.json', import.meta.url), 'utf8')) as {
     spanRefusal: { codes: Array<{ code: string }> };
   }
 ).spanRefusal.codes.map((entry) => entry.code);

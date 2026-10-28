@@ -173,15 +173,9 @@ jobs:
             ts:
               - 'images/browser/**'
               - 'apps/desktop/**'
-              - 'packages/core/**'
-              - 'packages/http-transport/**'
-              - 'packages/observability/**'
-              - 'packages/react-ui/**'
-              - 'packages/sdk/**'
+              - 'packages/typescript/**'
               - 'package.json'
               - 'package-lock.json'
-              - 'tsconfig.base.json'
-              - 'vitest.shared.config.ts'
               - '.node-version'
             conformance:
               - 'tests/conformance/**'
@@ -344,7 +338,7 @@ jobs:
 
       - name: Run the tests with coverage
         run: |
-          cd packages/${{ matrix.package }}
+          cd packages/typescript/${{ matrix.package }}
           npm run test:coverage
           node -e "
             const total = require('./coverage/coverage-summary.json').total;
@@ -358,7 +352,7 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/${{ matrix.package }}/coverage/lcov.info
+          files: ./packages/typescript/${{ matrix.package }}/coverage/lcov.info
           flags: ${{ matrix.package }}
           name: ${{ matrix.package }}
           verbose: true
@@ -672,7 +666,7 @@ jobs:
         id: react-ui-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          cd packages/react-ui
+          cd packages/typescript/react-ui
           ./scripts/generate-compliance-report.sh
 
       - name: Run Browser Compliance Audit
@@ -2481,7 +2475,7 @@ jobs:
         with:
           go-version-file: apps/launcher/go.mod
 
-      # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
+      # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime.

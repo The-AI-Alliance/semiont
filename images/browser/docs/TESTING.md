@@ -43,7 +43,7 @@ Testing in the Semiont Browser is split between two packages following the compo
               │ uses
               ▼
 ┌─────────────────────────────────────┐
-│    packages/react-ui                │
+│    packages/typescript/react-ui                │
 │         Test Coverage:              │
 │                                     │
 │  • Core UI components               │
@@ -443,7 +443,7 @@ The resource page is one such pair:
 ### Testing with Factored Components
 
 **Test in @semiont/react-ui** (business logic), modeled on
-`packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx`:
+`packages/typescript/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx`:
 
 ```tsx
 import { screen } from '@testing-library/react';
@@ -568,13 +568,13 @@ it('renders page', () => {
 **Testing @semiont/react-ui components:**
 ```bash
 # Run react-ui tests
-cd packages/react-ui
+cd packages/typescript/react-ui
 npm test
 
 # Example test locations
-packages/react-ui/src/components/Button/__tests__/Button.test.tsx
-packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
-packages/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx
+packages/typescript/react-ui/src/components/Button/__tests__/Button.test.tsx
+packages/typescript/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
+packages/typescript/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx
 ```
 
 **Testing Browser integration:**

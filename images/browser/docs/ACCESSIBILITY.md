@@ -105,7 +105,7 @@ announce('5 results found', 'polite');
 `@semiont/react-ui` gives every interactive element a keyboard focus outline, in light and dark themes alike:
 
 ```css
-/* packages/react-ui/src/styles/utilities/focus.css */
+/* packages/typescript/react-ui/src/styles/utilities/focus.css */
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -123,7 +123,7 @@ select:focus-visible,
 
 ### Reduced motion
 
-`packages/react-ui/src/styles/utilities/motion-overrides.css` cuts every animation and transition on the page to 0.01ms under `@media (prefers-reduced-motion: reduce)` — react-ui and Browser markup alike.
+`packages/typescript/react-ui/src/styles/utilities/motion-overrides.css` cuts every animation and transition on the page to 0.01ms under `@media (prefers-reduced-motion: reduce)` — react-ui and Browser markup alike.
 
 For JS-driven animations, check `window.matchMedia('(prefers-reduced-motion: reduce)')` and disable.
 

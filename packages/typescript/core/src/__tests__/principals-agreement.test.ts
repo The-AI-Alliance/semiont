@@ -27,7 +27,7 @@ interface AgentCase {
   did: string;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../specs/src/principals/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/principals/cases.json');
 const { people, agents } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { people: PersonCase[]; agents: AgentCase[] };
 
 describe('principals — core agrees with the shared table', () => {

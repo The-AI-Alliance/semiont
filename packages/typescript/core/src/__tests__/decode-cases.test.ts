@@ -26,8 +26,8 @@ interface EncodingCase { encoding: string; labels: string[]; everyByte?: string;
 
 const DECODE = 'specs/src/text/decode-cases.json';
 const ENCODINGS = 'specs/src/text/encoding-cases.json';
-const decode: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', DECODE), 'utf8'));
-const encodings: { cases: EncodingCase[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', ENCODINGS), 'utf8'));
+const decode: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', DECODE), 'utf8'));
+const encodings: { cases: EncodingCase[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', ENCODINGS), 'utf8'));
 
 const EVERY_BYTE = Uint8Array.from({ length: 256 }, (_, byte) => byte);
 

@@ -185,8 +185,8 @@ CodeMirror indexes its document in UTF-16 code units and holds every line break 
 
 ## Related Documentation
 
-- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation implementation
-- [ANNOTATIONS.md](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [W3C-WEB-ANNOTATION.md](../../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation implementation
+- [ANNOTATIONS.md](../../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Inline widget system
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties

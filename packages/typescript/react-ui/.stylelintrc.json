@@ -4,9 +4,9 @@
   ],
   "plugins": [
     "stylelint-order",
-    "./scripts/lint/stylelint-plugin-theme-selectors.js",
-    "./scripts/lint/stylelint-plugin-semiont-invariants.js",
-    "./scripts/lint/stylelint-plugin-accessibility.js"
+    "../../../scripts/lint/stylelint-plugin-theme-selectors.js",
+    "../../../scripts/lint/stylelint-plugin-semiont-invariants.js",
+    "../../../scripts/lint/stylelint-plugin-accessibility.js"
   ],
   "rules": {
     "semiont/theme-selectors": true,
@@ -82,59 +82,6 @@
       "rules": {
         "selector-class-pattern": null,
         "semiont/invariants": null
-      }
-    },
-    {
-      "files": [
-        "**/packages/react-ui/**/*.css"
-      ],
-      "rules": {
-        "at-rule-no-unknown": [
-          true,
-          {
-            "ignoreAtRules": []
-          }
-        ],
-        "function-no-unknown": [
-          true,
-          {
-            "ignoreFunctions": []
-          }
-        ]
-      }
-    },
-    {
-      "files": [
-        "**/images/**/*.css",
-        "**/images/**/*.scss"
-      ],
-      "rules": {
-        "semiont/invariants": null,
-        "at-rule-no-unknown": [
-          true,
-          {
-            "ignoreAtRules": [
-              "config",
-              "plugin",
-              "theme",
-              "utility",
-              "variant",
-              "custom-variant",
-              "source",
-              "layer",
-              "apply"
-            ]
-          }
-        ],
-        "function-no-unknown": [
-          true,
-          {
-            "ignoreFunctions": [
-              "theme"
-            ]
-          }
-        ],
-        "selector-class-pattern": null
       }
     }
   ],

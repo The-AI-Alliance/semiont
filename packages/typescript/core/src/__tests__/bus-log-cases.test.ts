@@ -17,7 +17,7 @@ import { isObject } from '../type-guards';
 interface Case { why: string; payload: unknown; shown: unknown }
 
 const TABLE = 'specs/src/bus/log-cases.json';
-const table: { names: string[]; cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', TABLE), 'utf8'));
+const table: { names: string[]; cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', TABLE), 'utf8'));
 
 // The rule reads a name and no channel: every line here is written on this one.
 const CHANNEL = 'yield:clone-create';

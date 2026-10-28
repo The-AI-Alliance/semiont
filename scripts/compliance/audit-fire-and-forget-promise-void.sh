@@ -20,7 +20,7 @@ set -euo pipefail
 # fire-and-forget `void` nor an ack `Promise<void>`. If more such emitters appear,
 # that is the pattern they are following, not a convention violation.
 #
-# Scope: `packages/sdk/src/namespaces/*.ts`.
+# Scope: `packages/typescript/sdk/src/namespaces/*.ts`.
 # Exit code: 0 if clean, 1 if violations found.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,7 +31,7 @@ cd "$REPO_ROOT"
 ACK_ALLOWLIST='[^A-Za-z](body|addEntityType|addEntityTypes|addTagSchema|delete|archive|unarchive|updateEntityTypes|logout|acceptTerms)\('
 
 VIOLATIONS=$(grep -rnE ":[[:space:]]*Promise<void>" \
-  packages/sdk/src/namespaces \
+  packages/typescript/sdk/src/namespaces \
   --include='*.ts' \
   2>/dev/null \
   | grep -vE "/node_modules/|/dist/|/__tests__/" \

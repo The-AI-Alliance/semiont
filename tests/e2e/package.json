@@ -20,8 +20,8 @@
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
-    "@semiont/core": "file:../../packages/core",
-    "@semiont/sdk": "file:../../packages/sdk",
+    "@semiont/core": "file:../../packages/typescript/core",
+    "@semiont/sdk": "file:../../packages/typescript/sdk",
     "@types/node": "^26.0.0",
     "typescript": "^6.0.2"
   }

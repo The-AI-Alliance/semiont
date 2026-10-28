@@ -104,7 +104,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "packages/react-ui"
+    "directory": "packages/typescript/react-ui"
   },
   "dependencies": {
     "@semiont/core": "*",

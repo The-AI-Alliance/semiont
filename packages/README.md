@@ -19,11 +19,11 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 
 | | Install | Read |
 |---|---|---|
-| TypeScript | `npm install @semiont/sdk` | [sdk](./sdk/README.md) |
+| TypeScript | `npm install @semiont/sdk` | [typescript/sdk](./typescript/sdk/README.md) |
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [rust/sdk](./rust/sdk/README.md), [rust/http-transport](./rust/http-transport/README.md) |
 | Python | `pip install semiont` | [python/sdk](./python/sdk/README.md) |
 | Go | The module `github.com/The-AI-Alliance/semiont/packages/go/sdk`, by a `replace` on its path: it is published nowhere | [go/sdk](./go/sdk/README.md) |
-| A React interface | `npm install @semiont/react-ui`, beside the SDK | [react-ui](./react-ui/README.md) |
+| A React interface | `npm install @semiont/react-ui`, beside the SDK | [typescript/react-ui](./typescript/react-ui/README.md) |
 
 The rest is what those are built on, and what Semiont's own services are built on.
 
@@ -33,11 +33,11 @@ The client side: the SDK and what it stands on. The Browser ([images/browser](..
 
 | Package | Published | What it is |
 |---|---|---|
-| [@semiont/sdk](./sdk/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | The TypeScript SDK: `SemiontClient` and its verb namespaces, `SemiontSession` and `SemiontBrowser`, state units, and the cache behind live queries |
-| [@semiont/react-ui](./react-ui/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | React components and hooks over the SDK: the resource viewer, the annotation components, and the `useStateUnit` and `useObservable` adapters |
-| [@semiont/http-transport](./http-transport/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/http-transport)](https://www.npmjs.com/package/@semiont/http-transport) | How the SDK reaches a knowledge base over HTTP: `HttpTransport` and `HttpContentTransport`. The SDK depends on it |
-| [@semiont/core](./core/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core) | What every TypeScript package stands on: the protocol's types, generated from the spec, the ids, the event bus, and the contracts a transport implements |
-| [@semiont/observability](./observability/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | Tracing and metrics for the TypeScript transport, on OpenTelemetry. It does nothing until a process is given somewhere to export to |
+| [@semiont/sdk](./typescript/sdk/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | The TypeScript SDK: `SemiontClient` and its verb namespaces, `SemiontSession` and `SemiontBrowser`, state units, and the cache behind live queries |
+| [@semiont/react-ui](./typescript/react-ui/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | React components and hooks over the SDK: the resource viewer, the annotation components, and the `useStateUnit` and `useObservable` adapters |
+| [@semiont/http-transport](./typescript/http-transport/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/http-transport)](https://www.npmjs.com/package/@semiont/http-transport) | How the SDK reaches a knowledge base over HTTP: `HttpTransport` and `HttpContentTransport`. The SDK depends on it |
+| [@semiont/core](./typescript/core/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/core)](https://www.npmjs.com/package/@semiont/core) | What every TypeScript package stands on: the protocol's types, generated from the spec, the ids, the event bus, and the contracts a transport implements |
+| [@semiont/observability](./typescript/observability/README.md) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | Tracing and metrics for the TypeScript transport, on OpenTelemetry. It does nothing until a process is given somewhere to export to |
 
 ## Rust
 

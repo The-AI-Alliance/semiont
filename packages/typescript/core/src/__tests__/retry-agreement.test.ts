@@ -25,7 +25,7 @@ interface RetryAfterCase {
   ms: number | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../specs/src/retry/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/retry/cases.json');
 const { rules, retryAfter } = JSON.parse(readFileSync(TABLE, 'utf-8')) as {
   rules: RuleCase[];
   retryAfter: RetryAfterCase[];

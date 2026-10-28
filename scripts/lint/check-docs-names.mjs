@@ -50,6 +50,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, dirname, normalize, resolve, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import { repositoryFiles, ignoredByGit } from './repository-files.mjs';
+import { workspaceDirectories } from './workspaces.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(p, 'utf8');
@@ -182,10 +183,10 @@ function externalNames(spec) {
 }
 
 /** Every npm package under `packages/`, by the name it is imported under. */
-const NPM_PACKAGES = [...TREE].filter((f) => /^packages\/[^/]+\/package\.json$/.test(f)).map((f) => f.split('/')[1]);
+const NPM_PACKAGES = workspaceDirectories(ROOT).filter((dir) => dir.startsWith('packages/'));
 const PACKAGE_SRC = Object.fromEntries(NPM_PACKAGES.map((dir) => [
-  JSON.parse(read(join(ROOT, 'packages', dir, 'package.json'))).name,
-  `packages/${dir}/src`,
+  JSON.parse(read(join(ROOT, dir, 'package.json'))).name,
+  `${dir}/src`,
 ]));
 const pkgMemo = new Map();
 function packageNames(pkg) {
@@ -211,7 +212,7 @@ const ANYWHERE = new Set();
 for (const pkg of Object.keys(PACKAGE_SRC)) for (const n of packageNames(pkg)) ANYWHERE.add(n);
 for (const f of walk(join(ROOT, 'images/browser/src'), ['.ts', '.tsx'])) namesIn(read(f), ANYWHERE, []);
 // A document explaining the code names its internal functions too, not only its exports.
-for (const dir of ['images/browser/src', 'packages/react-ui/src']) {
+for (const dir of ['images/browser/src', 'packages/typescript/react-ui/src']) {
   for (const f of walk(join(ROOT, dir), ['.tsx', '.ts'])) {
     for (const m of read(f).matchAll(/^(?:export\s+)?(?:default\s+)?function\s+([A-Z][\w]*)|^const\s+([A-Z][\w]*)\s*=/gm)) ANYWHERE.add(m[1] ?? m[2]);
   }
@@ -222,27 +223,28 @@ const REACT_HOOKS = new Set(['useState', 'useEffect', 'useMemo', 'useCallback', 
   'useImperativeHandle', 'useOptimistic', 'useActionState']);
 const REACT_COMPONENTS = new Set(['Suspense', 'Fragment', 'StrictMode', 'Profiler']);
 
-const bp = read(join(ROOT, 'packages/core/src/bus-protocol.ts'));
+const bp = read(join(ROOT, 'packages/typescript/core/src/bus-protocol.ts'));
 const CHANNELS = new Set([...bp.matchAll(/^\s*'([a-z][a-z0-9-]*:[a-z0-9-]+)'\s*:/gm)].map((m) => m[1]));
 const BUS_NAMESPACES = new Set([...CHANNELS].map((c) => c.split(':')[0]));
 
 const members = (rel) => new Set([...read(join(ROOT, rel)).matchAll(
   /^\s+(?:public\s+|async\s+|get\s+|static\s+)*([a-z][\w$]*)\s*(?:<[^>]*>)?\(/gm)].map((m) => m[1]));
 const NAMESPACE_METHODS = new Map();
-for (const f of readdirSync(join(ROOT, 'packages/sdk/src/namespaces'))) {
+for (const f of readdirSync(join(ROOT, 'packages/typescript/sdk/src/namespaces'))) {
   if (!f.endsWith('.ts') || f === 'types.ts' || f === 'index.ts') continue;
-  NAMESPACE_METHODS.set(f.replace(/\.ts$/, ''), members(`packages/sdk/src/namespaces/${f}`));
+  NAMESPACE_METHODS.set(f.replace(/\.ts$/, ''), members(`packages/typescript/sdk/src/namespaces/${f}`));
 }
-const clientText = read(join(ROOT, 'packages/sdk/src/client.ts'));
+const clientText = read(join(ROOT, 'packages/typescript/sdk/src/client.ts'));
 const CLIENT_NAMESPACES = new Set([...clientText.matchAll(/readonly\s+([a-z]\w*)\s*[:?]/g)].map((m) => m[1]));
-const CLIENT_METHODS = members('packages/sdk/src/client.ts');
-const BUS_METHODS = members('packages/core/src/event-bus.ts');
-const SESSION_METHODS = members('packages/sdk/src/session/semiont-session.ts');
-const BROWSER_METHODS = members('packages/sdk/src/session/semiont-browser.ts');
+const CLIENT_METHODS = members('packages/typescript/sdk/src/client.ts');
+const BUS_METHODS = members('packages/typescript/core/src/event-bus.ts');
+const SESSION_METHODS = members('packages/typescript/sdk/src/session/semiont-session.ts');
+const BROWSER_METHODS = members('packages/typescript/sdk/src/session/semiont-browser.ts');
 
 const SCRIPTS = new Set();
-for (const pj of [join(ROOT, 'package.json'),
-  ...['packages', 'apps', 'images', 'tests'].flatMap((d) => readdirSync(join(ROOT, d)).map((n) => join(ROOT, d, n, 'package.json')))]) {
+// The root, every workspace, and the test suites that are npm projects of their own.
+for (const pj of [join(ROOT, 'package.json'), ...workspaceDirectories(ROOT).map((dir) => join(ROOT, dir, 'package.json')),
+  ...readdirSync(join(ROOT, 'tests')).map((name) => join(ROOT, 'tests', name, 'package.json'))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 
@@ -258,7 +260,7 @@ const DOCS = [
   'README.md',
   ...markdownIn('docs/builder/react-ui'),
   'packages/README.md',
-  ...NPM_PACKAGES.flatMap((dir) => ownDocs(`packages/${dir}`)),
+  ...NPM_PACKAGES.flatMap((dir) => ownDocs(dir)),
   'apps/README.md',
   'images/README.md',
   ...[...TREE].filter((f) => /^(?:apps|images)\/[^/]+\/README\.md$/.test(f)).flatMap((f) => ownDocs(dirname(f))),
@@ -358,7 +360,7 @@ for (const doc of DOCS) {
       // A path is the repository's, or its document's own package's: a
       // README's `docs/TESTING.md` is the one beside it. The react-ui builder
       // docs live under docs/builder and still name react-ui's files.
-      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/react-ui' : doc.match(/^(?:apps|images|packages)\/[^/]+/)?.[0];
+      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/typescript/react-ui' : doc.match(/^(?:packages\/[^/]+\/[^/]+|apps\/[^/]+|images\/[^/]+)(?=\/)/)?.[0];
       const standings = [m[1], ...(pkgRoot ? [join(pkgRoot, m[1])] : [])].map(standing);
       if (!standings.some((is) => is === 'held' || is === 'built')) report(doc, line, 'path', `${m[1]} — ${why(standings)}`);
     }

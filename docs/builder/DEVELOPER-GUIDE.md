@@ -706,6 +706,6 @@ after that.
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
-- **[@semiont/react-ui](../../packages/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
+- **[@semiont/react-ui](../../packages/typescript/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
 - **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
 - **[`docs/protocol/`](../protocol/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.

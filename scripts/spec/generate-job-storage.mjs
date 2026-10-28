@@ -14,7 +14,7 @@ const ROOT = resolve(HERE, '../..');
 const SPEC = resolve(ROOT, 'specs/src/jobs/storage.json');
 const JOB_TYPE = resolve(ROOT, 'specs/src/components/schemas/JobType.json');
 const MARK_PARAMS = resolve(ROOT, 'specs/src/components/schemas/MarkJobParams.json');
-const OUT_DIR = resolve(ROOT, 'packages/core/src/generated');
+const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 const OUT = resolve(OUT_DIR, 'job-storage.ts');
 
 const { stream, consumer, bucket } = JSON.parse(readFileSync(SPEC, 'utf8'));
@@ -58,4 +58,4 @@ export function jobSubject(type: string): string {
 `,
 );
 
-console.log(`generated the job storage layout (${jobTypes.length} job types) → packages/core/src/generated/job-storage.ts`);
+console.log(`generated the job storage layout (${jobTypes.length} job types) → packages/typescript/core/src/generated/job-storage.ts`);

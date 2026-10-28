@@ -165,16 +165,16 @@ AnnotateView provides:
 
 ## Testing
 
-- `packages/react-ui/src/lib/__tests__/codemirror-logic.test.ts` — segment placement in the editor's document, decoration and widget metadata
-- `packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts` — offsets against string and document positions: the offset table (`specs/src/text/offset-cases.json`) through the selection builder and the segmenter, and `documentPositions` both ways
-- `packages/react-ui/src/components/resource/__tests__/AnnotateView.code-point-offsets.test.tsx` — with the real editor mounted: a selection recorded at its offsets, and a stored selector lighting its words, after characters outside the basic plane and in CRLF documents
-- `packages/core/src/__tests__/anchor-annotation.test.ts` — render-time anchoring strategies and confidence (verbatim-only)
-- `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` — strategy/confidence threading, low-confidence class, once-per-annotation warning
-- `packages/react-ui/src/components/resource/__tests__/BrowseView.test.tsx` — event delegation integration
+- `packages/typescript/react-ui/src/lib/__tests__/codemirror-logic.test.ts` — segment placement in the editor's document, decoration and widget metadata
+- `packages/typescript/react-ui/src/lib/__tests__/code-point-offsets.test.ts` — offsets against string and document positions: the offset table (`specs/src/text/offset-cases.json`) through the selection builder and the segmenter, and `documentPositions` both ways
+- `packages/typescript/react-ui/src/components/resource/__tests__/AnnotateView.code-point-offsets.test.tsx` — with the real editor mounted: a selection recorded at its offsets, and a stored selector lighting its words, after characters outside the basic plane and in CRLF documents
+- `packages/typescript/core/src/__tests__/anchor-annotation.test.ts` — render-time anchoring strategies and confidence (verbatim-only)
+- `packages/typescript/react-ui/src/lib/__tests__/text-segmentation.test.ts` — strategy/confidence threading, low-confidence class, once-per-annotation warning
+- `packages/typescript/react-ui/src/components/resource/__tests__/BrowseView.test.tsx` — event delegation integration
 
 ## Related Documentation
 
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering pipeline overview
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Reference resolution widgets
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms
-- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation model
+- [W3C-WEB-ANNOTATION.md](../../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation model

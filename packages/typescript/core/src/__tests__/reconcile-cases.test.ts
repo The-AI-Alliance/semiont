@@ -17,7 +17,7 @@ interface Case {
 }
 
 const table: { cases: Case[] } = JSON.parse(
-  readFileSync(new URL('../../../../specs/src/annotations/reconcile-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../specs/src/annotations/reconcile-cases.json', import.meta.url), 'utf8'),
 );
 
 describe('reconciling a quoted span (specs/src/annotations/reconcile-cases.json)', () => {

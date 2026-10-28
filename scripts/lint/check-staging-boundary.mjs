@@ -30,7 +30,7 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const DRIVER = 'images/archivist/staging/src/git.rs';
 
 const productionSource = (file) =>
-  /^(apps|images|packages)\/[^/]+\/src\//.test(file) &&
+  /^(?:packages\/[^/]+\/[^/]+|apps\/[^/]+|images\/[^/]+)\/src\//.test(file) &&
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
   !/(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);
 

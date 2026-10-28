@@ -22,7 +22,7 @@ interface Case {
 }
 
 const TABLE = 'specs/src/librarian/derive-views-cases.json';
-const table: { cases: Case[] } = JSON.parse(readFileSync(new URL(`../../../../${TABLE}`, import.meta.url), 'utf8'));
+const table: { cases: Case[] } = JSON.parse(readFileSync(new URL(`../../../../../${TABLE}`, import.meta.url), 'utf8'));
 
 describe('the views read off a knowledge graph (specs/src/librarian/derive-views-cases.json)', () => {
   it('has cases, with a focal annotation and with none', () => {

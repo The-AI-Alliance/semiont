@@ -29,8 +29,8 @@ function option(name) {
 
 const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'specs/src/identifiers/kinds.json'));
 const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'specs/src/components/schemas'));
-const TYPES = resolve(option('--types') ?? resolve(ROOT, 'packages/core/src/types.ts'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/identifiers.ts'));
+const TYPES = resolve(option('--types') ?? resolve(ROOT, 'packages/typescript/core/src/types.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/identifiers.ts'));
 
 function refuse(message) {
   console.error(`✗ ${KINDS}: ${message}`);

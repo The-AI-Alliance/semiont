@@ -205,7 +205,7 @@ describe('bus channel-classification invariants', () => {
  */
 describe('browse is retrieval, never discovery', () => {
   const schema = (name: string): { properties: Record<string, unknown>; required?: string[] } =>
-    JSON.parse(readFileSync(resolve(__dirname, `../../../../specs/src/components/schemas/${name}.json`), 'utf8'));
+    JSON.parse(readFileSync(resolve(__dirname, `../../../../../specs/src/components/schemas/${name}.json`), 'utf8'));
 
   it('no browse channel asks what refers to a resource', () => {
     expect(Object.keys(CHANNEL_ATTRS).filter((channel) => channel.startsWith('browse:referenced-by'))).toEqual([]);
