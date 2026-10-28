@@ -130,9 +130,9 @@ it('should have no WCAG violations', async () => {
 ### CI/CD Integration
 
 ```yaml
-# .github/workflows/accessibility-tests.yml
-- name: Run accessibility tests
-  run: npm run test:a11y --workspace=@semiont/react-ui
+# .github/workflows/ci.yml
+# react-ui's accessibility tests run inside its suite (the test-package job);
+# `npm run test:a11y --workspace=@semiont/react-ui` runs them alone, locally.
 
 - name: Audit the signed-out pages
   run: |

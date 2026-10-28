@@ -1,6 +1,6 @@
 # @semiont/observability
 
-[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+observability%22)
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+observability%22)
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=observability)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=observability)
 [![npm version](https://img.shields.io/npm/v/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)

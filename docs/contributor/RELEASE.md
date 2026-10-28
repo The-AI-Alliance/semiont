@@ -25,7 +25,7 @@ The scripts are in [`scripts/release/`](../../scripts/release/README.md), which 
 
 It reads `origin/main` over the wire, so a stale or dirty clone cannot make a bad commit look releasable. It checks that every `package.json` is at `version.json`'s version, that the tag is free, and that CI is green on that exact commit. On success it prints the release command.
 
-To boot a real stack from the commit before releasing it, run the smoke test with no input. It builds every image and the launcher from the ref and pushes nothing:
+The release itself runs the full gate on the commit (step 2), so nothing has to be booted by hand first. To see that gate's answer before dispatching, run the stack smoke test with no input; it builds every image and the launcher from the ref and pushes nothing:
 
 ```bash
 gh workflow run stack-smoke.yml
@@ -39,12 +39,13 @@ gh workflow run release.yml
 
 [`release.yml`](../../.github/workflows/release.yml) then:
 
-1. Verifies the versions again, tags the commit `v<version>`, and creates the GitHub Release.
-2. Dispatches the npm publish at the tag. When the packages are live, that workflow dispatches both image workflows at the ref it runs on, with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
-3. Dispatches the launcher release at the tag.
-4. Dispatches the crates publish at the tag.
-5. Dispatches the PyPI publish at the tag.
-6. Builds and publishes the desktop apps.
+1. Runs the release gate on the commit, and goes no further unless it passes: every job of [`ci.yml`](../../.github/workflows/ci.yml) in its full tier, the Windows launcher among them; CodeQL; and [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml), which boots a stack from images built from the commit. The npm advisories run beside it. A dry run is held to the gate too.
+2. Verifies the versions again, tags the commit `v<version>`, and creates the GitHub Release.
+3. Dispatches the npm publish at the tag. When the packages are live, that workflow dispatches both image workflows at the ref it runs on, with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
+4. Dispatches the launcher release at the tag.
+5. Dispatches the crates publish at the tag.
+6. Dispatches the PyPI publish at the tag.
+7. Builds and publishes the desktop apps.
 
 Two inputs:
 

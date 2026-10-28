@@ -1,17 +1,28 @@
 name: Continuous Integration
 
+# Three tiers, which the `changes` job decides (.github/scripts/changed-areas.mjs):
+# a pull request and a push to main run the jobs whose areas they touched; the
+# nightly schedule, a dispatch and a release's call run every job, those that
+# run at night and for a release alone among them (`tier == 'full'`).
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:
+  # 08:17 UTC: 4:17 in the morning Eastern under daylight time, 3:17 under
+  # standard, off the hour, when GitHub delays scheduled runs least. A scheduled
+  # run that fails mails whoever last changed this line.
+  schedule:
+    - cron: '17 8 * * *'
+  # release.yml calls the full tier on the commit it is about to tag.
+  workflow_call:
 
 # One run per pull request: a push cancels the run of the push before it, which
 # nobody is waiting for. A push to main is never cancelled: it is the run that
 # sees the merged tree. lint:workflows holds every pull-request workflow to this.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -123,9 +134,14 @@ jobs:
       weaver: ${{ steps.areas.outputs.weaver }}
       smelter: ${{ steps.areas.outputs.smelter }}
       librarian: ${{ steps.areas.outputs.librarian }}
+      compliance: ${{ steps.areas.outputs.compliance }}
+      tier: ${{ steps.areas.outputs.tier }}
     steps:
+      # The parent too: a push is mapped against the commit before it.
       - name: Checkout code
         uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
 
       - name: Which paths changed
         id: filter
@@ -201,6 +217,15 @@ jobs:
               - 'apps/smelter/**'
             librarian:
               - 'apps/librarian/**'
+            # What the compliance audits read beside the code areas: their own
+            # scripts, the docs whose snippets they compile and the fixture
+            # they compile them in, and the Dockerfiles they hold to
+            # supervision.
+            compliance:
+              - 'scripts/compliance/**'
+              - 'docs/**'
+              - 'tests/doc-snippets/**'
+              - 'apps/*/Dockerfile'
 
       - name: Which areas run
         id: areas
@@ -240,14 +265,487 @@ jobs:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
 
+      # The suite once, with coverage. Coverage sets no threshold, so the run
+      # fails exactly when the suite does; the security files Browser Security
+      # Tests once ran again (`test:security`) are files of this suite.
       - name: Run browser tests
         run: |
-          echo "Running browser unit tests..."
           cd apps/browser
-          npm test
+          npm run test:coverage
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./apps/browser/coverage/lcov.info
+          flags: browser
+          name: browser
+          verbose: true
+        continue-on-error: true
+
+  # Each npm package's suite, once, with coverage: coverage sets no threshold,
+  # so the run fails exactly when the suite does (docs/contributor/TESTING.md).
+  # react-ui's accessibility tests are tests of its suite.
+  test-package:
+    name: Test ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ts == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - http-transport
+          - core
+          - observability
+          - react-ui
+          - sdk
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      # What each package needs built to test, and no more.
+      - name: Build the package's dependencies
+        run: |
+          case "${{ matrix.package }}" in
+            core)
+              npm run openapi:bundle
+              ;;
+            http-transport|observability)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              ;;
+            sdk)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/http-transport
+              ;;
+            react-ui)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/http-transport
+              npm run build --workspace=@semiont/sdk
+              ;;
+          esac
+
+      - name: Build the package
+        run: npm run build --workspace=@semiont/${{ matrix.package }}
+
+      - name: Type-check
+        run: npm run typecheck --workspace=@semiont/${{ matrix.package }}
+        env:
+          CI: true
+
+      - name: Run the tests with coverage
+        run: |
+          cd packages/${{ matrix.package }}
+          npm run test:coverage
+          node -e "
+            const total = require('./coverage/coverage-summary.json').total;
+            console.log('## Coverage for ${{ matrix.package }}\n');
+            for (const k of ['lines', 'statements', 'functions', 'branches']) console.log('- ' + k + ': ' + total[k].pct + '%');
+          " >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CI: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/${{ matrix.package }}/coverage/lcov.info
+          flags: ${{ matrix.package }}
+          name: ${{ matrix.package }}
+          verbose: true
+        continue-on-error: true
+
+  # The built Browser, served as it ships, answers the moderation routes with
+  # its shell and carries no moderation content and no secret-shaped string.
+  browser-security:
+    name: Browser Security Tests
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ts == 'true'
+    defaults:
+      run:
+        working-directory: ./apps/browser
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies and build packages
+        run: |
+          cd ../..
+          npm ci --include=optional
+          npm run build:packages
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application for security verification
+        run: |
+          npm start &
+          APP_PID=$!
+          echo "APP_PID=$APP_PID" >> $GITHUB_ENV
+          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done'
+
+      - name: Verify no moderate content leakage
+        run: |
+          # This is a Vite SPA: the server returns 200 + index.html for every
+          # route, and client-side guards (the suite's session-gate tests) keep
+          # a signed-out reader out. The server's answer must be that shell and
+          # nothing more.
+          status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
+          if [ "$status_code" != "200" ]; then
+            echo "❌ /moderate returned $status_code, not the SPA shell's 200"
+            exit 1
+          fi
+          response=$(curl -s http://localhost:3000/moderate)
+          if ! echo "$response" | grep -qi "<html\|<!DOCTYPE"; then
+            echo "❌ /moderate did not return an HTML page"
+            exit 1
+          fi
+          if echo "$response" | grep -qi "moderator dashboard\|entity.tag\|tag.schema\|linked.data\|recent activity"; then
+            echo "❌ SECURITY FAILURE: server-rendered moderation content in the SPA shell"
+            exit 1
+          fi
+          if echo "$response" | grep -qE "sk-ant-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]{10,}\.eyJ"; then
+            echo "❌ SECURITY FAILURE: a secret-shaped string in the SPA shell"
+            exit 1
+          fi
+          for subroute in "/moderate/recent" "/moderate/entity-tags" "/moderate/tag-schemas" "/moderate/linked-data"; do
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000$subroute")
+            if [ "$status_code" != "200" ]; then
+              echo "❌ $subroute returned $status_code, not the SPA shell's 200"
+              exit 1
+            fi
+          done
+          echo "✅ The moderation routes answer the SPA shell, with no moderation content and no secret"
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -n "$APP_PID" ]; then kill "$APP_PID" || true; fi
+          # npm start runs `vite preview`; the npm wrapper can leave it behind.
+          pkill -f "vite preview" || true
+
+  # Lighthouse's accessibility audit of the built Browser's signed-out pages.
+  # apps/browser/lighthouserc.json names the pages and the score they must reach.
+  lighthouse-accessibility:
+    name: Lighthouse - Signed-out Pages
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ts == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Build dependencies
+        run: |
+          npm ci --include=optional
+          npm run openapi:bundle
+          npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/http-transport
+          npm run build --workspace=@semiont/sdk
+          npm run build --workspace=@semiont/react-ui
+
+      - name: Build browser
+        run: |
+          cd apps/browser
+          npm run build
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.15.1
+
+      - name: Audit the signed-out pages
+        run: |
+          cd apps/browser
+          lhci collect
+
+      - name: Assert the audit's scores
+        id: assert
+        run: |
+          cd apps/browser
+          # lhci assert passes when it finds no reports at all
+          ls .lighthouseci/lhr-*.json > /dev/null
+          lhci assert
+
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-results
+          path: apps/browser/.lighthouseci
+          retention-days: 30
+
+      # A run Dependabot started has a read-only token, which cannot comment.
+      - name: Comment PR with Lighthouse results
+        if: always() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        uses: actions/github-script@v9
+        env:
+          ASSERT_OUTCOME: ${{ steps.assert.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const lighthouseDir = 'apps/browser/.lighthouseci';
+            const reports = fs.existsSync(lighthouseDir)
+              ? fs.readdirSync(lighthouseDir)
+                  .filter((f) => f.startsWith('lhr-') && f.endsWith('.json'))
+                  .map((f) => JSON.parse(fs.readFileSync(path.join(lighthouseDir, f), 'utf8')))
+              : [];
+
+            let body;
+            if (reports.length === 0) {
+              body = '❌ **Lighthouse produced no report.** It could not audit the built Browser; see the job log.';
+            } else {
+              const scores = new Map();
+              for (const report of reports) {
+                const page = new URL(report.requestedUrl).pathname;
+                if (!scores.has(page)) scores.set(page, []);
+                scores.get(page).push(Math.round(report.categories.accessibility.score * 100));
+              }
+              const rows = [...scores].map(([page, runs]) => `| \`${page}\` | ${runs.join(', ')} |`);
+              const verdict = {
+                success: '✅ The scores meet `apps/browser/lighthouserc.json`.',
+                failure: '❌ The scores fall short of `apps/browser/lighthouserc.json`.',
+              }[process.env.ASSERT_OUTCOME] ?? `The assertion step did not finish (${process.env.ASSERT_OUTCOME}).`;
+              body = [
+                '**Lighthouse accessibility, signed-out pages**',
+                '',
+                '| Page | Score per run |',
+                '|---|---|',
+                ...rows,
+                '',
+                verdict,
+                '',
+                'Full results are in the workflow artifacts.',
+              ].join('\n');
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            })
+
+  # The audits in scripts/compliance, against the built packages. They read the
+  # sources of every app, the launcher, the docs and the Dockerfiles, so they
+  # run on any of those areas.
+  compliance-check:
+    name: React Hooks Architecture Review
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.compliance == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Build packages (doc-snippets gate checks docs against dist)
+        id: build
+        run: npm run build:packages
+
+      # Every gate below is INDEPENDENT: each checks a different invariant, and a
+      # failure in one says nothing about the others. They defaulted to
+      # `if: success()`, so the first failure skipped the rest — which meant one
+      # push per problem, and (because two of the skipped steps WRITE the
+      # compliance reports) a `cat` further down failing on a file nobody was
+      # going to produce.
+      #
+      # They all depend on the build, though: auditing docs against a `dist` that
+      # was never emitted would report nonsense. So each runs when the BUILD
+      # succeeded, regardless of its sibling gates. `!cancelled()` rather than
+      # `always()` so a cancelled run stops promptly.
+      #
+      # The lint:* gates, which read the tree and no build, run in the census
+      # job, ahead of everything that builds.
+
+      - name: Run Doc Snippets Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
+          ./scripts/compliance/audit-doc-snippets.sh
+          echo "::endgroup::"
+
+      - name: Run React Hooks Ordering Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::React Hooks Ordering Audit (no hook in a conditional render or inside a callback)"
+          npx tsx ./scripts/compliance/audit-hooks-ordering.ts
+          echo "::endgroup::"
+
+      - name: Run Raw Bus Access Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"
+          ./scripts/compliance/audit-raw-bus.sh
+          echo "::endgroup::"
+
+      - name: Run StateUnit Compliance Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::StateUnit Compliance Audit (no class in a state-unit file / X3-static no-module-state / X5 fire-and-forget / A5 gathered context is SDK state / session-bound units built under a session)"
+          fail=0
+          ./scripts/compliance/audit-state-unit-no-class.sh || fail=1
+          ./scripts/compliance/audit-state-unit-module-state.sh || fail=1
+          ./scripts/compliance/audit-fire-and-forget-promise-void.sh || fail=1
+          ./scripts/compliance/audit-gathered-context-component-state.sh || fail=1
+          ./scripts/compliance/audit-session-typed-factories.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
+
+      - name: Run Boot Contract Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Boot Contract Audit (P1-P3 path environment + H1 test-env hygiene + vi.mock targets + every service image can be supervised)"
+          fail=0
+          ./scripts/compliance/audit-path-env.sh || fail=1
+          ./scripts/compliance/audit-test-env-hygiene.sh || fail=1
+          ./scripts/compliance/audit-mock-targets.sh || fail=1
+          ./scripts/compliance/audit-supervision.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
+
+      - name: Run Storage-URI One-Home Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Storage-URI One-Home Audit (storageUri lives on Representation; descriptor access is invisible to tsc)"
+          ./scripts/compliance/audit-storage-uri-one-home.sh
+          echo "::endgroup::"
+
+      - name: Run One-Home Audits
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::One-Home Audits (A6 one generated validator over the spec + toolbar preferences persisted by the policy layer alone)"
+          fail=0
+          ./scripts/compliance/audit-spec-validator.sh || fail=1
+          ./scripts/compliance/audit-toolbar-pref-storage.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
+
+      # The two audits below decide by exit status: batch-audit.ts exits
+      # non-zero when a symbol fails, its wrapper passes that on, and the step
+      # fails. Nothing here reads a report to find out. This step holds the
+      # audits to that: each must refuse a planted violation and pass a clean
+      # tree, because a gate that cannot fail passes everything.
+      - name: Check the Compliance Audits Can Fail
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: ./scripts/compliance/audit-compliance-gate.sh
+
+      - name: Run React-UI Compliance Audit
+        id: react-ui-audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          cd packages/react-ui
+          ./scripts/generate-compliance-report.sh
+
+      - name: Run Browser Compliance Audit
+        id: browser-audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          cd apps/browser
+          ./scripts/generate-compliance-report.sh
+
+      - name: Display Full React-UI Report
+        if: always()
+        run: |
+          echo "::group::Full React-UI Compliance Report"
+          cat .compliance/REACT-UI-COMPLIANCE.md
+          echo "::endgroup::"
+
+      - name: Display Full Browser Report
+        if: always()
+        run: |
+          echo "::group::Full Browser Compliance Report"
+          cat .compliance/BROWSER-COMPLIANCE.md
+          echo "::endgroup::"
+
+      - name: Upload React-UI Compliance Report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: react-ui-compliance-report
+          path: .compliance/REACT-UI-COMPLIANCE.md
+          retention-days: 30
+
+      - name: Upload Browser Compliance Report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-compliance-report
+          path: .compliance/BROWSER-COMPLIANCE.md
+          retention-days: 30
+
+      - name: Create Summary
+        if: always()
+        run: |
+          echo "## Architecture Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # React-UI Summary
+          echo "### React-UI Package" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" .compliance/REACT-UI-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Browser Summary
+          echo "### Browser Application" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" .compliance/BROWSER-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Overall Status
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.react-ui-audit.outcome }}" = "success" ] && [ "${{ steps.browser-audit.outcome }}" = "success" ]; then
+            echo "✅ **PASSED**: no failing symbol in either workspace" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **FAILED**: React-UI audit ${{ steps.react-ui-audit.outcome }}, Browser audit ${{ steps.browser-audit.outcome }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Each failing audit names its failing symbols in its own step's log, and the full reports are above." >> $GITHUB_STEP_SUMMARY
+          fi
 
   test-gateway:
     name: Gateway Tests
@@ -424,12 +922,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
+      # Built from these sources before? Then the six binaries come back and
+      # nothing compiles: a pull request that changes no Rust starts its suites
+      # minutes sooner. The key hashes what the Rust images' layers' key in
+      # stack-smoke.yml hashes, which lint:workflows holds to everything the
+      # build reads, and holds equal to this one. No restore-keys: a binary
+      # built from other sources is the wrong binary.
+      - name: Restore the binaries built from these sources
+        id: binaries
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            target/release/semiont-gateway
+            target/release/semiont-dispatcher
+            target/release/semiont-archivist
+            target/release/semiont-wire-driver
+            target/release/semiont-live-driver
+            target/release/semiont-worker-driver
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+
       - name: Install the pinned Rust toolchain
+        if: steps.binaries.outputs.cache-hit != 'true'
         run: |
           rustup toolchain install
 
       # Its own key, for the release profile: see Gateway Tests.
       - name: Cache cargo
+        if: steps.binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v6.1.0
         with:
           path: |
@@ -441,6 +960,7 @@ jobs:
             ${{ runner.os }}-gateway-release-
 
       - name: Build the services and the Rust drivers
+        if: steps.binaries.outputs.cache-hit != 'true'
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 
       # Several paths: the artifact's root is their common directory, so a
@@ -459,6 +979,116 @@ jobs:
           # Long enough for a job re-run to find them; storage is free here.
           retention-days: 30
           if-no-files-found: error
+
+  # The gateway, on the binaries build-rust built, answers a protected route
+  # with 401 and the JSON error shape, and leaks nothing in the answer.
+  gateway-security:
+    name: Gateway Security Tests
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts, build-rust]
+    if: needs.changes.outputs.rust == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # Built once by build-rust. An artifact keeps no file modes.
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: rust-binaries
+          path: target/release
+
+      - name: Make the binaries executable
+        run: chmod +x target/release/semiont-*
+
+      - name: Write the gateway's configuration document
+        run: |
+          # The gateway's configuration document (GatewayConfig in specs/),
+          # written the way the launcher writes it: resolved, and carrying the
+          # knowledge base's identity. The gateway refuses to boot without a
+          # valid one.
+          printf '%s\n' \
+            '{' \
+            '  "kb": { "name": "test-project", "domain": "localhost" },' \
+            '  "port": 4000,' \
+            '  "publicUrl": "http://localhost:4000",' \
+            '  "identity": { "issuer": "http://localhost:8080/realms/semiont", "subjectClaim": "sub" },' \
+            '  "archivist": { "host": "localhost", "port": 24103 },' \
+            '  "signal": { "type": "in-process" },' \
+            '  "logLevel": "info",' \
+            '  "logFormat": "json",' \
+            '  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }' \
+            '}' \
+            > "$RUNNER_TEMP/gateway.json"
+
+      - name: Start the gateway
+        run: |
+          # The gateway's own service account; boot refuses without it. Nothing
+          # here presents it to an issuer.
+          export JWT_SECRET=test-secret-key-for-testing-32char
+          export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
+          export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
+          nohup target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
+          echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health >/dev/null; then echo "The gateway is healthy"; exit 0; fi
+            if ! kill -0 "$!" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          echo "The gateway did not become healthy. Its log:"
+          cat "$RUNNER_TEMP/gateway.log"
+          exit 1
+
+      - name: Verify API security
+        run: |
+          echo "Testing gateway API security..."
+
+          # Test 1: Verify protected endpoints require authentication
+          endpoints=("/api/status" "/api/resources/does-not-exist")
+
+          for endpoint in "${endpoints[@]}"; do
+            echo "Testing $endpoint..."
+
+            # Test without Authorization header
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4000$endpoint")
+            if [ "$status_code" != "401" ]; then
+              echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for missing auth"
+              exit 1
+            fi
+            echo "✅ $endpoint properly returns 401 for missing authentication"
+
+            # Test with invalid token
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:4000$endpoint")
+            if [ "$status_code" != "401" ]; then
+              echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for invalid token"
+              exit 1
+            fi
+            echo "✅ $endpoint properly returns 401 for invalid token"
+          done
+
+          # Test 2: Verify error responses don't leak sensitive data
+          response=$(curl -s http://localhost:4000/api/status)
+          if echo "$response" | grep -qE "secret|jwt.*key|password|stack.*trace|panicked at|\.rs:[0-9]+"; then
+            echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
+            echo "Response: $response"
+            exit 1
+          fi
+          echo "✅ No sensitive data leaked in API error responses"
+
+          # Test 3: Verify proper JSON error format
+          if ! echo "$response" | grep -q '"error".*"Unauthorized"'; then
+            echo "❌ SECURITY FAILURE: API doesn't return proper JSON error format"
+            exit 1
+          fi
+          echo "✅ Proper JSON error format returned"
+
+          echo "🎉 All gateway API security checks passed!"
+
+      - name: Stop the gateway
+        if: always()
+        run: |
+          if [ -n "$GATEWAY_PID" ]; then kill "$GATEWAY_PID" || true; fi
 
   gateway-conformance:
     name: Gateway Conformance
@@ -1991,8 +2621,11 @@ jobs:
       - name: Encoding Standard vs the table of its labels and single-byte encodings
         run: npm run generate:encoding-cases:check
 
-  test-launcher:
-    name: Launcher Tests (Go)
+  # Everything about the launcher's module but its suite: formatting, vet on
+  # every target a release ships, the Go SDK's own build and tests, and the
+  # vulnerability scan. The suite is test-launcher's.
+  check-launcher:
+    name: Launcher Checks (Go)
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.go == 'true'
@@ -2036,14 +2669,6 @@ jobs:
               echo "::endgroup::"
             done
           done
-
-      # An EXPLICIT budget. These tests drive a fake runtime through real
-      # start/stop lifecycles, so the suite is minutes long and serial; it had
-      # been running at 594-612s against Go's undeclared 600s default, and the
-      # first batch of new tests to cross that line failed as a "timeout" with
-      # no bad code anywhere. A budget you never declared is not a budget.
-      - name: Test launcher
-        run: cd apps/launcher && go test -timeout 30m ./...
 
       # packages/sdk-go is a separate module (the generated API client + bus
       # registry the launcher consumes via a replace directive) — it needs its
@@ -2090,11 +2715,70 @@ jobs:
   #
   # The checkout is byte-for-byte what Linux gets (.gitattributes), which the
   # goldens and fixtures are compared against.
+  # The launcher's suite, split across three runners by test. Its tests drive
+  # a fake runtime whose stand-ins bind the stack's real host ports, so they
+  # cannot run side by side in one process; on runners of their own, each with
+  # its own loopback, they can. Each leg lists the root package's tests in
+  # source order (`go test -list`) and runs its third of them, a block in that
+  # order, so each test follows the test it follows in a serial run: some
+  # tests leave a stand-in listening that the next test sees, and taking every
+  # third test instead failed a golden that a serial run passes. The first leg
+  # also runs the module's other packages. A new test lands in a leg with
+  # nothing to update, and a leg left with no test fails.
+  #
+  # An EXPLICIT budget. These tests drive a fake runtime through real
+  # start/stop lifecycles, so each leg is minutes long and serial; the whole
+  # suite once ran at 594-612s against Go's undeclared 600s default, and the
+  # first batch of new tests to cross that line failed as a "timeout" with no
+  # bad code anywhere. A budget you never declared is not a budget.
+  test-launcher:
+    name: Launcher Tests (Go, ${{ matrix.leg }} of ${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.go == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: apps/launcher
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+          cache-dependency-path: apps/launcher/go.sum
+
+      - name: Choose this leg's tests
+        id: tests
+        run: |
+          names=$(go test -list '.*' . | grep '^Test' | awk -v k=${{ strategy.job-index }} -v n=${{ strategy.job-total }} '{ t[NR] = $0 } END { for (i = int(k * NR / n) + 1; i <= int((k + 1) * NR / n); i++) print t[i] }' | paste -sd '|' -)
+          if [ -z "$names" ]; then
+            echo "::error::leg ${{ matrix.leg }} has no test: go test -list found fewer tests than there are legs"
+            exit 1
+          fi
+          echo "$names" | tr '|' '\n' | wc -l | xargs echo "tests in this leg:"
+          echo "run=^($names)\$" >> "$GITHUB_OUTPUT"
+
+      - name: Test the launcher
+        run: go test -timeout 30m -run '${{ steps.tests.outputs.run }}' .
+
+      - name: Test the launcher's other packages
+        if: strategy.job-index == 0
+        run: go test -timeout 30m $(go list ./... | grep -vx "$(go list .)")
+
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
     runs-on: windows-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.go == 'true'
+    # At night and for a release: a break only Windows sees is found the next
+    # morning, and a release cannot ship it.
+    if: needs.changes.outputs.tier == 'full'
     # A ceiling, not an estimate: how long the suite takes on a Windows runner
     # is measured by its first runs. It starts a process per fake command,
     # which costs more there than on Linux.
@@ -2142,8 +2826,13 @@ jobs:
       - census
       - changes
       - test-browser
+      - test-package
+      - browser-security
+      - lighthouse-accessibility
+      - compliance-check
       - test-gateway
       - build-rust
+      - gateway-security
       - gateway-conformance
       - dispatcher-conformance
       - archivist-conformance
@@ -2168,6 +2857,7 @@ jobs:
       - check-phantom-deps
       - build-all
       - generated-artifacts
+      - check-launcher
       - test-launcher
       - test-launcher-windows
     steps:

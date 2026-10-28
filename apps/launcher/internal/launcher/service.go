@@ -28,12 +28,9 @@ func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 // waits on from a container's side, the Ollama it probes from one (owned by
 // inference or embedding), the identity provider whose KC_DB_URL names the
 // PostgreSQL, the collector whose document names Jaeger, and Prometheus, whose
-// document names the collector. Where publishes are confined, every role but
-// the Browser publishes a port on it.
+// document names the collector. Where publishes are confined, every role
+// publishes a port on it.
 func serviceNeedsAddr(svc string, e exposure) bool {
-	if svc == "browser" {
-		return false
-	}
 	return e.confined() || isConfigConsumer(svc) ||
 		contains([]string{"database", "messaging", "inference", "embedding", "identity", "collector", "metrics"}, svc)
 }

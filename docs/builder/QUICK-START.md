@@ -105,11 +105,20 @@ The CLI asks for the same work. This has the stack detect references to concepts
 semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 ```
 
+## 9. Work in it from an AI application
+
+To work in the knowledge base from Claude or any other MCP client, register the launcher's MCP server with it. The server acts through the sign-in from step 6:
+
+```bash
+claude mcp add semiont -- semiont mcp
+```
+
+**[Connecting an AI application](AI-APPLICATIONS.md)** has the rest: other clients, a codespace's knowledge base, and what the tools do.
+
 ## Next
 
 Everything you just did travelled over one event bus, spoken as [eight verbs](../protocol/flows/README.md): `semiont yield` and `semiont mark` were two of them. The launcher speaks all eight (`semiont browse --help`, and so on), and so does your code, through the SDK.
 
-- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust or Python
-- **[Connecting an AI application](AI-APPLICATIONS.md)**: the same knowledge base from Claude or any other MCP client, after `claude mcp add semiont -- semiont mcp`
+- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust, Python or Go
 - **[Working in the Browser](../analyst/FEATURES.md)**: what you can do with the document you just opened
 - **[Running a local stack](../operator/LOCAL-SEMIONT.md)**: what this page leaves out about the stack you just started

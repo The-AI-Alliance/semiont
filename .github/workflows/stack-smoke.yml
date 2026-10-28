@@ -1,7 +1,12 @@
 # Stack smoke: boot a real stack and assert the things the hermetic suite
-# cannot. The check itself is scripts/release/smoke-stack.sh, which this
-# workflow runs and a laptop runs the same way; what it asserts is said there,
-# once.
+# cannot, then run tests/e2e's default tier against that same stack before it
+# stops. The check itself is scripts/release/smoke-stack.sh, which this
+# workflow runs with --e2e and a laptop runs the same way; what it asserts is
+# said there, once. The stack serves inference and embedding from the models a
+# new knowledge base names. The suite runs without its @model tests, which
+# those models, on a runner with no GPU, do not answer in time.
+# Whatever the suite's result, its Playwright report is kept as an artifact and
+# a table of its specs is written to the run's summary.
 #
 # The LAUNCHER always comes from the commit this workflow runs on. The IMAGES
 # come from one of two places:
@@ -27,10 +32,10 @@ on:
         type: string
   # Self-testing: a change to this workflow, its script, the build it runs or
   # what that build leaves out of an image's context proves it still boots a
-  # stack. Deliberately NOT a gate on other work — the
-  # fake covers per-PR regression, and this lane answers "does the model match
-  # reality", which periodic verification suffices for. It is also the only way
-  # to exercise a dispatch-only workflow before it reaches the default branch,
+  # stack. NOT a gate on other pull requests — the fake covers per-PR
+  # regression, and this lane answers "does the model match reality", which a
+  # nightly run and each release suffice for. It is also the only way to
+  # exercise a dispatch-only workflow before it reaches the default branch,
   # which GitHub requires before `gh workflow run` will find it.
   pull_request:
     paths:
@@ -38,12 +43,23 @@ on:
       - scripts/release/smoke-stack.sh
       - scripts/ci/local-build.sh
       - .dockerignore
+  # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
+  # the morning Eastern under daylight time, 3:17 under standard; off the hour,
+  # when GitHub delays scheduled runs least). It is also what keeps main's cache
+  # of the Rust images' layers: only a run on main writes it, every pull
+  # request's self-test can read it, and GitHub evicts an entry a week unread.
+  # A scheduled run that fails mails whoever last changed this line.
+  schedule:
+    - cron: '17 8 * * *'
+  # The release gate: release.yml calls it on the commit it is about to tag,
+  # with no images named, so it boots images built from that commit.
+  workflow_call:
 
 # One run per pull request: a push cancels the run of the push before it, which
 # nobody is waiting for. A push to main is never cancelled: it is the run that
 # sees the merged tree. lint:workflows holds every pull-request workflow to this.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: stack-smoke-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -52,8 +68,10 @@ permissions:
 jobs:
   boot:
     runs-on: ubuntu-latest
-    # A ceiling, not an estimate of how long the build takes on a runner.
-    timeout-minutes: 90
+    # A ceiling, not an estimate of how long the build takes on a runner: the
+    # build, then a default tier that could spend its sixty-second test timeout
+    # on each of some fifty tests.
+    timeout-minutes: 120
     env:
       # The image tag the smoke writes into the stack's documents: `local`, the
       # images built below from this commit, unless the run names a published
@@ -98,10 +116,61 @@ jobs:
         if: env.IMAGES != 'local'
         run: cd apps/launcher && go build -o dist/semiont .
 
-      - name: Boot a stack and check it
+      - uses: actions/setup-node@v7
+        if: env.IMAGES != 'local'
+        with:
+          node-version-file: .node-version
+
+      - name: Build the packages the e2e suite links to
+        # tests/e2e's @semiont/core and @semiont/sdk are this checkout's
+        # packages/, built; local-build.sh above builds them for a run of
+        # :local images.
+        if: env.IMAGES != 'local'
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      - name: Boot a stack, check it, and run the e2e default tier
         # There is no Ollama on a runner, so the new KB's inference and
         # embedding start one as a container and pull their models — about
-        # 1.8 GB of image plus two small models. That is the supported path,
+        # 1.8 GB of image plus two models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
-        run: scripts/release/smoke-stack.sh "$IMAGES"
+        run: scripts/release/smoke-stack.sh "$IMAGES" --e2e
+
+      - name: Summarise the e2e default tier
+        if: always()
+        run: |
+          REPORT=tests/e2e/test-results/report.json
+          {
+            echo "## e2e default tier"
+            echo
+            if [ ! -f "$REPORT" ]; then
+              echo "The suite wrote no report: it never ran, or stopped before Playwright did. The boot step's log says which."
+              exit 0
+            fi
+            jq -r '
+              "Wall time \(.stats.duration / 1000 | floor | "\(. / 60 | floor)m \(. % 60)s"): \(.stats.expected) passed, \(.stats.unexpected) failed, \(.stats.flaky) flaky, \(.stats.skipped) skipped.",
+              "",
+              "| Spec | Passed | Failed | Flaky | Skipped | |",
+              "|---|---:|---:|---:|---:|---|",
+              (.suites[]
+                | [.. | objects | select(has("tests")) | .tests[].status] as $statuses
+                | ($statuses | map(select(. == "expected")) | length) as $passed
+                | ($statuses | map(select(. == "unexpected")) | length) as $failed
+                | ($statuses | map(select(. == "flaky")) | length) as $flaky
+                | ($statuses | map(select(. == "skipped")) | length) as $skipped
+                | "| `\(.file)` | \($passed) | \($failed) | \($flaky) | \($skipped) | \(if $failed > 0 then "fail" elif $passed + $flaky > 0 then "pass" else "none ran" end) |"),
+              (if (.errors | length) > 0 then "", "Errors outside any test:", "", (.errors[] | "- \(.message | split("\n")[0])") else empty end)
+            ' "$REPORT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the e2e report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+          retention-days: 30

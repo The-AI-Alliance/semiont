@@ -18,15 +18,16 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
+  -e E2E_BROWSER_URL=http://localhost:3000 \
+  -e E2E_GATEWAY_URL=http://localhost:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
-  npm test
+  sh -c 'node e2e-localhost-bridge.mjs & sleep 1; npm test'
 ```
 
-> **Use `192.168.64.1` — the host bridge gateway — not a container's own IP.**
-> It is stable across restarts and routes to every published port. See
+> **`localhost`, through the bridge.** `e2e-localhost-bridge.mjs` forwards the
+> container's `localhost` ports to the host bridge address, `192.168.64.1`,
+> where a container reaches the stack. See
 > [Container networking](#container-networking-reaching-the-host) for why.
 >
 > A container's own IP (from `container ls`) fails twice over:
@@ -64,9 +65,10 @@ Dependabot bumps `package.json` and `package-lock.json` together, but
 nothing installs them here, so the declared and installed versions diverge
 silently until someone runs `npm ci`; a hard-coded tag would make a third.
 
-**Nothing else catches this.** `tests/e2e` is not a root workspace and no CI
-workflow runs it, so the suite's dependencies are only ever installed by a
-person deciding to. After a Dependabot bump, sync before running:
+**Nothing else catches this on a laptop.** `tests/e2e` is not a root
+workspace, so its dependencies are installed only by a person deciding to, or
+by [Stack Smoke](#how-ci-runs-the-suite), which runs `npm ci` before every
+run. After a Dependabot bump, sync before running:
 
 ```sh
 npm ci        # installs the lockfile EXACTLY; never rewrites it
@@ -78,24 +80,33 @@ dependencies for everyone else. The lockfile is tracked and is the authority.
 
 ## Container networking: reaching the host
 
-The suite runs in a Playwright **container**, but the Browser and gateway
-are published on the **host**. A containerized browser **can't use
-`localhost`** — inside the container that resolves to the container itself,
-not the host. And pinning a container's bridge IP is fragile: container IPs
-change on every restart.
+The suite runs in a Playwright **container**, but the stack is published on
+the **host**. Inside the container `localhost` is the container itself, and a
+container's own IP changes on every restart.
 
-The robust target is the **host bridge gateway**, `192.168.64.1`: it's
-reachable from inside containers, routes to the host's *published* ports
-(`:3000`→browser, `:4000`→gateway), and its address is **stable across
-restarts**.
+Under Apple `container` the stack publishes what a person opens on the Mac's
+loopback, which no container reaches, and what the containers dial on the
+**host bridge address**, `192.168.64.1`, which every container reaches and
+which is stable across restarts. The Browser and the gateway, which a person
+and a container both open, take a second port there, 10000 above their own:
+`:13000` and `:14000`.
+
+`e2e-localhost-bridge.mjs` joins the two. Run inside the container, it listens
+on the container's `localhost` and forwards each port to where a container
+reaches it: `:3000`→`:13000`, `:4000`→`:14000`, and `:8080` (Keycloak) and
+`:24100` (the worker's health) as they are. The suite then uses
+`http://localhost:*` throughout, which gives Chromium the secure context PKCE
+needs, and the knowledge base it registers is the origin the launcher
+advertises. The launcher's tests hold the bridge's ports to the launcher's own.
+
+Under Docker, `scripts/release/smoke-stack.sh --e2e` runs the suite with
+`--network host`, where `localhost` is the host, and starts no bridge.
 
 > **No CORS origin to configure.** The gateway serves open CORS
 > (`Access-Control-Allow-Origin: *`, bearer-only — no credentials), so the
 > browser signs in from *any* origin.
 
-Run the suite against the gateway for **both** URLs, with the Browser
-published on host port 3000 (`-p 3000:3000`; the gateway already publishes
-`4000`). No IP-grabbing needed — the gateway doesn't change between runs:
+Run the suite with the bridge in front of it:
 
 ```sh
 container run --rm \
@@ -103,11 +114,11 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
+  -e E2E_BROWSER_URL=http://localhost:3000 \
+  -e E2E_GATEWAY_URL=http://localhost:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
-  npm test
+  sh -c 'node e2e-localhost-bridge.mjs & sleep 1; npm test'
 ```
 
 ## Docs
@@ -146,10 +157,19 @@ container run --rm \
 guards; a regression in that path fails that spec. Specs tagged
 `@slow` run only under `npm run test:slow`.
 
+Tests tagged `@model` pass or fail on what the inference model returns: a
+delegated job's annotations, a generation, a structured reply. A model too small
+to answer in valid JSON, or too slow on the machine, fails them while every
+other test passes. They are in the default tier, which `npm test` runs;
+`npm run test:model` runs them alone. CI runs `npm run test:ci`, the default
+tier without them: on a four-core runner with no GPU, neither `gemma3:270m`
+nor `gemma3:1b` answered them correctly within their timeouts.
+
 ## Scope
 
-- **Not in CI.** No workflow runs it; run it locally against a stack you
-  brought up.
+- **Not a gate on pull requests.** Stack Smoke runs the default tier nightly
+  (see [How CI runs the suite](#how-ci-runs-the-suite)); otherwise run it
+  against a stack you brought up.
 - **Seeded.** Playwright's global setup ([`scripts/seed.ts`](scripts/seed.ts))
   authenticates through `@semiont/sdk` and uploads the fixtures the specs
   assume: text resources for the annotation specs, PDFs for the PDF specs.
@@ -157,10 +177,36 @@ guards; a regression in that path fails that spec. Specs tagged
   storage URI, so a re-run against a seeded knowledge base skips it.
 - **Real sign-in.** Connect leaves the Browser for the launcher-run
   Keycloak, and the `signIn` fixture types the credentials into its login
-  page.
+  page. An account's first sign-in asks for a name, which `semiont useradd`
+  does not set; the seed's sign-in, always the run's first, gives one.
 - **One worker, no retries.** Specs share the knowledge base; a flake is
   diagnosed, not retried away.
 - **Chromium only.**
+
+## How CI runs the suite
+
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) runs
+[`scripts/release/smoke-stack.sh <images> --e2e`](../../scripts/release/smoke-stack.sh),
+nightly on `main`, on dispatch, and on a pull request that changes the
+workflow or its script. The script boots a new knowledge base's stack on
+docker, with the inference and embedding models `semiont init` names, and,
+after its own checks and before it stops the stack:
+
+- makes the suite's user with `semiont useradd`, a password generated for the
+  run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
+- runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
+  `<version>` read from `package.json`, with `--network host`, so the
+  `localhost` defaults reach the stack;
+- adds a JSON report to the list and HTML ones, at
+  `test-results/report.json`.
+
+A failing suite fails the job, prints the stack's container logs, and still
+stops the stack. Whatever the result, `playwright-report/` and
+`test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
+table of the specs with the tier's wall time is written to the run's summary.
+On a laptop with docker, `scripts/release/smoke-stack.sh local --e2e` does the
+same; Apple's `container` has no `--network host`, so there it refuses, and
+the [Quick start](#quick-start) is the way.
 
 ## Running against a freshly-built stack
 

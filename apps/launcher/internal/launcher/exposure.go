@@ -27,7 +27,8 @@ const (
 // containersSide: how far above its person's port the containers' side of a
 // port both dial is published. One host port cannot be published on two
 // addresses (measured on Apple container 0.11.0), so the gateway's 4000 is a
-// person's and 14000 the containers', and Neo4j's 7687 likewise 17687.
+// person's and 14000 the containers', Neo4j's 7687 likewise 17687, and the
+// Browser's 3000 likewise 13000.
 const containersSide = 10000
 
 // reachOf: who dials role's port, by the host port it is published on. The
@@ -36,9 +37,13 @@ const containersSide = 10000
 // only the launcher's probes, which follow the containers.
 func reachOf(role string, hostPort int) reach {
 	switch role {
-	case "browser", "metrics":
+	case "metrics":
 		return reachPerson
 	case "gateway":
+		return reachPerson | reachContainers
+	case "browser":
+		// A person's browser, and the end-to-end suite's, whose Chromium runs
+		// in a container and opens the Browser as a person does.
 		return reachPerson | reachContainers
 	case "graph":
 		if hostPort == descriptorFor("graph", "neo4j").auxPorts[0].port {

@@ -289,8 +289,8 @@ jobs:
           ./scripts/generate-compliance-report.sh
 ```
 
-The repository's own workflow is
-[`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml).
+The repository runs them in the `compliance-check` job of
+[`ci.yml`](../../.github/workflows/ci.yml).
 
 ## Performance
 

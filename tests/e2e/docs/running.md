@@ -28,10 +28,15 @@ The user must exist in the stack's issuer. The stack flow in the
 
 ## Running from a container (recommended on macOS)
 
-The dev stack runs in Apple containers on the `192.168.64.0/24` bridge, with
-its ports published on the host. **Target the host bridge gateway,
-`192.168.64.1`** — it routes to every published port (`:3000` browser,
-`:4000` gateway, `:24100` worker health) and is stable across restarts.
+The dev stack runs in Apple containers on the `192.168.64.0/24` bridge. What
+a person opens listens on the Mac's loopback, which no container reaches; what
+the containers dial listens on the **host bridge address, `192.168.64.1`**,
+which is stable across restarts. The Browser and the gateway take a second
+port there for containers, `:13000` and `:14000`. The suite reaches the stack
+through `e2e-localhost-bridge.mjs`, which forwards the container's
+`localhost:3000`, `:4000`, `:8080` and `:24100` to where a container reaches
+each, so every URL the suite uses is `http://localhost:*` (see the
+[README](../README.md#container-networking-reaching-the-host)).
 
 **Do not use the containers' own IPs** (from `container ls`). Two things
 break:
@@ -55,11 +60,11 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
+  -e E2E_BROWSER_URL=http://localhost:3000 \
+  -e E2E_GATEWAY_URL=http://localhost:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
-  npm test
+  sh -c 'node e2e-localhost-bridge.mjs & sleep 1; npm test'
 ```
 
 > **`npm test`, not `npx playwright test`.** The `pretest` hook runs
