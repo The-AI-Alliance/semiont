@@ -181,10 +181,11 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		return nil, nil, err
 	}
 	token := NewVariable("")
+	renewer := newRefresherToCome()
 	var places *CoupledBookmarks
 	var persistence *CachePersistence
 	transportConfig := HTTPTransportConfig{
-		BaseURL: baseURL, Token: token, Refresher: refreshedBy(func() *Session { return session }),
+		BaseURL: baseURL, Token: token, Refresher: renewer,
 		Channels: config.Channels, HTTP: config.HTTP, Timing: config.Timing,
 	}
 	if config.Storage != nil {
@@ -205,10 +206,13 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 		AskWhoTokenIs: config.AskWhoTokenIs, OnAuthFailed: config.OnAuthFailed, OnError: config.OnError,
 	})
 	if err != nil {
+		// No session is to come: closing the transport ends the wait of a
+		// refusal that arrived first.
 		client.Close()
 		transport.Close()
 		return nil, nil, err
 	}
+	renewer.is(session)
 	end = func() {
 		session.Close()
 		client.Close()
@@ -221,11 +225,36 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 	return session, end, nil
 }
 
-// refreshedBy is a TokenRefresher that asks the session its transport is
-// built before: the session is made once the client over the transport is.
-type refreshedBy func() *Session
+// refresherToCome is a TokenRefresher that asks one made after it. A
+// transport is built before the session that renews its token, and the
+// session starts sending that token before it is returned, so a refusal can
+// arrive before there is a session to ask: it waits for one.
+type refresherToCome struct {
+	made      chan struct{}
+	refresher TokenRefresher
+}
 
-func (r refreshedBy) Refresh(ctx context.Context) (string, bool) { return r().Refresh(ctx) }
+func newRefresherToCome() *refresherToCome {
+	return &refresherToCome{made: make(chan struct{})}
+}
+
+// is says which refresher answers. It is said once.
+func (r *refresherToCome) is(refresher TokenRefresher) {
+	r.refresher = refresher
+	close(r.made)
+}
+
+// Refresh waits for the refresher to come, then asks it. It gives no token
+// when ctx is done first, as it is when the transport closes because no
+// session was made.
+func (r *refresherToCome) Refresh(ctx context.Context) (string, bool) {
+	select {
+	case <-r.made:
+		return r.refresher.Refresh(ctx)
+	case <-ctx.Done():
+		return "", false
+	}
+}
 
 // SignInWithDevice signs a person in from a process with no browser, and keeps
 // the sign-in in kept. The issuer the knowledge base at baseURL trusts mints a
