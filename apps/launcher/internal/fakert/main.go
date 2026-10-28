@@ -15,8 +15,9 @@
 //	                         and for netstat; UNSET = answer for real, because
 //	                         a fake that calls a truly-held port "free" hides
 //	                         real bugs
-//	FAKERT_PS_<pid>          what a PID runs, for ps and for tasklist
-//	                         (default "fakeproc")
+//	FAKERT_PS_<pid>          what a PID runs, for ps and for tasklist; UNSET =
+//	                         ask the system (holders.go), so a port's holder
+//	                         is named for what it is
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
@@ -742,7 +743,15 @@ func lsof(args []string) {
 		_ = ln.Close()
 		os.Exit(1) // bindable ⇒ nothing holds it; real lsof exits 1
 	}
-	printLsof(port, strconv.Itoa(os.Getpid()))
+	// Held: name what holds it, as the system reports it. A made-up holder
+	// would leave a listener one test left behind unnamed in the next test's
+	// failure.
+	pids := systemListeners(port)
+	if len(pids) == 0 {
+		fmt.Fprintf(os.Stderr, "fakert lsof: 127.0.0.1:%s cannot be bound, and the system names no process listening on it\n", port)
+		os.Exit(2)
+	}
+	printLsof(port, pids...)
 }
 
 // opCmd fakes the 1Password CLI. Resolution calls `op read op://<path>`; the
@@ -977,16 +986,25 @@ func opReadItemField(path string) (string, bool) {
 func psCmd(args []string) {
 	// The launcher calls `ps -p <pid> -o comm=`.
 	if len(args) == 4 && args[0] == "-p" && args[2] == "-o" && args[3] == "comm=" {
-		fmt.Println(processName(args[1]))
+		if name := scriptedProcessName(args[1]); name != "" {
+			fmt.Println(name)
+			return
+		}
+		name, ok := systemProcessName(args[1])
+		if !ok {
+			os.Exit(1) // as ps does for a pid that runs nothing
+		}
+		fmt.Println(name)
 		return
 	}
 	fmt.Fprintf(os.Stderr, "fakert ps: unscripted args %v\n", args)
 	os.Exit(64)
 }
 
-// processName: what a process runs, as `ps` and `tasklist` each report it.
-// FAKERT_PS_<pid> scripts one.
-func processName(pid string) string {
+// scriptedProcessName: what a process runs, as the scenario says: the name
+// FAKERT_PS_<pid> gives it, or "gh" for a fake forward. "" for any other pid,
+// which `ps` and `tasklist` ask the system about.
+func scriptedProcessName(pid string) string {
 	if comm := os.Getenv("FAKERT_PS_" + pid); comm != "" {
 		return comm
 	}
@@ -1004,7 +1022,7 @@ func processName(pid string) string {
 			}
 		}
 	}
-	return "fakeproc"
+	return ""
 }
 
 // tasklist fakes what the launcher asks Windows for a process's name:
@@ -1013,7 +1031,11 @@ func processName(pid string) string {
 func tasklist(args []string) {
 	if len(args) == 5 && args[0] == "/FI" && args[2] == "/FO" && args[3] == "CSV" && args[4] == "/NH" {
 		if pid, ok := strings.CutPrefix(args[1], "PID eq "); ok {
-			fmt.Printf("%q,%q,\"Console\",\"1\",\"10,000 K\"\r\n", processName(pid)+".exe", pid)
+			if name := scriptedProcessName(pid); name != "" {
+				fmt.Printf("%q,%q,\"Console\",\"1\",\"10,000 K\"\r\n", name+".exe", pid)
+				return
+			}
+			systemTasklist(args)
 			return
 		}
 	}

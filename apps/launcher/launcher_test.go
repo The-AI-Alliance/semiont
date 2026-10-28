@@ -967,9 +967,6 @@ func TestStartNetworkLANBoot(t *testing.T) {
 			}
 		}
 	})
-	// The fake runtime answers `ps` and `tasklist` for every process, and names
-	// one it was not told of "fakeproc". The proxy is the launcher run again,
-	// which the real commands name as the launcher, so the fake is told so.
 	claimProxy := func() int {
 		t.Helper()
 		pid := recordedIssuerProxyPID(t, s)
@@ -977,7 +974,6 @@ func TestStartNetworkLANBoot(t *testing.T) {
 			t.Fatal("the record names no issuer proxy")
 		}
 		proxies = append(proxies, pid)
-		s.extraEnv = append(s.extraEnv, fmt.Sprintf("FAKERT_PS_%d=%s", pid, filepath.Base(launcherBin)))
 		return pid
 	}
 	stdout, stderr, code := s.run(t, "start")
