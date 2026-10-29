@@ -1033,7 +1033,7 @@ log keeps) is written as `[withheld]`.
 | `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../../specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
 | `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../../specs/src/media-types/registry.json) |
-| `readme` | The programs this page shows, each run by its tests | hand-written |
+| `internal/readme` | The programs this page shows, each run by its tests. It is internal, so no program outside the module can import it | hand-written |
 
 Everything generated is committed, as the monorepo's other generated
 artifacts are. A consumer never needs a generator, and a change to the spec
@@ -1088,8 +1088,8 @@ Each has a `:check` form that verifies without writing, as CI does.
 The module is [`packages/go/sdk`][package] of the [Semiont repository][semiont],
 and [Testing][testing] says how its checks and its tests are run. Go runs in a
 `golang` container at the toolchain its `go.mod` names. The programs this page
-shows are files of package `readme`, word for word: the compiler checks them,
-and its tests run each one.
+shows are files of package `readme`, in `internal/readme`, word for word: the
+compiler checks them, and its tests run each one.
 
 ## License
 
