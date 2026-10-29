@@ -3,7 +3,7 @@
  * lint:python-version — the Python the SDK supports is written once, in
  * `requires-python`, and every restatement of it says the same.
  *
- * `requires-python = ">=X.Y"` in packages/sdk-python/pyproject.toml is the
+ * `requires-python = ">=X.Y"` in packages/python/sdk/pyproject.toml is the
  * floor: the oldest Python the package runs on, which an installer enforces.
  * A person moves it, rarely, so the copies the tools force are kept and held
  * here to it. What can read it does, and writes nothing.
@@ -42,8 +42,8 @@ import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 /** The manifest that owns the floor: the one scripts/ci/python-floor.sh reads. */
-const PYPROJECT = 'packages/sdk-python/pyproject.toml';
-const GENERATOR = 'packages/sdk-python/scripts/generate_models.py';
+const PYPROJECT = 'packages/python/sdk/pyproject.toml';
+const GENERATOR = 'packages/python/sdk/scripts/generate_models.py';
 const READER = 'scripts/ci/python-floor.sh';
 /** This file names what it refuses. */
 const SELF = 'scripts/lint/check-python-version.mjs';

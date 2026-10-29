@@ -23,7 +23,7 @@ const SPEC = resolve(ROOT, 'specs/openapi.json');
 // Package api: oapi-codegen's client_gen.go, and ids_gen.go, which writes the
 // kinds of id the config excludes from it. Every generated file of the
 // package is read, so a schema's type counts wherever its generator put it.
-const API = resolve(ROOT, 'packages/sdk-go/api');
+const API = resolve(ROOT, 'packages/go/sdk/api');
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
 const go = readdirSync(API)
@@ -44,16 +44,16 @@ if (schemas.length === 0) {
 const missing = schemas.filter((name) => !new RegExp(`^type ${name}\\b`, 'm').test(go));
 
 if (missing.length > 0) {
-  console.error(`::error::packages/sdk-go/api is missing ${missing.length} of ${schemas.length} schemas.`);
+  console.error(`::error::packages/go/sdk/api is missing ${missing.length} of ${schemas.length} schemas.`);
   console.error('');
   console.error('  Missing types:');
   for (const name of missing.slice(0, 25)) console.error(`    ${name}`);
   if (missing.length > 25) console.error(`    …and ${missing.length - 25} more`);
   console.error('');
   console.error('  The generator prunes schemas unreachable from an HTTP path unless');
-  console.error('  packages/sdk-go/oapi-codegen.yaml sets `skip-prune`. Regenerate:');
+  console.error('  packages/go/sdk/oapi-codegen.yaml sets `skip-prune`. Regenerate:');
   console.error('');
-  console.error('    cd packages/sdk-go && go generate ./...');
+  console.error('    cd packages/go/sdk && go generate ./...');
   console.error('');
   process.exit(1);
 }

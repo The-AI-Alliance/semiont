@@ -25,7 +25,7 @@ cd "$REPO_ROOT"
 
 STATUS=0
 
-BANG=$(grep -rnE "use(Session)?StateUnit\(" packages/react-ui/src apps/browser/src \
+BANG=$(grep -rnE "use(Session)?StateUnit\(" packages/typescript/react-ui/src images/browser/src \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v __tests__ \
   | grep -E "[A-Za-z_]+!(,|\.|\))" || true)
@@ -35,12 +35,12 @@ if [ -n "$BANG" ]; then
   STATUS=1
 fi
 
-PLAIN=$(grep -rnE "useStateUnit\(" packages/react-ui/src apps/browser/src \
+PLAIN=$(grep -rnE "useStateUnit\(" packages/typescript/react-ui/src images/browser/src \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v __tests__ \
   | grep -v "useSessionStateUnit(" \
-  | grep -v "packages/react-ui/src/hooks/useStateUnit.ts" \
-  | grep -v "packages/react-ui/src/hooks/useShellStateUnit.ts" || true)
+  | grep -v "packages/typescript/react-ui/src/hooks/useStateUnit.ts" \
+  | grep -v "packages/typescript/react-ui/src/hooks/useShellStateUnit.ts" || true)
 if [ -n "$PLAIN" ]; then
   echo "❌ useStateUnit( outside the sessionless allowlist (shell only) —"
   echo "   session-bound units must use useSessionStateUnit:"

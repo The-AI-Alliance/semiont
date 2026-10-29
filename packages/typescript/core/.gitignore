@@ -1,0 +1,7 @@
+# Generated from the spec by the build: the bundle it copies, the types
+# openapi-typescript writes, and what scripts/spec/ generates
+/openapi.json
+/src/types.ts
+/src/generated/
+# tsc's declarations, which the build bundles and then deletes
+/dist-types/

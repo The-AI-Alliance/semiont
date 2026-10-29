@@ -1,0 +1,580 @@
+package verbs
+
+// browse.go — `semiont browse`: the front end of the SDK's browse namespace.
+// Each read is one of its queries, read once; `--browser` drives the
+// participant's viewer through beckon's. This file holds no protocol
+// knowledge of its own: what each read asks is the SDK's.
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+)
+
+const browseIDs = "semiont browse [options] -- <resourceId>"
+
+const browseUsage = `Usage: semiont browse [<resourceId>] [options]
+
+Read the knowledge base. With no resourceId, lists resources; with one,
+shows that resource (add --annotations for its annotations).
+
+With --browser, the act lands on the PARTICIPANT's screen instead of printing
+here — the same act, a different audience. Two things can be opened:
+
+  semiont browse <resourceId> --browser              a resource
+  semiont browse --annotation <id> --browser         one annotation, opened
+
+The annotation form takes no resourceId: an annotation id names exactly one
+annotation on exactly one resource, so the id is the whole address.
+
+Either form needs a web browser watching the Browser; when none is, the
+command says so and exits non-zero, so a tour script can stop rather than
+narrate to an empty room.
+
+Options:
+  --resource <id>       The resource to show (bare)
+  --browser             Open it in the Browser instead of printing here
+  --annotation <id>     With --browser: open ONE annotation (not --annotations)
+  --launch              With --browser: start the Browser if none is running
+  --browser-url <url>   Browser origin to report (default: the recorded one)
+  --entity-type <name>  Filter the list by entity type
+  --limit <n>           Maximum results (default 20)
+  --annotations         With a resourceId: show its annotations here
+  --entity-types        List the KB's entity-type vocabulary
+  --tag-schemas         List the KB's tag schemas and their categories
+  --json                Raw JSON reply instead of a table
+  --repo <owner/name>   Target a codespace stack (default: the local stack)
+  --runtime <rt>        Target the local stack explicitly
+  --help                Show this help
+
+` + idsOrder + `
+
+` + idsNote + `
+  ` + browseIDs + `
+
+Requires a session:  semiont login
+`
+
+func Browse(args []string) int {
+	u := launcher.NewUI(false)
+	var resourceID, entityType, repo, browserURL, annotation string
+	var positional []string
+	limit := 20
+	annotations, entityTypes, tagSchemas, asJSON, wantLocal := false, false, false, false, false
+	toBrowser, launch := false, false
+
+options:
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		val := func() (string, bool) {
+			if i+1 >= len(args) {
+				u.Fail("Missing value for %s", a)
+				return "", false
+			}
+			i++
+			return args[i], true
+		}
+		switch a {
+		case "--resource":
+			if !idValue(u, "resource", val, &resourceID) {
+				return 1
+			}
+		case "--entity-type":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			entityType = v
+		case "--limit":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				u.Fail("--limit wants a positive number, got %q", v)
+				return 1
+			}
+			limit = n
+		case "--repo":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			repo = v
+		case "--runtime":
+			if _, ok := val(); !ok {
+				return 1
+			}
+			wantLocal = true
+		case "--annotations":
+			annotations = true
+		case "--entity-types":
+			entityTypes = true
+		case "--tag-schemas":
+			tagSchemas = true
+		case "--json":
+			asJSON = true
+		case "--browser":
+			toBrowser = true
+		case "--annotation":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			annotation = v
+		case "--launch":
+			launch = true
+		case "--browser-url":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			browserURL = v
+		case "--":
+			// Every word after it is an id, whatever it begins with.
+			positional = append(positional, args[i+1:]...)
+			break options
+		case "--help", "-h":
+			fmt.Print(browseUsage)
+			return 0
+		default:
+			if strings.HasPrefix(a, "-") {
+				return unknownArgument(u, a, browseIDs)
+			}
+			positional = append(positional, a)
+		}
+	}
+	if !fillIDs(u, browseIDs, positional, &resourceID) {
+		return 1
+	}
+	// --annotation and --annotations are one keystroke apart and mean opposite
+	// things: one DRIVES a remote viewer to a single annotation, the other
+	// RENDERS a list here. Name the trap — "conflicting flags" is exactly the
+	// message a typo needs and does not get.
+	if annotation != "" && annotations {
+		u.Fail("--annotation <id> opens ONE annotation on the participant's screen; --annotations (plural) lists them here. Pick one.")
+		return 1
+	}
+	if annotations && resourceID == "" {
+		u.Fail("--annotations needs a resourceId: semiont browse <resourceId> --annotations")
+		return 1
+	}
+	// --browser names a DESTINATION; the rendering flags each name a local
+	// rendering. Together they state two destinations at once, so say which
+	// pair conflicts rather than silently honouring one of them.
+	if toBrowser {
+		for _, conflict := range []struct {
+			set  bool
+			flag string
+		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}, {tagSchemas, "--tag-schemas"}} {
+			if conflict.set {
+				u.Fail("--browser opens it in the Browser; %s renders it here. Pick one.", conflict.flag)
+				return 1
+			}
+		}
+		// An annotation id names exactly one annotation on exactly one
+		// resource, so this form carries no resourceId — on the wire OR here.
+		// Accepting one the launcher never sends would put the driver back in
+		// charge of keeping two ids consistent, which is the redundancy
+		// BrowseClickEvent was trimmed of; and since verifying the pair would
+		// take a read this verb must not do, an unmatched pair could only be
+		// echoed back as a lie.
+		if annotation != "" {
+			if resourceID != "" {
+				u.Fail("--annotation %s already names one annotation on one resource; drop the resourceId %q.", annotation, resourceID)
+				return 1
+			}
+		} else if resourceID == "" {
+			u.Fail("--browser needs a resourceId: semiont browse <resourceId> --browser")
+			fmt.Fprintln(os.Stderr, "  (Opening the resource LIST in the Browser is a different route and is not supported yet.)")
+			return 1
+		}
+	}
+	// Starting a container is a large action for a READ verb to take, so it
+	// stays explicit twice over: --launch opts in, and it is refused outside
+	// the one destination it could possibly mean.
+	for _, dep := range []struct {
+		set  bool
+		flag string
+	}{{launch, "--launch"}, {browserURL != "", "--browser-url"}, {annotation != "", "--annotation"}} {
+		if dep.set && !toBrowser {
+			u.Fail("%s only applies with --browser.", dep.flag)
+			return 1
+		}
+	}
+
+	var rid api.ResourceId
+	if resourceID != "" {
+		id, ok := parsed(u, "resource", resourceID, api.ParseResourceId)
+		if !ok {
+			return 1
+		}
+		rid = id
+	}
+	var aid api.AnnotationId
+	if annotation != "" {
+		id, ok := parsed(u, "annotation", annotation, api.ParseAnnotationId)
+		if !ok {
+			return 1
+		}
+		aid = id
+	}
+
+	sess, ok := launcher.VerbSession(u, "browse", repo, wantLocal)
+	if !ok {
+		return 1
+	}
+	defer sess.Close()
+	c := sess.Client()
+
+	// --browser is the one path in this file that SIGNALS instead of reading:
+	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
+	// locally. It returns here rather than threading a "did we render" flag
+	// through the request/reply path below, which stays a pure read.
+	if toBrowser {
+		d := drive{
+			subject: resourceID,
+			channel: bus.BrowseResourceOpen.Channel(),
+			retry:   fmt.Sprintf("semiont browse %s --browser", resourceID),
+		}
+		if annotation != "" {
+			d = drive{
+				subject: "annotation " + annotation,
+				channel: bus.BrowseClick.Channel(),
+				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
+			}
+		}
+		var subscribers int
+		var counted bool
+		var err error
+		if annotation != "" {
+			subscribers, counted, err = c.Beckon.Click(c.Context(), aid)
+		} else {
+			subscribers, counted, err = c.Beckon.OpenResource(c.Context(), rid)
+		}
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		// A counted zero is the one case the launcher can act on: the signal
+		// was published and nobody was there. Probe only then — the happy path
+		// must not pay for an HTTP round trip it never reads, and an uncounted
+		// emit is not evidence of an empty room.
+		if counted && subscribers == 0 {
+			return nobodySaw(u, d, browserURL, launch)
+		}
+		u.Ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, counted, string(d.channel)))
+		return 0
+	}
+
+	if annotations {
+		list, ok := annotationsOf(u, c, rid)
+		if !ok {
+			return 1
+		}
+		if asJSON {
+			return printJSON(u, list)
+		}
+		printAnnotations(u, list)
+		return 0
+	}
+
+	if err := c.Reached(); err != nil {
+		return busFail(u, "browse", err)
+	}
+	switch {
+	case entityTypes:
+		types, err := c.Browse.EntityTypes().Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, types)
+		}
+		if len(types) == 0 {
+			u.Log("This KB declares no entity types yet.")
+			return 0
+		}
+		for _, e := range types {
+			fmt.Printf("  %s\n", e)
+		}
+	case tagSchemas:
+		schemas, err := c.Browse.TagSchemas().Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, schemas)
+		}
+		if len(schemas) == 0 {
+			u.Log("This KB declares no tag schemas yet.")
+			return 0
+		}
+		// A schema's id and its categories' names are what a delegated
+		// tagging pass is asked by:  semiont mark --delegate --help
+		for _, schema := range schemas {
+			fmt.Printf("  %-24s %s %s\n", schema.Id, schema.Name, u.Dim("("+schema.Domain+")"))
+			for _, category := range schema.Tags {
+				fmt.Printf("    %-22s %s\n", category.Name, u.Dim(category.Description))
+			}
+		}
+	case resourceID != "":
+		resource, err := c.Browse.Resource(rid).Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, resource)
+		}
+		// How many annotations it has, which its description does not carry.
+		list, ok := annotationsOf(u, c, rid)
+		if !ok {
+			return 1
+		}
+		fmt.Printf("  %s  %s\n", u.Bold(resource.Name), u.Dim(resource.Id.String()))
+		if entityTypes := semiont.ResourceEntityTypes(resource); len(entityTypes) > 0 {
+			fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(entityTypes, ", ")))
+		}
+		fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(list))))
+	default:
+		filters := semiont.ResourceFilters{Limit: limit}
+		if entityType != "" {
+			filters.EntityType = &entityType
+		}
+		page, err := c.Browse.Resources(filters).Fresh(c.Context())
+		if err != nil {
+			return busFail(u, "browse", c.Refusal(err))
+		}
+		if asJSON {
+			return printJSON(u, page)
+		}
+		printResources(u, page.Resources, int(page.Total))
+	}
+	return 0
+}
+
+// annotationsOf reads a resource's annotations. A failure is printed here in
+// the launcher's voice; ok=false means stop.
+func annotationsOf(u *launcher.UI, c *launcher.VerbClient, resourceID api.ResourceId) ([]api.Annotation, bool) {
+	list, err := c.Browse.Annotations(resourceID).Fresh(c.Context())
+	var refused *semiont.TransportError
+	switch {
+	case err == nil:
+		return list, true
+	case errors.As(err, &refused) && refused.Code == semiont.TransportErrorCodeNotFound:
+		u.Fail("There is no resource %s in this knowledge base.", resourceID)
+		return nil, false
+	default:
+		busFail(u, "browse", c.Refusal(err))
+		return nil, false
+	}
+}
+
+// printAnnotations prints a resource's annotations: each one's id and
+// motivation, and how many there are.
+func printAnnotations(u *launcher.UI, list []api.Annotation) {
+	if len(list) == 0 {
+		u.Log("No annotations on that resource.")
+		return
+	}
+	for _, a := range list {
+		fmt.Printf("  %-28s %s\n", a.Id, u.Dim(string(a.Motivation)))
+	}
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(list))))
+}
+
+// drive is one `--browser` act: what was sent, on which channel, and the
+// command that would retry it. It exists so the empty-room report below is
+// written once — a resource and an annotation fail for identical reasons, and
+// a second copy of that three-message branch would drift from this one.
+type drive struct {
+	subject string // how to name it to a human: "res-42", "annotation ann-9"
+	channel bus.Channel
+	retry   string // the exact command, minus --launch
+}
+
+// nobodySaw explains a `--browser` emit that reached zero subscribers, and
+// fails the command. Three situations reach here and they want three
+// different things said — collapsing them into one "not available" is the
+// failure mode this exists to avoid:
+//
+//	Browser up, nobody watching → the ORIGIN, and "open it and log in"
+//	Browser absent              → --launch, or start --service browser
+//	Browser there but not answering → say so; the same two fix-its apply
+//
+// The exit code is the point for a tour script: `beckon` exits 0 with no
+// audience because a beckon is genuinely fire-and-forget, but here the caller
+// asked for a specific outcome — a resource on a participant's screen — and
+// it did not happen. A tour that narrates on to step 2 is worse than one that
+// stops.
+func nobodySaw(u *launcher.UI, d drive, override string, launch bool) int {
+	p := launcher.BrowserTarget(launcher.LoadStackSet(), override)
+	if !p.Running && launch {
+		next, ok := launchBrowser(u, override)
+		if !ok {
+			return 1
+		}
+		p = next
+	}
+
+	u.Fail("Nobody saw %s — nothing is subscribed to %s.", d.subject, d.channel)
+	if p.Running {
+		// The Browser CONTAINER is up; what is missing is a human's web
+		// browser pointed at it. Those two fail independently — this branch
+		// is the proof — so the words stay distinct in every message here.
+		fmt.Fprintln(os.Stderr, "  The Browser is running, but no web browser is watching it.")
+		fmt.Fprintf(os.Stderr, "  Open %s, log in, then run this again.\n", p.Endpoint)
+		return 1
+	}
+	if p.State == "" {
+		fmt.Fprintln(os.Stderr, "  No Browser is running on this machine.")
+	} else {
+		fmt.Fprintf(os.Stderr, "  The Browser container is %s and is not answering on %s.\n", p.State, p.Endpoint)
+	}
+	fmt.Fprintf(os.Stderr, "  Start it:  %s --launch\n", d.retry)
+	fmt.Fprintln(os.Stderr, "  or:        semiont start --service browser")
+	return 1
+}
+
+// launchBrowser is `--launch`: it starts the Browser through the existing
+// `semiont start --service browser` rather than re-deriving the run. That
+// path already pulls the image, publishes the port, records the endpoint and
+// WAITS for health (flowBrowser) — on a cold pull the container exists long
+// before it answers, and a message printed too early sends the user to an
+// origin that refuses the connection.
+//
+// It starts a CONTAINER. It cannot open a window or log anyone in, so its
+// caller still prints the "nobody is watching" message afterwards.
+func launchBrowser(u *launcher.UI, override string) (launcher.BrowserProbe, bool) {
+	// The runtime is named explicitly. A bare start on a machine whose only
+	// recorded stacks are codespaces dispatches to the cloud (start.go), and
+	// waking a paid VM is not what --launch asked for. The Browser is
+	// machine-level — it serves every KB here — so it is always local.
+	rt, ok := launcher.SelectRuntime(u, "")
+	if !ok {
+		return launcher.BrowserProbe{}, false
+	}
+	if code := launcher.Start([]string{"--service", "browser", "--runtime", rt}); code != 0 {
+		u.Fail("--launch could not start the Browser.")
+		return launcher.BrowserProbe{}, false
+	}
+	return launcher.BrowserTarget(launcher.LoadStackSet(), override), true
+}
+
+// busFail turns a bus error into the launcher's voice: a failure the peer
+// answered with carries its own message, a timeout says what went
+// unanswered, and a session the gateway refused and the issuer could not
+// renew points at login rather than leaving the user guessing.
+func busFail(u *launcher.UI, verb string, err error) int {
+	var failed *semiont.BusRequestError
+	var rej *launcher.SessionRejected
+	switch {
+	case errors.As(err, &failed) && failed.Failure != nil:
+		u.Fail("%s was rejected: %s", verb, failed.Message)
+	case errors.As(err, &rej):
+		return launcher.RejectedFail(u, verb, rej)
+	default:
+		u.Fail("%s failed: %v", verb, err)
+	}
+	return 1
+}
+
+// printResources prints one page of resources: the table `browse` lists and
+// `match --search` finds.
+func printResources(u *launcher.UI, resources []api.ResourceDescriptor, total int) {
+	if len(resources) == 0 {
+		u.Log("No resources match.")
+		return
+	}
+	for _, res := range resources {
+		types := ""
+		if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
+			types = u.Dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
+		}
+		fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
+	}
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d shown, %d total", len(resources), total)))
+}
+
+// printJSON prints v, a reply's generated type, as JSON: the --json form of
+// what a verb read.
+func printJSON(u *launcher.UI, v any) int {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		u.Fail("the reply could not be written as JSON: %v", err)
+		return 1
+	}
+	fmt.Println(string(encoded))
+	return 0
+}
+
+// idsOrder: what each verb that takes ids says of how they are given, above
+// idsNote in its help.
+const idsOrder = "Each id may be given by its option or bare. Bare ids fill, in order,\nthe places no option filled."
+
+// idValue puts the id an option gives into place: a resource, annotation or
+// target, each of which a verb also takes bare. An id given twice, by any two
+// of its options, is refused.
+func idValue(u *launcher.UI, name string, val func() (string, bool), place *string) bool {
+	v, ok := val()
+	if !ok {
+		return false
+	}
+	if *place != "" {
+		u.Fail("The %s is given twice: %q and %q.", name, *place, v)
+		return false
+	}
+	*place = v
+	return true
+}
+
+// parsed holds the id given as the verb's name to its kind's rule. One the
+// rule refuses is refused here, before any request carries it.
+func parsed[T any](u *launcher.UI, name, text string, parse func(string) (T, error)) (T, bool) {
+	id, err := parse(text)
+	if err != nil {
+		u.Fail("The %s is not an id: %v", name, err)
+		var none T
+		return none, false
+	}
+	return id, true
+}
+
+// fillIDs: the bare ids fill, in order, the places no option filled. A bare
+// word with no place left is refused, showing form, the verb's ids in order.
+func fillIDs(u *launcher.UI, form string, bare []string, places ...*string) bool {
+	for _, place := range places {
+		if *place == "" && len(bare) > 0 {
+			*place, bare = bare[0], bare[1:]
+		}
+	}
+	if len(bare) > 0 {
+		u.Fail("Unexpected argument: %s", bare[0])
+		fmt.Fprintf(os.Stderr, "  It has no place: every id is already given.\n    %s\n", form)
+		return false
+	}
+	return true
+}
+
+// idsNote: what each verb that takes ids says of one that begins with "-",
+// above the form that takes it. The verb's help says it, and so does its
+// refusal of an unknown argument.
+const idsNote = "An id may begin with -. Every word after -- is an id, never an option:"
+
+// unknownArgument refuses a word that begins with "-" and is none of the
+// verb's options. An id may begin with "-" too, so the refusal shows where one
+// goes: after "--", in form, the verb's form for its ids.
+func unknownArgument(u *launcher.UI, a, form string) int {
+	u.Fail("Unknown argument: %s", a)
+	fmt.Fprintf(os.Stderr, "  %s\n    %s\n", idsNote, form)
+	return 1
+}

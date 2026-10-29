@@ -494,7 +494,7 @@ deleted at the first sweep.
 ## Checkpoints
 
 A checkpoint is how much of a job is already done, recorded on the job so a later attempt skips it.
-It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/handlers/src/checkpoint.rs)):
+It has two parts, merged differently ([`checkpoint.rs`](../../images/dispatcher/handlers/src/checkpoint.rs)):
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for a linking job, a
   category for a tagging job, and the job's own motivation for every other `mark` job. A unit
@@ -560,9 +560,9 @@ states `transient`.
 
 A worker evaluates the same predicate, on
 the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
-([`claims.ts`](../../packages/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
-([`claims.rs`](../../packages/sdk-rust/src/claims.rs)) and the Python SDK
-([`claims.py`](../../packages/sdk-python/src/semiont/claims.py)), which a held job's `fail` applies. The
+([`claims.ts`](../../packages/typescript/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
+([`claims.rs`](../../packages/rust/sdk/src/claims.rs)) and the Python SDK
+([`claims.py`](../../packages/python/sdk/src/semiont/claims.py)), which a held job's `fail` applies. The
 dispatcher's own is the Rust SDK's. Every implementation answers
 [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) alike. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.

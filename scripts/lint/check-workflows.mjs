@@ -56,10 +56,12 @@
  *    for a release and never on a pull request. `changes` outputs `tier`,
  *    which no filter defines.
  *
- * 5. Every directory under apps/ or packages/ that holds a manifest
- *    (package.json, Cargo.toml, pyproject.toml, go.mod) is a pattern
- *    `<dir>/**` of some filter of the map. A package nobody mapped would be
- *    tested by no job on a pull request that changed it alone.
+ * 5. Every directory under apps/, images/ or packages/ that holds a manifest
+ *    (package.json, Cargo.toml, pyproject.toml, go.mod), at any depth, is
+ *    under a pattern `<dir>/**` of some filter of the map: the directory's
+ *    own, or one above it (packages/<language>/** holds each package of the
+ *    language). A package nobody mapped would be tested by no job on a pull
+ *    request that changed it alone.
  *
  * 6. `cargo build` is run by one job of ci.yml, build-rust, which publishes
  *    the release binaries the conformance suites start. A suite that built
@@ -92,13 +94,22 @@
  *    to require, and only ci.yml's jobs could read the map of changed areas:
  *    a pull request that touched one Go file ran every npm package's suite.
  *
+ * 11. Every relative path a step's script names (`./x`, `../x`), in every
+ *    workflow, is one the repository holds, or one a build makes, which git
+ *    ignores, read from where the script runs: the step's working-directory,
+ *    else its job's or its workflow's default, else the repository's root,
+ *    and from there each `cd` the script makes, a subshell's ending where the
+ *    subshell does. Such a path is written for the depth its step runs at,
+ *    and a package that moves a level deeper takes it a level short: the
+ *    step fails only on the runner.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { repositoryFiles } from './repository-files.mjs';
+import { ignoredByGit, repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -107,7 +118,7 @@ const CI = '.github/workflows/ci.yml';
 /** The workflow that keeps the Rust images' layers between runs. */
 const SMOKE = '.github/workflows/stack-smoke.yml';
 /** The Dockerfiles whose builder stage those layers are; their COPY lines are read. */
-const RUST_IMAGES = ['apps/gateway/Dockerfile', 'apps/dispatcher/Dockerfile', 'apps/archivist/Dockerfile'];
+const RUST_IMAGES = ['images/gateway/Dockerfile', 'images/dispatcher/Dockerfile', 'images/archivist/Dockerfile'];
 
 /** A workflow's concurrency group, led by its file name. */
 const groupOf = (file) => `${basename(file).replace(/\.ya?ml$/, '')}-\${{ github.event.pull_request.number || github.sha }}`;
@@ -139,12 +150,54 @@ function isPreparation(step) {
 const repository = repositoryFiles(ROOT).filter((file) => !file.split('/').includes('node_modules'));
 const workflows = repository.filter((file) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file));
 
+const directories = new Set(['.']);
+for (const file of repository) {
+  for (let i = file.indexOf('/'); i !== -1; i = file.indexOf('/', i + 1)) directories.add(file.slice(0, i));
+}
+
+/** A step's script, in the order it runs: a subshell opened or closed, a `cd`, or a relative path. */
+const SCRIPT = /(\()|(\))|\bcd\s+("[^"]*"|'[^']*'|[^\s;&|)]+)|((?<![\w./$~-])\.{1,2}\/[\w.@/-]*)/g;
+
+/** Rule 11: every relative path a step names is one the repository holds, from where the step runs. */
+function stepPaths(file, workflow) {
+  for (const [name, job] of Object.entries(workflow.jobs ?? {})) {
+    for (const step of job.steps ?? []) {
+      if (typeof step.run !== 'string') continue;
+      let at = step['working-directory'] ?? job.defaults?.run?.['working-directory'] ?? workflow.defaults?.run?.['working-directory'] ?? '.';
+      if (at.includes('${{')) continue;
+      const opened = [];
+      for (const match of step.run.matchAll(SCRIPT)) {
+        const [, open, close, cd, path] = match;
+        if (open) {
+          opened.push(at);
+        } else if (close) {
+          if (opened.length > 0) at = opened.pop();
+        } else if (cd !== undefined) {
+          // A cd into somewhere this cannot know (a variable, a home, an
+          // absolute path, the last directory) leaves where it runs unknown.
+          const to = cd.replace(/^["']|["']$/g, '');
+          at = at === null || /[$~]/.test(to) || to.startsWith('/') || to === '-' ? null : posix.normalize(posix.join(at, to));
+        } else if (at !== null) {
+          // `./...` is Go's pattern for the packages below a directory.
+          const named = path.replace(/\/\.\.\.$/, '').replace(/\.+$/, '') || '.';
+          const target = posix.normalize(posix.join(at, named));
+          const held = !target.startsWith('..') && (directories.has(target.replace(/\/$/, '')) || repository.includes(target) || ignoredByGit(ROOT, target));
+          if (!held) {
+            failures.push(`${file}: job ${name}, step "${step.name ?? step.run.split('\n')[0]}" runs in ${at} and names ${path}, which is ${target}: the repository holds nothing there`);
+          }
+        }
+      }
+    }
+  }
+}
+
 const failures = [];
 if (workflows.length === 0) failures.push('no workflow was found under .github/workflows: the check has lost what it reads');
 
 let held = 0;
 for (const file of workflows) {
   const workflow = yaml.load(readFileSync(join(ROOT, file), 'utf8'));
+  stepPaths(file, workflow);
   const triggers = workflow.on;
   const triggeredBy = (event) => (Array.isArray(triggers) ? triggers.includes(event) : triggers != null && typeof triggers === 'object' && event in triggers);
   const onPullRequest = triggeredBy('pull_request');
@@ -340,12 +393,14 @@ function changedAreas(jobs) {
 
   // Rule 5: every package of the repository is under some filter.
   const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
-  const patterns = new Set(Object.values(filters).flat());
+  const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|packages)\/[^/]+\/[^/]+$/.test(file) && MANIFESTS.includes(basename(file)))
+    .filter((file) => /^(apps|images|packages)\//.test(file) && MANIFESTS.includes(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   for (const dir of new Set(packages)) {
-    if (!patterns.has(`${dir}/**`)) failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/**: a change to it alone would run no job`);
+    if (!trees.some((tree) => dir === tree || dir.startsWith(`${tree}/`))) {
+      failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/** or a directory above it: a change to it alone would run no job`);
+    }
   }
 }
 
@@ -369,4 +424,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something, and only ci.yml whole; ci.yml runs in stages, maps each push to its areas and tier, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something, and only ci.yml whole; ci.yml runs in stages, maps each push to its areas and tier, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy; every relative path a step names is one the repository holds, from where the step runs`);

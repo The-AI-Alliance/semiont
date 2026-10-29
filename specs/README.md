@@ -175,8 +175,8 @@ High-level guides in [docs/protocol/](../docs/protocol/):
 - **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
 
 For implementation details:
-- [Gateway Documentation](../apps/gateway/README.md) - Gateway architecture
-- [API Client Documentation](../packages/http-transport/README.md) - TypeScript SDK
+- [Gateway Documentation](../images/gateway/README.md) - Gateway architecture
+- [API Client Documentation](../packages/typescript/http-transport/README.md) - TypeScript SDK
 
 ## Decomposition Notes
 
@@ -192,15 +192,15 @@ The spec is kept as modular files, bundled with Redocly:
 
 ## Configuration
 
-[redocly.yaml](../redocly.yaml) states the rules `npm run openapi:lint` holds the two API documents to: Redocly's recommended set, with the changes the file gives its reasons for. The lint is one of the Lint Gates of the architecture workflow.
+[redocly.yaml](redocly.yaml) states the rules `npm run openapi:lint` holds the two API documents to: Redocly's recommended set, with the changes the file gives its reasons for. The lint is one of the Lint Gates of the architecture workflow.
 
 The forms the rules bear on:
 
 - **An operation** has an `operationId`, the name a generated client's method takes. A path item is one operation's, so a path that answers as another does has a path item of its own.
 - **A property that admits one value** states it as an `enum` of one. `const` is JSON Schema's and not OpenAPI 3.0's; the lint refuses it, and so does the Rust type generator.
 - **A reference that may be null** is `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators and every SDK's type generator read it as the reference, or null.
-- **Something said of a reference** is `{ "allOf": [{ "$ref": … }], "description": … }`. OpenAPI 3.0 reads nothing beside a bare `$ref`, and the Go and Rust generators hold to that, so a description written there reaches neither. Two kinds of reference are never wrapped, and `npm run lint:spec-reference-forms` holds both: a member of a `oneOf` stays a bare `$ref`, with what would be said of it said of the `oneOf` (the Go client names a union's accessors by a wrapped member's position); and a reference to a schema that has a `discriminator` stays a bare `$ref` with its description beside it (openapi-typescript takes the discriminator's property out of a wrapped one), named in [.redocly.lint-ignore.yaml](../.redocly.lint-ignore.yaml).
-- **An operation documents a refusal**, a response in the 400s. The five that take no credential and no parameter have none to document, and [.redocly.lint-ignore.yaml](../.redocly.lint-ignore.yaml) names them.
+- **Something said of a reference** is `{ "allOf": [{ "$ref": … }], "description": … }`. OpenAPI 3.0 reads nothing beside a bare `$ref`, and the Go and Rust generators hold to that, so a description written there reaches neither. Two kinds of reference are never wrapped, and `npm run lint:spec-reference-forms` holds both: a member of a `oneOf` stays a bare `$ref`, with what would be said of it said of the `oneOf` (the Go client names a union's accessors by a wrapped member's position); and a reference to a schema that has a `discriminator` stays a bare `$ref` with its description beside it (openapi-typescript takes the discriminator's property out of a wrapped one), named in [.redocly.lint-ignore.yaml](.redocly.lint-ignore.yaml).
+- **An operation documents a refusal**, a response in the 400s. The five that take no credential and no parameter have none to document, and [.redocly.lint-ignore.yaml](.redocly.lint-ignore.yaml) names them.
 
 Bundling takes no configuration: a schema is kept in the bundle because `components` lists it.
 
@@ -208,13 +208,13 @@ Bundling takes no configuration: a schema is kept in the bundle because `compone
 
 - [Root README](../README.md) - Project overview
 - [Architecture](../docs/architecture/README.md) - System architecture index
-- [Gateway README](../apps/gateway/README.md) - Gateway implementation
-- [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
-- [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them
+- [Gateway README](../images/gateway/README.md) - Gateway implementation
+- [@semiont/http-transport](../packages/typescript/http-transport/README.md) - HTTP + SSE wire adapters
+- [@semiont/sdk](../packages/typescript/sdk/README.md) - The TypeScript client built over them
 
 ---
 
-**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/http-transport/docs/API-Reference.md) for the wire adapters
+**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/typescript/http-transport/docs/API-Reference.md) for the wire adapters
 
 **For spec editing**: Edit files in [src/](src/), then run `npm run openapi:bundle`
 

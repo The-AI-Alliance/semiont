@@ -185,13 +185,13 @@ report a handover.
 
 Write a worker driver over the SDK's worker surface, add it as `worker` to
 the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
-[packages/sdk/conformance/worker-driver.ts](../../../packages/sdk/conformance/worker-driver.ts),
+[packages/typescript/sdk/conformance/worker-driver.ts](../../../packages/typescript/sdk/conformance/worker-driver.ts),
 Rust's is
-[semiont-worker-driver.rs](../../../packages/http-transport-rust/conformance/src/bin/semiont-worker-driver.rs),
+[semiont-worker-driver.rs](../../../packages/rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),
 Python's is
-[conformance/worker.py](../../../packages/sdk-python/conformance/worker.py),
+[conformance/worker.py](../../../packages/python/sdk/conformance/worker.py),
 and Go's is
-[semiont-go-worker-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-worker-driver/main.go).
+[semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go).
 
 ## Running it
 
@@ -201,7 +201,7 @@ the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
-(cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 npm run build:packages
 cd tests/conformance
 npm ci

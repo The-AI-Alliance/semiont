@@ -103,7 +103,7 @@ The toolbar opens one panel at a time:
 
 ## Archive and clone
 
-**Archive** moves a resource out of the active list without deleting it, and **Unarchive** restores it. **Clone** makes a shareable link from which someone can create their own copy. Both are described in [ARCHIVE-CLONE.md](../../apps/browser/docs/ARCHIVE-CLONE.md).
+**Archive** moves a resource out of the active list without deleting it, and **Unarchive** restores it. **Clone** makes a shareable link from which someone can create their own copy. Both are described in [ARCHIVE-CLONE.md](../../images/browser/docs/ARCHIVE-CLONE.md).
 
 ## Moderation
 
@@ -114,4 +114,4 @@ The **Moderation** section has three pages: **Recent Resources**, **Entity Tags*
 - [KEYBOARD-NAV.md](KEYBOARD-NAV.md): the keyboard shortcuts
 - [ACCESSIBILITY.md](ACCESSIBILITY.md): what the Browser provides for assistive technology
 - [docs/builder](../builder/README.md): doing the same work from code, or from the `semiont` launcher
-- [apps/browser/docs](../../apps/browser/docs/): how the Browser is built
+- [images/browser/docs](../../images/browser/docs/): how the Browser is built

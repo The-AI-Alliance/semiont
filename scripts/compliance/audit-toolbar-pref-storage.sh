@@ -12,8 +12,8 @@ set -euo pipefail
 # private keys by name).
 #
 # Allowlist:
-#   - packages/react-ui/src/hooks/useToolbarPrefs.ts  — the policy layer
-#   - packages/react-ui/src/lib/media-shapes.ts       — svg shape key
+#   - packages/typescript/react-ui/src/hooks/useToolbarPrefs.ts  — the policy layer
+#   - packages/typescript/react-ui/src/lib/media-shapes.ts       — svg shape key
 #   - test files                                      — seed/assert the keys
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -21,8 +21,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PATTERN="semiont-toolbar-click|semiont-toolbar-selection|semiont-toolbar-shape|localStorage\.(get|set)Item\('annotateMode'"
 
 VIOLATIONS=$(grep -rEn "$PATTERN" \
-  "$REPO_ROOT/packages/react-ui/src" \
-  "$REPO_ROOT/apps/browser/src" \
+  "$REPO_ROOT/packages/typescript/react-ui/src" \
+  "$REPO_ROOT/images/browser/src" \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v "hooks/useToolbarPrefs.ts" \
   | grep -v "lib/media-shapes.ts" \

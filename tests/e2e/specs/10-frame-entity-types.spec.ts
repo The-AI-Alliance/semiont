@@ -16,7 +16,7 @@ import { test, expect } from '../fixtures/auth';
  *    `client.frame.addEntityType(...)` which emits `frame:add-entity-type`
  *    over the wire. The Archivist's Stower handles it and broadcasts
  *    `frame:entity-type-added` (a bridged channel — see
- *    `packages/core/src/bridged-channels.ts`); the frontend's
+ *    `packages/typescript/core/src/bridged-channels.ts`); the frontend's
  *    `browse.entityTypes()` cache invalidates on receipt and the new
  *    tag renders without a refresh.
  *
@@ -44,7 +44,7 @@ test.describe('frame entity-type vocabulary', () => {
 
     // ── Bootstrap assertion ─────────────────────────────────────────────
     //
-    // The 9 defaults: the Archivist's DEFAULT_ENTITY_TYPES (apps/archivist/src/main.rs).
+    // The 9 defaults: the Archivist's DEFAULT_ENTITY_TYPES (images/archivist/src/main.rs).
     // If the bootstrap hadn't fired, none of these would render.
     const DEFAULT_ENTITY_TYPES = [
       'Person', 'Organization', 'Location', 'Event', 'Concept',

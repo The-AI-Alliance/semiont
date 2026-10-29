@@ -27,21 +27,21 @@ export default function setup(project: TestProject): void {
   }
   const go = drivers['go']?.wire?.[0];
   if (go !== undefined && !existsSync(go)) {
-    throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/sdk-go/conformance.`);
+    throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/go/sdk/conformance.`);
   }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.
   for (const pkg of ['http-transport', 'sdk']) {
-    const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
+    const built = join(REPO_ROOT, 'packages', 'typescript', pkg, 'dist/index.js');
     if (!existsSync(built)) {
       throw new Error(`The TypeScript SDK is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
     }
     try {
-      execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', pkg, 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
+      execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'typescript', pkg, 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
     } catch (error) {
       const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
-      throw new Error(`The TypeScript driver in packages/${pkg}/conformance does not type-check:\n${output}`);
+      throw new Error(`The TypeScript driver in packages/typescript/${pkg}/conformance does not type-check:\n${output}`);
     }
   }
 }

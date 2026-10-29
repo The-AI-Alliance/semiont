@@ -25,7 +25,7 @@ set -euo pipefail
 # Descriptor-holding code reads the URI via getStorageUri() (@semiont/core),
 # which reads the primary representation.
 #
-# Scope: all TS/TSX source in packages/, apps/ AND tests/ — the e2e tree
+# Scope: all TS/TSX source in packages/, apps/, images/ AND tests/ — the e2e tree
 # reads descriptors too, and typecheck cannot see a descriptor-level read
 # there any better than elsewhere. Unit fixtures included too (a fixture can
 # pin the dead shape).
@@ -49,7 +49,7 @@ VIOLATIONS=$(grep -rnE '((^|[^.A-Za-z0-9_$])(resource|descriptor|sourceDoc|targe
   --include='*.ts' --include='*.tsx' \
   2>/dev/null \
   | grep -vE "/node_modules/|/dist/|/coverage/" \
-  | grep -v "packages/react-ui/src/components/navigation/SortableResourceTab.tsx" \
+  | grep -v "packages/typescript/react-ui/src/components/navigation/SortableResourceTab.tsx" \
   || true)
 
 if [ -n "$VIOLATIONS" ]; then
@@ -120,7 +120,7 @@ def factory_hits(lines, sf):
                 break
 
 hits = []
-for base in ("packages", "apps", "tests"):
+for base in ("packages", "apps", "images", "tests"):
     for f in pathlib.Path(base).rglob("*.ts*"):
         sf = str(f)
         if any(x in sf for x in ("/node_modules/", "/dist/", "/coverage/")):

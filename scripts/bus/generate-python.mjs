@@ -3,9 +3,9 @@
 // specs/src/bus/registry.json, the same file the TypeScript and Go generators
 // read.
 //
-//   packages/sdk-python/src/semiont/channels.py    every channel, typed by its payload, and the field a
+//   packages/python/sdk/src/semiont/channels.py    every channel, typed by its payload, and the field a
 //                                                  relayed frame's trace rides in
-//   packages/sdk-python/src/semiont/operations.py  every request, with its two replies
+//   packages/python/sdk/src/semiont/operations.py  every request, with its two replies
 //
 // A channel's payload type is DERIVED from its shape, as the TypeScript
 // generator derives it: the registry states the payload once, in a form every
@@ -14,7 +14,7 @@
 //
 // A channel that carries a stored event names the type of the event's own
 // payload too, from the entry's `payload`, as the Rust generator's `Recorded`
-// does (packages/sdk-rust/build.rs).
+// does (packages/rust/sdk/build.rs).
 //
 // --check compares without writing (the CI drift gate).
 
@@ -27,7 +27,7 @@ import { pyBanner, pyComment, pyConstant, pyString } from '../spec/python-source
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
-const OUT_DIR = resolve(ROOT, 'packages/sdk-python/src/semiont');
+const OUT_DIR = resolve(ROOT, 'packages/python/sdk/src/semiont');
 const CHECK = process.argv.includes('--check');
 
 const registryText = readFileSync(REGISTRY, 'utf8');

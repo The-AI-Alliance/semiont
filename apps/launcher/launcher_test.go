@@ -34,9 +34,9 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite golden files from observed output")
@@ -45,6 +45,12 @@ var (
 	launcherBin string
 	fakertBin   string
 )
+
+// libraryTestdata: a file of the launcher libraries' testdata, from this
+// directory: the fixture knowledge base (kb/) and the goldens (golden/).
+func libraryTestdata(elem ...string) string {
+	return filepath.Join(append([]string{"..", "..", "packages", "go", "launcher", "testdata"}, elem...)...)
+}
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -58,17 +64,17 @@ func TestMain(m *testing.M) {
 	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
 	// The launcher under test is built with the scenario tag, and only that
 	// build does three things a released one does not: it verifies images
-	// against Sigstore's test authority (internal/provenance/fake.go), told by
+	// against Sigstore's test authority (packages/go/launcher/provenance/fake.go), told by
 	// fake-sigstore.json in its data directory what each image's attestation
 	// says; it dials the fake runtime's host address and a fake network
 	// address at loopback, where the fake's stand-in services listen, and binds
 	// a listener asked for the network address there too
-	// (internal/launcher/hostnet_scenario.go); and it stages the configs it
+	// (packages/go/launcher/hostnet_scenario.go); and it stages the configs it
 	// mounts under the temporary directory its environment names, which is
-	// each scenario's own (internal/launcher/staging_scenario.go).
+	// each scenario's own (packages/go/launcher/staging_scenario.go).
 	for _, build := range [][]string{
 		{"build", "-tags", "scenario", "-o", launcherBin, "."},
-		{"build", "-o", fakertBin, "./internal/fakert"},
+		{"build", "-o", fakertBin, "github.com/The-AI-Alliance/semiont/packages/go/launcher/fakert"},
 	} {
 		out, err := exec.Command("go", build...).CombinedOutput()
 		pkg := build[len(build)-1]
@@ -121,7 +127,7 @@ func mkKB(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, name := range fixtureDocuments {
-		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", filepath.FromSlash(name)))
+		b, err := os.ReadFile(libraryTestdata("kb", ".semiont", filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -210,7 +216,7 @@ func (s *scenario) stageRe() *regexp.Regexp {
 // site.domain yields (semiont.KbResource).
 func kbFixtureResource(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config.yaml"))
+	b, err := os.ReadFile(libraryTestdata("kb", ".semiont", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +257,7 @@ func writeDocument(t *testing.T, s *scenario, path, text string) {
 // .semiont/stack.
 func fixtureDocument(t *testing.T, path string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "stack", filepath.FromSlash(path)))
+	b, err := os.ReadFile(libraryTestdata("kb", ".semiont", "stack", filepath.FromSlash(path)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +396,7 @@ func (s *scenario) env() []string {
 		// generates a fresh credential per service and every golden would
 		// differ from the last.
 		//
-		// Tracks `serviceClients` in internal/launcher, which this external test
+		// Tracks `serviceClients` in packages/go/launcher, which this external test
 		// package cannot see. Drift is loud rather than silent: a service missing
 		// from this list gets a generated credential and its boot golden differs
 		// on the very next run.
@@ -580,7 +586,7 @@ var keycloakAdminPwRe = regexp.MustCompile(`KC_BOOTSTRAP_ADMIN_PASSWORD=[0-9a-f]
 
 func checkGolden(t *testing.T, name, got string) {
 	t.Helper()
-	path := filepath.Join("testdata", "golden", name)
+	path := libraryTestdata("golden", name)
 	if *updateGoldens {
 		if runtime.GOOS != "linux" {
 			t.Fatalf("the goldens are written on Linux (asThisSystemRuns): -update-goldens on %s would write this system's into them", runtime.GOOS)
@@ -967,9 +973,6 @@ func TestStartNetworkLANBoot(t *testing.T) {
 			}
 		}
 	})
-	// The fake runtime answers `ps` and `tasklist` for every process, and names
-	// one it was not told of "fakeproc". The proxy is the launcher run again,
-	// which the real commands name as the launcher, so the fake is told so.
 	claimProxy := func() int {
 		t.Helper()
 		pid := recordedIssuerProxyPID(t, s)
@@ -977,7 +980,6 @@ func TestStartNetworkLANBoot(t *testing.T) {
 			t.Fatal("the record names no issuer proxy")
 		}
 		proxies = append(proxies, pid)
-		s.extraEnv = append(s.extraEnv, fmt.Sprintf("FAKERT_PS_%d=%s", pid, filepath.Base(launcherBin)))
 		return pid
 	}
 	stdout, stderr, code := s.run(t, "start")
@@ -1613,7 +1615,7 @@ func stateRootFor(home, key string) string {
 	return filepath.Join(dataHomeFor(home), "roots", key)
 }
 
-// testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config.yaml).
+// testKBKey: the slug of the test KB's did:web (packages/go/launcher/testdata/kb/.semiont/config.yaml).
 const testKBKey = "example.github.io-test-kb"
 
 func TestStatePersistsAcrossStarts(t *testing.T) {
@@ -8874,7 +8876,7 @@ func templateFixture(t *testing.T, includeBad bool) string {
 		if name == "config.yaml" {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", filepath.FromSlash(name)))
+		b, err := os.ReadFile(libraryTestdata("kb", ".semiont", filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -9303,7 +9305,7 @@ func busScenario(t *testing.T, env ...string) *scenario {
 }
 
 // WIRE SMOKE TEST (browse). This family's logic runs in process against a
-// fake transport (internal/verbs/verbs_test.go). This one stays end-to-end
+// fake transport (packages/go/launcher/verbs/verbs_test.go). This one stays end-to-end
 // deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
 // real server understands. A family tested only against a double can agree with
 // a bug in our own client.
@@ -9322,7 +9324,7 @@ func TestBrowseListsResources(t *testing.T) {
 }
 
 // WIRE SMOKE TEST (session refresh). The policy is specified in process
-// (internal/verbs/session_test.go); this proves the BUILT BINARY renews a
+// (packages/go/launcher/verbs/session_test.go); this proves the BUILT BINARY renews a
 // session over real HTTP for a BUS verb: fakert refuses the login-issued token
 // on its second use, and browse must still succeed — under the renewed token,
 // saved for the next command.
@@ -9355,7 +9357,7 @@ func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 }
 
 // WIRE SMOKE TEST (gather). This family's logic runs in process against a
-// fake transport (internal/verbs/verbs_test.go). This one stays end-to-end
+// fake transport (packages/go/launcher/verbs/verbs_test.go). This one stays end-to-end
 // deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
 // real server understands. A family tested only against a double can agree with
 // a bug in our own client.
@@ -9385,7 +9387,7 @@ func TestGatherResourceSummarizes(t *testing.T) {
 }
 
 // WIRE SMOKE TEST (mark). This family's logic runs in process against a
-// fake transport (internal/verbs/verbs_test.go). This one stays end-to-end
+// fake transport (packages/go/launcher/verbs/verbs_test.go). This one stays end-to-end
 // deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
 // real server understands. A family tested only against a double can agree with
 // a bug in our own client.
@@ -9424,7 +9426,7 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 }
 
 // WIRE SMOKE TEST (match --search). The text form's logic runs in process
-// (internal/verbs/verbs_test.go); this proves the BUILT BINARY reaches the
+// (packages/go/launcher/verbs/verbs_test.go); this proves the BUILT BINARY reaches the
 // resource search over HTTP and reads the reply it sends.
 func TestMatchSearchFindsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_match_resources_requested={"resources":[`+
@@ -9475,7 +9477,7 @@ func TestMatchGathersThenSearches(t *testing.T) {
 // says so, so the honest line names that — the "no delivery confirmation"
 // wording is reserved for the case where the count is genuinely unknown.
 // WIRE SMOKE TEST (beckon). This family's logic runs in process against a
-// fake transport (internal/verbs/verbs_test.go). This one stays end-to-end
+// fake transport (packages/go/launcher/verbs/verbs_test.go). This one stays end-to-end
 // deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
 // real server understands. A family tested only against a double can agree with
 // a bug in our own client.
@@ -9503,7 +9505,7 @@ func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 // last-emit check while losing the caller's work.
 // WIRE SMOKE TEST. The verb's logic — one command per entity type, stop at the
 // first rejection, refuse bad arguments — is specified in
-// internal/verbs/frame_test.go, where it runs in process against a fake
+// packages/go/launcher/verbs/frame_test.go, where it runs in process against a fake
 // transport in ~0 s. This one stays end-to-end on purpose: it is the only thing
 // proving the BUILT BINARY speaks HTTP a server actually understands. Retiring
 // it would leave the whole verb family tested against a double that could agree

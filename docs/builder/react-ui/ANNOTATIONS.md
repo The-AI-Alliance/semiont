@@ -492,7 +492,7 @@ for (const { exact, start, end, annotation, strategy, confidence } of segments) 
 ### Test Examples
 
 See test files for comprehensive examples:
-- [AnnotationContext.test.tsx](../../../packages/react-ui/src/contexts/__tests__/AnnotationContext.test.tsx)
+- [AnnotationContext.test.tsx](../../../packages/typescript/react-ui/src/contexts/__tests__/AnnotationContext.test.tsx)
 
 ---
 

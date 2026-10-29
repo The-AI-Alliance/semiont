@@ -4,7 +4,7 @@
 #
 #   scripts/ci/build-python-sdk.sh
 #
-# Leaves a source distribution and a wheel in packages/sdk-python/dist, at
+# Leaves a source distribution and a wheel in packages/python/sdk/dist, at
 # version.json's version. CI runs it on every change, so a release is not the
 # first place a packaging break is seen; publish-pypi.yml runs it and uploads
 # what it leaves.
@@ -22,12 +22,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PACKAGE="$ROOT/packages/sdk-python"
+PACKAGE="$ROOT/packages/python/sdk"
 
 NAME=$(sed -n 's/^name = "\(.*\)"$/\1/p' "$PACKAGE/pyproject.toml")
 VERSION=$(jq -r .version "$ROOT/version.json")
 if [ -z "$NAME" ] || [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-  echo "::error::no name in packages/sdk-python/pyproject.toml, or no version in version.json" >&2
+  echo "::error::no name in packages/python/sdk/pyproject.toml, or no version in version.json" >&2
   exit 1
 fi
 

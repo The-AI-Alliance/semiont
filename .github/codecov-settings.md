@@ -32,13 +32,20 @@ From `codecov.yml`:
 
 To test coverage locally:
 
-```bash
-# For a specific package
-cd packages/<package-name>
-npm run test:coverage
+Each language measures it as its CI job does, in the package's directory:
 
-# View coverage report
-open coverage/index.html
+```bash
+# TypeScript: packages/typescript/<name>, and images/browser
+npm run test:coverage && open coverage/index.html
+
+# Python: packages/python/<name>, and the Python images, images/<name>
+uv run pytest --cov --cov-report=html && open htmlcov/index.html
+
+# Rust: packages/rust, the whole workspace, the Rust images' crates among it
+cargo llvm-cov --workspace --open
+
+# Go: packages/go/<name>
+go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
 ```
 
 ## Codecov Dashboard
@@ -65,6 +72,6 @@ https://app.codecov.io/gh/The-AI-Alliance/semiont
 The following are excluded from coverage:
 - Test files (`*.test.ts`, `*.spec.ts`)
 - Configuration files (`*.config.ts`)
-- Generated files (`types.ts` in core)
+- Generated files (`types.ts` in core, every `generated/` directory, and Go's `*_gen.go`)
 - Build artifacts (`dist/`, `build/`)
 - Examples and demos

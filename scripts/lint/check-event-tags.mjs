@@ -31,7 +31,7 @@
  * What a declaration sends on is read from it as written: an emit of its
  * own, `.emit('<channel>', …)`, and a call of a method of the SDK's client,
  * `….<namespace>.<method>(…)`, whatever holds the client. Which channel a
- * method sends on is read from the SDK (packages/sdk/src/namespaces), from
+ * method sends on is read from the SDK (packages/typescript/sdk/src/namespaces), from
  * the method's own body: where it emits on the client's bus or its
  * transport, or makes a request.
  *
@@ -45,7 +45,7 @@
  * component's, is not read; nor is one a client method makes outside its own
  * body. And nothing holds a subscription to a `@subscribes` tag.
  *
- * Scanned: the TypeScript of packages/react-ui and apps/browser, comments
+ * Scanned: the TypeScript of packages/typescript/react-ui and images/browser, comments
  * included, since a tag is one. Not scanned: tests.
  */
 import { readFileSync } from 'node:fs';
@@ -57,9 +57,9 @@ import { withoutComments } from './source-text.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const REGISTRY = 'specs/src/bus/registry.json';
 const SCHEMAS = 'specs/src/components/schemas';
-const CLIENT = 'packages/sdk/src/client.ts';
-const NAMESPACES = 'packages/sdk/src/namespaces';
-const SCANNED = ['packages/react-ui/src/', 'apps/browser/src/'];
+const CLIENT = 'packages/typescript/sdk/src/client.ts';
+const NAMESPACES = 'packages/typescript/sdk/src/namespaces';
+const SCANNED = ['packages/typescript/react-ui/src/', 'images/browser/src/'];
 const SOURCE = /\.(ts|tsx|mts|cts)$/;
 const TEST = /(^|\/)__tests__\/|\.(test|spec)\.[cm]?tsx?$/;
 

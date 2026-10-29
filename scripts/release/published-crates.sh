@@ -6,7 +6,7 @@
 # cargo-version.sh writes these crates' version and verify-release.sh looks
 # for them on crates.io, so both read this one answer.
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../packages/rust"
 
 while IFS= read -r member; do
   manifest="$member/Cargo.toml"

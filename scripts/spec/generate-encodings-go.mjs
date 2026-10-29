@@ -3,7 +3,7 @@
 // Standard from specs/src/text/encoding-cases.json, the table every reader of
 // a resource's text runs.
 //
-//   packages/sdk-go/encodings_gen.go
+//   packages/go/sdk/encodings_gen.go
 //
 // Rust reads a resource's text with encoding_rs and TypeScript with the
 // platform's TextDecoder, each of which has the standard's labels and its
@@ -22,7 +22,7 @@ import { goComment } from './go-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/text/encoding-cases.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/encodings_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/encodings_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

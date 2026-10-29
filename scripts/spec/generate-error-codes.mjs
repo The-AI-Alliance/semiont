@@ -22,7 +22,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/errors/codes.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/error-codes.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/error-codes.ts'));
 const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
 
 function refuse(message) {

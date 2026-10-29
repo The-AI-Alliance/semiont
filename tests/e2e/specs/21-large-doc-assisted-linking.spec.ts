@@ -32,7 +32,7 @@ import { buildLargeDocument } from '../fixtures/large-document';
  *
  * What a run exercises follows from the budget a detection opens with
  * (docs/protocol/WORKER-SERVICE.md D3 and D21; `derive_detection_budget` in
- * `apps/worker/src/semiont_worker/detection/chunk_plan.py`), which sizes
+ * `images/worker/src/semiont_worker/detection/chunk_plan.py`), which sizes
  * every call from the provider's limits:
  *
  *   - OUTPUT per call is capped at what the provider's output rate produces

@@ -328,7 +328,7 @@ closed          → (terminal)
 while the request is pending: a request waits on this state before it is
 sent.
 
-*Held by `sdk/wire/outage`, `sdk/wire/unauthenticated`, `sdk/wire/attach-gate`, `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+*Held by `sdk/wire/outage`, `sdk/wire/unauthenticated`, `sdk/wire/attach-gate`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 ### Reconnect discipline
 
@@ -351,7 +351,7 @@ sent.
   request, whether it has been given a different one. A client with a way
   to renew its token tries it once per outage before it waits. The same
   rule keeps a client with no token from sending a request at all.
-  *Held by `sdk/wire/unauthenticated`, `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`, `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+  *Held by `sdk/wire/unauthenticated`, `sdk/wire/stream-credential-renewed`, `sdk/wire/stream-credential-limit-renewed`, `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 
 **A changed subscription** — a scope taken or let go — is a **handoff**:
 
@@ -368,7 +368,7 @@ sent.
   old stream stays live and the state stays `open`. The live stream ending
   while a handoff's connect is in flight is a drop, and that connect is
   its recovery.
-  *Held by `packages/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
+  *Held by `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`.*
 - A client holds at most one live stream, one connecting, and one
   retiring, however fast its subscription changes: a principal's stream
   limit counts them.
@@ -385,7 +385,7 @@ request, and for teardown, where nobody remains to receive the bytes.
 An event written to any live connection is delivered exactly once,
 wherever a handoff or a reopening lands relative to it.
 
-*Held by `sdk/wire/overlap-dedup`, `packages/http-transport/src/transport/__tests__/actor-liveness.property.test.ts`.*
+*Held by `sdk/wire/overlap-dedup`, `packages/typescript/http-transport/src/transport/__tests__/actor-liveness.property.test.ts`.*
 
 ### Delivering a frame once
 
@@ -458,7 +458,7 @@ carries. Both sets are the registry's `audience`, generated into
 they are disjoint: a channel in both would reach a client twice, under two
 ids.
 
-*Held by `packages/core/src/__tests__/bus-invariants.test.ts`.*
+*Held by `packages/typescript/core/src/__tests__/bus-invariants.test.ts`.*
 
 A client that awaits only some operations may name only their reply
 channels in `global`. A request whose reply channels its stream does not
@@ -478,19 +478,19 @@ with more than one tenant.
 
 ## Where the code lives
 
-- `apps/gateway/src/routes/bus.rs`, `apps/gateway/src/routes/stream.rs` —
+- `images/gateway/src/routes/bus.rs`, `images/gateway/src/routes/stream.rs` —
   the `/bus/emit` and `/bus/subscribe` routes.
 - `specs/src/bus/registry.json` — the authority: channels, payloads,
   operations.
-- `packages/http-transport/src/transport/http-transport.ts` — the
+- `packages/typescript/http-transport/src/transport/http-transport.ts` — the
   reference client's `ITransport`.
-- `packages/http-transport/src/transport/actor-state-unit.ts` — its
+- `packages/typescript/http-transport/src/transport/actor-state-unit.ts` — its
   stream: the reader, the reconnect and handoff logic, the subscription
   matrix.
-- `packages/core/src/bus.ts` — `Bus.request`.
-- `packages/http-transport-rust/src/transport.rs` — the Rust client's
+- `packages/typescript/core/src/bus.ts` — `Bus.request`.
+- `packages/rust/http-transport/src/transport.rs` — the Rust client's
   `Transport`, and `actor.rs`, its stream.
-- `packages/sdk-rust/src/bus.rs` — its bus request.
-- `packages/sdk-python/src/semiont/http/transport.py` — the Python client's
+- `packages/rust/sdk/src/bus.rs` — its bus request.
+- `packages/python/sdk/src/semiont/http/transport.py` — the Python client's
   `Transport`, and `stream.py`, its stream.
-- `packages/sdk-python/src/semiont/bus.py` — its bus request.
+- `packages/python/sdk/src/semiont/bus.py` — its bus request.

@@ -2,32 +2,32 @@
   "version": "0.7.1",
   "packages": {
     "@semiont/core": {
-      "dir": "packages/core",
+      "dir": "packages/typescript/core",
       "version": "0.7.1",
       "publish": true
     },
     "@semiont/observability": {
-      "dir": "packages/observability",
+      "dir": "packages/typescript/observability",
       "version": "0.7.1",
       "publish": true
     },
     "@semiont/http-transport": {
-      "dir": "packages/http-transport",
+      "dir": "packages/typescript/http-transport",
       "version": "0.7.1",
       "publish": true
     },
     "@semiont/sdk": {
-      "dir": "packages/sdk",
+      "dir": "packages/typescript/sdk",
       "version": "0.7.1",
       "publish": true
     },
     "@semiont/react-ui": {
-      "dir": "packages/react-ui",
+      "dir": "packages/typescript/react-ui",
       "version": "0.7.1",
       "publish": true
     },
     "semiont-browser": {
-      "dir": "apps/browser",
+      "dir": "images/browser",
       "stage": ".npm-stage/browser",
       "version": "0.7.1",
       "publish": true

@@ -24,7 +24,7 @@ function option(name) {
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/media-types/registry.json'));
 const ENUM = resolve(option('--enum') ?? resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/media-types.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/media-types.ts'));
 
 const { table, rows, aliases } = readMediaTypeTable(TABLE, ENUM);
 

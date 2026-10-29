@@ -18,7 +18,7 @@
 //   - a project file of specs/src/kb-identity/cases.json validates when its
 //     case says every reader refuses it, or does not when it says none does;
 //   - a property a schema names has no field of the launcher's generated types
-//     (apps/launcher/internal/stack/types_gen.go) tagged with its name.
+//     (packages/go/launcher/stack/types_gen.go) tagged with its name.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -30,7 +30,7 @@ import yaml from 'js-yaml';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const CASES = resolve(ROOT, 'specs/src/stack/cases.json');
-const FIXTURE = resolve(ROOT, 'apps/launcher/testdata/kb/.semiont');
+const FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/kb/.semiont');
 
 /** Each schema a document is read against, by the name cases give it. */
 const SCHEMAS = {
@@ -191,7 +191,7 @@ for (const { why, config, refused } of identityCases) {
 // specs/src/stack or the project file's names has a field tagged with its name
 // in the launcher's generated types. A generator that drops a property passes
 // its own drift check; it does not pass this.
-const types = readFileSync(resolve(ROOT, 'apps/launcher/internal/stack/types_gen.go'), 'utf8');
+const types = readFileSync(resolve(ROOT, 'packages/go/launcher/stack/types_gen.go'), 'utf8');
 const stackSchemas = readdirSync(resolve(ROOT, 'specs/src/stack')).filter((name) => name.endsWith('.json') && name !== 'cases.json').map((name) => `specs/src/stack/${name}`);
 for (const path of [...stackSchemas, SCHEMAS.ProjectConfig]) {
   (function walk(node, where) {
@@ -201,7 +201,7 @@ for (const path of [...stackSchemas, SCHEMAS.ProjectConfig]) {
         if (key === 'properties') {
           for (const property of Object.keys(value)) {
             if (!types.includes(`\`json:"${property}"\``) && !types.includes(`\`json:"${property},omitempty"\``)) {
-              fail(`${path}${where}/properties/${property}: no field of apps/launcher/internal/stack/types_gen.go is tagged with it — run: node scripts/spec/generate-stack-go.mjs`);
+              fail(`${path}${where}/properties/${property}: no field of packages/go/launcher/stack/types_gen.go is tagged with it — run: node scripts/spec/generate-stack-go.mjs`);
             }
           }
         }

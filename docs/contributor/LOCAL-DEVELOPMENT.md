@@ -30,12 +30,14 @@ container stop semiont-verdaccio
 
 What a full run does:
 
-1. Builds every npm package, in the order [`version.json`](../../version.json) lists them.
-2. Publishes them to a throwaway local registry (Verdaccio), which it leaves running.
+1. Builds every package of `packages/<language>/<name>`, each in its language's container: the npm packages in the order [`version.json`](../../version.json) lists them, the Rust crates with `cargo build`, the Python packages' distributions with `uv build` (the SDK's with `build-python-sdk.sh`, checked as CI does), and the Go modules with `go build`. A package nothing of has changed since it was last built here is skipped, and the summary at the end says which.
+2. Publishes the npm packages to a throwaway local registry (Verdaccio), which it leaves running, for the Browser's image, the one that installs from it. A run that builds no such image starts none.
 3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
 4. Loads the images into every container runtime on the machine, so the stack can run under any of them.
 5. Builds the launcher from the working tree, as `apps/launcher/dist/semiont`.
-6. Builds the Python SDK's wheel and source distribution into `packages/sdk-python/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and the worker, weaver, smelter and librarian images build the SDK from the working tree. The wheel installs by path.
+6. Holds each cache it keeps (npm's, uv's, Go's and cargo's) to one size, and deletes the image each rebuilt one replaced, so neither grows run after run.
+
+The Python packages' distributions are published nowhere: Verdaccio holds npm packages only, and the worker, weaver, smelter and librarian images build them from the working tree. Each `dist/` installs by path.
 
 Two things make the stack use your build:
 
@@ -45,15 +47,16 @@ Two things make the stack use your build:
 ### Rebuilding one thing
 
 ```bash
-./scripts/ci/local-build.sh --package react-ui,browser --image browser   # two packages, then one image
-./scripts/ci/local-build.sh --images-only --image librarian              # one image, from the working tree
-./scripts/ci/local-build.sh --help                                     # every option
+./scripts/ci/local-build.sh --package typescript/react-ui --image browser   # one package, then one image
+./scripts/ci/local-build.sh --packages-only --package rust                 # the Rust crates, nothing else
+./scripts/ci/local-build.sh --images-only --image librarian                # one image, from the working tree
+./scripts/ci/local-build.sh --help                                         # every option
 ```
 
 - The Browser's image, the one Node image, installs its package from the local registry, so a change to package source reaches it only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
 - The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
-- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `apps/worker`, `apps/weaver`, `apps/smelter` or `apps/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
-- `--package` takes a package's directory name (`core`, `react-ui`), as `version.json` lists them. An unknown name is refused with the list.
+- The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
+- `--package` takes `<language>/<name>` (`typescript/core`, `rust/sdk`), or a language for all of its packages, and `--image` an image's name. What either names always builds, and `--force` builds everything selected; otherwise what is unchanged is skipped. An unknown name is refused with the list.
 
 The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.
 
@@ -75,7 +78,7 @@ container run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)-
   sh -c 'npm ci --include=optional && npm run build:packages'
 ```
 
-For the Rust workspace, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
+For the Rust workspace, in `packages/rust`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
 
 [Testing](TESTING.md) has every suite, what each needs, and how to run it in a container.
 

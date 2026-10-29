@@ -3,7 +3,7 @@
 // specs/src/media-types/registry.json, the registry the TypeScript and Rust
 // SDKs generate from.
 //
-//   packages/sdk-go/mediatypes/registry_gen.go   the rows, in the registry's
+//   packages/go/sdk/mediatypes/registry_gen.go   the rows, in the registry's
 //                                                order, and its aliases
 //
 // Go reads the registry for the media type a file's extension names
@@ -23,7 +23,7 @@ import { readMediaTypeTable } from './media-type-table.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/media-types/registry.json');
 const ENUM = resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/mediatypes/registry_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/mediatypes/registry_gen.go');
 const CHECK = process.argv.includes('--check');
 
 const { table, rows, aliases } = readMediaTypeTable(TABLE, ENUM);
@@ -40,7 +40,7 @@ const keyWidth = Math.max(...aliasEntries.map(([alias]) => go(alias).length + 1)
 const text = `// Code generated from specs/src/media-types/registry.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-media-types-go.mjs
-// The TypeScript side (packages/core/src/generated/media-types.ts) and the
+// The TypeScript side (packages/typescript/core/src/generated/media-types.ts) and the
 // Rust side (semiont::media_types) generate from the same registry.
 
 package mediatypes
@@ -79,9 +79,9 @@ ${aliasEntries.map(([alias, extension]) => `\t${`${go(alias)}:`.padEnd(keyWidth)
 
 const current = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
 if (current === text) {
-  console.log('ok    packages/sdk-go/mediatypes/registry_gen.go');
+  console.log('ok    packages/go/sdk/mediatypes/registry_gen.go');
 } else {
-  console.log(`${current ? 'DRIFT' : 'new  '} packages/sdk-go/mediatypes/registry_gen.go`);
+  console.log(`${current ? 'DRIFT' : 'new  '} packages/go/sdk/mediatypes/registry_gen.go`);
   if (CHECK) process.exit(1);
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, text);

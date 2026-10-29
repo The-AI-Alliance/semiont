@@ -99,23 +99,23 @@ const REGISTRY = 'specs/src/bus/registry.json';
 const SERVICES = [
   {
     name: 'the Archivist',
-    handler: 'apps/archivist/src/bus.rs',
+    handler: 'images/archivist/src/bus.rs',
     rosters: ['COMMANDS', 'READS'],
-    sources: ['apps/archivist/src', 'apps/archivist/record/src', 'apps/archivist/staging/src'],
+    sources: ['images/archivist/src', 'images/archivist/record/src', 'images/archivist/staging/src'],
     protocol: 'docs/protocol/ARCHIVIST.md',
     tables: ['Command', 'Request'],
     appends: {
       begins: 'handle',
-      modules: { commands: 'apps/archivist/src/commands.rs', browse: 'apps/archivist/src/browse.rs' },
+      modules: { commands: 'images/archivist/src/commands.rs', browse: 'images/archivist/src/browse.rs' },
       tables: ['Command'],
       column: 'Appends',
     },
   },
   {
     name: 'the dispatcher',
-    handler: 'apps/dispatcher/handlers/src/handlers.rs',
+    handler: 'images/dispatcher/handlers/src/handlers.rs',
     rosters: ['COMMANDS'],
-    sources: ['apps/dispatcher/src', 'apps/dispatcher/handlers/src', 'apps/dispatcher/jetstream/src'],
+    sources: ['images/dispatcher/src', 'images/dispatcher/handlers/src', 'images/dispatcher/jetstream/src'],
     protocol: 'docs/protocol/JOBS.md',
     tables: ['Channel'],
   },
@@ -134,7 +134,7 @@ const recorded = new Set(registry.channels.filter((channel) => channel.shape ===
 const reads = new Set(registry.effect.reads);
 const writes = new Set(registry.effect.writes);
 
-/** A channel's type in the Rust SDK, as `pascal` of packages/codegen-rust names it: `job:cancel-requested` is `JobCancelRequested`. */
+/** A channel's type in the Rust SDK, as `pascal` of packages/rust/codegen names it: `job:cancel-requested` is `JobCancelRequested`. */
 const typeOf = (channel) => channel.split(/[^A-Za-z0-9]+/).filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join('');
 const channelOf = new Map(registry.channels.map((channel) => [typeOf(channel.channel), channel.channel]));
 if (channelOf.size === 0 || operationOf.size === 0 || answeredByOne.size === 0 || recorded.size === 0 || reads.size === 0 || writes.size === 0) {

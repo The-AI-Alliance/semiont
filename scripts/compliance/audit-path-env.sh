@@ -9,12 +9,12 @@ set -euo pipefail
 # home. Absence fails loudly instead.
 #
 # P1  every read of an XDG_* variable or of TMPDIR, in non-test source under
-#     packages/*/src and apps/*/src, is in the list below with its reason.
+#     packages/*/*/src and images/*/src, is in the list below with its reason.
 # P2  no such read has a fallback on its line (`??`, `||`, `unwrap_or`).
 # P3  every entry of the list is still a read. An entry nothing reads is a
 #     reason given for something that is not there.
 #
-# The launcher (apps/launcher) is not in scope: it runs on a person's machine,
+# The launcher (apps/launcher, packages/go/launcher) is not in scope: it runs on a person's machine,
 # where the XDG defaults are real places, and it has its own tests of them.
 #
 # Exit code: 0 if clean, 1 if violations found.
@@ -33,7 +33,7 @@ is_test_file() { echo "$1" | grep -qE '__tests__|/test-setup|\.test\.[a-z]+$|vit
 # Every line that reads the environment and names one of the variables:
 # `process.env.X`, `process.env['X']`, a destructuring from `process.env`,
 # and Rust's `env::var("X")`.
-found=$(grep -rnIE '(process\.env|env::var(_os)?\()' packages/*/src apps/*/src 2>/dev/null \
+found=$(grep -rnIE '(process\.env|env::var(_os)?\()' packages/*/*/src images/*/src 2>/dev/null \
   | grep -vE '^apps/launcher/' \
   | grep -E '\b(XDG_[A-Z_]+|TMPDIR)\b' || true)
 

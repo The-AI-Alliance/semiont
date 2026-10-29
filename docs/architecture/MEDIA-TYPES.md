@@ -13,10 +13,10 @@ the only type that exercises every axis at its hardest setting.
 
 [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)
 holds one row per supported type. Every SDK generates its table from it:
-TypeScript's is `MEDIA_TYPES` in `packages/core/src/media-types.ts`, Rust's is
+TypeScript's is `MEDIA_TYPES` in `packages/typescript/core/src/media-types.ts`, Rust's is
 `semiont::media_types`, Python's is `MEDIA_TYPES` in
 `semiont.media_types_table`, and Go's is `mediatypes.Rows` in
-`packages/sdk-go/mediatypes`, which the launcher reads to name an upload's
+`packages/go/sdk/mediatypes`, which the launcher reads to name an upload's
 format from its file extension. TypeScript's and Rust's tables carry every
 column. Python's carries a type's extension, its `textSource`, and whether it
 is `authorable` and `generatable`; Go's carries the extension alone. A row, as
@@ -132,7 +132,7 @@ work:
 
 So they are separate surfaces, and a call site cannot mistake one for the other:
 decoding is every SDK's (`decodeRepresentation` in `@semiont/core`); deriving is
-the Smelter's alone ([apps/smelter](../../apps/smelter/), `extraction.py`), and
+the Smelter's alone ([images/smelter](../../images/smelter/), `extraction.py`), and
 it stores what it derives.
 
 **Whether a type's text comes with places on a page is derived from this field**,
@@ -308,7 +308,7 @@ is held and has nothing under the shape.
     `TextQuoteSelector` when `textUnder` found anything. The archivist appends
     **`mark:added`** and replies `mark:create-ok`.
 12. **Or AI detection.** `job:create` → the Worker runs `prepare_detection`
-    (`apps/worker`), which reads the stored artifact through
+    (`images/worker`), which reads the stored artifact through
     `browse.resource_anchored_text`, behind the same settle barrier the canvas
     waits on. A worker never extracts. The model returns a verbatim quote; the
     SDK's `reconcile` finds it in the text, and `annotation_of_span` builds the

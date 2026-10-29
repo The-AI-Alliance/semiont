@@ -6,9 +6,9 @@ name: Continuous Integration
 # run at night and for a release alone among them (`tier == 'full'`).
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   workflow_dispatch:
   # 08:17 UTC: 4:17 in the morning Eastern under daylight time, 3:17 under
   # standard, off the hour, when GitHub delays scheduled runs least. A scheduled
@@ -104,14 +104,16 @@ jobs:
           npm run lint:internal-deps || fail=1
           npm run lint:workflows || fail=1
           npm run lint:labels || fail=1
+          npm run lint:path-globs || fail=1
           exit $fail
 
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
-  # reports it as Success. A push to main, a dispatch, or a change to the
-  # workflows, the CI scripts or the spec runs everything
-  # (.github/scripts/changed-areas.mjs). lint:workflows holds every job to an
-  # `if` over areas this map defines, so a job cannot fall out of it.
+  # reports it as Success. The nightly schedule, a dispatch and a release's
+  # call run everything, and so does a change to this workflow, the script that
+  # maps the areas, the CI scripts or the spec (.github/scripts/changed-areas.mjs).
+  # lint:workflows holds every job to an `if` over areas this map defines, so a
+  # job cannot fall out of it.
   changes:
     name: Changed Areas
     runs-on: ubuntu-latest
@@ -123,6 +125,7 @@ jobs:
     outputs:
       rust: ${{ steps.areas.outputs.rust }}
       ts: ${{ steps.areas.outputs.ts }}
+      ui: ${{ steps.areas.outputs.ui }}
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
@@ -148,75 +151,74 @@ jobs:
         uses: dorny/paths-filter@v4.0.3
         with:
           filters: |
+            # What every job runs on. Of .github/, this workflow reads the
+            # script that maps the areas alone; the census, which always runs,
+            # holds the rest of it.
             all:
-              - '.github/**'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/changed-areas.mjs'
               - 'scripts/ci/**'
-              - 'specs/**'
+              - 'specs/src/**'
+              - 'specs/redocly.yaml'
+              - 'specs/.redocly.lint-ignore.yaml'
             # The Rust workspace: the three services, the crates they share,
             # the lockfile, the toolchain, cargo-deny's policy, and the two
             # scripts the Gateway Tests job runs over the crates. lint:workflows
-            # holds every directory under apps/ and packages/ that has a
+            # holds every directory under apps/, images/ and packages/ that has a
             # manifest to a pattern of some filter, so a new package is mapped
             # or the lint says so.
             rust:
-              - 'apps/gateway/**'
-              - 'apps/dispatcher/**'
-              - 'apps/archivist/**'
-              - 'packages/codegen-rust/**'
-              - 'packages/core-rust/**'
-              - 'packages/http-service-rust/**'
-              - 'packages/http-transport-rust/**'
-              - 'packages/observability-rust/**'
-              - 'packages/sdk-rust/**'
-              - 'packages/telemetry-rust/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
-              - 'deny.toml'
+              - 'images/gateway/**'
+              - 'images/dispatcher/**'
+              - 'images/archivist/**'
+              - 'packages/rust/**'
               - 'scripts/lint/check-image-crates.mjs'
               - 'scripts/release/cargo-version.sh'
-            # The npm workspaces, each named (the filter takes no exclusion
-            # without a quantifier that breaks a list of several), and what
-            # builds them. The conformance suites build @semiont/core or the
-            # packages from the root, so a change here runs them too.
+            # The npm libraries, what they share, and what installs them. The
+            # conformance suites build @semiont/core from the root, so a change
+            # here runs them too. Each is named: the filter takes no exclusion
+            # without a quantifier that breaks a list of several.
             ts:
-              - 'apps/browser/**'
-              - 'apps/desktop/**'
-              - 'packages/core/**'
-              - 'packages/http-transport/**'
-              - 'packages/observability/**'
-              - 'packages/react-ui/**'
-              - 'packages/sdk/**'
+              - 'packages/typescript/core/**'
+              - 'packages/typescript/http-transport/**'
+              - 'packages/typescript/observability/**'
+              - 'packages/typescript/sdk/**'
+              # What the packages share: every file beside them, none below.
+              - 'packages/typescript/*'
               - 'package.json'
               - 'package-lock.json'
-              - 'tsconfig.json'
-              - 'vitest.shared.config.ts'
               - '.node-version'
+            # The interfaces: the design system and the two apps built on it.
+            # No conformance suite reads them.
+            ui:
+              - 'packages/typescript/react-ui/**'
+              - 'images/browser/**'
+              - 'apps/desktop/**'
             conformance:
               - 'tests/conformance/**'
             go:
               - 'apps/launcher/**'
-              - 'packages/sdk-go/**'
+              - 'packages/go/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
-              - 'packages/sdk-python/**'
+              - 'packages/python/sdk/**'
             python-inference:
-              - 'packages/inference-python/**'
+              - 'packages/python/inference/**'
             python-graph:
-              - 'packages/graph-python/**'
+              - 'packages/python/graph/**'
             python-vectors:
-              - 'packages/vectors-python/**'
+              - 'packages/python/vectors/**'
             python-service:
-              - 'packages/service-python/**'
+              - 'packages/python/service/**'
             worker:
-              - 'apps/worker/**'
+              - 'images/worker/**'
             weaver:
-              - 'apps/weaver/**'
+              - 'images/weaver/**'
             smelter:
-              - 'apps/smelter/**'
+              - 'images/smelter/**'
             librarian:
-              - 'apps/librarian/**'
+              - 'images/librarian/**'
             # What the compliance audits read beside the code areas: their own
             # scripts, the docs whose snippets they compile and the fixture
             # they compile them in, and the Dockerfiles they hold to
@@ -225,7 +227,7 @@ jobs:
               - 'scripts/compliance/**'
               - 'docs/**'
               - 'tests/doc-snippets/**'
-              - 'apps/*/Dockerfile'
+              - 'images/*/Dockerfile'
 
       - name: Which areas run
         id: areas
@@ -238,7 +240,7 @@ jobs:
     name: Browser Tests
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -259,7 +261,7 @@ jobs:
       - name: Run browser type check
         run: |
           echo "Running browser TypeScript type check..."
-          cd apps/browser
+          cd images/browser
           npm run typecheck
         env:
           CI: true
@@ -270,7 +272,7 @@ jobs:
       # Tests once ran again (`test:security`) are files of this suite.
       - name: Run browser tests
         run: |
-          cd apps/browser
+          cd images/browser
           npm run test:coverage
         env:
           CI: true
@@ -280,9 +282,9 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./apps/browser/coverage/lcov.info
-          flags: browser
-          name: browser
+          files: ./images/browser/coverage/lcov.info
+          flags: image-browser
+          name: image-browser
           verbose: true
         continue-on-error: true
 
@@ -293,7 +295,7 @@ jobs:
     name: Test ${{ matrix.package }}
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -318,32 +320,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
-      # What each package needs built to test, and no more.
-      - name: Build the package's dependencies
-        run: |
-          case "${{ matrix.package }}" in
-            core)
-              npm run openapi:bundle
-              ;;
-            http-transport|observability)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              ;;
-            sdk)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/http-transport
-              ;;
-            react-ui)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/http-transport
-              npm run build --workspace=@semiont/sdk
-              ;;
-          esac
-
-      - name: Build the package
-        run: npm run build --workspace=@semiont/${{ matrix.package }}
+      # The package and what it is built on, each once, and no more.
+      - name: Build the package and the packages it is built on
+        run: npm run build:packages -- @semiont/${{ matrix.package }}
 
       - name: Type-check
         run: npm run typecheck --workspace=@semiont/${{ matrix.package }}
@@ -352,7 +331,7 @@ jobs:
 
       - name: Run the tests with coverage
         run: |
-          cd packages/${{ matrix.package }}
+          cd packages/typescript/${{ matrix.package }}
           npm run test:coverage
           node -e "
             const total = require('./coverage/coverage-summary.json').total;
@@ -366,9 +345,9 @@ jobs:
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/${{ matrix.package }}/coverage/lcov.info
-          flags: ${{ matrix.package }}
-          name: ${{ matrix.package }}
+          files: ./packages/typescript/${{ matrix.package }}/coverage/lcov.info
+          flags: typescript-${{ matrix.package }}
+          name: typescript-${{ matrix.package }}
           verbose: true
         continue-on-error: true
 
@@ -378,10 +357,10 @@ jobs:
     name: Browser Security Tests
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
     defaults:
       run:
-        working-directory: ./apps/browser
+        working-directory: ./images/browser
 
     steps:
       - name: Checkout code
@@ -451,12 +430,12 @@ jobs:
           pkill -f "vite preview" || true
 
   # Lighthouse's accessibility audit of the built Browser's signed-out pages.
-  # apps/browser/lighthouserc.json names the pages and the score they must reach.
+  # images/browser/lighthouserc.json names the pages and the score they must reach.
   lighthouse-accessibility:
     name: Lighthouse - Signed-out Pages
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -472,15 +451,11 @@ jobs:
       - name: Build dependencies
         run: |
           npm ci --include=optional
-          npm run openapi:bundle
-          npm run build --workspace=@semiont/core
-          npm run build --workspace=@semiont/http-transport
-          npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/react-ui
+          npm run build:packages -- @semiont/react-ui
 
       - name: Build browser
         run: |
-          cd apps/browser
+          cd images/browser
           npm run build
 
       - name: Install Lighthouse CI
@@ -488,28 +463,30 @@ jobs:
 
       - name: Audit the signed-out pages
         run: |
-          cd apps/browser
+          cd images/browser
           lhci collect
 
       - name: Assert the audit's scores
         id: assert
         run: |
-          cd apps/browser
+          cd images/browser
           # lhci assert passes when it finds no reports at all
           ls .lighthouseci/lhr-*.json > /dev/null
           lhci assert
 
+      # This step and the next run when a step before them failed, and skip a
+      # cancelled run: a newer push superseded it, and the newer run reports.
       - name: Upload Lighthouse results
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
-          path: apps/browser/.lighthouseci
+          path: images/browser/.lighthouseci
           retention-days: 30
 
       # A run Dependabot started has a read-only token, which cannot comment.
       - name: Comment PR with Lighthouse results
-        if: always() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
         uses: actions/github-script@v9
         env:
           ASSERT_OUTCOME: ${{ steps.assert.outcome }}
@@ -518,7 +495,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            const lighthouseDir = 'apps/browser/.lighthouseci';
+            const lighthouseDir = 'images/browser/.lighthouseci';
             const reports = fs.existsSync(lighthouseDir)
               ? fs.readdirSync(lighthouseDir)
                   .filter((f) => f.startsWith('lhr-') && f.endsWith('.json'))
@@ -537,8 +514,8 @@ jobs:
               }
               const rows = [...scores].map(([page, runs]) => `| \`${page}\` | ${runs.join(', ')} |`);
               const verdict = {
-                success: '✅ The scores meet `apps/browser/lighthouserc.json`.',
-                failure: '❌ The scores fall short of `apps/browser/lighthouserc.json`.',
+                success: '✅ The scores meet `images/browser/lighthouserc.json`.',
+                failure: '❌ The scores fall short of `images/browser/lighthouserc.json`.',
               }[process.env.ASSERT_OUTCOME] ?? `The assertion step did not finish (${process.env.ASSERT_OUTCOME}).`;
               body = [
                 '**Lighthouse accessibility, signed-out pages**',
@@ -567,7 +544,7 @@ jobs:
     name: React Hooks Architecture Review
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.compliance == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.compliance == 'true'
 
     steps:
       - name: Checkout repository
@@ -678,14 +655,14 @@ jobs:
         id: react-ui-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          cd packages/react-ui
+          cd packages/typescript/react-ui
           ./scripts/generate-compliance-report.sh
 
       - name: Run Browser Compliance Audit
         id: browser-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          cd apps/browser
+          cd images/browser
           ./scripts/generate-compliance-report.sh
 
       - name: Display Full React-UI Report
@@ -753,6 +730,9 @@ jobs:
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true'
 
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -762,7 +742,21 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: |
           rustup toolchain install
+          rustup component add llvm-tools-preview
           cargo --version
+
+      # Keyed by this file, which pins cargo-llvm-cov's version, and by the
+      # toolchain that compiles it.
+      - name: Cache cargo-llvm-cov
+        id: llvm-cov
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('.github/workflows/ci.yml', 'packages/rust/rust-toolchain.toml') }}
+
+      - name: Install cargo-llvm-cov
+        if: steps.llvm-cov.outputs.cache-hit != 'true'
+        run: cargo install cargo-llvm-cov --locked --version 0.9.1
 
       # Its own key: this job builds the dev profile (clippy, tests) and
       # Gateway Conformance the release one. A cache key is saved once, by
@@ -774,19 +768,35 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-dev-
 
       # The gateway's behaviour is the Gateway Conformance job's; what runs
-      # here is the code's own hygiene and the runners for the shared case
-      # tables, its only Rust tests.
-      - name: Format, lint, and run the shared-table runners
+      # here is the code's own hygiene and the workspace's tests, measured.
+      # An instrumented run on a stable toolchain runs no doc tests, so they
+      # run after it.
+      - name: Format, lint, and run the tests
         run: |
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --locked -- -D warnings
-          cargo test --workspace --locked
+          cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
+          cargo test --workspace --locked --doc
+
+      # One report for the workspace, the Rust images' crates among it, under
+      # every crate's flag and every Rust image's; codecov.yml's components
+      # scope each to its directory.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/rust/lcov.info
+          flags: rust-codegen,rust-core,rust-http-service,rust-http-transport,rust-observability,rust-sdk,rust-telemetry,image-archivist,image-dispatcher,image-gateway
+          name: rust
+          verbose: true
+        continue-on-error: true
+
 
       # The broker is reached only by a crate that asks for semiont-core's
       # `nats` feature: the SDK, its telemetry, its HTTP transport,
@@ -848,7 +858,7 @@ jobs:
       # (scripts/release/cargo-version.sh keeps it so).
       - name: Check which crates are published, and at what version
         run: |
-          released=$(jq -r .version version.json)
+          released=$(jq -r .version ../../version.json)
           expected=$(printf '%s\n' semiont semiont-codegen semiont-http-transport semiont-telemetry | sed "s/$/ $released/" | sort)
           published=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' | sort)
           if [ "$published" != "$expected" ]; then
@@ -901,11 +911,11 @@ jobs:
                 > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
             done
           done
-          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
+          node ../../scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
-  # Archivist or the Rust SDK's three drivers, all from target/release
+  # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
   # (tests/conformance/harness/paths.ts). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
@@ -918,6 +928,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true'
+    defaults:
+      run:
+        working-directory: packages/rust
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -933,13 +946,13 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
+          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -954,8 +967,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+            packages/rust/target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
@@ -964,18 +977,18 @@ jobs:
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 
       # Several paths: the artifact's root is their common directory, so a
-      # suite fetching it into target/release gets the six files there.
+      # suite fetching it into packages/rust/target/release gets the six files there.
       - name: Publish the binaries
         uses: actions/upload-artifact@v7
         with:
           name: rust-binaries
           path: |
-            target/release/semiont-gateway
-            target/release/semiont-dispatcher
-            target/release/semiont-archivist
-            target/release/semiont-wire-driver
-            target/release/semiont-live-driver
-            target/release/semiont-worker-driver
+            packages/rust/target/release/semiont-gateway
+            packages/rust/target/release/semiont-dispatcher
+            packages/rust/target/release/semiont-archivist
+            packages/rust/target/release/semiont-wire-driver
+            packages/rust/target/release/semiont-live-driver
+            packages/rust/target/release/semiont-worker-driver
           # Long enough for a job re-run to find them; storage is free here.
           retention-days: 30
           if-no-files-found: error
@@ -997,10 +1010,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Write the gateway's configuration document
         run: |
@@ -1029,7 +1042,7 @@ jobs:
           export JWT_SECRET=test-secret-key-for-testing-32char
           export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
-          nohup target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
+          nohup packages/rust/target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > "$RUNNER_TEMP/gateway.log" 2>&1 &
           echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health >/dev/null; then echo "The gateway is healthy"; exit 0; fi
@@ -1105,10 +1118,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1156,10 +1169,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1206,10 +1219,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1256,10 +1269,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1270,12 +1283,12 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The TypeScript drivers run the built SDK, as an application would;
-      # building it builds the packages under it first.
+      # The TypeScript drivers run the built SDK, as an application would, and
+      # the packages it is built on.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build --workspace=@semiont/sdk
+          npm run build:packages -- @semiont/sdk
 
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
@@ -1297,11 +1310,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version-file: packages/sdk-go/conformance/go.mod
+          go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
-        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
+        run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's drivers, put through the corpus against the gateway; the
       # suite type-checks the TypeScript drivers and makes the Python SDK's
@@ -1331,10 +1344,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1372,11 +1385,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version-file: packages/sdk-go/conformance/go.mod
+          go-version-file: packages/go/sdk/conformance/go.mod
           cache: false
 
       - name: Build the Go drivers
-        run: cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
+        run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
       # Each SDK's worker driver, put through the corpus against the gateway;
       # the suite type-checks the TypeScript driver and makes the Python SDK's
@@ -1412,10 +1425,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1465,7 +1478,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Weaver's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+        run: uv sync --locked --no-dev --all-extras --project images/weaver
 
       # Black-box: it starts Weaver processes behind a gateway and an
       # Archivist, records through the Archivist, and reads the graph.
@@ -1499,10 +1512,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1559,7 +1572,7 @@ jobs:
           tesseract --version
 
       - name: Make the Smelter's environment
-        run: uv sync --locked --no-dev --project apps/smelter
+        run: uv sync --locked --no-dev --project images/smelter
 
       # Black-box: it starts Smelter processes behind a gateway and an
       # Archivist, records through the Archivist, and reads the index.
@@ -1597,10 +1610,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1676,13 +1689,13 @@ jobs:
           tesseract --version
 
       - name: Make the Python Weaver's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+        run: uv sync --locked --no-dev --all-extras --project images/weaver
 
       - name: Make the Smelter's environment
-        run: uv sync --locked --no-dev --project apps/smelter
+        run: uv sync --locked --no-dev --project images/smelter
 
       - name: Make the Librarian's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/librarian
+        run: uv sync --locked --no-dev --all-extras --project images/librarian
 
       # Black-box: it starts Librarian processes behind a gateway, beside an
       # Archivist, a Weaver and a Smelter, records through the Archivist, asks
@@ -1713,10 +1726,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rust-binaries
-          path: target/release
+          path: packages/rust/target/release
 
       - name: Make the binaries executable
-        run: chmod +x target/release/semiont-*
+        run: chmod +x packages/rust/target/release/semiont-*
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -1747,7 +1760,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Make the Python Worker service's environment
-        run: uv sync --locked --no-dev --all-extras --project apps/worker
+        run: uv sync --locked --no-dev --all-extras --project images/worker
 
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server
@@ -1777,7 +1790,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/sdk-python
+        working-directory: packages/python/sdk
 
     steps:
       - name: Checkout code
@@ -1818,13 +1831,24 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/sdk/coverage.xml
+          flags: python-sdk
+          name: python-sdk
+          verbose: true
+        continue-on-error: true
 
       # What publish-pypi.yml uploads, built and checked here on every change:
       # a release is not the first place a packaging break is seen.
       - name: Build the distributions and check them
         if: matrix.python-version == '3.12'
-        run: ../../scripts/ci/build-python-sdk.sh
+        run: ../../../scripts/ci/build-python-sdk.sh
 
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
   # in another directory and under another lock (specs/src/sign-in-store).
@@ -1837,7 +1861,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/sdk-python
+        working-directory: packages/python/sdk
 
     steps:
       - name: Checkout code
@@ -1874,7 +1898,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/inference-python
+        working-directory: packages/python/inference
 
     steps:
       - name: Checkout code
@@ -1907,9 +1931,20 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
 
-  # What every Python service is built on (packages/service-python), as the
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/inference/coverage.xml
+          flags: python-inference
+          name: python-inference
+          verbose: true
+        continue-on-error: true
+
+  # What every Python service is built on (packages/python/service), as the
   # Python SDK is checked: both type checkers, strict, on the oldest Python
   # supported, and the tests on every one. The locked environment takes the
   # SDK from this checkout. The tests read a configuration document, ask a
@@ -1927,7 +1962,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/service-python
+        working-directory: packages/python/service
 
     steps:
       - name: Checkout code
@@ -1960,9 +1995,20 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
 
-  # The Worker service's Python code (apps/worker), as the Python SDK is
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/service/coverage.xml
+          flags: python-service
+          name: python-service
+          verbose: true
+        continue-on-error: true
+
+  # The Worker service's Python code (images/worker), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK and the
   # inference drivers from this checkout. The tests run the case tables of
@@ -1980,7 +2026,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/worker
+        working-directory: images/worker
 
     steps:
       - name: Checkout code
@@ -2027,9 +2073,20 @@ jobs:
           echo "$RUNNER_TEMP/typst" >> "$GITHUB_PATH"
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
 
-  # The Python graph stores (packages/graph-python), as the Python SDK is
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/worker/coverage.xml
+          flags: image-worker
+          name: image-worker
+          verbose: true
+        continue-on-error: true
+
+  # The Python graph stores (packages/python/graph), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK from this
   # checkout. These tests need no database: they run the codecs' case table of
@@ -2047,7 +2104,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/graph-python
+        working-directory: packages/python/graph
 
     steps:
       - name: Checkout code
@@ -2080,7 +2137,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/graph/coverage.xml
+          flags: python-graph
+          name: python-graph
+          verbose: true
+        continue-on-error: true
 
   # The Python neo4j store against a real neo4j: the same store contract the
   # in-memory store is held to, asked of the database. It starts the neo4j the
@@ -2110,7 +2178,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
-        working-directory: packages/graph-python
+        working-directory: packages/python/graph
         run: uv sync --locked
 
       - name: Start neo4j
@@ -2128,10 +2196,20 @@ jobs:
           exit 1
 
       - name: Run the store contract against it
-        working-directory: packages/graph-python
-        run: uv run pytest tests/neo4j_live.py
+        working-directory: packages/python/graph
+        run: uv run pytest tests/neo4j_live.py --cov --cov-report=xml
 
-  # The Python vector stores and embedding providers (packages/vectors-python),
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/graph/coverage.xml
+          flags: python-graph
+          name: graph-neo4j
+          verbose: true
+        continue-on-error: true
+
+  # The Python vector stores and embedding providers (packages/python/vectors),
   # as the Python SDK is checked: both type checkers, strict, on the oldest
   # Python supported, and the tests on every one. The locked environment takes
   # the SDK from this checkout. These tests need no server: they run the two
@@ -2149,7 +2227,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: packages/vectors-python
+        working-directory: packages/python/vectors
 
     steps:
       - name: Checkout code
@@ -2182,7 +2260,18 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/vectors/coverage.xml
+          flags: python-vectors
+          name: python-vectors
+          verbose: true
+        continue-on-error: true
 
   # The Python Qdrant store against a real Qdrant: the same store contract the
   # in-memory store is held to, asked of the database, and what the database
@@ -2211,7 +2300,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: Install the locked environment
-        working-directory: packages/vectors-python
+        working-directory: packages/python/vectors
         run: uv sync --locked
 
       - name: Start Qdrant
@@ -2229,10 +2318,20 @@ jobs:
           exit 1
 
       - name: Run the store contract against it
-        working-directory: packages/vectors-python
-        run: uv run pytest tests/qdrant_live.py
+        working-directory: packages/python/vectors
+        run: uv run pytest tests/qdrant_live.py --cov --cov-report=xml
 
-  # The Weaver's Python code (apps/weaver), as the Python SDK is checked: both
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/python/vectors/coverage.xml
+          flags: python-vectors
+          name: vectors-qdrant
+          verbose: true
+        continue-on-error: true
+
+  # The Weaver's Python code (images/weaver), as the Python SDK is checked: both
   # type checkers, strict, on the oldest Python supported, and the tests on
   # every one. The locked environment takes the SDK and the graph stores from
   # this checkout. The tests run the fold's case table of specs/ and the
@@ -2250,7 +2349,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/weaver
+        working-directory: images/weaver
 
     steps:
       - name: Checkout code
@@ -2283,9 +2382,20 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
 
-  # The Smelter's code (apps/smelter), as the Python SDK is checked:
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/weaver/coverage.xml
+          flags: image-weaver
+          name: image-weaver
+          verbose: true
+        continue-on-error: true
+
+  # The Smelter's code (images/smelter), as the Python SDK is checked:
   # both type checkers, strict, on the oldest Python supported, and the tests
   # on every one. The locked environment takes the SDK from this checkout, and
   # PDFium from its binding's wheel. The tests read PDFs with the real PDFium
@@ -2305,7 +2415,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/smelter
+        working-directory: images/smelter
 
     steps:
       - name: Checkout code
@@ -2344,9 +2454,20 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
 
-  # The Librarian's Python code (apps/librarian), as the Python SDK is
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/smelter/coverage.xml
+          flags: image-smelter
+          name: image-smelter
+          verbose: true
+        continue-on-error: true
+
+  # The Librarian's Python code (images/librarian), as the Python SDK is
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK, the graph
   # stores, the vector stores and the inference drivers from this checkout.
@@ -2365,7 +2486,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: apps/librarian
+        working-directory: images/librarian
 
     steps:
       - name: Checkout code
@@ -2398,13 +2519,24 @@ jobs:
           uv run ruff format --check
 
       - name: Run the tests
-        run: uv run pytest
+        run: uv run pytest --cov --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./images/librarian/coverage.xml
+          flags: image-librarian
+          name: image-librarian
+          verbose: true
+        continue-on-error: true
 
   check-phantom-deps:
     name: Phantom Dependency Check
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -2429,7 +2561,7 @@ jobs:
     name: Build All Applications
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.ts == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ui == 'true'
 
     steps:
       - name: Checkout code
@@ -2481,9 +2613,9 @@ jobs:
         with:
           go-version-file: apps/launcher/go.mod
 
-      # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
-      # the gateway's channel classification (apps/gateway/src), and Go
-      # (packages/sdk-go/bus). Any of them drifting means two sides can disagree
+      # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
+      # the gateway's channel classification (images/gateway/src), and Go
+      # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime.
       - name: Bus registry vs generated code
         run: |
@@ -2491,7 +2623,7 @@ jobs:
           node scripts/bus/generate-go.mjs --check
 
       # Authority: specs/src → the Python SDK's committed modules
-      # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
+      # (packages/python/sdk/src/semiont): the bus vocabulary, the kinds of id,
       # the error codes, the client's timing, its refresh table, the telemetry
       # it exports, the clients it signs in as, the entry of the sign-in store,
       # the media types, and the Encoding Standard's labels and single-byte
@@ -2511,7 +2643,7 @@ jobs:
           node scripts/spec/generate-media-types-python.mjs --check
           node scripts/spec/generate-encodings-python.mjs --check
 
-      # Authority: specs/src → the Go SDK's committed code (packages/sdk-go):
+      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk):
       # the kinds of id (api/ids_gen.go, whose generator also holds
       # oapi-codegen's exclude-schemas to the kinds), the error codes, the
       # client's timing, the cache-refresh table, the SDK telemetry table, the sign-in store's entry,
@@ -2535,16 +2667,16 @@ jobs:
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the
-      # schema text it validates them against (apps/launcher/internal/stack).
+      # schema text it validates them against (packages/go/launcher/stack).
       # lint:spec-stack, in the Census job, holds every property of the schemas
       # to a field of the generated types.
       - name: Knowledge base documents vs the launcher's generated Go
         run: node scripts/spec/generate-stack-go.mjs --check
 
-      # `semiont mcp`'s tools (apps/launcher/internal/verbs/mcp-tools.json) and
+      # `semiont mcp`'s tools (packages/go/launcher/verbs/mcp-tools.json) and
       # the components they name → each tool's input and output schema, made
       # self-contained, and the SDK methods no tool calls
-      # (apps/launcher/internal/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
+      # (packages/go/launcher/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
       # the launcher's suite, holds the table to the client surface both ways.
       - name: MCP tools vs the launcher's generated Go
         run: node scripts/spec/generate-mcp-tools-go.mjs --check
@@ -2556,15 +2688,15 @@ jobs:
       - name: Bundle the OpenAPI spec
         run: npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json
 
-      # Authority: specs/openapi.json → packages/sdk-go/api/client_gen.go.
+      # Authority: specs/openapi.json → packages/go/sdk/api/client_gen.go.
       # Deterministic because the generator version is pinned.
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-            -config packages/sdk-go/oapi-codegen.yaml \
+            -config packages/go/sdk/oapi-codegen.yaml \
             -o /tmp/client_gen.check.go specs/openapi.json
-          if ! diff -q /tmp/client_gen.check.go packages/sdk-go/api/client_gen.go; then
-            echo "::error::packages/sdk-go/api/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."
+          if ! diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go; then
+            echo "::error::packages/go/sdk/api/client_gen.go is stale — run: cd packages/go/sdk && go generate ./..."
             exit 1
           fi
           echo "sdk-go client matches the spec"
@@ -2575,7 +2707,7 @@ jobs:
       - name: Generated Go client covers every schema
         run: node scripts/ci/check-go-schema-coverage.mjs
 
-      # Authority: specs/openapi.json → packages/sdk-python/src/semiont/types.py.
+      # Authority: specs/openapi.json → packages/python/sdk/src/semiont/types.py.
       # Deterministic because the generator and the formatter are pinned in the
       # package's lockfile, and run on the Python the package's floor names.
       # Its independent oracle is the package's own suite, which holds the
@@ -2589,12 +2721,12 @@ jobs:
         uses: astral-sh/setup-uv@v10.3.2
 
       - name: OpenAPI spec vs the Python SDK's generated models
-        run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check
+        run: uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py --check
 
       # Authority: the npm package @opencode-ai/models (the models.dev
       # catalogue), at the one version the root package.json pins → the model
       # catalogue file the Python inference package's tests read, and its
-      # notice (packages/inference-python/tests/catalogue). The package carries
+      # notice (packages/python/inference/tests/catalogue). The package carries
       # no copy: an image's build makes the file with the same script. This
       # one is the tests' fixture, real data at the pin, so the script, the
       # package's reader and the pin are held to each other. A bump of the pin
@@ -2644,7 +2776,7 @@ jobs:
       # any output instead.
       - name: Check formatting (gofmt)
         run: |
-          unformatted=$(gofmt -l apps/launcher packages/sdk-go)
+          unformatted=$(gofmt -l apps/launcher packages/go)
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofmt-clean:"
             echo "$unformatted"
@@ -2653,7 +2785,9 @@ jobs:
           echo "gofmt clean"
 
       - name: Vet launcher
-        run: cd apps/launcher && go vet ./...
+        run: |
+          (cd apps/launcher && go vet ./...)
+          (cd packages/go/launcher && go vet ./...)
 
       # Every target a release ships. A call one system lacks compiles on
       # this job's Linux and on a developer's Mac; this is what finds it for
@@ -2661,34 +2795,44 @@ jobs:
       # compiles the tests too.
       - name: Launcher compiles for every target
         run: |
-          cd apps/launcher
           for os in darwin linux windows; do
             for arch in amd64 arm64; do
               echo "::group::$os/$arch"
-              GOOS=$os GOARCH=$arch go vet ./...
+              (cd apps/launcher && GOOS=$os GOARCH=$arch go vet ./...)
+              (cd packages/go/launcher && GOOS=$os GOARCH=$arch go vet ./...)
               echo "::endgroup::"
             done
           done
 
-      # packages/sdk-go is a separate module (the generated API client + bus
+      # packages/go/sdk is a separate module (the generated API client + bus
       # registry the launcher consumes via a replace directive) — it needs its
       # own vet/build, or a broken generated file only surfaces downstream.
       # `go test` too: the bus client's wire-contract tests (subscribe before
       # emit, correlation, failure channels) and the bridged-set invariants
       # live here, and a build-only step never ran a single one of them.
       - name: Vet, build and test sdk-go
-        run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
+        run: cd packages/go/sdk && go vet ./... && go build ./... && go test -timeout 5m -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/sdk/coverage.out
+          flags: go-sdk
+          name: go-sdk
+          verbose: true
+        continue-on-error: true
 
       # The SDK's conformance drivers are a module of their own.
       - name: Vet the Go SDK's drivers
-        run: cd packages/sdk-go/conformance && go vet ./...
+        run: cd packages/go/sdk/conformance && go vet ./...
 
       # The launcher's deps are go.yaml.in/yaml and santhosh-tekuri/jsonschema
       # (the stack's documents and their schemas), golang.org/x/sys (the Windows build's
       # file lock, access lists and process calls), golang.org/x/term (hidden
       # input and the terminal's size), sigstore/sigstore-go (an image's build
       # provenance, checked before it runs, and what it pulls in: protobuf,
-      # TUF, the Sigstore clients) and packages/sdk-go (whose client pulls
+      # TUF, the Sigstore clients) and packages/go/sdk (whose client pulls
       # oapi-codegen/runtime, whose telemetry is the OpenTelemetry API, and
       # whose reader of a resource's text decodes the legacy multi-byte
       # charsets with golang.org/x/text),
@@ -2705,7 +2849,8 @@ jobs:
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
-          cd apps/launcher && govulncheck ./...
+          (cd apps/launcher && govulncheck ./...)
+          (cd packages/go/launcher && govulncheck ./...)
 
   # The same suite, run as a Windows program. The job above proves the
   # launcher compiles for Windows; nothing but a Windows machine proves what
@@ -2723,8 +2868,9 @@ jobs:
   # order, so each test follows the test it follows in a serial run: some
   # tests leave a stand-in listening that the next test sees, and taking every
   # third test instead failed a golden that a serial run passes. The first leg
-  # also runs the module's other packages. A new test lands in a leg with
-  # nothing to update, and a leg left with no test fails.
+  # also runs the tests of the launcher's libraries (packages/go/launcher). A
+  # new test lands in a leg with nothing to update, and a leg left with no
+  # test fails.
   #
   # An EXPLICIT budget. These tests drive a fake runtime through real
   # start/stop lifecycles, so each leg is minutes long and serial; the whole
@@ -2752,7 +2898,9 @@ jobs:
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
-          cache-dependency-path: apps/launcher/go.sum
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
 
       - name: Choose this leg's tests
         id: tests
@@ -2768,9 +2916,21 @@ jobs:
       - name: Test the launcher
         run: go test -timeout 30m -run '${{ steps.tests.outputs.run }}' .
 
-      - name: Test the launcher's other packages
+      - name: Test the launcher's libraries
         if: strategy.job-index == 0
-        run: go test -timeout 30m $(go list ./... | grep -vx "$(go list .)")
+        working-directory: packages/go/launcher
+        run: go test -timeout 30m -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        if: strategy.job-index == 0
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/go/launcher/coverage.out
+          flags: go-launcher
+          name: go-launcher
+          verbose: true
+        continue-on-error: true
 
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
@@ -2795,19 +2955,29 @@ jobs:
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
-          cache-dependency-path: apps/launcher/go.sum
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
 
       - name: Vet launcher
+        run: go vet ./...
+
+      - name: Vet the launcher's libraries
+        working-directory: packages/go/launcher
         run: go vet ./...
 
       # An explicit budget, as the Linux job has, under the job's ceiling.
       - name: Test launcher
         run: go test -timeout 50m ./...
 
+      - name: Test the launcher's libraries
+        working-directory: packages/go/launcher
+        run: go test -timeout 50m ./...
+
       # The launcher's Windows binary carries this module's client and bus
       # registry.
       - name: Test sdk-go
-        working-directory: packages/sdk-go
+        working-directory: packages/go/sdk
         run: go test -timeout 5m ./...
 
   # ── The gate ─────────────────────────────────────────────────────────

@@ -136,16 +136,16 @@ it('should have no WCAG violations', async () => {
 
 - name: Audit the signed-out pages
   run: |
-    cd apps/browser
+    cd images/browser
     lhci collect
 
 - name: Assert the audit's scores
   run: |
-    cd apps/browser
+    cd images/browser
     lhci assert
 ```
 
-`apps/browser/lighthouserc.json` names the pages Lighthouse audits and the accessibility score they must reach.
+`images/browser/lighthouserc.json` names the pages Lighthouse audits and the accessibility score they must reach.
 
 ## Implementation Guidelines
 
@@ -166,7 +166,7 @@ Drag & drop per [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/patte
 
 ### Language Support
 
-Content language per [WCAG 3.1.2](https://www.w3.org/WAI/WCAG21/Understanding/language-of-parts.html): the interface language belongs on the host's `<html lang>` (the Browser writes it, and `dir`, from its route's locale — see [its ACCESSIBILITY.md](../../../apps/browser/docs/ACCESSIBILITY.md#language-and-direction)), and resource content, whose language may differ, carries its own. `ResourceViewerPage` marks its document body this way, and `ResourceComposePage` its editor:
+Content language per [WCAG 3.1.2](https://www.w3.org/WAI/WCAG21/Understanding/language-of-parts.html): the interface language belongs on the host's `<html lang>` (the Browser writes it, and `dir`, from its route's locale — see [its ACCESSIBILITY.md](../../../images/browser/docs/ACCESSIBILITY.md#language-and-direction)), and resource content, whose language may differ, carries its own. `ResourceViewerPage` marks its document body this way, and `ResourceComposePage` its editor:
 ```tsx
 import { getLanguage } from '@semiont/core';
 

@@ -1,0 +1,7 @@
+# What the Browser's scripts make: public/ is staged whole (the favicons from
+# @semiont/react-ui, pdf.js's wasm decoders, the merged translations), and so
+# is messages/, merged from messages-source/ and react-ui's translations
+/public/
+/messages/
+# The suite's JSON report (package.json's test scripts)
+/test-results.json

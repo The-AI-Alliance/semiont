@@ -6,28 +6,28 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 
 | Suite | Where | What it exercises | Needs |
 |---|---|---|---|
-| Workspace suites | every npm workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running |
-| Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../rust-toolchain.toml) names |
-| Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
-| Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/service-python` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, a resource's bytes, its annotations and the record by position read from an Archivist a test plays over HTTP, how a follower of the record takes each log against its case table and beyond it (the stream it watches, a sweep tried again, a log taken again, its cursors' file), where a file of the record is filed against its case table, what white space is, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `apps/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/graph-python` (`uv run pytest`) | The Python graph stores: the codecs against the case table of what the graph holds, one store contract against the in-memory store, the two Gremlin stores against fake clients, the extras, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/graph-python` (`uv run pytest tests/neo4j_live.py`) | The same store contract against a real neo4j, which it clears | The above, and a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
-| Python | `packages/vectors-python` (`uv run pytest`) | The Python vector stores and embedding providers: what a point is against its case table, one store contract of both case tables against the in-memory store, each provider against one the test plays over HTTP, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/vectors-python` (`uv run pytest tests/qdrant_live.py`) | The same store contract against a real Qdrant, and what the Qdrant then holds of each point; it deletes that Qdrant's two collections | The above, and a Qdrant of its own, named in `QDRANT_HOST` |
-| Python | `apps/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its fold taken as a follower's take, a store that fails, a start, a rewound record, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `apps/smelter` (`uv run pytest`) | The Smelter's Python code: reading a PDF with PDFium and a scanned page with the `tesseract` program, each against the real engine; the rules that make a document's text, against the case table of what deriving a PDF's text comes to; how a text is cut and the work a start plans, each against its case table; the anchored-text store, its entries held to their schema; the Smelter over a scripted transport and an index in the process (what each event does, its order, what it decides, reconcile, rebuild, what it refuses to start on); and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later, `uv`, and the `tesseract` program with its English data |
-| Python | `apps/librarian` (`uv run pytest`) | The Librarian's Python code, over a fake of everything it reads by: the protocols it is handed, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Workspace suites | every npm workspace in `apps/*`, `images/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running |
+| Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) names |
+| Go | `apps/launcher`, `packages/go/sdk` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
+| Python | `packages/python/sdk` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/python/inference` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/python/service` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, a resource's bytes, its annotations and the record by position read from an Archivist a test plays over HTTP, how a follower of the record takes each log against its case table and beyond it (the stream it watches, a sweep tried again, a log taken again, its cursors' file), where a file of the record is filed against its case table, what white space is, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `images/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/python/graph` (`uv run pytest`) | The Python graph stores: the codecs against the case table of what the graph holds, one store contract against the in-memory store, the two Gremlin stores against fake clients, the extras, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/python/graph` (`uv run pytest tests/neo4j_live.py`) | The same store contract against a real neo4j, which it clears | The above, and a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
+| Python | `packages/python/vectors` (`uv run pytest`) | The Python vector stores and embedding providers: what a point is against its case table, one store contract of both case tables against the in-memory store, each provider against one the test plays over HTTP, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/python/vectors` (`uv run pytest tests/qdrant_live.py`) | The same store contract against a real Qdrant, and what the Qdrant then holds of each point; it deletes that Qdrant's two collections | The above, and a Qdrant of its own, named in `QDRANT_HOST` |
+| Python | `images/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its fold taken as a follower's take, a store that fails, a start, a rewound record, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `images/smelter` (`uv run pytest`) | The Smelter's Python code: reading a PDF with PDFium and a scanned page with the `tesseract` program, each against the real engine; the rules that make a document's text, against the case table of what deriving a PDF's text comes to; how a text is cut and the work a start plans, each against its case table; the anchored-text store, its entries held to their schema; the Smelter over a scripted transport and an index in the process (what each event does, its order, what it decides, reconcile, rebuild, what it refuses to start on); and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later, `uv`, and the `tesseract` program with its English data |
+| Python | `images/librarian` (`uv run pytest`) | The Librarian's Python code, over a fake of everything it reads by: the protocols it is handed, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
 | Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
-| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project apps/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
-| Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project apps/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
+| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project images/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
+| Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project images/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
 | Librarian conformance | [`tests/conformance/librarian`](../../tests/conformance/librarian/README.md) | The Librarian as a running process, black-box, behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, with an embedding provider and two models the suite plays, and exporting telemetry the suite receives, against [LIBRARIAN.md](../protocol/LIBRARIAN.md) | Everything the Weaver's and the Smelter's suites need, since it starts both: a built gateway and Archivist; `@semiont/core` built; the Librarian's, the Weaver's and the Smelter's Python environments and the `tesseract` program; `git`; `nats-server`; a neo4j and a Qdrant of its own, named in `NEO4J_HOST`, `NEO4J_PASSWORD` and `QDRANT_HOST` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
@@ -41,7 +41,7 @@ There is no test orchestrator and no test environment to select. A suite's confi
 
 ### One shared Vitest config
 
-[`vitest.shared.config.ts`](../../vitest.shared.config.ts) at the repository root holds what every workspace suite has in common:
+[`vitest.shared.config.ts`](../../packages/typescript/vitest.shared.config.ts), beside the TypeScript packages, holds what every workspace suite has in common:
 
 - `globals: true` and the `node` environment;
 - the test files, `src/**/*.test.{ts,tsx}`, excluding `node_modules` and `dist`;
@@ -55,9 +55,9 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 
 | Workspace | Local configuration |
 |---|---|
-| `apps/browser` | `jsdom`; [`vitest.setup.ts`](../../apps/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
-| `packages/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
-| `packages/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
+| `images/browser` | `jsdom`; [`vitest.setup.ts`](../../images/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
+| `packages/typescript/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/typescript/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
+| `packages/typescript/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
 | `packages/` `http-transport`, `observability`, `sdk` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
@@ -69,7 +69,7 @@ The two jsdom setup files:
 
 ### Environment variables
 
-No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `apps/gateway`, `apps/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
+No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `images/gateway`, `images/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
 
 `NODE_ENV` selects nothing. Vitest sets it to `test` when it is unset; no code compares it to `test`, and the only reads — react-ui's error boundaries and the Browser's translation manager — check for `development` to show diagnostics.
 
@@ -107,7 +107,7 @@ npm test --workspace=@semiont/sdk
 
 Every package under `packages/` runs `npm test` as `vitest run`, except `@semiont/react-ui`, which runs its suite as four sequential shards with an 8 GB heap. Every package defines `test:coverage`.
 
-The Browser (`apps/browser/`) has one suite and several filters over it:
+The Browser (`images/browser/`) has one suite and several filters over it:
 
 ```bash
 npm test                    # everything
@@ -119,11 +119,12 @@ npm run test:coverage       # everything, with coverage
 npm run test:watch          # watch mode
 ```
 
-`test`, `test:coverage` and `test:security` first generate the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist. The Browser's own guide is [apps/browser/docs/TESTING.md](../../apps/browser/docs/TESTING.md), and react-ui's is [packages/react-ui/docs/TESTING.md](../../packages/react-ui/docs/TESTING.md).
+`test`, `test:coverage` and `test:security` first generate the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist. The Browser's own guide is [images/browser/docs/TESTING.md](../../images/browser/docs/TESTING.md), and react-ui's is [packages/typescript/react-ui/docs/TESTING.md](../../packages/typescript/react-ui/docs/TESTING.md).
 
 ### Rust
 
 ```bash
+cd packages/rust
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
@@ -134,14 +135,14 @@ cargo test --workspace
 ### The conformance suites
 
 ```bash
-cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
+(cd packages/rust && cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers)
 npm run build:packages
 cd tests/conformance
 npm ci
 npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver, test:smelter, test:librarian; npm test runs all nine
 ```
 
-Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [apps/gateway/docs/TESTING.md](../../apps/gateway/docs/TESTING.md).
+Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [images/gateway/docs/TESTING.md](../../images/gateway/docs/TESTING.md).
 
 ### Go
 
@@ -149,14 +150,15 @@ As CI runs them:
 
 ```bash
 cd apps/launcher && go test -timeout 30m ./...
-cd packages/sdk-go && go test -timeout 5m ./...
+cd packages/go/launcher && go test -timeout 30m ./...
+cd packages/go/sdk && go test -timeout 5m ./...
 ```
 
 The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](../../apps/launcher/README.md#development).
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver`, `apps/smelter` and `apps/librarian`:
+As CI runs them, from `packages/python/sdk`, and the same from `packages/python/inference`, `packages/python/graph`, `packages/python/vectors`, `packages/python/service`, `images/worker`, `images/weaver`, `images/smelter` and `images/librarian`:
 
 ```bash
 uv sync --locked
@@ -166,7 +168,7 @@ uv run ruff check && uv run ruff format --check
 uv run pytest
 ```
 
-Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The skill's complete TypeScript worker is run, as the skill shows it, by `packages/sdk/src/__tests__/worker-skill.test.ts`, which needs the packages built. The package's own tests are built on `semiont.testing`, the doubles it ships.
+Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The skill's complete TypeScript worker is run, as the skill shows it, by `packages/typescript/sdk/src/__tests__/worker-skill.test.ts`, which needs the packages built. The package's own tests are built on `semiont.testing`, the doubles it ships.
 
 ### In a container
 
@@ -181,7 +183,7 @@ container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh
 
 **The conformance suites need `nats-server`**, which Alpine packages: `apk add --no-cache nats-server` in the same container, before the suite.
 
-For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`. For Python, use a `python` image at or above the `requires-python` of `packages/sdk-python/pyproject.toml`, with `uv` and, for `pyright`, Node.js.
+For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`. For Python, use a `python` image at or above the `requires-python` of `packages/python/sdk/pyproject.toml`, with `uv` and, for `pyright`, Node.js.
 
 ## Writing tests
 
@@ -285,12 +287,12 @@ Everything else is in the suite's own docs:
 
 ## Coverage
 
-Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../../codecov.yml) sets the gates:
+Coverage is measured for every package, in each of the four languages, and for every image, of its own code alone, and reported to Codecov. [`codecov.yml`](../../.github/codecov.yml) sets the gates:
 
 - **Project:** target 70%, allowed to drop by 1%.
 - **Patch:** new code targets 80%, with a 5% threshold.
 
-Each package and the Browser has a flag (with carryforward) and a component. In `ci.yml`, `test-package` uploads each package's `lcov.info` under its flag and `test-browser` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run fails exactly when the suite does, and CI runs each suite once, with coverage.
+Each package, `packages/<language>/<name>`, has a flag and a component named `<language>-<name>`, and each image, `images/<name>`, has `image-<name>`; each flag carries forward. In `ci.yml`, `test-package` uploads each npm package's `lcov.info` and `test-browser` the Browser's; `test-gateway` measures the Rust workspace with `cargo llvm-cov`, the Rust images' crates among it, and uploads one report under every crate's flag and every Rust image's; each Python package's and Python image's job runs `pytest --cov` and uploads its 3.12 leg's `coverage.xml`, and the live Neo4j and Qdrant jobs upload theirs under the same flags; `check-launcher` uploads the Go SDK's profile and the first leg of `test-launcher` the launcher libraries'. Each package's and image's README carries its component's badge; a package's language's README carries its row and the badge of the language's own component, `<language>`, its packages together, and `images/README.md` each image's row. A badge reads a component, never a flag: a component is scoped by its paths in every report, and a flag by the uploads that carry it, so a flag's badge for a crate of the Rust workspace, whose one upload carries every crate's flag, would read the whole workspace. `npm run lint:coverage-roster` fails when any of those is missing for a package, or names one there is not, and when the npm workspaces declaring `test:coverage` and the package matrix disagree. No vitest config sets a threshold, so a coverage run fails exactly when the suite does, and CI runs each suite once, with coverage.
 
 Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, and `scripts/`.
 
@@ -298,29 +300,31 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the one workflow every pull request runs whole. It also runs on pushes to `main` and `develop`, nightly on `main` at 08:17 UTC, on manual dispatch, and when a release calls it. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the one workflow every pull request runs whole. It also runs on pushes to `main`, nightly on `main` at 08:17 UTC, on manual dispatch, and when a release calls it. A push to a pull request cancels the run of the push before it; a push to `main` is never cancelled.
 
 It runs in one of two tiers, which the `changes` job decides. A pull request and a push to `main` run in tier `change`: the jobs whose areas they touched, on Linux. The nightly schedule, a dispatch and a release's call run in tier `full`: every job, and those that run in it alone, today the launcher on Windows. A scheduled run that fails mails whoever last changed its schedule line.
 
 It runs in two stages and ends in a gate. `census`, `changes` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for all three, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires.
 
-In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `conformance`, `go`, `compliance`, one per Python project), comparing a pull request with its base and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm workspaces, `tests/conformance` or the Python projects it installs; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/sdk-go`; the compliance audits on the code they read, the docs and their own scripts. A change under `.github/`, `scripts/ci/` or `specs/` runs every area. A skipped job is reported as Success and passes the gate.
+In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `ui`, `conformance`, `go`, `compliance`, one per Python project), comparing a pull request with its base and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm libraries (`ts`: every npm package but `react-ui`, their shared configs and the root's npm files), `tests/conformance` or the Python projects it installs; the Browser's, the npm packages' and the other interface jobs also run on `ui` (`react-ui`, `images/browser`, `apps/desktop`), which no conformance suite reads; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/go`; the compliance audits on the code they read, the docs and their own scripts. A change to `ci.yml`, the script that maps the areas (`.github/scripts/changed-areas.mjs`), `scripts/ci/` or the spec (`specs/src/` and its Redocly configuration) runs every area; the rest of `.github/` is the census's, which always runs. A skipped job is reported as Success and passes the gate.
 
 The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) looks, and builds nothing of its own.
 
-`npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, its group led by the workflow's file name, that no job of them checks out, installs or builds and then checks nothing, that every other workflow running on pull requests names the paths it checks, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines or the tier alone, and that `cargo build` runs in `build-rust` alone.
+`npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, its group led by the workflow's file name, that no job of them checks out, installs or builds and then checks nothing, that every other workflow running on pull requests names the paths it checks, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines or the tier alone, that `cargo build` runs in `build-rust` alone, and that every relative path a step of any workflow names is one the repository holds, read from where the step runs: its `working-directory`, and each `cd` its script makes.
+
+`npm run lint:path-globs` holds every glob over `apps/`, `images/` or `packages/` that a workflow, a script or a test writes to the tree: each matches a file the repository holds, or names what a build makes beneath directories it does match, which git ignores. A glob that matches nothing selects nothing without saying so; a directory that moves, or a naming convention that changes, leaves such globs behind. It cannot see a glob that still matches part of what it should after the rest has moved, nor one assembled from parts.
 
 | Job | What it covers |
 |---|---|
 | `census` | The `lint:*` gates, over the tree and no build: the stylesheets, the translations, the docs' names, the spec's own consistency, the toolchain versions, the Dependabot entries, the workflows, and more |
 | `changes` | Which areas the push touched, for every other job's `if` |
-| `test-browser` | `npm run typecheck` and the suite, with coverage, for `apps/browser`, uploaded under the `browser` flag |
+| `test-browser` | `npm run typecheck` and the suite, with coverage, for `images/browser`, uploaded under the `image-browser` flag |
 | `test-package` | A matrix over every npm package with a suite: build, typecheck and the suite with coverage, uploaded under the package's flag |
 | `browser-security` | A built Browser probed for privileged content and secret-shaped strings in the shell it serves for the moderation routes |
-| `lighthouse-accessibility` | Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`apps/browser/lighthouserc.json` names the pages and the score) |
+| `lighthouse-accessibility` | Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`images/browser/lighthouserc.json` names the pages and the score) |
 | `compliance-check` | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports |
 | `build-rust` | `cargo build --release` of the gateway, the dispatcher, the Archivist and the Rust SDK's three conformance drivers, once, published as an artifact the conformance jobs fetch into `target/release`. The six binaries are cached under a key that hashes what the build reads, the same list Stack Smoke's layer cache hashes, so a run whose Rust sources were built before compiles nothing |
-| `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
+| `test-gateway` | `cargo fmt --check`, `clippy -D warnings`, the tests under `cargo llvm-cov` and the doc tests for the Rust workspace, its coverage uploaded once under every crate's flag and every Rust image's; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-security` | The gateway, on the binaries `build-rust` built, probed for 401s on protected routes, the error shape, and leaked secrets |
 | `gateway-conformance` | Runs the conformance suite's `gateway` project against the binaries `build-rust` built |
 | `dispatcher-conformance` | Runs the `dispatcher` project |
@@ -331,23 +335,23 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `weaver-conformance` | Builds `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `smelter-conformance` | Builds `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
 | `librarian-conformance` | Builds `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
-| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/sdk-python`; the distributions a release uploads are built and checked, on 3.12 |
+| `test-sdk-python` | `pytest` on Python 3.12, 3.13 and 3.14, and on 3.12 `mypy` and `pyright`, each as Linux and as Windows, and `ruff`, for `packages/python/sdk`, with its coverage measured and the 3.12 leg's uploaded under `python-sdk`; the distributions a release uploads are built and checked, on 3.12 |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
-| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/inference-python` |
-| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/service-python` |
-| `test-worker-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/worker` |
-| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/graph-python` |
-| `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |
-| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/vectors-python` |
-| `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
-| `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/weaver` |
-| `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/smelter` |
-| `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `apps/librarian` |
+| `test-inference-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/inference`, with its coverage measured and the 3.12 leg's uploaded under `python-inference` |
+| `test-service-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/service`, with its coverage measured and the 3.12 leg's uploaded under `python-service` |
+| `test-worker-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/worker`, with its coverage measured and the 3.12 leg's uploaded under `image-worker` |
+| `test-graph-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/graph`, with its coverage measured and the 3.12 leg's uploaded under `python-graph` |
+| `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it, its coverage uploaded under `python-graph` |
+| `test-vectors-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `packages/python/vectors`, with its coverage measured and the 3.12 leg's uploaded under `python-vectors` |
+| `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it, its coverage uploaded under `python-vectors` |
+| `test-weaver-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/weaver`, with its coverage measured and the 3.12 leg's uploaded under `image-weaver` |
+| `test-smelter-python` | Installs the `tesseract` program, then `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/smelter`, with its coverage measured and the 3.12 leg's uploaded under `image-smelter` |
+| `test-librarian-python` | `pytest` on Python 3.12, 3.13 and 3.14, and `mypy`, `pyright` and `ruff` on 3.12, for `images/librarian`, with its coverage measured and the 3.12 leg's uploaded under `image-librarian` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build` over every npm workspace |
-| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
-| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
-| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the module's other packages. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
+| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/go/sdk/api/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
+| `check-launcher` | `gofmt` over both Go modules; `go vet` for the launcher on every target a release ships; `go vet`, `go build` and `go test` for `packages/go/sdk`, its coverage uploaded under `go-sdk`; `govulncheck` for the launcher |
+| `test-launcher` | The launcher's suite, split across three runners by test: each leg lists the root package's tests and runs its third of them, a block in source order so each test follows the one it follows in a serial run, and the first also runs the launcher's libraries (`packages/go/launcher`), their coverage uploaded under `go-launcher`. The tests bind the stack's real host ports through the fake runtime, so they run side by side only on runners of their own |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows; tier `full` only |
 | `gate` | Needs every job above; fails when any failed or was cancelled |
 
@@ -360,6 +364,6 @@ Locally, run the suite for the code you changed. CI runs the whole matrix.
 ## Related
 
 - [Local Development](LOCAL-DEVELOPMENT.md): building a stack from your tree to test against
-- [Browser testing](../../apps/browser/docs/TESTING.md), [react-ui testing](../../packages/react-ui/docs/TESTING.md), [gateway testing](../../apps/gateway/docs/TESTING.md): each part's own guide
+- [Browser testing](../../images/browser/docs/TESTING.md), [react-ui testing](../../packages/typescript/react-ui/docs/TESTING.md), [gateway testing](../../images/gateway/docs/TESTING.md): each part's own guide
 - [The conformance suites](../../tests/conformance/README.md): what they are and how the harness works
 - [Testing with the SDK's doubles](../builder/react-ui/TESTING.md): for anyone building on the SDK

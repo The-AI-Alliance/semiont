@@ -3,7 +3,7 @@
 // a named type per vocabulary with a constant per code, the bus code a wire
 // code becomes, and the transport code an HTTP status becomes.
 //
-//   packages/sdk-go/errorcodes_gen.go
+//   packages/go/sdk/errorcodes_gen.go
 //
 // The reading of the table, and its check against the wire's own vocabulary
 // (CommandError.code), are error-codes-table.mjs's, shared with the
@@ -19,7 +19,7 @@ import { writeOrCheck } from './committed-source.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/errors/codes.json');
 const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/errorcodes_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/errorcodes_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {
@@ -78,7 +78,7 @@ const text = `// Code generated from specs/src/errors/codes.json — DO NOT EDIT
 
 package semiont
 
-import "github.com/The-AI-Alliance/semiont/packages/sdk-go/api"
+import "github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
 ${vocabulary('BusRequestErrorCode', table.busRequest.docs, busCodes)}
 // BusRequestErrorCodeOfWire is the code a failure's own code

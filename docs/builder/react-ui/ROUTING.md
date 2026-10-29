@@ -67,7 +67,7 @@ export const routes: RouteBuilder = {
 ```
 
 A framework whose link already takes `href` (Next.js) needs no adapter: pass its `Link` as it
-is. The Semiont Browser's own pair is `apps/browser/src/lib/routing.tsx`.
+is. The Semiont Browser's own pair is `images/browser/src/lib/routing.tsx`.
 
 ## Navigation that is not a link
 

@@ -2,7 +2,7 @@
 /**
  * lint:rust-images — the Rust service images share one builder stage.
  *
- * A Rust service's image is the apps/<service>/Dockerfile whose builder stage
+ * A Rust service's image is the images/<service>/Dockerfile whose builder stage
  * is `FROM rust:`. Each keeps its own runtime stage, which is where the image
  * states its facts (its port, health route, user, environment and command),
  * and every one carries the same builder stage, which builds every service's
@@ -17,16 +17,18 @@
  *    any one, so a member the stage leaves out fails every image's build.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+/** The workspace's root, which names its members. */
+const WORKSPACE = 'packages/rust';
 const failures = [];
 const fail = (message) => failures.push(message);
 
 /** Each Rust service's Dockerfile: its builder stage, and the binaries it copies from it. */
-const images = readdirSync(join(ROOT, 'apps'))
-  .map((app) => `apps/${app}/Dockerfile`)
+const images = readdirSync(join(ROOT, 'images'))
+  .map((app) => `images/${app}/Dockerfile`)
   .filter((path) => existsSync(join(ROOT, path)))
   .map((path) => ({ path, lines: readFileSync(join(ROOT, path), 'utf8').split('\n') }))
   .filter(({ lines }) => lines.some((l) => /^FROM rust:/.test(l)))
@@ -38,7 +40,7 @@ const images = readdirSync(join(ROOT, 'apps'))
     return { path, builder: lines.slice(start, end < 0 ? lines.length : end).join('\n'), copied };
   });
 
-if (images.length === 0) fail('no apps/<service>/Dockerfile has a `FROM rust:` builder stage');
+if (images.length === 0) fail('no images/<service>/Dockerfile has a `FROM rust:` builder stage');
 
 const [first, ...rest] = images;
 for (const image of rest) {
@@ -59,9 +61,10 @@ if (first) {
 }
 
 if (first) {
-  const workspace = readFileSync(join(ROOT, 'Cargo.toml'), 'utf8');
-  const members = [...(workspace.match(/^members = \[([^\]]*)\]/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  if (members.length === 0) fail('Cargo.toml names no workspace members: the check has lost what it reads');
+  const workspace = readFileSync(join(ROOT, WORKSPACE, 'Cargo.toml'), 'utf8');
+  // A member is named from the workspace's root; the builder stage copies it from the repository's.
+  const members = [...(workspace.match(/^members = \[([^\]]*)\]/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => posix.normalize(posix.join(WORKSPACE, m[1])));
+  if (members.length === 0) fail(`${WORKSPACE}/Cargo.toml names no workspace members: the check has lost what it reads`);
   const copies = (source) => new RegExp(`^COPY (?:\\S+ )*${source.replaceAll('/', '\\/')} `, 'm').test(first.builder);
   for (const member of members) {
     if (!copies(`${member}/Cargo.toml`)) fail(`the builder stage does not copy ${member}/Cargo.toml, a member of the workspace`);

@@ -13,7 +13,7 @@ A knowledge base carries what it needs to run in its own repository, as YAML com
 
 The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a stack document; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
 
-`semiont init` writes all of them for a new knowledge base. The launcher's fixture, [`apps/launcher/testdata/kb/.semiont/`](../../../apps/launcher/testdata/kb/.semiont/), is a complete set in which every document holds to its schema.
+`semiont init` writes all of them for a new knowledge base. The launcher's fixture, [`packages/go/launcher/testdata/kb/.semiont/`](../../../packages/go/launcher/testdata/kb/.semiont/), is a complete set in which every document holds to its schema.
 
 Secrets are in none of them. A document names a secret by the environment variable that holds it ([Secrets in a document](#secrets-in-a-document)).
 

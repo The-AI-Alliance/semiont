@@ -36,7 +36,7 @@ function log(msg) {
 function stageBrowser(version) {
   log('\n=== Staging @semiont/browser ===\n');
 
-  const browserDir = resolve(rootDir, 'apps/browser');
+  const browserDir = resolve(rootDir, 'images/browser');
   const stageDir = resolve(STAGE_DIR, 'browser');
 
   if (DRY_RUN) {
@@ -49,7 +49,7 @@ function stageBrowser(version) {
   // Verify built artifacts exist
   const distIndex = resolve(browserDir, 'dist/index.html');
   if (!existsSync(distIndex)) {
-    throw new Error(`Browser not built: ${distIndex} not found. Run 'npm run build' in apps/browser first.`);
+    throw new Error(`Browser not built: ${distIndex} not found. Run 'npm run build' in images/browser first.`);
   }
 
   const serverJs = resolve(browserDir, 'server.js');

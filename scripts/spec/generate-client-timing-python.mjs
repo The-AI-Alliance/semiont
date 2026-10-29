@@ -3,7 +3,7 @@
 // its deadlines, its retry budgets, the cadence of its stream, and what it
 // keeps count of.
 //
-//   packages/sdk-python/src/semiont/timing.py
+//   packages/python/sdk/src/semiont/timing.py
 //
 // The reading of the table is client-timing-table.mjs's, shared with the
 // TypeScript generator. The output is committed; `--check` compares without
@@ -25,7 +25,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/timing.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/sdk-python/src/semiont/timing.py'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/timing.py'));
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

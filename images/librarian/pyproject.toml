@@ -1,0 +1,141 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semiont-librarian"
+dynamic = ["version"]
+description = "Semiont's Librarian service: it answers what a knowledge base holds from its graph, its vector index and a model, and records nothing"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+    "Framework :: AsyncIO",
+    # A service's code, run from its image: no index takes an upload that says this.
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
+# states their versions: a bound written here would be a second copy of its.
+# What the service exports its telemetry with, OpenTelemetry's SDK and its
+# OTLP exporter, is required by semiont-service, which installs it. What every
+# Python service is built on is semiont-service, which also reads a resource's
+# bytes from the Archivist. The graph the Librarian reads is semiont-graph's,
+# the index it searches and the provider it asks for a query's vector are
+# semiont-vectors', and the models it asks are semiont-inference's.
+dependencies = [
+    "opentelemetry-api",
+    "pydantic",
+    "semiont",
+    "semiont-graph",
+    "semiont-inference",
+    "semiont-service",
+    "semiont-vectors",
+]
+
+# A database's own client and a provider's own library are not required: the
+# service asks for a store by the database's name and for a client by the
+# provider's, and the graph package and the inference drivers import that
+# client or that library then. Each extra here brings the extra of the same
+# name of the package that has it, and with it that client or that library.
+# The image asks for every one (`--all-extras`, in Dockerfile); an image built
+# for one database and one provider asks for those two alone.
+[project.optional-dependencies]
+anthropic = ["semiont-inference[anthropic]"]
+google = ["semiont-inference[google]"]
+janusgraph = ["semiont-graph[janusgraph]"]
+llamacpp = ["semiont-inference[llamacpp]"]
+neo4j = ["semiont-graph[neo4j]"]
+neptune = ["semiont-graph[neptune]"]
+openai = ["semiont-inference[openai]"]
+together = ["semiont-inference[together]"]
+vllm = ["semiont-inference[vllm]"]
+
+# The SDK, the graph stores, the inference drivers, what every Python service
+# is built on and the vector stores are the ones in this repository: the
+# service is checked and tested against the types the tree's spec generates.
+# Each is named, because a source another package states for the SDK is read
+# only where that package is the project.
+[tool.uv.sources]
+semiont = { path = "../../packages/python/sdk", editable = true }
+semiont-graph = { path = "../../packages/python/graph", editable = true }
+semiont-inference = { path = "../../packages/python/inference", editable = true }
+semiont-service = { path = "../../packages/python/service", editable = true }
+semiont-vectors = { path = "../../packages/python/vectors", editable = true }
+
+# The checkers and the formatter are the SDK's, at the SDK's versions:
+# tests/test_census.py holds these pins, and the strictness below, to
+# packages/python/sdk/pyproject.toml.
+[dependency-groups]
+dev = [
+    # Every extra: the service is checked with every database's client and every provider's library, as its image has them.
+    "semiont-librarian[anthropic,google,janusgraph,llamacpp,neo4j,neptune,openai,together,vllm]",
+    # What makes the histories of a property test.
+    "hypothesis>=6.130,<7",
+    "mypy==2.4.0",
+    "pyright==1.1.414",
+    "pytest>=9.1,<10",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.2",
+]
+
+# The version is the repository's, stated once, in version.json.
+[tool.hatch.version]
+path = "../../version.json"
+pattern = '"version": "(?P<version>[^"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semiont_librarian"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+
+# What `pytest --cov` measures: this service's own source, its paths relative to
+# this directory, so Codecov can place them in the tree.
+[tool.coverage.run]
+source = ["semiont_librarian"]
+relative_files = true
+
+# No target-version: ruff takes it from requires-python.
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.mypy]
+# requires-python's floor, which mypy does not read. lint:python-version holds
+# this, pyright's, the classifiers and CI's matrix to it.
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+# pydantic's own plugin, with each of its looser defaults turned off below: at
+# its defaults a constructor takes anything.
+plugins = ["pydantic.mypy"]
+disallow_any_explicit = true
+disallow_any_unimported = true
+warn_unreachable = true
+enable_error_code = ["explicit-override", "ignore-without-code", "possibly-undefined", "redundant-expr", "truthy-bool"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+# `# type: ignore` is mypy's alone here; pyright is told by `# pyright: ignore[rule]`.
+# Either left on a line that no longer needs it is an error.
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryCast = "error"

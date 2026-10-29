@@ -15,18 +15,18 @@ To run tools directly on your machine instead, the versions are:
 | Toolchain | Version | Stated in |
 |---|---|---|
 | Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
-| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/sdk-python/pyproject.toml) of the Python SDK |
-| Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
-| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/sdk-go`](../../packages/sdk-go/go.mod) |
+| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/python/sdk/pyproject.toml) of the Python SDK |
+| Rust | the pinned channel | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) |
+| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 
 ## Four toolchains, one spec
 
 The repository holds code in four languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
-- **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
+- **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
-- **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
-- **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`apps/worker`, `apps/weaver`, `apps/smelter`, `apps/librarian`). Each has an environment of its own, which is `uv`'s.
+- **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
+- **Nine Python projects**: the Python SDK (`packages/python/sdk`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -37,7 +37,7 @@ semiont/
 ├── specs/                  # The spec every implementation is built against
 │   └── src/                #   OpenAPI paths and schemas, the bus registry, and the
 │                           #   shared case tables (principals, retry, media types, …)
-├── apps/
+├── images/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
@@ -45,24 +45,28 @@ semiont/
 │   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── weaver/             # Python: keeps the graph in step with the record
 │   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
-│   ├── browser/            # The Semiont Browser: a Vite + React single-page app
+│   └── browser/            # The Semiont Browser: a Vite + React single-page app
+├── apps/
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
-│   └── launcher/           # Go: the `semiont` command
+│   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
-│   ├── core/               # Generated types, typed ids, the bus protocol
-│   ├── sdk/                # The TypeScript SDK
-│   ├── http-transport/     # The SDK's transport over a gateway
-│   ├── react-ui/           # React components and hooks
-│   ├── observability/      # Tracing and metrics for the TypeScript transport
-│   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
-│   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
-│   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
-│   ├── sdk-go/             # The Go SDK
-│   ├── sdk-python/         # The Python SDK (package `semiont`)
-│   ├── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
-│   ├── graph-python/       # The graph databases a Python service writes and reads (package `semiont_graph`)
-│   ├── vectors-python/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
-│   └── service-python/     # What every Python service does to be one (package `semiont_service`)
+│   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
+│   │   ├── core/           # Generated types, typed ids, the bus protocol
+│   │   ├── sdk/            # The TypeScript SDK
+│   │   ├── http-transport/ # The SDK's transport over a gateway
+│   │   ├── react-ui/       # React components and hooks
+│   │   └── observability/  # Tracing and metrics for the TypeScript transport
+│   ├── rust/               # The Rust workspace: Cargo.toml, Cargo.lock, rust-toolchain.toml, deny.toml
+│   │   ├── sdk/            # The Rust SDK (crate `semiont`), with
+│   │   ├── http-transport/ telemetry/ codegen/
+│   │   └── core/ observability/ http-service/    # what the Rust services share
+│   ├── go/sdk/             # The Go SDK
+│   ├── go/launcher/        # The launcher's libraries: its engine, the verbs, the fake runtime its tests drive
+│   ├── python/sdk/         # The Python SDK (package `semiont`)
+│   ├── python/inference/   # The model providers a Python service asks (package `semiont_inference`)
+│   ├── python/graph/       # The graph databases a Python service writes and reads (package `semiont_graph`)
+│   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
+│   └── python/service/     # What every Python service does to be one (package `semiont_service`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack
@@ -73,7 +77,7 @@ semiont/
 └── website/                # The project site
 ```
 
-Each app and package has a README, and most have a `docs/` directory about how that part is built. [packages/README.md](../../packages/README.md) and [apps/README.md](../../apps/README.md) list them.
+Each app, image and package has a README, and most have a `docs/` directory about how that part is built. [packages/README.md](../../packages/README.md), [images/README.md](../../images/README.md) and [apps/README.md](../../apps/README.md) list them.
 
 ## The docs for contributors
 
@@ -87,10 +91,10 @@ Each app and package has a README, and most have a `docs/` directory about how t
 
 ## Adding a package
 
-1. Create `packages/<name>/` with a `package.json`, `tsconfig.json` and build config, following a neighbor. Name it `@semiont/<name>`. Depend on other `@semiont/*` packages as `"*"`, never a version ([why](DEPENDENCIES.md#how-packages-here-depend-on-each-other)).
-2. Add it to [`version.json`](../../version.json), after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `local-build.sh`, and anything that installs it gets a 404.
-3. Give it a `vitest.config.ts` that merges the [shared config](../../vitest.shared.config.ts), and a `test:coverage` script. `npm run lint:vitest-coverage` and `npm run lint:coverage-roster` say what else has to list it.
-4. A package that will be published needs seeding on npm before its first release ([Release](RELEASE.md#a-new-package)).
+1. Create `packages/<language>/<name>/` with its manifest, following a neighbor. A TypeScript package is named `@semiont/<name>`, and depends on other `@semiont/*` packages as `"*"`, never a version ([why](DEPENDENCIES.md#how-packages-here-depend-on-each-other)).
+2. A TypeScript package goes in [`version.json`](../../version.json) too, after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `local-build.sh`, and anything that installs it gets a 404. Its `vitest.config.ts` merges the [shared config](../../packages/typescript/vitest.shared.config.ts), and it has a `test:coverage` script; `npm run lint:vitest-coverage` says what else that needs.
+3. Its coverage is named five times: a flag and a component `<language>-<name>` in [`codecov.yml`](../../.github/codecov.yml), an upload under that flag in `ci.yml`, a badge in its README, and a row in its language's README. `npm run lint:coverage-roster` names each one missing, and `npm run lint:workflows` a directory that no area of `ci.yml` runs on.
+4. A package that will be published needs seeding before its first release ([Release](RELEASE.md#a-new-package)).
 
 ## Changing the builder docs and the SDK
 
@@ -106,7 +110,7 @@ Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.m
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): the pull-request process
 - [Architecture](../architecture/README.md): the actors, the stores, and why the pieces are shaped as they are
-- [Browser development](../../apps/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
+- [Browser development](../../images/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
 - [Adding a media type](../architecture/MEDIA-TYPES.md#adding-a-media-type): what a media type declares, and what each declaration costs
 - [Protocol](../protocol/README.md): the flows, the bus, the transport contract
 - [Builder docs](../builder/README.md): the SDKs, as someone building on them sees them

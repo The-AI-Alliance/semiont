@@ -43,7 +43,7 @@ not stay on a resource that is no longer open.
 `navigationMenu`, when given, renders in a dropdown under the header and receives a function that
 closes it.
 
-The Semiont Browser's use is `apps/browser/src/components/knowledge/KnowledgeNavigation.tsx`.
+The Semiont Browser's use is `images/browser/src/components/knowledge/KnowledgeNavigation.tsx`.
 
 ## SimpleNavigation
 
@@ -51,7 +51,7 @@ Props: `SimpleNavigationProps`, with items of type `SimpleNavigationItem`. A tit
 items, and the same `Link`, `isCollapsed`, `icons` and dropdown (`dropdownContent`) as above. The
 collapse control emits `shell:sidebar-toggle`.
 
-The Semiont Browser's use is `apps/browser/src/components/moderation/ModerationNavigation.tsx`.
+The Semiont Browser's use is `images/browser/src/components/moderation/ModerationNavigation.tsx`.
 
 ## NavigationMenu
 
@@ -69,4 +69,4 @@ browser follows it.
 
 Each component's classes are defined beside it: `CollapsibleResourceNavigation.css`,
 `SimpleNavigation.css`, `NavigationMenu.css` and `NavigationTabs.css` in
-`packages/react-ui/src/components/navigation/`.
+`packages/typescript/react-ui/src/components/navigation/`.

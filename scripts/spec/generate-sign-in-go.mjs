@@ -3,7 +3,7 @@
 // from specs/src/sign-in-store/SignIn.json, the schema the Rust and Python SDKs
 // generate theirs from.
 //
-//   packages/sdk-go/signin_gen.go   the entry, and the names every entry must
+//   packages/go/sdk/signin_gen.go   the entry, and the names every entry must
 //                                   state
 //
 // Programs in several languages read and write <stateDir>/tokens.json, so the
@@ -23,7 +23,7 @@ import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/signin_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/signin_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

@@ -3,7 +3,7 @@
 // each kind's schema: a type of its own for each, made only through the kind's
 // rule, in the package of the wire types that carry it.
 //
-//   packages/sdk-go/api/ids_gen.go
+//   packages/go/sdk/api/ids_gen.go
 //
 // oapi-codegen writes the rest of package api, and would write each kind as
 // an alias of string, which any text converts to. So the kinds are named in
@@ -26,8 +26,8 @@ import { writeOrCheck } from './committed-source.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const KINDS = resolve(ROOT, 'specs/src/identifiers/kinds.json');
 const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
-const CONFIG = resolve(ROOT, 'packages/sdk-go/oapi-codegen.yaml');
-const OUT = resolve(ROOT, 'packages/sdk-go/api/ids_gen.go');
+const CONFIG = resolve(ROOT, 'packages/go/sdk/oapi-codegen.yaml');
+const OUT = resolve(ROOT, 'packages/go/sdk/api/ids_gen.go');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

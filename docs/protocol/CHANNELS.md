@@ -77,7 +77,7 @@ Each request's result and failure channels are named in the registry's `operatio
 
 ## In-process channels
 
-Published on a client's own bus only. They are the Browser's interface: `nav:*`, `panel:*`, `tabs:*`, `shell:*`, `settings:*`, `beckon:hover`, `browse:entity-type-clicked`, `yield:clone`, and the `mark:` and `bind:` signals that coordinate one viewer's annotation interface. See [react-ui's event internals](../../packages/react-ui/docs/EVENTS.md).
+Published on a client's own bus only. They are the Browser's interface: `nav:*`, `panel:*`, `tabs:*`, `shell:*`, `settings:*`, `beckon:hover`, `browse:entity-type-clicked`, `yield:clone`, and the `mark:` and `bind:` signals that coordinate one viewer's annotation interface. See [react-ui's event internals](../../packages/typescript/react-ui/docs/EVENTS.md).
 
 ## See also
 

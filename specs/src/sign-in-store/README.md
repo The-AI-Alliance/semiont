@@ -61,7 +61,7 @@ other's.
 A reader that only reads takes no lock: the rename makes each document
 whole.
 
-Every writer takes the lock: the Go SDK (`packages/sdk-go`, `SignInStore`),
+Every writer takes the lock: the Go SDK (`packages/go/sdk`, `SignInStore`),
 through which the launcher keeps its sign-ins, the Rust SDK
 (`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
 Windows the lock is on one byte of the lock file, far past anything the file

@@ -6,12 +6,12 @@ For what each package is and where it is published, see **[../../packages/README
 
 ## The npm packages
 
-The npm packages are the client side: what a TypeScript application reaches a knowledge base with. They are organized in layers from low-level primitives up; the Browser (`apps/browser`) sits on top. No service is built from them.
+The npm packages are the client side: what a TypeScript application reaches a knowledge base with. They are organized in layers from low-level primitives up; the Browser (`images/browser`) sits on top. No service is built from them.
 
 ```mermaid
 graph BT
     %% Layer 4: Application
-    browser["apps/browser<br/><i>Vite + React SPA</i>"]
+    browser["images/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 3: What an application is built from
     react["@semiont/react-ui<br/><i>React components & hooks</i>"]
@@ -62,8 +62,8 @@ Each edge is an entry in that package's `package.json` `dependencies`.
 
 ```mermaid
 graph BT
-    gateway["apps/gateway<br/><i>semiont-gateway</i>"]
-    dispatcher["apps/dispatcher<br/><i>semiont-dispatcher</i>"]
+    gateway["images/gateway<br/><i>semiont-gateway</i>"]
+    dispatcher["images/dispatcher<br/><i>semiont-dispatcher</i>"]
 
     rcore["semiont-core<br/><i>What the Rust services share</i>"]
     robs["semiont-observability<br/><i>Telemetry export, log lines</i>"]
@@ -109,44 +109,44 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 ## The Python projects
 
-`packages/sdk-python` is one distribution, `semiont`: the client, its transport over a gateway, sign-in, and telemetry with no exporter, which Rust keeps in four crates. It depends on `httpx`, `pydantic` and `opentelemetry-api`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates.
+`packages/python/sdk` is one distribution, `semiont`: the client, its transport over a gateway, sign-in, and telemetry with no exporter, which Rust keeps in four crates. It depends on `httpx`, `pydantic` and `opentelemetry-api`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates.
 
-`packages/inference-python` is `semiont-inference`: the model providers a Python service asks, behind one interface. It depends on `semiont`, and each provider's own library is an extra of it, required by nothing.
+`packages/python/inference` is `semiont-inference`: the model providers a Python service asks, behind one interface. It depends on `semiont`, and each provider's own library is an extra of it, required by nothing.
 
-`packages/graph-python` is `semiont-graph`: the graph databases a Python service writes and reads, behind one interface. It depends on `semiont`, and each database's own client is an extra of it, required by nothing.
+`packages/python/graph` is `semiont-graph`: the graph databases a Python service writes and reads, behind one interface. It depends on `semiont`, and each database's own client is an extra of it, required by nothing.
 
-`packages/vectors-python` is `semiont-vectors`: the vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface. It depends on `semiont`, and asks a Qdrant and a provider over HTTP, so it takes no database's client and no provider's library.
+`packages/python/vectors` is `semiont-vectors`: the vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface. It depends on `semiont`, and asks a Qdrant and a provider over HTTP, so it takes no database's client and no provider's library.
 
-`packages/service-python` is `semiont-service`: what every Python service does to be one, which is to read its configuration document, answer for its health, write its log and export its telemetry. It depends on `semiont`, and on OpenTelemetry's SDK and OTLP exporter, which only a process that exports takes. It is the services' own code, built into their images and published to no index.
+`packages/python/service` is `semiont-service`: what every Python service does to be one, which is to read its configuration document, answer for its health, write its log and export its telemetry. It depends on `semiont`, and on OpenTelemetry's SDK and OTLP exporter, which only a process that exports takes. It is the services' own code, built into their images and published to no index.
 
-`apps/worker`, `apps/weaver`, `apps/smelter` and `apps/librarian` are `semiont-worker`, `semiont-weaver`, `semiont-smelter` and `semiont-librarian`: the Worker, the Weaver, the Smelter and the Librarian. Each depends on `semiont`, on `semiont-service` and on more of the packages above: the Worker on `semiont-inference`, the Weaver on `semiont-graph`, the Smelter on `semiont-vectors`, and the Librarian on all three. The Smelter also takes `pypdfium2`, whose wheel carries PDFium, which reads a PDF. Nothing depends on a service: it is a service's code, run from its image, and published to no index.
+`images/worker`, `images/weaver`, `images/smelter` and `images/librarian` are `semiont-worker`, `semiont-weaver`, `semiont-smelter` and `semiont-librarian`: the Worker, the Weaver, the Smelter and the Librarian. Each depends on `semiont`, on `semiont-service` and on more of the packages above: the Worker on `semiont-inference`, the Weaver on `semiont-graph`, the Smelter on `semiont-vectors`, and the Librarian on all three. The Smelter also takes `pypdfium2`, whose wheel carries PDFium, which reads a PDF. Nothing depends on a service: it is a service's code, run from its image, and published to no index.
 
 ## The Go modules
 
-`packages/sdk-go` is one module, `github.com/The-AI-Alliance/semiont/packages/sdk-go`, package `semiont`: the client, its transport over a gateway, sign-in, the state units (package `state`) and the doubles a test is built on (package `semionttest`). It depends on `oapi-codegen`'s runtime, `google/uuid`, the OpenTelemetry API and `golang.org/x/text`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates. It is published nowhere: a program in this repository requires it with a `replace` directive on its path.
+`packages/go/sdk` is one module, `github.com/The-AI-Alliance/semiont/packages/go/sdk`, package `semiont`: the client, its transport over a gateway, sign-in, the state units (package `state`) and the doubles a test is built on (package `semionttest`). It depends on `oapi-codegen`'s runtime, `google/uuid`, the OpenTelemetry API and `golang.org/x/text`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates. It is published nowhere: a program in this repository requires it with a `replace` directive on its path.
 
-`packages/sdk-go/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
+`packages/go/sdk/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
 
-`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/sdk-go`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
+`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/go/sdk`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
 
 ## What each service image runs
 
 | Image | Runs | From |
 |---|---|---|
-| `semiont-librarian` | `python -P -m semiont_librarian` | `apps/librarian` |
-| `semiont-smelter` | `python -P -m semiont_smelter` | `apps/smelter` |
-| `semiont-weaver` | `python -P -m semiont_weaver` | `apps/weaver` |
-| `semiont-worker` | `python -P -m semiont_worker` | `apps/worker` |
-| `semiont-browser` | the built SPA | `apps/browser` |
-| `semiont-gateway` | a Rust binary | `apps/gateway` |
-| `semiont-archivist` | a Rust binary | `apps/archivist` |
-| `semiont-dispatcher` | a Rust binary | `apps/dispatcher` |
+| `semiont-librarian` | `python -P -m semiont_librarian` | `images/librarian` |
+| `semiont-smelter` | `python -P -m semiont_smelter` | `images/smelter` |
+| `semiont-weaver` | `python -P -m semiont_weaver` | `images/weaver` |
+| `semiont-worker` | `python -P -m semiont_worker` | `images/worker` |
+| `semiont-browser` | the built SPA | `images/browser` |
+| `semiont-gateway` | a Rust binary | `images/gateway` |
+| `semiont-archivist` | a Rust binary | `images/archivist` |
+| `semiont-dispatcher` | a Rust binary | `images/dispatcher` |
 
 ## Architectural principles
 
 1. **One composition root per process.** Each service's entry point builds what that process needs and nothing else.
 
-2. **Strict API boundary.** `apps/browser` holds no service's code. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui` — every interaction with a knowledge base goes through the SDK over `HttpTransport`.
+2. **Strict API boundary.** `images/browser` holds no service's code. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui` — every interaction with a knowledge base goes through the SDK over `HttpTransport`.
 
 3. **Layered dependencies.** A package depends only on packages in lower layers. No circular dependencies.
 

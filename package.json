@@ -5,7 +5,8 @@
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
     "apps/*",
-    "packages/*",
+    "images/*",
+    "packages/typescript/*",
     "tests/doc-snippets"
   ],
   "scripts": {
@@ -24,13 +25,13 @@
     "generate:mcp-tools-go:check": "node scripts/spec/generate-mcp-tools-go.mjs --check",
     "generate:encoding-cases": "node scripts/spec/generate-encoding-cases.mjs",
     "generate:encoding-cases:check": "node scripts/spec/generate-encoding-cases.mjs --check",
-    "generate:model-catalogue": "node scripts/inference/generate-model-catalogue.mjs --out packages/inference-python/tests/catalogue",
-    "generate:model-catalogue:check": "node scripts/inference/generate-model-catalogue.mjs --check packages/inference-python/tests/catalogue",
+    "generate:model-catalogue": "node scripts/inference/generate-model-catalogue.mjs --out packages/python/inference/tests/catalogue",
+    "generate:model-catalogue:check": "node scripts/inference/generate-model-catalogue.mjs --check packages/python/inference/tests/catalogue",
     "build:apps": "npm run build -w semiont-browser",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint:css": "stylelint '**/*.css' --ignore-path .gitignore",
-    "lint:css:fix": "stylelint '**/*.css' --ignore-path .gitignore --fix",
+    "lint:css": "git ls-files -z --cached --others --exclude-standard -- '*.css' | xargs -0 stylelint",
+    "lint:css:fix": "git ls-files -z --cached --others --exclude-standard -- '*.css' | xargs -0 stylelint --fix",
     "lint:no-utility-classes": "node scripts/lint/check-no-utility-classes-in-react-ui.js",
     "lint:css-variables": "node scripts/lint/check-css-variables-defined.js",
     "lint:css-classes": "node scripts/lint/check-css-classes-live.js",
@@ -40,8 +41,8 @@
     "build:css:prod": "node scripts/dev/build-css-with-sourcemaps.js --production",
     "test": "npm run test --workspaces --if-present",
     "browser:dev": "npm run dev -w semiont-browser",
-    "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json && redocly bundle specs/src/archivist/openapi.json -o specs/archivist.openapi.json",
-    "openapi:lint": "redocly lint specs/src/openapi.json specs/src/archivist/openapi.json",
+    "openapi:bundle": "redocly bundle --config specs/redocly.yaml specs/src/openapi.json -o specs/openapi.json && redocly bundle --config specs/redocly.yaml specs/src/archivist/openapi.json -o specs/archivist.openapi.json",
+    "openapi:lint": "redocly lint --config specs/redocly.yaml specs/src/openapi.json specs/src/archivist/openapi.json",
     "lint:spec-protocol": "node scripts/spec/check-protocol.mjs",
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
     "lint:spec-archivist": "node scripts/spec/check-archivist.mjs",
@@ -68,7 +69,7 @@
     "version:set": "node scripts/release/version.mjs set",
     "publish:stage-apps": "node scripts/ci/publish-npm-apps.mjs",
     "install:deps": "npm install",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "clean": "rm -rf node_modules apps/*/node_modules images/*/node_modules packages/typescript/*/node_modules",
     "container:build": "node scripts/container/build-images.js",
     "container:build:gateway": "node scripts/container/build-images.js gateway",
     "container:build:dispatcher": "node scripts/container/build-images.js dispatcher",
@@ -109,7 +110,8 @@
     "lint:state-unit-cases": "node scripts/lint/check-state-unit-cases.mjs",
     "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs",
     "lint:workflows": "node scripts/lint/check-workflows.mjs",
-    "lint:labels": "node scripts/lint/check-labels.mjs"
+    "lint:labels": "node scripts/lint/check-labels.mjs",
+    "lint:path-globs": "node scripts/lint/check-path-globs.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
@@ -131,7 +133,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.114",
+    "@opencode-ai/models": "0.0.115",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",

@@ -2,18 +2,18 @@
 /**
  * lint:state-unit-census — every TypeScript state unit is held to the
  * state-unit axioms, as every Rust and Python one is by its SDK's census
- * (packages/sdk-rust/tests/census.rs, packages/sdk-python/tests/test_census.py).
+ * (packages/rust/sdk/tests/census.rs, packages/python/sdk/tests/test_census.py).
  * A unit added without a test that runs the axioms against it fails here.
  *
  * A unit is an interface that extends `StateUnit`, or a class that implements
- * it, in the source of a workspace under apps/ or packages/, tests left out.
+ * it, in the source of a workspace under apps/, images/ or packages/, tests left out.
  * It is held when a test hands the harness a subject of it by name:
  * `assertStateUnitAxioms<BeckonStateUnit>({ ... })`. The type argument is the
  * census's evidence, as `type Unit = …` is Rust's and `AxiomSubject[…]` is
  * Python's, and the compiler holds the subject's `setup` to it. A call that
  * names no unit holds none.
  *
- * The harness's own probe (`DisposeProbe`, in packages/core/src/state-unit-axioms.ts)
+ * The harness's own probe (`DisposeProbe`, in packages/typescript/core/src/state-unit-axioms.ts)
  * stands in for what a unit is given, and is no unit.
  */
 import { readFileSync } from 'node:fs';
@@ -23,9 +23,9 @@ import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const HARNESS = 'packages/core/src/state-unit-axioms.ts';
+const HARNESS = 'packages/typescript/core/src/state-unit-axioms.ts';
 
-const typescript = (file) => /^(apps|packages)\//.test(file) && /\.tsx?$/.test(file) && !file.endsWith('.d.ts');
+const typescript = (file) => /^(apps|images|packages)\//.test(file) && /\.tsx?$/.test(file) && !file.endsWith('.d.ts');
 const isTest = (file) => /(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);
 const read = (file) => withoutComments(readFileSync(join(ROOT, file), 'utf8'));
 /** The names a heritage clause lists, each without its type arguments. */

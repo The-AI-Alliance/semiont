@@ -10,14 +10,14 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
  * the environment, and talk to it over HTTP. vitest.config.ts provides it to
  * the cases as `gatewayCommand`.
  */
-export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-gateway')];
+export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-gateway')];
 
 /**
  * How a dispatcher is started. The dispatcher suite runs it
  * with `--config <document>` and the environment, and meets it only on the bus
  * and its health port. vitest.config.ts provides it as `dispatcherCommand`.
  */
-export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-dispatcher')];
+export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-dispatcher')];
 
 /**
  * How an Archivist is started. The Archivist suite runs it with
@@ -25,7 +25,7 @@ export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/re
  * HTTP surface, and in the files it keeps. vitest.config.ts provides it as
  * `archivistCommand`.
  */
-export const ARCHIVIST_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-archivist')];
+export const ARCHIVIST_COMMAND: readonly string[] = [join(REPO_ROOT, 'packages/rust/target/release/semiont-archivist')];
 
 /** An SDK's drivers: the programs the SDK suite talks to in that SDK's place (sdk/README.md § The driver protocol). */
 export interface SdkDrivers {
@@ -47,15 +47,15 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
-/** The Go SDK's wire driver, built by `go build` in packages/sdk-go/conformance (its README). */
-export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-wire-driver');
+/** The Go SDK's wire driver, built by `go build` in packages/go/sdk/conformance (its README). */
+export const GO_WIRE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-wire-driver');
 /** The Go SDK's live driver, built beside its wire driver. */
-export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-live-driver');
+export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-live-driver');
 /** The Go SDK's worker driver, built beside its wire driver. */
-export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/sdk-go/conformance/bin/semiont-go-worker-driver');
+export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-worker-driver');
 
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
-export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
+export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
 
 /**
@@ -64,14 +64,14 @@ const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
  */
 export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
-    wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
-    live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
-    worker: ['node', join(REPO_ROOT, 'packages/sdk/conformance/worker-driver.ts')],
+    wire: ['node', join(REPO_ROOT, 'packages/typescript/http-transport/conformance/driver.ts')],
+    live: { command: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/driver.ts')], tier: 'parity' },
+    worker: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/worker-driver.ts')],
   },
   rust: {
-    wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
-    live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
-    worker: [join(REPO_ROOT, 'target/release/semiont-worker-driver')],
+    wire: [join(REPO_ROOT, 'packages/rust/target/release/semiont-wire-driver')],
+    live: { command: [join(REPO_ROOT, 'packages/rust/target/release/semiont-live-driver')], tier: 'parity' },
+    worker: [join(REPO_ROOT, 'packages/rust/target/release/semiont-worker-driver')],
   },
   python: {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
@@ -99,12 +99,12 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
  * reads it only for a provider whose own API does not state a model's facts,
  * and no suite here runs one.
  */
-export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/inference-python/tests/catalogue/model-catalogue.json');
+export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/python/inference/tests/catalogue/model-catalogue.json');
 
 export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
-  python: [join(REPO_ROOT, 'apps/worker/.venv/bin/python'), '-P', '-m', 'semiont_worker'],
+  python: [join(REPO_ROOT, 'images/worker/.venv/bin/python'), '-P', '-m', 'semiont_worker'],
 };
 
 /**
@@ -119,7 +119,7 @@ export const WEAVER_SERVICES: Readonly<Record<string, WeaverService>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   python: {
-    command: [join(REPO_ROOT, 'apps/weaver/.venv/bin/python'), '-P', '-m', 'semiont_weaver'],
+    command: [join(REPO_ROOT, 'images/weaver/.venv/bin/python'), '-P', '-m', 'semiont_weaver'],
     healthPort: 24102,
   },
 };
@@ -137,7 +137,7 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   // It reads a scan with the `tesseract` program, which it finds on PATH.
-  python: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
+  python: [join(REPO_ROOT, 'images/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
 };
 
 /**
@@ -152,7 +152,7 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
 export const LIBRARIAN_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
-  python: [join(REPO_ROOT, 'apps/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
+  python: [join(REPO_ROOT, 'images/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

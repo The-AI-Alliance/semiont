@@ -13,8 +13,8 @@
 # `from_name` renames a label in place, so what it is on keeps it; it is
 # deleted once the sync has run.
 #
-# npm run lint:labels holds the file to its rules, the app:, tests:, spec:,
-# verb: and stack: labels to what owns them, and .github/dependabot.yml to the
+# npm run lint:labels holds the file to its rules, the app:, image:, tests:,
+# spec:, verb: and stack: labels to what owns them, and .github/dependabot.yml to the
 # file.
 
 # kind: what a change or an issue is.
@@ -69,50 +69,52 @@
   description: "Attention: driving the other viewers, sparkle and scroll-to (\"Look here\")"
 
 # app: one for each directory under apps/.
-- name: "app:archivist"
-  color: "c6e8c0"
-  description: "The Archivist (apps/archivist): keeps the system of record"
-- name: "app:browser"
-  color: "c6e8c0"
-  description: "The Browser (apps/browser): the web app"
 - name: "app:desktop"
   color: "c6e8c0"
   description: "Semiont Desktop (apps/desktop): the Tauri shell around the Browser"
-- name: "app:dispatcher"
-  color: "c6e8c0"
-  description: "The Dispatcher (apps/dispatcher): owns the job queue"
-- name: "app:gateway"
-  color: "c6e8c0"
-  description: "The Gateway (apps/gateway): authenticates callers and relays the bus"
 - name: "app:launcher"
   color: "c6e8c0"
-  description: "The launcher (apps/launcher): the semiont command, which runs a local stack"
-- name: "app:librarian"
-  color: "c6e8c0"
-  description: "The Librarian (apps/librarian): searches the record and assembles context"
-- name: "app:smelter"
-  color: "c6e8c0"
-  description: "The Smelter (apps/smelter): chunks and embeds content, and extracts anchored text"
-- name: "app:weaver"
-  color: "c6e8c0"
-  description: "The Weaver (apps/weaver): projects the event log into the graph"
-- name: "app:worker"
-  color: "c6e8c0"
-  description: "The Worker (apps/worker): claims jobs and runs inference"
+  description: "The semiont command (apps/launcher) and its libraries (packages/go/launcher)"
+
+# image: one for each directory under images/.
+- name: "image:archivist"
+  color: "f1c0e8"
+  description: "The Archivist (images/archivist): keeps the system of record"
+- name: "image:browser"
+  color: "f1c0e8"
+  description: "The Browser (images/browser): the web app"
+- name: "image:dispatcher"
+  color: "f1c0e8"
+  description: "The Dispatcher (images/dispatcher): owns the job queue"
+- name: "image:gateway"
+  color: "f1c0e8"
+  description: "The Gateway (images/gateway): authenticates callers and relays the bus"
+- name: "image:librarian"
+  color: "f1c0e8"
+  description: "The Librarian (images/librarian): searches the record and assembles context"
+- name: "image:smelter"
+  color: "f1c0e8"
+  description: "The Smelter (images/smelter): chunks and embeds content, and extracts anchored text"
+- name: "image:weaver"
+  color: "f1c0e8"
+  description: "The Weaver (images/weaver): projects the event log into the graph"
+- name: "image:worker"
+  color: "f1c0e8"
+  description: "The Worker (images/worker): claims jobs and runs inference"
 
 # sdk: one for each language a Semiont SDK is written in, or is to be.
 - name: "sdk:typescript"
   color: "bfd4f2"
-  description: "The TypeScript SDK (packages/sdk)"
+  description: "The TypeScript SDK (packages/typescript/sdk)"
 - name: "sdk:python"
   color: "bfd4f2"
-  description: "The Python SDK (packages/sdk-python)"
+  description: "The Python SDK (packages/python/sdk)"
 - name: "sdk:rust"
   color: "bfd4f2"
-  description: "The Rust SDK (packages/sdk-rust)"
+  description: "The Rust SDK (packages/rust/sdk)"
 - name: "sdk:go"
   color: "bfd4f2"
-  description: "The Go SDK (packages/sdk-go)"
+  description: "The Go SDK (packages/go/sdk)"
 - name: "sdk:kotlin"
   color: "bfd4f2"
   description: "A Kotlin SDK, not yet written"

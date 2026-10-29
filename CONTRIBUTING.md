@@ -20,7 +20,7 @@ There is no per-platform plug-in to write. See [Deployment Targets](#-deployment
 
 **Alternative Browser implementations:**
 
-We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](apps/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
+We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](images/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
 
 - **Mobile apps** (iOS, Android, React Native)
 - **Browser extensions** (Chrome, Firefox, Safari)
@@ -110,7 +110,7 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
 - Create an issue describing the problem
 - Reference the issue in your PR
 
-An issue's labels say what it is (`kind:bug`, `kind:enhancement`) and what it is about: a verb (`verb:mark`), an app (`app:smelter`), an SDK (`sdk:python`), a kind of stack document (`stack:inference`), a part of the spec (`spec:protocol`), a kind of content (`media:pdf`) or a test suite (`tests:e2e`). [`.github/labels.yml`](.github/labels.yml) is every label there is, with what each means; a new one is added there, and the [Labels](.github/workflows/labels.yml) workflow makes it when the change is merged. A pull request's `app:`, `sdk:`, `tests:` and `spec:` labels are added from the files it changes, by the [Path Labels](.github/workflows/path-labels.yml) workflow; the others are its author's to choose.
+An issue's labels say what it is (`kind:bug`, `kind:enhancement`) and what it is about: a verb (`verb:mark`), an image (`image:smelter`) or an app (`app:launcher`), an SDK (`sdk:python`), a kind of stack document (`stack:inference`), a part of the spec (`spec:protocol`), a kind of content (`media:pdf`) or a test suite (`tests:e2e`). [`.github/labels.yml`](.github/labels.yml) is every label there is, with what each means; a new one is added there, and the [Labels](.github/workflows/labels.yml) workflow makes it when the change is merged. A pull request's `app:`, `image:`, `sdk:`, `tests:` and `spec:` labels are added from the files it changes, by the [Path Labels](.github/workflows/path-labels.yml) workflow; the others are its author's to choose.
 
 ## 🛠 Development Workflow
 
@@ -165,7 +165,7 @@ npm test
 npm test -w semiont-browser
 
 # The gateway (Rust): its own checks, then the conformance suite
-cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway
+(cd packages/rust && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway)
 (cd tests/conformance && npm run test:gateway)
 
 # The dispatcher, black-box, behind that gateway (needs cargo build --release -p semiont-dispatcher)
@@ -292,7 +292,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 ### Testing Documentation
 
 - **[System Testing Guide](docs/contributor/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
-- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
+- **[Gateway Testing Guide](images/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
 
 ### Quick Start
 
@@ -303,8 +303,8 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd apps/browser && npm test                 # Browser suite
-cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` at the repository root, and nats-server)
+cd images/browser && npm test                 # Browser suite
+cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
 cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
 cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
 ```
@@ -341,7 +341,7 @@ Update docs when you:
 - **`docs/contributor/`**: changing Semiont itself
 - **`docs/architecture/`** and **`docs/protocol/`**: how Semiont works, and what its parts agree on
 
-How one app or package is built inside stays with it: `apps/<app>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
+How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
 
 Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
 

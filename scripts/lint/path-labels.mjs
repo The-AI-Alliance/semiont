@@ -1,9 +1,12 @@
 /**
- * The label a path gives: that of the one app, test suite, SDK or part of the
- * spec it is in. lint:labels holds .github/labels.yml to the labels the
+ * The label a path gives: that of the one app, image, test suite, SDK or part
+ * of the spec it is in. lint:labels holds .github/labels.yml to the labels the
  * repository's files give, and the Path Labels workflow adds to each pull
  * request the labels of the files it changes.
  */
+
+import { fileURLToPath } from 'node:url';
+import { repositoryFiles } from './repository-files.mjs';
 
 /** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
 export const SPEC_PARTS = {
@@ -13,18 +16,20 @@ export const SPEC_PARTS = {
   launcher: ['stack', 'kb-identity', 'discovery', 'sign-in-store'],
 };
 
-/** The directory of packages/ that holds the TypeScript SDK; every other SDK's is sdk-<language>. */
-const TYPESCRIPT_SDK = 'sdk';
-
-const isSdk = (directory) => directory === TYPESCRIPT_SDK || directory.startsWith('sdk-');
-const sdkLanguage = (directory) => (directory === TYPESCRIPT_SDK ? 'typescript' : directory.slice('sdk-'.length));
+/** The apps: the directories under apps/. */
+const APPS = new Set(
+  repositoryFiles(fileURLToPath(new URL('../..', import.meta.url)))
+    .filter((file) => file.startsWith('apps/') && file.split('/').length > 2)
+    .map((file) => file.split('/')[1]),
+);
 
 /**
  * The label of what `path` is in, or null for a path in none. A path is in an
- * app, a test suite or an SDK when it is below its directory (apps/<x>/,
- * tests/<x>/, packages/sdk/ or packages/sdk-<language>/), and in a part of
- * the spec when it is an entry of specs/src or below one. A directory is
- * written with its trailing slash: it is in what everything below it is in.
+ * app, an image, a test suite or an SDK when it is below its directory
+ * (apps/<x>/, images/<x>/, tests/<x>/ or packages/<language>/sdk/), and in a part
+ * of the spec when it is an entry of specs/src or below one. An app's libraries,
+ * packages/<language>/<app>/, are in the app. A directory is written with its
+ * trailing slash: it is in what everything below it is in.
  */
 export function pathLabel(path) {
   const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
@@ -34,7 +39,11 @@ export function pathLabel(path) {
   }
   if (owner === undefined || owner === '' || below.length === 0) return null;
   if (top === 'apps') return `app:${owner}`;
+  if (top === 'images') return `image:${owner}`;
   if (top === 'tests') return `tests:${owner}`;
-  if (top === 'packages' && isSdk(owner)) return `sdk:${sdkLanguage(owner)}`;
+  if (top === 'packages' && below.length > 1) {
+    if (below[0] === 'sdk') return `sdk:${owner}`;
+    if (APPS.has(below[0])) return `app:${below[0]}`;
+  }
   return null;
 }

@@ -1,0 +1,67 @@
+package bus
+
+// The Go counterpart of packages/typescript/core/src/__tests__/bus-invariants.test.ts.
+//
+// TypeScript catches most of these at compile time through `satisfies`
+// clauses; Go has no equivalent, so the same properties are asserted at test
+// time. Both languages generate from specs/src/bus/registry.json, so
+// these are a second opinion rather than the only guard — which is the point.
+// A generated artifact checked only against the thing that generated it can
+// agree with a mistake indefinitely.
+
+import "testing"
+
+// A transport sends the channels it is given as the `global` list of a POST
+// /bus/subscribe body, and the gateway registers one route per entry with no
+// dedup: subscribed whole, a bridged set holding a duplicate would deliver
+// every frame on that channel twice.
+func TestBridgedChannelsHasNoDuplicates(t *testing.T) {
+	seen := map[Channel]bool{}
+	for _, c := range BridgedChannels {
+		if seen[c] {
+			t.Errorf("%q appears more than once in BridgedChannels — it would be delivered twice", c)
+		}
+		seen[c] = true
+	}
+}
+
+// Every operation's reply must be receivable. A reply that isn't bridged is
+// never delivered, so the caller waits out the full timeout with no error —
+// the silent failure the derivation exists to make impossible.
+func TestEveryOperationReplyIsBridged(t *testing.T) {
+	for req, op := range Operations {
+		for _, ch := range []Channel{op.Result, op.Failure} {
+			if !Bridged(ch) {
+				t.Errorf("operation %q: reply %q is not bridged — a caller would hang until timeout", req, ch)
+			}
+		}
+	}
+}
+
+// A broadcast is by definition a channel no operation owns. One that is also
+// a reply is bridged twice: once listed, once derived.
+func TestBroadcastsAreDisjointFromOperationReplies(t *testing.T) {
+	replies := map[Channel]Channel{} // reply → owning request
+	for req, op := range Operations {
+		replies[op.Result] = req
+		replies[op.Failure] = req
+	}
+	for _, b := range BridgedBroadcasts {
+		if owner, isReply := replies[b]; isReply {
+			t.Errorf("broadcast %q is the reply of operation %q — it is already bridged by derivation", b, owner)
+		}
+	}
+}
+
+// Bridged() is the predicate callers use; it must agree with the slice
+// BridgedChannels exposes, or `listen` warns about channels it then receives.
+func TestBridgedAgreesWithTheChannelList(t *testing.T) {
+	for _, c := range BridgedChannels {
+		if !Bridged(c) {
+			t.Errorf("%q is in BridgedChannels but Bridged() says otherwise", c)
+		}
+	}
+	if Bridged("definitely:not-a-channel") {
+		t.Error("Bridged() accepted a channel that does not exist")
+	}
+}

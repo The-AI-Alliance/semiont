@@ -108,10 +108,10 @@ The technologies in a launcher-run stack are defaults. Inference, embedding, the
 
 | Role | Interface | Drivers in the code |
 |---|---|---|
-| Inference | `InferenceClient`, in `semiont_inference` ([`packages/inference-python`](../../../packages/inference-python/)) | Anthropic, Google's Gemini, llama.cpp's server, Ollama, OpenAI, Together AI, vLLM |
-| Embedding | `EmbeddingProvider`, in `semiont_vectors` ([`packages/vectors-python`](../../../packages/vectors-python/)), which the smelter embeds through and the librarian embeds a query through | Ollama, Voyage |
+| Inference | `InferenceClient`, in `semiont_inference` ([`packages/python/inference`](../../../packages/python/inference/)) | Anthropic, Google's Gemini, llama.cpp's server, Ollama, OpenAI, Together AI, vLLM |
+| Embedding | `EmbeddingProvider`, in `semiont_vectors` ([`packages/python/vectors`](../../../packages/python/vectors/)), which the smelter embeds through and the librarian embeds a query through | Ollama, Voyage |
 | Vector store | `VectorStore`, in the same package: the smelter writes the index and the librarian searches it | Qdrant |
-| Graph | `GraphDatabase`, in `semiont_graph` ([`packages/graph-python`](../../../packages/graph-python/)): the weaver writes the graph and the librarian reads it | Neo4j, Neptune, JanusGraph, in-memory |
+| Graph | `GraphDatabase`, in `semiont_graph` ([`packages/python/graph`](../../../packages/python/graph/)): the weaver writes the graph and the librarian reads it | Neo4j, Neptune, JanusGraph, in-memory |
 | Identity | OpenID Connect | Any conforming issuer. Keycloak is the one the launcher runs |
 | Signal plane | `SignalPlane`, in the gateway | In-process, NATS |
 | Job queue | The dispatcher's queue | NATS JetStream |

@@ -24,9 +24,9 @@ declare module 'vitest' {
 }
 
 /** What builds each implementation of each service the run starts, said when a file its command names is missing. */
-const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project apps/librarian` at the repository root' };
-const WEAVER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project apps/weaver` at the repository root' };
-const SMELTER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --project apps/smelter` at the repository root' };
+const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project images/librarian` at the repository root' };
+const WEAVER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project images/weaver` at the repository root' };
+const SMELTER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --project images/smelter` at the repository root' };
 
 /** Every file a command names by its path is what a build makes: refuse a run in which one is missing. */
 function built(what: string, command: readonly string[], build: string | undefined): void {

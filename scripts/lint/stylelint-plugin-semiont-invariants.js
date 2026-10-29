@@ -108,7 +108,7 @@ function isTailwindClass(className) {
 
 // Check if we're in a react-ui package file
 function isReactUIFile(filename) {
-  return filename && filename.includes('packages/react-ui');
+  return filename && filename.includes('packages/typescript/react-ui');
 }
 
 // Check if file should be skipped
@@ -223,7 +223,7 @@ function isThemeIndependentValue(value) {
 }
 
 /** The one token file whose `[data-theme="dark"]` block defines what "themed" means. */
-const TOKEN_FILE = path.resolve(__dirname, '../../packages/react-ui/src/styles/variables.css');
+const TOKEN_FILE = path.resolve(__dirname, '../../packages/typescript/react-ui/src/styles/variables.css');
 
 let themeAwareTokens = null;
 

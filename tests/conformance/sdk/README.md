@@ -363,25 +363,25 @@ remembers.
 
 Write a driver for each layer over the SDK's public API, add them to its line
 of `SDK_DRIVERS`, and run the suite. TypeScript's are
-[packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts)
+[packages/typescript/http-transport/conformance/driver.ts](../../../packages/typescript/http-transport/conformance/driver.ts)
 for the wire and
-[packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
+[packages/typescript/sdk/conformance/driver.ts](../../../packages/typescript/sdk/conformance/driver.ts)
 for the live layer. Rust's are the two binaries of the crate
-[packages/http-transport-rust/conformance](../../../packages/http-transport-rust/conformance):
-[semiont-wire-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-wire-driver.rs)
+[packages/rust/http-transport/conformance](../../../packages/rust/http-transport/conformance):
+[semiont-wire-driver](../../../packages/rust/http-transport/conformance/src/bin/semiont-wire-driver.rs)
 and
-[semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
+[semiont-live-driver](../../../packages/rust/http-transport/conformance/src/bin/semiont-live-driver.rs).
 Python's are
-[packages/sdk-python/conformance/wire.py](../../../packages/sdk-python/conformance/wire.py)
+[packages/python/sdk/conformance/wire.py](../../../packages/python/sdk/conformance/wire.py)
 and
-[packages/sdk-python/conformance/live.py](../../../packages/sdk-python/conformance/live.py),
+[packages/python/sdk/conformance/live.py](../../../packages/python/sdk/conformance/live.py),
 run by the interpreter of the SDK's locked environment
-(`packages/sdk-python/.venv`), which the suite's setup makes with
+(`packages/python/sdk/.venv`), which the suite's setup makes with
 `uv sync --locked --no-dev` before any case runs. Go's are two commands of
-the module [packages/sdk-go/conformance](../../../packages/sdk-go/conformance):
-[semiont-go-wire-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-wire-driver/main.go)
+the module [packages/go/sdk/conformance](../../../packages/go/sdk/conformance):
+[semiont-go-wire-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-wire-driver/main.go)
 and
-[semiont-go-live-driver](../../../packages/sdk-go/conformance/cmd/semiont-go-live-driver/main.go),
+[semiont-go-live-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-live-driver/main.go),
 built into its `bin/`.
 
 ## Running it
@@ -392,7 +392,7 @@ drivers, `uv` and Python 3.12 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
-(cd packages/sdk-go/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

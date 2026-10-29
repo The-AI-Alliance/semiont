@@ -159,7 +159,7 @@ export function useTranslationManager(): TranslationManager {
 ```
 
 The Semiont Browser's manager, `useMergedTranslationManager`
-(`apps/browser/src/hooks/useMergedTranslationManager.ts`), reads the active
+(`images/browser/src/hooks/useMergedTranslationManager.ts`), reads the active
 locale's bundle from i18next and interpolates it with `interpolateTranslation`,
 the function the built-in managers use.
 

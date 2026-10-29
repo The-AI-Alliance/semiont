@@ -9,7 +9,7 @@ against [docs/protocol/SMELTER.md](../../../docs/protocol/SMELTER.md).
 The suite imports nothing from a Smelter, and nothing a Smelter is built on.
 The lines that name one are `SMELTER_SERVICES` in
 [harness/paths.ts](../harness/paths.ts): today the Smelter in Python
-([`apps/smelter`](../../../apps/smelter/README.md)), run by the interpreter
+([`images/smelter`](../../../images/smelter/README.md)), run by the interpreter
 of its project's locked environment. Another implementation joins by adding
 its line, and every case runs against every entry.
 
@@ -22,7 +22,7 @@ is missing, and the cases that hold a refusal state it.
 
 The Smelter in Python reads a scanned page with the `tesseract` program,
 which must be on `PATH`, with its English data, and its environment is made
-before a run: `uv sync --locked --no-dev --project apps/smelter`.
+before a run: `uv sync --locked --no-dev --project images/smelter`.
 
 The index is read and changed by the suite's own calls to Qdrant's REST
 interface ([harness/qdrant.ts](../harness/qdrant.ts)), and never through the
@@ -151,7 +151,7 @@ It needs a built gateway and Archivist, the Smelter's environment,
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
-uv sync --locked --no-dev --project apps/smelter
+uv sync --locked --no-dev --project images/smelter
 npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci

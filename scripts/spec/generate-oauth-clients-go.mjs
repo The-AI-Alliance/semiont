@@ -3,7 +3,7 @@
 // the scope a sign-in asks for from specs/src/session/oauth.json, the file the
 // TypeScript, Rust and Python SDKs generate theirs from.
 //
-//   packages/sdk-go/oauthclients_gen.go
+//   packages/go/sdk/oauthclients_gen.go
 //
 // The SDK signs in as the script client, and the launcher registers both
 // clients in a knowledge base's realm, so an id restated by hand is a sign-in
@@ -19,7 +19,7 @@ import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
-const OUT = resolve(ROOT, 'packages/sdk-go/oauthclients_gen.go');
+const OUT = resolve(ROOT, 'packages/go/sdk/oauthclients_gen.go');
 const CHECK = process.argv.includes('--check');
 
 const { clients, scope } = readOAuthClients(TABLE);
@@ -32,8 +32,8 @@ const constant = (name, docs, value) => `${goComment(`${name}: ${docs}`)}\nconst
 const text = `// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node scripts/spec/generate-oauth-clients-go.mjs
-// The TypeScript (packages/core/src/generated/oauth-clients.ts), Rust
-// (packages/sdk-rust/build.rs) and Python (semiont.oauth_clients) SDKs generate
+// The TypeScript (packages/typescript/core/src/generated/oauth-clients.ts), Rust
+// (packages/rust/sdk/build.rs) and Python (semiont.oauth_clients) SDKs generate
 // from the same file.
 
 package semiont

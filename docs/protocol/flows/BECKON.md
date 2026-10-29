@@ -41,11 +41,11 @@ From the launcher: `semiont beckon <resourceId> --annotation <annotationId>`, or
 
 ## Local signals
 
-`beckon.hover` and `beckon.sparkle` publish on the client's own bus and nowhere else: one viewer's own highlight when the pointer rests on an annotation, and its own sparkle on an annotation just created. How a viewer turns hovers and clicks into highlights and scrolling is react-ui's: see [annotation interaction](../../../packages/react-ui/docs/ANNOTATION-CLICK.md).
+`beckon.hover` and `beckon.sparkle` publish on the client's own bus and nowhere else: one viewer's own highlight when the pointer rests on an annotation, and its own sparkle on an annotation just created. How a viewer turns hovers and clicks into highlights and scrolling is react-ui's: see [annotation interaction](../../../packages/typescript/react-ui/docs/ANNOTATION-CLICK.md).
 
 ## Where it is implemented
 
-- The SDK namespace: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
-- The gateway's relay: [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs) and [stream.rs](../../../apps/gateway/src/routes/stream.rs)
-- The launcher verb: [apps/launcher/internal/verbs/beckon.go](../../../apps/launcher/internal/verbs/beckon.go)
+- The SDK namespace: [packages/typescript/sdk/src/namespaces/beckon.ts](../../../packages/typescript/sdk/src/namespaces/beckon.ts)
+- The gateway's relay: [images/gateway/src/routes/bus.rs](../../../images/gateway/src/routes/bus.rs) and [stream.rs](../../../images/gateway/src/routes/stream.rs)
+- The launcher verb: [packages/go/launcher/verbs/beckon.go](../../../packages/go/launcher/verbs/beckon.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

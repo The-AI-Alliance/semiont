@@ -5,10 +5,10 @@ set -euo pipefail
 # type-checks against the BUILT packages, resolved through the exports map the
 # way that doc's reader resolves them. Doc rot fails CI instead of waiting for
 # a reader to paste a dead snippet. Four suites:
-#   - sdk:      docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/sdk READMEs.
+#   - sdk:      docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/typescript/sdk READMEs.
 #   - skills:   the agent skills, docs/builder/skills/*/SKILL.md, and their README.
 #   - packages: the READMEs of the packages the services are built from.
-#   - ui:       docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.
+#   - ui:       docs/builder/react-ui, packages/typescript/react-ui/docs and images/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):
 #   - Shape, not meaning: a method whose semantics changed under a stable
@@ -26,8 +26,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE="$REPO_ROOT/tests/doc-snippets"
 
 for pkg in core http-transport sdk react-ui observability; do
-  if [ ! -f "$REPO_ROOT/packages/$pkg/dist/index.d.ts" ]; then
-    echo "❌ doc-snippets: packages/$pkg/dist is missing — run 'npm run build:packages' first (this is a post-build gate)."
+  if [ ! -f "$REPO_ROOT/packages/typescript/$pkg/dist/index.d.ts" ]; then
+    echo "❌ doc-snippets: packages/typescript/$pkg/dist is missing — run 'npm run build:packages' first (this is a post-build gate)."
     exit 1
   fi
 done

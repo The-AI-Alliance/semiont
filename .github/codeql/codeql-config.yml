@@ -9,48 +9,50 @@ queries:
     uses: security-and-quality
 
 paths:
-  - apps/browser/src
+  - images/browser/src
   # The Rust workspace: its services and the crates they share
-  - apps/gateway/src
-  - apps/dispatcher/src
-  - apps/dispatcher/handlers
-  - apps/dispatcher/jetstream
-  - apps/archivist/src
-  - apps/archivist/record
-  - apps/archivist/staging
-  - packages/codegen-rust
-  - packages/core-rust
-  - packages/http-service-rust
-  - packages/http-transport-rust
-  - packages/observability-rust
-  - packages/sdk-rust
-  - packages/telemetry-rust
+  - images/gateway/src
+  - images/dispatcher/src
+  - images/dispatcher/handlers
+  - images/dispatcher/jetstream
+  - images/archivist/src
+  - images/archivist/record
+  - images/archivist/staging
+  - packages/rust/codegen
+  - packages/rust/core
+  - packages/rust/http-service
+  - packages/rust/http-transport
+  - packages/rust/observability
+  - packages/rust/sdk
+  - packages/rust/telemetry
   # The desktop shell: a Cargo workspace of its own, outside the root one
   - apps/desktop/src-tauri/src
-  # Go launcher — module root, not a src/ dir (main.go + internal/)
+  # Go launcher — module root, not a src/ dir (main.go and its tests)
   - apps/launcher
+  # The launcher's libraries: a module root too
+  - packages/go/launcher
   # The Go SDK the launcher is built on: a module root too
-  - packages/sdk-go
-  - packages/http-transport/src
-  - packages/core/src
-  - packages/react-ui/src
-  - packages/observability/src
-  - packages/sdk/src
+  - packages/go/sdk
+  - packages/typescript/http-transport/src
+  - packages/typescript/core/src
+  - packages/typescript/react-ui/src
+  - packages/typescript/observability/src
+  - packages/typescript/sdk/src
   # The Python SDK and the Python inference drivers: what each wheel holds
-  - packages/sdk-python/src
-  - packages/inference-python/src
-  - packages/graph-python/src
-  - packages/vectors-python/src
-  - packages/service-python/src
+  - packages/python/sdk/src
+  - packages/python/inference/src
+  - packages/python/graph/src
+  - packages/python/vectors/src
+  - packages/python/service/src
   # The Worker service's, the Weaver's, the Smelter's and the Librarian's Python code
-  - apps/worker/src
-  - apps/weaver/src
-  - apps/smelter/src
-  - apps/librarian/src
+  - images/worker/src
+  - images/weaver/src
+  - images/smelter/src
+  - images/librarian/src
 
 paths-ignore:
-  - apps/launcher/testdata
-  - apps/browser/node_modules
+  - packages/go/launcher/testdata
+  - images/browser/node_modules
   - "**/node_modules"
   - "**/*.test.ts"
   - "**/*.test.tsx"

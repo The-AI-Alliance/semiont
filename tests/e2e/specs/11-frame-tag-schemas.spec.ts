@@ -15,7 +15,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    emits `frame:add-tag-schema`; the Archivist's Stower persists a
  *    `frame:tag-schema-added` domain event on the `__system__` stream
  *    and broadcasts it (a bridged channel — see
- *    `packages/core/src/bridged-channels.ts`). The signed-in test
+ *    `packages/typescript/core/src/bridged-channels.ts`). The signed-in test
  *    page's bus capture must observe the broadcast via SSE.
  *
  * 2. **Projection visibility.** After registration, the schema must

@@ -1,0 +1,168 @@
+// ⚠ GENERATED FILE — do not edit.
+//
+// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Regenerate:  node scripts/bus/generate-ts.mjs
+// Go counterpart: node scripts/bus/generate-go.mjs → packages/go/sdk/bus
+//
+// Payload schemas themselves live in the OpenAPI components; the registry
+// names which one each channel carries, and every payload type here is
+// derived from that. Add or change a channel THERE.
+
+import type { EventMap, EventName, EmittableChannel } from './bus-protocol';
+
+/**
+ * BUS_OPERATIONS — the request/reply operations registry.
+ *
+ * Each entry declares ONE operation as a triple, so its three facts are
+ * stated together rather than maintained independently across call sites:
+ *   - the request channel (the key — an `EmittableChannel`),
+ *   - the `result` channel (success reply),
+ *   - and the `failure` channel.
+ *
+ * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map
+ * (bridged-channels.ts): every reply lands in the bridged fan-in set by
+ * construction, so "a reply channel forgotten from BRIDGED_CHANNELS" is not
+ * representable.
+ *
+ * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real
+ * emittable request. `result`/`failure` stay `EventName` rather than
+ * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from
+ * this map); the derivation closes the loop instead.
+ */
+export interface BusOperationSpec {
+  result: EventName;
+  failure: EventName;
+}
+
+export const BUS_OPERATIONS = {
+  // ── BIND ────────────────────────────────────────────────────────
+  'bind:update-body':                    { result: 'bind:body-updated',              failure: 'bind:body-update-failed' },
+
+  // ── BROWSE (reads) ──────────────────────────────────────────────
+  'browse:resource-requested':           { result: 'browse:resource-result',         failure: 'browse:resource-failed' },
+  'browse:resources-requested':          { result: 'browse:resources-result',        failure: 'browse:resources-failed' },
+  'browse:annotation-requested':         { result: 'browse:annotation-result',       failure: 'browse:annotation-failed' },
+  'browse:annotation-history-requested': { result: 'browse:annotation-history-result', failure: 'browse:annotation-history-failed' },
+  'browse:events-requested':             { result: 'browse:events-result',           failure: 'browse:events-failed' },
+  'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
+  'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
+  'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
+  'browse:people-requested':             { result: 'browse:people-result',           failure: 'browse:people-failed' },
+  'browse:kb-requested':                 { result: 'browse:kb-result',               failure: 'browse:kb-failed' },
+  'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
+
+  // ── FRAME (KB schema writes) ────────────────────────────────────
+  'frame:add-entity-type':               { result: 'frame:entity-type-add-ok',       failure: 'frame:entity-type-add-failed' },
+  'frame:add-tag-schema':                { result: 'frame:tag-schema-add-ok',        failure: 'frame:tag-schema-add-failed' },
+
+  // ── GATHER ──────────────────────────────────────────────────────
+  'gather:requested':                    { result: 'gather:complete',                failure: 'gather:failed' },
+  'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
+  // dormant — handler registered, no client caller (annotation summary)
+  'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
+  'gather:referenced-by-requested':      { result: 'gather:referenced-by-result',    failure: 'gather:referenced-by-failed' },
+  'gather:limits-requested':             { result: 'gather:limits-result',           failure: 'gather:limits-failed' },
+
+  // ── JOB ─────────────────────────────────────────────────────────
+  'job:create':                          { result: 'job:created',                    failure: 'job:create-failed' },
+  'job:status-requested':                { result: 'job:status-result',              failure: 'job:status-failed' },
+  'job:limits-requested':                { result: 'job:limits-result',              failure: 'job:limits-failed' },
+  'job:cancel-requested':                { result: 'job:cancel-ok',                  failure: 'job:cancel-failed' },
+  // worker-side: the worker claims a queued job (not an SDK call)
+  'job:claim':                           { result: 'job:claimed',                    failure: 'job:claim-failed' },
+
+  // ── MARK ────────────────────────────────────────────────────────
+  'mark:create-request':                 { result: 'mark:create-ok',                 failure: 'mark:create-failed' },
+  'mark:commit':                         { result: 'mark:commit-ok',                 failure: 'mark:commit-failed' },
+  'mark:delete':                         { result: 'mark:delete-ok',                 failure: 'mark:delete-failed' },
+  'mark:archive':                        { result: 'mark:archive-ok',                failure: 'mark:archive-failed' },
+  'mark:unarchive':                      { result: 'mark:unarchive-ok',              failure: 'mark:unarchive-failed' },
+  'mark:update-entity-types':            { result: 'mark:update-entity-types-ok',    failure: 'mark:update-entity-types-failed' },
+
+  // ── MATCH ───────────────────────────────────────────────────────
+  // take-1 dressed as an Observable in the SDK
+  'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
+  'match:resources-requested':           { result: 'match:resources-result',         failure: 'match:resources-failed' },
+  'match:limits-requested':              { result: 'match:limits-result',            failure: 'match:limits-failed' },
+
+  // ── WEAVE ───────────────────────────────────────────────────────
+  // Graph-projection rebuild, served by the Weaver
+  'weave:rebuild':                       { result: 'weave:rebuild-ok',               failure: 'weave:rebuild-failed' },
+
+  // ── SMELT ────────────────────────────────────────────
+  // Anchored-text rebuild, served by the Smelter
+  'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
+
+  // ── YIELD ───────────────────────────────────────────────────────
+  // clients refresh on the persisted `yield:created`, never on the -ok reply
+  'yield:create':                        { result: 'yield:create-ok',                failure: 'yield:create-failed' },
+  'yield:clone-persist':                 { result: 'yield:clone-persist-ok',         failure: 'yield:clone-persist-failed' },
+  // dormant — handler in stower exists, no request emitter
+  'yield:update':                        { result: 'yield:update-ok',                failure: 'yield:update-failed' },
+  'yield:clone-create':                  { result: 'yield:clone-created',            failure: 'yield:clone-create-failed' },
+  'yield:clone-resource-requested':      { result: 'yield:clone-resource-result',    failure: 'yield:clone-resource-failed' },
+  'yield:clone-token-requested':         { result: 'yield:clone-token-generated',    failure: 'yield:clone-token-failed' },
+} as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;
+
+/** The request-channel key of a registered operation — what `Bus.request` takes. */
+export type BusOperationKey = keyof typeof BUS_OPERATIONS;
+
+/**
+ * REPLY_NAMES — what each operation's reply states beside its `response`.
+ *
+ * A reply names what it answers for by stating a property of its request
+ * again: the annotation or the resource a context was gathered for, the
+ * reference a search was for. Whoever answers takes each from the request.
+ * Most replies name nothing.
+ *
+ * Each list is what the reply's component schema requires, without
+ * `response`. The generator refuses a name the request's schema does not
+ * state, and the `satisfies` below holds each to the TypeScript types of both
+ * payloads.
+ */
+export const REPLY_NAMES = {
+  'bind:update-body':                    [],
+  'browse:resource-requested':           [],
+  'browse:resources-requested':          [],
+  'browse:annotation-requested':         [],
+  'browse:annotation-history-requested': [],
+  'browse:events-requested':             [],
+  'browse:entity-types-requested':       [],
+  'browse:tag-schemas-requested':        [],
+  'browse:agents-requested':             [],
+  'browse:people-requested':             [],
+  'browse:kb-requested':                 [],
+  'browse:directory-requested':          [],
+  'frame:add-entity-type':               [],
+  'frame:add-tag-schema':                [],
+  'gather:requested':                    ['annotationId'],
+  'gather:resource-requested':           ['resourceId'],
+  'gather:summary-requested':            [],
+  'gather:referenced-by-requested':      [],
+  'gather:limits-requested':             [],
+  'job:create':                          [],
+  'job:status-requested':                [],
+  'job:limits-requested':                [],
+  'job:cancel-requested':                [],
+  'job:claim':                           [],
+  'mark:create-request':                 [],
+  'mark:commit':                         [],
+  'mark:delete':                         [],
+  'mark:archive':                        [],
+  'mark:unarchive':                      [],
+  'mark:update-entity-types':            [],
+  'match:search-requested':              ['referenceId'],
+  'match:resources-requested':           [],
+  'match:limits-requested':              [],
+  'weave:rebuild':                       [],
+  'smelt:rebuild-anchors':               [],
+  'yield:create':                        [],
+  'yield:clone-persist':                 [],
+  'yield:update':                        [],
+  'yield:clone-create':                  [],
+  'yield:clone-resource-requested':      [],
+  'yield:clone-token-requested':         [],
+} as const satisfies {
+  readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
+    keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
+};

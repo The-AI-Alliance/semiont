@@ -69,9 +69,9 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
-| Agent | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
-| Media | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
+| Access | the realm the launcher imports, [`packages/go/launcher/identity.go`](../../../packages/go/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
+| Agent | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
+| Media | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 
 ### Revocation
 
@@ -166,7 +166,7 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 **A token the gateway itself signed** (software agents only):
 
 1. **Signature** — HMAC-SHA256 against the `JWT_SECRET` key ring.
-2. **Payload structure** — the claims must have the agent shape (`agent_claims` in `apps/gateway/src/tokens.rs`); a token whose claims do not parse is rejected, not coerced.
+2. **Payload structure** — the claims must have the agent shape (`agent_claims` in `images/gateway/src/tokens.rs`); a token whose claims do not parse is rejected, not coerced.
 3. **Expiration** — enforced at verification.
 
 The claims are trusted on this path precisely because the gateway signed them: it is both the minter and the verifier, so a valid signature means this process asserted these facts itself.
@@ -186,15 +186,15 @@ Agents and media only — a person's token is the issuer's, and its claims are w
 }
 ```
 
-`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification (`agent_claims` in `apps/gateway/src/tokens.rs`).
+`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification (`agent_claims` in `images/gateway/src/tokens.rs`).
 
 ## Implementation Details
 
-### Bearer validation (`apps/gateway/src/http.rs`)
+### Bearer validation (`images/gateway/src/http.rs`)
 
-A protected route takes the `Authenticated` extractor, which runs before its body is read: it takes the token from an `Authorization: Bearer` header — a missing one returns the actionable 401 above — and resolves the principal (`principal_from_token` in `apps/gateway/src/principal.rs`). `GET /api/resources/{id}` takes `MediaOrBearer` instead, which accepts that resource's media token in `?token=` before falling back to the header.
+A protected route takes the `Authenticated` extractor, which runs before its body is read: it takes the token from an `Authorization: Bearer` header — a missing one returns the actionable 401 above — and resolves the principal (`principal_from_token` in `images/gateway/src/principal.rs`). `GET /api/resources/{id}` takes `MediaOrBearer` instead, which accepts that resource's media token in `?token=` before falling back to the header.
 
-### Route protection (`apps/gateway/src/routes/mod.rs`)
+### Route protection (`images/gateway/src/routes/mod.rs`)
 
 Every route is one row of the route table, and its handler names the credential it needs: `Authenticated`, `MediaOrBearer`, or — for `POST /api/tokens/agent` — the issuer token carrying `semiont-service` it checks itself. A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
 

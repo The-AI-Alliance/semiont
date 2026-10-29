@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # All npm dependencies — root + every workspace (apps/*, packages/*) in one pass.
+  # All npm dependencies — root + every workspace (apps/*, images/*, packages/typescript/*) in one pass.
   # A single "/" entry traverses all npm workspaces, so per-workspace entries are
   # redundant. Groups below match by package name across every workspace.
   #
@@ -14,7 +14,7 @@ updates:
   # version. A model catalogue file is generated from it: the file an image
   # carries for the Python inference drivers, and the one copy the repository
   # keeps, the fixture of the Python inference package's tests
-  # (packages/inference-python/tests/catalogue). The package is published every
+  # (packages/python/inference/tests/catalogue). The package is published every
   # day: this entry's weekly schedule is what keeps it to one bump a week. A
   # bump comes with the fixture regenerated (`npm run generate:model-catalogue`):
   # CI's drift job fails until it is, and the diff is the models whose facts
@@ -127,12 +127,36 @@ updates:
       prefix: "tests"
       include: "scope"
 
-  # Go launcher (apps/launcher): go.yaml.in/yaml, santhosh-tekuri/jsonschema,
-  # oapi-codegen/runtime, and
-  # packages/sdk-go through a replace directive, plus the `go`
-  # directive/toolchain. Reachability-aware stdlib CVE scanning is handled by
-  # govulncheck in ci.yml.
-  # nats-server is a requirement of the launcher's tests, which read the
+  # The launcher's program (apps/launcher): the MCP go-sdk and go.yaml.in/yaml,
+  # and packages/go/launcher and packages/go/sdk through replace directives,
+  # plus the `go` directive/toolchain. Reachability-aware stdlib CVE scanning
+  # is handled by govulncheck in ci.yml.
+  # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
+  - package-ecosystem: "gomod"
+    directory: "/apps/launcher"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "app:launcher"
+    groups:
+      launcher:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "launcher"
+      include: "scope"
+
+  # The launcher's libraries (packages/go/launcher): go.yaml.in/yaml,
+  # santhosh-tekuri/jsonschema, sigstore-go, the MCP go-sdk, and
+  # packages/go/sdk through a replace directive, plus the `go`
+  # directive/toolchain.
+  # nats-server is a requirement of the libraries' tests, which read the
   # broker's config with the parser of the image the launcher runs. Its
   # version moves with that image's tag (descriptors.go): a bump here alone
   # fails TestBrokerPairIsReadByTheLaunchedBrokersParser. It is also the
@@ -141,7 +165,7 @@ updates:
   # against the new broker.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
-    directory: "/apps/launcher"
+    directory: "/packages/go/launcher"
     cooldown:
       default-days: 5
     schedule:
@@ -158,14 +182,14 @@ updates:
       nats-server:
         patterns:
           - "github.com/nats-io/nats-server/v2"
-      launcher:
+      launcher-libraries:
         patterns:
           - "*"
     commit-message:
       prefix: "launcher"
       include: "scope"
 
-  # Go SDK (packages/sdk-go). Its OWN entry because gomod is not
+  # Go SDK (packages/go/sdk). Its OWN entry because gomod is not
   # workspace-aware: this is a separate module, and the launcher's entry above
   # updates the launcher's go.mod only.
   #
@@ -176,7 +200,7 @@ updates:
   # green everywhere, and nothing reports it. But sdk-go is consumed by module
   # path, so an EXTERNAL consumer resolves the stale minimum declared here.
   - package-ecosystem: "gomod"
-    directory: "/packages/sdk-go"
+    directory: "/packages/go/sdk"
     cooldown:
       default-days: 5
     schedule:
@@ -195,11 +219,11 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Go SDK's conformance drivers (packages/sdk-go/conformance): a module of
+  # The Go SDK's conformance drivers (packages/go/sdk/conformance): a module of
   # their own, so that what only a driver takes (an OTLP exporter) reaches no
   # other module. gomod is not workspace-aware, so it has its own entry.
   - package-ecosystem: "gomod"
-    directory: "/packages/sdk-go/conformance"
+    directory: "/packages/go/sdk/conformance"
     cooldown:
       default-days: 5
     schedule:
@@ -220,9 +244,9 @@ updates:
 
   # The Python projects: the SDK, the inference drivers, the graph stores, the
   # vector stores and the service package Semiont's Python services are built
-  # from, and the four services themselves, the Worker (apps/worker), the
-  # Weaver (apps/weaver), the Smelter (apps/smelter) and the Librarian
-  # (apps/librarian). Their
+  # from, and the four services themselves, the Worker (images/worker), the
+  # Weaver (images/weaver), the Smelter (images/smelter) and the Librarian
+  # (images/librarian). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
@@ -237,15 +261,15 @@ updates:
   # names the tool.
   - package-ecosystem: "uv"
     directories:
-      - "/packages/sdk-python"
-      - "/packages/inference-python"
-      - "/packages/graph-python"
-      - "/packages/vectors-python"
-      - "/packages/service-python"
-      - "/apps/worker"
-      - "/apps/weaver"
-      - "/apps/smelter"
-      - "/apps/librarian"
+      - "/packages/python/sdk"
+      - "/packages/python/inference"
+      - "/packages/python/graph"
+      - "/packages/python/vectors"
+      - "/packages/python/service"
+      - "/images/worker"
+      - "/images/weaver"
+      - "/images/smelter"
+      - "/images/librarian"
     cooldown:
       default-days: 5
     schedule:
@@ -277,7 +301,7 @@ updates:
   # especially), and every bump runs the conformance suites and the crate
   # licence gate.
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/packages/rust"
     cooldown:
       default-days: 5
     schedule:
@@ -303,7 +327,7 @@ updates:
   # scripts/ci/rust-toolchain.sh for it, so one bump moves the compiler
   # everywhere; the cooldown gives the official images time to be published.
   - package-ecosystem: "rust-toolchain"
-    directory: "/"
+    directory: "/packages/rust"
     cooldown:
       default-days: 5
     schedule:
@@ -362,10 +386,10 @@ updates:
       prefix: "actions"
       include: "scope"
 
-  # Browser Docker base image (apps/browser/Dockerfile) — docker is not
+  # Browser Docker base image (images/browser/Dockerfile) — docker is not
   # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
-    directory: "/apps/browser"
+    directory: "/images/browser"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -373,7 +397,7 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "kind:dependencies"
-      - "app:browser"
+      - "image:browser"
     groups:
       browser-image:
         patterns:
@@ -385,18 +409,18 @@ updates:
   # The desktop builder (apps/desktop/Dockerfile.builder) has no entry: its one
   # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
-  # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
+  # Service image base images (images/<svc>/Dockerfile). Grouped into one PR:
   # the gateway's, the dispatcher's and the archivist's runtime base is one
   # alpine, so an ungrouped bump opens several PRs for one upgrade. Their
   # builder's Rust tag comes from rust-toolchain.toml, which the rust-toolchain
-  # entry updates. apps/browser is Node, and has its own entry. apps/worker,
-  # apps/smelter, apps/weaver and apps/librarian are Python, and have their
+  # entry updates. images/browser is Node, and has its own entry. images/worker,
+  # images/smelter, images/weaver and images/librarian are Python, and have their
   # own too.
   - package-ecosystem: "docker"
     directories:
-      - "/apps/gateway"
-      - "/apps/archivist"
-      - "/apps/dispatcher"
+      - "/images/gateway"
+      - "/images/archivist"
+      - "/images/dispatcher"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -412,20 +436,20 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
-  # The images of the Python services (apps/worker/Dockerfile,
-  # apps/weaver/Dockerfile, apps/smelter/Dockerfile,
-  # apps/librarian/Dockerfile). Their Python base is no
+  # The images of the Python services (images/worker/Dockerfile,
+  # images/weaver/Dockerfile, images/smelter/Dockerfile,
+  # images/librarian/Dockerfile). Their Python base is no
   # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
-  # packages/sdk-python/pyproject.toml states, which a person moves. What each
+  # packages/python/sdk/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
   # the image's environment, in all four at once. Outside the service group,
   # whose base is Alpine.
   - package-ecosystem: "docker"
     directories:
-      - "/apps/worker"
-      - "/apps/weaver"
-      - "/apps/smelter"
-      - "/apps/librarian"
+      - "/images/worker"
+      - "/images/weaver"
+      - "/images/smelter"
+      - "/images/librarian"
     # uv makes each image's environment: let a release age before adopting it.
     # The base-image entries above wait for nothing, so that an image's OS
     # patches are not held back.

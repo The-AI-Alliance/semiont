@@ -3,7 +3,7 @@
 // Encoding Standard from specs/src/text/encoding-cases.json, the table every
 // reader of a resource's text runs.
 //
-//   packages/sdk-python/src/semiont/_encodings.py
+//   packages/python/sdk/src/semiont/_encodings.py
 //
 // Rust reads a resource's text with encoding_rs and TypeScript with the
 // platform's TextDecoder, each of which has the standard's labels and its
@@ -22,7 +22,7 @@ import { pyBanner } from './python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/text/encoding-cases.json');
-const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/_encodings.py');
+const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/_encodings.py');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {

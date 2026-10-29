@@ -1,48 +1,12 @@
 # @semiont Applications
 
-Deployable applications for the Semiont platform.
-
-## Published npm packages
-
-| Package | Version | Source | Description |
-| ------- | ------- | ------ | ----------- |
-| [@semiont/browser](https://www.npmjs.com/package/@semiont/browser) | [![npm](https://img.shields.io/npm/v/@semiont/browser)](https://www.npmjs.com/package/@semiont/browser) | [browser](./browser/) | Vite + React SPA — the Semiont Browser |
-
-The Browser also ships as a published, attested container image
-(`ghcr.io/the-ai-alliance/semiont-browser`) that bundles its package — see
-[Container Images](../docs/operator/administration/IMAGES.md).
-
-## Container images only
-
-These ship as attested images and are **not** published to npm. The gateway, the
-dispatcher and the Archivist are Rust binaries, each compiled into its image from its
-directory here. The worker, the weaver, the smelter and the librarian are Python, and each
-is built into its image from its directory here too.
-
-What each service reads, mounts and reaches is stated once, in the operator's
-[service catalog](../docs/operator/services/OVERVIEW.md). What the actors inside them do is
-[Knowledge System](../docs/architecture/KNOWLEDGE-SYSTEM.md).
-
-| Service | Source | Port | What it runs |
-| --- | --- | --- | --- |
-| `semiont-gateway` | [gateway](./gateway/README.md) | 4000 | **The front door** — authenticates callers, validates and relays the bus, keeps the reply records, and pipes bytes to and from the Archivist. Rust, built against `specs/` |
-| `semiont-archivist` | [archivist](./archivist/README.md) | 24103 | **Keeps the system of record** — Stower (writes events + projections), Browser (serves `browse:*` reads), CloneTokenManager. The only service that mounts the working tree |
-| `semiont-librarian` | [librarian](./librarian/README.md) | 24104 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
-| `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | Chunks and embeds content into the vector store; owns anchored-text extraction. Python, with PDFium and the `tesseract` program |
-| `semiont-weaver` | [weaver](./weaver/README.md) | 24102 | Projects the event log into the graph |
-| `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference. Python, with every model provider's library |
-| `semiont-dispatcher` | [dispatcher](./dispatcher/README.md) | 24105 | **Hands out the work** — owns the job queue and answers the `job:*` lifecycle commands; a control plane through which no content flows |
-
-All seven service images are built by
-[`publish-service-images.yml`](../.github/workflows/publish-service-images.yml).
-
-**The Archivist and the Librarian are a deliberate pair.** The Archivist holds the record
-and answers *"what is there?"*; the Librarian searches it and answers *"what is relevant to
-my question?"* — the distinction the professions themselves draw.
+The applications that run on a host rather than in a container. The services that ship as
+container images are in [images/](../images/README.md). Nothing here is published as an image:
+the desktop app's `Dockerfile.builder` is the environment its Linux bundles are built in.
 
 ## Host-installed binaries
 
 | App | Source | Distribution | Description |
 | --- | ------ | ------------ | ----------- |
-| `semiont` launcher | [launcher](./launcher/) | `brew install the-ai-alliance/semiont/semiont` (also [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases)) | Single static Go binary that runs a local KB stack — pulls the published images and drives Apple `container`, Docker, or Podman directly (`semiont start` / `status` / `logs` / `stop`) |
+| `semiont` launcher | [launcher](./launcher/) | `brew install the-ai-alliance/semiont/semiont` (also [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases)) | Single static Go binary that runs a local KB stack — pulls the published images and drives Apple `container`, Docker, or Podman directly (`semiont start` / `status` / `logs` / `stop`). Its libraries are [packages/go/launcher](../packages/go/launcher/README.md) |
 | Semiont Desktop | [desktop](./desktop/) | [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases) (macOS, Linux) | Native [Tauri](https://tauri.app/) shell around the Semiont Browser SPA — no container runtime to install and no local-network permission to grant |

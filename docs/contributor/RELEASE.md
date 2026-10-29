@@ -60,7 +60,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ./scripts/release/verify-release.sh <version>
 ```
 
-It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, and for each image both platforms, an attestation whose subject matches the tag's digest, and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
+It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
 
 To boot the published images:
 
@@ -156,11 +156,11 @@ gh workflow run publish-crates.yml --ref v<version>
 gh workflow run publish-crates.yml --field dry_run=true
 ```
 
-The SDK's build script reads the spec through `packages/sdk-rust/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
+The SDK's build script reads the spec through `packages/rust/sdk/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
 
 ### The Python package
 
-The Python SDK (`packages/sdk-python`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
+The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
 
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 
@@ -188,7 +188,7 @@ gh workflow run publish-pypi.yml --field dry_run=true                   # build 
 
 ```json
 "@semiont/core": {
-  "dir": "packages/core",
+  "dir": "packages/typescript/core",
   "version": "<version>",
   "publish": true
 }

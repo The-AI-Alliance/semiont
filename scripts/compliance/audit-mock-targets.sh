@@ -67,7 +67,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const files = ['apps', 'packages', 'demo']
+const files = ['apps', 'images', 'packages', 'demo']
   .filter((d) => fs.existsSync(d))
   .flatMap((d) => walk(d))
   .filter((f) => fs.readFileSync(f, 'utf-8').includes('vi.'));

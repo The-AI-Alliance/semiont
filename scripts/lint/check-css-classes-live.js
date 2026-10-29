@@ -48,8 +48,8 @@ const { repositoryFiles } = require('./repository-files.mjs');
 const ROOT = path.join(__dirname, '..', '..');
 const REPOSITORY = repositoryFiles(ROOT);
 
-const CSS_ROOTS = ['packages/react-ui/src', 'apps/browser/src'];
-const MARKUP_ROOTS = ['packages/react-ui/src', 'apps/browser/src'];
+const CSS_ROOTS = ['packages/typescript/react-ui/src', 'images/browser/src'];
+const MARKUP_ROOTS = ['packages/typescript/react-ui/src', 'images/browser/src'];
 
 /** Classes whose consumer is outside this repo's markup, with the reason. */
 const ALLOWLIST = new Map([

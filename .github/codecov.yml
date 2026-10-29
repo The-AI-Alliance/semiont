@@ -1,0 +1,351 @@
+# Codecov configuration for Semiont monorepo
+# https://docs.codecov.io/docs/codecovyml-reference
+
+codecov:
+  # Don't require CI to finish before processing coverage
+  require_ci_to_pass: false
+
+  # Process coverage immediately
+  notify:
+    wait_for_ci: false
+    after_n_builds: 1  # Comment after first build
+
+coverage:
+  # Overall project coverage settings
+  status:
+    # Project-wide coverage status
+    project:
+      default:
+        # Coverage can drop by 1% without failing
+        threshold: 1%
+        target: 70%  # Target 70% overall coverage
+
+    # Per-PR patch coverage
+    patch:
+      default:
+        # New code should have at least 80% coverage
+        target: 80%
+        threshold: 5%
+
+  # Round coverage to 2 decimal places
+  precision: 2
+  round: down
+
+  # Coverage range for color coding
+  range: "50...90"
+
+# One component and one flag for each package, packages/<language>/<name>, named
+# <language>-<name>, and for each image, images/<name>, named image-<name>; and a
+# component for each language, its packages together. A component is scoped by its paths in every report, so the
+# badges read components: a flag is scoped by the uploads that carry it, and the
+# Rust workspace's one upload carries every crate's. lint:coverage-roster holds the
+# lists, ci.yml's uploads and the READMEs' badges to the packages there are.
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_components:
+    - component_id: typescript-core
+      name: "packages/typescript/core"
+      paths:
+        - packages/typescript/core/**
+    - component_id: typescript-http-transport
+      name: "packages/typescript/http-transport"
+      paths:
+        - packages/typescript/http-transport/**
+    - component_id: typescript-observability
+      name: "packages/typescript/observability"
+      paths:
+        - packages/typescript/observability/**
+    - component_id: typescript-react-ui
+      name: "packages/typescript/react-ui"
+      paths:
+        - packages/typescript/react-ui/**
+    - component_id: typescript-sdk
+      name: "packages/typescript/sdk"
+      paths:
+        - packages/typescript/sdk/**
+    - component_id: rust-codegen
+      name: "packages/rust/codegen"
+      paths:
+        - packages/rust/codegen/**
+    - component_id: rust-core
+      name: "packages/rust/core"
+      paths:
+        - packages/rust/core/**
+    - component_id: rust-http-service
+      name: "packages/rust/http-service"
+      paths:
+        - packages/rust/http-service/**
+    - component_id: rust-http-transport
+      name: "packages/rust/http-transport"
+      paths:
+        - packages/rust/http-transport/**
+    - component_id: rust-observability
+      name: "packages/rust/observability"
+      paths:
+        - packages/rust/observability/**
+    - component_id: rust-sdk
+      name: "packages/rust/sdk"
+      paths:
+        - packages/rust/sdk/**
+    - component_id: rust-telemetry
+      name: "packages/rust/telemetry"
+      paths:
+        - packages/rust/telemetry/**
+    - component_id: python-sdk
+      name: "packages/python/sdk"
+      paths:
+        - packages/python/sdk/**
+    - component_id: python-graph
+      name: "packages/python/graph"
+      paths:
+        - packages/python/graph/**
+    - component_id: python-inference
+      name: "packages/python/inference"
+      paths:
+        - packages/python/inference/**
+    - component_id: python-service
+      name: "packages/python/service"
+      paths:
+        - packages/python/service/**
+    - component_id: python-vectors
+      name: "packages/python/vectors"
+      paths:
+        - packages/python/vectors/**
+    - component_id: go-sdk
+      name: "packages/go/sdk"
+      paths:
+        - packages/go/sdk/**
+    - component_id: go-launcher
+      name: "packages/go/launcher"
+      paths:
+        - packages/go/launcher/**
+    - component_id: typescript
+      name: "packages/typescript"
+      paths:
+        - packages/typescript/**
+    - component_id: rust
+      name: "packages/rust"
+      paths:
+        - packages/rust/**
+    - component_id: python
+      name: "packages/python"
+      paths:
+        - packages/python/**
+    - component_id: go
+      name: "packages/go"
+      paths:
+        - packages/go/**
+    - component_id: image-archivist
+      name: "images/archivist"
+      paths:
+        - images/archivist/**
+    - component_id: image-browser
+      name: "images/browser"
+      paths:
+        - images/browser/**
+    - component_id: image-dispatcher
+      name: "images/dispatcher"
+      paths:
+        - images/dispatcher/**
+    - component_id: image-gateway
+      name: "images/gateway"
+      paths:
+        - images/gateway/**
+    - component_id: image-librarian
+      name: "images/librarian"
+      paths:
+        - images/librarian/**
+    - component_id: image-smelter
+      name: "images/smelter"
+      paths:
+        - images/smelter/**
+    - component_id: image-weaver
+      name: "images/weaver"
+      paths:
+        - images/weaver/**
+    - component_id: image-worker
+      name: "images/worker"
+      paths:
+        - images/worker/**
+
+# A Go profile names each file by its import path, which is the repository's
+# own path below this prefix.
+fixes:
+  - "github.com/The-AI-Alliance/semiont/::"
+
+# Ignore certain files from coverage
+ignore:
+  # Test files
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/test-utils/**"
+
+  # Build artifacts
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"
+
+  # Config files
+  - "**/*.config.ts"
+  - "**/*.config.js"
+
+  # Generated files
+  - "**/generated/**"
+  - "**/*_gen.go"
+
+  # Scripts
+  - "scripts/**"
+
+# Comment configuration
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+flags:
+
+  typescript-core:
+    paths:
+      - packages/typescript/core/**
+    carryforward: true
+
+  typescript-http-transport:
+    paths:
+      - packages/typescript/http-transport/**
+    carryforward: true
+
+  typescript-observability:
+    paths:
+      - packages/typescript/observability/**
+    carryforward: true
+
+  typescript-react-ui:
+    paths:
+      - packages/typescript/react-ui/**
+    carryforward: true
+
+  typescript-sdk:
+    paths:
+      - packages/typescript/sdk/**
+    carryforward: true
+
+  rust-codegen:
+    paths:
+      - packages/rust/codegen/**
+    carryforward: true
+
+  rust-core:
+    paths:
+      - packages/rust/core/**
+    carryforward: true
+
+  rust-http-service:
+    paths:
+      - packages/rust/http-service/**
+    carryforward: true
+
+  rust-http-transport:
+    paths:
+      - packages/rust/http-transport/**
+    carryforward: true
+
+  rust-observability:
+    paths:
+      - packages/rust/observability/**
+    carryforward: true
+
+  rust-sdk:
+    paths:
+      - packages/rust/sdk/**
+    carryforward: true
+
+  rust-telemetry:
+    paths:
+      - packages/rust/telemetry/**
+    carryforward: true
+
+  python-sdk:
+    paths:
+      - packages/python/sdk/**
+    carryforward: true
+
+  python-graph:
+    paths:
+      - packages/python/graph/**
+    carryforward: true
+
+  python-inference:
+    paths:
+      - packages/python/inference/**
+    carryforward: true
+
+  python-service:
+    paths:
+      - packages/python/service/**
+    carryforward: true
+
+  python-vectors:
+    paths:
+      - packages/python/vectors/**
+    carryforward: true
+
+  go-sdk:
+    paths:
+      - packages/go/sdk/**
+    carryforward: true
+
+  go-launcher:
+    paths:
+      - packages/go/launcher/**
+    carryforward: true
+
+  image-archivist:
+    paths:
+      - images/archivist/**
+    carryforward: true
+
+  image-browser:
+    paths:
+      - images/browser/**
+    carryforward: true
+
+  image-dispatcher:
+    paths:
+      - images/dispatcher/**
+    carryforward: true
+
+  image-gateway:
+    paths:
+      - images/gateway/**
+    carryforward: true
+
+  image-librarian:
+    paths:
+      - images/librarian/**
+    carryforward: true
+
+  image-smelter:
+    paths:
+      - images/smelter/**
+    carryforward: true
+
+  image-weaver:
+    paths:
+      - images/weaver/**
+    carryforward: true
+
+  image-worker:
+    paths:
+      - images/worker/**
+    carryforward: true

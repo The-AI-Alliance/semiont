@@ -21,15 +21,15 @@ export default function setup(project: TestProject): void {
   if (!drivers['typescript']?.worker) return;
   // The worker driver runs the built SDK over the built transport.
   for (const pkg of ['http-transport', 'sdk']) {
-    const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
+    const built = join(REPO_ROOT, 'packages', 'typescript', pkg, 'dist/index.js');
     if (!existsSync(built)) {
       throw new Error(`The TypeScript SDK is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
     }
   }
   try {
-    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'sdk', 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
+    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'typescript', 'sdk', 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
   } catch (error) {
     const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
-    throw new Error(`The TypeScript drivers in packages/sdk/conformance do not type-check:\n${output}`);
+    throw new Error(`The TypeScript drivers in packages/typescript/sdk/conformance do not type-check:\n${output}`);
   }
 }

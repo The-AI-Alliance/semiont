@@ -24,7 +24,7 @@ function option(name) {
 }
 
 const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/refresh.json'));
-const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/cache-refresh.ts'));
+const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/cache-refresh.ts'));
 
 function refuse(message) {
   console.error(`✗ ${TABLE}: ${message}`);

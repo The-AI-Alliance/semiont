@@ -1,6 +1,8 @@
 # scripts/lint — Linting and Style Enforcement
 
-Stylelint plugins and CSS checks. Referenced by `.stylelintrc.json` — typically
+Stylelint plugins and CSS checks. Referenced by
+[`packages/typescript/react-ui/.stylelintrc.json`](../../packages/typescript/react-ui/.stylelintrc.json),
+which `images/browser/.stylelintrc.json` extends — typically
 not called directly.
 
 ## Scripts

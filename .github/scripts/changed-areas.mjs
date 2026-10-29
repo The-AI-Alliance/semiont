@@ -9,8 +9,8 @@
  *
  * A pull request, and a push (a merged pull request, mapped against the commit
  * before it), run in tier `change`: each area is true when its filter matched,
- * and every area is when `all` matched (the workflows, the CI scripts, the
- * spec). Any other event runs in tier `full`, with every area true: the nightly
+ * and every area is when `all` matched (ci.yml, this script, the CI scripts,
+ * the spec). Any other event runs in tier `full`, with every area true: the nightly
  * schedule, a dispatch, and a release's call, whose event is the release's
  * dispatch. A job that runs at night and for a release alone reads the tier.
  */

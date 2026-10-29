@@ -4,7 +4,7 @@ How to test a React app, or a component, built on `@semiont/react-ui`: the test
 utilities the package exports, and the way of testing they are built for.
 
 How the library's own tests are run, written and organized is in the package's
-[TESTING.md](../../../packages/react-ui/docs/TESTING.md).
+[TESTING.md](../../../packages/typescript/react-ui/docs/TESTING.md).
 
 ## Testing Philosophy
 
@@ -353,8 +353,8 @@ it('should match snapshot', () => {
 ## Testing Accessibility
 
 `jest-axe` ships no type declarations: react-ui declares them in
-`packages/react-ui/src/types/jest-axe.d.ts`, adds the matcher to vitest's `Assertion` in
-`packages/react-ui/src/types/vitest-matchers.d.ts`, and its `vitest.setup.ts` extends
+`packages/typescript/react-ui/src/types/jest-axe.d.ts`, adds the matcher to vitest's `Assertion` in
+`packages/typescript/react-ui/src/types/vitest-matchers.d.ts`, and its `vitest.setup.ts` extends
 `expect` once for every test.
 
 ```tsx

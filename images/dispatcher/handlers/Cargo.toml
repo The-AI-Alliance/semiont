@@ -1,0 +1,20 @@
+[package]
+name = "semiont-dispatcher-handlers"
+workspace = "../../../packages/rust"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "The dispatcher's handlers and the job queue they drive, as a contract: no broker in this crate's dependencies."
+
+[dependencies]
+chrono = { workspace = true, features = ["clock", "std"] }
+semiont.workspace = true
+semiont-observability.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+# `as_id`, for a fixture's ids.
+semiont = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["rt", "macros"] }

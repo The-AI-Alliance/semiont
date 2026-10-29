@@ -5,7 +5,7 @@
 # actions/setup-go reads that file itself (go-version-file). What cannot, a Go
 # image's tag (golang:<toolchain>), asks here, so the line is read in one
 # place and one way: scripts/ci/local-build.sh and the go:generate lines of
-# packages/sdk-go and apps/launcher.
+# packages/go/sdk and apps/launcher.
 #
 # Each module's go.mod pins the toolchain, and lint:go-toolchain holds them to
 # one, so the launcher's is every module's.

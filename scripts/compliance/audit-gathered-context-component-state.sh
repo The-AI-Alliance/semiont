@@ -14,14 +14,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 violations=0
 
 if grep -rn "useResourceGather" \
-    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
+    "$REPO_ROOT/packages/typescript/react-ui/src" "$REPO_ROOT/images/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
   echo "❌ useResourceGather is present (components receive gather state as props)"
   violations=1
 fi
 
 if grep -rn "useState<GatheredContext" \
-    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
+    "$REPO_ROOT/packages/typescript/react-ui/src" "$REPO_ROOT/images/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
   echo "❌ a component holds GatheredContext in useState — gather state lives in the SDK's units"
   violations=1

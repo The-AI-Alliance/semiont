@@ -30,7 +30,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const APPS = join(ROOT, 'apps');
+const IMAGES = join(ROOT, 'images');
 
 const key = (name) => name.trim().toLowerCase().split(/[\s(]/)[0].replace(/\.js$/, '');
 
@@ -69,24 +69,24 @@ function credited(notice) {
 
 const problems = [];
 let checked = 0;
-for (const app of readdirSync(APPS).sort()) {
-  const dockerfile = join(APPS, app, 'Dockerfile');
-  const notice = join(APPS, app, 'NOTICE');
+for (const image of readdirSync(IMAGES).sort()) {
+  const dockerfile = join(IMAGES, image, 'Dockerfile');
+  const notice = join(IMAGES, image, 'NOTICE');
   if (!existsSync(dockerfile) || !existsSync(notice)) continue;
 
   const ships = shipped(readFileSync(dockerfile, 'utf-8'));
   const credits = credited(readFileSync(notice, 'utf-8'));
   if (!ships || credits.size === 0) {
-    problems.push(`apps/${app}: could not read ${!ships ? 'a final stage from its Dockerfile' : 'any component from its NOTICE'}`);
+    problems.push(`images/${image}: could not read ${!ships ? 'a final stage from its Dockerfile' : 'any component from its NOTICE'}`);
     continue;
   }
   checked++;
-  for (const c of ships) if (!credits.has(c)) problems.push(`apps/${app}/NOTICE does not credit "${c}", which the image ships`);
-  for (const c of credits) if (!ships.has(c)) problems.push(`apps/${app}/NOTICE credits "${c}", which the image does not ship`);
+  for (const c of ships) if (!credits.has(c)) problems.push(`images/${image}/NOTICE does not credit "${c}", which the image ships`);
+  for (const c of credits) if (!ships.has(c)) problems.push(`images/${image}/NOTICE credits "${c}", which the image does not ship`);
 }
 
 if (checked === 0) {
-  console.error('✗ lint:notice — no apps/<service>/ has both a Dockerfile and a NOTICE. Silence is not agreement.');
+  console.error('✗ lint:notice — no images/<service>/ has both a Dockerfile and a NOTICE. Silence is not agreement.');
   process.exit(1);
 }
 if (problems.length > 0) {

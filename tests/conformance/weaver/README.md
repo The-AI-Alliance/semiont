@@ -8,7 +8,7 @@ Weaver does against
 
 The suite imports nothing from a Weaver. The lines that name one are
 `WEAVER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
-own, the Python service of [`apps/weaver`](../../../apps/weaver/README.md),
+own, the Python service of [`images/weaver`](../../../images/weaver/README.md),
 started by the interpreter of its locked environment. Every case runs against
 every entry.
 
@@ -104,7 +104,7 @@ It needs a built gateway and Archivist, the Weaver's Python environment,
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
-uv sync --locked --no-dev --all-extras --project apps/weaver
+uv sync --locked --no-dev --all-extras --project images/weaver
 npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci

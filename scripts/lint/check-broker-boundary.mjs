@@ -4,8 +4,8 @@
  * implements an interface in front of it, and nothing else.
  *
  * The gateway reaches the broker through its signal plane (`SignalPlane` and
- * `SharedTable`, apps/gateway/src/signal/mod.rs); the dispatcher's handlers
- * through `JobQueue` (apps/dispatcher/handlers/src/queue.rs). A module that
+ * `SharedTable`, images/gateway/src/signal/mod.rs); the dispatcher's handlers
+ * through `JobQueue` (images/dispatcher/handlers/src/queue.rs). A module that
  * used the NATS client beside them would tie the rest to the broker, and
  * nothing would say so. So:
  *
@@ -29,9 +29,9 @@ import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-const rustSource = (file) => /^(apps|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
+const rustSource = (file) => /^(apps|images|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
 const javascriptSource = (file) =>
-  /^(apps|packages)\//.test(file) &&
+  /^(apps|images|packages)\//.test(file) &&
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
   !/(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);
 
@@ -40,13 +40,13 @@ const RULES = [
     what: 'the async_nats crate',
     uses: /\basync_nats\b/,
     scope: rustSource,
-    allowed: ['apps/gateway/src/signal/nats.rs', 'apps/dispatcher/jetstream/src/lib.rs', 'packages/core-rust/src/nats.rs'],
+    allowed: ['images/gateway/src/signal/nats.rs', 'images/dispatcher/jetstream/src/lib.rs', 'packages/rust/core/src/nats.rs'],
   },
   {
     what: "the gateway's NATS plane",
     uses: /\bsignal::nats\b|\bNatsPlane\b/,
     scope: rustSource,
-    allowed: ['apps/gateway/src/app.rs', 'apps/gateway/src/signal/nats.rs'],
+    allowed: ['images/gateway/src/app.rs', 'images/gateway/src/signal/nats.rs'],
   },
   {
     what: 'the nats npm client',

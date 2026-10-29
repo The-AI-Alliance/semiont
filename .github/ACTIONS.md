@@ -45,13 +45,6 @@ release calls it.
 - The images are found, not listed: a new Python image is judged from its first pull request
 - The publish still runs the gate: this one runs earlier, not in its place
 
-### CodeQL Analysis (`codeql-analysis.yml`)
-**Automated security code scanning**:
-- Runs on push, PR, and weekly schedule
-- Analyzes the TypeScript, Go, Rust and Python code
-- Runs the `security-and-quality` query suite
-- Uploads results to GitHub Security tab
-
 ### Labels (`labels.yml`)
 **The repository's labels, made `labels.yml`'s**:
 - On a push to main, creates, updates, renames and deletes labels until they are `labels.yml`'s; a label made by hand is deleted by the next sync
@@ -59,8 +52,8 @@ release calls it.
 - `crazy-max/ghaction-github-labeler`
 
 ### Path Labels (`path-labels.yml`)
-**A pull request's `app:`, `sdk:`, `tests:` and `spec:` labels, from the files it changes**:
-- `.github/scripts/label-pull-request.mjs` adds the label of the app, test suite, SDK or part of the spec each changed file is in, by the rule of `scripts/lint/path-labels.mjs`, which `npm run lint:labels` holds `labels.yml` to; a renamed file gives the labels of both its paths
+**A pull request's `app:`, `image:`, `sdk:`, `tests:` and `spec:` labels, from the files it changes**:
+- `.github/scripts/label-pull-request.mjs` adds the label of the app, image, test suite, SDK or part of the spec each changed file is in, by the rule of `scripts/lint/path-labels.mjs`, which `npm run lint:labels` holds `labels.yml` to; a renamed file gives the labels of both its paths
 - It only adds: a label put on by hand or by Dependabot stays, and a label the repository does not have is skipped and named
 - Runs as `pull_request_target`, so a pull request from Dependabot or a fork can be labelled: the workflow is main's, and it checks out main, never the pull request
 - `kind:`, `verb:`, `stack:` and `media:` are the author's to choose
@@ -70,7 +63,7 @@ release calls it.
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
 - npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
-- Go modules: `apps/launcher`, `packages/sdk-go`
+- Go modules: `apps/launcher`, `packages/go/sdk`
 - Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser and the seven service images; the desktop builder's is a Rust image, which the toolchain entry moves
 - A cooldown before a new release is adopted; security updates are not held by it
@@ -80,15 +73,15 @@ release calls it.
 - `npm run lint:python-version` (the Census job of `ci.yml`) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 - `npm run lint:node-version` (the Census job of `ci.yml`) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
 - `npm run lint:nats-version` (the Census job of `ci.yml`) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
-- Each entry's labels are `kind:dependencies` and, when all its directories are in one app, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`. The Path Labels workflow adds the labels of the files each pull request changes
+- Each entry's labels are `kind:dependencies` and, when all its directories are in one app, image, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`. The Path Labels workflow adds the labels of the files each pull request changes
 
 ### Labels (`labels.yml`)
 **Every label the repository has**, each a name, a colour and a description:
-- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
+- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `image:` (one for each directory under `images/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
 - Its colour says what it is: each `kind:` its own, bold, as GitHub's are; every other dimension one pale hue of its own, but `verb:`, one shade for each of the three ways the verbs work on the corpus (writing, reading, attention)
 - Three are of no dimension: `good first issue` and `help wanted`, which GitHub reads by those names, and `Ontology`
 - `from_name` renames a label in place, so what it is on keeps it; it is deleted once the sync has run
-- `npm run lint:labels` (Census) fails when an entry is not a label GitHub can hold, a label is of no dimension and not listed, `app:`, `tests:`, `verb:` or `stack:` disagrees with the directories, the client surface's namespaces or the stack schemas' kinds, an entry of `specs/src/` is in no `spec:` part or in two, an SDK has no `sdk:`, or a Dependabot entry applies another label than its directories give it
+- `npm run lint:labels` (Census) fails when an entry is not a label GitHub can hold, a label is of no dimension and not listed, `app:`, `image:`, `tests:`, `verb:` or `stack:` disagrees with the directories, the client surface's namespaces or the stack schemas' kinds, an entry of `specs/src/` is in no `spec:` part or in two, an SDK has no `sdk:`, or a Dependabot entry applies another label than its directories give it
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
@@ -103,73 +96,6 @@ What a pull request states: the type of change, the areas changed, the suites
 run, breaking changes and documentation. Its Security section applies to a
 change that touches the gateway's routes, token handling or the Browser's
 session code.
-
-## 🚀 Workflow Triggers
-
-### CI Tests
-```yaml
-# Runs on:
-- push: [main, develop]
-- pull_request: [main, develop]
-- schedule: "17 8 * * *" # Nightly, the full tier
-- workflow_dispatch: # Manual trigger, the full tier
-- workflow_call: # release.yml, the full tier
-```
-
-### CodeQL Security Analysis
-```yaml
-# Runs on:
-- schedule: "17 8 * * *" # Nightly
-- workflow_dispatch: # Manual trigger
-- workflow_call: # release.yml
-```
-
-### Gateway Crate Advisories
-```yaml
-# Runs on:
-- pull_request: # changes to apps/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
-- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
-- workflow_dispatch: # Manual trigger
-```
-
-### npm Advisories
-```yaml
-# Runs on:
-- pull_request: # changes to a package.json, a package-lock.json, .node-version, the ignore list, the check and the file listing it imports, or the workflow
-- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
-- workflow_dispatch: # Manual trigger
-- workflow_call: # release.yml, before the tag
-```
-
-### Python Image Licences
-```yaml
-# Runs on:
-- pull_request: # changes to a service's uv.lock, pyproject.toml or Dockerfile, a Python package's pyproject.toml, the Python floor's reader, the licence policy and the two scripts that judge, or the workflow
-- workflow_dispatch: # Manual trigger
-```
-
-### CodeQL Analysis
-```yaml
-# Runs on:
-- push: [main, develop]
-- pull_request: [main, develop]
-- schedule: "0 6 * * 1" # Weekly Monday 6 AM UTC
-- workflow_dispatch: # Manual trigger
-```
-
-### Labels
-```yaml
-# Runs on:
-- push: [main] # changes to labels.yml or the workflow; the one run that changes labels
-- pull_request: [main, develop] # changes to labels.yml or the workflow; a dry run
-- workflow_dispatch: # Manual trigger; a dry run but on main
-```
-
-### Path Labels
-```yaml
-# Runs on:
-- pull_request_target: [opened, synchronize, reopened] # every pull request, as main has the workflow
-```
 
 ## 🛡️ Security Workflow Details
 
@@ -243,8 +169,8 @@ If security tests fail:
 ### For Developers
 1. **Run security tests locally** before pushing:
    ```bash
-   cd apps/browser && npm run test:security
-   cargo build --release -p semiont-gateway && (cd tests/conformance && npm run test:gateway)
+   cd images/browser && npm run test:security
+   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd tests/conformance && npm run test:gateway)
    ```
 
 2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code

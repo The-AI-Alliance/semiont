@@ -124,7 +124,7 @@ Without a collector, `OTEL_CONSOLE_EXPORTER=true` prints spans and metrics to th
 An application built on the Rust SDK installs its own OpenTelemetry (a tracer
 provider, a meter provider and the W3C propagator, registered as the
 process's) and the transport reports to it:
-[`semiont-telemetry`](../../../packages/telemetry-rust/README.md) says how.
+[`semiont-telemetry`](../../../packages/rust/telemetry/README.md) says how.
 With none installed, nothing is recorded and no trace context is sent.
 
 ### Browser (SPA)
@@ -213,9 +213,9 @@ variables as above.
 
 ## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
+- **Structured logger** (the Rust services', in `packages/rust/observability/src/logging.rs`;
   the Python services', in
-  `packages/service-python/src/semiont_service/log.py`) — JSON-line,
+  `packages/python/service/src/semiont_service/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one

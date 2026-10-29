@@ -1,0 +1,59 @@
+# @semiont/observability
+
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+observability%22)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=typescript-observability)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
+[![npm version](https://img.shields.io/npm/v/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)
+[![License](https://img.shields.io/npm/l/@semiont/observability.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
+Tracing and metrics for Semiont's TypeScript transport and for a Node program built on it, on [OpenTelemetry](https://opentelemetry.io). It is off unless a process is given somewhere to export to: with no endpoint configured, every function here does nothing.
+
+## Who uses it
+
+- **[`@semiont/http-transport`](../http-transport/README.md)** runs each request in a span and carries the trace across the wire. That is how this package comes to be in the Browser's bundle.
+- **[`@semiont/sdk`](../sdk/README.md)** carries the trace of a job from the request that made it to the worker that claims it.
+
+No Semiont service is a Node process. The gateway, the dispatcher and the Archivist are Rust and have a crate of their own for this; the Python services have `semiont_service`.
+
+**Building an application?** You do not need this package. The SDK's transport reports through OpenTelemetry's global API, so an application that registers a tracer of its own sees the transport's spans in its traces.
+
+## What is in it
+
+| Import | |
+|---|---|
+| `@semiont/observability` | Runs in Node and in a browser. Spans: `withSpan`. Trace context across the bus: `getActiveTraceparent`, `extractTraceparent`, `withTraceparent`; and `withoutTrace`, for work that begins a trace of its own. `recordBusSent`, the count of the emits a client sent |
+| `@semiont/observability/node` | `initObservabilityNode` and `shutdownObservabilityNode`: the tracer, the meter, the exporter and the context manager of a Node process |
+
+Each says what it does where it is defined, in [src/index.ts](src/index.ts).
+
+## Example
+
+```typescript
+import { initObservabilityNode } from '@semiont/observability/node';
+import { withSpan } from '@semiont/observability';
+
+// Once, at the entry point, before anything that makes a span.
+initObservabilityNode({ serviceName: 'my-program' });
+
+const length = await withSpan('read-document', async (span) => {
+  span.setAttribute('document.pages', 12);
+  return 4096;
+});
+```
+
+## What a change must keep
+
+- **Off by default, and free when off.** With no exporter configured, the tracer and the meter are OpenTelemetry's own no-ops. Nothing here may do work, or fail, because telemetry is not set up.
+- **The main import runs in a browser.** It imports no Node builtin. What needs Node is in `/node`.
+- **One trace across the bus.** A request carries the active span as a W3C `traceparent` header, and a frame relayed over the stream carries it in its payload's trace field (`TRACE_FIELD` in `@semiont/core`, generated from the bus registry). A handler continues that trace rather than starting one.
+- **No domain logic.** The package gives the helpers and the recorder. What is worth a span or a count is decided where the work happens.
+- **Initialized once.** `initObservabilityNode` is called at a process's entry point. A second call does nothing and returns `false`.
+
+## Documentation
+
+- [API reference](docs/API.md): the helpers, with an example of each.
+- [Observability](../../../docs/operator/administration/OBSERVABILITY.md): the variables that turn it on, and where a stack sends its telemetry.
+
+## License
+
+Apache-2.0

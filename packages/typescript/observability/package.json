@@ -1,0 +1,67 @@
+{
+  "name": "@semiont/observability",
+  "version": "0.7.1",
+  "description": "OpenTelemetry tracing and metrics for Semiont's TypeScript transport. Node process-init helpers, a withSpan wrapper, W3C trace-context propagation across the bus, and the count of the emits a client sent. No-op when no exporter is configured.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    }
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/typescript/observability"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest"
+  },
+  "author": "Semiont Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.5",
+    "rollup": "^4.64.12",
+    "rollup-plugin-dts": "^6.4.1",
+    "tsup": "^9.0.0",
+    "typescript": "^6.0.2",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/context-async-hooks": "^3.0.0",
+    "@opentelemetry/core": "^3.0.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.300.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
+    "@opentelemetry/resources": "^3.0.0",
+    "@opentelemetry/sdk-metrics": "^3.0.0",
+    "@opentelemetry/sdk-trace": "^3.0.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "@semiont/core": "*"
+  }
+}
