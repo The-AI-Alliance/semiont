@@ -178,12 +178,15 @@ own lifecycle.
 
 ```ts
 import { annotationOfSpan, reconcile, type Annotation, type QuotedText } from '@semiont/sdk';
-import { didToAgent } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 /** Your model: the passages of a text worth a highlight, each as the words it quotes. */
 declare function passagesOf(text: string): Promise<QuotedText[]>;
 
-const generator = didToAgent(agent.did);                      // what its annotations say made them
+const engine = { provider: 'ollama', model: 'gemma3' };      // the model this worker runs
+const generator: components['schemas']['Agent'] = {          // what its annotations say made them
+  '@type': 'Software', '@id': agent.did, name: `${engine.provider} ${engine.model}`, ...engine,
+};
 const claims = client.job.claim({
   accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
 });

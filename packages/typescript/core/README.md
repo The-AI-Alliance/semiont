@@ -25,7 +25,7 @@ Every other TypeScript package, the Browser, and the conformance and end-to-end 
 | The transport contract | `ITransport`, `IContentTransport`, `IGatewayOperations`: what a client needs of the wire | [src/transport.ts](src/transport.ts) |
 | Annotations | Building one (`reconcile`, `annotationOfSpan`, `annotationOfResource`), and reading its target, its selectors and its links | [src/annotation-builders.ts](src/annotation-builders.ts), [src/web-annotation-utils.ts](src/web-annotation-utils.ts) |
 | Anchoring | Finding an annotation again after its text changed, and the geometry of text on a PDF page (`locate`, `textUnder`) | [src/anchor-annotation.ts](src/anchor-annotation.ts), [src/pdf-anchoring.ts](src/pdf-anchoring.ts) |
-| Identity | DIDs for people, software and a knowledge base itself, and `attribution`, which says who a record is attributed to | [src/did-utils.ts](src/did-utils.ts) |
+| Identity | A knowledge base's own did and resource identifier (`kbDid`, `kbResource`). A principal's DID is the gateway's to mint and the record's to read | [src/did-utils.ts](src/did-utils.ts) |
 | Media types | Which types a knowledge base admits, and what can be done with each | [src/media-types.ts](src/media-types.ts) |
 | Shared rules | Error codes, timing, retry and the cache's refresh table, the same for every SDK | `src/generated/`, [src/retry.ts](src/retry.ts) |
 
@@ -41,7 +41,7 @@ The main import runs in a browser. What cannot is on a subpath:
 ## Example
 
 ```typescript
-import { resourceId, isResourceId, userToDid, didToAgent } from '@semiont/core';
+import { resourceId, isResourceId, kbDid, kbResource } from '@semiont/core';
 
 // An id is made by its constructor, which throws for text its rule refuses.
 const id = resourceId('5bcd259ab1464cf68a556bbad21f513f');
@@ -49,9 +49,9 @@ const id = resourceId('5bcd259ab1464cf68a556bbad21f513f');
 // A guard asks the same rule without throwing.
 const typed = isResourceId('https://kb.example/resources/5bcd');   // false: a URI is not an id
 
-// A person's DID, from the subject their issuer asserts.
-const did = userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.org' });
-const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no name: a DID carries none
+// A knowledge base's did and the audience its tokens carry, from its committed domain.
+const did = kbDid('the-ai-alliance.github.io:semiont-caselaw-kb');        // 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb'
+const audience = kbResource('the-ai-alliance.github.io:semiont-caselaw-kb'); // 'https://the-ai-alliance.github.io/semiont-caselaw-kb'
 ```
 
 ## What a change must keep
@@ -60,7 +60,6 @@ const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no n
 - **The main import runs in a browser.** It uses no Node builtin. The validators and the test issuer are reachable only by their subpaths, because of the weight they would add to every bundle, and `npm run lint:core-subpaths` fails a re-export of either from the root.
 - **It depends on no other Semiont package.** Everything else depends on it.
 - **An id is made only by its constructor or its guard.** One kind is never assignable to another.
-- **Who did something is worked out in one place.** `attribution()` builds a record's `creator`, `generator` and `wasAttributedTo` from identities the gateway verified. `npm run lint:attribution` fails a second place that builds them.
 - **Its tests read every package.** Three census tests here walk the source of all of `packages/`, `apps/` and `images/`, tests included, so a change somewhere else can fail this package's suite.
 
 ## Documentation

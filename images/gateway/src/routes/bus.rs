@@ -61,7 +61,7 @@ pub async fn publish_profile(app: &App, principal: &Principal) -> Result<(), Una
     let Some(name) = principal.name.as_ref() else {
         return Ok(());
     };
-    if identity::names_software(&principal.did) {
+    if identity::kind_of(&principal.did) == identity::Kind::Software {
         return Ok(());
     }
     app.bus
