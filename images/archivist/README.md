@@ -162,7 +162,7 @@ Its three crates, `semiont-archivist`, `semiont-archivist-record` and
 cargo test -p semiont-archivist -p semiont-archivist-record -p semiont-archivist-staging
 ```
 
-runs their tests, which CI's Gateway Tests job runs with the rest of the workspace, under
+runs their tests, which CI's Rust Tests job runs with the rest of the workspace, under
 `cargo llvm-cov`. The [conformance suite](../../tests/conformance/archivist/README.md) holds a
 built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), and in CI that Archivist is
 built instrumented, so its coverage counts what the suite runs too.
