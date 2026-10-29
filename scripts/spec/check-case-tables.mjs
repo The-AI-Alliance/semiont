@@ -122,7 +122,7 @@ for (const table of tables) {
     continue;
   }
   if (typeof content.$comment !== 'string' || content.$comment.trim() === '') {
-    fail(`${table} states no $comment: what it holds, and who runs it`);
+    fail(`${table} states no $comment: what it holds`);
   }
   if ('cases' in content && (!Array.isArray(content.cases) || content.cases.length === 0)) {
     fail(`${table} has no cases`);

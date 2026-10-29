@@ -157,11 +157,9 @@ const table = {
     `the npm package ${PACKAGE}, an implementation of the standard, at the version the repository's package.json pins ` +
     '(MIT, Exodus Movement); the characters of each byte, and the text of each case\'s bytes, are what Node\'s ' +
     'TextDecoder reads; and the generator refuses ' +
-    'to write where the two disagree about a label. RUN BY TypeScript in packages/typescript/core (decode-cases.test.ts), by the ' +
-    'Rust SDK (tests/decode_cases.rs), by the Python SDK (tests/test_decode_cases.py) and by the Go SDK ' +
-    '(resources_test.go), each for every label of every case. The Rust SDK\'s reader is encoding_rs, which is the standard as ' +
-    'Firefox has it, so its run is the check of this table against a second implementation, label by label and byte ' +
-    'by byte. A reader in another language runs it too.',
+    'to write where the two disagree about a label. Every SDK runs it, for every label of every case. Its runs ' +
+    'include one through encoding_rs, which is the standard as Firefox has it, and that run is the check of this ' +
+    'table against a second implementation, label by label and byte by byte. A reader in another language runs it too.',
   runBy: {
     typescript: ['packages/typescript/core/src/__tests__/decode-cases.test.ts'],
     rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
