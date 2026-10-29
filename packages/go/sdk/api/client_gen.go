@@ -2559,7 +2559,7 @@ type AnnotationTargetType string
 
 // ArchivistConfig Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
 type ArchivistConfig struct {
-	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
+	// AnchoredTextDir The anchored-text store, which only the Archivist mounts: the Smelter stores each entry in it over HTTP, and the Archivist serves it.
 	AnchoredTextDir string `json:"anchoredTextDir"`
 
 	// GatewayUrl The URL the Archivist reaches the gateway at: its only route to the bus.

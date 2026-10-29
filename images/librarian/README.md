@@ -112,13 +112,15 @@ model. It signs in as itself and works as the agent `(semiont, librarian)`:
 every Python service says of its own process, a span for each frame it sends and receives on
 the bus, what a driver records of each request of a model, and the count of gathers that
 went without something (`semiont.gather.degraded`). Without the endpoint the Librarian
-exports nothing. Its log lines carry the trace and the span they were written in.
+exports nothing, unless `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the trace and the span they were written in.
 
 **It refuses to start** without its document, without its account or without a variable its
 document names: one line on stderr that begins `[fatal] `, and a status other than 0. It
 refuses a graph or a vector index of the kind `memory` too: neither could be shared with the
 service that writes it. It refuses a settle bound that, with the longest wait for the graph,
-is not less than the time after which a held job is called stalled.
+is not less than the time after which a held job is called stalled. And it refuses an actor
+whose provider takes a key when the actor's `apiKeyEnv` is not stated, a `modelCatalogue`
+that does not serve an actor's model, and a port it cannot listen on.
 
 ## What the image carries
 

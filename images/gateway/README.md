@@ -80,11 +80,13 @@ For the gateway, `semiont start` resolves to roughly this:
 ```
 container run -d --name semiont-gateway \
   --publish 4000:4000 \
+  --memory <limit> \
   --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro \
   --volume <state>:/semiont-state \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
+  --env SEMIONT_SUPERVISE=1 \
   ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
 
