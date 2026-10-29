@@ -29,7 +29,7 @@ type renewals struct {
 	token  *semiont.Variable[string]
 }
 
-func (r *renewals) Refresh(context.Context) (string, bool) {
+func (r *renewals) Refresh(context.Context, string) (string, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if len(r.tokens) == 0 {

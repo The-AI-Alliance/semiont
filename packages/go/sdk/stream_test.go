@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -152,9 +154,16 @@ func (g *stubGateway) subscribes() int {
 	return g.arrived
 }
 
-// client is a transport to the stub, with timing a test does not wait out,
-// and the HTTP client it was made with.
+// client is a transport to the stub, which cannot renew its token, and the
+// HTTP client it was made with.
 func (g *stubGateway) client() (*HTTPTransport, *http.Client) {
+	return transportTo(g.URL, NewVariable("a-token"), nil)
+}
+
+// transportTo is a transport to the gateway at url that holds token and
+// renews it with refresher, with timing a test does not wait out, and the
+// HTTP client it was made with.
+func transportTo(url string, token *Variable[string], refresher TokenRefresher) (*HTTPTransport, *http.Client) {
 	timing := DefaultTiming()
 	timing.Reconnect = 20 * time.Millisecond
 	timing.LazyRemove = 20 * time.Millisecond
@@ -162,11 +171,12 @@ func (g *stubGateway) client() (*HTTPTransport, *http.Client) {
 	timing.Linger = 20 * time.Millisecond
 	httpClient := &http.Client{Transport: &http.Transport{}}
 	return NewHTTPTransport(HTTPTransportConfig{
-		BaseURL:  g.URL,
-		Token:    NewVariable("a-token"),
-		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
-		HTTP:     httpClient,
-		Timing:   timing,
+		BaseURL:   url,
+		Token:     token,
+		Refresher: refresher,
+		Channels:  []bus.Channel{bus.BeckonFocus.Channel()},
+		HTTP:      httpClient,
+		Timing:    timing,
 	}), httpClient
 }
 
@@ -262,5 +272,119 @@ func TestAChannelTheStreamCannotDeliverIsRefusedAsUnsubscribed(t *testing.T) {
 	var refused *BusRequestError
 	if !errors.As(err, &refused) || refused.Code != BusRequestErrorCodeUnsubscribed {
 		t.Errorf("a channel the stream does not carry is refused with %v", err)
+	}
+}
+
+const tokenSent, tokenRenewed = "token-1", "token-2"
+
+// renewedMeanwhile is a gateway that refuses tokenSent on one path, and the
+// client's token is renewed to tokenRenewed while that refusal is on its
+// way. The client hears the refusal holding a token other than the one
+// refused.
+type renewedMeanwhile struct {
+	*httptest.Server
+	token *Variable[string]
+	mu    sync.Mutex
+	// sent is each request's path and the token it carried.
+	sent [][2]string
+}
+
+func newRenewedMeanwhile(t *testing.T, refusing string) *renewedMeanwhile {
+	g := &renewedMeanwhile{token: NewVariable(tokenSent)}
+	g.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		g.mu.Lock()
+		g.sent = append(g.sent, [2]string{r.URL.Path, bearer})
+		g.mu.Unlock()
+		if r.URL.Path == refusing && bearer == tokenSent {
+			g.token.Set(tokenRenewed)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"Invalid token"}`))
+			return
+		}
+		switch r.URL.Path {
+		case "/bus/subscribe":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		case "/bus/emit":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(g.Close)
+	return g
+}
+
+// sentOn is the tokens the requests on path carried, in the order they arrived.
+func (g *renewedMeanwhile) sentOn(path string) []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var tokens []string
+	for _, sent := range g.sent {
+		if sent[0] == path {
+			tokens = append(tokens, sent[1])
+		}
+	}
+	return tokens
+}
+
+// renewedRefresher answers every refusal with the token the client holds,
+// as the refresher of a client whose token was renewed already does. It
+// keeps each token it was told was refused.
+type renewedRefresher struct {
+	token   *Variable[string]
+	mu      sync.Mutex
+	refused []string
+}
+
+func (r *renewedRefresher) Refresh(_ context.Context, refused string) (string, bool) {
+	r.mu.Lock()
+	r.refused = append(r.refused, refused)
+	r.mu.Unlock()
+	return r.token.Value(), true
+}
+
+func (r *renewedRefresher) told() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.refused)
+}
+
+func TestARefusedEmitTellsItsRefresherTheTokenItSent(t *testing.T) {
+	gateway := newRenewedMeanwhile(t, "/bus/emit")
+	refresher := &renewedRefresher{token: gateway.token}
+	transport, _ := transportTo(gateway.URL, gateway.token, refresher)
+	defer transport.Close()
+
+	if _, _, err := transport.Emit(context.Background(), bus.BeckonFocus.Channel(), map[string]any{}, Envelope{}); err != nil {
+		t.Fatalf("the emit sent again with the renewed token failed: %v", err)
+	}
+	if told := refresher.told(); !slices.Equal(told, []string{tokenSent}) {
+		t.Errorf("the refresher was told %q was refused, want [%q], the token the emit sent", told, tokenSent)
+	}
+	if sent := gateway.sentOn("/bus/emit"); !slices.Equal(sent, []string{tokenSent, tokenRenewed}) {
+		t.Errorf("the emits carried %q, want [%q %q]", sent, tokenSent, tokenRenewed)
+	}
+}
+
+func TestARefusedConnectTellsItsRefresherTheTokenItSent(t *testing.T) {
+	gateway := newRenewedMeanwhile(t, "/bus/subscribe")
+	refresher := &renewedRefresher{token: gateway.token}
+	transport, _ := transportTo(gateway.URL, gateway.token, refresher)
+	defer transport.Close()
+
+	until(t, "the stream to open", func() bool { return transport.State().Value() == ConnectionStateOpen })
+	if told := refresher.told(); !slices.Equal(told, []string{tokenSent}) {
+		t.Errorf("the refresher was told %q was refused, want [%q], the token the connect sent", told, tokenSent)
+	}
+	if sent := gateway.sentOn("/bus/subscribe"); !slices.Equal(sent, []string{tokenSent, tokenRenewed}) {
+		t.Errorf("the connects carried %q, want [%q %q]", sent, tokenSent, tokenRenewed)
 	}
 }

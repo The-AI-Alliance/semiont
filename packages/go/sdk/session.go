@@ -117,10 +117,10 @@ type SessionConfig struct {
 	Token *Variable[string]
 	// Kept is where the session's sign-in is kept.
 	Kept SignInKept
-	// Refresh renews the token at the issuer: the new token, "" when nothing
-	// is kept to renew, or the failure, a *SignInError. Nil: the session
-	// renews nothing.
-	Refresh func(ctx context.Context) (string, error)
+	// Refresh renews renewing, the session's token, at the issuer: the new
+	// token, "" when nothing is kept to renew, or the failure, a
+	// *SignInError. Nil: the session renews nothing.
+	Refresh func(ctx context.Context, renewing string) (string, error)
 	// Validate asks the gateway who token is; a refusal of the token is a
 	// *TransportError of code unauthorized. Nil: nobody is asked, as a
 	// service's session asks nobody.
@@ -144,10 +144,10 @@ type Session struct {
 	ready  chan struct{}
 	once   sync.Once
 	work   sync.WaitGroup
-	// answering is held while a refusal is answered, by Refresh or by the
-	// session's start, so the refusals that arrive during it are answered by
-	// it. An answer that ends the session has ended it in full before it
-	// lets go: the token gone, the sign-in forgotten, and why told.
+	// answering is held while Refresh answers a refusal, so the refusals
+	// that arrive during it are answered by it. An answer that ends the
+	// session has ended it in full before it lets go: the token gone, the
+	// sign-in forgotten, and why told.
 	answering sync.Mutex
 
 	// id is which live session this is: a new one for the same knowledge
@@ -171,15 +171,19 @@ func notRenewed(failure string) string {
 }
 
 // StartSession starts a session over the sign-in config.Kept holds. A kept
-// token that is still good is the one the transport sends first, unless the
-// token was given one already. What the session does at its start, it does
-// on its own: Ready says when it is done.
+// token that is still good is the session's, unless the token was given one
+// already. A session that asks the gateway who its token is gives the kept
+// token to the transport once the gateway has answered its start and not
+// refused it, so the transport never sends a kept token the gateway refuses;
+// one that asks nobody gives it at once. What the session does at its start,
+// it does on its own: Ready says when it is done.
 func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 	kept, has, err := config.Kept.Held(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if has && !IsTokenExpired(kept.Access, time.Now()) && config.Token.Value() == "" {
+	keepsKept := has && !IsTokenExpired(kept.Access, time.Now()) && config.Token.Value() == ""
+	if keepsKept && config.Validate == nil {
 		config.Token.Set(kept.Access)
 	}
 	alive, cancel := context.WithCancel(context.Background())
@@ -187,26 +191,17 @@ func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 	s.work.Add(2)
 	go func() {
 		defer s.work.Done()
-		renewWhenDue(s.alive, config.Token, config.Timing, func() { s.renew() })
+		renewWhenDue(s.alive, config.Token, config.Timing, func() { s.renew(config.Token.Value()) })
 	}()
 	go func() {
 		defer s.work.Done()
 		defer s.markReady()
-		s.start(kept, has)
+		s.start(kept, has, keepsKept && config.Validate != nil)
 	}()
 	return s, nil
 }
 
 func (s *Session) markReady() { s.once.Do(func() { close(s.ready) }) }
-
-func (s *Session) isReady() bool {
-	select {
-	case <-s.ready:
-		return true
-	default:
-		return false
-	}
-}
 
 func (s *Session) closing() bool { return s.alive.Err() != nil }
 
@@ -268,30 +263,28 @@ func (s *Session) Close() {
 	s.user.End()
 }
 
-// Refresh answers the gateway's refusal of the session's token: it renews the
-// token and asks the gateway who the new one is. It gives the token the
-// session then holds; false when it holds none, and if it had a sign-in kept
-// it is over. Refusals that arrive together are answered together, so however
-// many requests were refused at once, they cost one renewal and one ask. A
-// gateway that cannot be asked refuses nothing: the renewed token is given.
+// Refresh answers the gateway's refusal of refused, the session's token: it
+// renews the token and asks the gateway who the new one is. It gives the
+// token the session then holds; false when it holds none, and if it had a
+// sign-in kept it is over. A token the session no longer holds was answered
+// already, renewed or ended: what the session holds is given, and nothing is
+// renewed or asked. So however many requests were refused one token, at once
+// or one after another, they cost one renewal and one ask. A refusal met while
+// the session is starting waits for the start, which answers it. A gateway
+// that cannot be asked refuses nothing: the renewed token is given.
 //
-// The renewal runs under the session's own lifetime, not ctx: a refresh token
-// spent at the issuer is not left without the token it bought.
-func (s *Session) Refresh(context.Context) (string, bool) {
-	refusedWith := s.config.Token.Value()
+// The wait and the renewal run under the session's own lifetime, not ctx: a
+// refresh token spent at the issuer is not left without the token it bought.
+func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
+	<-s.ready
 	s.answering.Lock()
 	defer s.answering.Unlock()
-	if current := s.config.Token.Value(); current != refusedWith {
+	if current := s.config.Token.Value(); current != refused {
 		return current, current != ""
 	}
-	renewed, ok := s.renew()
+	renewed, ok := s.renew(refused)
 	if !ok || s.config.Validate == nil {
 		return renewed, ok
-	}
-	// While the session is starting, its start is what asks: it finds the
-	// token renewed here and takes it up as the just-issued one.
-	if !s.isReady() {
-		return renewed, true
 	}
 	if _, err := s.config.Validate(s.alive, renewed); err != nil {
 		// A gateway that could not be asked refused nothing. And only a token
@@ -309,27 +302,27 @@ func (s *Session) Refresh(context.Context) (string, bool) {
 	return current, current != ""
 }
 
-// tryRefresh asks Refresh: the token, or "" and why there is none. A renewal
-// that could not be made and one that was refused both leave the session
-// without a token.
-func (s *Session) tryRefresh() (token, failure string) {
+// tryRefresh asks Refresh to renew renewing: the token, or "" and why there is
+// none. A renewal that could not be made and one that was refused both leave
+// the session without a token.
+func (s *Session) tryRefresh(renewing string) (token, failure string) {
 	if s.config.Refresh == nil {
 		return "", ""
 	}
-	renewed, err := s.config.Refresh(s.alive)
+	renewed, err := s.config.Refresh(s.alive, renewing)
 	if err != nil {
 		return "", err.Error()
 	}
 	return renewed, ""
 }
 
-// renew renews the token at the issuer, with nobody asked afterwards: what
-// the session does on its own schedule.
-func (s *Session) renew() (string, bool) {
+// renew renews renewing, the session's token, at the issuer, with nobody asked
+// afterwards: what the session does on its own schedule.
+func (s *Session) renew(renewing string) (string, bool) {
 	if s.closing() || s.config.Refresh == nil {
 		return "", false
 	}
-	renewed, failure := s.tryRefresh()
+	renewed, failure := s.tryRefresh(renewing)
 	if s.closing() {
 		return "", false
 	}
@@ -370,16 +363,20 @@ func (s *Session) failed(err *SessionError) {
 // start is what a session does at its start, with the sign-in it found kept.
 // It renews one that has expired, then asks the gateway who it is. A token
 // the gateway refuses is renewed once and asked about once more; a token the
-// issuer has just issued and the gateway refuses is final. A refusal is
-// answered holding answering, as Refresh answers one.
-func (s *Session) start(kept HeldSignIn, has bool) {
+// issuer has just issued and the gateway refuses is final. Refresh waits for
+// it, so no refusal is answered while it asks and renews: no token it asks
+// about is renewed in answer to one, and a refusal met meanwhile is answered
+// by what it did. withheld is whether the kept token is the session's and not
+// yet the transport's: it is the transport's once the gateway has not refused
+// it.
+func (s *Session) start(kept HeldSignIn, has, withheld bool) {
 	if !has {
 		return
 	}
 	justIssued := IsTokenExpired(kept.Access, time.Now())
 	token := kept.Access
 	if justIssued {
-		renewed, _ := s.tryRefresh()
+		renewed, _ := s.tryRefresh(token)
 		if renewed == "" {
 			// There was no session to end: the sign-in is forgotten, and
 			// nothing is said.
@@ -395,45 +392,48 @@ func (s *Session) start(kept HeldSignIn, has bool) {
 		return
 	}
 	for !s.closing() {
+		held := s.config.Token.Value()
 		user, err := s.config.Validate(s.alive, token)
-		if err == nil {
-			s.user.Set(&user)
-			return
-		}
 		if s.closing() {
 			return
 		}
 		var refused *TransportError
-		if !errors.As(err, &refused) || refused.Code != TransportErrorCodeUnauthorized {
+		if errors.As(err, &refused) && refused.Code == TransportErrorCodeUnauthorized {
+			next, goOn := s.answerAtStart(token, held, justIssued)
+			if !goOn {
+				return
+			}
+			token, justIssued, withheld = next, true, false
+			continue
+		}
+		if withheld {
+			s.config.Token.Set(token)
+		}
+		if err != nil {
 			s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: err.Error(), KbID: s.config.Kb.Id})
 			return
 		}
-		next, goOn := s.answerAtStart(token, justIssued)
-		if !goOn {
-			return
-		}
-		token, justIssued = next, true
+		s.user.Set(&user)
+		return
 	}
 }
 
 // answerAtStart answers the gateway's refusal of token at the session's
-// start: the just-issued token to ask about next, or false when there is
-// none.
-func (s *Session) answerAtStart(token string, justIssued bool) (string, bool) {
-	s.answering.Lock()
-	defer s.answering.Unlock()
+// start, asked while the session held held: the just-issued token to ask
+// about next, given to the transport, or false when there is none.
+func (s *Session) answerAtStart(token, held string, justIssued bool) (string, bool) {
 	if justIssued {
 		s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
 		return "", false
 	}
-	// The session's token is no longer the one asked about: the stream was
-	// refused with it too, and Refresh answered that refusal meanwhile. A
-	// token it renewed to is the just-issued one, and is not renewed again;
-	// none is a session that answer ended.
-	if current := s.config.Token.Value(); current != token {
+	// The session's token changed while the gateway was asked: it fell due
+	// and was renewed on the session's schedule. A token it was renewed to is
+	// the just-issued one, and is not renewed again; none is a session that
+	// renewal ended.
+	if current := s.config.Token.Value(); current != held {
 		return current, current != ""
 	}
-	renewed, failure := s.tryRefresh()
+	renewed, failure := s.tryRefresh(token)
 	if s.closing() {
 		return "", false
 	}

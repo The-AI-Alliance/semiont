@@ -475,11 +475,11 @@ func (s *stream) refused(conn uint64, err *TransportError) {
 		}
 		if s.shared.refresher != nil && !s.refreshBurned {
 			s.refreshBurned = true
-			keepPrevious := c.keepPrevious
+			refused, keepPrevious := c.token, c.keepPrevious
 			s.wg.Add(1)
 			go func() {
 				defer s.wg.Done()
-				token, ok := s.shared.refresher.Refresh(s.ctx)
+				token, ok := s.shared.refresher.Refresh(s.ctx, refused)
 				select {
 				case s.events <- streamEvent{kind: eventRenewed, token: token, renewed: ok, keepPrevious: keepPrevious}:
 				case <-s.ctx.Done():

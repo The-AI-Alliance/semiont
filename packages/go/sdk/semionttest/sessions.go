@@ -184,7 +184,7 @@ func (s *ScriptedSessions) Session(ctx context.Context, options registry.Session
 		Client: client,
 		Token:  semiont.NewVariable(""),
 		Kept:   registry.KeptIn(options.Storage, kbID),
-		Refresh: func(context.Context) (string, error) {
+		Refresh: func(context.Context, string) (string, error) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.renewed++

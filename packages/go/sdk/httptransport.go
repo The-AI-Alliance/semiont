@@ -27,8 +27,10 @@ import (
 // TokenRefresher renews a token the gateway refused. It is asked once for a
 // refused request, and once per outage of the stream.
 type TokenRefresher interface {
-	// Refresh is a renewed token; ok is false when there is none to give.
-	Refresh(ctx context.Context) (token string, ok bool)
+	// Refresh is a token to send in place of refused, the token the gateway
+	// refused; ok is false when there is none to give. When refused has been
+	// renewed already, the token it was renewed to is given.
+	Refresh(ctx context.Context, refused string) (token string, ok bool)
 }
 
 // HTTPTransportConfig is what an HTTPTransport is made with.
@@ -237,7 +239,7 @@ func (s *transportShared) renewal(ctx context.Context, refused string) (string, 
 	if s.refresher == nil {
 		return "", false
 	}
-	token, ok := s.refresher.Refresh(ctx)
+	token, ok := s.refresher.Refresh(ctx, refused)
 	if !ok || token == "" || token == refused {
 		return "", false
 	}

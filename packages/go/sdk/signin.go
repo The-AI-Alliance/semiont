@@ -105,9 +105,9 @@ func ResumeSession(ctx context.Context, config ResumeConfig) (*Session, error) {
 		Client: config.Client,
 		Token:  config.Token,
 		Kept:   config.Kept,
-		Refresh: func(ctx context.Context) (string, error) {
+		Refresh: func(ctx context.Context, renewing string) (string, error) {
 			return renewals.renew(ctx, func(ctx context.Context) (string, error) {
-				return issuer.RenewKept(ctx, config.Kept, config.Token.Value())
+				return issuer.RenewKept(ctx, config.Kept, renewing)
 			})
 		},
 		OnAuthFailed: config.OnAuthFailed,
@@ -225,7 +225,9 @@ func SessionFromKept(ctx context.Context, config SessionFromKeptConfig) (session
 // built before: the session is made once the client over the transport is.
 type refreshedBy func() *Session
 
-func (r refreshedBy) Refresh(ctx context.Context) (string, bool) { return r().Refresh(ctx) }
+func (r refreshedBy) Refresh(ctx context.Context, refused string) (string, bool) {
+	return r().Refresh(ctx, refused)
+}
 
 // SignInWithDevice signs a person in from a process with no browser, and keeps
 // the sign-in in kept. The issuer the knowledge base at baseURL trusts mints a

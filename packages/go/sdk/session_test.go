@@ -81,8 +81,10 @@ type world struct {
 	takes       time.Duration
 	validations []error // what the gateway says of a token, in order: nil accepts
 	validated   []string
-	told        []semiont.SessionEndReason
-	errors      []string
+	// holding is the token the session held as each ask was made.
+	holding []string
+	told    []semiont.SessionEndReason
+	errors  []string
 }
 
 func newWorld(t *testing.T, kept string) *world {
@@ -95,7 +97,7 @@ func newWorld(t *testing.T, kept string) *world {
 	return w
 }
 
-func (w *world) refresh(context.Context) (string, error) {
+func (w *world) refresh(context.Context, string) (string, error) {
 	time.Sleep(w.takes)
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -112,6 +114,7 @@ func (w *world) validate(_ context.Context, token string) (api.UserResponse, err
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.validated = append(w.validated, token)
+	w.holding = append(w.holding, w.token.Value())
 	if len(w.validations) == 0 {
 		return alice(), nil
 	}
@@ -274,7 +277,7 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 			if got := ends(session, w); got != "signed-in" {
 				t.Fatalf("the session started %s, not signed in", got)
 			}
-			given, ok := session.Refresh(context.Background())
+			given, ok := session.Refresh(context.Background(), w.token.Value())
 			if row.Given == nil || ok != *row.Given {
 				t.Errorf("%s: refresh gave a token: %v, want %v", row.Why, ok, row.Given != nil && *row.Given)
 			}
@@ -295,13 +298,14 @@ func TestRefusalsThatArriveTogetherCostOneRenewalAndOneAsk(t *testing.T) {
 	// An issuer that takes a moment, as one does: the refusals overlap.
 	w.takes = 200 * time.Millisecond
 	asked, _ := w.counts()
+	refused := w.token.Value()
 	var together sync.WaitGroup
 	given := make([]string, 4)
 	for i := range given {
 		together.Add(1)
 		go func() {
 			defer together.Done()
-			given[i], _ = session.Refresh(context.Background())
+			given[i], _ = session.Refresh(context.Background(), refused)
 		}()
 	}
 	together.Wait()
@@ -322,12 +326,15 @@ var refusedAtTheGateway = &semiont.TransportError{Code: semiont.TransportErrorCo
 // invalidGrant is the issuer's refusal of a renewal, in its own words.
 var invalidGrant = errors.New("The issuer refused the token refresh (invalid_grant: Token is not active)")
 
-// keptUnexpired is a kept sign-in whose access token lives an hour.
-func keptUnexpired(t *testing.T, kept semiont.SignInKept) {
+// keptUnexpired keeps a sign-in whose access token lives an hour, and is that
+// token.
+func keptUnexpired(t *testing.T, kept semiont.SignInKept) string {
 	t.Helper()
-	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: tokenFor(time.Hour, 0), Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
+	access := tokenFor(time.Hour, 0)
+	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: access, Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
 		t.Fatal(err)
 	}
+	return access
 }
 
 // forgetsSlowly is a kept sign-in that takes a moment to forget, or until
@@ -346,22 +353,24 @@ func (f forgetsSlowly) Forget(ctx context.Context) error {
 }
 
 // The start and the stream are refused the kept token together, and the
-// stream's refusal is answered first, with a renewal the issuer refuses: the
-// session is ready only once it has said why it ended. A host that finds it
-// ready holding no token, with nothing said, is left to guess why.
+// issuer refuses to renew it: the session is ready only once it has said why
+// it ended, whichever refusal was answered first. A host that finds it ready
+// holding no token, with nothing said, is left to guess why.
 func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
 	kept := forgetsSlowly{MemorySignIn: &semiont.MemorySignIn{}, let: make(chan struct{})}
-	keptUnexpired(t, kept)
+	refused := keptUnexpired(t, kept)
 	token := semiont.NewVariable("")
 	var mu sync.Mutex
 	var said []*semiont.SessionError
 	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
 		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
-		Refresh: func(context.Context) (string, error) { return "", invalidGrant },
-		// The gateway refuses the start's ask once the stream's refusal has
-		// taken the token.
+		Refresh: func(context.Context, string) (string, error) { return "", invalidGrant },
+		// The gateway takes a moment to refuse the start's ask, and refuses
+		// it at once when the token goes meanwhile.
 		Validate: func(ctx context.Context, _ string) (api.UserResponse, error) {
-			for held := range token.Reading().Changes(ctx) {
+			moment, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+			defer cancel()
+			for held := range token.Reading().Changes(moment) {
 				if held == "" {
 					break
 				}
@@ -382,7 +391,7 @@ func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
 	answered := make(chan struct{})
 	go func() {
 		defer close(answered)
-		session.Refresh(context.Background())
+		session.Refresh(context.Background(), refused)
 	}()
 
 	ready, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -413,7 +422,7 @@ func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
 // no second renewal.
 func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
 	kept := &semiont.MemorySignIn{}
-	keptUnexpired(t, kept)
+	refused := keptUnexpired(t, kept)
 	token := semiont.NewVariable("")
 	renewing := make(chan struct{})
 	var mu sync.Mutex
@@ -423,7 +432,7 @@ func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
 		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
 		// Nothing kept is nothing to renew, and no grant is sent, as
 		// Issuer.RenewKept sends none.
-		Refresh: func(ctx context.Context) (string, error) {
+		Refresh: func(ctx context.Context, _ string) (string, error) {
 			if _, held, _ := kept.Held(ctx); !held {
 				return "", nil
 			}
@@ -457,7 +466,7 @@ func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
 		t.Fatal("the start never renewed the refused token")
 	}
 
-	given, ok := session.Refresh(context.Background())
+	given, ok := session.Refresh(context.Background(), refused)
 	mu.Lock()
 	saidByAnswer := slices.Clone(said)
 	mu.Unlock()
@@ -480,12 +489,158 @@ func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
 	}
 }
 
+// Two requests are refused the session's token, and the second asks for
+// another only once the first's refusal is answered: it is given the renewed
+// token, and the issuer is not asked to renew again.
+func TestRefusalsOfOneTokenOneAfterAnotherCostOneRenewal(t *testing.T) {
+	refused := tokenFor(time.Hour, 0)
+	renewed := tokenFor(time.Hour, 1)
+	w := newWorld(t, refused)
+	w.renewals = []string{renewed, tokenFor(time.Hour, 2)}
+	session := w.start(t)
+	asked, _ := w.counts()
+
+	first, _ := session.Refresh(context.Background(), refused)
+	second, ok := session.Refresh(context.Background(), refused)
+	if first != renewed || !ok || second != renewed {
+		t.Errorf("the second refusal of the token renewed since was not given the renewed token (given one: %v)", ok)
+	}
+	if asks, renewals := w.counts(); renewals != 1 || asks-asked != 1 {
+		t.Errorf("two refusals of one token, one after another, renewed %d times and asked %d, want once each", renewals, asks-asked)
+	}
+}
+
+// A refusal of the kept token meets the start asking the gateway about it, at
+// a gateway that takes a moment to reach: the refusal waits for the start, so
+// the gateway is never asked about a token once the session holds another,
+// and the issuer renews once.
+func TestARefusalMetWhileTheStartAsksWaitsForIt(t *testing.T) {
+	kept := &semiont.MemorySignIn{}
+	stale := keptUnexpired(t, kept)
+	renewed := tokenFor(time.Hour, 1)
+	token := semiont.NewVariable("")
+	asking := make(chan struct{})
+	answered := make(chan struct{})
+	type ask struct{ sent, held string }
+	var mu sync.Mutex
+	grants := 0
+	var asked []ask
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: token, Kept: kept,
+		Refresh: func(context.Context, string) (string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			grants++
+			return renewed, nil
+		},
+		// The start's first ask reaches the gateway once the stream's refusal
+		// has been answered, or after a moment. What the session holds then is
+		// what the stream is sending.
+		Validate: func(_ context.Context, sent string) (api.UserResponse, error) {
+			mu.Lock()
+			first := len(asked) == 0
+			mu.Unlock()
+			if first {
+				close(asking)
+				select {
+				case <-answered:
+				case <-time.After(300 * time.Millisecond):
+				}
+			}
+			mu.Lock()
+			asked = append(asked, ask{sent: sent, held: token.Value()})
+			mu.Unlock()
+			if sent != renewed {
+				return api.UserResponse{}, refusedAtTheGateway
+			}
+			return alice(), nil
+		},
+		Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(session.Close)
+	select {
+	case <-asking:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the start never asked the gateway")
+	}
+	var given string
+	var ok bool
+	go func() {
+		defer close(answered)
+		given, ok = session.Refresh(context.Background(), stale)
+	}()
+
+	ready, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatalf("the session was not ready: %v", err)
+	}
+	<-answered
+
+	mu.Lock()
+	defer mu.Unlock()
+	for i, a := range asked {
+		if a.held != "" && a.held != a.sent {
+			t.Errorf("ask #%d was about a token the session no longer held", i+1)
+		}
+	}
+	if grants != 1 {
+		t.Errorf("the start's refusal and the stream's cost %d renewals, want 1", grants)
+	}
+	if !ok || given != renewed {
+		t.Errorf("the stream's refusal was not given the renewed token (given one: %v)", ok)
+	}
+	if session.User().Value() == nil {
+		t.Error("the session did not start signed in")
+	}
+}
+
+// A session that asks the gateway who its kept token is gives the transport
+// that token once the gateway has not refused it: while it is asked the
+// transport has none to send, and one the gateway refuses it never has.
+func TestTheTransportHasTheKeptTokenOnceTheGatewayHasNotRefusedIt(t *testing.T) {
+	kept, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 1)
+	named := map[string]string{"": "none", kept: "the kept token", renewed: "the renewed token"}
+	for _, row := range []struct {
+		why         string
+		validations []error
+		holding     []string
+		holds       string
+	}{
+		{"the gateway accepts it", []error{nil}, []string{"none"}, "the kept token"},
+		{"the gateway cannot be asked", []error{&semiont.TransportError{Code: semiont.TransportErrorCodeUnavailable, Message: "HTTP 503"}}, []string{"none"}, "the kept token"},
+		{"the gateway refuses it and accepts the renewed one", []error{refusedAtTheGateway, nil}, []string{"none", "the renewed token"}, "the renewed token"},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			w := newWorld(t, kept)
+			w.renewals = []string{renewed}
+			w.validations = row.validations
+			w.start(t)
+			w.mu.Lock()
+			var holding []string
+			for _, token := range w.holding {
+				holding = append(holding, named[token])
+			}
+			w.mu.Unlock()
+			if !slices.Equal(holding, row.holding) {
+				t.Errorf("as the gateway was asked the transport held %v, want %v", holding, row.holding)
+			}
+			if holds := named[w.token.Value()]; holds != row.holds {
+				t.Errorf("once the session started the transport held %s, want %s", holds, row.holds)
+			}
+		})
+	}
+}
+
 // A session that never signed in cannot expire: a renewal that gives nothing
 // says nothing.
 func TestASessionThatNeverSignedInCannotExpire(t *testing.T) {
 	w := newWorld(t, "")
 	session := w.start(t)
-	if _, ok := session.Refresh(context.Background()); ok {
+	if _, ok := session.Refresh(context.Background(), ""); ok {
 		t.Error("refresh gave a token to a session that holds no sign-in")
 	}
 	w.mu.Lock()
