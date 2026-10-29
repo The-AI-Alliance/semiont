@@ -98,4 +98,11 @@ podman rm semiont-prometheus
 podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged configs: <config-stages>
+# stop the Browser:
+container stop semiont-browser
+container rm semiont-browser
+docker stop semiont-browser
+docker rm semiont-browser
+podman stop semiont-browser
+podman rm semiont-browser
 # wait until the stack's ports are released; report any still-held holder

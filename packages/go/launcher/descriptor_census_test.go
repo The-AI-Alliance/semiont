@@ -70,7 +70,7 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 		"inference": "handled in the Ollama section, where a host instance may make the container unnecessary",
 	}
 	noStop := map[string]string{
-		"browser": "not a stack member — a bare stop leaves the viewer running; `stop --service browser` is its off-switch",
+		"browser": "stopped after the stack by stopBrowser, from the Browser's own record and under its own runtime",
 	}
 	for _, d := range serviceDescriptors {
 		if d.container == "" {
