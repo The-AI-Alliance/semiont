@@ -1381,7 +1381,7 @@
           "packages/rust/http-transport/src/session.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/stored.py"
         ],
         "go": [
           "packages/go/sdk/registry"
@@ -1523,54 +1523,35 @@
         },
         {
           "member": "StoredSession",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "knowledgeBasesKey",
           "kind": "constant",
           "named": {
             "typescript": "STORAGE_KEY"
-          },
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
           }
         },
         {
           "member": "activeKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "openResourcesByKbKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "lastViewedResourceByKbKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "sessionKey",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "kbOfSessionKey",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's registry hears another context's writes by key without reading a session's key back."
           }
         },
@@ -1666,7 +1647,7 @@
           "packages/rust/sdk/src/errors.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/stored.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1689,10 +1670,7 @@
         },
         {
           "member": "pendingAuthorizationKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "constant"
         },
         {
           "member": "BeginAuthorizationOptions",

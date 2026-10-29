@@ -1173,6 +1173,23 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
     wrong
 }
 
+/// The key a pending sign-in is kept under is specs/src/session/stored.json's;
+/// semiont's tests hold the table's other keys.
+#[test]
+fn a_pending_sign_in_is_kept_under_the_tables_key() {
+    let table: Value =
+        serde_json::from_str(include_str!("../../../../specs/src/session/stored.json"))
+            .expect("the table");
+    let key = table["keys"]
+        .as_array()
+        .expect("the keys")
+        .iter()
+        .find(|entry| entry["member"] == "pendingAuthorizationKey")
+        .and_then(|entry| entry["key"].as_str())
+        .expect("the table names the pending sign-in's key");
+    assert_eq!(PENDING_AUTHORIZATION_KEY, key);
+}
+
 #[tokio::test]
 async fn every_renewal_is_the_tables() {
     let table: Value = serde_json::from_str(include_str!(

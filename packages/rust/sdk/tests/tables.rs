@@ -1,9 +1,15 @@
 //! The runners for the shared case tables: the same cases TypeScript and Go
 //! run, against the Rust functions that name the knowledge base and its
-//! principals.
+//! principals. And what a registry keeps in its storage, held to
+//! specs/src/session/stored.json.
 
 use semiont::identity;
-use serde_json::Value;
+use semiont::session::{
+    ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
+    StoredSession, session_key,
+};
+use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 
 fn table(text: &str) -> Value {
     serde_json::from_str(text).expect("the table is JSON")
@@ -97,6 +103,91 @@ fn principal_cases() {
         assert!(
             identity::names_software(&did),
             "{why}: an agent's DID read as a person"
+        );
+    }
+}
+
+/// The keys this crate states by hand, by the name the table gives each.
+/// `pendingAuthorizationKey` is the transport crate's, and its tests hold its
+/// value.
+const KEYS: [(&str, &str); 4] = [
+    ("knowledgeBasesKey", KNOWLEDGE_BASES_KEY),
+    ("activeKey", ACTIVE_KEY),
+    ("openResourcesByKbKey", OPEN_RESOURCES_BY_KB_KEY),
+    ("lastViewedResourceByKbKey", LAST_VIEWED_RESOURCE_BY_KB_KEY),
+];
+
+/// A key or a member the table gains fails here until Rust has it.
+#[test]
+fn what_a_registry_keeps_is_the_tables() {
+    let stored = table(include_str!("../specs/session/stored.json"));
+    let keys: BTreeMap<String, String> = stored["keys"]
+        .as_array()
+        .expect("stored.json has keys")
+        .iter()
+        .map(|entry| (text(entry, "member"), text(entry, "key")))
+        .collect();
+    let mut known: Vec<&str> = KEYS
+        .iter()
+        .map(|(member, _)| *member)
+        .chain(["pendingAuthorizationKey"])
+        .collect();
+    known.sort_unstable();
+    assert_eq!(
+        keys.keys().map(String::as_str).collect::<Vec<_>>(),
+        known,
+        "the table's keys are the ones Rust states"
+    );
+    for (member, key) in KEYS {
+        assert_eq!(keys[member], key, "{member}");
+    }
+
+    assert_eq!(
+        session_key("kb-a"),
+        format!("{}kb-a", text(&stored["sessionKeyPrefix"], "prefix")),
+        "a knowledge base's session key"
+    );
+
+    let schema = &stored["storedSession"];
+    let members: Vec<String> = schema["properties"]
+        .as_object()
+        .expect("the stored session has properties")
+        .keys()
+        .cloned()
+        .collect();
+    let required: Vec<&str> = schema["required"]
+        .as_array()
+        .expect("the stored session requires members")
+        .iter()
+        .map(|member| member.as_str().expect("a required member is named"))
+        .collect();
+
+    let whole = StoredSession {
+        access: "a".to_owned(),
+        refresh: "r".to_owned(),
+        client_id: "semiont-browser".to_owned(),
+        token_endpoint: "https://issuer.test/token".to_owned(),
+        revocation_endpoint: Some("https://issuer.test/revoke".to_owned()),
+    };
+    let written: Map<String, Value> =
+        serde_json::from_str(&whole.written()).expect("a session writes an object");
+    let mut written_members: Vec<&String> = written.keys().collect();
+    let mut table_members: Vec<&String> = members.iter().collect();
+    written_members.sort();
+    table_members.sort();
+    assert_eq!(written_members, table_members, "a stored session's members");
+
+    for left in &members {
+        let without: Map<String, Value> = members
+            .iter()
+            .filter(|member| *member != left)
+            .map(|member| (member.clone(), Value::String(format!("the {member}"))))
+            .collect();
+        let read = StoredSession::read(&Value::Object(without).to_string());
+        assert_eq!(
+            read.is_none(),
+            required.contains(&left.as_str()),
+            "a stored value without {left}"
         );
     }
 }

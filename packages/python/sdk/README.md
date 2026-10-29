@@ -917,7 +917,7 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,
 `channels`, `operations`, `error_codes`, `timing`, `refresh`,
-`telemetry_table`, `oauth_clients`, `sign_in`, `media_types_table` and
+`telemetry_table`, `oauth_clients`, `sign_in`, `stored`, `media_types_table` and
 `_encodings` (the Encoding Standard's labels and single-byte encodings, by
 which a resource's text is read) are generated from the
 [specification][specs], and a gate in CI fails when one of them differs from
