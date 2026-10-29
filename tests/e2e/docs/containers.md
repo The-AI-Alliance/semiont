@@ -76,7 +76,7 @@ container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
 
 ```sh
 ./scripts/ci/local-build.sh                 # everything
-./scripts/ci/local-build.sh --package <list>  # narrow the package set
+./scripts/ci/local-build.sh --package <list>  # narrow the package set (<language>/<name>, or a language)
 ./scripts/ci/local-build.sh --image <list>    # narrow the image set
 ```
 

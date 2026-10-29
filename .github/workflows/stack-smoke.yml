@@ -11,10 +11,10 @@
 # The LAUNCHER always comes from the commit this workflow runs on. The IMAGES
 # come from one of two places:
 #
-#   - the same commit, by default: scripts/ci/local-build.sh builds the
+#   - the same commit, by default: scripts/ci/local-build.sh builds the npm
 #     packages, publishes them to a Verdaccio it starts on the runner, builds
 #     every image against it into the runner's docker store as `:local`, and
-#     builds the launcher. Nothing is pushed anywhere. A change that moves the
+#     builds the launcher. The other languages' packages are CI's own jobs'. Nothing is pushed anywhere. A change that moves the
 #     launcher and an image together is tested together, before either is
 #     published;
 #   - a published tag, when a run names one (`images`): the release's question,
@@ -103,8 +103,10 @@ jobs:
       - name: Build the packages, images and launcher from this commit
         if: env.IMAGES == 'local'
         # The stack boots under docker, the engine that builds the images, so
-        # they are not copied into the runner's podman as well.
-        run: scripts/ci/local-build.sh --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
+        # they are not copied into the runner's podman as well. The npm
+        # packages are the ones an image installs; the other languages'
+        # packages are built and tested by ci.yml's jobs.
+        run: scripts/ci/local-build.sh --package typescript --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-go@v7.0.0
         if: env.IMAGES != 'local'
