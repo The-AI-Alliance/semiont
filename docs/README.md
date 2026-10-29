@@ -31,7 +31,7 @@ You work in a knowledge base through the Semiont Browser.
 
 ## Builder
 
-You write code against a knowledge base, in TypeScript, Rust or Python.
+You write code against a knowledge base, in TypeScript, Rust, Python or Go.
 
 - [Quick Start](builder/QUICK-START.md): a knowledge base running on your machine, to build against
 - [Building with the Semiont SDK](builder/README.md): install, where the SDK goes, the guides, the reference

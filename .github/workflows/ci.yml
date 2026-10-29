@@ -2876,54 +2876,27 @@ jobs:
       # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
-      # about channels at runtime.
+      # about channels at runtime. Each language's generators are listed once,
+      # in package.json's generate:<list>:check; this step and the two below
+      # run those lists, as scripts/ci/local-build.sh does.
       - name: Bus registry vs generated code
-        run: |
-          node scripts/bus/generate-ts.mjs --check
-          node scripts/bus/generate-go.mjs --check
+        run: npm run generate:bus:check
 
       # Authority: specs/src → the Python SDK's committed modules
-      # (packages/python/sdk/src/semiont): the bus vocabulary, the kinds of id,
-      # the error codes, the client's timing, its refresh table, the telemetry
-      # it exports, the clients it signs in as, the entry of the sign-in store,
-      # the media types, and the Encoding Standard's labels and single-byte
-      # encodings. TypeScript and Rust build theirs from the same files at build
-      # time; Python has no build, so its are committed, and are what can go
-      # stale.
+      # (packages/python/sdk/src/semiont), the bus vocabulary among them.
+      # TypeScript and Rust build theirs from the same files at build time;
+      # Python has no build, so its are committed, and are what can go stale.
       - name: Spec tables vs the Python SDK's generated modules
-        run: |
-          node scripts/bus/generate-python.mjs --check
-          node scripts/spec/generate-identifiers-python.mjs --check
-          node scripts/spec/generate-error-codes-python.mjs --check
-          node scripts/spec/generate-client-timing-python.mjs --check
-          node scripts/spec/generate-cache-refresh-python.mjs --check
-          node scripts/spec/generate-sdk-telemetry-python.mjs --check
-          node scripts/spec/generate-oauth-clients-python.mjs --check
-          node scripts/spec/generate-sign-in-python.mjs --check
-          node scripts/spec/generate-media-types-python.mjs --check
-          node scripts/spec/generate-encodings-python.mjs --check
+        run: npm run generate:python:check
 
-      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk):
-      # the kinds of id (api/ids_gen.go, whose generator also holds
-      # oapi-codegen's exclude-schemas to the kinds), the error codes, the
-      # client's timing, the cache-refresh table, the SDK telemetry table, the sign-in store's entry,
-      # the OAuth clients and the sign-in scope, the media types
-      # (mediatypes), and the Encoding Standard's labels and single-byte
-      # encodings (encodings_gen.go). TypeScript and Rust build theirs from
-      # the same files at build time; a Go module has no build step, so its
-      # are committed, and are what can go stale. The bus vocabulary and the
-      # REST client have steps of their own.
+      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk).
+      # The generator of the kinds of id (api/ids_gen.go) also holds
+      # oapi-codegen's exclude-schemas to the kinds. TypeScript and Rust build
+      # theirs from the same files at build time; a Go module has no build
+      # step, so its are committed, and are what can go stale. The bus
+      # vocabulary and the REST client have steps of their own.
       - name: Spec tables vs the Go SDK's generated code
-        run: |
-          node scripts/spec/generate-identifiers-go.mjs --check
-          node scripts/spec/generate-error-codes-go.mjs --check
-          node scripts/spec/generate-client-timing-go.mjs --check
-          node scripts/spec/generate-cache-refresh-go.mjs --check
-          node scripts/spec/generate-sdk-telemetry-go.mjs --check
-          node scripts/spec/generate-sign-in-go.mjs --check
-          node scripts/spec/generate-oauth-clients-go.mjs --check
-          node scripts/spec/generate-media-types-go.mjs --check
-          node scripts/spec/generate-encodings-go.mjs --check
+        run: npm run generate:go:check
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the

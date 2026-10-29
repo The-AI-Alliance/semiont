@@ -1,13 +1,13 @@
 /**
  * The readers of a resource's description, held to
  * specs/src/resources/reader-cases.json: the table every SDK's readers run, so
- * that TypeScript, Rust and Python give one answer for one resource.
+ * that every SDK gives one answer for one resource.
  *
- * Rust and Python decode each case's resource as the type their SDK has of
- * one, and refuse a resource the schema does not allow. TypeScript reads what
- * it is handed, so here each resource is held to the schema too: a case that
- * only TypeScript could read is found by this run, and a refused case is one
- * the schema does not allow and the readers refuse.
+ * An SDK that decodes each case's resource as the type it has of one refuses
+ * a resource the schema does not allow. TypeScript reads what it is handed,
+ * so here each resource is held to the schema too: a case that only
+ * TypeScript could read is found by this run, and a refused case is one the
+ * schema does not allow and the readers refuse.
  */
 
 import { describe, it, expect } from 'vitest';
