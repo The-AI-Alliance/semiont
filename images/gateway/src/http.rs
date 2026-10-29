@@ -265,12 +265,12 @@ pub async fn typed_body<T: DeserializeOwned>(body: Body, operation: &str) -> Res
 // ── The bearer credential ────────────────────────────────────────────────
 
 /// The origin the caller reached, which the challenge names: the one its
-/// `Host` names, and for a request that names none, the URL the gateway is
-/// configured to be reached at.
-fn origin(app: &App, headers: &HeaderMap) -> String {
+/// `Host` names, and for a request that names none, `public_url`, the URL the
+/// gateway is configured to be reached at.
+fn origin(public_url: &str, headers: &HeaderMap) -> String {
     match headers.get(header::HOST).and_then(|h| h.to_str().ok()) {
         Some(host) => format!("http://{host}"),
-        None => app.config.public_url.trim_end_matches('/').to_owned(),
+        None => public_url.trim_end_matches('/').to_owned(),
     }
 }
 
@@ -280,7 +280,7 @@ fn origin(app: &App, headers: &HeaderMap) -> String {
 pub fn challenge(app: &App, headers: &HeaderMap, invalid: bool) -> String {
     let metadata = format!(
         "resource_metadata=\"{}{PROTECTED_RESOURCE_METADATA_PATH}\"",
-        origin(app, headers)
+        origin(&app.config.public_url, headers)
     );
     if invalid {
         format!("Bearer error=\"invalid_token\", {metadata}")
@@ -521,4 +521,27 @@ pub async fn not_found(
         return refusal.into_response();
     }
     ApiError::not_found().into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_challenge_names_the_origin_the_host_header_names() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, HeaderValue::from_static("192.168.2.10:4000"));
+        assert_eq!(
+            origin("http://localhost:4000", &headers),
+            "http://192.168.2.10:4000"
+        );
+    }
+
+    #[test]
+    fn a_request_naming_no_host_is_answered_with_the_configured_public_url() {
+        assert_eq!(
+            origin("https://kb.example.org/", &HeaderMap::new()),
+            "https://kb.example.org"
+        );
+    }
 }
