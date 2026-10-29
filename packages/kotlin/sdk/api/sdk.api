@@ -1,16 +1,60 @@
 public final class semiont/bus/Bus {
 	public fun <init> (Lsemiont/transport/Transport;)V
-	public final fun emitOn-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun emitOn-6b3uWpE$default (Lsemiont/bus/Bus;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun emitOnFuture (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
-	public final fun emitOnFuture-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
-	public final fun requestOf (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun requestOf$default (Lsemiont/bus/Bus;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun requestOfFuture (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;J)Ljava/util/concurrent/CompletableFuture;
+	public final fun emit-6b3uWpE (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun emit-6b3uWpE$default (Lsemiont/bus/Bus;Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun emitFuture (Lsemiont/channels/Channel;Ljava/lang/Object;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun emitFuture-NOvym2Y (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun frames (Lsemiont/channels/Channel;)Lsemiont/bus/Typed;
+	public final fun frames (Lsemiont/channels/ScopedChannel;Lsemiont/identifiers/ResourceId;)Lsemiont/bus/Typed;
+	public final fun frames-4s78tp8 (Lsemiont/channels/ScopedChannel;Ljava/lang/String;)Lsemiont/bus/Typed;
+	public final fun request (Lsemiont/bus/Operation;Ljava/lang/Object;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun request$default (Lsemiont/bus/Bus;Lsemiont/bus/Operation;Ljava/lang/Object;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun requestFuture (Lsemiont/bus/Operation;Ljava/lang/Object;J)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/bus/BusKt {
+	public static final fun decoded (Lsemiont/channels/Channel;Lkotlinx/serialization/json/JsonObject;)Ljava/lang/Object;
+	public static final fun decoded (Lsemiont/channels/ScopedChannel;Lkotlinx/serialization/json/JsonObject;)Ljava/lang/Object;
 	public static final fun getPERSISTED_EVENT_TYPES ()Ljava/util/List;
+	public static final fun replyChannelsFor ([Lsemiont/bus/Operation;)Ljava/util/List;
+	public static final fun request (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun request$default (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun requestFuture (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;J)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/bus/Delivered {
+	public synthetic fun <init> (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3-Au_5XH8 ()Ljava/lang/String;
+	public final fun component4-1KRECTw ()Ljava/lang/String;
+	public final fun component5 ()Lsemiont/transport/TraceContext;
+	public final fun copy-cCR51TQ (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;)Lsemiont/bus/Delivered;
+	public static synthetic fun copy-cCR51TQ$default (Lsemiont/bus/Delivered;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;ILjava/lang/Object;)Lsemiont/bus/Delivered;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCorrelationId ()Ljava/lang/String;
+	public final fun getPayload ()Ljava/lang/Object;
+	public final fun getScope ()Lsemiont/identifiers/ResourceId;
+	public final fun getScope-Au_5XH8 ()Ljava/lang/String;
+	public final fun getTrace ()Lsemiont/transport/TraceContext;
+	public final fun getUserId ()Lsemiont/identifiers/UserId;
+	public final fun getUserId-1KRECTw ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/Operation {
+	public final fun getFailure ()Lsemiont/channels/Channel;
+	public final fun getReplyNames ()Ljava/util/List;
+	public final fun getRequest ()Lsemiont/channels/Channel;
+	public final fun getResult ()Lsemiont/channels/Channel;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/Typed : java/lang/AutoCloseable, kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun close ()V
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class semiont/channels/Channel {
@@ -18,223 +62,50 @@ public final class semiont/channels/Channel {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class semiont/channels/Channels {
-	public static final field INSTANCE Lsemiont/channels/Channels;
-	public final fun getBECKON_FOCUS ()Lsemiont/channels/Channel;
-	public final fun getBECKON_HOVER ()Lsemiont/channels/Channel;
-	public final fun getBECKON_SPARKLE ()Lsemiont/channels/Channel;
-	public final fun getBIND_BODY_ERROR ()Lsemiont/channels/Channel;
-	public final fun getBIND_BODY_UPDATED ()Lsemiont/channels/Channel;
-	public final fun getBIND_BODY_UPDATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBIND_INITIATE ()Lsemiont/channels/Channel;
-	public final fun getBIND_UPDATE_BODY ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_AGENTS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_AGENTS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_AGENTS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_HISTORY_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_HISTORY_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_HISTORY_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ANNOTATION_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_CLICK ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_DIRECTORY_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_DIRECTORY_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_DIRECTORY_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ENTITY_TYPES_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ENTITY_TYPES_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ENTITY_TYPES_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_ENTITY_TYPE_CLICKED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_EVENTS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_EVENTS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_EVENTS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_KB_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_KB_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_KB_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_PEOPLE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_PEOPLE_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_PEOPLE_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCES_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCES_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCES_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCE_OPEN ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCE_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCE_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_RESOURCE_VIEWED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_TAG_SCHEMAS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_TAG_SCHEMAS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getBROWSE_TAG_SCHEMAS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getBUS_RESUME_GAP ()Lsemiont/channels/Channel;
-	public final fun getFRAME_ADD_ENTITY_TYPE ()Lsemiont/channels/Channel;
-	public final fun getFRAME_ADD_TAG_SCHEMA ()Lsemiont/channels/Channel;
-	public final fun getFRAME_ENTITY_TYPE_ADDED ()Lsemiont/channels/Channel;
-	public final fun getFRAME_ENTITY_TYPE_ADD_FAILED ()Lsemiont/channels/Channel;
-	public final fun getFRAME_ENTITY_TYPE_ADD_OK ()Lsemiont/channels/Channel;
-	public final fun getFRAME_TAG_SCHEMA_ADDED ()Lsemiont/channels/Channel;
-	public final fun getFRAME_TAG_SCHEMA_ADD_FAILED ()Lsemiont/channels/Channel;
-	public final fun getFRAME_TAG_SCHEMA_ADD_OK ()Lsemiont/channels/Channel;
-	public final fun getGATHER_COMPLETE ()Lsemiont/channels/Channel;
-	public final fun getGATHER_FAILED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_LIMITS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_LIMITS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_LIMITS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getGATHER_REFERENCED_BY_FAILED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_REFERENCED_BY_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_REFERENCED_BY_RESULT ()Lsemiont/channels/Channel;
-	public final fun getGATHER_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_RESOURCE_COMPLETE ()Lsemiont/channels/Channel;
-	public final fun getGATHER_RESOURCE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_RESOURCE_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_SUMMARY_FAILED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_SUMMARY_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getGATHER_SUMMARY_RESULT ()Lsemiont/channels/Channel;
-	public final fun getJOB_ASSIGN ()Lsemiont/channels/Channel;
-	public final fun getJOB_ASSIGNED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CANCEL ()Lsemiont/channels/Channel;
-	public final fun getJOB_CANCEL_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CANCEL_OK ()Lsemiont/channels/Channel;
-	public final fun getJOB_CANCEL_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CHECKPOINT ()Lsemiont/channels/Channel;
-	public final fun getJOB_CLAIM ()Lsemiont/channels/Channel;
-	public final fun getJOB_CLAIMED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CLAIM_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_COMPLETE ()Lsemiont/channels/Channel;
-	public final fun getJOB_COMPLETED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CREATE ()Lsemiont/channels/Channel;
-	public final fun getJOB_CREATED ()Lsemiont/channels/Channel;
-	public final fun getJOB_CREATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_FAIL ()Lsemiont/channels/Channel;
-	public final fun getJOB_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_LIMITS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_LIMITS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getJOB_LIMITS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getJOB_QUEUED ()Lsemiont/channels/Channel;
-	public final fun getJOB_REPORT_PROGRESS ()Lsemiont/channels/Channel;
-	public final fun getJOB_START ()Lsemiont/channels/Channel;
-	public final fun getJOB_STARTED ()Lsemiont/channels/Channel;
-	public final fun getJOB_STATUS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getJOB_STATUS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getJOB_STATUS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getMARK_ADDED ()Lsemiont/channels/Channel;
-	public final fun getMARK_ARCHIVE ()Lsemiont/channels/Channel;
-	public final fun getMARK_ARCHIVED ()Lsemiont/channels/Channel;
-	public final fun getMARK_ARCHIVE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_ARCHIVE_OK ()Lsemiont/channels/Channel;
-	public final fun getMARK_BODY_UPDATED ()Lsemiont/channels/Channel;
-	public final fun getMARK_BODY_UPDATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_COMMIT ()Lsemiont/channels/Channel;
-	public final fun getMARK_COMMIT_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_COMMIT_OK ()Lsemiont/channels/Channel;
-	public final fun getMARK_CREATE_ERROR ()Lsemiont/channels/Channel;
-	public final fun getMARK_CREATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_CREATE_OK ()Lsemiont/channels/Channel;
-	public final fun getMARK_CREATE_REQUEST ()Lsemiont/channels/Channel;
-	public final fun getMARK_DELEGATE_TIMEOUT ()Lsemiont/channels/Channel;
-	public final fun getMARK_DELETE ()Lsemiont/channels/Channel;
-	public final fun getMARK_DELETE_ERROR ()Lsemiont/channels/Channel;
-	public final fun getMARK_DELETE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_DELETE_OK ()Lsemiont/channels/Channel;
-	public final fun getMARK_ENTITY_TAG_ADDED ()Lsemiont/channels/Channel;
-	public final fun getMARK_ENTITY_TAG_REMOVED ()Lsemiont/channels/Channel;
-	public final fun getMARK_REMOVED ()Lsemiont/channels/Channel;
-	public final fun getMARK_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getMARK_SUBMIT ()Lsemiont/channels/Channel;
-	public final fun getMARK_UNARCHIVE ()Lsemiont/channels/Channel;
-	public final fun getMARK_UNARCHIVED ()Lsemiont/channels/Channel;
-	public final fun getMARK_UNARCHIVE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_UNARCHIVE_OK ()Lsemiont/channels/Channel;
-	public final fun getMARK_UPDATE_BODY ()Lsemiont/channels/Channel;
-	public final fun getMARK_UPDATE_ENTITY_TYPES ()Lsemiont/channels/Channel;
-	public final fun getMARK_UPDATE_ENTITY_TYPES_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMARK_UPDATE_ENTITY_TYPES_OK ()Lsemiont/channels/Channel;
-	public final fun getMATCH_LIMITS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_LIMITS_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_LIMITS_RESULT ()Lsemiont/channels/Channel;
-	public final fun getMATCH_RESOURCES_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_RESOURCES_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_RESOURCES_RESULT ()Lsemiont/channels/Channel;
-	public final fun getMATCH_SEARCH_FAILED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_SEARCH_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getMATCH_SEARCH_RESULTS ()Lsemiont/channels/Channel;
-	public final fun getNAV_EXTERNAL ()Lsemiont/channels/Channel;
-	public final fun getNAV_LINK_CLICKED ()Lsemiont/channels/Channel;
-	public final fun getNAV_PUSH ()Lsemiont/channels/Channel;
-	public final fun getPANEL_CLOSE ()Lsemiont/channels/Channel;
-	public final fun getPANEL_OPEN ()Lsemiont/channels/Channel;
-	public final fun getPANEL_TOGGLE ()Lsemiont/channels/Channel;
-	public final fun getPERSON_PROFILE ()Lsemiont/channels/Channel;
-	public final fun getPERSON_PROFILED ()Lsemiont/channels/Channel;
-	public final fun getSESSION_JOINED ()Lsemiont/channels/Channel;
-	public final fun getSESSION_LEFT ()Lsemiont/channels/Channel;
-	public final fun getSETTINGS_HOVER_DELAY_CHANGED ()Lsemiont/channels/Channel;
-	public final fun getSETTINGS_LINE_NUMBERS_TOGGLED ()Lsemiont/channels/Channel;
-	public final fun getSETTINGS_LOCALE_CHANGED ()Lsemiont/channels/Channel;
-	public final fun getSETTINGS_THEME_CHANGED ()Lsemiont/channels/Channel;
-	public final fun getSHELL_SIDEBAR_TOGGLE ()Lsemiont/channels/Channel;
-	public final fun getSMELT_REBUILD_ANCHORS ()Lsemiont/channels/Channel;
-	public final fun getSMELT_REBUILD_ANCHORS_FAILED ()Lsemiont/channels/Channel;
-	public final fun getSMELT_REBUILD_ANCHORS_OK ()Lsemiont/channels/Channel;
-	public final fun getSMELT_SETTLED ()Lsemiont/channels/Channel;
-	public final fun getTABS_CLOSE ()Lsemiont/channels/Channel;
-	public final fun getTABS_REORDER ()Lsemiont/channels/Channel;
-	public final fun getWEAVE_APPLIED ()Lsemiont/channels/Channel;
-	public final fun getWEAVE_REBUILD ()Lsemiont/channels/Channel;
-	public final fun getWEAVE_REBUILD_FAILED ()Lsemiont/channels/Channel;
-	public final fun getWEAVE_REBUILD_OK ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_CREATE ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_CREATED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_CREATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_PERSIST ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_PERSIST_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_PERSIST_OK ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_RESOURCE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_RESOURCE_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_RESOURCE_RESULT ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_TOKEN_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_TOKEN_GENERATED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CLONE_TOKEN_REQUESTED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CREATE ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CREATED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CREATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_CREATE_OK ()Lsemiont/channels/Channel;
-	public final fun getYIELD_MOVED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_REPRESENTATION_ADDED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_REPRESENTATION_REMOVED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_UPDATE ()Lsemiont/channels/Channel;
-	public final fun getYIELD_UPDATED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_UPDATE_FAILED ()Lsemiont/channels/Channel;
-	public final fun getYIELD_UPDATE_OK ()Lsemiont/channels/Channel;
+public final class semiont/channels/Empty {
+	public static final field INSTANCE Lsemiont/channels/Empty;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+	public fun toString ()Ljava/lang/String;
 }
 
-public final class semiont/channels/ChannelsKt {
-	public static final field TRACE_FIELD Ljava/lang/String;
-	public static final fun getBRIDGED_CHANNELS ()Ljava/util/List;
-	public static final fun getCHANNEL_NAMES ()Ljava/util/List;
-	public static final fun getRESOURCE_SCOPED_CHANNELS ()Ljava/util/List;
+public final class semiont/channels/Response {
+	public static final field Companion Lsemiont/channels/Response$Companion;
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lsemiont/channels/Response;
+	public static synthetic fun copy$default (Lsemiont/channels/Response;Ljava/lang/Object;ILjava/lang/Object;)Lsemiont/channels/Response;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResponse ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/channels/Response$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public fun <init> (Lkotlinx/serialization/KSerializer;)V
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/channels/Response;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/channels/Response;)V
+	public final fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/channels/Response$Companion {
+	public final fun serializer (Lkotlinx/serialization/KSerializer;)Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/channels/ScopedChannel {
+	public final fun getName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class semiont/errors/BusRequestError : semiont/errors/SemiontError {
 	public fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;)V
 	public fun getCode ()Ljava/lang/String;
 	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
-}
-
-public final class semiont/errors/BusRequestErrorCode : java/lang/Enum {
-	public static final field Closed Lsemiont/errors/BusRequestErrorCode;
-	public static final field NonePending Lsemiont/errors/BusRequestErrorCode;
-	public static final field NotFound Lsemiont/errors/BusRequestErrorCode;
-	public static final field PeerUnavailable Lsemiont/errors/BusRequestErrorCode;
-	public static final field Rejected Lsemiont/errors/BusRequestErrorCode;
-	public static final field Timeout Lsemiont/errors/BusRequestErrorCode;
-	public static final field Unauthorized Lsemiont/errors/BusRequestErrorCode;
-	public static final field Unsubscribed Lsemiont/errors/BusRequestErrorCode;
-	public final fun getCode ()Ljava/lang/String;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lsemiont/errors/BusRequestErrorCode;
-	public static fun values ()[Lsemiont/errors/BusRequestErrorCode;
 }
 
 public abstract class semiont/errors/SemiontError : java/lang/Exception {
@@ -250,21 +121,6 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 	public final fun getReason ()Lsemiont/errors/TransportErrorCode;
 	public fun getRetryAfterMs ()Ljava/lang/Long;
 	public final fun getStatus ()Ljava/lang/Integer;
-}
-
-public final class semiont/errors/TransportErrorCode : java/lang/Enum {
-	public static final field BadRequest Lsemiont/errors/TransportErrorCode;
-	public static final field Conflict Lsemiont/errors/TransportErrorCode;
-	public static final field Error Lsemiont/errors/TransportErrorCode;
-	public static final field Forbidden Lsemiont/errors/TransportErrorCode;
-	public static final field NotFound Lsemiont/errors/TransportErrorCode;
-	public static final field RateLimited Lsemiont/errors/TransportErrorCode;
-	public static final field Unauthorized Lsemiont/errors/TransportErrorCode;
-	public static final field Unavailable Lsemiont/errors/TransportErrorCode;
-	public final fun getCode ()Ljava/lang/String;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lsemiont/errors/TransportErrorCode;
-	public static fun values ()[Lsemiont/errors/TransportErrorCode;
 }
 
 public final class semiont/http/HttpContentTransport : semiont/transport/ContentTransport {
@@ -408,8 +264,9 @@ public abstract interface class semiont/transport/ContentTransport : java/lang/A
 	public abstract fun putBinary (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
 }
 
-public final class semiont/transport/Events : kotlinx/coroutines/flow/Flow {
+public final class semiont/transport/Events : java/lang/AutoCloseable, kotlinx/coroutines/flow/Flow {
 	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun close ()V
 	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 

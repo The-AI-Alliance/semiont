@@ -25,6 +25,7 @@ kotlin {
         filters {
             exclude {
                 byNames.addAll("semiont.types.**", "semiont.identifiers.**")
+                annotatedWith.add("semiont.Generated")
             }
         }
     }

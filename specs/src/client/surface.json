@@ -942,7 +942,7 @@
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
     "notYetReached": { "kotlin": "The Kotlin SDK's bus over its client's transport, which its client hands out as `wire`." },
-    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire" },
+    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
       { "member": "emit" },
       { "member": "frames" },
@@ -950,7 +950,8 @@
         "member": "framesOf",
         "absent": {
           "typescript": "`frames` is overloaded: a channel of a resource's scope is read as `frames(channel, resourceId)`. Rust, which has no overloading, names that read apart.",
-          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
+          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart.",
+          "kotlin": "`frames` is overloaded: a channel of a resource's scope (`ScopedChannel`) is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
         }
       },
       { "member": "request" },
@@ -958,21 +959,24 @@
         "member": "emitOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "framesOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "requestOf",
         "absent": {
           "typescript": "A TypeScript operation is a value, checked against the registry's operations, so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
-          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
+          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
+          "kotlin": "A Kotlin operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
         }
       }
     ]
@@ -1350,7 +1354,6 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's bus module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/bus-request.ts",
@@ -1368,6 +1371,10 @@
         "go": [
           "packages/go/sdk",
           "packages/go/sdk/bus"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
         ]
       },
       "members": [

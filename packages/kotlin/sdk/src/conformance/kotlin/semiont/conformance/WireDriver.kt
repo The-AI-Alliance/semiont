@@ -15,7 +15,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import semiont.bus.Bus
+import semiont.bus.OPERATIONS
+import semiont.bus.request
 import semiont.http.HttpContentTransport
 import semiont.http.HttpTransport
 import semiont.http.Timing
@@ -50,7 +51,7 @@ private class Renewals(tokens: List<String>, private val token: MutableStateFlow
     }
 }
 
-private class Client(val token: MutableStateFlow<String?>, val transport: HttpTransport, val bus: Bus, val content: HttpContentTransport)
+private class Client(val token: MutableStateFlow<String?>, val transport: HttpTransport, val content: HttpContentTransport)
 
 private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
     override val operations = setOf(
@@ -142,7 +143,7 @@ private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
         val transport = HttpTransport(args.text("baseUrl"), token, args.texts("channels"), timing, refresher)
         // Taken at once, so every failure from the first request on is heard.
         val failures = transport.failures()
-        synchronized(this) { client = Client(token, transport, Bus(transport), HttpContentTransport(transport)) }
+        synchronized(this) { client = Client(token, transport, HttpContentTransport(transport)) }
         reporters += reporting.launch { transport.state.collect { report(it) } }
         reporters += reporting.launch { failures.collect { Say.line(Say.of("error" to failure(it))) } }
         return JsonNull
@@ -164,19 +165,15 @@ private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
 
     private suspend fun emit(args: JsonObject): JsonElement {
         val scope = args.optionalText("scope")?.let { resource(it, "scope") }
-        val subscribers = current().bus.emitOn(args.text("channel"), args.obj("payload"), scope, args.optionalText("correlationId"))
+        val subscribers = current().transport.emit(args.text("channel"), args.obj("payload"), scope, args.optionalText("correlationId"))
         return if (subscribers == null) JsonObject(emptyMap()) else Say.of("subscribers" to JsonPrimitive(subscribers))
     }
 
     private suspend fun request(args: JsonObject): JsonElement {
-        val operation = args.text("operation")
-        val payload = args.obj("payload")
-        val timeoutMs = args.count("timeoutMs")
-        val response = try {
-            current().bus.requestOf(operation, payload, timeoutMs)
-        } catch (unknown: IllegalArgumentException) {
-            throw Misuse(unknown.message ?: "$operation is not an operation of the registry")
-        }
+        val name = args.text("operation")
+        val operation = OPERATIONS[name] ?: throw Misuse("$name is not an operation of the registry")
+        val result = request(current().transport, operation, args.obj("payload"), args.count("timeoutMs"))
+        val response = result["response"]
         return if (response == null) JsonObject(emptyMap()) else Say.of("response" to response)
     }
 

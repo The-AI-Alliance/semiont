@@ -21,25 +21,53 @@ private fun JsonElement?.text(what: String): String = (this as? JsonPrimitive)?.
 /** `beckon:focus` as `BECKON_FOCUS`. */
 internal fun constantName(name: String): String = name.uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_')
 
-/** A channel of the registry, and the schema its payload is, when it is one. */
-private class ChannelRow(val name: String, val payload: String?)
+/** A channel of the registry: its name, the Kotlin type of its payload and that type's serializer, the members beginning `_` its payload declares, and whether a resource's scope carries it. */
+private class ChannelRow(val name: String, val type: String, val serializer: String, val stamps: Set<String>, val scoped: Boolean)
 
-private fun channelRows(registry: JsonObject): List<ChannelRow> = registry["channels"].list("the registry's channels").map { raw ->
+/** `#/definitions/Annotation` as `Annotation`. */
+private fun referenced(schema: JsonObject): String? = (schema["\$ref"] as? JsonPrimitive)?.content?.let {
+    it.removePrefix("#/definitions/").takeIf { name -> name != it } ?: refuse("\$ref $it is not a component schema")
+}
+
+/**
+ * The members beginning `_` that a schema declares: an object's own, each of
+ * an `allOf`'s members', and a union's, on which its members must agree: a
+ * stamp is kept or dropped before a frame is read, so before it is known which
+ * member the frame is.
+ */
+private fun stampsOf(definitions: JsonObject, what: String, schema: JsonObject): Set<String> {
+    referenced(schema)?.let { return stampsOf(definitions, it, definitions[it].obj("the schema $it")) }
+    (schema["oneOf"] ?: schema["anyOf"])?.let { members ->
+        val each = members.list("$what's members").map { stampsOf(definitions, what, it.obj("a member of $what")) }
+        if (each.distinct().size > 1) refuse("$what: its members do not declare the same stamps ($each)")
+        return each.firstOrNull().orEmpty()
+    }
+    val own = (schema["properties"] as? JsonObject)?.keys.orEmpty().filter { it.startsWith("_") }
+    val inherited = (schema["allOf"] as? JsonArray)?.flatMap { stampsOf(definitions, what, it.obj("an allOf member of $what")) }.orEmpty()
+    return (own + inherited).toSet()
+}
+
+private fun channelRows(registry: JsonObject, definitions: JsonObject, scoped: Set<String>): List<ChannelRow> = registry["channels"].list("the registry's channels").map { raw ->
     val channel = raw.obj("a channel")
     val name = channel["channel"].text("a channel's name")
-    val payload = when (val shape = channel["shape"].text("$name's shape")) {
-        "schema" -> channel["schema"].text("$name's schema")
-        "storedEvent" -> channel["payload"].text("$name's payload")
-        "empty", "void", "envelope" -> null
+    fun schema(key: String): String = channel[key].text("$name's $key").also { if (it !in definitions) refuse("$name's $key $it is no schema") }
+    fun stamps(schema: String): Set<String> = stampsOf(definitions, schema, definitions[schema].obj("the schema $schema"))
+    when (val shape = channel["shape"].text("$name's shape")) {
+        "schema" -> schema("schema").let { ChannelRow(name, it, "$it.serializer()", stamps(it), name in scoped) }
+        "envelope" -> schema("schema").let { ChannelRow(name, "Response<$it>", "Response.serializer($it.serializer())", emptySet(), name in scoped) }
+        "storedEvent" -> {
+            schema("payload")
+            val stored = if (channel["enriched"] == JsonPrimitive(true)) "EnrichedResourceEvent" else "StoredEventResponse"
+            ChannelRow(name, stored, "$stored.serializer()", stamps(stored), name in scoped)
+        }
+        "empty", "void" -> ChannelRow(name, "Empty", "Empty.serializer()", emptySet(), name in scoped)
         else -> refuse("$name: a channel shape the generator does not know: $shape")
     }
-    ChannelRow(name, payload)
 }
 
 /** The channels: one constant each, typed by its payload, the lists of the registry's audiences, and the trace field. */
-internal fun channelsFile(registry: JsonObject, schemas: Set<String>): String = buildString {
-    val rows = channelRows(registry)
-    val names = rows.map { it.name }.toSet()
+internal fun channelsFile(registry: JsonObject, definitions: JsonObject): String = buildString {
+    val names = registry["channels"].list("the registry's channels").map { it.obj("a channel")["channel"].text("a channel's name") }.toSet()
     val audience = registry["audience"].obj("the registry's audience")
     fun audienceOf(key: String): List<String> = audience[key].list("the audience $key").map { it.text("a channel of $key") }.onEach {
         if (it !in names) refuse("the audience $key names $it, which is no channel")
@@ -50,66 +78,77 @@ internal fun channelsFile(registry: JsonObject, schemas: Set<String>): String = 
     val scoped = audienceOf("scoped")
     val both = bridged.intersect(scoped.toSet())
     if (both.isNotEmpty()) refuse("$both reach a client both everywhere and on a scope: a frame would arrive twice")
+    val rows = channelRows(registry, definitions, scoped.toSet())
     val persisted = registry["channels"].list("the registry's channels").map { it.obj("a channel") }
         .filter { it["shape"].text("a channel's shape") == "storedEvent" }.map { it["event"].text("an event's type") }
     val trace = registry["trace"].obj("the registry's trace")["field"].text("the trace's field")
     if (!trace.startsWith("_")) refuse("the trace field $trace does not begin with `_`")
 
     append("/**\n * The field of a relayed frame's payload its trace rides in (the bus registry's `trace`).\n */\n")
-    append("public const val TRACE_FIELD: String = ${literal(trace)}\n\n")
-    append("/** Every channel of the bus, by name, each typed by its payload. */\n")
-    append("public object Channels {\n")
+    append("@Generated\npublic const val TRACE_FIELD: String = ${literal(trace)}\n\n")
+    append("/** Every channel of the bus, by name, each typed by the payload a frame on it carries; a channel a resource's scope carries is a `ScopedChannel`. */\n")
+    append("@Generated\npublic object Channels {\n")
     for (row in rows) {
-        val type = row.payload?.also { if (it !in schemas) refuse("${row.name}'s payload $it is no schema") } ?: "JsonObject"
-        val serializer = if (row.payload == null) "JsonObject.serializer()" else "$type.serializer()"
-        append("    public val ${constantName(row.name)}: Channel<$type> = Channel(${literal(row.name)}, $serializer)\n")
+        val kind = if (row.scoped) "ScopedChannel" else "Channel"
+        val stamps = if (row.stamps.isEmpty()) "emptySet()" else "setOf(${row.stamps.sorted().joinToString(", ") { literal(it) }})"
+        append("    public val ${constantName(row.name)}: $kind<${row.type}> = $kind(${literal(row.name)}, ${row.serializer}, $stamps)\n")
     }
     append("}\n\n")
     append("/** Every channel's name, in the registry's order. */\n")
-    append("public val CHANNEL_NAMES: List<String> = listOf(${rows.joinToString(", ") { literal(it.name) }})\n\n")
+    append("@Generated\npublic val CHANNEL_NAMES: List<String> = listOf(${rows.joinToString(", ") { literal(it.name) }})\n\n")
     append("/** What a client with no narrower list of its own subscribes to on no scope: the channels every client hears, and every operation's reply channels. */\n")
-    append("public val BRIDGED_CHANNELS: List<String> = listOf(${bridged.joinToString(", ") { literal(it) }})\n\n")
+    append("@Generated\npublic val BRIDGED_CHANNELS: List<String> = listOf(${bridged.joinToString(", ") { literal(it) }})\n\n")
     append("/** The channels a resource's scope carries. */\n")
-    append("public val RESOURCE_SCOPED_CHANNELS: List<String> = listOf(${scoped.joinToString(", ") { literal(it) }})\n\n")
+    append("@Generated\npublic val RESOURCE_SCOPED_CHANNELS: List<String> = listOf(${scoped.joinToString(", ") { literal(it) }})\n\n")
     append("/** The type of every event of the record. */\n")
     append("internal val PERSISTED: List<String> = listOf(${persisted.joinToString(", ") { literal(it) }})\n")
 }
 
-/** The operations: each request's result and failure channels, what a reply states beside its response, and the operations that report inference limits. */
+/** The operations: each typed by its three channels, what its reply states beside its response, and the operations that report inference limits. */
 internal fun operationsFile(registry: JsonObject, definitions: JsonObject): String = buildString {
+    val scoped = registry["audience"].obj("the registry's audience")["scoped"].list("the audience scoped").map { it.text("a scoped channel") }.toSet()
+    val rows = channelRows(registry, definitions, scoped).associateBy { it.name }
     val channels = registry["channels"].list("the registry's channels").map { it.obj("a channel") }.associateBy { it["channel"].text("a channel's name") }
-    fun schemaOf(channel: String): JsonObject? {
-        val entry = channels[channel] ?: refuse("an operation names $channel, which is no channel")
-        if (entry["shape"].text("$channel's shape") != "schema") return null
-        return definitions[entry["schema"].text("$channel's schema")].obj("$channel's schema")
+    fun channel(name: String): ChannelRow = (rows[name] ?: refuse("an operation names $name, which is no channel")).also {
+        if (it.scoped) refuse("an operation names $name, which a resource's scope carries: a request and its replies go on no scope")
+    }
+    fun schemaOf(name: String): JsonObject? {
+        val entry = channels.getValue(name)
+        if (entry["shape"].text("$name's shape") != "schema") return null
+        return definitions[entry["schema"].text("$name's schema")].obj("$name's schema")
     }
     val operations = registry["operations"].list("the registry's operations").map { it.obj("an operation") }
-    append("/** Each operation of the registry, by its request's channel. */\n")
-    append("internal val OPERATIONS: Map<String, OperationChannels> = mapOf(\n")
+    append("/** Every operation of the registry, named for its request's channel, each typed by what it sends and what each reply carries. */\n")
+    append("@Generated\npublic object Operations {\n")
     for (op in operations) {
         val request = op["request"].text("an operation's request")
         val result = op["result"].text("$request's result")
         val failure = op["failure"].text("$request's failure")
-        append("    ${literal(request)} to OperationChannels(${literal(request)}, ${literal(result)}, ${literal(failure)}),\n")
+        val answered = schemaOf(result)
+        if (answered != null && (answered["oneOf"] ?: answered["anyOf"]) != null) refuse("$result answers with one of several shapes: write what such a reply states beside its response")
+        val named = (answered?.get("required") as? JsonArray)?.map { it.text("a required property") }?.filter { it != "response" }.orEmpty()
+        if (named.isNotEmpty()) {
+            val asked = schemaOf(request) ?: refuse("$result names $named beside its response, and $request has no schema to state them")
+            for (property in named) {
+                if ((asked["properties"] as? JsonObject)?.containsKey(property) != true) refuse("$result names $property beside its response, which $request does not state")
+            }
+        }
+        val types = listOf(request, result, failure).joinToString(", ") { channel(it).type }
+        val replyNames = if (named.isEmpty()) "emptyList()" else "listOf(${named.joinToString(", ") { literal(it) }})"
+        append("    public val ${constantName(request)}: Operation<$types> =\n")
+        append("        Operation(Channels.${constantName(request)}, Channels.${constantName(result)}, Channels.${constantName(failure)}, $replyNames)\n")
     }
-    append(")\n\n")
-    append("/** What an operation's reply states beside its `response`, by the request's channel: each a property of the request, which the reply states again. */\n")
-    append("internal val REPLY_NAMES: Map<String, List<String>> = mapOf(\n")
+    append("}\n\n")
+    append("/** Each operation of the registry, by its request's channel. */\n")
+    append("@Generated\npublic val OPERATIONS: Map<String, Operation<*, *, *>> = mapOf(\n")
     for (op in operations) {
         val request = op["request"].text("an operation's request")
-        val result = op["result"].text("$request's result")
-        val named = (schemaOf(result)?.get("required") as? JsonArray)?.map { it.text("a required property") }?.filter { it != "response" }.orEmpty()
-        if (named.isEmpty()) continue
-        val asked = schemaOf(request) ?: refuse("$result names $named beside its response, and $request has no schema to state them")
-        for (property in named) {
-            if ((asked["properties"] as? JsonObject)?.containsKey(property) != true) refuse("$result names $property beside its response, which $request does not state")
-        }
-        append("    ${literal(request)} to listOf(${named.joinToString(", ") { literal(it) }}),\n")
+        append("    ${literal(request)} to Operations.${constantName(request)},\n")
     }
     append(")\n\n")
     val limits = operations.map { it["request"].text("an operation's request") }.filter { it.endsWith(":limits-requested") }
     append("/** The operations that report the limits of the models a service holds credentials for. */\n")
-    append("internal val LIMITS_OPERATIONS: List<String> = listOf(${limits.joinToString(", ") { literal(it) }})\n")
+    append("@Generated\npublic val LIMITS_OPERATIONS: List<Operation<*, *, *>> = listOf(${limits.joinToString(", ") { "Operations.${constantName(it)}" }})\n")
 }
 
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
@@ -139,7 +178,7 @@ internal fun timingFile(table: JsonObject): String = buildString {
 internal fun errorCodesFile(table: JsonObject): String = buildString {
     fun vocabulary(key: String, name: String, doc: String) {
         val codes = table[key].obj(key)["codes"].list("$key's codes").map { it.obj("a code of $key") }
-        append("/** $doc */\npublic enum class $name(\n    /** The code as the wire and every SDK spell it. */\n    public val code: String,\n) {\n")
+        append("/** $doc */\n@Generated\npublic enum class $name(\n    /** The code as the wire and every SDK spell it. */\n    public val code: String,\n) {\n")
         val taken = mutableSetOf<String>()
         for (entry in codes) {
             val code = entry["code"].text("a code of $key")

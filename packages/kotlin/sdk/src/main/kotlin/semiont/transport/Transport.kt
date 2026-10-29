@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.jdk9.asPublisher
 import kotlinx.serialization.json.JsonObject
@@ -22,13 +23,27 @@ import java.util.concurrent.Flow.Publisher
 /**
  * What happens, one thing after another, from when it was asked for: read by
  * one collector, once. A second collection is refused. Java reads it as a
- * `java.util.concurrent.Flow.Publisher`.
+ * `java.util.concurrent.Flow.Publisher`. Closing it stops the listening:
+ * nothing more is kept for it, and its reading is over.
  */
-public class Events<T : Any> internal constructor(private val source: Flow<T>) : Flow<T> {
-    override suspend fun collect(collector: FlowCollector<T>): Unit = source.collect(collector)
+public class Events<T : Any> internal constructor(private val source: Flow<T>, private val stop: () -> Unit) : Flow<T>, AutoCloseable {
+    @Volatile
+    private var closed = false
+
+    override suspend fun collect(collector: FlowCollector<T>) {
+        if (closed) return
+        source.takeWhile { !closed }.collect(collector)
+    }
 
     /** The same events, for Java. */
-    public fun asPublisher(): Publisher<T> = source.asPublisher()
+    public fun asPublisher(): Publisher<T> = asFlow().asPublisher()
+
+    private fun asFlow(): Flow<T> = this
+
+    override fun close() {
+        closed = true
+        stop()
+    }
 }
 
 /**
@@ -77,7 +92,7 @@ internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
                 queue.invokeOnClose { listeners -= queue }
             }
         }
-        return Events(queue.consumeAsFlow())
+        return Events(queue.consumeAsFlow()) { queue.close() }
     }
 
     /** Give `value` to every listener. Returns how many there were. */

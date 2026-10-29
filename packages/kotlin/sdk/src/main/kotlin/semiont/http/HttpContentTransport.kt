@@ -149,7 +149,7 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
                 progress.close()
             }
         }
-        return Upload(sending, Events(progress.consumeAsFlow()))
+        return Upload(sending, Events(progress.consumeAsFlow()) { progress.close() })
     }
 
     private suspend fun arriving(resourceId: ResourceId): Pair<String, Flow.Publisher<List<ByteBuffer>>> {

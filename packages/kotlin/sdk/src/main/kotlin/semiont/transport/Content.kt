@@ -126,7 +126,7 @@ public class ContentStream internal constructor(
     private val reading: CoroutineScope,
 ) {
     /** The bytes, a piece at a time, read once. */
-    public val bytes: Events<ByteArray> get() = Events(arriving)
+    public val bytes: Events<ByteArray> get() = Events(arriving) {}
 
     /** The bytes, for Java. */
     public fun asPublisher(): Publisher<ByteArray> = arriving.asPublisher(reading.coroutineContext)

@@ -34,10 +34,10 @@ public fun main(args: Array<String>) {
             val start = "// Generated from specs/src; do not edit.\n\npackage $pkg\n\n" + imports.joinToString("") { "import $it\n" } + "\n"
             out.resolve(pkg.replace('.', '/')).createDirectories().resolve(file).writeText(start + code)
         }
-        table("semiont.channels", "Channels.kt", listOf("kotlinx.serialization.json.JsonObject", "semiont.types.*"), channelsFile(registry, generated.types.keys))
-        table("semiont.bus", "Operations.kt", emptyList(), operationsFile(registry, definitions))
+        table("semiont.channels", "Channels.kt", listOf("semiont.Generated", "semiont.types.*"), channelsFile(registry, definitions))
+        table("semiont.bus", "Operations.kt", listOf("semiont.Generated", "semiont.channels.*", "semiont.types.*"), operationsFile(registry, definitions))
         table("semiont", "Timings.kt", listOf("semiont.retry.RetryPolicy"), timingFile(readJson(specs.resolve("client/timing.json")) as? JsonObject ?: refuse("client/timing.json is no object")))
-        table("semiont.errors", "ErrorCodes.kt", emptyList(), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
+        table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
     } catch (refused: Refused) {
         System.err.println("the generator refuses: ${refused.message}")
