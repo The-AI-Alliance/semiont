@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build all Semiont packages, publish to a local Verdaccio registry, and build
-# the service/browser container images against it, tagged
-# ghcr.io/the-ai-alliance/semiont-<svc>:local (run by `semiont start` where a
-# KB's stack documents name them; never pushed). Also builds the semiont
-# launcher itself (apps/launcher/dist/semiont, a host binary) so one run
-# yields everything a fully-local stack needs. And it builds the Python SDK's
-# distributions (packages/python/sdk/dist), which no image installs (the
-# worker's, the smelter's, the weaver's and the librarian's build the SDK from
-# the working tree) and Verdaccio cannot hold, so they are built and checked and published nowhere.
-# No npm, Go or Python required on the host — everything runs inside containers.
+# Build Semiont's packages and images, as one run treats both.
 #
-# Each run starts a fresh Verdaccio (no stale state), registers a user,
-# acquires an auth token, builds, publishes, and builds the images.
+# The packages are the directories packages/<language>/<name>, and each is built
+# in its language's container: the npm packages with scripts/ci/build.sh, the
+# Rust crates with cargo, the Python packages' distributions with uv (the SDK's
+# with the script a release runs), and the Go modules with go build. The images
+# are images/<name>/Dockerfile, built and tagged
+# ghcr.io/the-ai-alliance/semiont-<name>:local (run by `semiont start` where a
+# KB's stack documents name them; never pushed). Either kind is skipped when
+# nothing it is built from has changed since it was last built here, and
+# --package and --image name what to build. It also builds the semiont launcher
+# (apps/launcher/dist/semiont, a host binary), so one run yields everything a
+# fully-local stack needs. No npm, Go, Rust or Python is needed on the host.
+#
+# An image that installs @semiont/* packages from a registry (the Browser's)
+# installs them from a fresh Verdaccio this run starts and publishes the npm
+# packages to; no other image needs one, and a run that builds none starts none.
 
 echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build started\033[0m"
 
@@ -118,8 +122,19 @@ NPM_CACHE_DIR="$CACHE_ROOT/local-build-npm"
 GOCACHE_DIR="$CACHE_ROOT/local-build-gocache"
 GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
 UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
-IMAGE_STATE="$CACHE_ROOT/local-build-images.json"
-mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR"
+CARGO_REGISTRY_DIR="$CACHE_ROOT/local-build-cargo"
+# What each package and image was last built from, keyed by its directory.
+STATE="$CACHE_ROOT/local-build-state.json"
+state_get() { python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get(sys.argv[2],""))
+except Exception: print("")' "$STATE" "$1"; }
+state_put() { python3 -c 'import json,sys
+p=sys.argv[1]
+try: d=json.load(open(p))
+except Exception: d={}
+d[sys.argv[2]]=sys.argv[3]
+json.dump(d,open(p,"w"),indent=1,sort_keys=True)' "$STATE" "$1" "$2"; }
+mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR"
 
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
@@ -177,13 +192,12 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 
 # --- Parse arguments ---
 
-SKIP_BUILD=false
 IMAGES_ONLY=false
-IMAGES_FORCED=false
+PACKAGES_ONLY=false
+FORCE=false
 FANOUT=true
 LAYER_CACHE=""
-PACKAGES=""
-START_FROM=""
+PACKAGES_NAMED=""
 # The images are images/*/Dockerfile. They build in the order the shared Rust
 # builder stage wants: one Rust image first, compiling the workspace while the
 # others build beside it, and the other Rust images last, so they reuse its
@@ -198,25 +212,29 @@ for df in "$REPO_ROOT"/images/*/Dockerfile; do
 done
 ALL_IMAGES="$FIRST_RUST$OTHER_IMAGES$LATER_RUST"
 IMAGES="$ALL_IMAGES"
+IMAGES_NAMED=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip-build) SKIP_BUILD=true; shift ;;
+    --package) PACKAGES_NAMED="${2//,/ }"; shift 2 ;;
+    --image) IMAGES="${2//,/ }"; IMAGES_NAMED=true; shift 2 ;;
+    --force) FORCE=true; shift ;;
+    --packages-only) PACKAGES_ONLY=true; shift ;;
     --images-only) IMAGES_ONLY=true; shift ;;
-    --package) PACKAGES="$2"; shift 2 ;;
-    --start-from) START_FROM="$2"; shift 2 ;;
-    --image) IMAGES="${2//,/ }"; IMAGES_FORCED=true; shift 2 ;;
-    --force-images) IMAGES_FORCED=true; shift ;;
     --no-fanout) FANOUT=false; shift ;;
     --layer-cache) LAYER_CACHE="$2"; shift 2 ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
-      echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
-      echo "then build the service container images against it, tagged"
-      echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed),"
-      echo "plus the semiont launcher binary (apps/launcher/dist/semiont) and the"
-      echo "Python SDK's wheel and source distribution (packages/python/sdk/dist)."
-      echo "No npm or Go required on the host — everything runs inside containers."
+      echo "Build Semiont's packages, each in its language's container, and its"
+      echo "container images, tagged ghcr.io/the-ai-alliance/semiont-<name>:local"
+      echo "(local-only, never pushed), plus the semiont launcher binary"
+      echo "(apps/launcher/dist/semiont). No npm, Go, Rust or Python is needed on"
+      echo "the host: everything runs inside containers."
+      echo ""
+      echo "A package or an image is skipped when nothing it is built from has changed"
+      echo "since it was last built here. The packages are packages/<language>/<name>"
+      echo "(an unknown --package is refused with the list); the images are images/<name>:"
+      echo "  ${ALL_IMAGES// /, }"
       echo ""
       echo "Built images are also loaded into every other responsive container"
       echo "engine on the machine (container/docker/podman), so any KB --runtime"
@@ -224,46 +242,38 @@ while [[ $# -gt 0 ]]; do
       echo "which engines can run the result."
       echo ""
       echo "Options:"
-      echo "  --package <list>   Comma-separated packages to build (default: all)"
-      echo "  --start-from <pkg> Skip packages before this one in the build order"
-      echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
-      echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     ${ALL_IMAGES// /,})."
-      echo "                     Named images always build, even when unchanged"
-      echo "  --force-images     Build every image even when its Dockerfile and"
-      echo "                     package integrities are unchanged (images whose"
-      echo "                     inputs the skip check cannot see — a moved base"
-      echo "                     tag, bumped third-party deps — need this)"
-      echo "  --no-fanout        Leave the images in the building engine's store only"
-      echo "                     (a machine that runs them with that engine alone,"
-      echo "                     such as a CI runner, has no use for the copies)"
+      echo "  --package <list>    Comma-separated packages to build, each <language>/<name>,"
+      echo "                      or a language for all of its packages. Named packages"
+      echo "                      always build (default: every package, unless unchanged)"
+      echo "  --image <list>      Comma-separated images to build. Named images always"
+      echo "                      build (default: every image, unless unchanged)"
+      echo "  --force             Build every package and image selected, changed or not"
+      echo "                      (an image's inputs the check cannot see, such as a moved"
+      echo "                      base tag or bumped third-party deps, need this)"
+      echo "  --packages-only     Build packages only: no images, and no registry"
+      echo "  --images-only       Build images only, against the Verdaccio a previous run"
+      echo "                      left running when one installs from it. Skips the"
+      echo "                      packages, the drift and lockfile gates and the launcher:"
+      echo "                      pair with --image to rebuild one in about a minute"
+      echo "  --no-fanout         Leave the images in the building engine's store only"
+      echo "                      (a machine that runs them with that engine alone,"
+      echo "                      such as a CI runner, has no use for the copies)"
       echo "  --layer-cache <dir> docker only: build the Rust images on a docker-container"
-      echo "                     builder that reads their layers from <dir> and writes"
-      echo "                     them back, so a run whose Rust is unchanged compiles"
-      echo "                     nothing. For a runner that keeps <dir> between runs; a"
-      echo "                     laptop's engine keeps its own layers and has no use for it"
-      echo "  --images-only      Build ONLY container images, against the Verdaccio a"
-      echo "                     previous run left running. Skips the npm build+publish,"
-      echo "                     the drift and lockfile gates, the Python SDK and the launcher. Pair"
-      echo "                     with --image to rebuild one service in ~a minute instead"
-      echo "                     of the lot."
-      echo "  -h, --help         Show this help"
+      echo "                      builder that reads their layers from <dir> and writes"
+      echo "                      them back, so a run whose Rust is unchanged compiles"
+      echo "                      nothing. For a runner that keeps <dir> between runs; a"
+      echo "                      laptop's engine keeps its own layers and has no use for it"
+      echo "  -h, --help          Show this help"
       echo ""
-      echo "Rebuilding one image after a code change:"
-      echo "  ./scripts/ci/local-build.sh                          # full run, leaves Verdaccio up"
-      echo "  ./scripts/ci/local-build.sh --images-only --image worker"
+      echo "Examples:"
+      echo "  ./scripts/ci/local-build.sh                                 # what changed, then the images"
+      echo "  ./scripts/ci/local-build.sh --packages-only --package rust  # the Rust crates, nothing else"
+      echo "  ./scripts/ci/local-build.sh --package typescript/react-ui --image browser"
+      echo "  ./scripts/ci/local-build.sh --images-only --image worker    # one image, from the working tree"
       echo ""
-      echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
-      echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first. That is the Browser's"
-      echo "  image alone. The seven service images are each built from the working"
-      echo "  tree every time: the gateway, dispatcher and archivist compile the Rust"
-      echo "  workspace, and the worker, the smelter, the weaver and the librarian"
-      echo "  install their Python services from images/worker, images/smelter,"
-      echo "  images/weaver and images/librarian."
-      echo ""
-      echo "Packages build in the order version.json lists them; an unknown"
-      echo "--package name is refused with the list."
+      echo "  --images-only reuses the packages already in Verdaccio, so the Browser's"
+      echo "  image picks up a package's change only if a run published it. The other"
+      echo "  images are built from the working tree every time."
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
@@ -284,6 +294,94 @@ for img in $IMAGES; do
     exit 1
   fi
 done
+
+if [[ "$IMAGES_ONLY" == true && "$PACKAGES_ONLY" == true ]]; then
+  fail "--images-only and --packages-only together build nothing"
+  exit 1
+fi
+[[ "$PACKAGES_ONLY" == true ]] && IMAGES=""
+
+# The images that install @semiont/* packages from a registry, read from their
+# install lines as image_signature reads them. Only these need this run's
+# Verdaccio, and the npm packages published to it.
+REGISTRY_IMAGES=""
+for img in $IMAGES; do
+  if grep 'npm install' "$REPO_ROOT/$(image_dockerfile "$img")" | grep -q '@semiont/'; then
+    REGISTRY_IMAGES="$REGISTRY_IMAGES $img"
+  fi
+done
+
+# What one line of the summary at the end says of each package and image.
+SUMMARY=()
+summarize() { SUMMARY+=("$(printf '%-36s %s' "$1" "$2")"); }
+print_summary() {
+  local line
+  echo -e "${BOLD}What this run built, and what it found unchanged since it last built it:${RESET}"
+  for line in ${SUMMARY[@]+"${SUMMARY[@]}"}; do echo "  $line"; done
+  echo ""
+}
+
+# --- The packages, and which of them build ---
+#
+# scripts/ci/package-signatures.py finds them, packages/<language>/<name>, and
+# signs each with everything its build reads, its dependencies' signatures
+# among it. It runs on the Python floor, which reads TOML; the files it signs
+# are git's list from the host, since git refuses a checkout another user owns,
+# as a root container sees one. A package builds when it is named, when --force
+# is given, when its signature is not the one recorded when it last built, or
+# when the output its build leaves is gone.
+BUILD_PACKAGES=""
+if [[ "$IMAGES_ONLY" != true ]]; then
+  if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
+      | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
+          python3 scripts/ci/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE"); then
+    fail "Could not read what the packages are built from (scripts/ci/package-signatures.py, above)."
+    exit 1
+  fi
+  ALL_PACKAGES=$(echo "$PACKAGE_PLAN" | cut -f1 | sed 's#^packages/##' | tr '\n' ' ')
+  LANGUAGES=$(echo "$PACKAGE_PLAN" | cut -f2 | sort -u | tr '\n' ' ')
+  # A named package is <language>/<name>, or a language for all of its own.
+  SELECTED=""
+  for named in $PACKAGES_NAMED; do
+    matched=$(echo "$PACKAGE_PLAN" | awk -F'\t' -v n="packages/$named" '$1 == n || index($1, n "/") == 1 { print $1 }')
+    if [[ -z "$matched" ]]; then
+      fail "Unknown package: $named (expected one of: ${ALL_PACKAGES% }, or a language: ${LANGUAGES% })"
+      exit 1
+    fi
+    SELECTED="$SELECTED $matched"
+  done
+  while IFS=$'\t' read -r dir language name signature output; do
+    if [[ -n "$PACKAGES_NAMED" ]] && ! [[ " $(echo $SELECTED) " == *" $dir "* ]]; then
+      continue
+    fi
+    if [[ "$FORCE" == true || -n "$PACKAGES_NAMED" || "$(state_get "$dir")" != "$signature" ]] \
+       || [[ -n "$output" && ! -e "$REPO_ROOT/$output" ]]; then
+      BUILD_PACKAGES="$BUILD_PACKAGES $dir"
+    else
+      summarize "$dir" "unchanged"
+    fi
+  done <<< "$PACKAGE_PLAN"
+fi
+
+# plan_field <dir> <n>: the nth field of the package's line in the plan
+# (2 its language, 3 the name its build takes, 4 its signature).
+plan_field() { echo "$PACKAGE_PLAN" | awk -F'\t' -v d="$1" -v n="$2" '$1 == d { print $n }'; }
+# packages_of <language>: the packages of that language this run builds.
+packages_of() {
+  local dir
+  for dir in $BUILD_PACKAGES; do
+    [[ "$(plan_field "$dir" 2)" == "$1" ]] && echo "$dir"
+  done
+  return 0
+}
+# built <dir>...: record each as built from what it was built from.
+built() {
+  local dir
+  for dir in "$@"; do
+    state_put "$dir" "$(plan_field "$dir" 4)"
+    summarize "$dir" "built"
+  done
+}
 
 # --- Drift gates (FIRST: they are the most common failure, and they need only
 # the repo plus a container — failing here costs seconds, not the ten minutes
@@ -678,7 +776,9 @@ fi
 
 fi
 
-# --- Start fresh Verdaccio ---
+# --- The registry, for the images that install from one ---
+
+if [[ -n "$REGISTRY_IMAGES" ]]; then
 
 banner "LOCAL REGISTRY"
 
@@ -806,26 +906,52 @@ fi
 
 HOST_ADDR=$($RT run --rm "$NODE_IMAGE" sh -c "ip route | awk '/default/{print \$3}'")
 step "Host address from container: ${DIM}$HOST_ADDR${RESET}"
+BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
-if [[ "$IMAGES_ONLY" != true ]]; then
-  # --- Clean staging directory ---
+fi
 
-  chmod -R u+rwX .npm-stage 2>/dev/null || true
-  rm -rf .npm-stage
+# --- The packages ---
+#
+# Each language's packages build in one container of its own, in turn, and each
+# is recorded as built when its language's build has succeeded. Each container
+# states its memory: Apple container's default is 1G, in which cargo compiling
+# the workspace's crates thrashes at full CPU and never finishes.
 
-  # --- Build + Publish in container ---
+# names_of <dir>...: the names their builds take, comma-separated.
+names_of() {
+  local dir names=""
+  for dir in "$@"; do names="$names,$(plan_field "$dir" 3)"; done
+  echo "${names#,}"
+}
 
-  banner "BUILD + PUBLISH"
+# The npm packages, with scripts/ci/build.sh, and the app each image that
+# installs from the registry installs (images/<name>, which version.json lists
+# under that name): its bundle holds the packages, so it is built whenever its
+# image may be. Then all of version.json's published entries go to Verdaccio,
+# which this run started empty.
+build_npm() {
+  local packages names img publish=false then=""
+  packages=$(packages_of typescript)
+  names=$(names_of $packages)
+  for img in $REGISTRY_IMAGES; do names="${names:+$names,}$img"; done
+  [[ -n "$REGISTRY_IMAGES" ]] && publish=true && then=", then publish to Verdaccio"
+  [[ -z "$names" && "$publish" != true ]] && return 0
 
-  # Snapshot dirtiness *before* publish, then arm the revert trap, so the EXIT
-  # handler can undo only the publish stamp and not any pre-existing edits. Same
-  # path set the restore uses — a file the snapshot ignores is a file the restore
-  # would clobber.
-  PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
-  trap restore_manifests EXIT
+  if [[ "$publish" == true ]]; then
+    chmod -R u+rwX .npm-stage 2>/dev/null || true
+    rm -rf .npm-stage
+    # Snapshot dirtiness *before* publish, then arm the revert trap, so the EXIT
+    # handler can undo only the publish stamp and not any pre-existing edits. Same
+    # path set the restore uses — a file the snapshot ignores is a file the restore
+    # would clobber.
+    PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
+    trap restore_manifests EXIT
+  fi
 
+  step "npm: ${names:-nothing to build}${then} ${DIM}(in ${NODE_IMAGE})${RESET}"
   $RT run --rm \
     -v "$REPO_ROOT":/workspace \
+    -v "$NPM_CACHE_DIR":/root/.npm \
     -w /workspace \
     -m 8g \
     -e NODE_OPTIONS="--max-old-space-size=4096" \
@@ -833,44 +959,129 @@ if [[ "$IMAGES_ONLY" != true ]]; then
     sh -c "
       set -e
       apk add --no-cache bash git > /dev/null
-
-      # Create .npmrc for Verdaccio auth
-      # The body and the NPMRC terminator MUST stay at column 0 — this is
-      # <<NPMRC, not <<-NPMRC, so an indented terminator never closes the
-      # heredoc and every command below it silently becomes .npmrc content.
-      # No backticks in these comments: this whole script is a double-quoted
-      # string, so the host shell runs anything in backticks.
-      cat > /tmp/.npmrc <<NPMRC
-registry=http://$HOST_ADDR:4873
-//$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
-NPMRC
-
-      # Build (unless --skip-build)
-      if [ '$SKIP_BUILD' != 'true' ]; then
-        BUILD_ARGS=''
-        if [ -n '$PACKAGES' ]; then
-          BUILD_ARGS='--package $PACKAGES'
-        elif [ -n '$START_FROM' ]; then
-          BUILD_ARGS='--start-from $START_FROM'
-        fi
-        ./scripts/ci/build.sh \$BUILD_ARGS
-      else
-        echo -e '\n\033[0;33m⚠\033[0m Skipping build (--skip-build)\n'
+      if [ -n '$names' ]; then
+        ./scripts/ci/build.sh --package '$names'
       fi
-
-      # Publish
-      ./scripts/ci/publish.sh \
-        --registry http://$HOST_ADDR:4873 \
-        --tag latest \
-        --clean \
-        --npmrc /tmp/.npmrc
+      if [ '$publish' = true ]; then
+        # Create .npmrc for Verdaccio auth
+        # The body and the NPMRC terminator MUST stay at column 0 — this is
+        # <<NPMRC, not <<-NPMRC, so an indented terminator never closes the
+        # heredoc and every command below it silently becomes .npmrc content.
+        # No backticks in these comments: this whole script is a double-quoted
+        # string, so the host shell runs anything in backticks.
+        cat > /tmp/.npmrc <<NPMRC
+registry=http://${HOST_ADDR:-}:4873
+//${HOST_ADDR:-}:4873/:_authToken=${VERDACCIO_TOKEN:-}
+NPMRC
+        ./scripts/ci/publish.sh \
+          --registry http://${HOST_ADDR:-}:4873 \
+          --tag latest \
+          --clean \
+          --npmrc /tmp/.npmrc
+      fi
     "
+  built $packages
+}
+
+# The Rust crates, with one cargo build of them all. The registry cargo
+# downloads is this script's, mounted where the image's cargo keeps it (its
+# cargo home stays where it is: its cargo is rustup's proxy, which looks for
+# rustup there). What it compiles stays in the container, so there is no
+# target to keep bounded: a run compiles the crates it builds afresh, in under
+# a minute for the workspace's packages.
+build_rust() {
+  local packages args="" dir
+  packages=$(packages_of rust)
+  [[ -z "$packages" ]] && return 0
+  for dir in $packages; do args="$args -p $(plan_field "$dir" 3)"; done
+  step "Rust: $(names_of $packages) ${DIM}(in rust:${RUST_TOOLCHAIN}-bookworm)${RESET}"
+  if ! $RT run --rm \
+      -m 8g \
+      -v "$REPO_ROOT":/workspace \
+      -v "$CARGO_REGISTRY_DIR":/usr/local/cargo/registry \
+      -e CARGO_TARGET_DIR=/target \
+      -w /workspace/packages/rust \
+      "rust:${RUST_TOOLCHAIN}-bookworm" \
+      sh -c 'rustup toolchain install >/dev/null && cargo build --locked "$@"' sh $args; then
+    fail "The Rust crates did not build (cargo says why, above)."
+    exit 1
+  fi
+  built $packages
+}
+
+# The Python packages' distributions: the SDK's with the script CI and
+# publish-pypi.yml run, which builds them and checks what a published one must
+# pass, and each other's with uv. They are published nowhere: Verdaccio holds
+# npm packages alone, and the images that carry them build them from the
+# working tree. What is left in each dist/ installs by path.
+build_python() {
+  local packages dir rc=0
+  packages=$(packages_of python)
+  [[ -z "$packages" ]] && return 0
+  for dir in $packages; do rm -rf "$REPO_ROOT/$dir/dist"; done
+  step "Python: $(names_of $packages) ${DIM}(in ${PYTHON_IMAGE})${RESET}"
+  # What the builds need and the image lacks leaves with 3: a failed download
+  # is not a package that does not build.
+  $RT run --rm \
+    -m 8g \
+    -v "$REPO_ROOT":/workspace \
+    -v "$UVCACHE_DIR":/root/.cache/uv \
+    -e UV_LINK_MODE=copy \
+    -e UV_PYTHON_DOWNLOADS=never \
+    -e PYTHONDONTWRITEBYTECODE=1 \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    sh -c 'apk add --no-cache bash jq > /dev/null || exit 3
+           pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
+           for dir in "$@"; do
+             if [ "$dir" = packages/python/sdk ]; then bash scripts/ci/build-python-sdk.sh || exit 1
+             else uv build --quiet "$dir" || exit 1
+             fi
+           done' sh $packages \
+    || rc=$?
+  if [[ "$rc" == 3 ]]; then
+    fail "The Python builds could not RUN: bash, jq or uv could not be installed in ${PYTHON_IMAGE} (a failed download is the usual cause; output above)."
+    exit 1
+  elif [[ "$rc" != 0 ]]; then
+    fail "A Python package did not build, or the SDK's distributions did not pass their checks (above). CI's Python jobs and publish-pypi.yml build them the same way."
+    exit 1
+  fi
+  built $packages
+}
+
+# The Go modules, each with go build, on the drift gate's caches.
+build_go() {
+  local packages
+  packages=$(packages_of go)
+  [[ -z "$packages" ]] && return 0
+  step "Go: $(names_of $packages) ${DIM}(in ${GO_IMAGE})${RESET}"
+  if ! $RT run --rm \
+      -m 8g \
+      -v "$REPO_ROOT":/workspace \
+      -v "$GOCACHE_DIR":/root/.cache/go-build \
+      -v "$GOMODCACHE_DIR":/go/pkg/mod \
+      -e GOPROXY="$GOPROXY_CACHED" \
+      -w /workspace \
+      "$GO_IMAGE" \
+      sh -c 'for dir in "$@"; do (cd "$dir" && go build -buildvcs=false ./...) || exit 1; done' sh $packages; then
+    fail "A Go module did not build (go says why, above)."
+    exit 1
+  fi
+  built $packages
+}
+
+if [[ "$IMAGES_ONLY" != true ]]; then
+  banner "PACKAGES"
+  [[ -z "$BUILD_PACKAGES" ]] && ok "Every selected package is unchanged since it was last built here"
+  build_npm
+  build_rust
+  build_python
+  build_go
 fi
 
+[[ -n "$REGISTRY_IMAGES" ]] && "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
 
-BUILD_REGISTRY="http://$HOST_ADDR:4873"
-
-"$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
+if [[ "$PACKAGES_ONLY" != true ]]; then
 
 # --- Build container images ---
 #
@@ -1034,32 +1245,46 @@ print(" ".join(parts))
 '
 }
 
-state_get() { python3 -c 'import json,sys
-try: print(json.load(open(sys.argv[1])).get(sys.argv[2],""))
-except Exception: print("")' "$IMAGE_STATE" "$1"; }
-
-state_put() { python3 -c 'import json,sys
-p=sys.argv[1]
-try: d=json.load(open(p))
-except Exception: d={}
-d[sys.argv[2]]=sys.argv[3]
-json.dump(d,open(p,"w"),indent=1)' "$IMAGE_STATE" "$1" "$2"; }
-
 BUILD_IMGS=()
 BUILD_SIGS=()
-SKIPPED=""
 for img in $IMAGES; do
   TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
   SIG=$(image_signature "$img")
-  if [[ "$IMAGES_FORCED" != true && -n "$SIG" && "$(state_get "$img")" == "$SIG" ]] \
+  if [[ "$FORCE" != true && "$IMAGES_NAMED" != true && -n "$SIG" && "$(state_get "images/$img")" == "$SIG" ]] \
      && $RT image inspect "$TAG" >/dev/null 2>&1; then
-    ok "$TAG unchanged (Dockerfile + package integrities) — skipped"
-    SKIPPED="$SKIPPED $img"
+    summarize "images/$img" "unchanged"
   else
     BUILD_IMGS+=("$img")
     BUILD_SIGS+=("$SIG")
   fi
 done
+# --- The image each build replaces ---
+#
+# :local is a mutable tag: a rebuilt image takes it from the one before, which
+# stays in the store with nothing naming it, so every run would add a layer set
+# to every store it reaches. Before a build, the image the tag names is tagged
+# :local-previous, in the building engine and in each one the images are loaded
+# into, and that tag is deleted once the new image is built, keeps its promises
+# and is loaded everywhere. The engine then reclaims what no tag and no
+# container names, and refuses (a warning here) an image a container still
+# uses. A run that fails keeps the old image under both tags, and the next run
+# replaces the second.
+keep_previous() {  # <runtime> <image>
+  local tag="ghcr.io/the-ai-alliance/semiont-$2:local"
+  if "$1" image inspect "$tag" >/dev/null 2>&1; then
+    "$1" image tag "$tag" "$tag-previous" >/dev/null 2>&1 || warn "could not keep $tag in $1 as $tag-previous"
+  fi
+}
+drop_previous() {  # <runtime> <image>
+  local previous="ghcr.io/the-ai-alliance/semiont-$2:local-previous"
+  "$1" image inspect "$previous" >/dev/null 2>&1 || return 0
+  "$1" image rm "$previous" >/dev/null 2>&1 \
+    || warn "$1 keeps the image $previous replaced (a container uses it, or the engine refused: $1 image rm $previous)"
+}
+for img in ${BUILD_IMGS[@]+"${BUILD_IMGS[@]}"}; do
+  for rt in $RT $FANOUT_RTS; do keep_previous "$rt" "$img"; done
+done
+
 if [[ ${#BUILD_IMGS[@]} -eq 0 ]]; then
   ok "All images unchanged — nothing to build"
 else
@@ -1137,8 +1362,9 @@ image_promises() {
 image_kept() {
   local idx=${IMGS[$1]}
   if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
-    state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
+    state_put "images/${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
   fi
+  summarize "images/${BUILD_IMGS[$idx]}" "built"
 }
 # A cold npm install inside these builds runs for MINUTES with nothing on
 # stdout, and --no-cache means every run pays it. That silence reads as a
@@ -1271,14 +1497,17 @@ fi
 # was down when the image was last built.
 fanout_all
 
+for img in ${BUILD_IMGS[@]+"${BUILD_IMGS[@]}"}; do
+  for rt in $RT $FANOUT_RTS; do drop_previous "$rt" "$img"; done
+done
+
 # --- Image-store accounting ---
 #
-# Every run writes a fresh layer set into every store it reaches, and nothing
-# ever reclaims them: :local is a mutable tag, so yesterday's image is not
-# deleted, just untagged and invisible. Neither engine volunteers the number,
-# so report it here: a few weeks of runs reach 83 images under `container`
-# and 118 images / 77 GB under docker. Reporting only; a
-# failure here must never fail a build that already succeeded.
+# What each store holds after the run. The image a build replaced is deleted
+# above; what is left is every image the store holds, this script's and
+# others'. Neither engine volunteers the number, so it is reported here.
+# Reporting only; a failure here must never fail a build that already
+# succeeded.
 store_report() {
   local rt="$1" line
   case "$rt" in
@@ -1318,26 +1547,24 @@ step "Image stores after fan-out"
 for rt in $RT $FANOUT_RTS; do
   store_report "$rt"
 done
-echo -e "  ${DIM}:local is a MUTABLE tag — each run untags the previous image rather than${RESET}"
-echo -e "  ${DIM}deleting it, so these stores grow every run until pruned. Nothing running${RESET}"
-echo -e "  ${DIM}is at risk: prune -a removes only images no container references.${RESET}"
 
 if [[ "$IMAGES_ONLY" == true ]]; then
   # Deliberately stops here. The drift gates and the launcher are unrelated to
   # image contents, and paying for them would undo the point of the flag — a
   # one-image rebuild should cost about a minute.
   banner "IMAGES DONE ✓"
-  echo -e "${BOLD}Rebuilt:${RESET}${IMAGES// / }"
-  echo ""
+  print_summary
   echo -e "  Restart the affected service(s) to pick them up, e.g."
   echo -e "    ${BOLD}semiont restart${RESET}  (in a KB whose .semiont/stack documents name the :local images)"
   echo ""
-  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, the drift and lockfile gates, Python SDK, launcher.${RESET}"
+  echo -e "${DIM}Skipped (use a full run for these): the packages, the drift and lockfile gates, the launcher.${RESET}"
   echo ""
   echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished (--images-only)\033[0m"
   exit 0
 fi
 
+
+fi
 
 # --- Build the launcher (host binary) ---
 #
@@ -1375,94 +1602,67 @@ $RT run --rm \
   go build -buildvcs=false -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
-# --- Build the Python SDK (a wheel and a source distribution) ---
+# --- What is kept between runs, kept bounded ---
 #
-# The script CI and publish-pypi.yml run: the source distribution, the wheel
-# built from it, and the checks a published one must pass, so a packaging break
-# is seen here and not first in CI. Built in the drift gate's Python image,
-# with its uv cache.
-#
-# It is published nowhere. Verdaccio holds npm packages and nothing else, and
-# the images that carry the SDK, the worker's, the smelter's, the weaver's and
-# the librarian's, build it from the working tree, so nothing in a local stack would read it from
-# an index. What is left in packages/python/sdk/dist installs by path.
-#
-# Last, since the stack needs nothing of it: a run that fails here has built
-# everything a local stack runs on.
-
-banner "PYTHON SDK"
-
-step "Building the Python SDK's distributions in ${PYTHON_IMAGE}..."
-# What the script needs and the image lacks leaves with 3, as in the models
-# gate: a failed download is not a package that does not build.
-PYTHON_SDK_RC=0
-$RT run --rm \
-  -v "$REPO_ROOT":/workspace \
-  -v "$UVCACHE_DIR":/root/.cache/uv \
-  -e UV_LINK_MODE=copy \
-  -e UV_PYTHON_DOWNLOADS=never \
-  -e PYTHONDONTWRITEBYTECODE=1 \
-  -w /workspace \
-  "$PYTHON_IMAGE" \
-  sh -c 'apk add --no-cache bash jq > /dev/null || exit 3
-         pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
-         bash scripts/ci/build-python-sdk.sh' \
-  || PYTHON_SDK_RC=$?
-
-if [[ "$PYTHON_SDK_RC" == 0 ]]; then
-  PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/python/sdk/dist/*.whl)
-  ok "${PYTHON_SDK_WHEELS[0]#"$REPO_ROOT"/} built, with its source distribution"
-elif [[ "$PYTHON_SDK_RC" == 3 ]]; then
-  fail "The Python SDK's build could not RUN (its output is above)."
-  echo ""
-  echo -e "  This says nothing about whether the package builds: ${BOLD}bash${RESET}, ${BOLD}jq${RESET} or ${BOLD}uv${RESET} could not"
-  echo -e "  be installed in ${BOLD}${PYTHON_IMAGE}${RESET}. A failed download is the usual cause."
-  echo ""
-  exit 1
-else
-  fail "The Python SDK's distributions did not build, or did not pass their checks (exit $PYTHON_SDK_RC)."
-  echo ""
-  echo -e "  ${BOLD}scripts/ci/build-python-sdk.sh${RESET} says which, above. CI's Python job and"
-  echo -e "  ${BOLD}publish-pypi.yml${RESET} run the same script, and would fail the same way."
-  echo ""
-  exit 1
-fi
+# Each tool keeps what it downloads and compiles, and none of them forgets a
+# version it no longer needs: npm's and uv's caches, Go's module cache, and
+# cargo's registry each hold every version a run ever fetched, and Go trims its
+# build cache only as it runs. So each directory is held to one size: one over it is
+# emptied, and the next run fetches or compiles what it needs again.
+CACHE_LIMIT_KB=$((8 * 1024 * 1024))
+banner "CACHES"
+for cache in "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR"; do
+  used=$(du -sk "$cache" 2>/dev/null | cut -f1)
+  if [[ "${used:-0}" -gt "$CACHE_LIMIT_KB" ]]; then
+    # Go writes its module cache read-only.
+    chmod -R u+w "$cache" 2>/dev/null || true
+    find "$cache" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+    warn "${cache/#$HOME/~} held $((used / 1024)) MB, over $((CACHE_LIMIT_KB / 1024)) MB: emptied"
+  else
+    echo -e "  ${DIM}${cache/#$HOME/~}: $((${used:-0} / 1024)) MB${RESET}"
+  fi
+done
 
 banner "DONE ✓"
+print_summary
 
-if [[ -n "$FANOUT_FAILURES" ]]; then
-  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (fan-out partially failed:${FANOUT_FAILURES// / })"
+if [[ "$PACKAGES_ONLY" != true ]]; then
+  if [[ -n "$FANOUT_FAILURES" ]]; then
+    echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (fan-out partially failed:${FANOUT_FAILURES// / })"
+  elif [[ -n "$FANOUT_RTS" ]]; then
+    echo -e "${BOLD}Images tagged :local are in every local image store:${RESET} $RT${FANOUT_RTS}"
+  elif [[ "$FANOUT" != true ]]; then
+    echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (--no-fanout)"
+  else
+    echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (no other engines detected)"
+  fi
   echo ""
-elif [[ -n "$FANOUT_RTS" ]]; then
-  echo -e "${BOLD}Images tagged :local are in every local image store:${RESET} $RT${FANOUT_RTS}"
+
+  echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
   echo ""
-elif [[ "$FANOUT" != true ]]; then
-  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (--no-fanout)"
+  echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
+  echo -e "    (name the ${DIM}:local${RESET} images in .semiont/stack/*.yaml, e.g. ghcr.io/the-ai-alliance/semiont-gateway:local)"
+  echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local${RESET}"
+  echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont start${RESET}"
+  echo -e "    ${BOLD}echo password | $REPO_ROOT/apps/launcher/dist/semiont useradd --email admin@example.com${RESET}"
   echo ""
-else
-  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (no other engines detected)"
+  echo -e "  (semiont start pulls no image tagged ${DIM}:local${RESET}; it runs these.)"
+  echo ""
+
+  echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"
+  echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:local"
   echo ""
 fi
 
-echo -e "${BOLD}Run the full stack from your KB against these images:${RESET}"
-echo ""
-echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
-echo -e "    (name the ${DIM}:local${RESET} images in .semiont/stack/*.yaml, e.g. ghcr.io/the-ai-alliance/semiont-gateway:local)"
-echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local${RESET}"
-echo -e "    ${BOLD}$REPO_ROOT/apps/launcher/dist/semiont start${RESET}"
-echo -e "    ${BOLD}echo password | $REPO_ROOT/apps/launcher/dist/semiont useradd --email admin@example.com${RESET}"
-echo ""
-echo -e "  (semiont start pulls no image tagged ${DIM}:local${RESET}; it runs these.)"
-echo ""
+PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/python/sdk/dist/*.whl)
+if [[ -e "${PYTHON_SDK_WHEELS[0]}" ]]; then
+  echo -e "${BOLD}The Python SDK is built, and published nowhere. Install it by path:${RESET}"
+  echo -e "  pip install ${PYTHON_SDK_WHEELS[0]}"
+  echo ""
+fi
 
-echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"
-echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:local"
-echo ""
-
-echo -e "${BOLD}The Python SDK is built, and published nowhere. Install it by path:${RESET}"
-echo -e "  pip install ${PYTHON_SDK_WHEELS[0]}"
-echo ""
-
-echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
-echo ""
+if [[ "$VERDACCIO_OURS" == true ]]; then
+  echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
+  echo ""
+fi
 echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished\033[0m"

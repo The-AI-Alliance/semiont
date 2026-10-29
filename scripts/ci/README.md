@@ -12,7 +12,8 @@ No npm is required on the host for local builds.
 | `publish-npm-apps.mjs` | Stage the Browser into `.npm-stage/` for publishing |
 | `build-python-sdk.sh` | Build the Python SDK's source distribution and wheel at `version.json`'s version, and check them: named for the version, holding the package and no more, and every module importable from the installed wheel alone. CI and `local-build.sh` run it; `publish-pypi.yml` uploads what it leaves |
 | `image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
-| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine; then the launcher, and the Python SDK's distributions (`build-python-sdk.sh`), which are built and checked and published nowhere |
+| `local-build.sh` | Host-side wrapper: build every package, each in its language's container, and every `:local` image, fanned out to every container engine on the machine, skipping what is unchanged; publish the npm packages to a Verdaccio it starts when an image installs from one; then the launcher |
+| `package-signatures.py` | The packages `local-build.sh` builds, `packages/<language>/<name>`, and the signature of what each is built from, its dependencies' among it, by which it skips one that is unchanged |
 | `go-toolchain.sh` | Print the Go toolchain `apps/launcher/go.mod` pins. The one reader of that line, for everything that names a Go image: `local-build.sh` and the `go:generate` lines of `packages/go/sdk` and `apps/launcher` |
 | `neo4j-image.sh` | Print the neo4j image the launcher starts for the graph role, from its row of `packages/go/launcher/descriptors.go`. The one reader of that row for a test: the "Python Graph Stores (neo4j)", "Weaver Conformance" and "Librarian Conformance" jobs of `ci.yml`, and a developer starting a container for any of those suites |
 | `qdrant-image.sh` | Print the Qdrant image the launcher starts for the vectors role, from its row of `packages/go/launcher/descriptors.go`. The one reader of that row for a test: the "Python Vector Stores (Qdrant)", "Smelter Conformance" and "Librarian Conformance" jobs of `ci.yml`, and a developer starting a container for any of those suites |
@@ -53,10 +54,11 @@ cd /path/to/your-kb
 /path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
 
-# 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package core,react-ui --image browser
+# 3. Iterate — edit code and run it again: what is unchanged is skipped, or
+#    name what to build:
+./scripts/ci/local-build.sh --package typescript/core,typescript/react-ui --image browser
 # Verdaccio restarts fresh each run; the publish step always publishes all
-# packages, and --image narrows which images are rebuilt.
+# npm packages, and --image narrows which images are rebuilt.
 
 # 4. Done for the day
 container rm -f semiont-verdaccio
@@ -66,8 +68,9 @@ container rm -f semiont-verdaccio
 
 `./scripts/ci/local-build.sh --help` lists them.
 
-The names `--package` takes, and the order they build in, are `version.json`'s
-packages; an unknown name is refused with the list.
+`--package` takes `<language>/<name>`, or a language for all of its packages;
+the npm packages build in the order `version.json` lists them. An unknown name
+is refused with the list.
 
 The publish step always publishes all packages regardless of `--package`.
 
