@@ -1756,7 +1756,8 @@
           "packages/rust/sdk/src/testing/storage.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/testing/__init__.py"
+          "packages/python/sdk/src/semiont/testing/__init__.py",
+          "packages/python/sdk/src/semiont/testing/liveness.py"
         ],
         "go": [
           "packages/go/sdk/semionttest"
@@ -1765,29 +1766,23 @@
       "members": [
         {
           "member": "LivenessScenario",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "LivenessSpec",
           "kind": "type",
           "named": {
             "typescript": "LivenessAxiomSpec"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "Respond",
           "kind": "type",
           "named": {
-            "go": "MakeResponse"
+            "go": "MakeResponse",
+            "python": "MakeResponse"
           },
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript's spec states how the gateway answers as a function it names no type for."
           }
         },
@@ -1796,9 +1791,6 @@
           "kind": "function",
           "named": {
             "typescript": "arbFaultAction"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
@@ -1806,64 +1798,42 @@
           "kind": "function",
           "named": {
             "typescript": "arbFaultSchedule"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "assertLivenessAxioms",
-          "kind": "function",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "function"
         },
         {
           "member": "DeliverySubject",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "DeliveryOp",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "deliveryOps",
           "kind": "function",
           "named": {
             "typescript": "arbDeliveryOps"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "assertExactlyOnceDelivery",
-          "kind": "function",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "function"
         },
         {
           "member": "createTestSession",
           "kind": "function",
           "named": {
             "go": "NewTestSession"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "TestSession",
           "kind": "type",
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript gives the session, and what it was built over, as an object it names no type for."
           }
         },
@@ -1872,9 +1842,6 @@
           "kind": "type",
           "named": {
             "go": "TestSessionConfig"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {

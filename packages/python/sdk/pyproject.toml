@@ -27,8 +27,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# What `semiont.testing.axioms` imports when its harness runs: a program holds its
-# own state units to the axioms this package's are held to. Nothing else in the
+# What `semiont.testing.axioms` and `semiont.testing.liveness` import when their
+# harnesses run: a program holds its own state units, and its own compositions
+# over the bus, to the axioms this package's are held to. Nothing else in the
 # package imports it, and every module imports without it.
 axioms = ["hypothesis>=6.130,<7"]
 

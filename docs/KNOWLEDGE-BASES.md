@@ -61,11 +61,10 @@ pick the knowledge base in its Knowledge Bases panel and sign in: steps 5 and 6
 of the Quick Start.
 
 `semiont logs` follows the stack, `semiont status` health-checks it, and
-`semiont stop` tears it down — except the browser, which is the machine-level
-viewer of every KB rather than a stack member: every start ensures it, stop
-leaves it running, and `semiont stop --service browser` is the explicit
-off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
-automatically.
+`semiont stop` tears it down, the Browser with it. The Browser is the viewer of
+every KB rather than a member of one stack: every start ensures it, and
+`semiont stop --service browser` stops it alone. Its Knowledge Bases panel
+discovers launcher-managed stacks automatically.
 
 See [Running a local stack](operator/LOCAL-SEMIONT.md) for the full local guide:
 choosing a config, the ports, and where things are kept.

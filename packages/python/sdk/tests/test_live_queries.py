@@ -1,11 +1,15 @@
 """A client's live queries: what watching one holds, what a read gives its watchers, and what a client keeps of them.
 
+Under any behaviour of the wire, a watcher is told something (L1, L2:
+`semiont.testing.liveness`).
+
 What each query asks is `test_surface.py`'s, the cache's own rules are
 `test_cache.py`'s, and what an event does to a query is `test_refresher.py`'s.
 """
 
 import asyncio
-from contextlib import AsyncExitStack
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
+from contextlib import AsyncExitStack, asynccontextmanager
 
 import pytest
 from aio import pass_time, run, soon, turns
@@ -29,13 +33,15 @@ from kb import (
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
-from semiont.cache import Failed, Pending, Ready
-from semiont.client import CachePersistence, SemiontClient
+from semiont.cache import CacheState, Failed, Pending, Ready
+from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
+from semiont.identifiers import ResourceId
 from semiont.namespaces.browse import Collaborator
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
-from semiont.testing import FaultyTransport, StubGateway
+from semiont.testing import FaultyTransport, StubGateway, create_test_client, refuse_unscripted_operation
+from semiont.testing.liveness import LivenessScenario, LivenessSpec, assert_liveness_axioms
 from semiont.timing import SAVE_DEBOUNCE_MS
 
 type Client = SemiontClient[FaultyTransport]
@@ -404,3 +410,33 @@ def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed
             reading.cancel()
 
     run(scenario())
+
+
+# ── Liveness: under any behaviour of the wire, a watcher is told something ──
+
+
+def describing(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | None:
+    """What a knowledge base answers a read of a resource with: a description of the resource asked for. It is asked nothing else."""
+    if operation != "browse:resource-requested":
+        refuse_unscripted_operation(operation, payload)
+    return {"resource": descriptor(str(payload["resourceId"])), "lastSequence": 1}
+
+
+async def said[T](live: AsyncIterator[CacheState[T]]) -> None:
+    """Until the watcher is shown a value or a failure: `Pending` is nothing said."""
+    async for state in live:
+        if not isinstance(state, Pending):
+            return
+
+
+def test_l1_l2_a_watcher_is_given_a_value_or_a_failure_and_a_read_settles_under_every_schedule() -> None:
+    timeout_ms = 50
+
+    @asynccontextmanager
+    async def watching(transport: FaultyTransport) -> AsyncGenerator[LivenessScenario]:
+        made = create_test_client(transport=transport, timing=ClientTiming(bus_request_ms=timeout_ms))
+        async with made.client as client, client.browse.resource(RESOURCE) as one, client.browse.resource(OTHER) as other:
+            yield LivenessScenario(outputs=(said(one), said(other)), settlements=(client.browse.resource(ResourceId("res-3")).fresh(),))
+
+    # B14: a fetch for the live view is tried once more.
+    assert_liveness_axioms(LivenessSpec(setup=watching, timeout_ms=timeout_ms, retry_budget=1, cases=30, make_response=describing))

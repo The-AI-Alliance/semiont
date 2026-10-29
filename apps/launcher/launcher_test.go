@@ -4927,9 +4927,8 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	mustContain(t, "delete stdout", stdout, "deleted", "destroyed")
 	log, _ = os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
-	// The codespace record is forgotten — but stack.json itself legitimately
-	// survives: codespace start ensured the local Browser, whose
-	// machine-level record lives there.
+	// The codespace record is forgotten. The bare stop took the Browser
+	// codespace start ensured, so its record is gone too.
 	b, _ = os.ReadFile(statePathFor(s.home))
 	if strings.Contains(string(b), "codespace:") {
 		t.Errorf("deleted codespace stack still recorded:\n%s", b)
@@ -6093,26 +6092,20 @@ func TestStackStateLifecycle(t *testing.T) {
 	mustContain(t, "full stop argv", fullArgv,
 		"container stop fid-semiont-gateway",
 		"docker stop semiont-gateway", "podman stop semiont-gateway")
-	// The Browser survives a full stop — never in the sweep.
-	if strings.Contains(fullArgv, "semiont-browser") {
-		t.Errorf("full stop touched the Browser:\n%s", fullArgv)
-	}
+	// The Browser goes with the stack, by its name under every runtime the
+	// stop swept.
+	mustContain(t, "full stop argv", fullArgv,
+		"container stop semiont-browser", "docker stop semiont-browser", "podman stop semiont-browser")
 	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
 		if strings.Contains(fullArgv, bad) {
 			t.Errorf("stray sweep used the recorded runtime's IDs: %q", bad)
 		}
 	}
-	// stack.json legitimately survives a full stop: the browser record
-	// lives there and the Browser keeps running. The LOCAL STACK entry must
-	// be gone, the browser entry present.
-	b2, err := os.ReadFile(statePathFor(s.home))
-	if err != nil {
-		t.Fatalf("stack.json should survive (browser record): %v", err)
+	// Nothing is left running, so nothing is left recorded: the stack's
+	// record and the Browser's both go, and stack.json with them.
+	if b2, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a full stop: %v\n%s", err, b2)
 	}
-	if strings.Contains(string(b2), `"local"`) {
-		t.Errorf("local stack record survived its stop:\n%s", b2)
-	}
-	mustContain(t, "browser record survives", string(b2), `"browser"`)
 }
 
 func TestStopTwiceIsHonest(t *testing.T) {
@@ -8536,11 +8529,11 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 	}
 }
 
-func TestBrowserOutlivesTheStack(t *testing.T) {
-	// The Browser is a machine-level viewer, not a stack member. Start
-	// ensures it; a second start with a current image KEEPS it; bare stop
-	// leaves it running (announced); a stale image is restarted; --service
-	// browser is the explicit off-switch.
+func TestBrowserLifecycle(t *testing.T) {
+	// The Browser keeps a record of its own, apart from the stack's. Start
+	// ensures it; stop takes it down with the stack; a start that finds a
+	// current one running KEEPS it; a stale image is restarted; --service
+	// browser stops it alone.
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -8584,24 +8577,7 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 		}
 	}
 
-	// Bare stop: stack down, Browser untouched and announced. Slice the
-	// argv to THIS command — start's own restart branch legitimately
-	// stop/rm's a stale browser earlier in the log.
-	preStop := s.mustLog(t)
-	stdout, stderr, code := s.run(t, "stop", "--runtime", "container")
-	if code != 0 {
-		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "stop stdout", stdout, "Browser still running", "semiont stop --service browser")
-	if stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop)); strings.Contains(stopArgv, "semiont-browser") {
-		t.Errorf("bare stop touched the Browser:\n%s", stopArgv)
-	}
-	rec, _ = os.ReadFile(statePathFor(s.home))
-	mustContain(t, "browser record survives the stack record", string(rec), `"browser"`)
-
-	// Second start with the SAME image running: keep, don't churn. The fake
-	// runtime reports the reference the launcher ran, which is the verified
-	// image by its digest, as the first start recorded it.
+	// The first start ran the verified image, by its digest.
 	var ran struct {
 		Browser struct {
 			Image string `json:"image"`
@@ -8610,6 +8586,25 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Browser.Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
 		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Browser.Image, err)
 	}
+
+	// Stop: the stack and the Browser both, and both records. Slice the
+	// argv to THIS command — start's own restart branch legitimately
+	// stop/rm's a stale browser earlier in the log.
+	preStop := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "stop", "--runtime", "container")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "Browser stopped")
+	stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop))
+	mustContain(t, "stop argv", stopArgv, "container stop semiont-browser", "container rm semiont-browser")
+	if left, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a stop: %v\n%s", err, left)
+	}
+
+	// A start that finds a current Browser running KEEPS it, whoever started
+	// it: no churn. The fake runtime reports the reference the first start
+	// ran.
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_browser=running",
 		"FAKERT_IMAGE_browser="+ran.Browser.Image)

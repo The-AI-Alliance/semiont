@@ -46,3 +46,5 @@ docker rm semiont-postgres
 docker rm semiont-otel-collector
 docker rm semiont-prometheus
 docker rm semiont-jaeger
+docker stop semiont-browser
+docker rm semiont-browser

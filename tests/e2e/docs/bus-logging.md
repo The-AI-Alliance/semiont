@@ -28,7 +28,7 @@ whose whole name is one a credential goes by (`token`, `password`,
 payload the member is; everything else of a payload is written as it is.
 The list and the rule are one table,
 [`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json),
-which the TypeScript, Rust and Python bus logs each run.
+which every bus log runs.
 
 Cost when disabled: a single truthy check, zero allocations.
 
