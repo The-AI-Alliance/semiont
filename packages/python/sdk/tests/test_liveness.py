@@ -90,6 +90,26 @@ def test_a_request_sent_again_past_its_budget_breaks_l2() -> None:
         assert_liveness_axioms(liveness_spec(insisting, [RejectEmit()]))
 
 
+def test_a_request_sent_again_after_every_output_has_spoken_breaks_l2() -> None:
+    @asynccontextmanager
+    async def asking_again_later(transport: FaultyTransport) -> AsyncGenerator[LivenessScenario]:
+        async def again() -> None:
+            # Once the output has spoken, the same request twice more: past the budget, and inside the bound.
+            await asyncio.sleep(TIMEOUT_MS / 1000)
+            for _ in range(2):
+                await request(transport, READ, ASKING, timeout_ms=TIMEOUT_MS)
+
+        later = asyncio.ensure_future(again())
+        try:
+            yield LivenessScenario(outputs=(request(transport, READ, ASKING, timeout_ms=TIMEOUT_MS),), settlements=())
+        finally:
+            later.cancel()
+            await asyncio.gather(later, return_exceptions=True)
+
+    with pytest.raises(AssertionError, match="past the retry budget"):
+        assert_liveness_axioms(liveness_spec(asking_again_later, [Deliver()]))
+
+
 def test_a_swallowed_failure_breaks_l2() -> None:
     @asynccontextmanager
     async def swallowing(transport: FaultyTransport) -> AsyncGenerator[LivenessScenario]:

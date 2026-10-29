@@ -25,9 +25,9 @@ A composition and a subject are each built by an asynchronous context manager:
 built on the way in, ended on the way out, as the client, the transport and the
 session they are built of are held. Each case runs on an event loop of its own
 whose clock is the real one, so a subject may do real I/O. A case of L1 and L2
-is over when every output has said something and every path has settled, or
-when its bound has passed, whichever is first: a composition is given small
-timeouts.
+runs for the whole of its bound, however soon everything it watches has
+spoken, so a request sent again after that is counted: a composition is given
+small timeouts, and each case costs its bound.
 
 The cases are drawn by Hypothesis, which is installed with the extra
 `semiont[axioms]` and imported when a harness runs or a strategy is asked for:
@@ -163,15 +163,15 @@ def _described(schedule: Sequence[FaultAction]) -> str:
 
 
 async def _watched(scenario: LivenessScenario, bound_ms: int) -> tuple[list[bool], list[bool]]:
-    """Wait until every output has said something and every path has settled, or the bound has passed.
+    """Watch every output and every path for the whole of the bound.
 
     Gives which outputs said something, and which paths settled.
     """
     outputs = [asyncio.ensure_future(output) for output in scenario.outputs]
     settlements = [asyncio.ensure_future(settlement) for settlement in scenario.settlements]
     watched = [*outputs, *settlements]
-    if watched:
-        await asyncio.wait(watched, timeout=bound_ms / 1000)
+    # The whole bound, however soon everything has spoken: a request sent again after that is counted too.
+    await asyncio.sleep(bound_ms / 1000)
     notified = [output.done() for output in outputs]
     settled = [settlement.done() for settlement in settlements]
     # What is still waiting is stopped before the composition is ended. Either way is settled: what one raised is no axiom's business.
