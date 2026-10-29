@@ -19,7 +19,7 @@ on:
       - packages/rust/Cargo.lock
       - packages/rust/deny.toml
       - packages/rust/rust-toolchain.toml
-      - .github/workflows/gateway-advisories.yml
+      - .github/workflows/rust-advisories.yml
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -28,7 +28,7 @@ on:
 # nobody is waiting for. A push to main is never cancelled: it is the run that
 # sees the merged tree. lint:workflows holds every pull-request workflow to this.
 concurrency:
-  group: gateway-advisories-${{ github.event.pull_request.number || github.sha }}
+  group: rust-advisories-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cargo/bin/cargo-deny
-          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'packages/rust/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/rust-advisories.yml', 'packages/rust/rust-toolchain.toml') }}
 
       - name: Install cargo-deny
         if: steps.cache.outputs.cache-hit != 'true'

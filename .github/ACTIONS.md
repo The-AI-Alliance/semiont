@@ -25,7 +25,7 @@ every operation the spec declares is the gateway conformance suite's to check
 CodeQL over the TypeScript, Go, Rust and Python, nightly on `main` and when a
 release calls it.
 
-### Rust Crate Advisories (`gateway-advisories.yml`)
+### Rust Crate Advisories (`rust-advisories.yml`)
 **The Rust workspace's crates against RustSec's advisory database**:
 - `cargo deny check advisories bans sources`, as `deny.toml` configures it
 - An advisory ignored there carries its reason; an ignore that stops matching fails the run
