@@ -7,8 +7,8 @@ The libraries Semiont is built from, in four languages. The services are in [ima
 | Language | What is here | Published to |
 |---|---|---|
 | [TypeScript](./typescript/README.md) | The SDK, its transport and its telemetry, and the React components | npm |
-| [Rust](./rust/README.md) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io |
-| [Python](./python/README.md) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI |
+| [Rust](./rust/README.md) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io: the SDK, its transport, and the codegen and telemetry crates they are built on |
+| [Python](./python/README.md) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI: the SDK alone |
 | [Go](./go/README.md) | The SDK, and the launcher's libraries | nowhere |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.

@@ -13,6 +13,8 @@ keywords = ["semiont", "graph", "neo4j", "janusgraph", "neptune"]
 classifiers = [
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
+    # A library of Semiont's Python services, installed in their images: no index takes an upload that says this.
+    "Private :: Do Not Upload",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
