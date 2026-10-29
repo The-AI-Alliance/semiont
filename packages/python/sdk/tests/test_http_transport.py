@@ -3,12 +3,16 @@
 The corpus holds it to the protocol against a real gateway
 (`tests/conformance/sdk/wire`). Here are the parts with no wire to show them
 on: the arithmetic of its backoff, the window of ids it remembers, what a
-closed transport leaves behind, and what it does with a stream that carries
-something other than a frame.
+closed transport leaves behind, what it does with a stream that carries
+something other than a frame, and each event delivered once wherever a handoff
+lands among the writes (L3, `semiont.testing.liveness`).
 """
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator, Sequence
+from contextlib import asynccontextmanager
+from typing import Final, final, override
 
 import pytest
 from aio import run, soon
@@ -22,8 +26,9 @@ from semiont.http.stream import SeenIds, backoff_cap_ms
 from semiont.identifiers import ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED
 from semiont.retry import RetryPolicy
+from semiont.testing.liveness import DeliverySubject, assert_exactly_once_delivery
 from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
-from semiont.transport import ConnectionState, Frame
+from semiont.transport import ConnectionState, Frame, ResourceHold
 from semiont.watched import Variable, reached
 
 QUICK = Timing(reconnect_ms=10, lazy_remove_ms=10, linger_ms=10, emit_retry=RetryPolicy(attempts=2, initial_delay_ms=1, max_delay_ms=1))
@@ -205,3 +210,67 @@ def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reach
             return [refused.code, str(refused.status)], sorted({asked.headers["authorization"] for asked in gateway.asked})
 
     assert run(scenario()) == (["unavailable", "503"], ["Bearer first", "Bearer second"])
+
+
+@final
+class OverTheWire(DeliverySubject):
+    """The real transport as a delivery subject.
+
+    A write is an event the gateway writes to every stream the client holds,
+    and a transition is a changed subscription, which the client hands to a new
+    stream.
+    """
+
+    def __init__(self, gateway: GatewayServer, transport: HttpTransport) -> None:
+        self._gateway: Final = gateway
+        self._transport: Final = transport
+        self._frames: Final = transport.frames("beckon:focus")
+        self._holds: Final[list[ResourceHold]] = []
+        self._delivered: Final[list[str]] = []
+
+    async def read(self) -> None:
+        """Take each frame the transport delivers, as it comes."""
+        async for frame in self._frames:
+            self._delivered.append(str(frame.payload["annotationId"]))
+
+    @override
+    def write(self, event_id: str) -> None:
+        self._gateway.send(event_id, {"channel": "beckon:focus", "payload": {"resourceId": "res-1", "annotationId": event_id}})
+
+    @override
+    async def transition(self) -> None:
+        before = len(self._gateway.subscriptions)
+        self._holds.append(self._transport.subscribe_to_resource(ResourceId(f"res-{before}")))
+        # The handoff has begun once the gateway has the new stream; the client has yet to take it up, and the old one lingers.
+        await soon(self._gateway.streams(before + 1))
+
+    @override
+    async def delivered(self) -> Sequence[str]:
+        # Until nothing more arrives for longer than a stream lingers.
+        seen = -1
+        while len(self._delivered) != seen:
+            seen = len(self._delivered)
+            await asyncio.sleep(0.25)
+        return list(self._delivered)
+
+
+@asynccontextmanager
+async def over_the_wire() -> AsyncGenerator[DeliverySubject]:
+    """A gateway, and a transport to it whose stream is open, as a delivery subject."""
+    lingering = Timing(reconnect_ms=10, lazy_remove_ms=10, linger_ms=60)
+    async with (
+        GatewayServer() as gateway,
+        HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=("beckon:focus",), timing=lingering) as transport,
+    ):
+        await opened(transport)
+        subject = OverTheWire(gateway, transport)
+        reading = asyncio.ensure_future(subject.read())
+        try:
+            yield subject
+        finally:
+            reading.cancel()
+            await asyncio.gather(reading, return_exceptions=True)
+
+
+def test_an_event_written_to_a_live_stream_is_delivered_once_wherever_a_handoff_lands() -> None:
+    assert_exactly_once_delivery(over_the_wire, cases=8)
