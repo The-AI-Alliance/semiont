@@ -20,6 +20,7 @@ No npm is required on the host for local builds.
 | `node-version.sh` | Print the Node that builds and tests the repository, what `.node-version` holds. The one reader of that file for the scripts: `local-build.sh`, `apps/desktop/build.sh` and `scripts/release/version-bump.sh` |
 | `python-floor.sh` | Print the oldest Python the SDK supports, the `requires-python` of `packages/python/sdk/pyproject.toml`. The one reader of that line: `local-build.sh`, `publish-service-images.yml` (the four Python images run on it), the SDK's model generator and `lint:python-version` ask it |
 | `rust-toolchain.sh` | Print the Rust toolchain `rust-toolchain.toml` names. The one reader of its `channel`, for everything that builds a Rust image: `local-build.sh`, `apps/desktop/build.sh`, `publish-service-images.yml` and `scripts/container/build-images.js` |
+| `instrument-coverage.sh` | cargo's `RUSTC_WORKSPACE_WRAPPER` for the Rust binaries CI builds for the conformance suites: the workspace's own crates instrumented for coverage, their dependencies not |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
 ## GitHub Actions

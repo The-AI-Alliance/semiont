@@ -953,7 +953,7 @@ jobs:
             packages/rust/target/release/semiont-wire-driver
             packages/rust/target/release/semiont-live-driver
             packages/rust/target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-instrumented-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-binaries-workspace-instrumented-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -970,18 +970,20 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             packages/rust/target
-          key: ${{ runner.os }}-rust-release-instrumented-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-rust-release-workspace-instrumented-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-rust-release-instrumented-
+            ${{ runner.os }}-rust-release-workspace-instrumented-
 
-      # Instrumented for coverage: each binary writes what it ran as it exits,
-      # wherever the job running it points LLVM_PROFILE_FILE, and Rust Coverage
-      # reads it. Unstripped, since what llvm-cov reads must survive the build.
+      # The workspace's crates instrumented for coverage, their dependencies
+      # not (scripts/ci/instrument-coverage.sh says why): each binary writes
+      # what it ran as it exits, wherever the job running it points
+      # LLVM_PROFILE_FILE, and Rust Coverage reads it. Unstripped, since what
+      # llvm-cov reads must survive the build.
       - name: Build the services and the Rust drivers
         if: steps.binaries.outputs.cache-hit != 'true'
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
         env:
-          RUSTFLAGS: -C instrument-coverage
+          RUSTC_WORKSPACE_WRAPPER: ${{ github.workspace }}/scripts/ci/instrument-coverage.sh
           CARGO_PROFILE_RELEASE_STRIP: none
 
       # Several paths: the artifact's root is their common directory, so a
