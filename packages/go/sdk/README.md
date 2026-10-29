@@ -1,5 +1,6 @@
 # Semiont Go SDK
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/The-AI-Alliance/semiont/packages/go/sdk.svg)](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk)
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The Go SDK for [Semiont][semiont], an open platform for building trusted AI
@@ -25,13 +26,21 @@ ideas are this module's too.
 The module is `github.com/The-AI-Alliance/semiont/packages/go/sdk`, package
 `semiont`:
 
+```bash
+go get github.com/The-AI-Alliance/semiont/packages/go/sdk
+```
+
 ```text
 import semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 ```
 
-It is published nowhere: the import path is its identity. A program in the
-monorepo depends on it through a `replace` directive on its relative path, as
-the launcher's `go.mod` does:
+Each release of Semiont publishes it at the release's version, by the tag
+`packages/go/sdk/v<version>`, and its documentation is on
+[pkg.go.dev][pkg-go-dev]. `@main` takes main's latest commit between releases.
+
+A program in this repository requires it by a `replace` directive on its
+relative path instead, as the launcher's `go.mod` does, so it builds against
+the tree:
 
 ```text
 require github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
@@ -1024,7 +1033,7 @@ log keeps) is written as `[withheld]`.
 | `discovery` | The document a launcher publishes of the knowledge bases it manages, read and followed | [`specs/src/discovery/DiscoveryDocument.json`](../../../specs/src/discovery/DiscoveryDocument.json), through `api` |
 | `semionttest` | What a consumer's tests are built on: `NewTestClient`, a real client over `FaultyTransport`, `InMemoryContent` and `StubGateway`; `NewTestSession`; `ScriptedSessions` and `SharedStorage`, for a registry; `AssertStateUnitAxioms`; and the liveness axioms | hand-written |
 | `mediatypes` | The media types a knowledge base admits, and `ForExtension` | [`specs/src/media-types/registry.json`](../../../specs/src/media-types/registry.json) |
-| `readme` | The programs this page shows, each run by its tests | hand-written |
+| `internal/readme` | The programs this page shows, each run by its tests. It is internal, so no program outside the module can import it | hand-written |
 
 Everything generated is committed, as the monorepo's other generated
 artifacts are. A consumer never needs a generator, and a change to the spec
@@ -1079,14 +1088,15 @@ Each has a `:check` form that verifies without writing, as CI does.
 The module is [`packages/go/sdk`][package] of the [Semiont repository][semiont],
 and [Testing][testing] says how its checks and its tests are run. Go runs in a
 `golang` container at the toolchain its `go.mod` names. The programs this page
-shows are files of package `readme`, word for word: the compiler checks them,
-and its tests run each one.
+shows are files of package `readme`, in `internal/readme`, word for word: the
+compiler checks them, and its tests run each one.
 
 ## License
 
 Apache-2.0. See [LICENSE](../../../LICENSE).
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
+[pkg-go-dev]: https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk
 [introduction]: ../../../docs/builder/INTRODUCTION.md
 [quick-start]: ../../../docs/builder/QUICK-START.md
 [developer-guide]: ../../../docs/builder/DEVELOPER-GUIDE.md
