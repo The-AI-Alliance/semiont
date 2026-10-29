@@ -21,6 +21,7 @@ import { formatErrors, validators } from '@semiont/core/openapi';
 import type { TraceCarrier } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan, withTraceparent } from '@semiont/observability';
 import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
+import manifest from '../package.json' with { type: 'json' };
 import {
   HttpContentTransport,
   HttpTransport,
@@ -268,8 +269,9 @@ async function run(line: string): Promise<void> {
   }
 }
 
-// Exports only when the suite names an OTLP endpoint in the environment.
-initObservabilityNode({ serviceName: 'semiont-conformance-driver' });
+// Exports only when the suite names an OTLP endpoint in the environment. The
+// driver is the SDK's, so it reports the SDK's version.
+initObservabilityNode({ serviceName: 'semiont-conformance-driver', serviceVersion: manifest.version });
 
 const lines = createInterface({ input: process.stdin });
 lines.on('line', (line) => void run(line));
