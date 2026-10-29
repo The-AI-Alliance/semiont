@@ -1,7 +1,7 @@
 /**
  * The annotation readers, held to specs/src/annotations/reader-cases.json:
- * the table every SDK's readers run, so that TypeScript, Rust and Python give
- * one answer for one annotation.
+ * the table every SDK's readers run, so that every SDK gives one answer for
+ * one annotation.
  */
 
 import { describe, it, expect } from 'vitest';
