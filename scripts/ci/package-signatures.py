@@ -26,6 +26,7 @@ import os
 import re
 import sys
 import tomllib
+from pathlib import Path
 
 MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go"}
 EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
@@ -40,12 +41,20 @@ toolchains = dict(zip(("typescript", "rust", "python", "go"), sys.argv[1:5], str
 files = sorted(f for f in sys.stdin.buffer.read().decode().split("\0") if f)
 
 
+def toml(path: str) -> dict:
+    return tomllib.loads(Path(path).read_text())
+
+
+def manifest_json(path: str) -> dict:
+    return json.loads(Path(path).read_text())
+
+
 def digest(paths: list[str]) -> str:
     h = hashlib.sha256()
     for path in paths:
         h.update(path.encode() + b"\0")
         # A link is its target, not what it points at: the spec it reaches is hashed as the spec.
-        h.update(os.readlink(path).encode() if os.path.islink(path) else open(path, "rb").read())
+        h.update(str(Path(path).readlink()).encode() if Path(path).is_symlink() else Path(path).read_bytes())
         h.update(b"\0")
     return h.hexdigest()
 
@@ -62,8 +71,8 @@ for f in files:
 if not packages:
     sys.exit("package-signatures: found no package under packages/<language>/<name>")
 
-npm_dirs = {json.load(open(p["manifest"]))["name"]: d for d, p in packages.items() if p["language"] == "typescript"}
-workspace = tomllib.load(open("packages/rust/Cargo.toml", "rb")).get("workspace", {}).get("dependencies", {})
+npm_dirs = {manifest_json(p["manifest"])["name"]: d for d, p in packages.items() if p["language"] == "typescript"}
+workspace = toml("packages/rust/Cargo.toml").get("workspace", {}).get("dependencies", {})
 
 
 def resolve(base: str, relative: str) -> str:
@@ -75,13 +84,17 @@ def dependencies(directory: str) -> set[str]:
     language, manifest = packages[directory]["language"], packages[directory]["manifest"]
     found: set[str] = set()
     if language == "typescript":
-        stated = json.load(open(manifest))
+        stated = manifest_json(manifest)
         for table in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
             found |= {npm_dirs[name] for name in stated.get(table, {}) if name in npm_dirs}
     elif language == "rust":
-        stated = tomllib.load(open(manifest, "rb"))
+        stated = toml(manifest)
         tables = [stated.get(t, {}) for t in ("dependencies", "dev-dependencies", "build-dependencies")]
-        tables += [target.get(t, {}) for target in stated.get("target", {}).values() for t in ("dependencies", "dev-dependencies", "build-dependencies")]
+        tables += [
+            target.get(t, {})
+            for target in stated.get("target", {}).values()
+            for t in ("dependencies", "dev-dependencies", "build-dependencies")
+        ]
         for table in tables:
             for name, spec in table.items():
                 if not isinstance(spec, dict):
@@ -91,12 +104,12 @@ def dependencies(directory: str) -> set[str]:
                 elif spec.get("workspace") and "path" in workspace.get(name, {}):
                     found.add(resolve("packages/rust", workspace[name]["path"]))
     elif language == "python":
-        stated = tomllib.load(open(manifest, "rb"))
+        stated = toml(manifest)
         for spec in stated.get("tool", {}).get("uv", {}).get("sources", {}).values():
             if isinstance(spec, dict) and "path" in spec:
                 found.add(resolve(directory, spec["path"]))
     elif language == "go":
-        for target in re.findall(r"=>\s*(\.{1,2}/\S*)", open(manifest).read()):
+        for target in re.findall(r"=>\s*(\.{1,2}/\S*)", Path(manifest).read_text()):
             found.add(resolve(directory, target))
     found.discard(directory)
     return found
@@ -130,7 +143,7 @@ def signature(directory: str, seen: tuple[str, ...] = ()) -> str:
 for directory in sorted(packages):
     language = packages[directory]["language"]
     if language == "rust":
-        name = tomllib.load(open(packages[directory]["manifest"], "rb"))["package"]["name"]
+        name = toml(packages[directory]["manifest"])["package"]["name"]
     else:
         name = directory.rsplit("/", 1)[1]
     output = f"{directory}/dist" if language in ("typescript", "python") else ""
