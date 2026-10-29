@@ -136,6 +136,34 @@ d[sys.argv[2]]=sys.argv[3]
 json.dump(d,open(p,"w"),indent=1,sort_keys=True)' "$STATE" "$1" "$2"; }
 mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR"
 
+# --- What a step says ---
+#
+# A step says one line: what it did, and how long it took. What the tools it
+# runs print goes to a log of its own, which a failure shows the end of and a
+# success deletes, as each image's build does. TMPDIR ends in a slash on
+# macOS; joining with another one yields `T//path`.
+TMP_DIR="${TMPDIR:-/tmp}"; TMP_DIR="${TMP_DIR%/}"
+
+# run_logged <what> <command>...: runs the command into its log, and says
+# `what` when it succeeds. When it fails, it shows the last 40 lines of the log
+# and where the whole of it is, and returns the command's status for the caller
+# to say what went wrong.
+run_logged() {
+  local what="$1" log rc=0 started
+  shift
+  log=$(mktemp "$TMP_DIR/semiont-local-build.XXXXXX")
+  started=$(date +%s)
+  "$@" > "$log" 2>&1 || rc=$?
+  if [[ "$rc" == 0 ]]; then
+    ok "$what ${DIM}($(( $(date +%s) - started ))s)${RESET}"
+    rm -f "$log"
+  else
+    echo -e "${DIM}  exit $rc; the last 40 lines of $log:${RESET}"
+    tail -40 "$log" | sed 's/^/    /'
+  fi
+  return "$rc"
+}
+
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
 # clean. Disabled at the end of the happy path so Verdaccio keeps running for
@@ -399,13 +427,11 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 # would let the two sides disagree at runtime. Each generator's --check diffs
 # without writing.
 
-banner "BUS REGISTRY DRIFT GATE"
+banner "DRIFT AND LOCKFILE GATES"
 
-step "Checking generated bus files against specs/src/bus/registry.json..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
-  ok "bus registry and both generated languages agree"
-else
+if ! run_logged "the bus registry and both generated languages agree" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+    sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
   fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
   echo ""
   echo -e "  Regenerate both languages and commit:"
@@ -422,16 +448,14 @@ fi
 #
 # The two gates below both read it.
 
-banner "OPENAPI BUNDLE"
-
 # specs/openapi.json is a BUILD ARTIFACT bundled from specs/src/. With the
 # gates running before the package builds, the copy a prior build left may be
 # stale or absent — bundle fresh first. Version pinned to the repo's
 # devDependency, same as CI.
-step "Bundling specs/src into specs/openapi.json..."
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace "$NODE_IMAGE" \
-  npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json >/dev/null; then
-  fail "Could not bundle the OpenAPI spec (redocly; output above)."
+if ! run_logged "specs/src bundled into specs/openapi.json" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace "$NODE_IMAGE" \
+    npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json; then
+  fail "Could not bundle the OpenAPI spec (redocly says why, above)."
   exit 1
 fi
 
@@ -442,13 +466,9 @@ fi
 # stale. Node generators write the tables and the bus vocabulary; the models
 # (types.py) are written by a Python tool pinned in the package's lockfile.
 
-banner "PYTHON SDK DRIFT GATE"
-
-step "Checking the Python SDK's generated tables against specs/src..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+if ! run_logged "the Python SDK's generated tables match specs/src" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check && node scripts/spec/generate-media-types-python.mjs --check && node scripts/spec/generate-encodings-python.mjs --check'; then
-  ok "the Python SDK's generated tables match specs/src"
-else
   fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
@@ -458,14 +478,13 @@ else
   exit 1
 fi
 
-step "Checking the Python SDK's models against specs/openapi.json (in ${PYTHON_IMAGE})..."
 # The environment is made INSIDE the container (/venv) from the package's
 # lockfile, and Python is told to write no bytecode: nothing lands in the
 # working tree. Only uv's download cache is kept between runs.
 #
 # Making the environment and comparing report SEPARATELY, as for Go: a failed
 # download is not a stale file.
-MODELS_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-python-models.XXXXXX")
+MODELS_LOG=$(mktemp "$TMP_DIR/semiont-python-models.XXXXXX")
 MODELS_RC=0
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
@@ -479,7 +498,7 @@ $RT run --rm \
   sh -c 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
          uv sync --quiet --locked --project packages/python/sdk || exit 3
          uv run --no-sync --project packages/python/sdk python packages/python/sdk/scripts/generate_models.py --check || exit 4' \
-  2>&1 | tee "$MODELS_LOG" \
+  > "$MODELS_LOG" 2>&1 \
   || MODELS_RC=$?
 
 # The generator says DRIFT (or "new") when it compared and found a difference.
@@ -488,6 +507,7 @@ if [[ "$MODELS_RC" == 0 ]]; then
   ok "the Python SDK's models match the spec"
   rm -f "$MODELS_LOG"
 elif [[ "$MODELS_RC" == 4 ]] && grep -qE '^(DRIFT|new) ' "$MODELS_LOG"; then
+  grep -E '^(DRIFT|new) ' "$MODELS_LOG" | sed 's/^/    /'
   fail "packages/python/sdk/src/semiont/types.py is STALE (or was hand-edited) — it must match the OpenAPI spec."
   echo ""
   echo -e "  Regenerate and commit it:"
@@ -496,6 +516,7 @@ elif [[ "$MODELS_RC" == 4 ]] && grep -qE '^(DRIFT|new) ' "$MODELS_LOG"; then
   echo ""
   exit 1
 else
+  tail -40 "$MODELS_LOG" | sed 's/^/    /'
   fail "The Python SDK's models gate could not RUN (exit $MODELS_RC; its output is above)."
   echo ""
   echo -e "  This says nothing about whether the models are stale — the check never got"
@@ -528,15 +549,13 @@ fi
 # environment and writes nothing, and the one a working tree may hold from a
 # run on the host is not looked at.
 
-banner "PYTHON LOCKFILE GATE"
-
 PYTHON_PROJECTS="packages/python/inference packages/python/graph packages/python/vectors packages/python/service"
 for pyproject in "$REPO_ROOT"/images/*/pyproject.toml; do
   PYTHON_PROJECTS+=" images/$(basename "$(dirname "$pyproject")")"
 done
 
 for PYTHON_PROJECT in $PYTHON_PROJECTS; do
-  step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
+  LOCK_LOG=$(mktemp "$TMP_DIR/semiont-lock.XXXXXX")
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.
   LOCK_RC=0
@@ -550,10 +569,12 @@ for PYTHON_PROJECT in $PYTHON_PROJECTS; do
     "$PYTHON_IMAGE" \
     sh -c 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
            uv lock --check --project "$1" || exit 4' sh "$PYTHON_PROJECT" \
+    > "$LOCK_LOG" 2>&1 \
     || LOCK_RC=$?
   if [[ "$LOCK_RC" == 0 ]]; then
-    ok "${PYTHON_PROJECT}/uv.lock agrees with its manifests"
+    rm -f "$LOCK_LOG"
   elif [[ "$LOCK_RC" == 4 ]]; then
+    tail -40 "$LOCK_LOG" | sed 's/^/    /'
     fail "${PYTHON_PROJECT}/uv.lock does not agree with its manifests (uv says how, above)."
     echo ""
     echo -e "  Lock it again and commit the lockfile:"
@@ -568,6 +589,7 @@ for PYTHON_PROJECT in $PYTHON_PROJECTS; do
     echo ""
     exit 1
   else
+    tail -40 "$LOCK_LOG" | sed 's/^/    /'
     fail "The lockfile gate could not RUN for ${PYTHON_PROJECT} (exit $LOCK_RC; its output is above)."
     echo ""
     echo -e "  This says nothing about whether the lockfile is stale: ${BOLD}uv${RESET} could not be"
@@ -576,6 +598,7 @@ for PYTHON_PROJECT in $PYTHON_PROJECTS; do
     exit 1
   fi
 done
+ok "the lockfiles of the $(echo $PYTHON_PROJECTS | wc -w | tr -d ' ') Python projects agree with their manifests"
 
 # --- sdk-go drift gate ---
 #
@@ -586,13 +609,9 @@ done
 # don't mutate source) and diffs: byte-identical or fail. Deterministic
 # because the generator version is pinned.
 
-banner "SDK-GO DRIFT GATE"
-
-step "Checking the Go SDK's generated tables against specs/src..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+if ! run_logged "the Go SDK's generated tables match specs/src" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-sdk-telemetry-go.mjs --check && node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
-  ok "the Go SDK's generated tables match specs/src"
-else
   fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
@@ -602,7 +621,6 @@ else
   exit 1
 fi
 
-step "Checking packages/go/sdk/api/client_gen.go against specs/openapi.json..."
 # Both Go caches are this script's own, not shared with other container
 # consumers. Concurrent container VMs extracting into one shared module cache
 # corrupt it — Go's cache locking is flock, which does not hold across VM
@@ -642,7 +660,7 @@ CORRUPT_CACHE_RE='no such file or directory|no matching files found|cannot embed
 # CORRUPT MODULE CACHE from a network failure, and the two have opposite remedies.
 # `set -o pipefail` (line 2) is what makes `$?` the container's code rather than
 # tee's — without it this silently reports success on every failure.
-DRIFT_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-drift.XXXXXX")
+DRIFT_LOG=$(mktemp "$TMP_DIR/semiont-drift.XXXXXX")
 
 run_drift_check() {
   DRIFT_RC=0
@@ -657,7 +675,7 @@ run_drift_check() {
              -config packages/go/sdk/oapi-codegen.yaml \
              -o /tmp/client_gen.check.go specs/openapi.json || exit 3
            diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go >/dev/null || exit 4' \
-    2>&1 | tee "$DRIFT_LOG" \
+    > "$DRIFT_LOG" 2>&1 \
     || DRIFT_RC=$?
 }
 
@@ -688,7 +706,7 @@ fi
 
 case "$DRIFT_RC" in
   0)
-    ok "packages/go/sdk matches the spec"
+    ok "packages/go/sdk/api/client_gen.go matches specs/openapi.json"
     rm -f "$DRIFT_LOG"
     ;;
   4)
@@ -702,6 +720,7 @@ case "$DRIFT_RC" in
     exit 1
     ;;
   *)
+    tail -40 "$DRIFT_LOG" | sed 's/^/    /'
     fail "The sdk-go drift gate could not RUN (the generator exited $DRIFT_RC; its output is above)."
     echo ""
     echo -e "  This says nothing about whether the Go client is stale — the check never got"
@@ -764,9 +783,9 @@ case "$DRIFT_RC" in
     ;;
 esac
 
-step "Checking the generated Go client covers every schema..."
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  node scripts/ci/check-go-schema-coverage.mjs; then
+if ! run_logged "the generated Go client covers every schema" \
+    $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
+    node scripts/ci/check-go-schema-coverage.mjs; then
   fail "The generated Go client is missing schemas (see above)."
   echo ""
   echo -e "    ${BOLD}cd packages/go/sdk && go generate ./...${RESET}"
@@ -803,7 +822,6 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   fi
   ok "Verdaccio reachable with $REUSED_COUNT packages (reused, not rebuilt)"
 else
-  step "Ensuring port 4873 is free..."
   # Kill any process holding the port
   PID_ON_PORT=$(lsof -ti :4873 2>/dev/null || echo "")
   if [[ -n "$PID_ON_PORT" ]]; then
@@ -815,8 +833,8 @@ else
     done
   fi
   # Remove any leftover Verdaccio container that might be holding the port
-  $RT stop semiont-verdaccio 2>/dev/null || true
-  $RT rm   semiont-verdaccio 2>/dev/null || true
+  $RT stop semiont-verdaccio >/dev/null 2>&1 || true
+  $RT rm   semiont-verdaccio >/dev/null 2>&1 || true
   if lsof -ti :4873 > /dev/null 2>&1; then
     fail "Port 4873 is still in use after kill"
     lsof -i :4873 2>/dev/null
@@ -824,7 +842,6 @@ else
   fi
   ok "Port 4873 is free"
 
-  step "Starting fresh Verdaccio..."
   VERDACCIO_STORAGE=$(mktemp -d)
   # Copy config into a temp dir so we can mount the whole directory.
   # Apple Container CLI sandboxes single-file bind mounts in a way that
@@ -838,9 +855,6 @@ else
   # exist or not reachable"). Apple container's shares do not enforce it.
   chmod 0755 "$VERDACCIO_CONF"
   chmod 0777 "$VERDACCIO_STORAGE"
-  echo "  Container name: $VERDACCIO_NAME"
-  echo "  Storage dir:    $VERDACCIO_STORAGE"
-  echo "  Config dir:     $VERDACCIO_CONF"
 
   # Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
   # detached containers that use --rm, making logs unreachable on failure.
@@ -876,16 +890,13 @@ else
   ok "Verdaccio running at $REGISTRY"
 
   # Verify storage is empty (htpasswd should not exist)
-  echo "  Checking storage dir contents: $(ls "$VERDACCIO_STORAGE" 2>/dev/null || echo '(empty)')"
 
   # Register user and get auth token
-  step "Registering user..."
   VERDACCIO_TOKEN=""
   for i in $(seq 1 10); do
     RESPONSE=$(curl -s -X PUT "$REGISTRY/-/user/org.couchdb.user:$VERDACCIO_USER" \
       -H 'Content-Type: application/json' \
       -d "{\"name\":\"$VERDACCIO_USER\",\"password\":\"$VERDACCIO_PASS\"}" 2>/dev/null || echo "")
-    echo "  Attempt $i: $RESPONSE"
     VERDACCIO_TOKEN=$(echo "$RESPONSE" | grep -o '"token": *"[^"]*"' | cut -d'"' -f4 || echo "")
     if [[ -n "$VERDACCIO_TOKEN" ]]; then
       break
@@ -894,7 +905,7 @@ else
   done
 
   if [[ -z "$VERDACCIO_TOKEN" ]]; then
-    fail "Failed to get auth token from fresh Verdaccio"
+    fail "Failed to get auth token from fresh Verdaccio (its storage is $VERDACCIO_STORAGE)"
     echo "  Storage dir contents: $(ls -la "$VERDACCIO_STORAGE" 2>/dev/null)"
     echo "  htpasswd: $(cat "$VERDACCIO_STORAGE/htpasswd" 2>/dev/null || echo '(not found)')"
     exit 1
@@ -917,6 +928,9 @@ fi
 # states its memory: Apple container's default is 1G, in which cargo compiling
 # the workspace's crates thrashes at full CPU and never finishes.
 
+# shown <list>: a comma-separated list as a reader reads one, or "nothing to build".
+shown() { [[ -n "$1" ]] && echo "${1//,/, }" || echo "nothing to build"; }
+
 # names_of <dir>...: the names their builds take, comma-separated.
 names_of() {
   local dir names=""
@@ -930,11 +944,11 @@ names_of() {
 # image may be. Then all of version.json's published entries go to Verdaccio,
 # which this run started empty.
 build_npm() {
-  local packages names img publish=false then=""
+  local packages names img publish=false then="" done="built"
   packages=$(packages_of typescript)
   names=$(names_of $packages)
   for img in $REGISTRY_IMAGES; do names="${names:+$names,}$img"; done
-  [[ -n "$REGISTRY_IMAGES" ]] && publish=true && then=", then publish to Verdaccio"
+  [[ -n "$REGISTRY_IMAGES" ]] && publish=true && then=", then publish to Verdaccio" && done="built and published to Verdaccio"
   [[ -z "$names" && "$publish" != true ]] && return 0
 
   if [[ "$publish" == true ]]; then
@@ -948,8 +962,9 @@ build_npm() {
     trap restore_manifests EXIT
   fi
 
-  step "npm: ${names:-nothing to build}${then} ${DIM}(in ${NODE_IMAGE})${RESET}"
-  $RT run --rm \
+  step "npm: $(shown "$names")${then} ${DIM}(in ${NODE_IMAGE})${RESET}"
+  if ! run_logged "npm: $done" \
+    $RT run --rm \
     -v "$REPO_ROOT":/workspace \
     -v "$NPM_CACHE_DIR":/root/.npm \
     -w /workspace \
@@ -979,7 +994,10 @@ NPMRC
           --clean \
           --npmrc /tmp/.npmrc
       fi
-    "
+    "; then
+    fail "The npm packages did not build, or did not publish (scripts/ci/build.sh or publish.sh says why, above)."
+    exit 1
+  fi
   built $packages
 }
 
@@ -994,8 +1012,9 @@ build_rust() {
   packages=$(packages_of rust)
   [[ -z "$packages" ]] && return 0
   for dir in $packages; do args="$args -p $(plan_field "$dir" 3)"; done
-  step "Rust: $(names_of $packages) ${DIM}(in rust:${RUST_TOOLCHAIN}-bookworm)${RESET}"
-  if ! $RT run --rm \
+  step "Rust: $(shown "$(names_of $packages)") ${DIM}(in rust:${RUST_TOOLCHAIN}-bookworm)${RESET}"
+  if ! run_logged "Rust: built" \
+      $RT run --rm \
       -m 8g \
       -v "$REPO_ROOT":/workspace \
       -v "$CARGO_REGISTRY_DIR":/usr/local/cargo/registry \
@@ -1019,10 +1038,11 @@ build_python() {
   packages=$(packages_of python)
   [[ -z "$packages" ]] && return 0
   for dir in $packages; do rm -rf "$REPO_ROOT/$dir/dist"; done
-  step "Python: $(names_of $packages) ${DIM}(in ${PYTHON_IMAGE})${RESET}"
+  step "Python: $(shown "$(names_of $packages)") ${DIM}(in ${PYTHON_IMAGE})${RESET}"
   # What the builds need and the image lacks leaves with 3: a failed download
   # is not a package that does not build.
-  $RT run --rm \
+  run_logged "Python: built" \
+    $RT run --rm \
     -m 8g \
     -v "$REPO_ROOT":/workspace \
     -v "$UVCACHE_DIR":/root/.cache/uv \
@@ -1054,8 +1074,9 @@ build_go() {
   local packages
   packages=$(packages_of go)
   [[ -z "$packages" ]] && return 0
-  step "Go: $(names_of $packages) ${DIM}(in ${GO_IMAGE})${RESET}"
-  if ! $RT run --rm \
+  step "Go: $(shown "$(names_of $packages)") ${DIM}(in ${GO_IMAGE})${RESET}"
+  if ! run_logged "Go: built" \
+      $RT run --rm \
       -m 8g \
       -v "$REPO_ROOT":/workspace \
       -v "$GOCACHE_DIR":/root/.cache/go-build \
@@ -1126,8 +1147,6 @@ done
 FANOUT_FAILURES=""
 [[ -n "$FANOUT_RTS" ]] && step "Fan-out: images will also be loaded into${BOLD}$FANOUT_RTS${RESET}"
 
-# TMPDIR ends in a slash on macOS; joining with another one yields `T//path`.
-TMP_DIR="${TMPDIR:-/tmp}"; TMP_DIR="${TMP_DIR%/}"
 
 # Copies every :local image into each OTHER responsive runtime. Loops runtime
 # OUTSIDE image so the happy path is one line per destination rather than one
@@ -1591,7 +1610,8 @@ esac
 # nothing reads (the version comes from -ldflags in a release build), and git
 # refuses a checkout owned by another user, as a root container on Linux sees it.
 step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in ${GO_IMAGE}..."
-$RT run --rm \
+if ! run_logged "apps/launcher/dist/semiont built" \
+  $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
   -v "$GOMODCACHE_DIR":/go/pkg/mod \
@@ -1599,8 +1619,10 @@ $RT run --rm \
   -e GOPROXY="$GOPROXY_CACHED" \
   -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
   "$GO_IMAGE" \
-  go build -buildvcs=false -o dist/semiont .
-ok "apps/launcher/dist/semiont built"
+  go build -buildvcs=false -o dist/semiont .; then
+  fail "The launcher did not build (go says why, above)."
+  exit 1
+fi
 
 # --- What is kept between runs, kept bounded ---
 #
