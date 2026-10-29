@@ -53,9 +53,9 @@ const named = (filter: JobFilter): string =>
 const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yield'];
 
 // Host may be `host` or `host:port` (the KB's domain is embedded raw; the
-// read-side `didToAgent` deliberately scans from the RIGHT so host:port
-// colons don't fool it — did-utils.ts). Anchor on `:agents:` like the
-// parser does; group 1 is the whole host (incl. any port).
+// record reads a DID's kind from the RIGHT so host:port colons don't fool it —
+// specs/src/principals/kind-cases.json). Anchor on `:agents:`; group 1 is the
+// whole host (incl. any port).
 const DID_RE = /^did:web:(.+):agents:([^:]+):([^:]+)$/;
 
 test.describe('collaborator directory (browse.agents)', () => {
@@ -97,7 +97,8 @@ test.describe('collaborator directory (browse.agents)', () => {
         const m = DID_RE.exec(did!);
         expect(m, `DID shape did:web:<host>:agents:<provider>:<model> — got "${did}"`).toBeTruthy();
         // Self-consistency: the DID's provider/model segments ARE the structured
-        // fields (softwareToAgent mints both from the same (provider, model)).
+        // fields (the Archivist names a roster entry by `agent_did` of the same
+        // (provider, model)).
         expect(decodeURIComponent(m![2]!)).toBe(agent.provider);
         expect(decodeURIComponent(m![3]!)).toBe(agent.model);
         didHosts.add(m![1]!);

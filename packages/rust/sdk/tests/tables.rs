@@ -73,8 +73,9 @@ fn principal_cases() {
             did,
             "{why}"
         );
-        assert!(
-            !identity::names_software(&did),
+        assert_eq!(
+            identity::kind_of(&did),
+            identity::Kind::Person,
             "{why}: a person's DID read as software"
         );
     }
@@ -100,9 +101,36 @@ fn principal_cases() {
             text(case, "name"),
             "{why}"
         );
-        assert!(
-            identity::names_software(&did),
+        assert_eq!(
+            identity::kind_of(&did),
+            identity::Kind::Software,
             "{why}: an agent's DID read as a person"
+        );
+    }
+}
+
+/// A case's kind, as the table names it.
+fn kind(case: &Value) -> identity::Kind {
+    match text(case, "kind").as_str() {
+        "person" => identity::Kind::Person,
+        "software" => identity::Kind::Software,
+        other => panic!("a case names no kind the rule has: {other}"),
+    }
+}
+
+#[test]
+fn kind_cases() {
+    let cases = table(include_str!("../specs/principals/kind-cases.json"));
+    let cases = cases["cases"]
+        .as_array()
+        .expect("principals/kind-cases.json has cases");
+    assert!(!cases.is_empty(), "principals/kind-cases.json has no case");
+    for case in cases {
+        assert_eq!(
+            identity::kind_of(&text(case, "did")),
+            kind(case),
+            "{}",
+            text(case, "why")
         );
     }
 }
