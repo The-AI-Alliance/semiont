@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { inject } from 'vitest';
 import { call, type CallOptions, type Reply } from './http';
+import { runEnvironment } from './paths';
 import { serviceEnvironment } from './spec';
 
 export type ArchivistSettings = components['schemas']['ArchivistConfig'];
@@ -77,7 +78,7 @@ function launch({ settings, env, verbatim, args, pathFirst }: ArchivistLaunch): 
   const dir = mkdtempSync(join(tmpdir(), 'conformance-archivist-'));
   const document = join(dir, 'archivist.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');
-  const childEnv: Record<string, string> = { PATH: [pathFirst, process.env['PATH']].filter((p) => p).join(':') };
+  const childEnv: Record<string, string> = { ...runEnvironment(), PATH: [pathFirst, process.env['PATH']].filter((p) => p).join(':') };
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
   const [command, ...prefix] = inject('archivistCommand');
   const child = spawn(command!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

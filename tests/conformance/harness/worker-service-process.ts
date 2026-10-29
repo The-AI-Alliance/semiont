@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call, type Reply } from './http';
+import { runEnvironment } from './paths';
 
 export type WorkerSettings = components['schemas']['WorkerConfig'];
 
@@ -96,7 +97,7 @@ function launch({ command, settings, env, verbatim, args, unlisted = {} }: Worke
   const dir = mkdtempSync(join(tmpdir(), 'conformance-worker-'));
   const document = join(dir, 'worker.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', ...unlisted };
+  const childEnv: Record<string, string> = { ...runEnvironment(), ...unlisted };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const [program, ...prefix] = command;
   const child = spawn(program!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

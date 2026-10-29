@@ -9,6 +9,7 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { runEnvironment } from '../harness/paths';
 
 /** A frame the SDK delivered to its caller. */
 export interface DeliveredFrame {
@@ -109,10 +110,10 @@ export class Driver {
     });
   }
 
-  /** Start `command`, with `env` beside the PATH that finds it, and wait for it to say it is ready. */
+  /** Start `command`, with `env` beside the run's environment (`runEnvironment`), and wait for it to say it is ready. */
   static async start(command: readonly string[], env: Record<string, string> = {}): Promise<Driver> {
     const [program, ...args] = command;
-    const child = spawn(program!, args, { env: { PATH: process.env['PATH'] ?? '', ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(program!, args, { env: { ...runEnvironment(), ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
     const driver = new Driver(child);
     await driver.until('the driver to be ready', () => (driver.ready ? true : undefined), 30_000);
     return driver;

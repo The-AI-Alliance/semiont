@@ -61,3 +61,10 @@ npm test
 
 The spec is bundled from `specs/src` at the start of every run, so a suite
 never checks against a stale bundle.
+
+Every process a suite starts is given the run's environment
+(`runEnvironment` in [harness/paths.ts](harness/paths.ts)) beside what its
+service's table lists: the `PATH` it is found on, and `LLVM_PROFILE_FILE`
+when the run sets it. CI does, in every job that starts the Rust binaries,
+which it builds instrumented: each writes there what it ran as it exits, and
+CI's Rust Coverage job reports it.

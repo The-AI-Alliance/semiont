@@ -38,7 +38,8 @@ coverage:
 # <language>-<name>, and for each image, images/<name>, named image-<name>; and a
 # component for each language, its packages together. A component is scoped by its paths in every report, so the
 # badges read components: a flag is scoped by the uploads that carry it, and the
-# Rust workspace's one upload carries every crate's. lint:coverage-roster holds the
+# Rust workspace's two uploads (its tests', and its binaries' run by the conformance
+# suites) each carry many crates'. lint:coverage-roster holds the
 # lists, ci.yml's uploads and the READMEs' badges to the packages there are.
 component_management:
   default_rules:
