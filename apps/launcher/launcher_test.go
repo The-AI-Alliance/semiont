@@ -95,9 +95,11 @@ func TestMain(m *testing.M) {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		// The libraries are a module of their own: -cover alone would measure
-		// main.go and nothing it calls.
-		launcherBuild = append(launcherBuild, "-cover", "-coverpkg", librariesImportPath+"/...")
+		// -coverpkg names the libraries, a module of their own, which -cover
+		// alone would leave out, and main too: the compiler adds the call that
+		// writes coverage only to a main package it measures, so a launcher
+		// whose main is left out writes nothing.
+		launcherBuild = append(launcherBuild, "-cover", "-coverpkg", ".,"+librariesImportPath+"/...")
 	}
 	for _, build := range [][]string{
 		append(launcherBuild, "."),

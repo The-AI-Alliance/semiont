@@ -981,8 +981,8 @@ compares against them as that system runs.
 
 What of the libraries the scenarios reach is measured by the launcher they
 run, not by the test binary: `go test . -launcher-coverdir=<dir>` builds that
-launcher with coverage of `packages/go/launcher`, and every run of it writes
-there. `go tool covdata percent -i <dir>` reads it, and `go tool covdata
+launcher with coverage of itself and of `packages/go/launcher`, and every run
+of it writes there. `go tool covdata percent -i <dir>` reads it, and `go tool covdata
 textfmt -i <dir> -o <file>` writes it as a profile. `go test -coverprofile`
 cannot hold it, since it reads only what the test binary itself wrote, and a
 launcher that ends by a signal writes nothing.
