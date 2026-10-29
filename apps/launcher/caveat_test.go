@@ -45,7 +45,7 @@ func TestBrewCaveatNamesOnlyRealCommands(t *testing.T) {
 	}
 	// A home of its own: the launcher logs every invocation under its home,
 	// and the real one is not this test's to write in.
-	home := os.Environ()
+	home := append(os.Environ(), coverEnv()...)
 	for name, value := range harness.HomeEnv(t.TempDir()) {
 		home = append(home, name+"="+value)
 	}

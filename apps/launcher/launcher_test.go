@@ -41,13 +41,22 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite golden files from observed output")
 
+// launcherCoverDir: where every run of the launcher under test writes what of
+// the launcher's libraries it ran, for `go tool covdata` to read. go test's
+// own -coverprofile cannot hold it: go test reads only what the test binary
+// it built wrote.
+var launcherCoverDir = flag.String("launcher-coverdir", "", "build the launcher under test with coverage of the launcher's libraries, written to this directory")
+
 var (
 	launcherBin string
 	fakertBin   string
 )
 
-// libraries: the launcher libraries' module, from this directory.
+// libraries: the launcher libraries' module, from this directory, and its
+// import path.
 var libraries = filepath.Join("..", "..", "packages", "go", "launcher")
+
+const librariesImportPath = "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 
 // libraryTestdata: a file of the launcher libraries' testdata: the fixture
 // knowledge base (kb/) and the goldens (golden/).
@@ -75,9 +84,24 @@ func TestMain(m *testing.M) {
 	// (packages/go/launcher/hostnet_scenario.go); and it stages the configs it
 	// mounts under the temporary directory its environment names, which is
 	// each scenario's own (packages/go/launcher/staging_scenario.go).
+	launcherBuild := []string{"build", "-tags", "scenario", "-o", launcherBin}
+	if *launcherCoverDir != "" {
+		// Absolute, since each launcher runs in its own scenario's directory.
+		if *launcherCoverDir, err = filepath.Abs(*launcherCoverDir); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if err := os.MkdirAll(*launcherCoverDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		// The libraries are a module of their own: -cover alone would measure
+		// main.go and nothing it calls.
+		launcherBuild = append(launcherBuild, "-cover", "-coverpkg", librariesImportPath+"/...")
+	}
 	for _, build := range [][]string{
-		{"build", "-tags", "scenario", "-o", launcherBin, "."},
-		{"build", "-o", fakertBin, "github.com/The-AI-Alliance/semiont/packages/go/launcher/fakert"},
+		append(launcherBuild, "."),
+		{"build", "-o", fakertBin, librariesImportPath + "/fakert"},
 	} {
 		out, err := exec.Command("go", build...).CombinedOutput()
 		pkg := build[len(build)-1]
@@ -371,8 +395,18 @@ func repoRoot() string {
 	return abs
 }
 
+// coverEnv: what a launcher under test is told so it writes its coverage, or
+// nothing when the suite does not measure it. A launcher built with coverage
+// and given no GOCOVERDIR warns of it on every run.
+func coverEnv() []string {
+	if *launcherCoverDir == "" {
+		return nil
+	}
+	return []string{"GOCOVERDIR=" + *launcherCoverDir}
+}
+
 func (s *scenario) env() []string {
-	env := []string{
+	env := append([]string{
 		"PATH=" + s.shim,
 		"HOME=" + s.home,
 		"FAKERT_LOG=" + s.log,
@@ -381,7 +415,7 @@ func (s *scenario) env() []string {
 		// it serves. A PATH, not a belief: the fake reads the Dockerfile, it
 		// is not told the answer.
 		"FAKERT_REPO=" + repoRoot(),
-	}
+	}, coverEnv()...)
 	if runtime.GOOS == "windows" {
 		// Windows names the home, the application-data directory and the
 		// temporary directory by variables of its own.
