@@ -15,7 +15,9 @@ first; the `bearerAuth` and `mediaToken` schemes in
 - **Two kinds of token, told apart by `iss`.** A token from the trusted issuer
   (`identity.issuer`) is a person or a service account, verified RS256 against
   the keys the issuer publishes. Any other is one the gateway signed itself — an
-  agent token — verified HS256 against its key ring, `JWT_SECRET`.
+  agent token — verified HS256 against its key ring, `JWT_SECRET`, and refused
+  unless its `iss` and `domain` are this knowledge base's domain: two knowledge
+  bases can hold one key ring.
 - **No admission of its own.** A token the issuer signed, for this knowledge
   base, within its times, is admitted. Nothing reads a role to decide access and
   no route answers 403; a refusal is always a 401.
