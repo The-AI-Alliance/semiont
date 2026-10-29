@@ -1,4 +1,4 @@
-"""`semiont.testing`: the doubles a consumer's tests are built on, each held to what it says it does.
+"""`semiont.testing`: the doubles a consumer's tests are built on, and a client and a session over them, each held to its word.
 
 A double answers what a test told it to and refuses the rest by name. It
 never answers with a value of its own making.
@@ -12,6 +12,7 @@ import pytest
 from aio import pass_time, run, soon, turns
 from pydantic import JsonValue
 from spec import JsonObject
+from tokens import token
 
 from semiont.bus import request
 from semiont.cache import Pending, Ready
@@ -20,6 +21,7 @@ from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED, MARK_DELETE, MATCH_SEARCH_REQUESTED
+from semiont.session import HeldSignIn, MemorySignIn, SemiontSession
 from semiont.storage import MemoryStorage
 from semiont.testing import (
     Delay,
@@ -38,7 +40,9 @@ from semiont.testing import (
     RequestLogEntry,
     StubGateway,
     TestClient,
+    TestSession,
     create_test_client,
+    create_test_session,
     retry_key_of,
 )
 from semiont.transport import Content, ContentTransport, Frame, FrameSink, GatewayOperations, PutBinaryRequest, Transport
@@ -48,6 +52,8 @@ from semiont.types import (
     GetAnnotationsResponse,
     GetResourceResponse,
     HealthResponse,
+    HttpEndpoint,
+    KbTarget,
     MediaTokenResponse,
     StatusResponse,
     UserResponse,
@@ -616,5 +622,47 @@ def test_a_test_client_is_a_real_client_over_the_doubles_it_is_given_or_makes() 
             await soon(client.browse.resource(RESOURCE).fresh())
         assert storage.get("semiont.cache.kb.resource") is not None
         await keeping.transport.close()
+
+    run(scenario())
+
+
+# ── A session over it ───────────────────────────────────────────────────
+
+
+def test_a_test_session_is_a_real_session_over_a_test_client_ready_at_once_and_holding_a_token_only_if_one_was_kept() -> None:
+    async def scenario() -> None:
+        made = create_test_session()
+        # What a test runner reads to know this is no class of tests, whatever its name begins with.
+        assert TestSession.__test__ is False
+        assert isinstance(made.session, SemiontSession)
+        assert (made.session.client, made.client.transport, made.session.kb.id) == (made.client, made.transport, "test-kb")
+        async with made.client, made.session as session:
+            await soon(session.ready())
+            assert (session.token.value, session.user.value) == (None, None)
+            # The token is the test's to set, and what the session holds.
+            made.token.set("a-token")
+            assert session.token.value == "a-token"
+        await made.transport.close()
+
+        # Given its client, its knowledge base and where its sign-in is kept, it is built over those.
+        client = create_test_client()
+        kb = KbTarget(id="kb-2", label="Another", endpoint=HttpEndpoint(kind="http", host="example.org", port=443, protocol="https"))
+        access = token(3600, 1)
+        kept = MemorySignIn(
+            HeldSignIn(access=access, refresh="a-refresh-token", client_id="semiont-cli", token_endpoint="https://issuer.test/token")
+        )
+        given = create_test_session(client=client, kb=kb, kept=kept)
+        assert (given.client, given.transport, given.content, given.gateway, given.kept) == (
+            client.client,
+            client.transport,
+            client.content,
+            client.gateway,
+            kept,
+        )
+        async with given.client, given.session as session:
+            await soon(session.ready())
+            # A sign-in kept there is the session's at its start.
+            assert (session.kb, session.token.value, given.token.value) == (kb, access, access)
+        await given.transport.close()
 
     run(scenario())
