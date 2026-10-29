@@ -7,6 +7,7 @@
     "go": ["packages/go/sdk/annotations/locate_test.go"],
     "worker": ["images/worker/tests/test_claim_cases.py"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: where a span of a PDF's text is on its pages."},
   "cases": [
     {
       "why": "a span that is exactly one item is that item's box; its neighbours, one ending before the span starts and one starting after it ends, are not overlapped",

@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_offsets.py"],
     "go": ["packages/go/sdk/annotations/offsets_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's text offsets, counted in code points."},
   "cases": [
     {
       "why": "a text of the basic plane: every count agrees, and the offset is the position",

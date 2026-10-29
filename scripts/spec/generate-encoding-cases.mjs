@@ -166,6 +166,9 @@ const table = {
     python: ['packages/python/sdk/tests/test_decode_cases.py'],
     go: ['packages/go/sdk/resources_test.go'],
   },
+  notYetReached: {
+    kotlin: "The Kotlin SDK's reading of a resource's bytes as its text, label by label and byte by byte.",
+  },
   cases,
 };
 

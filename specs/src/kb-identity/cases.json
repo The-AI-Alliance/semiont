@@ -8,6 +8,7 @@
     "archivist": ["images/archivist/record/src/kb.rs"],
     "launcher": ["packages/go/launcher/kbidentity_agreement_test.go", "packages/go/launcher/staging_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's reading of a knowledge base's identity from its project file."},
   "cases": [
     {
       "why": "the shape semiont init writes",

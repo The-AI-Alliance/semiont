@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_annotation_builders.py"],
     "go": ["packages/go/sdk/annotations/builders_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: its builders of the annotation a worker commits."},
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]

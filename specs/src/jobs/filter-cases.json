@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's jobFilter module, which its worker's claims read."},
   "cases": [
     {
       "why": "a mark filter takes a mark job of its motivation",
