@@ -2176,6 +2176,11 @@ jobs:
             "eclipse-temurin:$(../../../scripts/ci/jdk-version.sh)-jdk" \
             ./gradlew --no-daemon --console=plain --gradle-user-home /gradle check
 
+      # check writes JaCoCo's report when the tests ran; a run that wrote none
+      # measured nothing, and the upload below would pass it in silence.
+      - name: The coverage report was written
+        run: test -s build/reports/jacoco/test/jacocoTestReport.xml
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:

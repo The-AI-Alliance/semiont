@@ -17,8 +17,16 @@ kotlin {
         // @Suppress could let one through: the census holds those at none.
         allWarningsAsErrors = true
     }
+    // The dump holds the API written by hand: the protocol's types are the
+    // spec's, generated from it, and a change to the spec changes them.
     @OptIn(ExperimentalAbiValidation::class)
-    abiValidation()
+    abiValidation {
+        filters {
+            exclude {
+                byNames.addAll("semiont.types.**", "semiont.identifiers.**")
+            }
+        }
+    }
 }
 
 tasks.withType<JavaCompile>().configureEach {
