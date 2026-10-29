@@ -174,7 +174,7 @@ jobs:
               - 'specs/.redocly.lint-ignore.yaml'
             # The Rust workspace: the three services, the crates they share,
             # the lockfile, the toolchain, cargo-deny's policy, and the two
-            # scripts the Gateway Tests job runs over the crates. lint:workflows
+            # scripts the Rust Tests job runs over the crates. lint:workflows
             # holds every directory under apps/, images/ and packages/ that has a
             # manifest to a pattern of some filter, so a new package is mapped
             # or the lint says so.
@@ -745,8 +745,8 @@ jobs:
             echo "Each failing audit names its failing symbols in its own step's log, and the full reports are above." >> $GITHUB_STEP_SUMMARY
           fi
 
-  test-gateway:
-    name: Gateway Tests
+  test-rust:
+    name: Rust Tests
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
     if: needs.changes.outputs.rust == 'true'
@@ -790,9 +790,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             packages/rust/target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-rust-dev-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-dev-
+            ${{ runner.os }}-rust-dev-
 
       # The gateway's behaviour is the Gateway Conformance job's; what runs
       # here is the code's own hygiene and the workspace's tests, measured.
@@ -941,7 +941,7 @@ jobs:
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
   # suites fetch them and build nothing. It runs whenever any suite does: its
-  # areas are the union of theirs. Gateway Tests builds the debug profile for
+  # areas are the union of theirs. Rust Tests builds the debug profile for
   # cargo test and is not this. lint:workflows holds the release build to
   # this job alone.
   build-rust:
@@ -1956,7 +1956,7 @@ jobs:
   # build-rust builds the six binaries instrumented, and each job that starts
   # one keeps what they ran. This job merges every job's profiles into one
   # report over the six binaries and uploads it under the flag of every crate
-  # they link. Gateway Tests uploads the crates' own tests under the same
+  # they link. Rust Tests uploads the crates' own tests under the same
   # flags, and Codecov adds the two: the services are tested by the suites,
   # and this is where those runs are counted.
   rust-coverage:
@@ -3269,7 +3269,7 @@ jobs:
       - browser-security
       - lighthouse-accessibility
       - compliance-check
-      - test-gateway
+      - test-rust
       - build-rust
       - gateway-security
       - gateway-conformance
