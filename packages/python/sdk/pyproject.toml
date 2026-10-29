@@ -23,6 +23,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # RS256 for a service account that proves itself with a key (`semiont.http.KeyCredential`).
+    "cryptography>=50,<51",
     "httpx>=0.28,<1",
     # The API alone: it does nothing until the process it runs in installs a provider.
     "opentelemetry-api>=1.30,<2",

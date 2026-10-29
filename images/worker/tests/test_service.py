@@ -14,7 +14,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont_service.config import Refused
 
 from semiont_worker.log import LOG
@@ -144,7 +144,9 @@ def test_a_provider_whose_facts_are_a_catalogue_s_boots_with_them_and_is_refused
 @pytest.mark.usefixtures("unconfigured")
 def test_everything_it_is_started_with_is_read_at_boot_a_client_for_each_agent_in_the_document_s_order(tmp_path: Path) -> None:
     started = boot(["--config", written(tmp_path)], {**ACCOUNT, "FIRST_KEY": "sk-first", "SECOND_KEY": "sk-second", "UNREAD": "x"})
-    assert started.credential == Credential(issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-worker", client_secret="s3cret")
+    assert started.credential == SecretCredential(
+        issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-worker", client_secret="s3cret"
+    )
     assert [(client.provider, client.model_id) for client in started.clients] == [
         ("anthropic", "claude-test"),
         ("ollama", "gemma2:27b"),

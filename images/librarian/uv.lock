@@ -2114,6 +2114,7 @@ wheels = [
 name = "semiont"
 source = { editable = "../../packages/python/sdk" }
 dependencies = [
+    { name = "cryptography" },
     { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
@@ -2121,6 +2122,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=50,<51" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "hypothesis", marker = "extra == 'axioms'", specifier = ">=6.130,<7" },
     { name = "opentelemetry-api", specifier = ">=1.30,<2" },
