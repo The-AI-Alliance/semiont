@@ -134,7 +134,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.115",
+    "@opencode-ai/models": "0.0.116",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",
@@ -143,7 +143,7 @@
     "stylelint": "^17.0.0",
     "stylelint-config-standard": "^40.0.0",
     "stylelint-order": "^8.1.1",
-    "typescript": "^6.0.2"
+    "typescript": "^7.0.2"
   },
   "license": "Apache-2.0"
 }
