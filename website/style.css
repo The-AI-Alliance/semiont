@@ -1,0 +1,110 @@
+:root {
+    color-scheme: light dark;
+    --text: #1c1c1c;
+    --muted: #6c6c6c;
+    --link: #2456a4;
+    --rule: #d9d9d9;
+    --bg: #fffdf9;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text: #e6e3de;
+        --muted: #9d9d9d;
+        --link: #8ab4f8;
+        --rule: #3a3a3a;
+        --bg: #171717;
+    }
+}
+
+html {
+    background: var(--bg);
+}
+
+body {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 3.75rem 1.5rem 4rem;
+    font-family: Charter, 'Bitstream Charter', Georgia, 'Times New Roman', serif;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    color: var(--text);
+}
+
+header {
+    text-align: center;
+}
+
+h1 {
+    margin: 0 0 0.75rem;
+    font-size: 2.1rem;
+}
+
+.summary {
+    margin: 0;
+    text-align: left;
+}
+
+.links {
+    margin: 1.1rem 0 0;
+    padding: 0;
+    list-style: none;
+    text-wrap: balance;
+}
+
+.links li {
+    display: inline;
+    white-space: nowrap;
+}
+
+.links li:not(:last-child)::after {
+    content: "\00b7";
+    margin: 0 0.5em;
+    color: var(--muted);
+}
+
+figure {
+    margin: 2rem 0 0;
+}
+
+figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+}
+
+h2 {
+    margin: 2.2rem 0 0.9rem;
+    padding-bottom: 0.25rem;
+    font-size: 1.35rem;
+    border-bottom: 1px solid var(--rule);
+}
+
+p {
+    margin: 0.6rem 0 0;
+}
+
+a {
+    color: var(--link);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.4rem;
+}
+
+li {
+    margin: 0.35rem 0;
+}
+
+footer {
+    margin-top: 3rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9em;
+    color: var(--muted);
+}
