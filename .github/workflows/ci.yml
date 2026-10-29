@@ -2157,13 +2157,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # Gradle's home holds the distribution the wrapper names and the
-      # dependencies the lockfiles pin, so it is keyed by those files.
+      # Gradle's home holds the distribution the wrapper names, the Kotlin
+      # plugin's tools its catalog version fixes, and the dependencies the
+      # lockfiles pin, so it is keyed by those files.
       - name: Cache Gradle's home
         uses: actions/cache@v6.1.0
         with:
           path: ~/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('packages/kotlin/sdk/gradle/wrapper/gradle-wrapper.properties', 'packages/kotlin/sdk/gradle.lockfile', 'packages/kotlin/sdk/settings-gradle.lockfile') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('packages/kotlin/sdk/gradle/wrapper/gradle-wrapper.properties', 'packages/kotlin/sdk/gradle/libs.versions.toml', 'packages/kotlin/sdk/gradle.lockfile', 'packages/kotlin/sdk/settings-gradle.lockfile') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 

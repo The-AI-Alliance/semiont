@@ -36,6 +36,13 @@ tasks.withType<JavaCompile>().configureEach {
 dependencyLocking {
     lockAllConfigurations()
 }
+// The Kotlin plugin's own tools (its compiler, its build tools, its compiler
+// plugins) are the versions the plugin's version fixes. Locked as well, they
+// were left behind when Dependabot moved the plugin, and the build refused
+// the new plugin's compiler.
+configurations.matching { it.name.startsWith("kotlin") }.configureEach {
+    resolutionStrategy.deactivateDependencyLocking()
+}
 
 // The generator of the SDK's protocol types: Kotlin of its own, compiled
 // first and run over specs/src, whose output is compiled with the SDK's own
