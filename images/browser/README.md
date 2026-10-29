@@ -63,8 +63,8 @@ already running on the machine. A 200 carrying the SPA would be indistinguishabl
 ## When it starts
 
 **It belongs to no stack.** Every `semiont start` keeps a running Browser whose image is
-current, and replaces one whose image is not. `semiont stop` leaves it running;
-`semiont stop --service browser` stops it. Its command,
+current, and replaces one whose image is not. `semiont stop` stops it with the stack;
+`semiont stop --service browser` stops it alone. Its command,
 `node /app/node_modules/@semiont/browser/server.js`, runs under a `tini` entrypoint.
 
 ## Configuration

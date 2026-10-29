@@ -16,12 +16,13 @@ Image build and publication: [administration/IMAGES.md](../../../docs/operator/a
 
 ## Running it
 
-The Browser is the machine-level viewer of every KB rather than a member of any one stack: the
-host-installed launcher ensures it on every start, and it outlives each stack's `stop`:
+The Browser is the viewer of every KB rather than a member of any one stack: the
+host-installed launcher ensures it on every start, and `semiont stop` stops it with the stack:
 
 ```bash
 semiont start                       # from a KB directory; ensures the Browser on :3000
-semiont stop --service browser      # the explicit off-switch
+semiont stop                        # the stack and the Browser
+semiont stop --service browser      # the Browser alone
 ```
 
 The Browser runs `ghcr.io/the-ai-alliance/semiont-browser:latest`. Pin a version with

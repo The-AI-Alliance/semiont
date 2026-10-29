@@ -142,6 +142,12 @@ podman rm semiont-postgres
 podman rm semiont-otel-collector
 podman rm semiont-prometheus
 podman rm semiont-jaeger
+container stop semiont-browser
+container rm semiont-browser
+docker stop semiont-browser
+docker rm semiont-browser
+podman stop semiont-browser
+podman rm semiont-browser
 lsof -nP -iTCP:24100 -sTCP:LISTEN
 lsof -nP -iTCP:24101 -sTCP:LISTEN
 lsof -nP -iTCP:24102 -sTCP:LISTEN
