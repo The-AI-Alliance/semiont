@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
+import org.gradle.jvm.application.tasks.CreateStartScripts
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.tools.ToolProvider
@@ -250,6 +251,37 @@ val refusals = tasks.register<Refusals>("refusals") {
     against.from(sourceSets.main.map { it.output }, configurations.runtimeClasspath)
     compiler.from(configurations.named("kotlinCompilerClasspath"))
     scratch = layout.buildDirectory.dir("refusals")
+}
+
+// The conformance drivers: programs the suites under tests/conformance start
+// in the SDK's place, each reaching the SDK only through what it makes public.
+// installConformance lays them out as the suites find them: a start script
+// each in build/conformance/bin, over the SDK and what it runs on in lib.
+val conformance: SourceSet = sourceSets.create("conformance") {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations.named(conformance.implementationConfigurationName) { extendsFrom(configurations.implementation.get()) }
+val conformanceJar = tasks.register<Jar>("conformanceJar") {
+    archiveBaseName = "semiont-conformance"
+    from(conformance.output)
+}
+val wireDriverScripts = tasks.register<CreateStartScripts>("wireDriverScripts") {
+    applicationName = "semiont-kotlin-wire-driver"
+    mainClass = "semiont.conformance.WireDriverKt"
+    outputDir = layout.buildDirectory.dir("conformance-scripts").get().asFile
+    classpath = files(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
+}
+tasks.register<Sync>("installConformance") {
+    description = "Lays out the conformance drivers where the suites find them."
+    group = LifecycleBasePlugin.BUILD_GROUP
+    into(layout.buildDirectory.dir("conformance"))
+    into("lib") {
+        from(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
+    }
+    into("bin") {
+        from(wireDriverScripts)
+    }
 }
 
 tasks.check {
