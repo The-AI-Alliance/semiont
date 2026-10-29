@@ -127,7 +127,9 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 `packages/go/sdk/conformance` is a module of its own: the three programs the conformance suite drives Go's SDK through (wire, live and worker), and the only Go code that takes an OpenTelemetry exporter.
 
-`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. Its commands on a knowledge base are front ends on `packages/go/sdk`, which it requires with a `replace` directive. It is built for each platform and released as an archive and through Homebrew.
+`packages/go/launcher` is a module of its own, `github.com/The-AI-Alliance/semiont/packages/go/launcher`: what the launcher is built from. Package `launcher` is the engine (`init`, `start`, `stop`, `status`, codespaces, identity and custody), `stack` reads a knowledge base's `.semiont/` documents, `provenance` decides whether an image is one a release built, `images` reads what a service image declares about itself, and `verbs` is the eight verbs on the command line and over MCP, on `packages/go/sdk`; `harness` and `fakert` are what its tests are built on. Beside the Go SDK it depends on the MCP Go SDK, `nats-server`, `jsonschema`, `sigstore-go`, `yaml` and `golang.org/x`. It is published nowhere, and nothing but the launcher requires it.
+
+`apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. It is the program's `main` and the tests that build it and drive it; what it does is `packages/go/launcher`'s, and its commands on a knowledge base are front ends on `packages/go/sdk`. It requires both with a `replace` directive on their paths. It is built for each platform and released as an archive and through Homebrew.
 
 ## What each service image runs
 

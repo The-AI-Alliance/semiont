@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces",
-    "build": "npm run build:packages && npm run build:apps",
+    "build": "npm run build:packages && npm run build:browser",
     "build:packages": "node scripts/dev/build-packages.js",
     "generate:bus": "node scripts/bus/generate-ts.mjs && node scripts/bus/generate-go.mjs",
     "generate:bus:check": "node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check",
@@ -27,7 +27,7 @@
     "generate:encoding-cases:check": "node scripts/spec/generate-encoding-cases.mjs --check",
     "generate:model-catalogue": "node scripts/inference/generate-model-catalogue.mjs --out packages/python/inference/tests/catalogue",
     "generate:model-catalogue:check": "node scripts/inference/generate-model-catalogue.mjs --check packages/python/inference/tests/catalogue",
-    "build:apps": "npm run build -w semiont-browser",
+    "build:browser": "npm run build -w semiont-browser",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint:css": "git ls-files -z --cached --others --exclude-standard -- '*.css' | xargs -0 stylelint",
