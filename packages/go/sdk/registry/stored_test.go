@@ -2,11 +2,90 @@ package registry_test
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
+	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/registry"
 )
+
+// storedTable is specs/src/session/stored.json: what a registry keeps in its
+// storage, which Go states by hand and this test holds to the table.
+type storedTable struct {
+	Keys []struct {
+		Member string `json:"member"`
+		Key    string `json:"key"`
+	} `json:"keys"`
+	SessionKeyPrefix struct {
+		Prefix string `json:"prefix"`
+	} `json:"sessionKeyPrefix"`
+	StoredSession struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	} `json:"storedSession"`
+}
+
+// A key or a member the table gains fails here until Go has it.
+func TestWhatARegistryKeepsIsTheTables(t *testing.T) {
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "session", "stored.json"))
+	must(t, err)
+	var table storedTable
+	must(t, json.Unmarshal(text, &table))
+
+	keys := map[string]string{}
+	for _, entry := range table.Keys {
+		keys[entry.Member] = entry.Key
+	}
+	stated := map[string]string{
+		"knowledgeBasesKey":         registry.KnowledgeBasesKey,
+		"activeKey":                 registry.ActiveKey,
+		"openResourcesByKbKey":      registry.OpenResourcesByKbKey,
+		"lastViewedResourceByKbKey": registry.LastViewedResourceByKbKey,
+		"pendingAuthorizationKey":   semiont.PendingAuthorizationKey,
+	}
+	if !maps.Equal(keys, stated) {
+		t.Errorf("the table's keys are %v; Go states %v", keys, stated)
+	}
+	if got, want := registry.SessionKey("kb-a"), table.SessionKeyPrefix.Prefix+"kb-a"; got != want {
+		t.Errorf("a knowledge base's session key is %q; the table's is %q", got, want)
+	}
+
+	members := slices.Sorted(maps.Keys(table.StoredSession.Properties))
+	storage := semiont.NewMemoryStorage()
+	must(t, registry.StoreSession(storage, "kb-a", registry.StoredSession{
+		Access:             "a",
+		Refresh:            "r",
+		ClientID:           "semiont-browser",
+		TokenEndpoint:      "https://issuer.test/token",
+		RevocationEndpoint: "https://issuer.test/revoke",
+	}))
+	stored, _ := storage.Get(registry.SessionKey("kb-a"))
+	var written map[string]json.RawMessage
+	must(t, json.Unmarshal([]byte(stored), &written))
+	if got := slices.Sorted(maps.Keys(written)); !slices.Equal(got, members) {
+		t.Errorf("a stored session is written with %v; the table's members are %v", got, members)
+	}
+
+	for _, left := range members {
+		without := map[string]string{}
+		for _, member := range members {
+			if member != left {
+				without[member] = "the " + member
+			}
+		}
+		value, err := json.Marshal(without)
+		must(t, err)
+		must(t, storage.Set(registry.SessionKey("kb-a"), string(value)))
+		_, read := registry.StoredSessionOf(storage, "kb-a")
+		if required := slices.Contains(table.StoredSession.Required, left); read == required {
+			t.Errorf("a stored value without %s reads as a session: %v; the table requires it: %v", left, read, required)
+		}
+	}
+}
 
 func TestAStoredValueThatLacksAMemberOfASessionIsNone(t *testing.T) {
 	storage := semiont.NewMemoryStorage()

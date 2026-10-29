@@ -8,7 +8,7 @@ takes a client runs over `semiont.testing`'s doubles.
 import asyncio
 import importlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
@@ -16,6 +16,7 @@ from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
 from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing_content, recorded, silent
+from pydantic import JsonValue
 from readme import (
     a_first_program,
     a_person,
@@ -24,6 +25,7 @@ from readme import (
     building_annotations,
     content,
     live_queries,
+    several_knowledge_bases,
     state_units,
     testing,
     the_bus,
@@ -39,11 +41,14 @@ from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.identity import agent_did
 from semiont.operations import JOB_CLAIM
+from semiont.registry import save_knowledge_bases, store_session
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.state import BeckonStateUnit
-from semiont.testing import InMemoryContent, PutBinary, create_test_client
+from semiont.storage import MemoryStorage
+from semiont.stored import StoredSession
+from semiont.testing import InMemoryContent, PutBinary, ScriptedSessions, create_test_client
 from semiont.transport import Content, Frame
-from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, PdfTextItem
+from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, HttpEndpoint, KnowledgeBase, PdfTextItem, UserResponse
 from semiont.watched import Variable
 
 README = (PACKAGE / "README.md").read_text(encoding="utf-8")
@@ -503,6 +508,39 @@ def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then
 
 def test_testing_runs_the_test_it_shows() -> None:
     run(testing.a_title_is_its_resources_name_in_title_case())
+
+
+def test_several_knowledge_bases_lists_what_is_registered_brings_up_the_active_one_and_opens_a_resource_in_it(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    storage = MemoryStorage()
+    kb = KnowledgeBase(
+        id="kb-a",
+        label="KB A",
+        did="did:web:kb-a.example",
+        endpoint=HttpEndpoint(kind="http", host="localhost", port=4000, protocol="http"),
+    )
+    save_knowledge_bases(storage, [kb])
+    store_session(
+        storage,
+        kb.id,
+        StoredSession(access=token(3600, 1), refresh="r-1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"),
+    )
+
+    def answering(kb_id: str, operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | None:
+        # The knowledge base says it is the one registered, and has the resource.
+        assert kb_id == "kb-a"
+        if operation == "browse:kb-requested":
+            return {"name": "KB A", "domain": "kb-a.example"}
+        assert operation == "browse:resource-requested"
+        return {"resource": {"@context": "https://schema.org", "@id": "res-1", "name": "Notes", "representations": []}, "lastSequence": 1}
+
+    sessions = ScriptedSessions(answer=answering)
+    sessions.says_who(UserResponse.model_validate(ALICE))
+    run(several_knowledge_bases.pick_up_where_i_was(storage, sessions))
+    assert capsys.readouterr().out.splitlines() == ["KB A did:web:kb-a.example authenticated", "['Notes']"]
+    # What was opened is kept, for the next registry over the same storage.
+    assert '"name":"Notes"' in (storage.get("semiont.openResourcesByKb") or "")
 
 
 def test_building_annotations_builds_a_highlight_of_a_text_and_of_a_pdf_and_a_link_and_reads_each() -> None:
