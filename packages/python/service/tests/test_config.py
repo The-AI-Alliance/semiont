@@ -14,7 +14,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont.types import WeaverConfig, WorkerConfig
 
 from semiont_service.config import Refused, config_path_of, read_config, service_account_of, set_in
@@ -261,7 +261,7 @@ ISSUER: Final = "http://issuer:8080/realms/semiont"
 
 def test_the_service_account_is_the_two_variables_every_service_signs_in_with() -> None:
     environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
-    assert service_account_of("worker", ISSUER, environment) == Credential(
+    assert service_account_of("worker", ISSUER, environment) == SecretCredential(
         issuer="http://issuer:8080/realms/semiont", client_id="semiont-worker", client_secret="s3cret"
     )
 

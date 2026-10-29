@@ -14,7 +14,7 @@ from typing import Final
 import pytest
 from pydantic import JsonValue
 from semiont.channels import PERSISTED_EVENT_TYPES
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont_service.config import Refused
 from semiont_vectors.ollama import OllamaEmbeddingProvider
 from semiont_vectors.qdrant import QdrantVectorStore
@@ -74,7 +74,9 @@ def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> N
     # Nothing listens at any address the document names: a boot that dialled one would fail here.
     started = boot(["--config", written(tmp_path)], ACCOUNT)
     assert started.config.gateway_url == "http://127.0.0.1:1"
-    assert started.credential == Credential(issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-smelter", client_secret="s3cret")
+    assert started.credential == SecretCredential(
+        issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-smelter", client_secret="s3cret"
+    )
     assert isinstance(started.provider, OllamaEmbeddingProvider)
     assert isinstance(started.index, QdrantVectorStore)
 

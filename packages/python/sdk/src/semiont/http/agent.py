@@ -1,7 +1,8 @@
 """An agent's token at a knowledge base's gateway.
 
 A service account signs in at its issuer (OIDC discovery, then the
-client-credentials grant), and its token is exchanged at
+client-credentials grant, proving itself with a secret or with a key), and its
+token is exchanged at
 `POST /api/tokens/agent` for the token of the software agent
 `(provider, model)`, which names the work it does. The gateway answers with
 the agent's DID beside the token (`did`): who that work is attributed to. The
@@ -17,23 +18,26 @@ and signs in again. An agent whose renewal fails keeps the token it has and
 tries again: a process holding a token that still works does not stop working
 over one bad round trip.
 
-A failure names the issuer and the client, and never the secret. Nor does one
+A failure names the issuer and the client, and never the secret or the key. Nor does one
 say any part of a token: an answer that is refused is said by what it lacks,
 in none of its own words.
 """
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Final, Self, final
 
 import httpx
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
 
 from semiont._lacks import lacks
 from semiont._reading import Reading
 from semiont.errors import SemiontError, SignInError, TransportError
+from semiont.http._client_assertion import JWT_BEARER, client_assertion
 from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import refusal
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
@@ -44,17 +48,60 @@ from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
 from semiont.types import AgentTokenRequest, AgentTokenResponse
 from semiont.watched import Variable, Watched
 
-__all__ = ["AgentToken", "Credential", "ServiceToken"]
+__all__ = ["AgentToken", "Credential", "KeyCredential", "SecretCredential", "ServiceToken"]
 
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Credential:
-    """A service account at an issuer."""
+class SecretCredential:
+    """A service account at an issuer, which proves itself with its client secret."""
 
     issuer: str
     client_id: str
     client_secret: str = field(repr=False)
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class KeyCredential:
+    """A service account at an issuer, which proves itself with a key.
+
+    Each grant carries an assertion signed with `private_key`, which the issuer
+    checks with the public half registered on the client. The key never leaves
+    the process.
+    """
+
+    issuer: str
+    client_id: str
+    private_key: RSAPrivateKey = field(repr=False)
+
+
+type Credential = SecretCredential | KeyCredential
+"""A service account at an issuer, by how it proves itself."""
+
+
+def _proof(credential: Credential, token_endpoint: str) -> list[tuple[str, str]]:
+    """The client-credentials grant's form: the secret itself, or an assertion signed for this grant alone."""
+    match credential:
+        case SecretCredential():
+            return [
+                ("grant_type", "client_credentials"),
+                ("client_id", credential.client_id),
+                ("client_secret", credential.client_secret),
+            ]
+        case KeyCredential():
+            assertion = client_assertion(
+                credential.private_key,
+                credential.client_id,
+                token_endpoint,
+                issued_at=int(time.time()),
+                jti=uuid.uuid4().hex,
+            )
+            return [
+                ("grant_type", "client_credentials"),
+                ("client_assertion_type", JWT_BEARER),
+                ("client_assertion", assertion),
+            ]
 
 
 def _within() -> asyncio.Timeout:
@@ -112,15 +159,11 @@ class ServiceToken:
             async with issuer_client() as http:
                 endpoint = await self._endpoint(http)
                 try:
-                    status, answer = await post_form(
-                        http,
-                        endpoint,
-                        [("grant_type", "client_credentials"), ("client_id", client_id), ("client_secret", self._credential.client_secret)],
-                    )
+                    status, answer = await post_form(http, endpoint, _proof(self._credential, endpoint))
                 except SignInError as error:
                     raise SignInError("exchange", f"Client-credentials grant for {client_id} at {issuer} got no answer") from error
             if not 200 <= status < 300:
-                # The status, never the body: an error body can echo the secret.
+                # The status, never the body: an error body can echo the secret or the assertion.
                 raise SignInError("exchange", f"Client-credentials grant for {client_id} at {issuer} failed (HTTP {status})", status=status)
             token = text_in(answer, "access_token")
             if token is None:

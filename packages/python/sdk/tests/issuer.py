@@ -5,7 +5,7 @@ from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 from tokens import token
 
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont.identity import agent_did
 
 _JSON = TypeAdapter[JsonValue](JsonValue)
@@ -68,8 +68,8 @@ PENDING = says({"error": "authorization_pending"}, 400)
 SECRET = "s3cr3t &=+/"
 
 
-def account(gateway: GatewayServer) -> Credential:
-    return Credential(issuer=issuer_of(gateway), client_id="semiont-smelter", client_secret=SECRET)
+def account(gateway: GatewayServer) -> SecretCredential:
+    return SecretCredential(issuer=issuer_of(gateway), client_id="semiont-smelter", client_secret=SECRET)
 
 
 def agent_token(n: int, lifetime: int = 3600) -> Answer:
