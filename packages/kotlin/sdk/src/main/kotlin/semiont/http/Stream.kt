@@ -8,7 +8,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.jdk9.asFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
@@ -479,7 +478,7 @@ internal class Stream(
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
                 .build()
-            val response = http.sendAsync(request, HttpResponse.BodyHandlers.ofPublisher()).await()
+            val response = http.exchange(request, HttpResponse.BodyHandlers.ofPublisher())
             val status = response.statusCode()
             if (status !in 200..299) {
                 val read = try {

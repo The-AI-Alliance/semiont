@@ -8,7 +8,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.future.future
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
@@ -122,7 +121,7 @@ public class HttpTransport @JvmOverloads constructor(
                 .timeout(Duration.ofMillis(Timings.EMIT_TIMEOUT_MS))
                 .build()
             val failure = try {
-                val response = http.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).await()
+                val response = http.exchange(request, HttpResponse.BodyHandlers.ofByteArray())
                 val status = response.statusCode()
                 if (status in 200..299) return accepted(response.body())
                 val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))

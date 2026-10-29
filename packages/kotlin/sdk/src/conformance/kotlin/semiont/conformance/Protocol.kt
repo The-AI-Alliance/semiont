@@ -16,16 +16,21 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
+import java.io.FileDescriptor
+import java.io.FileOutputStream
+import java.io.PrintStream
 
 /** The suite's arguments made no sense: its mistake, never the SDK's. */
 internal class Misuse(message: String) : Exception(message)
 
-/** Every line out, one at a time: what settles an operation and what the client observes. */
+/** Every line out, one at a time and in UTF-8 whatever the locale: what settles an operation and what the client observes. */
 internal object Say {
+    private val out = PrintStream(FileOutputStream(FileDescriptor.out), false, Charsets.UTF_8)
+
     @Synchronized
     fun line(value: JsonElement) {
-        println(value.toString())
-        System.out.flush()
+        out.println(value.toString())
+        out.flush()
     }
 
     fun of(vararg pairs: Pair<String, JsonElement>): JsonObject = JsonObject(mapOf(*pairs))
@@ -82,8 +87,9 @@ internal fun serve(make: (abandon: (Long) -> Boolean) -> Driver) {
         }
     }
     Say.line(Say.of("ready" to JsonPrimitive(true)))
+    val input = System.`in`.bufferedReader(Charsets.UTF_8)
     while (true) {
-        val line = readlnOrNull() ?: break
+        val line = input.readLine() ?: break
         if (line.isBlank()) continue
         val request = try {
             Json.parseToJsonElement(line) as JsonObject

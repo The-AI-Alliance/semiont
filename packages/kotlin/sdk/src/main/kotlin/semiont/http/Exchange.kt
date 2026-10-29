@@ -2,8 +2,8 @@ package semiont.http
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.jdk9.asFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -28,7 +28,25 @@ import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.util.concurrent.CompletionException
 import java.util.concurrent.Flow.Publisher
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/**
+ * `request`'s response, once its head has come. Cancelled, it aborts the
+ * exchange: the JDK's client closes the connection of a request it is sending
+ * only when its future is cancelled with `mayInterruptIfRunning`.
+ */
+internal suspend fun <T> HttpClient.exchange(request: HttpRequest, handler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
+    val sending = sendAsync(request, handler)
+    return suspendCancellableCoroutine { waiting ->
+        waiting.invokeOnCancellation { sending.cancel(true) }
+        sending.whenComplete { response, error ->
+            if (error == null) waiting.resume(response) else waiting.resumeWithException((error as? CompletionException)?.cause ?: error)
+        }
+    }
+}
 
 /**
  * How a transport renews its token when the gateway refuses the one it has:
@@ -154,7 +172,7 @@ internal class Exchange(
             headers.forEach { (name, value) -> builder.header(name, value) }
             if (!atLength) builder.timeout(Duration.ofMillis(deadlineMs))
             val response = try {
-                http.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofPublisher()).await()
+                http.exchange(builder.build(), HttpResponse.BodyHandlers.ofPublisher())
             } catch (_: HttpTimeoutException) {
                 throw failed(TransportError.withoutResponse("$method $path got no answer within ${deadlineMs}ms"))
             } catch (error: IOException) {
