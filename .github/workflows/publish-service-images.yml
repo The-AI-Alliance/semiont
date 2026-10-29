@@ -199,6 +199,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         env:
           TRIVY_SECRET_CONFIG: .github/trivy-secret.yaml
+          TRIVY_IGNOREFILE: .github/trivyignore.yaml
         with:
           image-ref: semiont-${{ matrix.service }}:scan
           severity: HIGH,CRITICAL

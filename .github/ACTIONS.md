@@ -94,6 +94,11 @@ release calls it.
 - Every built-in rule stays on; an allow rule skips the files its path names, and says why nothing in them is a secret
 - `anthropic-library`: the anthropic library's documentation quotes the `{"type": "service_account"}` value its API takes, which the built-in `gcp-service-account` rule reads as a key
 
+### Trivy Ignored Vulnerabilities (`trivyignore.yaml`)
+**The vulnerabilities the service images' scan does not fail on**, read by the Trivy step of `publish-service-images.yml`:
+- Each entry names one finding and one package, says why it cannot be fixed yet and why it does not reach the image's code, and expires, after which the scan fails on it again
+- `CVE-2026-112940`, in `filelock`: its fix is in 4.2.1, which no release of `together`, filelock's one dependent in the images, admits
+
 ## 📋 Templates
 
 ### Pull Request Template (`pull_request_template.md`)

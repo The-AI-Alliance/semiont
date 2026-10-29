@@ -93,8 +93,10 @@ Each image is also scanned by Trivy for `HIGH` and `CRITICAL`
 vulnerabilities and for secrets before it is pushed. A vulnerability that
 has a fix available, or any secret, fails the publish, so such an image
 never reaches the registry. The secret scan skips only the files an allow
-rule of `.github/trivy-secret.yaml` names. The service images pass a
-licence policy as well.
+rule of `.github/trivy-secret.yaml` names, and the vulnerability scan
+passes only the findings `.github/trivyignore.yaml` lists, each with its
+reason and an expiry date. The service images pass a licence policy as
+well.
 
 ### What `semiont start` checks
 
