@@ -142,10 +142,17 @@ Returns `null` when `exact` is empty or only white space, or is text that doesn'
 `annotationOfSpan` builds the annotation of a span: its selectors, its `id`, and the body and `generator` as given. `annotationOfResource` builds an annotation of a resource as a whole, with no selector. Each annotation's `id` is derived from what it is (the resource, the motivation, the body and where the span is), so building it again builds the same id.
 
 ```typescript
-import { annotationOfResource, annotationOfSpan, didToAgent, reconcile, resourceId, SpanRefusedError } from '@semiont/core';
+import { annotationOfResource, annotationOfSpan, reconcile, resourceId, SpanRefusedError, type components } from '@semiont/core';
 
 const content = "The quick brown fox jumps over the lazy dog.";
-const generator = didToAgent('did:web:kb.example:agents:ollama:gemma3');
+// The agent the worker signed in as, by the DID the gateway named it with, and the engine it ran.
+const generator: components['schemas']['Agent'] = {
+  '@type': 'Software',
+  '@id': 'did:web:kb.example:agents:ollama:gemma3',
+  name: 'ollama gemma3',
+  provider: 'ollama',
+  model: 'gemma3',
+};
 
 const span = reconcile(content, { exact: "brown fox" });
 if (span) {

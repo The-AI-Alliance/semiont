@@ -1,7 +1,7 @@
 [versions]
 # CodeQL's java-kotlin extractor reads Kotlin up to 2.4.20 (CodeQL 2.27.1):
 # a later Kotlin fails the nightly analysis until CodeQL reads it.
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 kotlinx-serialization = "1.12.0"
 junit = "6.1.3"
 jacoco = "0.8.14"

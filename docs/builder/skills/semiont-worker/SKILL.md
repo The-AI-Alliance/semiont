@@ -170,7 +170,7 @@ async function recordHighlights(
 }
 ```
 
-`generator` is the agent the worker signed in as: `didToAgent(agent.did)`, from `@semiont/core`.
+`generator` is the worker's own statement of what made the annotations: the agent it signed in as, by the DID the gateway named it with, and the engine it ran (`provider`, `model`). The record refuses a `generator` whose `@id` is not the writer's own.
 
 The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
@@ -184,7 +184,7 @@ import {
   annotationOfSpan, discoverIssuer, reconcile, startAgentSession,
   type Annotation, type HeldMarkJob, type HttpEndpoint, type QuotedText,
 } from '@semiont/sdk';
-import { baseUrl, didToAgent, type components } from '@semiont/core';
+import { baseUrl, type components } from '@semiont/core';
 
 const gatewayUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
 const url = new URL(gatewayUrl);
@@ -231,17 +231,22 @@ async function main(): Promise<void> {
     throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
   }
 
+  const engine = { provider: 'ollama', model: 'gemma3:4b' };
   const { issuer } = await discoverIssuer(endpoint);
   const agent = await startAgentSession({
     baseUrl: gatewayUrl,
     credential: { issuer, clientId, clientSecret },
-    provider: 'ollama',
-    model: 'gemma3:4b',
+    ...engine,
     logger: console,
   });
   console.log(`working as ${agent.did}`);
-  // What its annotations say made them.
-  const generator = didToAgent(agent.did);
+  // What its annotations say made them: the agent, and the engine it ran.
+  const generator: components['schemas']['Agent'] = {
+    '@type': 'Software',
+    '@id': agent.did,
+    name: `${engine.provider} ${engine.model}`,
+    ...engine,
+  };
 
   // What this worker's stream names: what claiming reads, and what a commit
   // of annotations awaits. It awaits nothing else, so it names nothing else.
