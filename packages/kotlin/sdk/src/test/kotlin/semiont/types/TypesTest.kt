@@ -4,6 +4,8 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.StructureKind
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -74,6 +76,32 @@ class TypesTest {
         }
         assertEquals(emptyList<String>(), loose)
         assertTrue(held > 150, "the census found $held id fields: it is reading the wrong thing")
+    }
+
+    @Test
+    fun aRequiredPropertyTheSpecSaysMayBeNullIsStatedAsNullOrAValue() {
+        var held = 0
+        val loose = mutableListOf<String>()
+        for (name in schemas.filterNot(::isPlainText).filterNot { it in kindNames }) {
+            val schema = Spec.read("components/schemas/$name.json").jsonObject
+            val required = (schema["required"] as? JsonArray)?.map { it.jsonPrimitive.content }.orEmpty().toSet()
+            val nullable = (schema["properties"] as? JsonObject)?.filter { (wire, stated) ->
+                wire in required && (stated as? JsonObject)?.get("nullable") == JsonPrimitive(true)
+            }?.keys.orEmpty()
+            if (nullable.isEmpty()) continue
+            val descriptor = typeOf(name).descriptor
+            for (wire in nullable) {
+                held += 1
+                val index = descriptor.getElementIndex(wire)
+                when {
+                    index == CompositeDecoder.UNKNOWN_NAME -> loose += "$name.$wire is no property of the type"
+                    !descriptor.getElementDescriptor(index).isNullable -> loose += "$name.$wire may not be null"
+                    descriptor.isElementOptional(index) -> loose += "$name.$wire may be left out"
+                }
+            }
+        }
+        assertEquals(emptyList<String>(), loose)
+        assertTrue(held >= 5, "the census found $held required nullable properties: it is reading the wrong thing")
     }
 
     @Test

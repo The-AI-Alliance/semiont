@@ -53,7 +53,7 @@ val generate = tasks.register<JavaExec>("generate") {
     args(specs.asFile.path, generated.get().asFile.path)
 }
 kotlin.sourceSets.named("main") {
-    kotlin.srcDir(generate)
+    kotlin.srcDir(files(generated).builtBy(generate))
 }
 // The generator's tests read what is internal to it.
 kotlin.target.compilations.named("test") {
@@ -95,8 +95,14 @@ jacoco {
     toolVersion = libs.versions.jacoco.get()
 }
 
+// The generator is measured as it runs over the spec, as well as by its tests.
+generate.configure { jacoco.applyTo(this) }
+
+// What runs is measured: the SDK's own code, and the generator's.
 tasks.jacocoTestReport {
-    executionData(tasks.test, javaTestRun)
+    // The tasks themselves: given as providers they are read as their outputs, every file of them.
+    executionData(tasks.test.get(), javaTestRun.get(), generate.get())
+    sourceSets(codegen)
     reports {
         xml.required = true
     }
