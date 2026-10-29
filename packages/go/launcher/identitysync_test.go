@@ -471,17 +471,17 @@ func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	}
 }
 
-// The control: a correct realm is not written to at all. Without this, every
-// assertion above passes against a sync that PUTs unconditionally.
-func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
+// correctRealm: the clients of a realm sync has nothing to change in, for a
+// Browser on the default port and 300-second tokens.
+func correctRealm() []map[string]any {
 	// The service clients carry their mappers, each stamping exactly what the
 	// realm document renders — so the roles-mapper reconcile is proven
-	// idempotent here too, not only the client-level fields.
+	// idempotent too, not only the client-level fields.
 	reps := []map[string]any{}
 	for _, svc := range serviceClients {
 		reps = append(reps, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
-	reps = append(reps,
+	return append(reps,
 		// A correct realm carries the port-ful web origins too: CORS origins
 		// are matched exactly, so the portless redirect URIs beside them
 		// cannot stand in for the Browser's real origin.
@@ -489,7 +489,12 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"},
 			"webOrigins":   []any{"http://localhost:3000", "http://127.0.0.1:3000", "http://10.0.0.5:3000"}},
 		map[string]any{"clientId": semiont.ScriptClientID, "implicitFlowEnabled": false})
-	s := newStubAdmin(t, "semiont", reps)
+}
+
+// The control: a correct realm is not written to at all. Without this, every
+// assertion above passes against a sync that PUTs unconditionally.
+func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
+	s := newStubAdmin(t, "semiont", correctRealm())
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
 	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)

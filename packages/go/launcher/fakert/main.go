@@ -47,7 +47,9 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -626,14 +628,14 @@ func ghCodespace(args []string, joined string) {
 			}
 			fmt.Println("SEMIONT_KB_READY")
 		case strings.Contains(joined, ".semiont/config.yaml"):
-			// The KB's committed identity card, as the codespace holds it.
-			// FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a
-			// remote did that disagrees with the recorded one.
-			body := os.Getenv("FAKERT_GH_KBCONFIG")
-			if body == "" {
-				body = "project:\n  name: remote-kb\ngit:\n  sync: true\nsite:\n  domain: example.com:remote-kb\n  siteName: Remote KB\n"
+			fmt.Println(remoteKBConfig())
+		case strings.Contains(joined, "tar czf -"):
+			// `semiont export --repo`: the codespace's KB, streamed as its tar
+			// writes it, without .git when the command excludes it.
+			if err := writeRemoteKB(os.Stdout, !strings.Contains(joined, "--exclude=./.git")); err != nil {
+				fmt.Fprintf(os.Stderr, "fakert gh ssh: %v\n", err)
+				os.Exit(1)
 			}
-			fmt.Println(body)
 		case strings.Contains(joined, "semiont start"):
 			// The codespace's own launcher, rerun with the issuer on a new
 			// port: it records it, and the gateway advertises it afterwards.
@@ -666,6 +668,42 @@ func ghCodespace(args []string, joined string) {
 		fmt.Fprintf(os.Stderr, "fakert gh codespace: unscripted %v\n", args)
 		os.Exit(64)
 	}
+}
+
+// remoteKBConfig: the KB's committed identity card, as the codespace holds
+// it. FAKERT_GH_KBCONFIG overrides so a test can stage DRIFT — a remote did
+// that disagrees with the recorded one.
+func remoteKBConfig() string {
+	if body := os.Getenv("FAKERT_GH_KBCONFIG"); body != "" {
+		return body
+	}
+	return "project:\n  name: remote-kb\ngit:\n  sync: true\nsite:\n  domain: example.com:remote-kb\n  siteName: Remote KB\n"
+}
+
+// writeRemoteKB writes the codespace's KB to w as `tar czf - -C <kb> .` does:
+// its identity card and an event log, and its .git when withGit.
+func writeRemoteKB(w io.Writer, withGit bool) error {
+	files := [][2]string{
+		{"./.semiont/config.yaml", remoteKBConfig()},
+		{"./.semiont/events/__system__/events-000001.jsonl", `{"type":"frame:entity-type-added"}` + "\n"},
+	}
+	if withGit {
+		files = append(files, [2]string{"./.git/HEAD", "ref: refs/heads/main\n"})
+	}
+	gz := gzip.NewWriter(w)
+	tw := tar.NewWriter(gz)
+	for _, f := range files {
+		if err := tw.WriteHeader(&tar.Header{Name: f[0], Mode: 0o644, Size: int64(len(f[1])), Typeflag: tar.TypeReg}); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(tw, f[1]); err != nil {
+			return err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+	return gz.Close()
 }
 
 // recordContainerEnv writes FAKERT_DIR/env-<name>: the environment the
