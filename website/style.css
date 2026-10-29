@@ -1,5 +1,6 @@
 :root {
     color-scheme: light dark;
+
     --text: #1c1c1c;
     --muted: #6c6c6c;
     --link: #2456a4;
@@ -40,6 +41,32 @@ h1 {
     font-size: 2.1rem;
 }
 
+h2 {
+    margin: 2.2rem 0 0.9rem;
+    padding-bottom: 0.25rem;
+    font-size: 1.35rem;
+    border-bottom: 1px solid var(--rule);
+}
+
+p {
+    margin: 0.6rem 0 0;
+}
+
+a {
+    color: var(--link);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.4rem;
+}
+
+li {
+    margin: 0.35rem 0;
+}
+
 .summary {
     margin: 0;
     text-align: left;
@@ -73,32 +100,6 @@ figure img {
     height: auto;
     border: 1px solid var(--rule);
     border-radius: 6px;
-}
-
-h2 {
-    margin: 2.2rem 0 0.9rem;
-    padding-bottom: 0.25rem;
-    font-size: 1.35rem;
-    border-bottom: 1px solid var(--rule);
-}
-
-p {
-    margin: 0.6rem 0 0;
-}
-
-a {
-    color: var(--link);
-    text-decoration-thickness: 1px;
-    text-underline-offset: 2px;
-}
-
-ul {
-    margin: 0.4rem 0 0;
-    padding-left: 1.4rem;
-}
-
-li {
-    margin: 0.35rem 0;
 }
 
 footer {
