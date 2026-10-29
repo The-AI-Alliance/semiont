@@ -13,12 +13,15 @@
 package main_test
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -1052,6 +1055,33 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 	sstdout, _, _ := s.run(t, "status")
 	mustContain(t, "status", sstdout, "network lan", "issuer proxy: pid")
+	// A proxy that died is started again by status: under `network lan`
+	// nobody signs in without it. The killed proxy is reaped by init, not by
+	// this test, and a status that finds it not yet gone, or its port not yet
+	// free, leaves the record as it was: so status runs until the record names
+	// another proxy.
+	killed := before
+	if p, err := os.FindProcess(killed); err == nil {
+		_ = p.Kill()
+	}
+	reviveBy := time.Now().Add(10 * time.Second)
+	var revival string
+	for {
+		out, errOut, _ := s.run(t, "status")
+		if pid := recordedIssuerProxyPID(t, s); pid != 0 && pid != killed {
+			revival = out + errOut
+			break
+		}
+		if time.Now().After(reviveBy) {
+			t.Fatalf("status did not start the killed issuer proxy %d again; the last status said:\n%s%s", killed, out, errOut)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	mustContain(t, "status", revival, fmt.Sprintf("The issuer proxy (pid %d) is not running; starting it again.", killed))
+	before = claimProxy()
+	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+		t.Errorf("after status restarted the issuer proxy the realm through it answered %d", got)
+	}
 	// Restarting the issuer replaces its proxy: the old one leaves the
 	// issuer's port before the restart checks it, and a new one serves it.
 	if stdout, stderr, code := s.run(t, "start", "--service", "identity"); code != 0 {
@@ -4185,6 +4215,75 @@ func TestRepoVerbsAdoptAnUnrecordedCodespace(t *testing.T) {
 		}
 		mustContain(t, "stderr", stderr, "orphan-cs", "not forwarded", "semiont start --runtime codespace --repo "+csRepo)
 	})
+}
+
+// `export --repo` streams the codespace's KB over ssh into an archive here:
+// named for the repository unless -o names it, without .git unless asked,
+// never over an archive already there without --force, and none at all when
+// the stream fails.
+func TestExportRepoStreamsTheCodespacesKB(t *testing.T) {
+	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, `FAKERT_GH_CS_LIST=[{"name":"orphan-cs","state":"Available","repository":"`+csRepo+`"}]`)
+	archive := filepath.Join(s.cwd, strings.ReplaceAll(csRepo, "/", "-")+".tar.gz")
+
+	if stdout, stderr, code := s.run(t, "export", "--repo", csRepo); code != 0 {
+		t.Fatalf("export: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	entries := tarGzEntries(t, archive)
+	mustContain(t, "archive", entries, ".semiont/config.yaml", ".semiont/events/__system__/events-000001.jsonl")
+	if strings.Contains(entries, ".git/") {
+		t.Errorf("the archive carries .git without --with-git:\n%s", entries)
+	}
+
+	_, stderr, code := s.run(t, "export", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("a second export over the first: exit %d, want 1\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "already exists", "--force")
+
+	if stdout, stderr, code := s.run(t, "export", "--repo", csRepo, "--with-git", "--force"); code != 0 {
+		t.Fatalf("export --with-git --force: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "archive --with-git", tarGzEntries(t, archive), ".git/HEAD", ".semiont/config.yaml")
+
+	failed := filepath.Join(s.cwd, "failed.tar.gz")
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL=1")
+	_, stderr, code = s.run(t, "export", "--repo", csRepo, "-o", failed)
+	if code != 1 {
+		t.Fatalf("export over a failing ssh: exit %d, want 1\n%s", code, stderr)
+	}
+	mustContain(t, "stderr", stderr, "export over ssh failed")
+	if _, err := os.Stat(failed); !os.IsNotExist(err) {
+		t.Errorf("%s after a failed stream: %v, want it absent", failed, err)
+	}
+}
+
+// tarGzEntries: the names in the .tar.gz at path, one per line.
+func tarGzEntries(t *testing.T, path string) string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	tr := tar.NewReader(gz)
+	var names []string
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		names = append(names, h.Name)
+	}
+	return strings.Join(names, "\n")
 }
 
 // useradd administers the stack it selected. With a local stack running for

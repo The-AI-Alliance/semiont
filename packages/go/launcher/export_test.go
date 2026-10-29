@@ -99,6 +99,71 @@ func TestExportCarriesTheDurableKBAndExcludesGit(t *testing.T) {
 	}
 }
 
+// Run as its usage reads, inside the KB and naming neither root nor archive,
+// export writes <project name>.tar.gz into the KB it is walking. The archive
+// holds the KB and not itself: a restore carrying a half-written copy of the
+// archive is not the KB that was exported.
+func TestExportFromInsideTheKBArchivesTheKBAlone(t *testing.T) {
+	root := fakeKB(t)
+	elsewhere := filepath.Join(t.TempDir(), "kb.tar.gz")
+	if code := Export([]string{"--root", root, "-o", elsewhere}); code != 0 {
+		t.Fatalf("export to a path outside the KB: exit %d", code)
+	}
+
+	t.Setenv("SEMIONT_ROOT", "")
+	t.Chdir(root)
+	if code := Export(nil); code != 0 {
+		t.Fatalf("export inside the KB: exit %d", code)
+	}
+	got := strings.Join(archiveEntries(t, filepath.Join(root, "testkb.tar.gz")), "\n")
+	want := strings.Join(archiveEntries(t, elsewhere), "\n")
+	if got != want {
+		t.Errorf("the archive written inside the KB holds:\n%s\nwant the KB's own entries:\n%s", got, want)
+	}
+}
+
+// Without -o, the archive is named for the KB's project and written where
+// export runs.
+func TestExportNamesTheArchiveForTheKB(t *testing.T) {
+	root := fakeKB(t)
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	if code := Export([]string{"--root", root}); code != 0 {
+		t.Fatalf("export: exit %d", code)
+	}
+	got := strings.Join(archiveEntries(t, filepath.Join(cwd, "testkb.tar.gz")), "\n")
+	if !strings.Contains(got, "docs/overview.md") {
+		t.Errorf("testkb.tar.gz does not hold the KB:\n%s", got)
+	}
+}
+
+// An archive that could not be written is not left behind: half a backup
+// looks restorable.
+func TestExportLeavesNoArchiveWhenItCannotWriteOne(t *testing.T) {
+	root := fakeKB(t)
+	out := filepath.Join(t.TempDir(), "absent", "kb.tar.gz")
+	_, errOut := harness.CaptureOutput(t, func() {
+		if code := Export([]string{"--root", root, "-o", out}); code != 1 {
+			t.Errorf("exit %d, want 1", code)
+		}
+	})
+	harness.MustContainAll(t, "failure", errOut, "export failed")
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Errorf("%s: %v, want it absent", out, err)
+	}
+}
+
+func TestExportHelpSucceeds(t *testing.T) {
+	for _, flag := range []string{"--help", "-h"} {
+		out, _ := harness.CaptureOutput(t, func() {
+			if code := Export([]string{flag}); code != 0 {
+				t.Errorf("exit %d for %s, want 0", code, flag)
+			}
+		})
+		harness.MustContainAll(t, flag, out, "Usage: semiont export")
+	}
+}
+
 // --with-git is the difference between an archive you can restore and one you
 // can also attest: for a git-synced KB the commits carry the event log's
 // integrity. Both defaults are pinned, because a flag that silently does
@@ -215,6 +280,9 @@ func TestExportRefusals(t *testing.T) {
 	}{
 		{"root and repo together", []string{"--root", ".", "--repo", "o/n"}, "--repo names a remote KB"},
 		{"unknown flag", []string{"--nope"}, "Unknown argument"},
+		{"root without a value", []string{"--root"}, "Missing value for --root"},
+		{"repo without a value", []string{"--repo"}, "Missing value for --repo"},
+		{"output without a value", []string{"-o"}, "Missing value for -o"},
 		{"root is not a KB", []string{"--root", os.TempDir()}, ".semiont"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
