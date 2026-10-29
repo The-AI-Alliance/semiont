@@ -188,7 +188,7 @@ export class WeaverWorld {
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },
-        graph: { ...at, passwordEnv: GRAPH_PASSWORD },
+        graph: { type: 'neo4j', ...at, passwordEnv: GRAPH_PASSWORD },
       },
       { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [GRAPH_PASSWORD]: password },
       mkdtempSync(join(tmpdir(), 'conformance-weaver-')),

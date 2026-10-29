@@ -642,8 +642,6 @@ protocol.
   announced.
 - **Broker objects are created if missing but never updated.** A changed stream, consumer or bucket
   setting — the 30-second acknowledgement window among them — takes effect only on a fresh broker.
-- **The durable consumer is named `gateway-claims`,** after a component that does not hold it.
-  The name is part of the storage layout, and changing it needs a migration.
 - **`/health` is static.** It never reports a lost broker connection, while the launcher reads
   `queue` as live. The launcher waits 30 seconds for it; the
   dispatcher allows itself 60 seconds to connect the queue.
