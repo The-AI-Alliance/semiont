@@ -103,12 +103,22 @@
  *    and a package that moves a level deeper takes it a level short: the
  *    step fails only on the runner.
  *
+ * 12. ci.yml triggers on `merge_group`, and every event it triggers on has a
+ *    tier in changed-areas.mjs's TIERS, which names no other. The merge queue
+ *    merges a pull request once CI Gate passes on the queue's commit; a ci.yml
+ *    that did not run there would leave every queued pull request waiting for
+ *    a check that never comes. And the script fails on an event it has no
+ *    tier for, so an event added here and not there fails every run of it,
+ *    and a row there for an event nothing sends is dead. `workflow_call` has
+ *    no row: a called workflow's event is its caller's.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { TIERS } from '../../.github/scripts/changed-areas.mjs';
 import { ignoredByGit, repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -236,6 +246,7 @@ for (const file of workflows) {
     stagesAndGate(workflow.jobs ?? {});
     changedAreas(workflow.jobs ?? {});
     oneRustBuild(workflow.jobs ?? {});
+    tiersOfEvents(triggers);
   }
   if (file === SMOKE) layerCacheKey(workflow.jobs ?? {});
 }
@@ -417,6 +428,14 @@ function oneRustBuild(jobs) {
   }
 }
 
+/** Rule 12: ci.yml runs in the merge queue, and every event it runs on has a tier. */
+function tiersOfEvents(triggers) {
+  const events = (Array.isArray(triggers) ? triggers : Object.keys(triggers ?? {})).filter((event) => event !== 'workflow_call');
+  if (!events.includes('merge_group')) failures.push(`${CI} does not trigger on merge_group: the merge queue would wait on CI Gate for every pull request it holds`);
+  for (const event of events) if (!Object.hasOwn(TIERS, event)) failures.push(`${CI} triggers on ${event}, which .github/scripts/changed-areas.mjs gives no tier: every run of it would fail in Changed Areas`);
+  for (const event of Object.keys(TIERS)) if (!events.includes(event)) failures.push(`.github/scripts/changed-areas.mjs gives ${event} a tier, and ${CI} does not trigger on it`);
+}
+
 if (held === 0) failures.push('no workflow runs on pull_request: the check has lost what it reads');
 
 if (failures.length > 0) {
@@ -424,4 +443,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something, and only ci.yml whole; ci.yml runs in stages, maps each push to its areas and tier, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy; every relative path a step names is one the repository holds, from where the step runs`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something, and only ci.yml whole; ci.yml runs in stages, runs in the merge queue, maps each push to its areas and each event to its tier, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy; every relative path a step names is one the repository holds, from where the step runs`);

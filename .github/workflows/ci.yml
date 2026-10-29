@@ -1,14 +1,21 @@
 name: Continuous Integration
 
 # Three tiers, which the `changes` job decides (.github/scripts/changed-areas.mjs):
-# a pull request and a push to main run the jobs whose areas they touched; the
-# nightly schedule, a dispatch and a release's call run every job, those that
-# run at night and for a release alone among them (`tier == 'full'`).
+# a pull request, the merge queue's commit and a push to main run the jobs whose
+# areas they touched; the nightly schedule, a dispatch and a release's call run
+# every job, those that run at night and for a release alone among them
+# (`tier == 'full'`).
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # The merge queue: a pull request is merged from it, on the commit of main
+  # and every pull request queued ahead of it, once CI Gate passes there. So a
+  # pull request behind main need not be brought up to date: the queue tests
+  # what main will be. lint:workflows holds this workflow to the trigger.
+  merge_group:
+    types: [ checks_requested ]
   workflow_dispatch:
   # 08:17 UTC: 4:17 in the morning Eastern under daylight time, 3:17 under
   # standard, off the hour, when GitHub delays scheduled runs least. A scheduled
@@ -19,8 +26,9 @@ on:
   workflow_call:
 
 # One run per pull request: a push cancels the run of the push before it, which
-# nobody is waiting for. A push to main is never cancelled: it is the run that
-# sees the merged tree. lint:workflows holds every pull-request workflow to this.
+# nobody is waiting for. The merge queue's run and a push to main are never
+# cancelled: each has its commit's group, and each sees the merged tree.
+# lint:workflows holds every pull-request workflow to this.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -109,9 +117,10 @@ jobs:
 
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
-  # reports it as Success. The nightly schedule, a dispatch and a release's
-  # call run everything, and so does a change to this workflow, the script that
-  # maps the areas, the CI scripts or the spec (.github/scripts/changed-areas.mjs).
+  # reports it as Success, and so does the merge queue. The nightly schedule,
+  # a dispatch and a release's call run everything, and so does a change to
+  # this workflow, the script that maps the areas, the CI scripts or the spec
+  # (.github/scripts/changed-areas.mjs).
   # lint:workflows holds every job to an `if` over areas this map defines, so a
   # job cannot fall out of it.
   changes:
@@ -140,7 +149,9 @@ jobs:
       compliance: ${{ steps.areas.outputs.compliance }}
       tier: ${{ steps.areas.outputs.tier }}
     steps:
-      # The parent too: a push is mapped against the commit before it.
+      # The parent too: a push is mapped against the commit before it. The
+      # merge queue's commit is mapped against the main it was queued on,
+      # which paths-filter fetches.
       - name: Checkout code
         uses: actions/checkout@v7.0.1
         with:
@@ -2981,7 +2992,8 @@ jobs:
         run: go test -timeout 5m ./...
 
   # ── The gate ─────────────────────────────────────────────────────────
-  # The one check the merge ruleset requires. It needs every job and runs
+  # The one check the merge ruleset requires, of a pull request and of the
+  # merge queue's commit. It needs every job and runs
   # whatever they did: a job that failed or was cancelled fails it; one skipped
   # by a condition passes it, as GitHub reports a skipped job as Success.
   # `always()`, not `!cancelled()` as the audits next door use: a gate that is

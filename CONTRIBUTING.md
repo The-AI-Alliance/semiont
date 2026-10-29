@@ -262,8 +262,7 @@ GitHub fills a new pull request with [the template](.github/pull_request_templat
 
 1. Maintainers will review within 3-5 business days
 2. Address review feedback
-3. Once approved, maintainers will merge
-4. PRs are typically **squash merged** to keep history clean
+3. Once approved, maintainers add the PR to the merge queue, which squash-merges it when CI passes on it together with `main` and the PRs queued ahead; a PR never needs updating from `main`
 
 ## 📝 Commit Guidelines
 

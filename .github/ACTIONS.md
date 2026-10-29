@@ -10,10 +10,11 @@ changed areas, generated-code drift, the Browser's and every npm package's
 suite (each once, with coverage), the Rust workspace's checks, the conformance
 suites on binaries built once, the Python projects, the launcher, the
 compliance audits, the Browser's and the gateway's security probes, and
-Lighthouse. A pull request and a push to `main` run the jobs whose areas they
-touched; the nightly schedule, a dispatch and a release's call run every job,
+Lighthouse. A pull request, the merge queue's commit and a push to `main` run
+the jobs whose areas they touched; the nightly schedule, a dispatch and a release's call run every job,
 the Windows launcher among them. One job, `CI Gate`, is the check the merge
-ruleset requires. Each job is listed in
+ruleset requires, and the merge queue merges a pull request once it passes on
+the queue's commit of `main` and the pull requests ahead. Each job is listed in
 [Testing](../docs/contributor/TESTING.md#continuous-integration).
 
 The security probes are of two routes each. What a running gateway owes on
