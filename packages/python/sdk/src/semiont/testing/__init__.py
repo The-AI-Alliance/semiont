@@ -12,6 +12,10 @@ and its deadlines are the client's own) over a transport a test scripts
         described = await client.browse.resource(resource_id).fresh()
     assert made.transport.request_log[0].payload == {"resourceId": resource_id}
 
+A registry of knowledge bases (`semiont.registry.SemiontBrowser`) is tested
+over `ScriptedSessions`, a factory of real sessions over scripted transports,
+and `SharedStorage`, a storage several contexts share.
+
 A double answers what a test told it to and refuses the rest by name. It
 never answers with a value of its own making: a request nobody scripted an
 answer for fails naming its operation, and a read of content nobody stored
@@ -31,6 +35,8 @@ from semiont.testing.content import (
     PutBinary,
 )
 from semiont.testing.gateway import StubGateway
+from semiont.testing.sessions import ScriptedSessions
+from semiont.testing.storage import SharedStorage
 from semiont.testing.transport import (
     Delay,
     Deliver,
@@ -65,6 +71,8 @@ __all__ = [
     "Refuse",
     "RejectEmit",
     "RequestLogEntry",
+    "ScriptedSessions",
+    "SharedStorage",
     "StubGateway",
     "TestClient",
     "create_test_client",

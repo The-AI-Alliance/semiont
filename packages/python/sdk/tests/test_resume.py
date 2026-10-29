@@ -1,6 +1,7 @@
 """A stream's place in each scope, kept with what the caches keep: never ahead of them."""
 
 import asyncio
+from collections.abc import Callable
 from typing import final, override
 
 import pytest
@@ -148,6 +149,18 @@ def test_a_place_is_written_after_the_caches_own_write_so_one_that_fails_leaves_
         @override
         def delete(self, key: str) -> None:
             self.held.pop(key, None)
+
+        @override
+        def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+            after = change(self.held.get(key))
+            if after is None:
+                self.delete(key)
+            else:
+                self.set(key, after)
+
+        @override
+        def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+            return None
 
     storage = Full()
     places = CoupledBookmarks(storage, KEY)

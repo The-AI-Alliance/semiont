@@ -71,7 +71,9 @@ session here is built over it; a script on a machine with no launcher makes
 its own by the device grant, which shows a code to approve in any browser. No
 password passes through this process. Both are given the knowledge base's
 target (`semiont.types.KbTarget`: its id, its label and its endpoint), as the
-other SDKs' are, and reach the gateway its HTTP endpoint names.
+other SDKs' are, and reach the gateway its HTTP endpoint names. An
+application a person uses signs them in by a page redirect instead
+([Several knowledge bases](#several-knowledge-bases)).
 
 ```python
 from pathlib import Path
@@ -656,6 +658,70 @@ The rules are case tables that every SDK runs:
 [`reconcile-cases.json`][reconcile-cases], [`builder-cases.json`][builder-cases]
 and [`id-cases.json`][id-cases].
 
+## Several knowledge bases
+
+`semiont.registry` is what an application a person uses holds beside its
+knowledge bases: the list it has registered, which one is active and that
+one's session, and what the person has open in each. It keeps all of it in a
+`SessionStorage`, under the keys every SDK's registry uses
+([`stored.json`][stored-keys]), so a registry made again over the same storage
+picks up where the last one was.
+
+```python
+from semiont.identifiers import ResourceId
+from semiont.registry import SemiontBrowser, SemiontBrowserConfig, SessionFactory
+from semiont.storage import SessionStorage
+from semiont.watched import reached
+
+
+async def pick_up_where_i_was(storage: SessionStorage, sessions: SessionFactory) -> None:
+    config = SemiontBrowserConfig(storage=storage, session_factory=sessions)
+    async with SemiontBrowser(config) as browser:
+        for kb in browser.kbs.value:
+            print(kb.label, kb.did, browser.kb_session_status(kb.id))
+        # Held, the registry brings up the active knowledge base's session.
+        await reached(browser.active_session, lambda session: session is not None)
+        browser.add_open_resource(ResourceId("res-1"), "Notes")
+        print([tab.name for tab in browser.open_resources.value])
+```
+
+- **One session is live at a time.** `set_active_kb` closes the active one's
+  session and brings up the next: its readers see no session, then the new
+  one. `session_activating` says a session is on its way. A session is built
+  by the `SessionFactory` the registry is given;
+  `semiont.http.session.HttpSessionFactory` builds one over a knowledge base's
+  gateway, renewing its token at the issuer its stored sign-in names, and
+  keeping its caches in the registry's storage.
+- **A sign-in lands on the knowledge base that answered.**
+  `semiont.http.session.begin_sign_in` remembers a pending sign-in and gives
+  the address to send the person to; `complete_sign_in`, given the address the
+  issuer sent them back to, exchanges the code, asks the knowledge base who it
+  is, and registers it under what it says. Its did is what an entry is matched
+  by, never the address a person typed or the row they clicked; what they
+  believed is said back (`SignInOutcome.expected`) for the application to set
+  against it. The grant itself is `semiont.http.oauth`'s:
+  `begin_authorization` and `complete_authorization`, the authorization-code
+  grant with PKCE, and `describe_connection`, the question a completed sign-in
+  asks.
+- **What a session's arrival checks.** When a session comes up, the knowledge
+  base is asked who it is, and each open resource is checked against it. A
+  different knowledge base answering voids what was open and raises
+  `kb_identity_conflict` on the session's signals; a resource the knowledge
+  base says is gone is closed; no answer changes nothing. A request the
+  gateway refuses for want of a valid token renews the session, and one
+  refused for lack of permission raises `permission_denied`.
+- **Another context's writes are heard.** Each change to what is open is made
+  against what the storage holds, as one step (`SessionStorage.update`), and
+  a storage that hears what another window or process writes
+  (`SessionStorage.subscribe`) has the registry show it.
+
+`semiont.discovery` reads the document a launcher publishes of the knowledge
+bases it manages: whole or not at all, a launcher that is not there told from
+one that manages nothing, and what changed since it was last read
+(`subscribe_discovery`). `text_discovery` reads it from wherever the text
+comes from, and `semiont.http.discovery.http_discovery` from a URL. It is a
+registry's list of what can be signed in to.
+
 ## Testing what is built on it
 
 `semiont.testing` gives a real client over doubles. Its namespaces, its cache
@@ -714,6 +780,11 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   making, so a test that forgot to say something fails where it forgot.
 - **`create_test_client`** takes the doubles a test built, or makes ones
   nothing is scripted on, and the client's own timing and persistence.
+- **`ScriptedSessions`** is a `semiont.registry.SessionFactory` of real
+  sessions over scripted transports, one a knowledge base, for a test of a
+  registry: a test says what each knowledge base answers, who a token is and
+  what a renewal gives. **`SharedStorage`** is a storage several contexts
+  share, each hearing what the others write, as two windows do.
 
 ## The bus
 
@@ -900,7 +971,9 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
 | `semiont.session` | `SemiontSession`, and `MemorySignIn` |
-| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out`; a gateway's origin from its endpoint, `gateway_url` |
+| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out`; a gateway's origin from its endpoint, `gateway_url`. And in `semiont.http.oauth`, the redirect sign-in (`begin_authorization`, `complete_authorization`); in `semiont.http.session`, a registry's sessions and sign-in over HTTP (`HttpSessionFactory`, `begin_sign_in`, `complete_sign_in`, `describe_connection`); in `semiont.http.discovery`, a launcher's document over HTTP |
+| `semiont.registry`, `semiont.stored` | A registry of knowledge bases, `SemiontBrowser`: the ones registered, the active one's session, what is open in each; and what it keeps in its storage, under which keys |
+| `semiont.discovery` | The knowledge bases a launcher manages, as it publishes them, and what changed since they were last read |
 | `semiont.sign_in_store` | The sign-ins `semiont login` keeps, and where each system keeps them |
 | `semiont.identifiers`, `semiont.types` | The kinds of id, and every request, response and event |
 | `semiont.channels`, `semiont.operations` | The bus's channels and its operations, each a constant that carries its payload's type |
@@ -913,7 +986,7 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.resources` | The readers of a resource, whether its representations are one or a list: `primary_representation`, `primary_media_type` and `resource_entity_types`. And `decode_representation`, which makes a text of the bytes of a resource whose bytes are its text, and refuses any other |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
 | `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
-| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |
+| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client`; and a registry's, `ScriptedSessions` and `SharedStorage` |
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,
 `channels`, `operations`, `error_codes`, `timing`, `refresh`,
@@ -962,6 +1035,7 @@ Apache-2.0. See [LICENSE][license].
 [id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
 [resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
+[stored-keys]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/stored.json
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk

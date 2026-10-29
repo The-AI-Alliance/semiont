@@ -5,6 +5,11 @@ above it knows where it runs. `MemoryStorage` keeps it for as long as the
 process lives: a client that closes and one that opens after it, over the
 same storage, are a reload.
 
+More than one context can write a store: two windows, two processes. What is
+written from what was read goes through `update`, which a store makes one
+step, so one writer's change is never lost under another's; and a store that
+hears what another context writes says so to whoever `subscribe`s.
+
 `StoragePersister` keeps one cache's values there, as one document under one
 key: `{version, writtenAt, entries}`, each entry a key, its value, and when
 that value was last written. A document of another version, or one that does
@@ -13,7 +18,7 @@ entries that have gone longest without a new value, until it fits.
 """
 
 import time
-from collections.abc import Hashable, Mapping
+from collections.abc import Callable, Hashable, Mapping
 from typing import Final, Protocol, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -38,10 +43,29 @@ class SessionStorage(Protocol):
         """Remove a key. One that is not there is left not there."""
         ...
 
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        """Change a key's value as one step.
+
+        `change` is given what is stored, nothing when nothing is, and says
+        what is stored next, nothing for nothing. No other writer's change
+        falls between the read and the write.
+        """
+        ...
+
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        """Hear what another context writes: another process, another window.
+
+        `on_change` is given the key, and the value written, or nothing when
+        the key was removed. The answer ends the subscription. Nothing where
+        the environment has no other context: a client then works correctly
+        within its own.
+        """
+        ...
+
 
 @final
 class MemoryStorage(SessionStorage):
-    """A `SessionStorage` kept in memory."""
+    """A `SessionStorage` kept in memory. No other context writes it."""
 
     def __init__(self) -> None:
         self._stored: Final[dict[str, str]] = {}
@@ -57,6 +81,18 @@ class MemoryStorage(SessionStorage):
     @override
     def delete(self, key: str) -> None:
         self._stored.pop(key, None)
+
+    @override
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        after = change(self._stored.get(key))
+        if after is None:
+            self._stored.pop(key, None)
+        else:
+            self._stored[key] = after
+
+    @override
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        return None
 
 
 _DOCUMENT: Final = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
