@@ -7,6 +7,7 @@
     "go": ["packages/go/sdk/session_test.go", "packages/go/sdk/token_test.go"],
     "launcher": ["packages/go/launcher/verbs/session_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's session: when it renews a token, a token's expiry, its bounded startup and its answer to a refusal."},
   "refreshSchedule": [
     {
       "why": "an hour-long token just issued is renewed 300 seconds before it expires: the margin's ceiling",

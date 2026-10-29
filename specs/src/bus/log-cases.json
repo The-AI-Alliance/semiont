@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_bus_log.py"],
     "go": ["packages/go/sdk/buslog_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's bus log, the line it writes for each frame when SEMIONT_BUS_LOG is set."},
   "names": [
     "token",
     "cloneToken",

@@ -7,6 +7,7 @@
     "go": ["packages/go/sdk/identity_test.go"],
     "conformance": ["tests/conformance/gateway/tokens.test.ts"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's names of the principals the gateway acts for."},
   "person": "did:web:{domain}:users:{subject}",
   "people": [
     {

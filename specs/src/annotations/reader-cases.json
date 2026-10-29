@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_annotation_builders.py", "packages/python/sdk/tests/test_annotations.py"],
     "go": ["packages/go/sdk/annotations/readers_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: its readers of an annotation."},
   "readers": [
     "bodySource",
     "isBodyResolved",

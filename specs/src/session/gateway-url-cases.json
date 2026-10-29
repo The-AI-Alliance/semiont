@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_gateway_url.py"],
     "go": ["packages/go/sdk/endpoint_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's gateway origin, made from a knowledge base's HTTP endpoint."},
   "cases": [
     {
       "why": "this machine, over HTTP",

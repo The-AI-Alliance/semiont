@@ -5,6 +5,7 @@
     "python": ["packages/python/sdk/tests/test_sign_in_store.py", "packages/python/sdk/tests/test_state_dir.py"],
     "go": ["packages/go/sdk/signinstore_test.go", "packages/go/sdk/statedir_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's sign-in store: the launcher's state home, and the renewals it keeps."},
   "absent": {"typescript": "The TypeScript SDK reads no sign-in store: a TypeScript program signs in by the device grant, and in a browser there is no file to keep one in."},
   "cases": [
     {

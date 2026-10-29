@@ -7,6 +7,7 @@
     "go": ["packages/go/sdk/retry_test.go"],
     "worker": ["images/worker/tests/test_retry_job_rule.py"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's retry module: whether a failed request is worth another attempt."},
   "rules": [
     {
       "why": "429 is the server saying not now",

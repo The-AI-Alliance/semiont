@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_resource_readers.py"],
     "go": ["packages/go/sdk/resources_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's readers of a resource's description."},
   "cases": [
     {
       "why": "representations given as a list: the first is the primary one, and it is given whole",

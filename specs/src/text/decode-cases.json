@@ -6,6 +6,7 @@
     "python": ["packages/python/sdk/tests/test_decode_cases.py"],
     "go": ["packages/go/sdk/resources_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's reading of a resource's bytes as its text."},
   "cases": [
     {
       "why": "no charset is stated: the bytes are UTF-8, and a character outside the basic plane is one character",
