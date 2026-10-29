@@ -48,8 +48,10 @@ Three crates of the repository's Rust workspace, split so the broker stays behin
 Three things, and nothing else:
 
 - **The gateway's bus**, in and out. SSE (server-sent events) in for the nine `job:*` command
-  channels plus the two reply channels below; `POST /bus/emit` out for every reply and for
-  `job:queued`, the queue's own broadcast that wakes parked workers.
+  channels plus the two reply channels below; `POST /bus/emit` out for every reply, for the
+  `job:assign` that follows a claim (the Stower records it as `job:assigned` on the
+  resource's stream), and for `job:queued`, the queue's own broadcast that wakes parked
+  workers.
 - **The messaging broker (NATS JetStream), directly**, for the queue itself. Job state lives
   in JetStream, in the layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json)
   states, so the dispatcher holds no state tree and mounts nothing.
