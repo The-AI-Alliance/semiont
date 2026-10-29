@@ -1,0 +1,16 @@
+# The vulnerabilities the service images' Trivy scan does not fail on
+# (publish-service-images.yml, the "Scan image with Trivy" step). Each entry
+# names one finding and one package, says why it cannot be fixed yet and why it
+# does not reach the image's code, and expires, so the scan fails on it again
+# and the reason is looked at again.
+vulnerabilities:
+  - id: CVE-2026-112940
+    purls:
+      - pkg:pypi/filelock
+    statement: >-
+      Fixed in filelock 4.2.1. The images take filelock only through the
+      together library, and every together release (3.0.0 included) requires
+      filelock<4. The flaw is in ReadWriteLock and AsyncReadWriteLock, the
+      SQLite-backed locks; together uses only FileLock, in its command-line
+      tool and its file transfers, and the Together driver calls neither.
+    expired_at: 2026-11-30
