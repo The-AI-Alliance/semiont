@@ -23,9 +23,9 @@
  * packages/<language>/, and its README carries that component's badge: the
  * language's packages together. A badge reads a component, never a flag. A
  * component is scoped by its paths in every report, and a flag by the uploads
- * that carry it, so a flag's badge for a crate of the Rust workspace, whose one
- * upload carries every crate's flag and every Rust image's, reads the whole
- * workspace.
+ * that carry it, so a flag's badge for a crate of the Rust workspace, whose two
+ * uploads (its tests', and what the conformance suites run of its binaries)
+ * each carry many crates' flags, reads more than the crate.
  *
  * And the npm workspaces' coverage is what their `test:coverage` scripts
  * write: each npm package and npm image declares one, the test-package matrix

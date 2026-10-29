@@ -164,7 +164,8 @@ cargo test -p semiont-archivist -p semiont-archivist-record -p semiont-archivist
 
 runs their tests, which CI's Gateway Tests job runs with the rest of the workspace, under
 `cargo llvm-cov`. The [conformance suite](../../tests/conformance/archivist/README.md) holds a
-built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md).
+built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), and in CI that Archivist is
+built instrumented, so its coverage counts what the suite runs too.
 
 ## Building it
 

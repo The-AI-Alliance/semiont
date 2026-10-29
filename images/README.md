@@ -19,6 +19,9 @@ directory here. What runs on a host instead, the `semiont` launcher and Semiont 
 
 - **Coverage is each image's own code**, never the packages it is built on: the Rust images'
   crates under their directories, the Python services' own packages, and the Browser's source.
+  A Rust image's counts what its conformance suite runs of it too: the suites start
+  instrumented binaries, and CI's Rust Coverage job reports what they ran
+  ([packages/rust](../packages/rust/README.md)).
 - **Publishing.** The seven services are built by
   [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml), and the
   Browser's image by [`publish-browser.yml`](../.github/workflows/publish-browser.yml). See
