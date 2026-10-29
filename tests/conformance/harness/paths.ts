@@ -1,4 +1,3 @@
-import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { WeaverService } from './weaver-process';
@@ -70,11 +69,6 @@ export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin
 /** The Kotlin SDK's wire driver, laid out by `./gradlew installConformance` in packages/kotlin/sdk. */
 export const KOTLIN_WIRE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-wire-driver');
 
-/** Every wire case, by name: what the Kotlin SDK's transport, which it has not yet, would be put through. */
-const WIRE_CASES = readdirSync(join(REPO_ROOT, 'tests/conformance/sdk/wire'))
-  .filter((file) => file.endsWith('.json'))
-  .map((file) => file.slice(0, -'.json'.length));
-
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
@@ -106,7 +100,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   kotlin: {
     wire: [KOTLIN_WIRE_DRIVER],
-    exempt: Object.fromEntries(WIRE_CASES.map((name) => [name, 'the Kotlin SDK has no transport yet'])),
+    exempt: { telemetry: 'the Kotlin SDK exports no telemetry yet' },
   },
 };
 

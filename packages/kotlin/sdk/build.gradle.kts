@@ -82,6 +82,9 @@ configurations.named(javaTest.runtimeOnlyConfigurationName) { extendsFrom(config
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.jdk9)
+    testImplementation(libs.kotlinx.coroutines.test)
     "codegenImplementation"(libs.kotlinx.serialization.json)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
