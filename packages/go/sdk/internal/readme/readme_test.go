@@ -27,7 +27,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
-	"github.com/The-AI-Alliance/semiont/packages/go/sdk/readme"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/readme"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/state"
 )
@@ -36,7 +36,7 @@ import (
 var goBlock = regexp.MustCompile("(?ms)^```go\n(.*?)^```$")
 
 func TestEachGoBlockOfTheREADMEIsAProgramOfThisPackageWordForWord(t *testing.T) {
-	shown, err := os.ReadFile("../README.md")
+	shown, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestEachGoBlockOfTheREADMEIsAProgramOfThisPackageWordForWord(t *testing.T) 
 		}
 		if file == "" {
 			first, _, _ := strings.Cut(strings.TrimPrefix(block[1], "import ("), "\n\n")
-			t.Errorf("a Go block of the README is no program of packages/go/sdk/readme, word for word: the one whose imports are %s", strings.TrimSpace(first))
+			t.Errorf("a Go block of the README is no program of packages/go/sdk/internal/readme, word for word: the one whose imports are %s", strings.TrimSpace(first))
 			continue
 		}
 		if seen[file] {
