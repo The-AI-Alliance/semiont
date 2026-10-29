@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Final, final
 
 from pydantic import ValidationError
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont.model import WireModel
 
 __all__ = ["Refused", "config_path_of", "read_config", "service_account_of", "set_in"]
@@ -124,7 +124,7 @@ def set_in(environment: Mapping[str, str], name: str) -> str | None:
     return environment.get(name) or None
 
 
-def service_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> Credential:
+def service_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> SecretCredential:
     """The service's own account at `issuer`, which its document names."""
 
     def held(name: str) -> str:
@@ -133,4 +133,4 @@ def service_account_of(service: str, issuer: str, environment: Mapping[str, str]
             raise Refused(f"{name} is not set in the {service}'s environment: a {service} signs in as a service account")
         return value
 
-    return Credential(issuer=issuer, client_id=held("SEMIONT_OIDC_CLIENT_ID"), client_secret=held("SEMIONT_OIDC_CLIENT_SECRET"))
+    return SecretCredential(issuer=issuer, client_id=held("SEMIONT_OIDC_CLIENT_ID"), client_secret=held("SEMIONT_OIDC_CLIENT_SECRET"))

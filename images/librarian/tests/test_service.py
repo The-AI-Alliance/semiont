@@ -14,7 +14,7 @@ from typing import Final
 
 import pytest
 from pydantic import JsonValue
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont_graph.neo4j import Neo4jGraphReader
 from semiont_inference.ollama import OllamaInferenceClient
 from semiont_service.config import Refused
@@ -53,7 +53,7 @@ def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> N
     # Nothing listens at any address the document names: a boot that dialled one would fail here.
     started = boot(["--config", written(tmp_path)], {**ACCOUNT, **PASSWORD})
     assert started.config.gateway_url == "http://127.0.0.1:1"
-    assert started.credential == Credential(
+    assert started.credential == SecretCredential(
         issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-librarian", client_secret="s3cret"
     )
     # The graph is reached by what only reads it, which is made and not connected: nothing at that address was asked anything.

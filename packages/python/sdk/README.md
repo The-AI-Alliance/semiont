@@ -50,13 +50,13 @@ attributed to: `agent.did`, once it is signed in, as the gateway minted it.
 
 ```python
 from semiont.bus import reply_channels_for
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.operations import JOB_CLAIM
 from semiont.watched import reached
 
 
 async def work(gateway: str, issuer: str, secret: str) -> None:
-    service = ServiceToken(Credential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
     async with (
         AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
@@ -64,6 +64,12 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
         print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
+
+A service account proves itself to its issuer with its client secret
+(`SecretCredential`), or with a key (`KeyCredential`, whose `private_key` is an
+RSA key from `cryptography`): each grant then carries an assertion signed for it
+alone (RFC 7523, `private_key_jwt`), which the issuer checks with the public half
+registered on the client, and no secret is sent.
 
 **A person** is signed in at the issuer the knowledge base trusts, and the
 sign-in is kept. [`semiont login`][launcher] keeps one for each stack, and a
@@ -419,7 +425,7 @@ comes to hold, one at a time, and a held job says its own lifecycle.
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
@@ -451,7 +457,7 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     # The process proves who it is at the issuer, and is given the agent its work is attributed to.
-    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
         AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,

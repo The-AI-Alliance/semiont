@@ -440,7 +440,7 @@ The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, 
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
@@ -472,7 +472,7 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     # The process proves who it is at the issuer, and is given the agent its work is attributed to.
-    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
         AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
