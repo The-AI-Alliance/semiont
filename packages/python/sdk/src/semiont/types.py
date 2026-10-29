@@ -6706,7 +6706,7 @@ class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
         str,
         Field(
             alias="anchoredTextDir",
-            description="The anchored-text store the Smelter writes and the Archivist reads.",
+            description="The anchored-text store, which only the Archivist mounts: the Smelter stores each entry in it over HTTP, and the Archivist serves it.",
             min_length=1,
         ),
     ]

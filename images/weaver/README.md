@@ -116,7 +116,8 @@ the agent `(semiont, weaver)`: `did:web:<the knowledge base's domain>:agents:sem
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`: what every
 service says of its own process, and a span for each frame it sends and receives on the bus
 ([WEAVER.md § Telemetry](../../docs/protocol/WEAVER.md#telemetry)). The launcher sets the
-endpoint for a stack it runs. Without it the Weaver exports nothing. Its log lines carry the
+endpoint for a stack it runs. Without it the Weaver exports nothing, unless
+`OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
 
 Started without its document, without its account or without that password, it refuses to

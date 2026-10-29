@@ -145,7 +145,8 @@ at least one.
 every service says of its own process, how many points its index holds
 (`semiont.vector.index.size`), and a span for each frame it sends and receives on the bus
 ([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets the
-endpoint for a stack it runs. Without it the Smelter exports nothing. Its log lines carry the
+endpoint for a stack it runs. Without it the Smelter exports nothing, unless
+`OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
 
 Started without its document, without its account or without a key its document names, it
