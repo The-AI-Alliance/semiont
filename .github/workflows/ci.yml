@@ -3138,7 +3138,8 @@ jobs:
   # third test instead failed a golden that a serial run passes. The first leg
   # also runs the tests of the launcher's libraries (packages/go/launcher). A
   # new test lands in a leg with nothing to update, and a leg left with no
-  # test fails.
+  # test fails. The libraries' coverage is both: what their own tests reach,
+  # from the first leg, and what each leg's scenarios reach.
   #
   # An EXPLICIT budget. These tests drive a fake runtime through real
   # start/stop lifecycles, so each leg is minutes long and serial; the whole
@@ -3181,15 +3182,37 @@ jobs:
           echo "$names" | tr '|' '\n' | wc -l | xargs echo "tests in this leg:"
           echo "run=^($names)\$" >> "$GITHUB_OUTPUT"
 
+      # The launcher the suite runs is built with coverage of its libraries,
+      # and every run of it writes that to the directory -launcher-coverdir
+      # names: what of the libraries this leg's scenarios reach. A launcher
+      # that ends by a signal writes nothing.
       - name: Test the launcher
-        run: go test -timeout 30m -run '${{ steps.tests.outputs.run }}' .
+        run: |
+          dir="$RUNNER_TEMP/launcher-coverage"
+          go test -timeout 30m -run '${{ steps.tests.outputs.run }}' . -launcher-coverdir="$dir"
+          if [ -z "$(ls -A "$dir")" ]; then
+            echo "::error::no launcher this leg ran wrote its coverage to $dir"
+            exit 1
+          fi
+          go tool covdata percent -i "$dir"
+          go tool covdata textfmt -i "$dir" -o launcher-coverage.out
+
+      - name: Upload the scenarios' coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./apps/launcher/launcher-coverage.out
+          flags: go-launcher
+          name: go-launcher-scenarios-${{ matrix.leg }}
+          verbose: true
+        continue-on-error: true
 
       - name: Test the launcher's libraries
         if: strategy.job-index == 0
         working-directory: packages/go/launcher
         run: go test -timeout 30m -coverprofile=coverage.out ./...
 
-      - name: Upload coverage to Codecov
+      - name: Upload the libraries' tests' coverage to Codecov
         if: strategy.job-index == 0
         uses: codecov/codecov-action@v7.1.1
         with:

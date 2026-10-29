@@ -190,6 +190,12 @@ ignore:
   - "**/__tests__/**"
   - "**/test-utils/**"
 
+  # The launcher's test tooling: the fake container runtime its scenarios
+  # drive, and the scaffolding its tests share, with the stand-in program
+  # they put on PATH.
+  - "packages/go/launcher/fakert/**"
+  - "packages/go/launcher/harness/**"
+
   # Build artifacts
   - "**/dist/**"
   - "**/build/**"

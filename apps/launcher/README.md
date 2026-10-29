@@ -979,6 +979,14 @@ them with `go test -run <Test> . -update-goldens`. The goldens are written on
 Linux, with placeholders for every host path; a run on macOS or Windows
 compares against them as that system runs.
 
+What of the libraries the scenarios reach is measured by the launcher they
+run, not by the test binary: `go test . -launcher-coverdir=<dir>` builds that
+launcher with coverage of itself and of `packages/go/launcher`, and every run
+of it writes there. `go tool covdata percent -i <dir>` reads it, and `go tool covdata
+textfmt -i <dir> -o <file>` writes it as a profile. `go test -coverprofile`
+cannot hold it, since it reads only what the test binary itself wrote, and a
+launcher that ends by a signal writes nothing.
+
 The suite refuses to run when `/tmp/semiont-config.*` exists (a live stack may
 be mounting those staged configs, and the launcher's preflight sweeps them) —
 stop the stack first, or run the tests in a container.
