@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript-typescript', 'go', 'rust', 'python' ]
+        language: [ 'javascript-typescript', 'go', 'rust', 'python', 'java-kotlin' ]
 
     steps:
     - name: Checkout repository
@@ -43,6 +43,14 @@ jobs:
       with:
         go-version-file: apps/launcher/go.mod
         cache: false
+
+    # The JDK the Kotlin SDK's .java-version names, for its build traced below.
+    - name: Setup Java
+      if: matrix.language == 'java-kotlin'
+      uses: actions/setup-java@v6.1.0
+      with:
+        distribution: temurin
+        java-version-file: packages/kotlin/sdk/.java-version
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4.39.1
@@ -74,6 +82,15 @@ jobs:
         (cd apps/launcher && go build ./...)
         (cd packages/go/launcher && go build ./...)
         (cd packages/go/sdk && go build ./...)
+
+    # Kotlin is compiled, and its extractor reads the compiler's run, so the
+    # compiler runs in Gradle's own process: neither a Gradle daemon nor
+    # Kotlin's is one the trace reaches. The protocol's types are generated
+    # into build/, which the config leaves out of the results.
+    - name: Build the Kotlin SDK for CodeQL extraction
+      if: matrix.language == 'java-kotlin'
+      working-directory: packages/kotlin/sdk
+      run: ./gradlew --no-daemon --console=plain -Pkotlin.compiler.execution.strategy=in-process classes testClasses javaTestClasses
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4.39.1

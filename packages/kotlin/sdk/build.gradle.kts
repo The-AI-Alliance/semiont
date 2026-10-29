@@ -5,6 +5,7 @@ import javax.tools.ToolProvider
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
     jacoco
 }
 
@@ -16,8 +17,16 @@ kotlin {
         // @Suppress could let one through: the census holds those at none.
         allWarningsAsErrors = true
     }
+    // The dump holds the API written by hand: the protocol's types are the
+    // spec's, generated from it, and a change to the spec changes them.
     @OptIn(ExperimentalAbiValidation::class)
-    abiValidation()
+    abiValidation {
+        filters {
+            exclude {
+                byNames.addAll("semiont.types.**", "semiont.identifiers.**")
+            }
+        }
+    }
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -26,6 +35,29 @@ tasks.withType<JavaCompile>().configureEach {
 
 dependencyLocking {
     lockAllConfigurations()
+}
+
+// The generator of the SDK's protocol types: Kotlin of its own, compiled
+// first and run over specs/src, whose output is compiled with the SDK's own
+// sources. Nothing it writes is committed.
+val codegen: SourceSet = sourceSets.create("codegen")
+val generated = layout.buildDirectory.dir("generated/semiont/main/kotlin")
+val generate = tasks.register<JavaExec>("generate") {
+    description = "Writes the SDK's protocol types from specs/src."
+    group = LifecycleBasePlugin.BUILD_GROUP
+    val specs = layout.projectDirectory.dir("../../../specs/src")
+    inputs.dir(specs).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(generated)
+    classpath = codegen.runtimeClasspath
+    mainClass = "semiont.codegen.GenerateKt"
+    args(specs.asFile.path, generated.get().asFile.path)
+}
+kotlin.sourceSets.named("main") {
+    kotlin.srcDir(files(generated).builtBy(generate))
+}
+// The generator's tests read what is internal to it.
+kotlin.target.compilations.named("test") {
+    associateWith(kotlin.target.compilations.getByName("codegen"))
 }
 
 // The SDK as a Java program calls it: Java alone, over the SDK's classes and
@@ -41,6 +73,8 @@ configurations.named(javaTest.implementationConfigurationName) { extendsFrom(con
 configurations.named(javaTest.runtimeOnlyConfigurationName) { extendsFrom(configurations.testRuntimeOnly.get()) }
 
 dependencies {
+    implementation(libs.kotlinx.serialization.json)
+    "codegenImplementation"(libs.kotlinx.serialization.json)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -61,8 +95,14 @@ jacoco {
     toolVersion = libs.versions.jacoco.get()
 }
 
+// The generator is measured as it runs over the spec, as well as by its tests.
+generate.configure { jacoco.applyTo(this) }
+
+// What runs is measured: the SDK's own code, and the generator's.
 tasks.jacocoTestReport {
-    executionData(tasks.test, javaTestRun)
+    // The tasks themselves: given as providers they are read as their outputs, every file of them.
+    executionData(tasks.test.get(), javaTestRun.get(), generate.get())
+    sourceSets(codegen)
     reports {
         xml.required = true
     }

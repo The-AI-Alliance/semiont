@@ -1,0 +1,37 @@
+package semiont.codegen
+
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import java.nio.file.Path
+import kotlin.io.path.createDirectories
+import kotlin.io.path.writeText
+
+/**
+ * Writes, from specs/src, what the SDK holds of the protocol: every component
+ * schema of the bundled OpenAPI document as a type of `semiont.types`, each in
+ * a file of its own, and the kinds of id (specs/src/identifiers/kinds.json) in
+ * `semiont.identifiers`. What it writes before is gone first, so a schema the
+ * spec drops leaves nothing behind.
+ */
+public fun main(args: Array<String>) {
+    require(args.size == 2) { "usage: <specs/src> <output directory>" }
+    val specs = Path.of(args[0])
+    val out = Path.of(args[1])
+    try {
+        val definitions = draft7Definitions(Bundle.of(specs.resolve("openapi.json")))
+        val kinds = ((readJson(specs.resolve("identifiers/kinds.json")) as? JsonObject)?.get("kinds") as? JsonArray ?: refuse("identifiers/kinds.json lists no kinds"))
+            .map { ((it as? JsonObject)?.get("schema") as? JsonPrimitive)?.content ?: refuse("a kind of id names no schema: $it") }
+            .toSet()
+        val generated = generate(definitions, Generation(roots = definitions.keys, identifiers = kinds))
+        out.toFile().deleteRecursively()
+        val types = out.resolve(TYPES_PACKAGE.replace('.', '/')).createDirectories()
+        for ((name, code) in generated.types) types.resolve("$name.kt").writeText(header(TYPES_PACKAGE, kinds) + code)
+        out.resolve(IDENTIFIERS_PACKAGE.replace('.', '/')).createDirectories().resolve("Identifiers.kt")
+            .writeText(header(IDENTIFIERS_PACKAGE, kinds) + generated.identifiers)
+        println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
+    } catch (refused: Refused) {
+        System.err.println("the generator refuses: ${refused.message}")
+        kotlin.system.exitProcess(1)
+    }
+}
