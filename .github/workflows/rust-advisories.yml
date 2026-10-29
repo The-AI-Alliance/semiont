@@ -1,10 +1,10 @@
-name: Gateway Crate Advisories
+name: Rust Crate Advisories
 
 # The crates the Rust workspace links — the gateway's and the crates the
 # services share — held to RustSec's advisory database, and to where they may
 # come from and which versions they may be named by: cargo-deny's advisories,
 # sources and bans checks, as deny.toml configures them. Their licences are the
-# Gateway Tests job's (check-image-crates.mjs).
+# Rust Tests job's (check-image-crates.mjs).
 #
 # It runs when what the workspace links changes, and daily: the database changes
 # without a commit here, so an advisory published today fails tomorrow's run,
@@ -19,7 +19,7 @@ on:
       - packages/rust/Cargo.lock
       - packages/rust/deny.toml
       - packages/rust/rust-toolchain.toml
-      - .github/workflows/gateway-advisories.yml
+      - .github/workflows/rust-advisories.yml
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -28,7 +28,7 @@ on:
 # nobody is waiting for. A push to main is never cancelled: it is the run that
 # sees the merged tree. lint:workflows holds every pull-request workflow to this.
 concurrency:
-  group: gateway-advisories-${{ github.event.pull_request.number || github.sha }}
+  group: rust-advisories-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   deny:
-    name: Gateway Crate Advisories
+    name: Rust Crate Advisories
     runs-on: ubuntu-latest
 
     defaults:
@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cargo/bin/cargo-deny
-          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'packages/rust/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/rust-advisories.yml', 'packages/rust/rust-toolchain.toml') }}
 
       - name: Install cargo-deny
         if: steps.cache.outputs.cache-hit != 'true'
