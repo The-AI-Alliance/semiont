@@ -1,5 +1,6 @@
 # Semiont Go SDK
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/The-AI-Alliance/semiont/packages/go/sdk.svg)](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk)
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=go-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The Go SDK for [Semiont][semiont], an open platform for building trusted AI
@@ -25,13 +26,21 @@ ideas are this module's too.
 The module is `github.com/The-AI-Alliance/semiont/packages/go/sdk`, package
 `semiont`:
 
+```bash
+go get github.com/The-AI-Alliance/semiont/packages/go/sdk
+```
+
 ```text
 import semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 ```
 
-It is published nowhere: the import path is its identity. A program in the
-monorepo depends on it through a `replace` directive on its relative path, as
-the launcher's `go.mod` does:
+Each release of Semiont publishes it at the release's version, by the tag
+`packages/go/sdk/v<version>`, and its documentation is on
+[pkg.go.dev][pkg-go-dev]. `@main` takes main's latest commit between releases.
+
+A program in this repository requires it by a `replace` directive on its
+relative path instead, as the launcher's `go.mod` does, so it builds against
+the tree:
 
 ```text
 require github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
@@ -1087,6 +1096,7 @@ and its tests run each one.
 Apache-2.0. See [LICENSE](../../../LICENSE).
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
+[pkg-go-dev]: https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk
 [introduction]: ../../../docs/builder/INTRODUCTION.md
 [quick-start]: ../../../docs/builder/QUICK-START.md
 [developer-guide]: ../../../docs/builder/DEVELOPER-GUIDE.md

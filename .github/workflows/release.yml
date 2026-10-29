@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (tag only, do not publish)'
+        description: 'Dry run (the gate and the version checks; no tag, no release, no publish)'
         required: false
         type: boolean
         default: false
@@ -85,23 +85,61 @@ jobs:
           fi
           echo "All packages at version $VERSION"
 
-      - name: Create and push tag
+      # The release's tag, and one for each Go module it publishes: a Go module
+      # in a subdirectory is versioned by a tag named for its directory.
+      - name: Name the tags
+        id: tags
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::warning::Tag $TAG already exists locally — skipping creation"
-          else
-            git tag "$TAG"
-            echo "Created tag $TAG"
-          fi
-          if git ls-remote --tags origin "$TAG" | grep -q .; then
-            echo "::warning::Tag $TAG already exists on remote — skipping push"
-          else
-            git push origin "$TAG"
-            echo "Pushed tag $TAG"
-          fi
+          VERSION="${{ steps.version.outputs.version }}"
+          MODULES=$(scripts/release/published-go-modules.sh)
+          TAGS="v$VERSION"
+          for dir in $MODULES; do
+            TAGS="$TAGS $dir/v$VERSION"
+          done
+          echo "modules=$(paste -sd' ' - <<< "$MODULES")" >> "$GITHUB_OUTPUT"
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "Tags: $TAGS"
+
+      # A dry run stops here, having tagged nothing. Every channel publishes
+      # from the tag, and a Go module is published by its tag alone, the
+      # first time anyone asks the module proxy for it.
+      - name: Create and push the tags
+        if: inputs.dry_run != true
+        run: |
+          for TAG in ${{ steps.tags.outputs.tags }}; do
+            AT=$(git ls-remote origin "refs/tags/$TAG" | cut -f1)
+            if [ -z "$AT" ]; then
+              git tag "$TAG"
+              git push origin "refs/tags/$TAG"
+              echo "Pushed tag $TAG"
+            elif [ "$AT" = "$(git rev-parse HEAD)" ]; then
+              echo "::warning::Tag $TAG is already on origin at this commit — skipping"
+            else
+              echo "::error::Tag $TAG is already on origin at $AT, not at this commit"
+              exit 1
+            fi
+          done
+
+      # Go has no registry to upload to. The module proxy makes a version's zip
+      # from its tag the first time it is asked for it, the checksum database
+      # records the zip's hash, and pkg.go.dev lists what the proxy holds.
+      # Asking now publishes the version, and fails here if the proxy cannot
+      # make a module of the tag. The proxy writes each capital letter of a
+      # path as `!` and the letter in lower case.
+      - name: Publish the Go modules
+        if: inputs.dry_run != true
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          for dir in ${{ steps.tags.outputs.modules }}; do
+            MODULE="github.com/$GITHUB_REPOSITORY/$dir"
+            ESCAPED=$(perl -pe 's/([A-Z])/!\l$1/g' <<< "$MODULE")
+            curl -sSf --retry 5 --retry-delay 10 --retry-all-errors -o /dev/null \
+              "https://proxy.golang.org/$ESCAPED/@v/v$VERSION.zip"
+            echo "proxy.golang.org serves $MODULE v$VERSION"
+          done
 
       - name: Create GitHub Release
+        if: inputs.dry_run != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

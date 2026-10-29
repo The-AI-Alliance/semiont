@@ -25,12 +25,10 @@ Python:
 pip install semiont
 ```
 
-Go, in a program inside this repository (the module is not published), whose `go.mod` names it and the SDK's directory:
+Go:
 
-```text
-require github.com/The-AI-Alliance/semiont/packages/go/sdk v0.0.0-00010101000000-000000000000
-
-replace github.com/The-AI-Alliance/semiont/packages/go/sdk => ../../packages/go/sdk
+```bash
+go get github.com/The-AI-Alliance/semiont/packages/go/sdk
 ```
 
 **Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.

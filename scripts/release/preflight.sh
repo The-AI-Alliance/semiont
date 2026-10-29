@@ -42,11 +42,16 @@ done < <(cd "$ROOT" && git ls-tree -r --name-only "origin/main" 2>/dev/null | gr
          || ls -d "$ROOT"/packages/typescript/*/package.json "$ROOT"/apps/*/package.json "$ROOT"/images/*/package.json | sed "s|$ROOT/||")
 [ "$mismatch" -eq 0 ] && ok "all package.json files at $VERSION"
 
-# ------------------------------------------------------------------ tag is free
-if git ls-remote "https://github.com/$REPO" "refs/tags/v$VERSION" | grep -q .; then
-  bad "tag v$VERSION already exists on origin — bump before releasing"
+# ----------------------------------------------------------------- tags are free
+# The release tags the commit v<version>, and each Go module it publishes
+# <directory>/v<version>. Any tag of the version already taken is a version
+# already released, or half released.
+taken=$(git ls-remote --tags "https://github.com/$REPO" \
+  | awk -v v="v$VERSION" '{ sub(/^refs\/tags\//, "", $2) } $2 == v || substr($2, length($2) - length(v)) == "/" v { print $2 }')
+if [ -n "$taken" ]; then
+  for tag in $taken; do bad "tag $tag already exists on origin — bump before releasing"; done
 else
-  ok "tag v$VERSION is free"
+  ok "no tag of $VERSION exists on origin"
 fi
 
 # ------------------------------------------------------------------- CI on HEAD

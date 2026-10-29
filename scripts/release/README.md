@@ -14,6 +14,7 @@ Release lifecycle scripts. `version-bump.sh` runs on the host with just `jq` and
 | `version-bump.sh` | Bump version across all packages, commit, push the branch | `jq`, `git` |
 | `cargo-version.sh` | Write the version to the crates published to crates.io | `awk` |
 | `published-crates.sh` | Name the crates published to crates.io | `awk` |
+| `published-go-modules.sh` | Name the Go modules a release tags | `awk`, `grep` |
 | `version.mjs` | Show, sync, or set version | `node` |
 
 ## Typical Release Flow
@@ -22,8 +23,8 @@ One dispatch publishes everything; each stage triggers the next one it unblocks.
 Every step is a script, so none of it depends on remembering a flag.
 
 ```bash
-# 1. Is main releasable? Checks version sync, a free tag, and CI green on the
-#    exact origin/main sha. Prints the release command on success.
+# 1. Is main releasable? Checks version sync, that no tag of the version
+#    exists, and CI green on the exact origin/main sha. Prints the release command on success.
 ./scripts/release/preflight.sh
 
 # 2. Publish every channel.
@@ -42,9 +43,14 @@ gh workflow run release.yml
 ./scripts/release/version-bump.sh patch
 ```
 
-`release.yml` tags the commit, creates the GitHub Release, and dispatches
-`publish-npm-packages.yml`, `launcher-release.yml`, `publish-crates.yml` and
-`publish-pypi.yml`, each at the tag. The npm workflow in turn
+`release.yml` tags the commit `v<version>`, and `<directory>/v<version>` for
+each Go module `published-go-modules.sh` names, asks the Go module proxy for
+each module at the version, which publishes it, creates the GitHub Release,
+and dispatches `publish-npm-packages.yml`, `launcher-release.yml`,
+`publish-crates.yml` and `publish-pypi.yml`, each at the tag. A dry run
+(`--field dry_run=true`) runs the gate and the version checks and stops: it
+pushes no tag, since every channel publishes from the tag and a Go module's
+tag is its release. The npm workflow in turn
 dispatches `publish-browser.yml` and `publish-service-images.yml` at the ref it
 runs on, with `tag_latest=true`, since it is the only stage that knows the packages the images
 bundle are actually published.
@@ -77,6 +83,9 @@ Inspects the artifacts rather than workflow conclusions:
 - the Python package on PyPI at the version: a wheel and a source
   distribution, each downloaded and hashed against the digest the index
   states, and each attested as built by `publish-pypi.yml` of this repository;
+- every Go module `published-go-modules.sh` names: its tag on origin at the
+  release's commit, and its zip from proxy.golang.org, hashed against the
+  record in sum.golang.org and holding the repository's `LICENSE`;
 - for every image, both platforms, build provenance whose subject matches the
   tag digest, signed by the image's publish workflow of this repository at the
   release's tag (the signer the launcher requires before it runs an image),
