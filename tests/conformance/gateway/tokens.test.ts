@@ -186,7 +186,7 @@ eachPlane('credentials', (world) => {
     }
   });
 
-  it('a token signed with the gateway\'s own key is refused when it has expired, is not yet valid, names no principal, or claims no signature', async () => {
+  it('a token signed with the gateway\'s own key is refused when it has expired, is not yet valid, names no principal, names another knowledge base, or claims no signature', async () => {
     const principal = { did: `${world().kb.did}:agents:p:forged`, email: 'p-forged@agents.example', name: 'p forged', domain: world().kb.domain, iss: world().kb.domain };
     const control = await world().signed({ ...principal, iat: now(), exp: now() + 600 });
     expect((await call(world().origin, 'GET', '/api/users/me', { token: control })).status).toBe(200);
@@ -198,6 +198,10 @@ eachPlane('credentials', (world) => {
       ['not yet valid', await world().signed({ ...principal, iat: now(), nbf: now() + 3600, exp: now() + 7200 })],
       ['only a did', await world().signed({ did: principal.did, iat: now(), exp: now() + 600 })],
       ['a did that is not one', await world().signed({ ...principal, did: 'agents:p:m', iat: now(), exp: now() + 600 })],
+      // Two knowledge bases can hold one key ring, so the signature alone
+      // does not say whose a token is: iss and domain do.
+      ['another knowledge base\'s', await world().signed({ ...principal, did: 'did:web:other.example:agents:p:forged', domain: 'other.example', iss: 'other.example', iat: now(), exp: now() + 600 })],
+      ['a domain that is not its issuer', await world().signed({ ...principal, domain: 'other.example', iat: now(), exp: now() + 600 })],
       ['signed by no key', unsigned],
     ];
     for (const [why, token] of refused) {

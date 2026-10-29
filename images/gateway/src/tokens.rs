@@ -177,9 +177,17 @@ impl KeyRing {
         Err(Refusal::Invalid("Invalid token signature".to_owned()))
     }
 
-    /// An agent token this gateway signed: its signature, then its claims.
+    /// An agent token this gateway signed for this knowledge base: its
+    /// signature, then that it names this knowledge base, then its claims.
+    /// The signature alone does not say whose a token is: two knowledge bases
+    /// can hold one key ring, as when one `JWT_SECRET` is exported for both.
     pub fn verify_agent(&self, token: &str) -> Result<AgentClaims, Refusal> {
         let claims = self.verify_across(token)?;
+        if claims["iss"] != self.domain.as_str() || claims["domain"] != self.domain.as_str() {
+            return Err(Refusal::Invalid(
+                "Token names another knowledge base".to_owned(),
+            ));
+        }
         agent_claims(&claims).ok_or_else(|| Refusal::Invalid("Invalid token payload".to_owned()))
     }
 
@@ -244,4 +252,61 @@ fn is_address(address: &str) -> bool {
         && domain.contains('.')
         && !domain.contains('@')
         && !address.chars().any(char::is_whitespace)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One key ring, held by every knowledge base below.
+    const KEY: &str = "0123456789abcdef0123456789abcdef";
+
+    fn ring(domain: &str) -> KeyRing {
+        KeyRing::new(vec![KEY.to_owned()], domain.to_owned())
+    }
+
+    fn agent(keys: &KeyRing) -> String {
+        keys.agent_token(
+            &format!("did:web:{}:agents:p:m", keys.domain()),
+            &format!("p-m@agents.{}", keys.domain()),
+            "p m",
+            None,
+        )
+    }
+
+    #[test]
+    fn an_agent_token_this_knowledge_base_signed_verifies() {
+        let keys = ring("a.example");
+        let claims = keys.verify_agent(&agent(&keys)).expect("its own token");
+        assert_eq!(claims.domain, "a.example");
+    }
+
+    #[test]
+    fn an_agent_token_another_knowledge_base_signed_with_the_same_ring_is_refused() {
+        let theirs = agent(&ring("b.example"));
+        assert!(matches!(
+            ring("a.example").verify_agent(&theirs),
+            Err(Refusal::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn an_agent_token_whose_domain_is_not_its_issuer_is_refused() {
+        let keys = ring("a.example");
+        let iat = now();
+        let token = keys.sign(&AgentToken {
+            did: "did:web:b.example:agents:p:m",
+            email: "p-m@agents.b.example",
+            name: "p m",
+            domain: "b.example",
+            roles: None,
+            iat,
+            exp: iat + 600,
+            iss: "a.example",
+        });
+        assert!(matches!(
+            keys.verify_agent(&token),
+            Err(Refusal::Invalid(_))
+        ));
+    }
 }
