@@ -2,10 +2,13 @@ package launcher
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
 // The proxy passes the realm's own paths and Keycloak's assets, and nothing
@@ -103,4 +106,42 @@ func TestIssuerProxyKeepsTheHostItWasAskedAndPassesNothingElse(t *testing.T) {
 	if calls != before {
 		t.Errorf("a refused path reached Keycloak %d time(s)", calls-before)
 	}
+}
+
+// The proxy's own arguments. Any it cannot serve with is a usage error, said
+// before it listens: the start that spawned it reports the proxy's own line.
+func TestIssuerProxyRefusesArgumentsItCannotServeWith(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{"an unknown flag", []string{"--realm", "semiont", "--port", "8080"}},
+		{"a flag without a value", []string{"--listen"}},
+		{"a required flag missing", []string{"--listen", "127.0.0.1:8080", "--upstream", "127.0.0.1:18080"}},
+		{"a --listen that is not host:port", []string{"--listen", "8080", "--upstream", "127.0.0.1:18080", "--realm", "semiont"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			_, stderr := harness.CaptureOutput(t, func() {
+				if code := IssuerProxy(c.args); code != 64 {
+					t.Errorf("exit %d, want 64", code)
+				}
+			})
+			harness.MustContainAll(t, "stderr", stderr, "issuer proxy:")
+		})
+	}
+}
+
+// A port the proxy cannot take ends it at once, saying why.
+func TestIssuerProxyEndsOnAPortItCannotTake(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	_, stderr := harness.CaptureOutput(t, func() {
+		if code := IssuerProxy([]string{"--listen", held.Addr().String(), "--upstream", "127.0.0.1:18080", "--realm", "semiont"}); code != 1 {
+			t.Errorf("exit %d, want 1", code)
+		}
+	})
+	harness.MustContainAll(t, "stderr", stderr, "issuer proxy:")
 }

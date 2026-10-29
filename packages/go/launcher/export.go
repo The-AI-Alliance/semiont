@@ -250,8 +250,8 @@ func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 	return 0
 }
 
-// writeArchive tars root into out, skipping .git. Returns the entry count and
-// the uncompressed byte total.
+// writeArchive tars root into out, skipping .git, and out itself where it lies
+// inside root. Returns the entry count and the uncompressed byte total.
 //
 // Entries are SORTED, so the same tree produces the same archive — a property
 // worth having for something people diff, checksum and store.
@@ -274,6 +274,13 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 			}
 		}
 	}()
+	// The default output is <kb-name>.tar.gz where export runs, which is
+	// inside the KB when export runs there: the walk would read the archive
+	// while writing it.
+	self, err := f.Stat()
+	if err != nil {
+		return 0, 0, nil, err
+	}
 
 	var paths []string
 	err = filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
@@ -284,7 +291,7 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		if relErr != nil {
 			return relErr
 		}
-		if rel == "." {
+		if rel == "." || os.SameFile(fi, self) {
 			return nil
 		}
 		// The only optional exclusion, and the whole correctness surface of
