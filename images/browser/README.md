@@ -73,7 +73,7 @@ Almost none, deliberately.
 
 | Setting | Read at | What it is |
 |---|---|---|
-| `PORT` | runtime | the port `server.js` listens on (default `3000`) |
+| `PORT` | runtime | the port `server.js` listens on (default `3000`). In the image it stays `3000`, where its health check and its supervisor's probe look; the launcher publishes the host port it chose (`--port`) onto it |
 | `/discovery` | runtime | the read-only mount for the launcher's discovery document |
 | `VITE_OTEL_OTLP_ENDPOINT` | build time | the OTLP endpoint, baked into the bundle |
 
