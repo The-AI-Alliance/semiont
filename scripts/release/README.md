@@ -44,10 +44,11 @@ gh workflow run release.yml
 ```
 
 `release.yml` tags the commit `v<version>`, and `<directory>/v<version>` for
-each Go module `published-go-modules.sh` names, asks the Go module proxy for
-each module at the version, which publishes it, creates the GitHub Release,
+each Go module `published-go-modules.sh` names, creates the GitHub Release,
 and dispatches `publish-npm-packages.yml`, `launcher-release.yml`,
-`publish-crates.yml` and `publish-pypi.yml`, each at the tag. A dry run
+`publish-crates.yml` and `publish-pypi.yml`, each at the tag. Beside them, a
+job of its own asks the Go module proxy for each module at the version, which
+publishes it, so a proxy that does not answer holds back no other channel. A dry run
 (`--field dry_run=true`) runs the gate and the version checks and stops: it
 pushes no tag, since every channel publishes from the tag and a Go module's
 tag is its release. The npm workflow in turn

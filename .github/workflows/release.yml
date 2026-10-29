@@ -56,6 +56,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      go_modules: ${{ steps.tags.outputs.modules }}
 
     steps:
       - uses: actions/checkout@v7.0.1
@@ -120,24 +121,6 @@ jobs:
             fi
           done
 
-      # Go has no registry to upload to. The module proxy makes a version's zip
-      # from its tag the first time it is asked for it, the checksum database
-      # records the zip's hash, and pkg.go.dev lists what the proxy holds.
-      # Asking now publishes the version, and fails here if the proxy cannot
-      # make a module of the tag. The proxy writes each capital letter of a
-      # path as `!` and the letter in lower case.
-      - name: Publish the Go modules
-        if: inputs.dry_run != true
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          for dir in ${{ steps.tags.outputs.modules }}; do
-            MODULE="github.com/$GITHUB_REPOSITORY/$dir"
-            ESCAPED=$(perl -pe 's/([A-Z])/!\l$1/g' <<< "$MODULE")
-            curl -sSf --retry 5 --retry-delay 10 --retry-all-errors -o /dev/null \
-              "https://proxy.golang.org/$ESCAPED/@v/v$VERSION.zip"
-            echo "proxy.golang.org serves $MODULE v$VERSION"
-          done
-
       - name: Create GitHub Release
         if: inputs.dry_run != true
         env:
@@ -150,6 +133,31 @@ jobs:
             gh release create "$TAG" --title "$TAG" --generate-notes
             echo "Created release $TAG"
           fi
+
+  # Go has no registry to upload to. The module proxy makes a version's zip
+  # from its tag the first time it is asked for it, the checksum database
+  # records the zip's hash, and pkg.go.dev lists what the proxy holds. Asking
+  # publishes the version, and fails if the proxy cannot make a module of the
+  # tag. A job of its own, beside the other channels, so a proxy that does not
+  # answer holds none of them back. The proxy writes each capital letter of a
+  # path as `!` and the letter in lower case.
+  publish-go:
+    name: Publish the Go modules
+    needs: tag
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Ask the Go module proxy for each module at the version
+        run: |
+          VERSION="${{ needs.tag.outputs.version }}"
+          for dir in ${{ needs.tag.outputs.go_modules }}; do
+            MODULE="github.com/$GITHUB_REPOSITORY/$dir"
+            ESCAPED=$(perl -pe 's/([A-Z])/!\l$1/g' <<< "$MODULE")
+            curl -sSf --retry 5 --retry-delay 10 --retry-all-errors -o /dev/null \
+              "https://proxy.golang.org/$ESCAPED/@v/v$VERSION.zip"
+            echo "proxy.golang.org serves $MODULE v$VERSION"
+          done
 
   trigger-npm:
     name: Trigger npm publish (runs separately)
