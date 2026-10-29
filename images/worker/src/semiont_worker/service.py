@@ -1,8 +1,8 @@
 """The Worker service as a process: what it is started with, how it refuses to start, and how it stops.
 
 It is started with the path of its configuration document (`--config`), its
-own account at the issuer (`SEMIONT_OIDC_CLIENT_ID` and
-`SEMIONT_OIDC_CLIENT_SECRET`), and the variable each agent's `apiKeyEnv`
+own account at the issuer (`SEMIONT_OIDC_CLIENT_ID`, and the key it signs in
+with, `SEMIONT_OIDC_CLIENT_KEY`), and the variable each agent's `apiKeyEnv`
 names. Beside those it reads the variables
 `docs/protocol/WORKER-SERVICE.md` § Environment lists, and no other. This is
 the one module that reads the process's environment and its arguments:
@@ -29,12 +29,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import final
 
-from semiont.http import Credential, ServiceToken
+from semiont.http import KeyCredential, ServiceToken
 from semiont.model import written
 from semiont.types import WorkerConfig
 from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
 from semiont_inference.interface import InferenceClient
-from semiont_service.config import Refused, config_path_of, read_config, service_account_of
+from semiont_service.config import Refused, config_path_of, key_account_of, read_config
 from semiont_service.health import bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -51,7 +51,7 @@ class _Started:
     """Everything the service is started with: its document, its account, and a client of each agent's provider and model."""
 
     config: WorkerConfig
-    credential: Credential
+    credential: KeyCredential
     clients: list[InferenceClient]
 
 
@@ -84,7 +84,7 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     config = read_config(SERVICE, WorkerConfig, config_path_of(SERVICE, arguments))
     # What is written from the document's level: the service's own code, the inference drivers' and the SDK's.
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_inference", "semiont"))
-    credential = service_account_of(SERVICE, config.identity.issuer, environment)
+    credential = key_account_of(SERVICE, config.identity.issuer, environment)
     clients = [_client_of(config, index, environment) for index in range(len(config.agents))]
     return _Started(config=config, credential=credential, clients=clients)
 

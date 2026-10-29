@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import Final
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from pydantic import JsonValue
 from semiont.http import SecretCredential
 from semiont.types import WeaverConfig, WorkerConfig
 
-from semiont_service.config import Refused, config_path_of, read_config, service_account_of, set_in
+from semiont_service.config import Refused, config_path_of, key_account_of, read_config, service_account_of, set_in
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://gateway:4000",
@@ -278,6 +280,58 @@ def test_either_variable_of_the_account_unset_or_empty_is_refused_by_name_and_th
         service_account_of("worker", ISSUER, environment)
     assert str(refused.value) == f"{variable} is not set in the worker's environment: a worker signs in as a service account"
     assert "s3cret" not in str(refused.value)
+
+
+def _pem(key: rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, encryption: serialization.KeySerializationEncryption | None = None) -> str:
+    return key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, encryption or serialization.NoEncryption()
+    ).decode()
+
+
+_KEY: Final = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+def test_a_key_account_is_the_client_id_and_the_rsa_key_its_variable_holds() -> None:
+    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
+    credential = key_account_of("worker", ISSUER, environment)
+    assert (credential.issuer, credential.client_id) == (ISSUER, "semiont-worker")
+    assert credential.private_key.private_numbers() == _KEY.private_numbers()
+    assert _pem(_KEY) not in repr(credential)
+
+
+@pytest.mark.parametrize("variable", ["SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_KEY"])
+@pytest.mark.parametrize("left", ["unset", "empty"])
+def test_either_variable_of_a_key_account_unset_or_empty_is_refused_by_name(variable: str, left: str) -> None:
+    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
+    if left == "unset":
+        del environment[variable]
+    else:
+        environment[variable] = ""
+    with pytest.raises(Refused) as refused:
+        key_account_of("worker", ISSUER, environment)
+    assert str(refused.value) == f"{variable} is not set in the worker's environment: a worker signs in as a service account"
+
+
+def test_a_secret_is_no_key_account() -> None:
+    with pytest.raises(Refused, match=r"^SEMIONT_OIDC_CLIENT_KEY is not set in the worker's environment"):
+        key_account_of("worker", ISSUER, {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"})
+
+
+@pytest.mark.parametrize(
+    ("held", "saying"),
+    [
+        ("not a key at all", "is not an unencrypted PEM private key"),
+        (_pem(_KEY, serialization.BestAvailableEncryption(b"a passphrase")), "is not an unencrypted PEM private key"),
+        (_pem(ec.generate_private_key(ec.SECP256R1())), "is not an RSA key: a worker signs its assertions with RS256"),
+    ],
+    ids=["not PEM", "encrypted", "not RSA"],
+)
+def test_a_key_that_is_not_an_unencrypted_rsa_key_is_refused_and_never_said(held: str, saying: str) -> None:
+    with pytest.raises(Refused) as refused:
+        key_account_of("worker", ISSUER, {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": held})
+    assert str(refused.value) == f"SEMIONT_OIDC_CLIENT_KEY in the worker's environment {saying}"
+    assert held not in str(refused.value)
+    assert refused.value.__cause__ is None
 
 
 def test_a_variable_set_to_nothing_is_one_that_is_not_set() -> None:

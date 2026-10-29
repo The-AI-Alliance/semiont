@@ -107,9 +107,11 @@ WorkerPool and Inference documents
 ([Configuration](../../docs/operator/administration/CONFIGURATION.md)) into this document for
 the worker it starts, and a worker started some other way is given the same document.
 
-Its environment is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service
-account at the knowledge base's issuer, and each variable its document names, such as
-`ANTHROPIC_API_KEY`. It mounts nothing but the document.
+Its environment is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY`, its own service
+account at the knowledge base's issuer and the RSA key it proves itself with, and each variable
+its document names, such as `ANTHROPIC_API_KEY`. No secret is sent: each sign-in carries an
+assertion signed with the key, which the issuer checks with the public half registered on the
+worker's client. It mounts nothing but the document.
 
 Started without `--config`, with a document that does not validate, or with a named variable
 unset, it refuses to start: one line on stderr that begins `[fatal] ` and says which, and

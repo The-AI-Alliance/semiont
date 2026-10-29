@@ -12,7 +12,7 @@
  * everything it sends is read as a transcript: each sign-in, each stream it
  * opens, each emit, each read of bytes. Nothing reaches inside the process.
  */
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
 import type { components } from '@semiont/core';
 import { startAnthropic, type ModelFacts, type StandInAnthropic } from './anthropic';
@@ -250,12 +250,14 @@ export class WorkerServiceWorld {
   static async create(implementation: string): Promise<WorkerServiceWorld> {
     const command = inject('workerServices')[implementation];
     if (!command) throw new Error(`harness/paths.ts names no Worker service ${implementation}`);
-    const secret = randomBytes(24).toString('hex');
-    const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { secret, roles: [SERVICE_ROLE, WORKER_ROLE] } } });
+    // The worker proves itself with a key: the issuer holds the public half, the worker's environment the private.
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const key = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { publicKey, roles: [SERVICE_ROLE, WORKER_ROLE] } } });
     const ollama = await startOllama();
     const claudes = principals(world.kb.domain).agents.flatMap((a) => (a.provider === 'anthropic' ? [a.model] : []));
     const anthropic = await startAnthropic(`sk-ant-conformance-${randomBytes(24).toString('hex')}`, claudes, ANTHROPIC_MODEL);
-    const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret });
+    const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_KEY: key });
     made.peer = await world.responder(
       ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested'],
       (frame) => made.answer(frame),
