@@ -8,9 +8,9 @@ No npm is required on the host for local builds.
 | Script | Purpose |
 |--------|---------|
 | `build.sh` | Install deps + build packages and apps |
-| `publish.sh` | Version stamp + stage + publish to a registry |
+| `publish.sh` | Version stamp + stage + publish to a registry, each package with the repository's `LICENSE` copied into the directory it publishes from |
 | `publish-npm-apps.mjs` | Stage the Browser into `.npm-stage/` for publishing |
-| `build-python-sdk.sh` | Build the Python SDK's source distribution and wheel at `version.json`'s version, and check them: named for the version, holding the package and no more, and every module importable from the installed wheel alone. CI and `local-build.sh` run it; `publish-pypi.yml` uploads what it leaves |
+| `build-python-sdk.sh` | Build the Python SDK's source distribution and wheel at `version.json`'s version, and check them: named for the version, holding the package and no more, each carrying the repository's `LICENSE` (copied beside `pyproject.toml` for the build) and naming it in its metadata, and every module importable from the installed wheel alone. CI and `local-build.sh` run it; `publish-pypi.yml` uploads what it leaves |
 | `image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
 | `local-build.sh` | Host-side wrapper: build every package, each in its language's container, and every `:local` image, fanned out to every container engine on the machine, skipping what is unchanged; publish the npm packages to a Verdaccio it starts when an image installs from one; then the launcher |
 | `package-signatures.py` | The packages `local-build.sh` builds, `packages/<language>/<name>`, and the signature of what each is built from, its dependencies' among it, by which it skips one that is unchanged |

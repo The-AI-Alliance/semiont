@@ -17,6 +17,11 @@
 # imports where the package is installed without its extras, as in a service's
 # image.
 #
+# Each distribution carries the repository's LICENSE and names it in its
+# metadata. Hatchling takes a LICENSE beside pyproject.toml, and builds without
+# one it does not find, so the file is copied there from the repository's root
+# before the build and each distribution is held to carrying it after.
+#
 # Needs `uv` and `jq`.
 
 set -euo pipefail
@@ -33,6 +38,7 @@ fi
 
 cd "$PACKAGE"
 rm -rf dist
+cp "$ROOT/LICENSE" LICENSE
 uv build --out-dir dist
 
 # Exactly these two, named for the version: what is uploaded is this directory.
@@ -44,11 +50,21 @@ if [ "${#built[@]}" -ne 2 ] || [ ! -f "dist/$SDIST" ] || [ ! -f "dist/$WHEEL" ];
   exit 1
 fi
 
-# The source distribution holds the package, its README and its metadata.
-strays=$(tar -tzf "dist/$SDIST" | sed "s#^$NAME-$VERSION/##" | grep -v -e '^$' -e '^src/semiont/' -e '^README\.md$' -e '^pyproject\.toml$' -e '^PKG-INFO$' -e '^\.gitignore$' || true)
+# The source distribution holds the package, its README, its LICENSE and its
+# metadata.
+strays=$(tar -tzf "dist/$SDIST" | sed "s#^$NAME-$VERSION/##" | grep -v -e '^$' -e '^src/semiont/' -e '^README\.md$' -e '^LICENSE$' -e '^pyproject\.toml$' -e '^PKG-INFO$' -e '^\.gitignore$' || true)
 if [ -n "$strays" ]; then
   echo "::error::the source distribution holds more than the package:" >&2
   echo "$strays" >&2
+  exit 1
+fi
+if ! tar -xzOf "dist/$SDIST" "$NAME-$VERSION/LICENSE" | cmp -s - "$ROOT/LICENSE"; then
+  echo "::error::the source distribution does not carry the repository's LICENSE" >&2
+  exit 1
+fi
+pkg_info=$(tar -xzOf "dist/$SDIST" "$NAME-$VERSION/PKG-INFO")
+if ! grep -qx 'License-File: LICENSE' <<< "$pkg_info"; then
+  echo "::error::the source distribution's metadata does not name its LICENSE (License-File: LICENSE)" >&2
   exit 1
 fi
 
@@ -61,6 +77,7 @@ import importlib
 import importlib.metadata
 import pkgutil
 import sys
+from pathlib import Path
 
 name, version, checkout = sys.argv[1:]
 
@@ -82,6 +99,13 @@ if f"{name}/py.typed" not in files:
 strays = sorted({file.split("/")[0] for file in files} - {name, f"{name}-{version}.dist-info"})
 if strays:
     sys.exit(f"the wheel holds more than the package: {strays}")
+
+distribution = importlib.metadata.distribution(name)
+licence_files = distribution.metadata.get_all("License-File")
+if licence_files != ["LICENSE"]:
+    sys.exit(f"the wheel's metadata names {licence_files} as its licence files, not LICENSE")
+if distribution.read_text("licenses/LICENSE") != Path(checkout, "LICENSE").read_text():
+    sys.exit("the wheel does not carry the repository's LICENSE")
 
 print(f"{name} {installed}: {len(modules) + 1} modules, each imported with what the package declares and nothing else")
 PY

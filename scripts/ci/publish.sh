@@ -103,6 +103,9 @@ publish_pkg() {
     # Announced, never silent: a skip is a decision the log has to show.
     echo -e "  ${DIM}exists${RESET}   $pkg_name@$pkg_version${label:+ ($label)} — already published, skipping"
   else
+    # npm packs a LICENSE only from the directory it publishes, and the
+    # repository has one LICENSE, at its root.
+    cp LICENSE "$dir/LICENSE"
     # --loglevel=warn drops npm's per-file "Tarball Contents" listing, which for
     # react-ui alone is ~100 lines of dist/*.js and .map entries. Warnings and
     # errors still print; the `ok` line below is the signal worth reading.
