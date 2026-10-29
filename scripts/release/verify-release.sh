@@ -61,12 +61,34 @@ ghcr_digest() {
     | tr -d '\r' | awk 'tolower($1)=="docker-content-digest:"{print $2}'
 }
 
+# carries_licence <artifact> <command…>: whether what the command writes, the
+# LICENSE the artifact carries, is the repository's LICENSE at the tag.
+LICENCE="$WORK/LICENSE"
+carries_licence() {
+  local artifact=$1; shift
+  if [ ! -s "$LICENCE" ]; then
+    bad "$artifact: its LICENSE is not checked, for want of the repository's at v$VERSION"
+    return
+  fi
+  "$@" > "$WORK/carried-LICENSE" 2>/dev/null
+  if [ ! -s "$WORK/carried-LICENSE" ]; then bad "$artifact carries no LICENSE"
+  elif cmp -s "$WORK/carried-LICENSE" "$LICENCE"; then ok "$artifact carries the repository's LICENSE"
+  else bad "$artifact carries a LICENSE that is not the repository's at v$VERSION"; fi
+}
+
 # ---------------------------------------------------------------- tag & release
 head_ "Tag and GitHub Release"
 
 TAG_SHA=$(git ls-remote "https://github.com/$REPO" "refs/tags/v$VERSION" | cut -f1)
 if [ -n "$TAG_SHA" ]; then ok "tag v$VERSION on origin (${TAG_SHA:0:8})"
 else bad "tag v$VERSION missing on origin"; fi
+
+# What every npm package, crate and Python distribution is to carry.
+if gh api -H 'Accept: application/vnd.github.raw+json' "repos/$REPO/contents/LICENSE?ref=v$VERSION" > "$LICENCE" 2>/dev/null && [ -s "$LICENCE" ]; then
+  ok "LICENSE at v$VERSION"
+else
+  bad "could not read LICENSE at v$VERSION"; : > "$LICENCE"
+fi
 
 REL="$WORK/release.json"
 if gh release view "v$VERSION" -R "$REPO" --json isDraft,isPrerelease,assets > "$REL" 2>/dev/null; then
@@ -176,8 +198,9 @@ npm_names=$(jq -r '.packages | to_entries[] | select(.value.publish) | "\(.key)\
 # "Indexed" and "installable" are different claims. The packument lists a
 # version minutes before the CDN will serve its tarball. Checking only
 # `.versions[$v]` here would report a release verified while `npm install`
-# fails on a 404 for the tarball. One fetch answers both:
-# the tarball URL comes out of the same document, and a HEAD settles it.
+# fails on a 404 for the tarball. One fetch answers both: the tarball URL and
+# its integrity come out of the same document, and the tarball is downloaded
+# and hashed against it.
 for pkg in $npm_names; do
   enc=${pkg//\//%2f}
   doc=$(curl -sf "https://registry.npmjs.org/$enc")
@@ -189,10 +212,15 @@ for pkg in $npm_names; do
   if [ -z "$tarball" ]; then
     latest=$(printf '%s' "$doc" | jq -r '."dist-tags".latest // "unreachable"')
     bad "$pkg@$VERSION not in registry (latest=$latest)"
-  elif curl -sfI "$tarball" >/dev/null; then
-    ok "$pkg@$VERSION"
+  elif curl -sfL -o "$WORK/npm.tgz" "$tarball"; then
+    want=$(printf '%s' "$doc" | jq -r --arg v "$VERSION" '.versions[$v].dist.integrity')
+    got="sha512-$(openssl dgst -sha512 -binary "$WORK/npm.tgz" | openssl base64 -A)"
+    [ "$want" = "$got" ] \
+      && ok "$pkg@$VERSION downloads, sha512 matches the registry's integrity" \
+      || bad "$pkg@$VERSION sha512 mismatch: registry=$want downloaded=$got"
+    carries_licence "$pkg@$VERSION" tar -xzOf "$WORK/npm.tgz" package/LICENSE
   else
-    bad "$pkg@$VERSION is indexed but its tarball does not serve — not installable"
+    bad "$pkg@$VERSION is indexed but its tarball does not download — not installable"
   fi
 done
 
@@ -222,6 +250,7 @@ for crate in $CRATES; do
     [ "$want" = "$got" ] \
       && ok "$crate $VERSION downloads, sha256 matches the index (${got:0:16}…)" \
       || bad "$crate $VERSION sha256 mismatch: index=$want downloaded=$got"
+    carries_licence "$crate $VERSION" tar -xzOf "$WORK/$crate.crate" "$crate-$VERSION/LICENSE"
   else
     bad "$crate $VERSION is on the index but its .crate does not download"
   fi
@@ -256,6 +285,13 @@ else
       [ "$want" = "$got" ] \
         && ok "$file downloads, sha256 matches the index (${got:0:16}…)" \
         || bad "$file sha256 mismatch: index=$want downloaded=$got"
+      # A wheel carries its licence files in its .dist-info, and a source
+      # distribution at its root.
+      case "$file" in
+        *.whl) carries_licence "$file" unzip -p "$WORK/$file" '*.dist-info/licenses/LICENSE' ;;
+        *.tar.gz) carries_licence "$file" tar -xzOf "$WORK/$file" "${file%.tar.gz}/LICENSE" ;;
+        *) bad "$file is neither a wheel nor a source distribution" ;;
+      esac
     else
       bad "$file is on the index but does not download"
     fi

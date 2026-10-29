@@ -10,7 +10,7 @@ Release lifecycle scripts. `version-bump.sh` runs on the host with just `jq` and
 | `preflight.sh` | Decide whether origin/main is releasable | `gh`, `jq`, `git` |
 | `notes-context.sh` | Assemble PR bodies and planning docs for the post | `gh`, `jq` |
 | `announce.sh` | Lint a release post, and post it on `--post` | `gh` |
-| `verify-release.sh` | Check a published release across every channel | `gh`, `jq`, `curl` |
+| `verify-release.sh` | Check a published release across every channel | `gh`, `jq`, `curl`, `openssl`, `unzip` |
 | `version-bump.sh` | Bump version across all packages, commit, push the branch | `jq`, `git` |
 | `cargo-version.sh` | Write the version to the crates published to crates.io | `awk` |
 | `published-crates.sh` | Name the crates published to crates.io | `awk` |
@@ -65,18 +65,24 @@ rebuilding an older version must not move `:latest` onto it.
 
 Inspects the artifacts rather than workflow conclusions:
 
-- the tag on origin and the GitHub Release;
+- the tag on origin and the GitHub Release, and the repository's `LICENSE` at
+  the tag;
 - a launcher archive and its SBOM for every system and architecture
   `apps/launcher/.goreleaser.yaml` builds, with one archive of each format
   downloaded and hashed against `checksums.txt`;
 - the tap formula;
-- every package in `version.json`, with its tarball fetched from the npm
-  registry;
+- every package in `version.json`, with its tarball downloaded from the npm
+  registry and hashed against the integrity the registry states;
 - every crate `published-crates.sh` names, on crates.io at the version, with
   its `.crate` downloaded and hashed against the checksum the index states;
 - the Python package on PyPI at the version: a wheel and a source
   distribution, each downloaded and hashed against the digest the index
   states, and each attested as built by `publish-pypi.yml` of this repository;
+- that every npm tarball, `.crate`, wheel and source distribution downloaded
+  carries the repository's `LICENSE` as the tag has it: an npm package at
+  `package/LICENSE`, a crate at `<crate>-<version>/LICENSE`, a source
+  distribution at `<name>-<version>/LICENSE`, and a wheel in its `.dist-info`
+  at `licenses/LICENSE`;
 - for every image, both platforms, build provenance whose subject matches the
   tag digest, signed by the image's publish workflow of this repository at the
   release's tag (the signer the launcher requires before it runs an image),

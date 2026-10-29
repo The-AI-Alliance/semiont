@@ -61,6 +61,12 @@ Thumbs.db
 # project that runs one (scripts/compliance/README.md)
 **/scripts/symbols.json
 
+# The repository's LICENSE, beside each package that is published with it:
+# scripts/ci/publish.sh copies it into every npm package it publishes, and
+# scripts/ci/build-python-sdk.sh into the Python SDK before it builds
+/packages/typescript/*/LICENSE
+/packages/python/sdk/LICENSE
+
 # What the repository's own tooling writes at its root: the packages staged
 # for a registry (scripts/ci/build.sh, publish.sh), the compliance reports,
 # the release notes' context (scripts/release/notes-context.sh, which quotes

@@ -915,6 +915,23 @@ jobs:
               done
           cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
 
+      # Cargo packages only what is under a crate's directory, so each
+      # published crate's directory holds LICENSE, a link to the repository's,
+      # which cargo follows when it packages. A published crate without the
+      # link, or with a copy in its place that has drifted, fails here.
+      - name: Check every published crate carries the repository's LICENSE
+        run: |
+          failed=0
+          for crate in $(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"'); do
+            if tar -xzOf "$RUNNER_TEMP/packaged/package/$crate.crate" "$crate/LICENSE" > "$RUNNER_TEMP/carried-LICENSE" && cmp -s "$RUNNER_TEMP/carried-LICENSE" ../../LICENSE; then
+              echo "✓ $crate carries the repository's LICENSE"
+            else
+              echo "::error::$crate does not carry the repository's LICENSE: its directory needs LICENSE, a link to the repository's"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

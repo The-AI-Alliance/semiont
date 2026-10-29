@@ -60,7 +60,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ./scripts/release/verify-release.sh <version>
 ```
 
-It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
+It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry with its tarball hashed against the registry's integrity, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, each of those tarballs, `.crate` files and Python files carrying the repository's `LICENSE` as it stands at the tag, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
 
 To boot the published images:
 
@@ -95,6 +95,8 @@ The bump is safe as soon as the tag exists. Everything downstream is pinned to t
 [`scripts/ci/build.sh`](../../scripts/ci/build.sh) builds, and [`scripts/ci/publish.sh`](../../scripts/ci/publish.sh) stamps versions and publishes, in `version.json`'s order, stopping at the first failure. A re-run after a fix skips the versions already published. Before publishing, each package's `dist` is checked to resolve under `NodeNext` from a consumer's side.
 
 The Browser publishes from a staging directory, `.npm-stage/browser`: it is a pre-built bundle whose dependencies are compiled in, so its published manifest declares none.
+
+Each package carries the repository's `LICENSE`. npm packs a `LICENSE` only from the directory it publishes, whatever the package's `files` says, so `publish.sh` copies the root's into that directory, the Browser's staging directory among them, just before it publishes. The copies are ignored by git.
 
 Dispatching the npm workflow on its own, without `stable_release`, publishes a development build: `<version>-build.<run number>`, under the `dev` dist-tag.
 
@@ -138,7 +140,7 @@ Built for macOS on Apple Silicon and Intel and for Linux on x64, and attached to
 
 ### The Rust crates
 
-Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, if a published crate is at any version but `version.json`'s, or if one does not package and build from its packaged form.
+Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, if a published crate is at any version but `version.json`'s, if one does not package and build from its packaged form, or if its packaged form does not carry the repository's `LICENSE`.
 
 [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) publishes them, at the release's tag. A published version of a crate is permanent: it can be yanked, never replaced. So the workflow:
 
@@ -158,6 +160,8 @@ gh workflow run publish-crates.yml --field dry_run=true
 
 The SDK's build script reads the spec through `packages/rust/sdk/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
 
+Cargo packages only what is under a crate's directory, so each published crate's directory holds `LICENSE`, a link to the repository's, and each `.crate` carries the file at `<crate>-<version>/LICENSE`.
+
 ### The Python package
 
 The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
@@ -165,7 +169,7 @@ The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `sem
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 
 1. Builds the source distribution, and the wheel from it, with [`scripts/ci/build-python-sdk.sh`](../../scripts/ci/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
-2. Refuses distributions not named for the version, or that hold more than the package.
+2. Refuses distributions not named for the version, that hold more than the package, or that do not carry the repository's `LICENSE` and name it in their metadata (`License-File: LICENSE`). The script copies the root's `LICENSE` beside `pyproject.toml` before it builds, where hatchling takes it as the licence file: the source distribution carries it at its root, and the wheel in its `.dist-info` at `licenses/LICENSE`. The copy is ignored by git.
 3. Installs the wheel in an environment of its own and imports every module of it, so a module that needs what the package does not declare fails before anything is uploaded.
 4. Skips a version already on PyPI, so a run can be made again.
 5. Uploads each file with an attestation of which workflow built it.
@@ -207,12 +211,12 @@ Dependencies between packages in this repository are `"*"` in source and are rew
 
 ## A new package
 
-npm's trusted publishing cannot create a package, and neither can crates.io's. Before the first release that includes a new publishable crate, publish it once by hand with `cargo publish -p <crate>`, then add this repository and `publish-crates.yml` under its Settings → Trusted Publishing on crates.io.
+npm's trusted publishing cannot create a package, and neither can crates.io's. Before the first release that includes a new publishable crate, link the repository's `LICENSE` into its directory (`ln -s ../../../LICENSE packages/rust/<crate's directory>/LICENSE`; CI fails a published crate without it), publish it once by hand with `cargo publish -p <crate>`, then add this repository and `publish-crates.yml` under its Settings → Trusted Publishing on crates.io.
 
 Before the first release that includes a new publishable npm package:
 
 1. Add it to `version.json` ([Adding a package](README.md#adding-a-package)).
-2. Publish it once by hand, at the version before the one about to be released. Publish that one package alone, under its published name: for an app, that is the name in its `package.publish.json`, not its key in `version.json`.
+2. Publish it once by hand, at the version before the one about to be released, with the repository's `LICENSE` copied into the directory it is published from, as `publish.sh` copies it. Publish that one package alone, under its published name: for an app, that is the name in its `package.publish.json`, not its key in `version.json`.
 3. Configure its trusted publisher on npm: this repository and `publish-npm-packages.yml`, with no environment.
 
 Skipping this stops the publish partway down the list, which leaves a partial release.
