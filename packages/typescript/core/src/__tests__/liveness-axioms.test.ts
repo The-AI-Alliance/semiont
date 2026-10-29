@@ -6,6 +6,7 @@
  *   (a)  a no-retry cache double that swallows the rejection   → L2 (swallow)
  *   (a2) an unbounded-retry variant                            → L2 (budget)
  *   (a3) a swallow-into-pending-forever await variant          → L2 (settlement)
+ *   (a4) a re-send after every output has spoken               → L2 (budget)
  *   (b)  a swallowed-contention double (a single-slot scope
  *        contract, local to the double — the real transport
  *        composes distinct scopes onto one connection)         → L1
@@ -78,6 +79,22 @@ function stormingQuery(transport: FaultyTransport, rid: string): Observable<unkn
         });
     };
     attempt(1);
+  });
+}
+
+/** (a4) Answers, then asks again: once its output has spoken it sends the same
+ * request twice more, a macrotask later — after every output has spoken, so
+ * only a harness that waits out its whole bound counts them. */
+function lateResendingQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
+  return new Observable((subscriber) => {
+    const ask = (): Promise<unknown> => new Bus(transport).request(OP, { resourceId: rid }, TIMEOUT_MS);
+    void ask().then((v) => {
+      subscriber.next(v);
+      setTimeout(() => {
+        // Nobody awaits a late re-send.
+        for (let i = 0; i < 2; i++) void ask().catch(() => {});
+      }, TIMEOUT_MS);
+    });
   });
 }
 
@@ -191,6 +208,18 @@ describe('liveness axioms — the harness has teeth', () => {
         numRuns: 3,
       }),
     ).rejects.toThrow(/^L2: [\s\S]*settlement #0 did not settle/);
+  });
+
+  it('(a4) L2: a request sent again after every output has spoken counts against the budget', async () => {
+    await expect(
+      assertLivenessAxioms({
+        setup: (transport) => ({ outputs: [lateResendingQuery(transport, 'res-a')] }),
+        timeoutMs: TIMEOUT_MS,
+        scheduleArb: fc.constant([{ kind: 'deliver' }] as const),
+        makeResponse: (_operation, payload) => ({ resource: { '@id': payload.resourceId } }),
+        numRuns: 3,
+      }),
+    ).rejects.toThrow(/^L2: .*issued 3 times — exceeds the retry budget/s);
   });
 
   it('(b) L1: a swallowed-contention double (a single-slot scope contract) starves the second output', async () => {
