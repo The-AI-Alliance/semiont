@@ -3138,8 +3138,8 @@ jobs:
   # third test instead failed a golden that a serial run passes. The first leg
   # also runs the tests of the launcher's libraries (packages/go/launcher). A
   # new test lands in a leg with nothing to update, and a leg left with no
-  # test fails. The libraries' coverage is both: what their own tests reach,
-  # from the first leg, and what each leg's scenarios reach.
+  # test fails. The libraries' coverage is both: what their tests reach of any
+  # of their packages, from the first leg, and what each leg's scenarios reach.
   #
   # An EXPLICIT budget. These tests drive a fake runtime through real
   # start/stop lifecycles, so each leg is minutes long and serial; the whole
@@ -3207,10 +3207,13 @@ jobs:
           verbose: true
         continue-on-error: true
 
+      # -coverpkg credits each package with what every package's tests reach
+      # of it, not only its own tests: images has no tests of its own, and the
+      # root package's tests run it.
       - name: Test the launcher's libraries
         if: strategy.job-index == 0
         working-directory: packages/go/launcher
-        run: go test -timeout 30m -coverprofile=coverage.out ./...
+        run: go test -timeout 30m -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Upload the libraries' tests' coverage to Codecov
         if: strategy.job-index == 0

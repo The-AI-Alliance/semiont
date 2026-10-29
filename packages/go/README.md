@@ -12,6 +12,10 @@ The Go SDK, and the libraries the `semiont` launcher ([apps/launcher](../../apps
 ## Where things are
 
 - Each is a Go module of its own, with its own `go.mod`; the launcher's libraries name the SDK by a `replace` on its path.
-- CI measures each module's coverage with `go test -coverprofile`, and uploads it under the flag `go-<name>`.
+- CI measures each module's coverage with `go test -coverprofile`, and uploads it under the flag `go-<name>`. The launcher's libraries are measured twice, and Codecov joins the two:
+  - by their tests, with `-coverpkg=./...`, so a package is credited with what any of their tests reach of it;
+  - by the scenario suite of [apps/launcher](../../apps/launcher/README.md), whose launcher writes what of them it runs.
+
+  Their test tooling, `fakert` and `harness`, is left out of the count.
 
 The other languages, and which SDK a program installs, are in [packages/](../README.md).
