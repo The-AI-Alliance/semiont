@@ -18,6 +18,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectLines } from './gateway';
 import { call } from './http';
+import { runEnvironment } from './paths';
 
 /** How one implementation of the Weaver is started and reached. */
 export interface WeaverService {
@@ -106,7 +107,7 @@ function launch({ service, settings, env, home }: WeaverLaunch): { child: ChildP
   mkdirSync(temporary, { recursive: true });
   const path = join(home, 'weaver.json');
   writeFileSync(path, document(settings, service, temporary));
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home, TMPDIR: temporary };
+  const childEnv: Record<string, string> = { ...runEnvironment(), HOME: home, TMPDIR: temporary };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const [program, ...args] = [...service.command, '--config', path];
   const child = spawn(program!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

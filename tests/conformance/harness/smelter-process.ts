@@ -17,6 +17,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectLines } from './gateway';
 import { call } from './http';
+import { runEnvironment } from './paths';
 
 /** The port every Smelter the harness starts is told to answer its health on (SMELTER.md § Health). */
 export const SMELTER_HEALTH_PORT = 24101;
@@ -167,7 +168,7 @@ async function launch({ command, settings, env, home }: SmelterLaunch): Promise<
   mkdirSync(home, { recursive: true });
   const config = join(home, 'smelter.json');
   writeFileSync(config, document(settings, home));
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home };
+  const childEnv: Record<string, string> = { ...runEnvironment(), HOME: home };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const [program, ...prefix] = command;
   const child = spawn(program!, [...prefix, '--config', config], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

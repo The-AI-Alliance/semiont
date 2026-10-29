@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { inject } from 'vitest';
 import { call, type Reply } from './http';
+import { runEnvironment } from './paths';
 import { serviceEnvironment } from './spec';
 
 export type DispatcherSettings = components['schemas']['DispatcherConfig'];
@@ -85,7 +86,7 @@ function launch({ settings, env, verbatim, args }: DispatcherLaunch): { child: C
   const dir = mkdtempSync(join(tmpdir(), 'conformance-dispatcher-'));
   const document = join(dir, 'dispatcher.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '' };
+  const childEnv: Record<string, string> = runEnvironment();
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
   const [command, ...prefix] = inject('dispatcherCommand');
   const child = spawn(command!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

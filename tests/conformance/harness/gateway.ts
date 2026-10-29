@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { inject } from 'vitest';
 import { freePort } from './net';
+import { runEnvironment } from './paths';
 import { serviceEnvironment } from './spec';
 
 export type Plane = 'in-process' | 'nats';
@@ -112,7 +113,7 @@ function launch({ settings, env, unlisted = {}, args }: LaunchOptions): { child:
   checkEnvironment(env, settings, unlisted);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-'));
   const document = writeConfiguration(dir, settings);
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', ...unlisted };
+  const childEnv: Record<string, string> = { ...runEnvironment(), ...unlisted };
   // A variable a case sets to undefined is one it withholds.
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined) delete childEnv[k];

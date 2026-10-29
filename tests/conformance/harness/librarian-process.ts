@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
-import { MODEL_CATALOGUE } from './paths';
+import { MODEL_CATALOGUE, runEnvironment } from './paths';
 
 /** Who serves a model: the provider's kind, the model and the provider's address. */
 export interface ModelSettings {
@@ -152,7 +152,7 @@ async function launch({ command, settings, env, home, port }: LibrarianLaunch): 
   mkdirSync(home, { recursive: true });
   const config = join(home, 'librarian.json');
   writeFileSync(config, document(settings, port));
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '' };
+  const childEnv: Record<string, string> = runEnvironment();
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const [program, ...prefix] = command;
   const child = spawn(program!, [...prefix, '--config', config], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

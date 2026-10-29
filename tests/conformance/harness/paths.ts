@@ -5,6 +5,18 @@ import type { WeaverService } from './weaver-process';
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 /**
+ * What a process a suite starts is given of the suite's own environment,
+ * beside what its service's table lists: the PATH it is found on, and, when
+ * the run measures coverage, the LLVM_PROFILE_FILE an instrumented binary
+ * writes what it ran to as it exits. ci.yml sets it in every job that starts
+ * one of the Rust binaries.
+ */
+export function runEnvironment(): Record<string, string> {
+  const profile = process.env['LLVM_PROFILE_FILE'];
+  return { PATH: process.env['PATH'] ?? '', ...(profile === undefined ? {} : { LLVM_PROFILE_FILE: profile }) };
+}
+
+/**
  * How a gateway is started. One of the lines that name an implementation:
  * the suites start whatever this runs, hand it the configuration document and
  * the environment, and talk to it over HTTP. vitest.config.ts provides it to

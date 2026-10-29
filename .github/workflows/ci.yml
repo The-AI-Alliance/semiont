@@ -961,7 +961,8 @@ jobs:
       # minutes sooner. The key hashes what the Rust images' layers' key in
       # stack-smoke.yml hashes, which lint:workflows holds to everything the
       # build reads, and holds equal to this one. No restore-keys: a binary
-      # built from other sources is the wrong binary.
+      # built from other sources is the wrong binary. How they are built is not
+      # hashed: the prefix names it, and changes when it does.
       - name: Restore the binaries built from these sources
         id: binaries
         uses: actions/cache@v6.1.0
@@ -973,14 +974,15 @@ jobs:
             packages/rust/target/release/semiont-wire-driver
             packages/rust/target/release/semiont-live-driver
             packages/rust/target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-binaries-workspace-instrumented-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
         run: |
           rustup toolchain install
 
-      # Its own key, for the release profile: see Gateway Tests.
+      # Its own key, for the release profile built instrumented: see Gateway
+      # Tests. A target built another way would be restored and never saved.
       - name: Cache cargo
         if: steps.binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v6.1.0
@@ -989,13 +991,21 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             packages/rust/target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-rust-release-workspace-instrumented-${{ hashFiles('packages/rust/Cargo.lock', 'packages/rust/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-release-
+            ${{ runner.os }}-rust-release-workspace-instrumented-
 
+      # The workspace's crates instrumented for coverage, their dependencies
+      # not (scripts/ci/instrument-coverage.sh says why): each binary writes
+      # what it ran as it exits, wherever the job running it points
+      # LLVM_PROFILE_FILE, and Rust Coverage reads it. Unstripped, since what
+      # llvm-cov reads must survive the build.
       - name: Build the services and the Rust drivers
         if: steps.binaries.outputs.cache-hit != 'true'
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
+        env:
+          RUSTC_WORKSPACE_WRAPPER: ${{ github.workspace }}/scripts/ci/instrument-coverage.sh
+          CARGO_PROFILE_RELEASE_STRIP: none
 
       # Several paths: the artifact's root is their common directory, so a
       # suite fetching it into packages/rust/target/release gets the six files there.
@@ -1021,6 +1031,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1119,16 +1133,40 @@ jobs:
 
           echo "🎉 All gateway API security checks passed!"
 
+      # It writes its coverage profile as it exits, which follows its drain:
+      # wait, a bounded time, for it to be gone before the profile is kept.
       - name: Stop the gateway
         if: always()
         run: |
-          if [ -n "$GATEWAY_PID" ]; then kill "$GATEWAY_PID" || true; fi
+          if [ -n "$GATEWAY_PID" ]; then
+            kill "$GATEWAY_PID" || true
+            for i in $(seq 1 30); do
+              if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then exit 0; fi
+              sleep 1
+            done
+            echo "The gateway was still running 30 s after SIGTERM"
+            exit 1
+          fi
+
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
 
   gateway-conformance:
     name: Gateway Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1175,11 +1213,25 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   dispatcher-conformance:
     name: Dispatcher Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1225,11 +1277,25 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   archivist-conformance:
     name: Archivist Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1275,11 +1341,25 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   sdk-conformance:
     name: SDK Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1348,6 +1428,16 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   # A worker written on an SDK, held to docs/protocol/WORKER-CONTRACT.md: a
   # real gateway, with the suite playing the dispatcher.
   worker-conformance:
@@ -1355,6 +1445,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1423,6 +1517,16 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   # The Weaver, held to docs/protocol/WEAVER.md: the process a weaver image
   # runs, behind a real gateway and a real Archivist, writing a real neo4j,
   # which the suite reads back.
@@ -1432,6 +1536,9 @@ jobs:
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
       # Where the suite finds its graph database, and the password it is
       # started with below: a container this job makes, and the suite clears.
       NEO4J_HOST: localhost
@@ -1511,6 +1618,16 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   # The Smelter, held to docs/protocol/SMELTER.md: the process a smelter image
   # runs, behind a real gateway and a real Archivist, with the suite playing
   # its embedding provider, writing a real Qdrant, which the suite reads back.
@@ -1520,6 +1637,9 @@ jobs:
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
       # Where the suite finds its vector database: a container this job makes,
       # whose index the suite clears.
       QDRANT_HOST: localhost
@@ -1605,6 +1725,16 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   # The Librarian, held to docs/protocol/LIBRARIAN.md: the process a librarian
   # image runs, behind a real gateway, beside a real Archivist, a Weaver and a
   # Smelter, which write the neo4j and the Qdrant it reads, with the suite
@@ -1615,6 +1745,9 @@ jobs:
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
     env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
       # Where the suite finds its graph database, with the password it is
       # started with below, and its vector database: containers this job
       # makes, and the suite clears.
@@ -1729,6 +1862,16 @@ jobs:
         env:
           CI: true
 
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
   # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
   # worker image runs, behind a real gateway, with the suite playing the
   # dispatcher, the record, the Smelter and its provider.
@@ -1737,6 +1880,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.python-sdk == 'true'
+    env:
+      # Where every Rust binary this job starts writes what it ran, as it exits,
+      # merged into one file per binary: kept below, for Rust Coverage.
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-profiles/%m.profraw
 
     steps:
       - name: Checkout code
@@ -1794,6 +1941,95 @@ jobs:
           npm run test:worker-service
         env:
           CI: true
+
+      # What the instrumented binaries ran, for Rust Coverage. A job that
+      # started one and finds no profile fails: the measurement broke.
+      - name: Keep the coverage profiles
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-profiles-${{ github.job }}
+          path: coverage-profiles
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── The Rust binaries' coverage, from the jobs that ran them ─────────
+  # build-rust builds the six binaries instrumented, and each job that starts
+  # one keeps what they ran. This job merges every job's profiles into one
+  # report over the six binaries and uploads it under the flag of every crate
+  # they link. Gateway Tests uploads the crates' own tests under the same
+  # flags, and Codecov adds the two: the services are tested by the suites,
+  # and this is where those runs are counted.
+  rust-coverage:
+    name: Rust Coverage
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts, build-rust, gateway-security, gateway-conformance, dispatcher-conformance, archivist-conformance, sdk-conformance, worker-conformance, weaver-conformance, smelter-conformance, librarian-conformance, worker-service-conformance]
+    if: needs.changes.outputs.rust == 'true'
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # llvm-profdata and llvm-cov, of the LLVM the binaries were built with.
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup component add llvm-tools-preview
+
+      - name: Fetch the Rust binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: rust-binaries
+          path: packages/rust/target/release
+
+      # Each job's into a directory of its own: every job names its files
+      # after the binary, so one directory would keep only the last job's.
+      - name: Fetch every job's coverage profiles
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-profiles-*
+          path: packages/rust/target/coverage-profiles
+
+      # Over every binary build-rust published; the workspace's own lines
+      # only, not the dependencies', the standard library's, or what a build
+      # script wrote into target/.
+      - name: Merge the profiles into one report
+        run: |
+          tools="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin"
+          find target/coverage-profiles -name '*.profraw' > target/profiles.txt
+          "$tools/llvm-profdata" merge --sparse --input-files=target/profiles.txt --output=target/suites.profdata
+          binaries=(target/release/semiont-*)
+          objects=()
+          for binary in "${binaries[@]:1}"; do objects+=("--object=$binary"); done
+          "$tools/llvm-cov" export --format=lcov --instr-profile=target/suites.profdata \
+            --ignore-filename-regex='/\.cargo/registry/|/rustc/|/target/' \
+            "${binaries[0]}" "${objects[@]}" > target/suites.lcov
+
+      # A Rust service the report shows nothing run of is measurement broken,
+      # not code untested: its profiles were not written, or not kept.
+      - name: Check the report counts each Rust service
+        working-directory: ${{ github.workspace }}
+        run: |
+          for main in images/*/src/main.rs; do
+            if ! awk -v want="/$main" '
+              /^SF:/ { inside = (index($0, want) > 0) }
+              inside && /^DA:/ { split(substr($0, 4), count, ","); if (count[2] > 0) ran = 1 }
+              END { exit ran ? 0 : 1 }' packages/rust/target/suites.lcov; then
+              echo "::error::The report shows no line of $main run: its service's coverage profiles were not written, or not kept."
+              exit 1
+            fi
+          done
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/rust/target/suites.lcov
+          flags: image-gateway,image-dispatcher,image-archivist,rust-core,rust-http-service,rust-http-transport,rust-observability,rust-sdk,rust-telemetry
+          name: rust-suites
+          verbose: true
+        continue-on-error: true
 
   # The Python SDK: both type checkers, strict, on the oldest Python it
   # supports, where a newer one would let through what that one refuses; its
@@ -3068,6 +3304,7 @@ jobs:
       - smelter-conformance
       - librarian-conformance
       - worker-service-conformance
+      - rust-coverage
       - test-sdk-python
       - test-sdk-python-windows
       - test-inference-python
