@@ -839,8 +839,9 @@ func librarianArgs(stage string, e exposure, clientSecret, img, mem string, user
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys the agent tokens
-		// of its matcher's and its gatherer's models from the gateway.
+		// This process's own credential at the realm. It buys one agent token
+		// from the gateway, as the agent (semiont, librarian), whatever models its
+		// matcher and its gatherer ask.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)

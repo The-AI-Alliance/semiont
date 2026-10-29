@@ -33,7 +33,7 @@ import { initObservabilityNode } from '@semiont/observability/node';
 import { withSpan } from '@semiont/observability';
 
 // Once, at the entry point, before anything that makes a span.
-initObservabilityNode({ serviceName: 'my-program' });
+initObservabilityNode({ serviceName: 'my-program', serviceVersion: '1.0.0' });
 
 const length = await withSpan('read-document', async (span) => {
   span.setAttribute('document.pages', 12);

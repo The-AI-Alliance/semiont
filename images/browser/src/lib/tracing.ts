@@ -38,8 +38,8 @@ import {
 export interface WebObservabilityConfig {
   /** Service identity (e.g. `semiont-browser`). */
   serviceName: string;
-  /** Service version. */
-  serviceVersion?: string;
+  /** Service version: the Browser's own, as its package names it. */
+  serviceVersion: string;
   /**
    * OTLP HTTP endpoint (e.g. `https://collector.example.com/v1/traces`).
    * If omitted, the SDK uses a console exporter.
@@ -74,7 +74,7 @@ export function initObservabilityWeb(config: WebObservabilityConfig): boolean {
 
   const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: config.serviceName,
-    [ATTR_SERVICE_VERSION]: config.serviceVersion ?? '0.0.0',
+    [ATTR_SERVICE_VERSION]: config.serviceVersion,
   });
 
   providerInstance = new TracerProvider({

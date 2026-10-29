@@ -34,15 +34,15 @@ export interface ModelSettings {
  * holds what a Librarian does without it.
  */
 export interface LibrarianSettings {
-  gatewayUrl?: string;
+  gatewayUrl?: LibrarianDocument['gatewayUrl'];
   /** The issuer its service account signs in at. */
-  issuer?: string;
+  issuer?: LibrarianDocument['identity']['issuer'];
   /** Where the Archivist is, for a resource's bytes. */
-  archivist?: { host: string; port: number };
+  archivist?: LibrarianDocument['archivist'];
   /** The graph database. Its password is the environment's, under `passwordEnv`. */
-  graph?: { type: 'neo4j'; uri: string; username: string; database: string; passwordEnv: string } | { type: 'memory' };
+  graph?: LibrarianDocument['graph'];
   /** The vector database. */
-  vectors?: { type: 'qdrant'; host: string; port: number } | { type: 'memory' };
+  vectors?: LibrarianDocument['vectors'];
   /** The embedding provider, which gives a query its vector. */
   embedding?: ModelSettings;
   /** The model the Matcher scores candidates with. */

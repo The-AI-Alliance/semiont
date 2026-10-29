@@ -16,6 +16,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
 import { runEnvironment } from './paths';
@@ -27,13 +28,16 @@ export interface WeaverService {
   healthPort: number;
 }
 
+type WeaverDocument = components['schemas']['WeaverConfig'];
+
+/** What a test chooses of a Weaver's document; the harness fills in the rest. */
 export interface WeaverSettings {
-  gatewayUrl: string;
-  issuer: string;
+  gatewayUrl: WeaverDocument['gatewayUrl'];
+  issuer: WeaverDocument['identity']['issuer'];
   /** Where the Archivist listens: the Weaver reads the record by position there. */
-  archivist: { host: string; port: number };
+  archivist: WeaverDocument['archivist'];
   /** The graph database. Its password is the environment's, under `passwordEnv`. */
-  graph: { type?: 'neo4j' | 'memory'; uri: string; username: string; database: string; passwordEnv: string };
+  graph: WeaverDocument['graph'];
 }
 
 export interface WeaverEnvironment {
@@ -89,17 +93,17 @@ export interface WeaverProcess {
  * harness names, which outlives a process as the home directory does.
  */
 function document(settings: WeaverSettings, service: WeaverService, temporary: string): string {
-  const { type, ...reached } = settings.graph;
-  return JSON.stringify({
+  const written: WeaverDocument = {
     gatewayUrl: settings.gatewayUrl,
     identity: { issuer: settings.issuer },
     archivist: settings.archivist,
-    graph: type === 'memory' ? { type: 'memory' } : { type: 'neo4j', ...reached },
+    graph: settings.graph,
     cursorsPath: join(temporary, 'weaver-cursors.json'),
     port: service.healthPort,
     logLevel: 'info',
     logFormat: 'simple',
-  });
+  };
+  return JSON.stringify(written);
 }
 
 function launch({ service, settings, env, home }: WeaverLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null> } {
