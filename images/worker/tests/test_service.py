@@ -13,14 +13,17 @@ from pathlib import Path
 from typing import Final
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import JsonValue
-from semiont.http import SecretCredential
 from semiont_service.config import Refused
 
 from semiont_worker.log import LOG
 from semiont_worker.service import boot, main
 
-ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+KEY: Final = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+PEM: Final = KEY.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": PEM}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://127.0.0.1:1",
@@ -144,9 +147,8 @@ def test_a_provider_whose_facts_are_a_catalogue_s_boots_with_them_and_is_refused
 @pytest.mark.usefixtures("unconfigured")
 def test_everything_it_is_started_with_is_read_at_boot_a_client_for_each_agent_in_the_document_s_order(tmp_path: Path) -> None:
     started = boot(["--config", written(tmp_path)], {**ACCOUNT, "FIRST_KEY": "sk-first", "SECOND_KEY": "sk-second", "UNREAD": "x"})
-    assert started.credential == SecretCredential(
-        issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-worker", client_secret="s3cret"
-    )
+    assert (started.credential.issuer, started.credential.client_id) == ("http://127.0.0.1:1/realms/semiont", "semiont-worker")
+    assert started.credential.private_key.private_numbers() == KEY.private_numbers()
     assert [(client.provider, client.model_id) for client in started.clients] == [
         ("anthropic", "claude-test"),
         ("ollama", "gemma2:27b"),
@@ -166,10 +168,12 @@ def test_the_document_is_refused_before_the_account_the_account_before_a_key_and
     # A document that is refused, with no account either: the document is said.
     broken = written(tmp_path / "..", {**DOCUMENT, "port": "24100"})
     assert refusal(["--config", broken], {}).startswith(f"{broken} is not a worker configuration document (WorkerConfig):")
-    # The account, its id before its secret, and before any key.
+    # The account, its id before its own key, and before any provider's key. A secret is no account of a worker's.
     assert refusal(["--config", path], {}).startswith("SEMIONT_OIDC_CLIENT_ID is not set")
-    assert refusal(["--config", path], {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker"}).startswith("SEMIONT_OIDC_CLIENT_SECRET is not set")
-    # The keys, the first agent's first.
+    assert refusal(["--config", path], {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker"}).startswith("SEMIONT_OIDC_CLIENT_KEY is not set")
+    secret = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+    assert refusal(["--config", path], secret).startswith("SEMIONT_OIDC_CLIENT_KEY is not set")
+    # The providers' keys, the first agent's first.
     assert refusal(["--config", path], ACCOUNT).startswith("agents[0].apiKeyEnv names a variable")
     assert refusal(["--config", path], {**ACCOUNT, "FIRST_KEY": "sk-first"}).startswith("agents[2].apiKeyEnv names a variable")
     assert boot(["--config", path], {**ACCOUNT, **keys}).config.log_level == "warn"
@@ -194,7 +198,7 @@ def test_from_boot_on_the_log_is_written_as_the_document_says(tmp_path: Path, ca
         (["--config"], ACCOUNT, "[fatal] The worker's configuration document is not named: start it with --config <path>\n"),
         (
             ["--config", "<document>"],
-            {"SEMIONT_OIDC_CLIENT_SECRET": "s3cret"},
+            {"SEMIONT_OIDC_CLIENT_KEY": PEM},
             "[fatal] SEMIONT_OIDC_CLIENT_ID is not set in the worker's environment: a worker signs in as a service account\n",
         ),
         (["--config", "<document>"], ACCOUNT, "[fatal] agents[0].apiKeyEnv names a variable that is not set in the worker's environment\n"),
@@ -215,7 +219,7 @@ def test_a_service_that_does_not_start_says_why_once_on_stderr_and_exits_with_st
     captured = capsys.readouterr()
     assert captured.err == said
     assert captured.out == ""
-    assert "s3cret" not in captured.err
+    assert PEM not in captured.err
 
 
 @pytest.mark.usefixtures("unconfigured")

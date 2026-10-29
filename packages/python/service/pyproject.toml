@@ -18,14 +18,15 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
-# OpenTelemetry's API, pydantic and httpx are the SDK's dependencies too, and
-# the SDK states their versions: a bound written here would be a second copy
+# OpenTelemetry's API, pydantic, httpx and cryptography are the SDK's
+# dependencies too, and the SDK states their versions: a bound written here would be a second copy
 # of its. httpx is what a service asks the Archivist for a resource's bytes
-# with. OpenTelemetry's SDK and its OTLP exporter are what a service exports
+# with, and cryptography what it reads a key it signs in with by. OpenTelemetry's SDK and its OTLP exporter are what a service exports
 # its telemetry with, at the versions the SDK states for its conformance
 # drivers: tests/test_census.py holds the two to each other. They are stated
 # here once, for every Python service.
 dependencies = [
+    "cryptography",
     "httpx",
     "opentelemetry-api",
     "opentelemetry-exporter-otlp-proto-http>=1.30,<2",

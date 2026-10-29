@@ -1155,6 +1155,7 @@ dev = [
 name = "semiont-service"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1174,6 +1175,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography" },
     { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
