@@ -22,7 +22,6 @@ describe('@semiont/core - did-utils', () => {
       expect(did).toBe('did:web:example.org:kb');
     });
   });
-  });
 
   /**
    * The same committed domain, rendered as the resource identifier a token's
