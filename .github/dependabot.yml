@@ -190,15 +190,14 @@ updates:
       include: "scope"
 
   # Go SDK (packages/go/sdk). Its OWN entry because gomod is not
-  # workspace-aware: this is a separate module, and the launcher's entry above
-  # updates the launcher's go.mod only.
+  # workspace-aware: this is a separate module, and the launcher's two entries
+  # above update the launcher's go.mod files only.
   #
-  # Without it the drift is invisible from inside the repo. The launcher
-  # `replace`s this module and MVS then resolves the HIGHER requirement, so a
-  # monorepo build and govulncheck both see the launcher's version
-  # (oapi-codegen/runtime v1.7.0) while this go.mod goes on declaring v1.6.0 —
-  # green everywhere, and nothing reports it. But sdk-go is consumed by module
-  # path, so an EXTERNAL consumer resolves the stale minimum declared here.
+  # Without it this go.mod's requirements drift unseen. The launcher's modules
+  # `replace` this one and MVS resolves the HIGHER requirement, so every build
+  # and govulncheck in the repository see the launcher's version, however far
+  # behind this go.mod's minimum is. That minimum is what a module requiring
+  # the SDK by its path, with no replace, resolves.
   - package-ecosystem: "gomod"
     directory: "/packages/go/sdk"
     cooldown:

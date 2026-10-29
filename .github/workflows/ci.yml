@@ -207,9 +207,19 @@ jobs:
               - 'apps/desktop/**'
             conformance:
               - 'tests/conformance/**'
+            # The Go modules, and what their tests read beyond them: every
+            # workflow (imageverify_test.go), each image's Dockerfile and the
+            # supervisor its entrypoint runs (imagepaths_test.go,
+            # imageprobe_test.go, and the fake runtime the scenarios drive),
+            # and the e2e suite's bridge (exposure_test.go). The spec and
+            # scripts/ci, which they read too, are all's.
             go:
               - 'apps/launcher/**'
               - 'packages/go/**'
+              - '.github/workflows/**'
+              - 'images/*/Dockerfile'
+              - 'scripts/container/supervise.sh'
+              - 'tests/e2e/e2e-localhost-bridge.mjs'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -2619,10 +2629,13 @@ jobs:
         with:
           node-version-file: .node-version
 
+      # This job builds no module of the repository, only the pinned
+      # generator, so there is no go.sum to key a cache on.
       - name: Setup Go
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
+          cache: false
 
       # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
@@ -2764,7 +2777,7 @@ jobs:
       - name: Encoding Standard vs the table of its labels and single-byte encodings
         run: npm run generate:encoding-cases:check
 
-  # Everything about the launcher's module but its suite: formatting, vet on
+  # Everything about the launcher's modules but its suite: formatting, vet on
   # every target a release ships, the Go SDK's own build and tests, and the
   # vulnerability scan. The suite is test-launcher's.
   check-launcher:
@@ -2781,6 +2794,11 @@ jobs:
         uses: actions/setup-go@v7.0.0
         with:
           go-version-file: apps/launcher/go.mod
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
+            packages/go/sdk/go.sum
+            packages/go/sdk/conformance/go.sum
 
       # gofmt REPORTS on stdout and exits 0 even when files are unformatted —
       # `gofmt -l . && next` therefore never gates anything. The step fails on
@@ -2803,14 +2821,17 @@ jobs:
       # Every target a release ships. A call one system lacks compiles on
       # this job's Linux and on a developer's Mac; this is what finds it for
       # the others, arm64 Windows included, which no runner below runs. `vet`
-      # compiles the tests too.
+      # compiles the tests too. Each target twice: as a release is built, and
+      # with -tags scenario, as the suite builds the launcher it drives. The
+      # suite compiles that build only for the system it runs on, so without
+      # this a scenario file for macOS would compile nowhere.
       - name: Launcher compiles for every target
         run: |
           for os in darwin linux windows; do
             for arch in amd64 arm64; do
               echo "::group::$os/$arch"
-              (cd apps/launcher && GOOS=$os GOARCH=$arch go vet ./...)
-              (cd packages/go/launcher && GOOS=$os GOARCH=$arch go vet ./...)
+              (cd apps/launcher && GOOS=$os GOARCH=$arch go vet ./... && GOOS=$os GOARCH=$arch go vet -tags scenario ./...)
+              (cd packages/go/launcher && GOOS=$os GOARCH=$arch go vet ./... && GOOS=$os GOARCH=$arch go vet -tags scenario ./...)
               echo "::endgroup::"
             done
           done
@@ -2821,7 +2842,7 @@ jobs:
       # `go test` too: the bus client's wire-contract tests (subscribe before
       # emit, correlation, failure channels) and the bridged-set invariants
       # live here, and a build-only step never ran a single one of them.
-      - name: Vet, build and test sdk-go
+      - name: Vet, build and test the Go SDK
         run: cd packages/go/sdk && go vet ./... && go build ./... && go test -timeout 5m -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
@@ -2850,9 +2871,9 @@ jobs:
       # plus the Go stdlib compiled into the shipped binary (distributed via
       # Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from
-      # our code. nats-server's module is a requirement of the tests alone (they
-      # read the broker's config with its parser): it is in no shipped binary,
-      # and it is not among the modules this scan covers. Nor is what only a
+      # our code. nats-server is a requirement of the libraries' module for
+      # their tests alone (they read the broker's config with its parser): it
+      # is in no shipped binary, and this scan reads no test. Nor is what only a
       # launcher built with -tags scenario links (Sigstore's test
       # authority, for the scenario suite): no release is built that way. The
       # scanner is pinned, so a new release of it changes this job only when
@@ -2987,7 +3008,7 @@ jobs:
 
       # The launcher's Windows binary carries this module's client and bus
       # registry.
-      - name: Test sdk-go
+      - name: Test the Go SDK
         working-directory: packages/go/sdk
         run: go test -timeout 5m ./...
 

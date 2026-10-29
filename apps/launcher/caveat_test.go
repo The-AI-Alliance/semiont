@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,14 +76,24 @@ func TestBrewCaveatNamesOnlyRealCommands(t *testing.T) {
 	}
 }
 
+// The program's files and every file of its libraries, at any depth: a
+// message can be printed from any of them.
 func TestNoMessageNamesATopLevelSecretVerb(t *testing.T) {
-	var files []string
-	for _, glob := range []string{"*.go", "../../packages/go/launcher/*.go", "../../packages/go/launcher/verbs/*.go"} {
-		m, err := filepath.Glob(glob)
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = filepath.WalkDir(libraries, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		files = append(files, m...)
+		if !entry.IsDir() && strings.HasSuffix(path, ".go") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {

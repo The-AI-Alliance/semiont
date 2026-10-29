@@ -46,10 +46,13 @@ var (
 	fakertBin   string
 )
 
-// libraryTestdata: a file of the launcher libraries' testdata, from this
-// directory: the fixture knowledge base (kb/) and the goldens (golden/).
+// libraries: the launcher libraries' module, from this directory.
+var libraries = filepath.Join("..", "..", "packages", "go", "launcher")
+
+// libraryTestdata: a file of the launcher libraries' testdata: the fixture
+// knowledge base (kb/) and the goldens (golden/).
 func libraryTestdata(elem ...string) string {
-	return filepath.Join(append([]string{"..", "..", "packages", "go", "launcher", "testdata"}, elem...)...)
+	return filepath.Join(append([]string{libraries, "testdata"}, elem...)...)
 }
 
 func TestMain(m *testing.M) {
