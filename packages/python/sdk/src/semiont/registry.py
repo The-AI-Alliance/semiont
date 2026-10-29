@@ -524,7 +524,7 @@ class SemiontBrowser:
         self._live: _Live | None = None
         # One activation at a time: an activation that waits its turn waits here.
         self._turn: Final = asyncio.Lock()
-        self._tasks: Final[set[asyncio.Task[None]]] = set()
+        self._tasks: Final[set[asyncio.Task[object]]] = set()
         self._failed_tasks: Final[list[BaseException]] = []
         self._stop_listening: Callable[[], None] | None = None
         self._entered = False
@@ -849,15 +849,11 @@ class SemiontBrowser:
 
     def _spawn(self, work: Coroutine[None, None, object]) -> None:
         """Run `work` for as long as the registry lives: closing ends it, and raises what it failed with."""
-
-        async def running() -> None:
-            await work
-
-        task = asyncio.create_task(running())
+        task = asyncio.create_task(work)
         self._tasks.add(task)
         task.add_done_callback(self._done)
 
-    def _done(self, task: asyncio.Task[None]) -> None:
+    def _done(self, task: asyncio.Task[object]) -> None:
         self._tasks.discard(task)
         if not task.cancelled() and (failure := task.exception()) is not None:
             self._failed_tasks.append(failure)

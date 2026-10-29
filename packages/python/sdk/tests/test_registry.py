@@ -334,6 +334,12 @@ async def stopped(task: asyncio.Task[None]) -> None:
     await asyncio.gather(task, return_exceptions=True)
 
 
+async def built(world: World, kb_id: str) -> None:
+    """Until the factory has begun building a session for `kb_id`, letting what is ready run meanwhile."""
+    while not world.factory.sessions.transports(kb_id):
+        await turns()
+
+
 # ── What it keeps ───────────────────────────────────────────────────────
 
 
@@ -630,8 +636,10 @@ def test_an_activation_overtaken_while_it_waited_its_turn_builds_no_session() ->
             # The first activation holds the turn while its session comes up, and the other two are asked for behind it.
             world.factory.sessions.answers_after(2.0)
 
-            asked: list[asyncio.Task[None]] = []
-            for kb_id in (KB_B, KB_A, KB_B):
+            asked = [asyncio.create_task(browser.set_active_kb(KB_B))]
+            # B's session is being built: the first activation has closed A's and holds the turn.
+            await soon(built(world, KB_B))
+            for kb_id in (KB_A, KB_B):
                 asked.append(asyncio.create_task(browser.set_active_kb(kb_id)))
                 await turns()
             await hurried(asyncio.gather(*asked))
