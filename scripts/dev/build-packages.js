@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Build all packages in dependency order with proper error handling.
+ * Build the packages in dependency order, each once.
+ *
+ * With no arguments it builds every one. Given names, as version.json lists them
+ * (`@semiont/sdk`, `semiont-browser`), it builds each and every package of the
+ * repository it is built on, as its package.json's dependencies name them, and
+ * no other: `npm run build:packages -- @semiont/sdk`. A package's own build
+ * builds nothing under it, so this is the one way to build a package from a
+ * clean checkout.
  *
  * The list of packages to build (and the build order) comes from
  * `version.json` — the single source of truth for the workspace's
@@ -45,7 +52,31 @@ try {
 // Desktop in particular runs `tauri build`, which has no place in
 // the npm dev/CI loop.
 const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf-8'));
-const buildSteps = Object.entries(versionJson.packages).filter(([, pkg]) => pkg.publish);
+const everyStep = Object.entries(versionJson.packages).filter(([, pkg]) => pkg.publish);
+const manifestOf = (pkg) => JSON.parse(fs.readFileSync(path.join(ROOT, pkg.dir, 'package.json'), 'utf-8'));
+
+// The named packages and what each is built on, closed over the repository's
+// own packages; everything when nothing is named.
+const named = process.argv.slice(2);
+const known = new Map(everyStep);
+const unknown = named.filter((name) => !known.has(name));
+if (unknown.length > 0) {
+  console.error(`❌ Unknown package(s): ${unknown.join(', ')}. version.json lists: ${[...known.keys()].join(', ')}`);
+  process.exit(1);
+}
+const wanted = new Set();
+const want = (name) => {
+  if (wanted.has(name)) return;
+  wanted.add(name);
+  const manifest = manifestOf(known.get(name));
+  for (const table of ['dependencies', 'devDependencies', 'peerDependencies']) {
+    for (const dependency of Object.keys(manifest[table] ?? {})) {
+      if (known.has(dependency)) want(dependency);
+    }
+  }
+};
+named.forEach(want);
+const buildSteps = named.length === 0 ? everyStep : everyStep.filter(([name]) => wanted.has(name));
 
 console.log('🏗️  Building packages and apps in dependency order...\n');
 

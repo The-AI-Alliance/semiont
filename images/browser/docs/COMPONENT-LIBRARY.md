@@ -294,7 +294,7 @@ packages so the generated OpenAPI types propagate:
 
 ```bash
 npm run generate:openapi --workspace=@semiont/core
-npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
+npm run build:packages -- @semiont/http-transport
 ```
 
 ## Best Practices

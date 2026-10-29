@@ -320,32 +320,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
-      # What each package needs built to test, and no more.
-      - name: Build the package's dependencies
-        run: |
-          case "${{ matrix.package }}" in
-            core)
-              npm run openapi:bundle
-              ;;
-            http-transport|observability)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              ;;
-            sdk)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/http-transport
-              ;;
-            react-ui)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/http-transport
-              npm run build --workspace=@semiont/sdk
-              ;;
-          esac
-
-      - name: Build the package
-        run: npm run build --workspace=@semiont/${{ matrix.package }}
+      # The package and what it is built on, each once, and no more.
+      - name: Build the package and the packages it is built on
+        run: npm run build:packages -- @semiont/${{ matrix.package }}
 
       - name: Type-check
         run: npm run typecheck --workspace=@semiont/${{ matrix.package }}
@@ -474,11 +451,7 @@ jobs:
       - name: Build dependencies
         run: |
           npm ci --include=optional
-          npm run openapi:bundle
-          npm run build --workspace=@semiont/core
-          npm run build --workspace=@semiont/http-transport
-          npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/react-ui
+          npm run build:packages -- @semiont/react-ui
 
       - name: Build browser
         run: |
@@ -1310,12 +1283,12 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The TypeScript drivers run the built SDK, as an application would;
-      # building it builds the packages under it first.
+      # The TypeScript drivers run the built SDK, as an application would, and
+      # the packages it is built on.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build --workspace=@semiont/sdk
+          npm run build:packages -- @semiont/sdk
 
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
