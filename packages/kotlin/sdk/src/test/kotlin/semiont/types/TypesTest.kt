@@ -47,6 +47,14 @@ class TypesTest {
     private fun held(descriptor: SerialDescriptor): SerialDescriptor =
         if (descriptor.kind == StructureKind.LIST || descriptor.kind == StructureKind.MAP) held(descriptor.getElementDescriptor(descriptor.elementsCount - 1)) else descriptor
 
+    /** Whether what a descriptor holds is of `kind`: the kind itself, or a union one of whose variants is named for it. */
+    private fun isOfKind(descriptor: SerialDescriptor, kind: String): Boolean {
+        val named = held(descriptor).serialName.removeSuffix("?")
+        if (named == "semiont.identifiers.$kind") return true
+        val union = Regex("""JsonContentPolymorphicSerializer<(\w+)>""").find(named)?.groupValues?.get(1) ?: return false
+        return Class.forName("semiont.types.$union").permittedSubclasses.orEmpty().any { it.simpleName == kind }
+    }
+
     @Test
     fun aPropertyNamedForAKindOfIdIsTypedByIt() {
         val named = kinds.flatMap { kind ->
@@ -60,8 +68,8 @@ class TypesTest {
             for (index in 0 until descriptor.elementsCount) {
                 val kind = named[descriptor.getElementName(index)] ?: continue
                 held += 1
-                val typed = held(descriptor.getElementDescriptor(index)).serialName.removeSuffix("?")
-                if (typed != "semiont.identifiers.$kind") loose += "$name.${descriptor.getElementName(index)} is a $typed, not a $kind"
+                val element = descriptor.getElementDescriptor(index)
+                if (!isOfKind(element, kind)) loose += "$name.${descriptor.getElementName(index)} is a ${held(element).serialName}, not a $kind"
             }
         }
         assertEquals(emptyList<String>(), loose)
@@ -93,6 +101,6 @@ class TypesTest {
         val refused = assertThrows(SerializationException::class.java) {
             wireJson.decodeFromJsonElement(JobProgressMessage.serializer(), JsonObject(mapOf("code" to JsonPrimitive("no-such-code"))))
         }
-        assertTrue(refused.message.orEmpty().contains("JobProgressMessage"), refused.message)
+        assertTrue(refused.message.orEmpty().contains("a JobProgressMessage states a `code` that is one of"), refused.message)
     }
 }

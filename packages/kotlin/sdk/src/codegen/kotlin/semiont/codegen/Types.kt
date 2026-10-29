@@ -372,7 +372,11 @@ private class Types(private val definitions: JsonObject, private val generation:
             else -> refuse("$name: properties beside additionalProperties $additional, which the generator does not know")
         }
         val closed = additional == JsonPrimitive(false)
-        if (stated.isEmpty()) return "${doc}public typealias $name = ${if (open) "JsonObject" else emptyObject()}\n"
+        if (stated.isEmpty() && open) return "${doc}public typealias $name = JsonObject\n"
+        if (stated.isEmpty()) {
+            // An object with nothing to state is one value: the same `{}` every time.
+            return "$doc@Serializable\n${if (closed) "" else "@JsonIgnoreUnknownKeys\n"}public data object $name${supertypes(name)}\n"
+        }
         val properties = stated.map { (wire, property) -> Property(name, wire, property, wire in required) }
         val names = mutableSetOf<String>()
         for (property in properties) {
@@ -537,6 +541,7 @@ private class Types(private val definitions: JsonObject, private val generation:
                     }
                     if (implementable(type)) member(type, reads) else variant(type, wrapped(name, type, type), reads)
                 }
+                target != null && target in generation.identifiers -> variant(named(target), wrapped(name, target, target), setOf("text"))
                 isEmpty -> variant("Empty", "    /** The empty object. */\n    @Serializable\n    public data object Empty : $name\n\n", setOf("object"))
                 isString(member) -> variant("Text", wrapped(name, "Text", "String"), setOf("text"))
                 member["type"].string() == "array" -> variant("List", wrapped(name, "List", "kotlin.collections.List<${typeOf(name, "Item", member["items"])}>"), setOf("list"))
