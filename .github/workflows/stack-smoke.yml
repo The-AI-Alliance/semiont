@@ -112,6 +112,9 @@ jobs:
         if: env.IMAGES != 'local'
         with:
           go-version-file: apps/launcher/go.mod
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
 
       - name: Build the launcher from this commit
         # Where the smoke script runs it from.
