@@ -919,11 +919,18 @@ jobs:
       # published crate's directory holds LICENSE, a link to the repository's,
       # which cargo follows when it packages. A published crate without the
       # link, or with a copy in its place that has drifted, fails here.
+      #
+      # The crates are packaged again, without building: `cargo publish
+      # --dry-run` leaves no .crate file behind, and `cargo package` writes
+      # each to package/ in its target directory.
       - name: Check every published crate carries the repository's LICENSE
         run: |
+          crates=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"')
+          cargo package --locked --no-verify --target-dir "$RUNNER_TEMP/licence" \
+            $(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "-p \(.name)"')
           failed=0
-          for crate in $(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"'); do
-            if tar -xzOf "$RUNNER_TEMP/packaged/package/$crate.crate" "$crate/LICENSE" > "$RUNNER_TEMP/carried-LICENSE" && cmp -s "$RUNNER_TEMP/carried-LICENSE" ../../LICENSE; then
+          for crate in $crates; do
+            if tar -xzOf "$RUNNER_TEMP/licence/package/$crate.crate" "$crate/LICENSE" > "$RUNNER_TEMP/carried-LICENSE" && cmp -s "$RUNNER_TEMP/carried-LICENSE" ../../LICENSE; then
               echo "✓ $crate carries the repository's LICENSE"
             else
               echo "::error::$crate does not carry the repository's LICENSE: its directory needs LICENSE, a link to the repository's"
