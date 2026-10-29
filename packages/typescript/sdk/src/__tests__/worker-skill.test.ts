@@ -7,7 +7,7 @@
  * standing in on this machine. What the program sends is read off them.
  *
  * The program imports `@semiont/sdk` and `@semiont/core` by name, so what
- * runs is the built packages: `npm run build --workspace=@semiont/sdk` comes
+ * runs is the built packages: `npm run build:packages -- @semiont/sdk` comes
  * first, and a package that is not built fails this test by name.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
