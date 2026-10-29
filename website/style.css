@@ -1,0 +1,267 @@
+:root {
+    color-scheme: light dark;
+
+    --sans: inter, system-ui, -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue", arial, sans-serif;
+    --text: #1c1c1c;
+    --muted: #6c6c6c;
+    --link: #2456a4;
+    --rule: #d9d9d9;
+    --bg: #fffdf9;
+    --brand: #06c;
+
+    /* The Semiont Browser's colors for each kind of annotation */
+    --highlighting: #eab308;
+    --tagging: #ea580c;
+    --assessing: #ef4444;
+    --linking: #0891b2;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text: #e6e3de;
+        --muted: #9d9d9d;
+        --link: #8ab4f8;
+        --rule: #3a3a3a;
+        --bg: #171717;
+        --brand: #60a5fa;
+        --highlighting: #fde047;
+        --tagging: #fb923c;
+        --assessing: #f87171;
+        --linking: #22d3ee;
+    }
+}
+
+html {
+    background: var(--bg);
+}
+
+body {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 3.75rem 1.5rem 4rem;
+    font-family: var(--sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text);
+}
+
+header {
+    text-align: center;
+}
+
+h1 {
+    display: inline-block;
+    margin: 0 0 1rem;
+    font-family: Orbitron, var(--sans);
+    font-size: 2.75rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.025em;
+    text-transform: uppercase;
+}
+
+@supports (background-clip: text) {
+    h1 {
+        background: linear-gradient(to right, var(--text), var(--brand), var(--text));
+        background-clip: text;
+        color: transparent;
+    }
+}
+
+h2 {
+    margin: 2.2rem 0 0.9rem;
+    padding-bottom: 0.25rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+}
+
+p {
+    margin: 0.6rem 0 0;
+}
+
+strong {
+    font-weight: 600;
+}
+
+a {
+    color: var(--link);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.4rem;
+}
+
+li {
+    margin: 0.35rem 0;
+}
+
+.summary {
+    margin: 0;
+    text-align: left;
+}
+
+.links {
+    margin: 1.1rem 0 0;
+    padding: 0;
+    list-style: none;
+    text-wrap: balance;
+}
+
+.links li {
+    display: inline;
+    white-space: nowrap;
+}
+
+.links li:not(:last-child)::after {
+    content: "\00b7";
+    margin: 0 0.5em;
+    color: var(--muted);
+}
+
+figure {
+    margin: 2rem 0 0;
+}
+
+figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+}
+
+footer {
+    margin-top: 3rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9em;
+    color: var(--muted);
+}
+
+/*
+ * The background: documents, passages in them being marked, and the marked
+ * passages linking to other documents. Each group of marks starts at its own
+ * --d, so the links come and go one after another over a 30 second cycle.
+ */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.22;
+}
+
+.doc {
+    color: var(--muted);
+    fill: var(--bg);
+}
+
+.mark {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: annotate 30s ease-in-out var(--d) infinite both;
+}
+
+.highlighting {
+    fill: var(--highlighting);
+}
+
+.tagging {
+    fill: var(--tagging);
+}
+
+.assessing {
+    fill: var(--assessing);
+}
+
+.linking {
+    fill: var(--linking);
+}
+
+.edge {
+    fill: none;
+    stroke: var(--linking);
+    stroke-width: 1.5;
+    stroke-dasharray: 1;
+    animation: draw 30s ease-in-out var(--d) infinite both;
+}
+
+.node {
+    fill: var(--linking);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: land 30s ease-in-out var(--d) infinite both;
+}
+
+@keyframes annotate {
+    0% {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+
+    4%,
+    70% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+
+    80%,
+    100% {
+        opacity: 0;
+        transform: scaleX(1);
+    }
+}
+
+@keyframes draw {
+    0%,
+    5% {
+        opacity: 1;
+        stroke-dashoffset: 1;
+    }
+
+    13%,
+    70% {
+        opacity: 1;
+        stroke-dashoffset: 0;
+    }
+
+    80%,
+    100% {
+        opacity: 0;
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes land {
+    0%,
+    12% {
+        opacity: 0;
+        transform: scale(0);
+    }
+
+    15%,
+    70% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    80%,
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mark,
+    .edge,
+    .node {
+        animation: none;
+    }
+}

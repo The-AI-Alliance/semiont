@@ -50,6 +50,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          # The release's commit carries a tag for the Go SDK beside its own,
+          # and goreleaser otherwise takes the first of the commit's tags in
+          # its sort order. The ref this run is dispatched at is the release.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2

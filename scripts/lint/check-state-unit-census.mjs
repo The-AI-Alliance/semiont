@@ -1,17 +1,15 @@
 #!/usr/bin/env node
 /**
  * lint:state-unit-census — every TypeScript state unit is held to the
- * state-unit axioms, as every Rust and Python one is by its SDK's census
- * (packages/rust/sdk/tests/census.rs, packages/python/sdk/tests/test_census.py).
+ * state-unit axioms, as every other SDK's units are by that SDK's own census.
  * A unit added without a test that runs the axioms against it fails here.
  *
  * A unit is an interface that extends `StateUnit`, or a class that implements
  * it, in the source of a workspace under apps/, images/ or packages/, tests left out.
  * It is held when a test hands the harness a subject of it by name:
  * `assertStateUnitAxioms<BeckonStateUnit>({ ... })`. The type argument is the
- * census's evidence, as `type Unit = …` is Rust's and `AxiomSubject[…]` is
- * Python's, and the compiler holds the subject's `setup` to it. A call that
- * names no unit holds none.
+ * census's evidence, and the compiler holds the subject's `setup` to it. A
+ * call that names no unit holds none.
  *
  * The harness's own probe (`DisposeProbe`, in packages/typescript/core/src/state-unit-axioms.ts)
  * stands in for what a unit is given, and is no unit.

@@ -12,6 +12,7 @@ A release publishes, all at the version in [`version.json`](../../version.json):
 | GitHub Release | The desktop apps, for macOS and Linux | [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) |
 | crates.io | The four Rust SDK crates | [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) |
 | PyPI | The Python SDK, `semiont` | [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) |
+| The Go module proxy and pkg.go.dev | The Go SDK, `github.com/The-AI-Alliance/semiont/packages/go/sdk` | [`release.yml`](../../.github/workflows/release.yml), by the tag `packages/go/sdk/v<version>` |
 
 ## The flow
 
@@ -23,7 +24,7 @@ The scripts are in [`scripts/release/`](../../scripts/release/README.md), which 
 ./scripts/release/preflight.sh
 ```
 
-It reads `origin/main` over the wire, so a stale or dirty clone cannot make a bad commit look releasable. It checks that every `package.json` is at `version.json`'s version, that the tag is free, and that CI is green on that exact commit. On success it prints the release command.
+It reads `origin/main` over the wire, so a stale or dirty clone cannot make a bad commit look releasable. It checks that every `package.json` is at `version.json`'s version, that no tag of the version exists yet (neither `v<version>` nor the Go SDK's), and that CI is green on that exact commit. On success it prints the release command.
 
 The release itself runs the full gate on the commit (step 2), so nothing has to be booted by hand first. To see that gate's answer before dispatching, run the stack smoke test with no input; it builds every image and the launcher from the ref and pushes nothing:
 
@@ -40,17 +41,18 @@ gh workflow run release.yml
 [`release.yml`](../../.github/workflows/release.yml) then:
 
 1. Runs the release gate on the commit, and goes no further unless it passes: every job of [`ci.yml`](../../.github/workflows/ci.yml) in its full tier, the Windows launcher among them; CodeQL; and [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml), which boots a stack from images built from the commit. The npm advisories run beside it. A dry run is held to the gate too.
-2. Verifies the versions again, tags the commit `v<version>`, and creates the GitHub Release.
+2. Verifies the versions again, tags the commit `v<version>` and `packages/go/sdk/v<version>`, and creates the GitHub Release.
 3. Dispatches the npm publish at the tag. When the packages are live, that workflow dispatches both image workflows at the ref it runs on, with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
 4. Dispatches the launcher release at the tag.
 5. Dispatches the crates publish at the tag.
 6. Dispatches the PyPI publish at the tag.
-7. Builds and publishes the desktop apps.
+7. Asks the Go module proxy for the Go SDK at the version, which publishes it. This is a job of its own, beside the dispatches, so a proxy that does not answer holds back no other channel.
+8. Builds and publishes the desktop apps.
 
 Two inputs:
 
 - `--field desktop=false` skips the desktop apps. They are on by default.
-- `--field dry_run=true` skips every publish. It still creates the tag and the GitHub Release.
+- `--field dry_run=true` runs the gate and the version checks, and stops there. It pushes no tag, creates no GitHub Release and publishes nothing. A tag is itself a publish: every channel builds from it, and a Go module's tag is its release, permanent the first time anyone asks the module proxy for it.
 
 None of the chain uses a `push: tags` trigger. The tag is pushed with the workflow's own token, and GitHub raises no workflow event for such a push.
 
@@ -60,7 +62,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ./scripts/release/verify-release.sh <version>
 ```
 
-It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry with its tarball hashed against the registry's integrity, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, each of those tarballs, `.crate` files and Python files carrying the repository's `LICENSE` as it stands at the tag, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
+It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry with its tarball hashed against the registry's integrity, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, the Go SDK's tag at the release's commit with the zip the Go module proxy serves hashed against the checksum database, each of those tarballs, `.crate` files, Python files and Go zips carrying the repository's `LICENSE` as it stands at the tag, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
 
 To boot the published images:
 
@@ -126,7 +128,7 @@ What an operator sees of all this is in [Container Images](../operator/administr
 
 goreleaser builds static binaries for macOS, Linux and Windows on `arm64` and `amd64`, attaches the archives with `checksums.txt` and bills of materials to the GitHub Release, attests their provenance, and pushes `Formula/semiont.rb` to the [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont) tap.
 
-Its version comes from the ref it runs on, not from an input. Dispatched from a branch it fails or stamps the wrong version, so by hand it is always:
+Its version comes from the ref it runs on, not from an input: the workflow gives goreleaser the ref as its tag, since the release's commit carries the Go SDK's tag too. Dispatched from a branch it fails, so by hand it is always:
 
 ```bash
 gh workflow run launcher-release.yml --ref v<version>
@@ -186,9 +188,21 @@ gh workflow run publish-pypi.yml --ref v<version> --field stable_release=true
 gh workflow run publish-pypi.yml --field dry_run=true                   # build and check, publish nothing
 ```
 
+### The Go SDK
+
+The Go SDK (`packages/go/sdk`) is the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`. Go has no registry to upload to: a module is published by a tag, and a module in a subdirectory by a tag named for its directory, `packages/go/sdk/v<version>`. [`published-go-modules.sh`](../../scripts/release/published-go-modules.sh) names the modules a release publishes, and the SDK is the only one. It fails when a module's path is not this repository's path and its directory, or when its `go.mod` has a `replace`, which a program that requires the module does not read.
+
+`release.yml` pushes the tag beside `v<version>`, on the same commit, and asks [the Go module proxy](https://proxy.golang.org) for the version. The proxy makes the module's zip from the tag, [the checksum database](https://sum.golang.org) records the zip's hash, and [pkg.go.dev](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) lists it.
+
+A published version is permanent. The checksum database keeps its hash for good, and every `go get` of the version is held to it, so a tag moved or pushed again afterwards breaks every program that requires that version. A bad version is withdrawn by a `retract` directive in the module's `go.mod`, in a later release. From 2.0, Go requires the module's path to end in its major version, `/v2`.
+
+The zip holds the module's directory, less `conformance/`, which is a module of its own. The directory has no `LICENSE`, so the go command puts the repository's root `LICENSE` in the zip in its place: it does this for a module in a subdirectory that has none. pkg.go.dev shows a module's documentation only when its zip carries a licence pkg.go.dev recognises, and the root `LICENSE` is the Apache License 2.0. `verify-release.sh` checks that the published zip carries it.
+
+A program in this repository requires the SDK by a `replace` directive on its path, so it builds against the tree and not a published version. Between releases, a program elsewhere takes main with `go get github.com/The-AI-Alliance/semiont/packages/go/sdk@main`, which resolves to main's commit; nothing is tagged for it.
+
 ## Versions
 
-`version.json` holds the one version every package, image, crate, binary and Python distribution carries, and the list of packages:
+`version.json` holds the one version every package, image, crate, binary, Python distribution and Go module carries, and the list of packages:
 
 ```json
 "@semiont/core": {
@@ -222,6 +236,8 @@ Before the first release that includes a new publishable npm package:
 Skipping this stops the publish partway down the list, which leaves a partial release.
 
 PyPI's trusted publishing can create a project. Before the first publish of a new one, the account that will own it adds a *pending* publisher on PyPI (Account → Publishing): the project's name, this repository's owner and name, and `publish-pypi.yml`, with no environment. The first run of the workflow creates the project and makes the publisher its own. A pending publisher does not reserve the name: until that first run, anyone can take it.
+
+A Go module needs nothing set up anywhere. A new one is published from the next release on once `published-go-modules.sh` names it.
 
 ## When something goes wrong
 

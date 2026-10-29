@@ -1,0 +1,40 @@
+# Publishes website/ to GitHub Pages as it is: plain HTML and CSS, nothing built.
+name: Website
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A run queued behind another is skipped, and one in
+# progress is never cancelled, so a deployment always completes.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+      - name: Upload website/
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: website/
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

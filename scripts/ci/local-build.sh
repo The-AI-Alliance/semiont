@@ -425,19 +425,20 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 # (TypeScript) and packages/go/sdk/bus/*_gen.go — so an edit to one language's
 # generated file, or a registry change without regeneration, is drift that
 # would let the two sides disagree at runtime. Each generator's --check diffs
-# without writing.
+# without writing. The generators of this gate and of the Python and Go gates
+# below are listed once, in package.json's generate:<list>:check, which CI
+# runs too.
 
 banner "DRIFT AND LOCKFILE GATES"
 
 if ! run_logged "the bus registry and both generated languages agree" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-    sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
+    npm run generate:bus:check; then
   fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
   echo ""
   echo -e "  Regenerate both languages and commit:"
   echo ""
-  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts)"
-  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/go/sdk/bus/*_gen.go)"
+  echo -e "    ${BOLD}npm run generate:bus${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts; packages/go/sdk/bus/*_gen.go)"
   echo ""
   echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
   echo ""
@@ -468,7 +469,7 @@ fi
 
 if ! run_logged "the Python SDK's generated tables match specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check && node scripts/spec/generate-media-types-python.mjs --check && node scripts/spec/generate-encodings-python.mjs --check'; then
+    npm run generate:python:check; then
   fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
@@ -611,7 +612,7 @@ ok "the lockfiles of the $(echo $PYTHON_PROJECTS | wc -w | tr -d ' ') Python pro
 
 if ! run_logged "the Go SDK's generated tables match specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-sdk-telemetry-go.mjs --check && node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
+    npm run generate:go:check; then
   fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"

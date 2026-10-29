@@ -714,6 +714,17 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   making, so a test that forgot to say something fails where it forgot.
 - **`create_test_client`** takes the doubles a test built, or makes ones
   nothing is scripted on, and the client's own timing and persistence.
+- **`create_test_session`** gives a real `SemiontSession` over a test client,
+  ready as soon as it is held, holding a token only if its sign-in was kept.
+- **`semiont.testing.axioms`** holds a state unit, a program's own too, to the
+  rules every unit keeps. **`semiont.testing.liveness`** holds a composition
+  over the bus to the liveness rules: under generated fault schedules every
+  output says something and every awaited path settles, within a bound
+  (`assert_liveness_axioms`), and anything shaped like a connection delivers
+  each event exactly once, wherever a transition lands among the writes
+  (`assert_exactly_once_delivery`). This package's own transport and client
+  are held to them. Both draw their cases with Hypothesis, which the extra
+  `semiont[axioms]` installs.
 
 ## The bus
 
@@ -913,7 +924,7 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.resources` | The readers of a resource, whether its representations are one or a list: `primary_representation`, `primary_media_type` and `resource_entity_types`. And `decode_representation`, which makes a text of the bytes of a resource whose bytes are its text, and refuses any other |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
 | `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
-| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |
+| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client`, `create_test_session`; and, in `axioms` and `liveness`, the harnesses that hold a state unit and a composition to their axioms |
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,
 `channels`, `operations`, `error_codes`, `timing`, `refresh`,

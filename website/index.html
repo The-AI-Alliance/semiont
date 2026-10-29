@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RNHLN944B5"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-RNHLN944B5');
+    </script>
+    <title>Semiont</title>
+    <meta name="description" content="Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.">
+    <link rel="icon" href="assets/images/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Orbitron:wght@700&display=swap">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg class="backdrop" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="doc">
+      <rect width="110" height="140" rx="8" stroke="currentColor" stroke-width="1.5"/>
+      <g fill="currentColor" opacity="0.55">
+        <rect x="14" y="24" width="82" height="6" rx="3"/>
+        <rect x="14" y="40" width="70" height="6" rx="3"/>
+        <rect x="14" y="56" width="82" height="6" rx="3"/>
+        <rect x="14" y="72" width="56" height="6" rx="3"/>
+        <rect x="14" y="88" width="82" height="6" rx="3"/>
+        <rect x="14" y="104" width="76" height="6" rx="3"/>
+        <rect x="14" y="120" width="44" height="6" rx="3"/>
+      </g>
+    </g>
+  </defs>
+  <use class="doc" href="#doc" x="110" y="140"/>
+  <use class="doc" href="#doc" x="330" y="420"/>
+  <use class="doc" href="#doc" x="120" y="720"/>
+  <use class="doc" href="#doc" x="745" y="840"/>
+  <use class="doc" href="#doc" x="1380" y="120"/>
+  <use class="doc" href="#doc" x="1260" y="420"/>
+  <use class="doc" href="#doc" x="1390" y="720"/>
+  <g style="--d: 0s">
+    <rect class="mark linking" x="122" y="195" width="86" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M208 199 C280 199 260 490 330 490"/>
+    <circle class="node" cx="330" cy="490" r="4"/>
+  </g>
+  <g style="--d: 2s">
+    <rect class="mark highlighting" x="122" y="259" width="48" height="8" rx="3"/>
+  </g>
+  <g style="--d: 4s">
+    <rect class="mark linking" x="1392" y="191" width="60" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M1392 195 C1330 195 1315 330 1315 420"/>
+    <circle class="node" cx="1315" cy="420" r="4"/>
+  </g>
+  <g style="--d: 7s">
+    <rect class="mark linking" x="342" y="507" width="86" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M428 511 C560 511 620 910 745 910"/>
+    <circle class="node" cx="745" cy="910" r="4"/>
+  </g>
+  <g style="--d: 9s">
+    <rect class="mark tagging" x="1272" y="459" width="74" height="8" rx="3"/>
+  </g>
+  <g style="--d: 11s">
+    <rect class="mark linking" x="1272" y="523" width="80" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M1352 527 C1400 600 1330 790 1390 790"/>
+    <circle class="node" cx="1390" cy="790" r="4"/>
+  </g>
+  <g style="--d: 14s">
+    <rect class="mark linking" x="132" y="759" width="74" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M132 763 C60 680 165 380 165 280"/>
+    <circle class="node" cx="165" cy="280" r="4"/>
+  </g>
+  <g style="--d: 16s">
+    <rect class="mark assessing" x="132" y="807" width="86" height="8" rx="3"/>
+  </g>
+  <g style="--d: 18s">
+    <rect class="mark linking" x="1402" y="775" width="86" height="8" rx="3"/>
+    <path class="edge" pathLength="1" d="M1402 779 C1200 779 1000 910 855 910"/>
+    <circle class="node" cx="855" cy="910" r="4"/>
+  </g>
+</svg>
+
+<header>
+<h1>Semiont</h1>
+
+<p class="summary">
+<strong>Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.</strong>
+Alongside each document it keeps what has been noticed in it: what it mentions, how it connects to the others, and what to make of it.
+Answers drawn from it, by an application or an agent, can cite the passages they rest on, so they can be checked.
+It is open source, and can run entirely on your own machines.
+</p>
+
+<ul class="links">
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md">Quick Start</a></li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md">Demo knowledge bases</a></li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/README.md">Documentation</a></li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont">GitHub</a></li>
+</ul>
+</header>
+
+<figure>
+<img src="assets/images/semiont-2026-03-10.png" alt="The Semiont browser: a document with its references highlighted, and a panel of assessments beside it">
+</figure>
+
+<h2>What you do in it</h2>
+<ul>
+  <li><strong>Read what you add.</strong> Documents, PDFs and images, each with everything that has been marked in it.</li>
+  <li><strong>Mark what matters.</strong> Highlight a passage, comment on it, assess it, tag it, or say what it refers to. On a PDF or an image, mark a region.</li>
+  <li><strong>Let an agent take the first pass.</strong> Ask the knowledge base's AI to highlight, comment, assess, tag or find references across a whole document, then keep what is right and delete the rest.</li>
+  <li><strong>Connect what refers to what.</strong> Link a mention to the document about it, or have one written from what the knowledge base already holds. Every document shows what points to it.</li>
+  <li><strong>Find things.</strong> Search by name or by content, and filter by what kind of thing a document is about.</li>
+  <li><strong>See who did what.</strong> Every change to a document is in its history, with who made it, person or agent, and when.</li>
+</ul>
+
+<h2>Start with documents, not a schema</h2>
+<p>
+Most knowledge systems are no use until someone has spent weeks designing a schema and entering data.
+In Semiont you add your documents and start reading.
+Ask an agent to find what they mention, keep what is right, and the connections between your documents grow out of that work.
+</p>
+
+<h2>Try it</h2>
+<p>
+The <a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md">Quick Start</a> sets up a knowledge base on your own machine.
+Or start from a <a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md">demo knowledge base</a>, which already has documents in it.
+You work in it in the Semiont Browser, in your web browser or as a <a href="https://github.com/The-AI-Alliance/semiont/releases">desktop app</a>.
+</p>
+
+<h2>Documentation</h2>
+<ul>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/analyst/README.md"><strong>Analyst</strong></a>: work in a knowledge base, annotating, linking, and reviewing what agents propose.</li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/operator/README.md"><strong>Operator</strong></a>: run a knowledge base, for yourself or for others.</li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md"><strong>Builder</strong></a>: build an application, a script or an agent on the SDK, in TypeScript, Rust, Python or Go, and customize annotation and generation, down to a worker running your own logic or model.</li>
+  <li><a href="https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/README.md"><strong>Contributor</strong></a>: change Semiont itself.</li>
+</ul>
+
+<footer>
+Open source under the <a href="https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE">Apache 2.0 license</a>, developed on <a href="https://github.com/The-AI-Alliance/semiont">GitHub</a>.
+Part of the <a href="https://thealliance.ai/">AI Alliance</a>.
+</footer>
+
+</body>
+</html>

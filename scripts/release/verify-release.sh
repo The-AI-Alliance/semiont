@@ -83,7 +83,7 @@ TAG_SHA=$(git ls-remote "https://github.com/$REPO" "refs/tags/v$VERSION" | cut -
 if [ -n "$TAG_SHA" ]; then ok "tag v$VERSION on origin (${TAG_SHA:0:8})"
 else bad "tag v$VERSION missing on origin"; fi
 
-# What every npm package, crate and Python distribution is to carry.
+# What every npm package, crate, Python distribution and Go module is to carry.
 if gh api -H 'Accept: application/vnd.github.raw+json' "repos/$REPO/contents/LICENSE?ref=v$VERSION" > "$LICENCE" 2>/dev/null && [ -s "$LICENCE" ]; then
   ok "LICENSE at v$VERSION"
 else
@@ -302,6 +302,56 @@ else
       || bad "$file is not attested as built by $PYPI_WORKFLOW of $REPO (attested: ${built_by:-nothing})"
   done < <(jq -r '.urls[] | [.filename, .url, .digests.sha256, (.yanked | tostring)] | @tsv' <<< "$release")
 fi
+
+# -------------------------------------------------------------------------- go
+head_ "Go modules"
+
+# Go has no registry. The module proxy makes a version's zip from its tag, and
+# the checksum database records the zip's hash the first time the proxy serves
+# it; from then on every `go get` is held to that hash. So each module is asked
+# of both: its tag is on origin at the release's commit, the proxy serves the
+# version, and the zip hashes to what the checksum database recorded. The zip
+# must also carry the repository's LICENSE: the module's directory has none,
+# so the go command puts the root's in its place, and pkg.go.dev shows no
+# documentation for a module without a licence it recognises.
+#
+# The proxy and the checksum database write each capital letter of a path as
+# `!` and the letter in lower case.
+go_escape() { perl -pe 's/([A-Z])/!\l$1/g' <<< "$1"; }
+# dirhash's Hash1, the h1: hash the checksum database records of a zip: each
+# file's sha256 and name, one a line, in byte order of the names, hashed.
+go_h1() {
+  local name
+  printf 'h1:%s' "$(unzip -Z1 "$1" | LC_ALL=C sort | while IFS= read -r name; do
+    printf '%s  %s\n' "$(unzip -p "$1" "$name" | shasum -a 256 | cut -d' ' -f1)" "$name"
+  done | shasum -a 256 | cut -d' ' -f1 | xxd -r -p | base64)"
+}
+
+GO_MODULES=$("$ROOT/scripts/release/published-go-modules.sh") && [ -n "$GO_MODULES" ] \
+  || bad "published-go-modules.sh named no module"
+for dir in $GO_MODULES; do
+  module="github.com/$REPO/$dir"
+  tag="$dir/v$VERSION"
+  at=$(git ls-remote "https://github.com/$REPO" "refs/tags/$tag" | cut -f1)
+  if [ -z "$at" ]; then bad "tag $tag missing on origin"; continue; fi
+  [ "$at" = "$TAG_SHA" ] \
+    && ok "tag $tag on origin, at v$VERSION's commit" \
+    || bad "tag $tag is at ${at:0:8}, and v$VERSION at ${TAG_SHA:0:8}"
+
+  zip="$WORK/$(basename "$dir").zip"
+  if ! curl -sf -o "$zip" "https://proxy.golang.org/$(go_escape "$module")/@v/v$VERSION.zip"; then
+    bad "$module v$VERSION is not served by proxy.golang.org"
+    continue
+  fi
+  want=$(curl -sf "https://sum.golang.org/lookup/$(go_escape "$module")@v$VERSION" \
+    | awk -v m="$module" -v v="v$VERSION" '$1 == m && $2 == v { print $3 }')
+  got=$(go_h1 "$zip")
+  [ -n "$want" ] && [ "$want" = "$got" ] \
+    && ok "$module v$VERSION served by proxy.golang.org, its zip hashes to sum.golang.org's record ($got)" \
+    || bad "$module v$VERSION zip hashes to $got, and sum.golang.org records ${want:-nothing}"
+
+  carries_licence "$module v$VERSION" unzip -p "$zip" "$module@v$VERSION/LICENSE"
+done
 
 # ---------------------------------------------------------------------- images
 head_ "Container images"
