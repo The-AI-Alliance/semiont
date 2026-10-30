@@ -7,9 +7,11 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -362,6 +364,17 @@ class SessionTest {
         session.ready()
         val again = assertThrows(IllegalStateException::class.java) { kotlinx.coroutines.runBlocking { session.start() } }
         assertEquals("a session is started once", again.message)
+    }
+
+    @Test
+    fun aReaderOfAnEndedSessionIsGivenWhatItHeldAndEnds() = runTest {
+        val access = token(3600, 1)
+        val session = SessionWorld(kept = access).session()
+        session.start()
+        session.ready()
+        session.close()
+        assertEquals(listOf(access), withTimeout(1_000) { session.token.toList() })
+        assertEquals(listOf(alice), withTimeout(1_000) { session.user.toList() })
     }
 
     @Test
