@@ -879,8 +879,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's cache state unit." },
-      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache" },
+      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
       "members": [
         { "member": "observe" },
         { "member": "fetch" },
@@ -897,8 +896,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's session state unit." },
-      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session" },
+      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -915,7 +913,8 @@
           "absent": {
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
           }
         }
       ]

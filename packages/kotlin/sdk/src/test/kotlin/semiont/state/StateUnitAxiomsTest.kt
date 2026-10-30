@@ -85,7 +85,7 @@ private object Dwells : AxiomSubject<HoverDwell>() {
     override fun invocations(unit: HoverDwell): List<() -> Unit> = listOf({ unit.enter(ANNOTATION) }, unit::leave)
 }
 
-private object Searches : AxiomSubject<SearchPipeline<String>>() {
+private object Pipelines : AxiomSubject<SearchPipeline<String>>() {
     override fun setup(bench: Bench): Fresh<SearchPipeline<String>> = Fresh(SearchPipeline({ _: String -> emptyFlow() }, 250, "", bench.context))
 
     override fun surfaces(unit: SearchPipeline<String>): List<Flow<*>> = listOf(unit.query, unit.state)
@@ -156,7 +156,7 @@ private object Sessions : AxiomSubject<SemiontSession>() {
 }
 
 /** A subject for each state unit the SDK has. */
-private val SUBJECTS: List<AxiomSubject<*>> = listOf(Signals, Matches, Beckons, Dwells, Searches, Gathers, Yields, Marks, Caches, Sessions)
+private val SUBJECTS: List<AxiomSubject<*>> = listOf(Signals, Matches, Beckons, Dwells, Pipelines, Gathers, Yields, Marks, Caches, Sessions)
 
 /** Where the compiler put the SDK's classes. */
 private val CLASSES: Path = Path.of("build/classes/kotlin/main")

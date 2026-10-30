@@ -331,6 +331,21 @@ public final class semiont/bus/Typed : java/lang/AutoCloseable, kotlinx/coroutin
 	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class semiont/cache/Cache : semiont/StateUnit {
+	public fun close ()V
+	public final fun fetch (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun fetchFuture (Ljava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public final fun get (Ljava/lang/Object;)Ljava/lang/Object;
+	public final fun getPersistencePending ()Z
+	public final fun invalidate (Ljava/lang/Object;)V
+	public final fun invalidateAll ()V
+	public final fun keys ()Ljava/util/List;
+	public final fun known (Ljava/lang/Object;)Z
+	public final fun observe (Ljava/lang/Object;)Lsemiont/transport/Events;
+	public final fun remove (Ljava/lang/Object;Lsemiont/errors/SemiontError;)V
+	public final fun set (Ljava/lang/Object;Ljava/lang/Object;)V
+}
+
 public abstract interface class semiont/cache/CachePersister {
 	public abstract fun load ()Ljava/util/Map;
 	public abstract fun save (Ljava/util/Map;)V
@@ -1486,7 +1501,7 @@ public final class semiont/session/PermissionDenied {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class semiont/session/SemiontSession : java/lang/AutoCloseable {
+public final class semiont/session/SemiontSession : semiont/StateUnit {
 	public fun close ()V
 	public final fun errors ()Lsemiont/transport/Events;
 	public final fun expiresAt ()Ljava/lang/Double;
@@ -1494,8 +1509,8 @@ public final class semiont/session/SemiontSession : java/lang/AutoCloseable {
 	public final fun getId ()Ljava/lang/String;
 	public final fun getKb ()Lsemiont/types/KbTarget;
 	public final fun getStreamState ()Lsemiont/transport/Watched;
-	public final fun getToken ()Lkotlinx/coroutines/flow/StateFlow;
-	public final fun getUser ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getToken ()Lsemiont/transport/Watched;
+	public final fun getUser ()Lsemiont/transport/Watched;
 	public final fun ready (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun readyFuture ()Ljava/util/concurrent/CompletableFuture;
 	public final fun refresh (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;

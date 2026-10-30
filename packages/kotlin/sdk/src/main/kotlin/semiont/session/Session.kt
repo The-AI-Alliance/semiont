@@ -7,12 +7,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import semiont.SemiontClient
+import semiont.StateUnit
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
@@ -24,6 +23,7 @@ import semiont.signin.SignInKept
 import semiont.telemetry.futureOf
 import semiont.transport.ConnectionState
 import semiont.transport.Events
+import semiont.transport.Variable
 import semiont.transport.Watched
 import semiont.types.KbTarget
 import semiont.types.UserResponse
@@ -69,11 +69,14 @@ public class SemiontSession internal constructor(
     private val validate: (suspend (String) -> UserResponse)?,
     private val onAuthFailed: ((SessionEndReason) -> Unit)?,
     private val onError: ((SessionError) -> Unit)?,
-) : AutoCloseable {
+) : StateUnit {
     /** Which live session this is: a new one for the same knowledge base has another. */
     public val id: String = "session-${UUID.randomUUID()}"
 
-    private val users = MutableStateFlow<UserResponse?>(null)
+    private val users = Variable<UserResponse?>(null)
+
+    // Holds once the session has ended: its token's readers end with it.
+    private val ended = MutableStateFlow(false)
     private val readied = CompletableDeferred<Unit>()
 
     // Held while a refusal is being answered, so that the refusals that arrive during it are answered by it.
@@ -83,11 +86,11 @@ public class SemiontSession internal constructor(
     private var closing = false
     private var work: CoroutineScope? = null
 
-    /** The token the transport sends: the present one, and each after it. */
-    public val token: StateFlow<String?> = tokens.asStateFlow()
+    /** The token the transport sends: the present one, and each after it, until the session ends. */
+    public val token: Watched<String?> = Watched(tokens, ended)
 
-    /** Who is signed in, once the gateway has said. */
-    public val user: StateFlow<UserResponse?> = users.asStateFlow()
+    /** Who is signed in, once the gateway has said, until the session ends. */
+    public val user: Watched<UserResponse?> = users.reading()
 
     /** The state of the client's connection. */
     public val streamState: Watched<ConnectionState> get() = client.transport.state
@@ -191,7 +194,7 @@ public class SemiontSession internal constructor(
     /** The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended. */
     private suspend fun signedOut(told: SessionEndReason, error: SessionError) {
         tokens.value = null
-        users.value = null
+        users.set(null)
         kept.forget()
         onAuthFailed?.invoke(told)
         onError?.invoke(error)
@@ -218,7 +221,7 @@ public class SemiontSession internal constructor(
         val asking = validate ?: return
         while (!closing) {
             try {
-                users.value = asking(token)
+                users.set(asking(token))
                 return
             } catch (refusal: TransportError) {
                 if (refusal.reason != TransportErrorCode.Unauthorized) {
@@ -264,9 +267,11 @@ public class SemiontSession internal constructor(
         }
     }
 
-    /** End the session: it renews nothing more, and its token and who is signed in change no more. Ending twice is ending once. Its client is left to whoever made it. */
+    /** End the session: it renews nothing more, and its token and who is signed in change no more, and their readers end. Ending twice is ending once. Its client is left to whoever made it. */
     override fun close() {
         closing = true
+        ended.value = true
+        users.end()
         readied.complete(Unit)
         work?.cancel()
     }

@@ -9,16 +9,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import semiont.StateUnit
 import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
+import semiont.telemetry.futureOf
+import semiont.transport.Events
+import java.util.concurrent.CompletableFuture
 
 /** Where a cache keeps its values, so a later one begins with them. */
 public interface CachePersister<K : Any, V : Any> {
@@ -34,7 +37,7 @@ internal fun closed(): BusRequestError = BusRequestError(BusRequestErrorCode.Clo
 
 /** One key: its state, which every observer of it holds, and the fetch in flight for it, by its number. */
 private class Key<V : Any>(state: CacheState<V>) {
-    /** The key's state; none once the cache is disposed, which ends every observer. */
+    /** The key's state; none once the cache is closed, which ends every observer. */
     val state = MutableStateFlow<CacheState<V>?>(state)
 
     /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
@@ -53,7 +56,7 @@ private class Key<V : Any>(state: CacheState<V>) {
  * whatever its refetches do. `fetch` is the one-shot read: it always asks,
  * gives what it was answered or throws the failure it met, and never retries.
  * `invalidate` asks again and shows the value meanwhile; `set` writes a value
- * that is known; `remove` ends a key whose entity is gone; `dispose` ends every
+ * that is known; `remove` ends a key whose entity is gone; `close` ends every
  * observer, and nothing is fetched, retried or written after it.
  *
  * `ask` asks the service for a key's value, and its fetches run in `scope`, the client's. With a `persister`, the cache
@@ -61,12 +64,12 @@ private class Key<V : Any>(state: CacheState<V>) {
  * the first time it is observed, and saves its values once they have stopped
  * changing for `saveDebounceMs`.
  */
-internal class Cache<K : Any, V : Any>(
+public class Cache<K : Any, V : Any> internal constructor(
     private val ask: suspend (K) -> V,
     private val scope: CoroutineScope,
     private val persister: CachePersister<K, V>? = null,
     private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
-) {
+) : StateUnit {
     private val lock = Any()
     private var disposed = false
     private var fetches = 0
@@ -137,7 +140,7 @@ internal class Cache<K : Any, V : Any>(
             }
         }
         // A value from any fetch is written, the newest last: each is at least as new as what was there. A failure writes
-        // nothing. One answered after the cache was disposed has no key to write to.
+        // nothing. One answered after the cache was closed has no key to write to.
         synchronized(lock) {
             keys[key]?.let {
                 it.state.value = CacheState.Ready(value)
@@ -179,13 +182,13 @@ internal class Cache<K : Any, V : Any>(
     }
 
     /**
-     * The key's state, now and as it changes, until the cache is disposed.
+     * The key's state, now and as it changes, until the cache is closed.
      * Observing is what asks: a key with nothing is fetched, a failed key is
      * tried again, and a value an earlier cache kept is asked for anew while it
      * is shown.
      */
-    fun observe(key: K): Flow<CacheState<V>> = synchronized(lock) {
-        if (disposed) return emptyFlow()
+    public fun observe(key: K): Events<CacheState<V>> = synchronized(lock) {
+        if (disposed) return Events(emptyFlow()) {}
         val wasKept = key in kept
         val held = held(key)
         val asks = when (held.state.value) {
@@ -198,10 +201,12 @@ internal class Cache<K : Any, V : Any>(
             else -> held.inFlight == null
         }
         if (asks) revalidate(key)
-        held.state.transformWhile { state ->
-            if (state != null) emit(state)
-            state != null
-        }
+        Events(
+            held.state.transformWhile { state ->
+                if (state != null) emit(state)
+                state != null
+            },
+        ) {}
     }
 
     /**
@@ -209,7 +214,7 @@ internal class Cache<K : Any, V : Any>(
      * observer of the key is given too, or the failure, which only this caller
      * is. Concurrent asks for one key share one fetch.
      */
-    suspend fun fetch(key: K): V {
+    public suspend fun fetch(key: K): V {
         val caller = currentCoroutineContext()
         val fetch = synchronized(lock) {
             if (disposed) {
@@ -222,21 +227,24 @@ internal class Cache<K : Any, V : Any>(
         return joined(fetch)
     }
 
+    /** `fetch`, for Java. */
+    public fun fetchFuture(key: K): CompletableFuture<V> = scope.futureOf { fetch(key) }
+
     /** The key's value now, asking for nothing. */
-    fun get(key: K): V? = synchronized(lock) { (keys[key]?.state?.value as? CacheState.Ready)?.value }
+    public fun get(key: K): V? = synchronized(lock) { (keys[key]?.state?.value as? CacheState.Ready)?.value }
 
     /** Whether anything has asked for the key and not let go of it: it has a value or a failure, or a fetch for it is in flight. */
-    fun known(key: K): Boolean = synchronized(lock) { keys[key]?.known() == true }
+    public fun known(key: K): Boolean = synchronized(lock) { keys[key]?.known() == true }
 
     /** Every key the cache knows. */
-    fun keys(): List<K> = synchronized(lock) { keys.filterValues { it.known() }.keys.toList() }
+    public fun keys(): List<K> = synchronized(lock) { keys.filterValues { it.known() }.keys.toList() }
 
     /** Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed. */
-    val persistencePending: Boolean
+    public val persistencePending: Boolean
         get() = synchronized(lock) { persister != null && (saving != null || keys.values.any { it.inFlight != null }) }
 
     /** The key's value is out of date: ask again, showing what there is meanwhile. A fetch in flight is not waited on. */
-    fun invalidate(key: K): Unit = synchronized(lock) {
+    public fun invalidate(key: K): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
         held.inFlight = null
@@ -245,10 +253,10 @@ internal class Cache<K : Any, V : Any>(
     }
 
     /** `invalidate`, of every key the cache knows. */
-    fun invalidateAll(): Unit = keys().forEach(::invalidate)
+    public fun invalidateAll(): Unit = keys().forEach(::invalidate)
 
     /** The key's entity is gone: its value is dropped and the key fails with `gone`, at once, for every observer. Nothing is asked for. */
-    fun remove(key: K, gone: SemiontError): Unit = synchronized(lock) {
+    public fun remove(key: K, gone: SemiontError): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
         held.inFlight = null
@@ -257,15 +265,15 @@ internal class Cache<K : Any, V : Any>(
     }
 
     /** The key's value is known: write it, asking for nothing. */
-    fun set(key: K, value: V): Unit = synchronized(lock) {
+    public fun set(key: K, value: V): Unit = synchronized(lock) {
         if (disposed) return
         kept -= key
         held(key).state.value = CacheState.Ready(value)
         oweASave()
     }
 
-    /** End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after. Disposing twice is disposing once. */
-    fun dispose() {
+    /** End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after. Closing twice is closing once. */
+    override fun close() {
         val (owed, ended) = synchronized(lock) {
             val owed = saving?.let {
                 it.cancel()
